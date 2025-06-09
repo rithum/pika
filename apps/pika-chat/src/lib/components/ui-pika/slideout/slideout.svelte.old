@@ -1,0 +1,113 @@
+<script lang="ts" module>
+    import { tv, type VariantProps } from 'tailwind-variants';
+
+    export const slideoutPanelVariants = tv({
+        base: 'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out z-50 gap-4 transition-all ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 h-full flex flex-col flex-1',
+        variants: {
+            side: {
+                left: 'h-full data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left border-r',
+                right: 'h-full data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right border-l',
+            },
+        },
+        defaultVariants: {
+            side: 'right',
+        },
+    });
+
+    export type Side = VariantProps<typeof slideoutPanelVariants>['side'];
+</script>
+
+<script lang="ts">
+    import { X } from '$icons/lucide';
+    import type { Snippet } from 'svelte';
+    import { cn } from '$lib/utils.js';
+
+    let {
+        open = $bindable(false),
+        class: className,
+        side = 'right',
+        width = '75%',
+        minWidth = '20%',
+        maxWidth = '95%',
+        children,
+        ...restProps
+    }: {
+        open?: boolean;
+        class?: string;
+        side?: Side;
+        width?: string;
+        minWidth?: string;
+        maxWidth?: string;
+        children?: Snippet<[]> | undefined;
+    } = $props();
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+    let currentWidth = width;
+
+    function handleMouseDown(e: MouseEvent) {
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = parseFloat(currentWidth);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    function handleMouseMove(e: MouseEvent) {
+        if (!isDragging) return;
+
+        const delta = side === 'right' ? startX - e.clientX : e.clientX - startX;
+
+        const containerWidth = document.body.clientWidth;
+        const newWidthPx = startWidth + delta;
+        const newWidthPercent = (newWidthPx / containerWidth) * 100;
+
+        const minWidthPercent = parseFloat(minWidth);
+        const maxWidthPercent = parseFloat(maxWidth);
+
+        currentWidth = `${Math.min(Math.max(newWidthPercent, minWidthPercent), maxWidthPercent)}%`;
+    }
+
+    function handleMouseUp() {
+        isDragging = false;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+    }
+
+    const containerClasses = $derived(
+        cn(
+            'relative flex h-full w-full transition-all duration-500 ease-in-out',
+            open ? `w-[${currentWidth}]` : 'w-0 overflow-hidden',
+            isDragging && 'select-none'
+        )
+    );
+
+    const resizeHandleClasses = $derived(
+        cn(
+            'absolute top-0 w-1 h-full cursor-col-resize hover:bg-accent/50 active:bg-accent/75 transition-colors',
+            side === 'right' ? '-left-0.5' : '-right-0.5'
+        )
+    );
+</script>
+
+<!-- <svelte:window onmouseup={handleMouseUp} /> -->
+
+<div class="flex h-full" style="width: {currentWidth}">
+    <div class={containerClasses}>
+        <div class={cn(slideoutPanelVariants({ side }), className)} {...restProps}>
+            <div class={resizeHandleClasses} onmousedown={handleMouseDown} aria-hidden="true"></div>
+            <div class="h-full flex-1">
+                {@render children?.()}
+            </div>
+            <!-- <button
+                class="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none"
+                on:click={() => (open = false)}
+            >
+                <X class="size-4" />
+                <span class="sr-only">Close</span>
+            </button> -->
+        </div>
+    </div>
+</div>

@@ -1,0 +1,83 @@
+node_modules
+build
+.svelte-kit
+.turbo
+dist
+cdk.out
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# IDE and editor files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.vscode/.ropeproject/
+.vscode/settings.local.json
+.vscode/workspaceStorage/
+.vscode/*.code-workspace
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Environment and local config
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.pem
+config.local.js
+config.local.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing and coverage
+coverage/
+.nyc_output/
+.nyc_output
+coverage/
+*.lcov
+.nyc_output
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+.tmp/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+.vercel
+.netlify

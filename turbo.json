@@ -1,0 +1,37 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "globalDependencies": ["**/.env.*local"],
+    "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "inputs": ["services/*/src/**", "services/*/package.json", "$TURBO_DEFAULT$", ".env*"],
+            "outputs": [".svelte-kit/**", ".vercel/**", "dist/**", "build/**"]
+        },
+        "lint": {
+            "dependsOn": ["^lint"],
+            "inputs": ["services/*/src/**", "services/*/package.json"]
+        },
+        "check-types": {
+            "dependsOn": ["^check-types"]
+        },
+        "test": {
+            "dependsOn": ["build"],
+            "inputs": [
+                "services/*/src/**",
+                "services/*/test/**",
+                "services/*/__tests__/**",
+                "services/*/jest.config.js",
+                "services/*/package.json"
+            ],
+            "outputs": ["coverage/**", "junit.xml"]
+        },
+        "dev": {
+            "cache": false,
+            "persistent": true
+        },
+        "deploy": {
+            "cache": false,
+            "outputs": ["cdk.out/**"]
+        }
+    }
+}

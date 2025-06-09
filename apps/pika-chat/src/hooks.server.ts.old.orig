@@ -1,0 +1,119 @@
+import { handleAuthCallback, logout, redirectToAuth, refresh } from '$lib/server/auth';
+import { appConfig } from '$lib/server/config';
+import { addSecurityHeaders, decryptCookieString, deleteCookies } from '$lib/server/utils';
+import { AUTHENTICATED_USER_COOKIE_NAME, AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME, type UserAuthData } from '$lib/shared-types';
+import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
+
+// Initialize server configuration
+export const init: ServerInit = async () => {
+    await appConfig.init();
+};
+
+export const handle: Handle = async ({ event, resolve }) => {
+    // ===== Special Route Handlers =====
+
+    // Handle Chrome DevTools protocol for local development
+    if (appConfig.isLocal && event.url.pathname.startsWith('/.well-known/appspecific/com.chrome.devtools')) {
+        return new Response('OK', { status: 200 });
+    }
+
+    // Normalize pathname by removing trailing slash
+    const pathName = event.url.pathname.endsWith('/') ? event.url.pathname.slice(0, -1) : event.url.pathname;
+
+    // ===== Public Routes (No Auth Required) =====
+    
+    // Health check endpoint - accessible without authentication
+    if (pathName === '/health') {
+        // Return minimal response for load balancer health checks
+        return new Response('OK', { 
+            status: 200,
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
+    }
+
+    // ===== Authentication Routes =====
+    
+    // Login route - redirects to auth provider
+    if (pathName === '/auth/login') {
+        // Will throw a redirect to the auth provider
+        event.cookies.delete(AUTHENTICATED_USER_COOKIE_NAME, { path: '/' });
+        event.cookies.delete(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME, { path: '/' });
+        await redirectToAuth(event);
+    }
+    
+    // Auth callback route - handles OAuth response
+    if (pathName === '/auth/callback') {
+        // If this worked, then we are logged in, a user cookie will have been set and this will throw a redirect to the home page
+        // If it didn't work, then it will return a Response object and we will return the Response object
+        const response = await handleAuthCallback(event);
+        return addSecurityHeaders(response);
+    }
+    
+    // Logout route - clears session and redirects to home page
+    if (pathName === '/auth/logout') {
+        await logout(event);
+    }
+    
+    // ===== Protected Routes (Auth Required) =====
+    
+    // Verify user is authenticated
+    const userCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
+    if (!userCookie) {
+        deleteCookies(event);
+        throw redirect(302, '/auth/login');
+    }
+
+    // Parse and validate user data and user auth data
+    let user: AuthenticatedUser<UserAuthData>;
+    try {
+        user = JSON.parse(decryptCookieString(userCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector));
+    } catch (e) {
+        // Invalid cookie - clear it and redirect to login
+        deleteCookies(event);
+        throw redirect(302, '/auth/login');
+    }
+
+    const userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
+    if (!userAccessTokenCookie) {
+        deleteCookies(event);
+        throw redirect(302, '/auth/login');
+    }
+
+    // Make sure the access token is valid
+    let userAccessToken: string;
+    try {
+        userAccessToken = decryptCookieString(userAccessTokenCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+    } catch (e) {
+        // Invalid cookie - clear it and redirect to login
+        deleteCookies(event);
+        throw redirect(302, '/auth/login');
+    }
+
+    // Due to cookie size limits, we store the access token in a separate cookie.  So we need to add it to the user object.
+    user.authData.accessToken = userAccessToken;
+
+    // ===== Token Refresh Logic =====
+
+    // Check if user's token needs refresh
+    const expiresAtMs = user.authData.expiresAt ? user.authData.expiresAt * 1000 : null;
+    if (expiresAtMs && expiresAtMs < Date.now()) {
+        // If the response is a Response object, then it means the refresh failed and we will return the Response object
+        const response = await refresh(event, user);
+        if (response instanceof Response) {
+            return addSecurityHeaders(response);
+        } else {
+            user = response;
+        }
+    }
+
+    // ===== Final Setup and Response =====
+    
+    // Set user and config in locals for server-side use
+    event.locals = { user, appConfig };
+
+    // Process the request to whatever route they were going to with security headers
+    return addSecurityHeaders(await resolve(event));
+};

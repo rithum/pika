@@ -1,0 +1,30 @@
+{
+    "name": "@pika/root",
+    "private": true,
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint",
+        "test": "turbo run test",
+        "format": "prettier --write .",
+        "check-types": "turbo check-types",
+        "clean": "rm -rf node_modules && rm -rf .turbo && rm -rf dist && rm -rf build && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' +",
+        "deploy": "turbo run deploy"
+    },
+    "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "catalog:",
+        "@typescript-eslint/parser": "catalog:",
+        "eslint": "catalog:",
+        "eslint-config-prettier": "catalog:",
+        "prettier": "catalog:",
+        "turbo": "catalog:",
+        "typescript": "catalog:"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "packageManager": "pnpm@10.9.0",
+    "dependencies": {
+        "dotenv": "catalog:"
+    }
+}

@@ -1,0 +1,41 @@
+import { AppState } from '$client/app/app.state.svelte';
+import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { LoadEvent } from '@sveltejs/kit';
+
+export async function load({ fetch, data }: LoadEvent) {
+    console.log('Auth layout client load started');
+    console.log('Data received from server:', {
+        hasData: !!data,
+        hasUser: !!data?.user,
+        hasSession: !!data?.session,
+        userId: data?.user?.userId,
+        userEmail: data?.user?.email,
+    });
+
+    // Create the single instance of the app state that we share across all routes
+    // We need do this here so a) it's created before anything else and b) it has
+    // the special svelte kit tricked out fetch function
+
+    if (!data) {
+        console.error('No data provided from server layout');
+        throw new Error('No data provided from server layout');
+    }
+
+    console.log('Creating AppState with user data...');
+    const appState = new AppState(fetch, data.user as ChatUser);
+    console.log('AppState created successfully');
+
+    const result = {
+        appState,
+        session: data.session, // Pass the session data to the client
+    };
+
+    console.log('Client layout data prepared:', {
+        hasAppState: !!result.appState,
+        hasSession: !!result.session,
+        sessionExpiresAt: result.session?.expiresAt,
+    });
+
+    console.log('Auth layout client load completed');
+    return result;
+}

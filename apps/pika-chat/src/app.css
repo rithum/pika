@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --gold-50: 43 40% 95%;
+        --gold-100: 43 35% 88%;
+        --gold-200: 43 30% 76%;
+        --gold-300: 43 28% 65%;
+        --gold-400: 43 27% 60%;
+        --gold-500: 43 26% 55%; /* base = #B19A66 */
+        --gold-600: 43 30% 45%;
+        --gold-700: 43 35% 35%;
+        --gold-800: 43 40% 25%;
+        --gold-900: 43 45% 15%;
+
+        --goldbrighter-50: 43 40% 95%;
+        --goldbrighter-100: 43 35% 88%;
+        --goldbrighter-200: 43 32% 78%;
+        --goldbrighter-300: 43 31% 68%;
+        --goldbrighter-400: 43 30% 64%;
+        --goldbrighter-500: 43 30% 60%; /* base = #C2AD78 */
+        --goldbrighter-600: 43 34% 48%;
+        --goldbrighter-700: 43 38% 38%;
+        --goldbrighter-800: 43 42% 28%;
+        --goldbrighter-900: 43 46% 18%;
+
+        --goldhighlight-50: 48 80% 96%;
+        --goldhighlight-100: 48 78% 90%;
+        --goldhighlight-200: 48 77% 82%;
+        --goldhighlight-300: 48 76% 75%;
+        --goldhighlight-400: 48 76% 72%;
+        --goldhighlight-500: 48 75% 70%; /* base = #EAD97A */
+        --goldhighlight-600: 48 78% 55%;
+        --goldhighlight-700: 48 80% 42%;
+        --goldhighlight-800: 48 85% 30%;
+        --goldhighlight-900: 48 90% 20%;
+
+        --blueish-50: 213 20% 97%;
+        --blueish-100: 213 20% 91%;
+        --blueish-200: 213 20% 82%;
+        --blueish-300: 213 21% 70%;
+        --blueish-400: 213 22% 55%;
+        --blueish-500: 213 23% 42%; /* base = #536474 */
+        --blueish-600: 213 24% 36%;
+        --blueish-700: 213 25% 30%;
+        --blueish-800: 213 26% 24%;
+        --blueish-900: 213 28% 18%;
+
+        --blueishd-50: 209 50% 96%;
+        --blueishd-100: 209 55% 89%;
+        --blueishd-200: 209 60% 76%;
+        --blueishd-300: 209 65% 58%;
+        --blueishd-400: 209 68% 40%;
+        --blueishd-500: 209 70% 22%; /* base = #0F3D5F */
+        --blueishd-600: 209 75% 18%;
+        --blueishd-700: 209 80% 14%;
+        --blueishd-800: 209 85% 10%;
+        --blueishd-900: 209 90% 6%;
+
+        --bluebright-50: 212 100% 97%;
+        --bluebright-100: 212 95% 90%;
+        --bluebright-200: 212 90% 80%;
+        --bluebright-300: 212 85% 70%;
+        --bluebright-400: 212 80% 60%;
+        --bluebright-500: 212 70% 43%; /* base = #2367BA */
+        --bluebright-600: 212 75% 36%;
+        --bluebright-700: 212 80% 28%;
+        --bluebright-800: 212 85% 20%;
+        --bluebright-900: 212 90% 12%;
+
+        --background: 0 0% 100%;
+        --foreground: 0 0% 39%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --primary: 213 68% 43%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96.1%;
+        --secondary-foreground: 213 68% 43%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 213 68% 43%;
+        --destructive: 0 72.2% 50.6%;
+        --destructive-foreground: 210 40% 98%;
+        --ring: 222.2 84% 4.9%;
+        --radius: 0.5rem;
+        --sidebar-background: 0 0% 98%;
+        --sidebar-foreground: 240 5.3% 26.1%;
+        --sidebar-primary: 240 5.9% 10%;
+        --sidebar-primary-foreground: 0 0% 98%;
+        --sidebar-accent: 240 4.8% 95.9%;
+        --sidebar-accent-foreground: 240 5.9% 10%;
+        --sidebar-border: 48 75% 70%;
+        --sidebar-ring: 217.2 91.2% 59.8%;
+
+        --prominent-50: 49 80% 96%;
+        --prominent-100: 49 78% 90%;
+        --prominent-200: 49 77% 82%;
+        --prominent-300: 49 76% 75%;
+        --prominent-400: 49 76% 65%;
+        --prominent-500: 49 75% 42%; /* base = #c19f15 */
+        --prominent-600: 49 78% 35%;
+        --prominent-700: 49 80% 28%;
+        --prominent-800: 49 85% 20%;
+        --prominent-900: 49 90% 15%;
+    }
+
+    .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+        --ring: 212.7 26.8% 83.9%;
+        --sidebar-background: 240 5.9% 10%;
+        --sidebar-foreground: 240 4.8% 95.9%;
+        --sidebar-primary: 224.3 76.3% 48%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 240 3.7% 15.9%;
+        --sidebar-accent-foreground: 240 4.8% 95.9%;
+        --sidebar-border: 48 80% 42%;
+        --sidebar-ring: 217.2 91.2% 59.8%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    /* Style the title bar to match sidebar */
+    #root {
+        background-color: hsl(var(--sidebar-background));
+    }
+    /* 
+    main {
+        background-color: hsl(var(--background));
+        height: 100vh;
+    }
+    */
+}

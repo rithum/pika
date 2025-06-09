@@ -1,0 +1,127 @@
+import { initAuth, getAuthHandlers } from '$lib/server/auth2';
+import { appConfig } from '$lib/server/config';
+import { addSecurityHeaders } from '$lib/server/utils';
+import { type Handle, type ServerInit, type RequestEvent, redirect } from '@sveltejs/kit';
+
+// Initialize server configuration
+export const init: ServerInit = async () => {
+    console.log('Server initializing...');
+    await appConfig.init();
+    console.log('Server configuration initialized');
+    
+    // Initialize auth after config is ready
+    initAuth();
+    console.log('Auth initialization completed');
+};
+
+const customHandle: Handle = async ({ event, resolve }) => {
+    console.log('Request received:', {
+        method: event.request.method,
+        url: event.url.pathname,
+        origin: event.url.origin,
+    });
+
+    // ===== Special Route Handlers =====
+
+    // Handle Chrome DevTools protocol for local development
+    if (appConfig.isLocal && event.url.pathname.startsWith('/.well-known/appspecific/com.chrome.devtools')) {
+        console.log('DevTools request detected (local dev)');
+        return new Response('OK', { status: 200 });
+    }
+
+    // Normalize pathname by removing trailing slash
+    const pathName = event.url.pathname.endsWith('/') ? event.url.pathname.slice(0, -1) : event.url.pathname;
+    console.log('Normalized pathname:', pathName);
+
+    // ===== Public Routes (No Auth Required) =====
+    
+    // Health check endpoint - accessible without authentication
+    if (pathName === '/health') {
+        console.log('Health check request');
+        // Return minimal response for load balancer health checks
+        return new Response('OK', { 
+            status: 200,
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
+    }
+
+    // SSO redirect page - needs to be accessible without authentication
+    if (pathName === '/sso-redirect') {
+        console.log('SSO redirect page - allowing without authentication');
+        // Set appConfig in locals and continue
+        event.locals.appConfig = appConfig;
+        return resolve(event);
+    }
+
+    // Set appConfig in locals for server-side use
+    event.locals.appConfig = appConfig;
+    console.log('AppConfig set in locals');
+
+    // Check authentication for protected routes
+    let session;
+    try {
+        session = await event.locals.auth?.();
+        console.log('Session check result:', {
+            hasSession: !!session,
+            hasUser: !!session?.user,
+            userId: session?.user?.userId,
+            userEmail: session?.user?.email,
+            pathname: pathName,
+            hasAccessToken: !!session?.accessToken,
+            expiresAt: session?.expiresAt,
+        });
+    } catch (error) {
+        console.error('Error checking session:', error);
+        session = null;
+    }
+
+    // If no session and not on a public route, redirect to sign-in
+    if (!session?.user) {
+        console.log('No authenticated user found, redirecting to OAuth provider');
+        console.log('Current URL:', event.url.href);
+        console.log('Pathname:', pathName);
+        
+        // For SSO, we need to redirect to a page that will POST to /auth/signin
+        // Auth.js requires POST requests to initiate OAuth, not GET requests to /auth/signin/[provider]
+        const callbackUrl = encodeURIComponent(event.url.href);
+        const redirectUrl = `/sso-redirect?callbackUrl=${callbackUrl}`;
+        console.log('Redirecting to SSO redirect page:', redirectUrl);
+        
+        throw redirect(302, redirectUrl);
+    }
+
+    console.log('User authenticated, proceeding with request');
+    
+    // Continue with the request
+    console.log('Proceeding to next handler...');
+    return resolve(event);
+};
+
+// Sequence the Auth.js handle with our custom handle
+export const handle: Handle = async ({ event, resolve }) => {
+    console.log('Main handle started for:', event.url.pathname);
+    
+    // Get the auth handle from initialized handlers
+    const { handle: authHandle } = getAuthHandlers();
+    
+    if (event.url.pathname.startsWith('/auth/')) {
+        console.log('Other Auth.js route - bypassing custom handle');
+        return authHandle({ event, resolve });
+    }
+    
+    // For all other routes, run both handlers in sequence
+    return authHandle({ event, resolve: async (resolveEvent: RequestEvent) => {
+        console.log('Auth.js handle completed, running custom handle...');
+        
+        // Then run our custom handle
+        const response = await customHandle({ event: resolveEvent, resolve });
+        
+        console.log('Adding security headers to response...');
+        const secureResponse = addSecurityHeaders(response);
+        
+        console.log('Request processing completed for:', event.url.pathname);
+        return secureResponse;
+    }});
+};

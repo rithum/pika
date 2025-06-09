@@ -1,0 +1,31 @@
+import { redirect } from '@sveltejs/kit';
+import type { LayoutServerLoad } from './$types';
+
+export const load: LayoutServerLoad = async ({ locals, url }) => {
+    console.log('Auth layout server load started for:', url.pathname);
+    
+    // Get the session from Auth.js
+    const session = await locals.auth();
+    
+    console.log('Session check result:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userId: session?.user?.userId,
+        userEmail: session?.user?.email,
+    });
+    
+    // Define public routes that don't require authentication
+    const publicRoutes = ['/auth/signin', '/auth/callback', '/auth/error', '/health', '/sso-redirect'];
+    const isPublicRoute = publicRoutes.some(route => url.pathname.startsWith(route));
+    
+    // If no session and trying to access a protected route
+    if (!session && !isPublicRoute) {
+        console.log('No valid session found, redirecting to sign in');
+        throw redirect(302, `/auth/signin?callbackUrl=${encodeURIComponent(url.pathname)}`);
+    }
+    
+    return {
+        session,
+        user: session?.user,
+    };
+};

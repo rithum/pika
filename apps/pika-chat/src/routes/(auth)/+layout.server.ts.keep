@@ -1,0 +1,58 @@
+import type { ChatUser } from "@pika/shared/types/chatbot/chatbot-types";
+import { redirect, type RequestEvent } from "@sveltejs/kit";
+
+export async function load(event: RequestEvent<Record<string, string>>) {
+    console.log('Auth layout server load started for:', event.url.pathname);
+    
+    // Get the Auth.js session
+    console.log('Getting Auth.js session...');
+    const session = await event.locals.auth();
+    
+    console.log('Session check result:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userId: session?.user?.userId,
+        userEmail: session?.user?.email,
+    });
+    
+    if (!session?.user) {
+        console.log('No valid session found, automatically redirecting to OAuth provider');
+        // Use Auth.js built-in signin with provider parameter to auto-select our provider
+        throw redirect(302, '/auth/signin/pika?callbackUrl=' + encodeURIComponent(event.url.pathname));
+    }
+
+    console.log('Valid session found, proceeding with user data');
+
+    // The session.user should contain the full ChatUser data from our JWT callback
+    // where we stored the platform user data
+    const chatUser = session.user as unknown as ChatUser;
+
+    console.log('Chat user data:', {
+        userId: chatUser.userId,
+        email: chatUser.email,
+        firstName: chatUser.firstName,
+        lastName: chatUser.lastName,
+        companyId: chatUser.companyId,
+        companyName: chatUser.companyName,
+        featureCount: Object.keys(chatUser.features || {}).length,
+    });
+
+    const result = {
+        user: chatUser,
+        session: {
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            expiresAt: session.expiresAt,
+        }
+    };
+
+    console.log('Layout server data prepared:', {
+        hasUser: !!result.user,
+        hasSessionData: !!result.session,
+        hasAccessToken: !!result.session.accessToken,
+        tokenExpiresAt: result.session.expiresAt,
+    });
+
+    console.log('Auth layout server load completed');
+    return result;
+}

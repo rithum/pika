@@ -1,0 +1,18 @@
+import type { Session } from '@auth/sveltekit';
+import type { appConfig } from '$lib/server/config';
+
+declare global {
+    namespace App {
+        interface Locals {
+            auth: () => Promise<Session | null>;
+            appConfig: typeof appConfig;
+        }
+        interface PageData {
+            session?: Session | null;
+        }
+        // interface Error {}
+        // interface Platform {}
+    }
+}
+
+export {};

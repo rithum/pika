@@ -1,0 +1,14 @@
+{
+    "extends": "@pika/typescript-config/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "sourceMap": true,
+        "inlineSources": true,
+        "resolveJsonModule": true,
+        "experimentalDecorators": true,
+        "types": ["jest", "node"]
+    },
+    "include": ["src", "bin", "lib/stacks", "test"],
+    "exclude": ["node_modules", "dist", "cdk.out"]
+}

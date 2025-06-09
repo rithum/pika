@@ -1,0 +1,49 @@
+{
+    "name": "@pika/shared",
+    "version": "0.0.1",
+    "private": true,
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        },
+        "./types/*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/types/*.mjs",
+            "require": "./dist/types/*.js"
+        },
+        "./util/*": {
+            "types": "./dist/util/*.d.ts",
+            "import": "./dist/util/*.mjs",
+            "require": "./dist/util/*.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "lint": "eslint src/",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+        "check-types": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@pika/typescript-config": "workspace:*",
+        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "@types/aws-lambda": "catalog:",
+        "@types/node": "catalog:",
+        "aws-lambda": "catalog:",
+        "eslint": "catalog:",
+        "tsup": "catalog:",
+        "typescript": "catalog:"
+    },
+    "files": [
+        "dist/**"
+    ],
+    "dependencies": {
+        "camelcase-keys": "catalog:",
+        "snakecase-keys": "catalog:"
+    }
+}

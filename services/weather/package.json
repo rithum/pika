@@ -1,0 +1,49 @@
+{
+    "name": "@pika/weather",
+    "version": "0.0.1",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc -w",
+        "test": "jest",
+        "lint": "eslint src/",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist && rm -rf cdk.out",
+        "check-types": "tsc --noEmit",
+        "cdk": "cdk",
+        "cdk:synth": "cdk synth",
+        "cdk:deploy": "cdk deploy",
+        "cdk:diff": "cdk diff"
+    },
+    "devDependencies": {
+        "@pika/typescript-config": "workspace:*",
+        "@aws-sdk/client-s3": "catalog:",
+        "@types/aws-lambda": "catalog:",
+        "@types/jest": "catalog:",
+        "@types/node": "catalog:",
+        "@types/papaparse": "catalog:",
+        "aws-cdk": "catalog:",
+        "aws-cdk-lib": "catalog:",
+        "aws-lambda": "catalog:",
+        "constructs": "catalog:",
+        "esbuild": "catalog:",
+        "eslint": "catalog:",
+        "jest": "catalog:",
+        "papaparse": "catalog:",
+        "ts-jest": "catalog:",
+        "ts-node": "catalog:",
+        "tsx": "catalog:",
+        "typescript": "catalog:"
+    },
+    "dependencies": {
+        "@pika/shared": "workspace:*",
+        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "@aws-sdk/client-bedrock-runtime": "catalog:",
+        "@aws-sdk/client-lambda": "catalog:",
+        "source-map-support": "catalog:"
+    },
+    "files": [
+        "dist/**"
+    ]
+}
