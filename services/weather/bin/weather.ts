@@ -2,26 +2,18 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { WeatherStack } from '../lib/stacks';
+import { getLoggedInAccountIdFromSts } from './sts';
 
 const app = new cdk.App();
 
 // Get stage from context or use default
 const stage = app.node.tryGetContext('stage') || 'test';
 
-// Define account mapping for allowed stages
-const accountMapping: Record<string, string> = {
-    test: 'AWS_ACCOUNT_ID_PLACEHOLDER ', // pika test
-    prod: 'AWS_ACCOUNT_ID_PLACEHOLDER ' // pika prod
-};
+const loggedInAccountId = await getLoggedInAccountIdFromSts();
+console.log(`Deploying to stage '${stage}' in account '${loggedInAccountId}'`);
 
-// Validate the stage is allowed
-if (!accountMapping[stage]) {
-    throw new Error(`Deployment to '${stage}' stage is not allowed. Only 'test' and 'prod' stages are supported.`);
-}
-
-// Set environment with the appropriate account for the stage
 const env = {
-    account: accountMapping[stage],
+    account: loggedInAccountId,
     region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
 };
 

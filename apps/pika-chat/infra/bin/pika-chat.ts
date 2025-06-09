@@ -15,30 +15,11 @@ if (!vpcId) {
     throw new Error(`VPC ID not found for stage '${stage}'`);
 }
 
-// Define account mapping for allowed stages
-const accountMapping: Record<string, string> = {
-    test: 'AWS_ACCOUNT_ID_PLACEHOLDER ', // pika test
-    prod: 'AWS_ACCOUNT_ID_PLACEHOLDER ', // pika prod
-};
-
-const accountId = accountMapping[stage];
-if (!accountId) {
-    throw new Error(`Deployment to '${stage}' stage is not allowed. Only 'test' and 'prod' stages are supported.`);
-}
-
 const loggedInAccountId = await getLoggedInAccountIdFromSts();
-if (loggedInAccountId !== accountId) {
-    throw new Error(`You are trying to deploy to '${stage}' which is account '${accountId}' but you are deploying as account '${loggedInAccountId}'`);
-}
+console.log(`Deploying to stage '${stage}' in account '${loggedInAccountId}'`);
 
-// Validate the stage is allowed
-if (!accountMapping[stage]) {
-    throw new Error(`Deployment to '${stage}' stage is not allowed. Only 'test' and 'prod' stages are supported.`);
-}
-
-// Set environment with the appropriate account for the stage
 const env = {
-    account: accountMapping[stage],
+    account: loggedInAccountId,
     region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
 };
 
