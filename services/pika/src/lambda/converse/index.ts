@@ -178,9 +178,7 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         const agentAndTools = await getAgentAndToolsFromDbOrCache(converseRequest.agentId);
         console.log('Agent and tools fetched:', agentAndTools);
 
-        if (!agentAndTools.tools || agentAndTools.tools.length === 0) {
-            throw new Error('No tools found for agent');
-        }
+        agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
 
         console.log('Starting conversation...');
         await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, converseRequest.files);

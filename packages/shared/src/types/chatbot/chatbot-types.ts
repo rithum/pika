@@ -399,6 +399,8 @@ export interface AgentDefinition {
     dontCacheThis?: boolean
     /** List of tool definitions that this agent uses */
     toolIds: string[];
+    /** A list of knowledge bases that are associated with this agent. */
+    knowledgeBases?: KnowledgeBase[];
     /** Agent definition version */
     version: number;
     /** User who created the definition */
@@ -692,6 +694,21 @@ export interface ChatApp {
     /** If true, this is a test chat app that will get deleted after 1 day.  This is used for testing. */
     test?: boolean;
 }
+
+export interface KnowledgeBase {
+
+    /** A unique identifier for the knowledge base  */
+    id: string;
+
+    /** The agent frameworks that this knowledge base supports */
+    supportedAgentFrameworks: AgentFramework[];
+
+    /** A description of the knowledge base */
+    description: string;
+}
+
+
+
 
 export type UpdateableChatAppFields = Extract<keyof ChatApp, 'mode' | 'dontCacheThis' | 'title' | 'agentId' | 'features' | 'enabled'>;
 

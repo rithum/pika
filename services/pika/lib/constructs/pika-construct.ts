@@ -45,18 +45,18 @@ export class PikaConstruct extends Construct {
 
     constructor(scope: Construct, id: string, props: PikaConstructProps) {
         super(scope, id);
-        
+
         this.props = props;
 
         // Create storage resources
         const storageResources = this.createStorageResources();
-        
+
         // Create compute resources
         const computeResources = this.createComputeResources(storageResources);
-        
+
         // Create API resources
         const apiResources = this.createApiResources(storageResources, computeResources);
-        
+
         // Create SSM parameters
         this.createSsmParameters(storageResources, computeResources, apiResources);
 
@@ -80,7 +80,7 @@ export class PikaConstruct extends Construct {
         // S3 Buckets
         const uploadS3Bucket = this.createUploadS3Bucket();
         const fileArchiveBucket = this.createFileArchiveBucket();
-        
+
         // DynamoDB Tables
         const archiveStagingTable = this.createArchiveStagingTable();
         const chatMessagesTable = this.createChatMessagesTable(uploadS3Bucket, fileArchiveBucket, archiveStagingTable);
@@ -913,7 +913,9 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+                            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:UseInferenceProfile',
+                                'bedrock:GetInferenceProfile', 'bedrock:GetFoundationModel'
+                            ],
                             resources: [
                                 'arn:aws:bedrock:*::foundation-model/*',
                                 'arn:aws:bedrock:*:*:inference-profile/*'
@@ -961,6 +963,19 @@ export class PikaConstruct extends Construct {
                             conditions: {
                                 StringEquals: {
                                     'aws:ResourceTag/agent-tool': 'true'
+                                }
+                            }
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock:Retrieve',
+                                'bedrock:RetrieveAndGenerate'
+                            ],
+                            resources: [`arn:aws:bedrock:${this.props.region}:${this.props.account}:knowledge-base/*`],
+                            conditions: {
+                                StringEquals: {
+                                    'aws:ResourceTag/agent-knowledgebase': 'true'
                                 }
                             }
                         }),
