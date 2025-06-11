@@ -65,9 +65,6 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
             }
         }
 
-        //TODO: type the sessionAttributes
-
-        // If present, we have a session already setup.  If not present, this should be a call to initSession.
         sessionData = normalizeSessionAttributes(event.sessionAttributes);
 
         //TODO: get rid of this initSession call.  It's not needed.  We can just use the sessionData object that is passed in.

@@ -87,6 +87,11 @@ export const weatherFunctions: FunctionDefinition[] = [
                 type: 'string',
                 description: 'Timezone for the returned data (e.g., America/Los_Angeles).',
                 required: false
+            },
+            includeDownloadLink: {
+                type: 'boolean',
+                description: 'Whether to include a download link for the current weather data.',
+                required: false
             }
         },
         requireConfirmation: 'DISABLED'

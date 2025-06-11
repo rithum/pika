@@ -57,7 +57,7 @@ export class WeatherStack extends cdk.Stack {
                         // Permissions for S3
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['s3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject'],
+                            actions: ['s3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject', 's3:PutObjectTagging'],
                             resources: [`arn:aws:s3:::${uploadBucketNameParam.stringValue}`, `arn:aws:s3:::${uploadBucketNameParam.stringValue}/*`]
                         })
                     ]

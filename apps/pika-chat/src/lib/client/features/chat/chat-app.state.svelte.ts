@@ -380,6 +380,7 @@ export class ChatAppState {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
                 userId: this.#appState.identity.user.userId,
                 agentAliasId: 'interim-agent-alias-id',
+                chatAppId: this.#chatApp.chatAppId,
                 agentId: 'interim-agent-id',
                 identityId: this.#appState.identity.user.userId,
                 sessionAttributes: {
@@ -418,12 +419,31 @@ export class ChatAppState {
 
     async refreshChatSessions() {
         try {
-            const resp = await this.fetchz('/api/session');
+            const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);
             if (resp.ok) {
                 this.#chatSessions = await resp.json();
             }
         } catch (e) {
             console.error('Error refreshing chat sessions from server', e);
+            throw e;
+        }
+    }
+
+    async downloadFile(s3Key: string) {
+        try {
+            const resp = await this.fetchz(`/api/download/${encodeURIComponent(s3Key)}`);
+            const blob = await resp.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = s3Key.split('/').pop() || 'download';
+            document.body.appendChild(a);
+            a.click();
+
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch(e) {
+            console.error('Error downloading file', e);
             throw e;
         }
     }
@@ -521,6 +541,7 @@ export class ChatAppState {
                 companyId: this.#appState.identity.user.companyId,
                 companyType: this.#appState.identity.user.companyType,
                 agentId: this.#chatApp.agentId,
+                chatAppId: this.#chatApp.chatAppId,
                 ...(files && { files }),
             };
             // Send the message to the server and stream the response

@@ -142,6 +142,20 @@ export async function getUserSessionsByUserId(userId: string): Promise<ChatSessi
     return (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
 }
 
+export async function getSessionsByUserIdAndChatAppId(userId: string, chatAppId: string): Promise<ChatSession[]> {
+    const sessions = await ddbDocClient.query({
+        TableName: getChatSessionTable(),
+        IndexName: 'user-chat-app-index',
+        KeyConditionExpression: 'user_id = :userId and chat_app_id = :chatAppId',
+        ExpressionAttributeValues: {
+            ':userId': userId,
+            ':chatAppId': chatAppId
+        }
+    });
+
+    return (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+}
+
 export async function getChatSessionByUserIdAndSessionId(userId: string, sessionId: string): Promise<ChatSession | undefined> {
     const session = await ddbDocClient.get({
         TableName: getChatSessionTable(),

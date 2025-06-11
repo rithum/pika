@@ -19,6 +19,8 @@ export interface SessionData {
     companyType: CompanyType;
     /** Current date in ISO 8601 format */
     date: string;
+    /** The agent id for the session */
+    agentId: string;
 }
 
 /**
@@ -35,6 +37,8 @@ export interface ChatSession {
     agentAliasId: string;
     /** Identifier for the specific agent instance */
     agentId: string;
+    /** Identifier for the chat app */
+    chatAppId: string;
     /** Unique identifier for the user's identity */
     identityId: string;
     /** Title or name of the chat session */
@@ -289,6 +293,7 @@ export interface ChatMessageUsage {
 export interface BaseRequestData {
     userId: string;
     sessionId?: string;
+    chatAppId?: string;
     agentId?: string;
     agentAliasId?: string;
     companyId?: string;

@@ -490,6 +490,19 @@ export class PikaConstruct extends Construct {
             timeToLiveAttribute: 'exp_date_unix_seconds'
         });
 
+        chatSessionTable.addGlobalSecondaryIndex({
+            indexName: 'user-chat-app-index',
+            partitionKey: {
+                name: 'user_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'chat_app_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
         const sessionChangedLambdaRole = new iam.Role(this, 'SessionChangedLambdaRole', {
             roleName: `session-changed-lambda-role-${this.props.stackName}`,
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -871,7 +884,12 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:Scan',
                                 'dynamodb:UpdateItem'
                             ],
-                            resources: [chatMessagesTable.tableArn, chatSessionTable.tableArn, chatUserTable.tableArn]
+                            resources: [
+                                chatMessagesTable.tableArn,
+                                chatSessionTable.tableArn,
+                                `${chatSessionTable.tableArn}/index/user-chat-app-index`,
+                                chatUserTable.tableArn
+                            ]
                         })
                     ]
                 })
@@ -1345,6 +1363,10 @@ export class PikaConstruct extends Construct {
         // GET /api/chat/conversations
         const conversations = chats.addResource('conversations');
         conversations.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        // GET /api/chat/conversations/{chatAppId}
+        const conversationsByChatAppId = conversations.addResource('{chatAppId}');
+        conversationsByChatAppId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
 
         // GET /api/chat/user
         const userResource = chats.addResource('user');

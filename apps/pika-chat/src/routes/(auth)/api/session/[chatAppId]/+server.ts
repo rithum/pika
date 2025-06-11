@@ -5,12 +5,17 @@ import type { PresignedUrlUploadRequest } from '@pika/shared/types/upload-types'
 import { json, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ request, params, locals }) => {
+    const { chatAppId } = params;
+    if (!chatAppId) {
+        return new Response('chatAppId is required', { status: 400 });
+    }
+
     const user = locals.user;
     if (!user) {
         return new Response('Unauthorized', { status: 401 });
     }
     try {
-        const sessions = await getChatSessions(user.userId);
+        const sessions = await getChatSessions(user.userId, chatAppId);
         return json(sessions);
     } catch (e) {
         console.error(e);

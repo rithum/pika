@@ -12,7 +12,7 @@ import type { ChatMessage, ChatMessageForCreate, ChatSession, ChatSessionForCrea
 import { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import { getTitleFromBedrockIfNeeded } from './bedrock-agent';
-import { addChatSession, addMessage, getChatMessagesInSession, getChatSessionByUserIdAndSessionId, getUserByUserId, getUserSessionsByUserId, updateSession, updateSessionTitleInDdb } from './chat-ddb';
+import { addChatSession, addMessage, getChatMessagesInSession, getChatSessionByUserIdAndSessionId, getUserByUserId, getUserSessionsByUserId, updateSession, updateSessionTitleInDdb, getSessionsByUserIdAndChatAppId } from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
 
@@ -31,6 +31,10 @@ export async function getUserSessions(userId: string): Promise<ChatSession[]> {
     return await getUserSessionsByUserId(userId);
 }
 
+export async function getUserSessionsByChatAppId(userId: string, chatAppId: string): Promise<ChatSession[]> {
+    return await getSessionsByUserIdAndChatAppId(userId, chatAppId);
+}
+
 /**
  * Get a user by their user id.
  */
@@ -44,19 +48,21 @@ export async function getUser(userId: string): Promise<ChatUser | undefined> {
  *
  * @returns A tuple with the chat session object and a boolean indicating if it was newly created
  */
-export async function ensureChatSession(user: ChatUser, requestData: BaseRequestData, agentId: string): Promise<[ChatSession, boolean]> {
+export async function ensureChatSession(user: ChatUser, requestData: BaseRequestData, agentId: string, chatAppId: string): Promise<[ChatSession, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
         sessionId: requestData.sessionId,
         companyId: requestData.companyId,
-        companyType: requestData.companyType
+        companyType: requestData.companyType,
+        agentId,
+        chatAppId
     });
 
     let isNewSession = false;
-    let chatSession: ChatSession | undefined = requestData.sessionId ? 
-        await getChatSession(user.userId, requestData.sessionId) : 
+    let chatSession: ChatSession | undefined = requestData.sessionId ?
+        await getChatSession(user.userId, requestData.sessionId) :
         undefined;
-    
+
     console.log('Existing session lookup result:', {
         found: !!chatSession,
         sessionId: requestData.sessionId
@@ -82,7 +88,8 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
 
         chatSession = await createChatSession({
             userId: user.userId,
-            agentId: agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
+            chatAppId,
+            agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
             agentAliasId: agentId, //'weather-agent-alias',//requestData.agentAliasId ?? getAgentAliasId(),
             sessionAttributes: {
                 companyId,
@@ -97,6 +104,7 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
         console.log('New session created:', {
             sessionId: chatSession.sessionId,
             userId: chatSession.userId,
+            chatAppId: chatSession.chatAppId,
             agentId: chatSession.agentId,
             agentAliasId: chatSession.agentAliasId
         });
@@ -221,7 +229,7 @@ export async function addChatMessage(chatMessageForCreate: ChatMessageForCreate,
     if (userQuestionAsked && answerToQuestionFromAgent) {
         console.log('Updating session title with Bedrock');
         // Use bedrock to generate a title for the session and update the session title in the database
-        await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, { 
+        await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
             userId: chatMessageForCreate.userId,
             userQuestionAsked: userQuestionAsked,
             answerToQuestionFromAgent: answerToQuestionFromAgent

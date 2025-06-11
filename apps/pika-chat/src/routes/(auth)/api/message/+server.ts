@@ -26,6 +26,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return new Response('agentId is required', { status: 400 });
         }
 
+        if (!params.chatAppId) {
+            return new Response('chatAppId is required', { status: 400 });
+        }
+
         if (params.userId !== user.userId) {
             console.log('User ID mismatch:', { userId: params.userId, user: user.userId });
             return new Response('Unauthorized', { status: 401 });

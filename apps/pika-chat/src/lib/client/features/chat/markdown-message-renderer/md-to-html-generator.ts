@@ -19,7 +19,7 @@ export interface MarkdownRenderResult {
 }
 
 // Supported custom tags
-const SUPPORTED_TAGS = ['prompt', 'chart', 'image', 'chat'] as const;
+const SUPPORTED_TAGS = ['prompt', 'chart', 'image', 'chat', 'download'] as const;
 type SupportedTag = typeof SUPPORTED_TAGS[number];
 
 // Type for component map
@@ -139,7 +139,7 @@ export class MarkdownToHtmlGenerator {
         const closeTagIndex = potentialTag.indexOf('>');
         if (closeTagIndex !== -1) {
             // Tag is complete, check if it's one of our supported tags that needs a closing tag
-            const tagMatch = potentialTag.match(/^<(prompt|chart|image|chat)>/);
+            const tagMatch = potentialTag.match(/^<(prompt|chart|image|chat|download)>/);
             if (tagMatch) {
                 const tagName = tagMatch[1];
                 const expectedClosingTag = `</${tagName}>`;
@@ -202,6 +202,8 @@ export class MarkdownToHtmlGenerator {
                 return '<div class="animate-pulse bg-gray-100 rounded p-12 text-center text-gray-500">Loading image...</div>';
             case 'chat':
                 return '<div class="animate-pulse bg-gray-100 rounded p-3 text-gray-500">Loading chat component...</div>';
+            case 'download':
+                return '<div class="animate-pulse bg-gray-100 rounded p-3 text-gray-500">Loading download...</div>';
             default:
                 return '<div class="animate-pulse bg-gray-100 rounded p-3 text-gray-500">Loading...</div>';
         }

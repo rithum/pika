@@ -1,5 +1,5 @@
 import { SessionData } from '@pika/shared/types/chatbot/chatbot-types';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { parseCSVFiles } from './csv-parser';
 import {
     GeocodingResponse,
@@ -120,16 +120,38 @@ export function assertGetWeatherForecastParams(params: unknown): asserts params 
     // startDate, endDate, hourly, daily, models, and timezone are all optional
 }
 
-export async function getCurrentWeather(p: GetCurrentWeatherParams): Promise<any> {
-    return await fetchWeatherDataAsJson('https://api.open-meteo.com/v1/forecast', {
+export async function getCurrentWeather(p: GetCurrentWeatherParams, agentId: string, uploadS3BucketName: string, region: string, sessionId: string): Promise<any> {
+    const weatherData = await fetchWeatherDataAsJson('https://api.open-meteo.com/v1/forecast', {
         latitude: p.latitude,
         longitude: p.longitude,
         timezone: p.timezone,
         current: 'temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
     });
+
+    if (p.includeDownloadLink) {
+        if (!s3Client) {
+            s3Client = new S3Client({ region });
+        }
+
+        const urlEncodedTitle = encodeURIComponent(`Weather for lat/lon ${p.latitude}/${p.longitude}`);
+        const s3Key = `downloads/${agentId}/current-weather-${p.latitude}-${p.longitude}-${new Date().toISOString()}.json`;
+        const body = JSON.stringify(weatherData);
+
+        const putObjectCommand = new PutObjectCommand({
+            Bucket: uploadS3BucketName,
+            Key: s3Key,
+            Body: body,
+            ContentType: 'application/json',
+            Tagging: `chatdownload=true&sessionId=${sessionId}&agentId=${agentId}`
+        });
+        await s3Client.send(putObjectCommand);
+        weatherData.downloadLink = `download://${s3Key}?title=${urlEncodedTitle}`;
+    }
+
+    return weatherData;
 }
 
-export async function getCurrentWeatherFromS3CsvFile(p: GetCurrentWeatherFromS3CsvFileParams, uploadS3BucketName: string, region: string): Promise<any[]> {
+export async function getCurrentWeatherFromS3CsvFile(p: GetCurrentWeatherFromS3CsvFileParams, uploadS3BucketName: string, region: string, agentId: string, sessionId: string): Promise<any[]> {
     if (!s3Client) {
         s3Client = new S3Client({ region });
     }
@@ -183,7 +205,7 @@ export async function getCurrentWeatherFromS3CsvFile(p: GetCurrentWeatherFromS3C
     let results: any[] = [];
     for (const [s3Key, data] of Object.entries(weatherCoordinates)) {
         for (const coordinate of data) {
-            const currentWeather = await getCurrentWeather(coordinate);
+            const currentWeather = await getCurrentWeather(coordinate, agentId, uploadS3BucketName, region, sessionId);
             results.push(currentWeather);
             // Wait for 250ms to avoid rate limiting
             await new Promise((resolve) => setTimeout(resolve, 250));
@@ -345,12 +367,12 @@ export async function callOpenMateoApi(fnName: string, params: Record<string, an
 
         case 'getCurrentWeather':
             assertGetCurrentWeatherParams(params);
-            result = await getCurrentWeather(params);
+            result = await getCurrentWeather(params, sessionData.agentId, uploadS3BucketName, region, sessionData.sessionId);
             break;
 
         case 'getCurrentWeatherFromS3CsvFile':
             assertGetCurrentWeatherFromS3CsvFileParams(params);
-            result = await getCurrentWeatherFromS3CsvFile(params, uploadS3BucketName, region);
+            result = await getCurrentWeatherFromS3CsvFile(params, uploadS3BucketName, region, sessionData.agentId, sessionData.sessionId);
             break;
 
         case 'getHistoricalWeather':

@@ -117,7 +117,8 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
             sessionId: converseRequest.sessionId,
             companyId: converseRequest.companyId,
             companyType: converseRequest.companyType,
-            agentId: converseRequest.agentId
+            agentId: converseRequest.agentId,
+            chatAppId: converseRequest.chatAppId
         });
 
         if (!converseRequest.message) {
@@ -167,8 +168,13 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
             throw new HttpStatusError('agentId is required', 400);
         }
 
+        if (!converseRequest.chatAppId) {
+            console.error('Missing chatAppId in request');
+            throw new HttpStatusError('chatAppId is required', 400);
+        }
+
         console.log('Ensuring chat session...');
-        const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId);
+        const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId);
         console.log('Chat session ensured:', {
             sessionId: chatSession.sessionId,
             isNewSession,

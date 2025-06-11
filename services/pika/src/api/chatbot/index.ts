@@ -15,7 +15,7 @@ import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/sha
 
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
 import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
-import { addChatMessage, getChatMessages, getChatSession, getUserSessions, updateSessionTitle } from '../../lib/chat-apis';
+import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUserSessionsByChatAppId, updateSessionTitle } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { getUserFromAuthHeader } from '../../lib/jwt';
@@ -52,6 +52,10 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
         handler: handleUpdateSessionTitle,
         passUserObj: true
     },
+    'GET:/api/chat/conversations/{chatAppId}': {
+        handler: handleGetUserSessionsByChatAppId,
+        passUserObj: true
+    }
 };
 
 /**
@@ -217,6 +221,22 @@ async function handleAddChatMessage(event: APIGatewayProxyEventPika<ConverseRequ
  */
 async function handleGetUserSessions(_event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatSessionsResponse> {
     const sessions = await getUserSessions(user.userId);
+    return {
+        success: true,
+        sessions
+    };
+}
+
+/**
+ * GET:/api/chat/conversations/{chatAppId}
+ */
+async function handleGetUserSessionsByChatAppId(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatSessionsResponse> {
+    const chatAppId = event.pathParameters?.chatAppId;
+    if (!chatAppId) {
+        throw new Error('Chat app ID is required');
+    }
+
+    const sessions = await getUserSessionsByChatAppId(user.userId, chatAppId);
     return {
         success: true,
         sessions

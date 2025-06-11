@@ -24,6 +24,7 @@ export interface GetCurrentWeatherParams {
     latitude: number;
     longitude: number;
     timezone: string;
+    includeDownloadLink?: boolean;
 }
 
 export interface GetCurrentWeatherFromS3CsvFileParams {

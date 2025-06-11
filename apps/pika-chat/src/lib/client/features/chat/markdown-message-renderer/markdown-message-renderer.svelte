@@ -8,6 +8,7 @@
     import ChartComponent from './markdown-tag-components/chart.svelte';
     import ImageComponent from './markdown-tag-components/image.svelte';
     import ChatComponent from './markdown-tag-components/chat.svelte';
+    import DownloadComponent from './markdown-tag-components/download.svelte';
     import type { AppState } from '$client/app/app.state.svelte';
     import type { ChatMessageFile } from '@pika/shared/types/chatbot/chatbot-types';
     import { ChatAppState } from '../chat-app.state.svelte';
@@ -28,7 +29,8 @@
         prompt: PromptComponent,
         chart: ChartComponent,
         image: ImageComponent,
-        chat: ChatComponent
+        chat: ChatComponent,
+        download: DownloadComponent
     };
     
     let messageContainer: HTMLElement;
@@ -73,7 +75,7 @@
             // Hydrate any new components
             await tick();
             if (messageContainer && result.newSegments.some(s => s.type === 'placeholder')) {
-                hydrateComponents(messageContainer, result.newSegments, componentMap, appState);
+                hydrateComponents(messageContainer, result.newSegments, componentMap, chat, appState);
             }
         }
     }
@@ -88,7 +90,7 @@
             // Final hydration pass
             await tick();
             if (messageContainer && segments.some(s => s.type === 'placeholder')) {
-                hydrateComponents(messageContainer, segments, componentMap, appState);
+                hydrateComponents(messageContainer, segments, componentMap, chat, appState);
             }
 
             // Reset for potential future streaming
