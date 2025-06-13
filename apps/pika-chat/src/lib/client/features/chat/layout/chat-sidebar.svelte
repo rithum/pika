@@ -57,7 +57,7 @@
         <div class="flex flex-col gap-2 mt-1">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 ml-1">
-                    {#if chat.appSidebarOpen}
+                    {#if chat.chatApp.mode === 'fullpage' && chat.appSidebarOpen}
                         <TooltipPlus tooltip={chat.appSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}>
                             <Button
                                 variant="ghost"

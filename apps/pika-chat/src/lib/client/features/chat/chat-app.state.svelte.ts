@@ -106,7 +106,7 @@ export class ChatAppState {
         const promptInputFieldLabelFeature = getFeature(this.chatApp, 'promptInputFieldLabel');
 
         if (promptInputFieldLabelFeature) {
-            result = promptInputFieldLabelFeature.enabled === false;
+            result = this.chatApp.mode !== 'fullpage' || promptInputFieldLabelFeature.enabled === false;
         }
 
         return result;

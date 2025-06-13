@@ -13,6 +13,8 @@
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
+    const fullScreen = $derived(chat.chatApp.mode === 'fullpage');
+
     // File drag/drop state
     let isDraggingFile = $state(false);
     let dragTarget: EventTarget | null = null;
@@ -264,16 +266,16 @@
         </div>
 
         <!-- Fixed input at bottom, also centered -->
-        <div class="absolute bottom-0 left-0 right-0 bg-background pt-2 mb-6">
+        <div class="absolute bottom-0 left-0 right-0 bg-background pt-2 mb-6 px-4">
             <div class="w-full max-w-[768px] mx-auto">
                 <ChatInput bind:inputRegionHeight />
             </div>
         </div>
     {:else}
         <!-- No messages case -->
-        <div class="flex-grow flex flex-col pt-[20vh]">
+        <div class="flex-grow flex flex-col" style="padding-top: {fullScreen ? '20vh' : '2vh'}">
             <div class="w-full max-w-[768px] mx-auto">
-                <div class="flex flex-col">
+                <div class="flex flex-col px-4">
                     {#if !chat.hidePromptInputFieldLabel}
                         <div class="text-3xl text-center mb-4">{chat.promptInputFieldLabel}</div>
                     {/if}

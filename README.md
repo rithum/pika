@@ -2,9 +2,44 @@
 
 A framework for rapidly deploying AI-powered chat applications and agents. The name "Pika" (ピカ) in Japanese means "spark" or "flash of electricity," symbolizing its purpose of quickly igniting and powering new agent-based solutions.
 
-## 🎯 Overview
+## Overview
 
-Pika addresses a fundamental shift in software development:
+
+### The Bad Approach
+
+You need to start making agents and chatbots to jump on the AI revolution bus.  Here's what you don't want:
+
+* Agents separated from the microservices that power them
+* Every team creating a new chatbot web app
+* Difficulty rolling out new agent infrastructure since agents are everywhere
+* LLM access all over the place
+* The number of new services and apps balloons
+
+![Architecture Diagram](./docs/svgs/agent-proliferation.drawio.svg)
+
+### The Pika Approach
+
+* One generic frontend and backend chat app in the entire platform
+* Microservices define their chat app and agent definitions as part of their infra
+* You go to the pika chat app front end to hit any custom chat app in your platform
+
+![Architecture Diagram](./docs/svgs/pika-agents.drawio.svg)
+
+### Chat Apps Embed in your Existing Web Apps
+
+The prime use case for agents and chat apps is to add AI to existing applications.  The Pika Frontend is designed to be embedded in an existing webapp as an iframe.
+
+![Architecture Diagram](./docs/images/embedded-example.png)
+
+### Chat Apps Can Stand Alone
+
+Of course, you can also have a stand alone chat app.  It's just config.
+
+![Architecture Diagram](./docs/images/standalone-example.png)
+
+
+
+## Pika addresses a fundamental shift in software development:
 
 - **Traditional Approach**: Engineers spend months building specific features with hardcoded orchestration logic
 - **Agent Approach**: Using AI (specifically LLMs) as dynamic orchestration engines that can instantly materialize solutions based on user intent
@@ -13,7 +48,7 @@ Pika addresses a fundamental shift in software development:
 
 The framework consists of three main layers:
 
-### 1. Generic Frontend
+### 1. Pika Generic Frontend
 - Pre-built chat interface
 - Handles user interactions and chat state
 - Supports file uploads and rich media

@@ -3,10 +3,35 @@
 
 	// Dashboard component for enterprise site
 	let isPanelOpen = $state(false);
+	let panelWidthState: 'normal' | 'fullscreen' = $state('normal')
+	let panelWidth = $derived(panelWidthState === 'normal' ? 'w-[500px]' : 'w-[100%]');
 
 	function togglePanel() {
 		isPanelOpen = !isPanelOpen;
 	}
+
+	
+
+	$effect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			// Verify the message is from our chat app
+			// if (event.origin !== "http://localhost:3000") return;
+			
+			if (event.data.type === 'PIKA_CHAT_CLOSE') {
+				togglePanel();
+			}
+
+			if (event.data.type === 'PIKA_CHAT_PANEL_WIDTH_STATE') {
+				panelWidthState = event.data.state === 'normal' ? 'normal' : 'fullscreen';
+			}
+		};
+
+		window.addEventListener('message', handleMessage);
+		
+		return () => {
+			window.removeEventListener('message', handleMessage);
+		};
+	});
 </script>
 
 <div class="min-h-screen bg-gray-50">
@@ -49,13 +74,13 @@
 
 	<!-- Sliding Panel -->
 	<div
-		class="fixed top-0 right-0 h-full w-[500px] bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50"
+		class="fixed top-0 right-0 h-full {panelWidth} bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50"
 		style="transform: translateX({isPanelOpen ? '0' : '100%'})"
 	>
 		<div class="h-full flex flex-col">
 			<div class="flex-1">
 				<iframe
-					src="http://localhost:3000/chat/weather"
+					src="http://localhost:3000/chat/weather?mode=embedded"
 					class="w-full h-full border-0"
 					title="AI Chat Interface"
 				></iframe>
