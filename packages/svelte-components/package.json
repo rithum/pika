@@ -1,20 +1,20 @@
 {
-  "name": "@pika/svelte-components",
-  "version": "0.0.0",
-  "type": "module",
-  "module": "index.ts",
-  "main": "index.ts",
-  "exports": {
-    ".": {
-      "types": "./index.ts",
-      "svelte": "./index.ts"
+    "name": "@pika/svelte-components",
+    "version": "0.0.0",
+    "type": "module",
+    "module": "index.ts",
+    "main": "index.ts",
+    "exports": {
+        ".": {
+            "types": "./index.ts",
+            "svelte": "./index.ts"
+        }
+    },
+    "scripts": {
+        "lint": "eslint ."
+    },
+    "devDependencies": {
+        "@pika/eslint-config": "*",
+        "svelte": "^5.19.3"
     }
-  },
-  "scripts": {
-    "lint": "eslint ."
-  },
-  "devDependencies": {
-    "@pika/eslint-config": "*",
-    "svelte": "^5.19.3"
-  }
 }

@@ -9,12 +9,14 @@ export async function getChatUser(userId: string): Promise<ChatUser | undefined>
         path: `${appConfig.stage}/api/chat/user`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`,
+        },
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(`Error getting user from chat database for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+        throw new Error(
+            `Error getting user from chat database for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`
+        );
     }
 
     return response.body.user;
@@ -27,12 +29,14 @@ export async function createChatUser(user: ChatUser): Promise<ChatUser> {
         method: 'POST',
         body: user,
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, authData: undefined })}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, authData: undefined })}`,
+        },
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(`Error creating user in chat database for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+        throw new Error(
+            `Error creating user in chat database for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`
+        );
     }
 
     return response.body.user;
@@ -44,12 +48,14 @@ export async function getChatSessions(userId: string, chatAppId: string): Promis
         path: `${appConfig.stage}/api/chat/conversations/${chatAppId}`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`,
+        },
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(`Error getting sessions from chat database for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error} and body: ${JSON.stringify(response.body)}`);
+        throw new Error(
+            `Error getting sessions from chat database for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error} and body: ${JSON.stringify(response.body)}`
+        );
     }
 
     return response.body.sessions;
@@ -61,8 +67,8 @@ export async function getChatMessages(sessionId: string, userId: string) {
         path: `${appConfig.stage}/api/chat/${sessionId}/messages`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, authData: undefined })}`,
+        },
     });
     return response.body;
 }

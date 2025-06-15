@@ -14,7 +14,6 @@ import { getRegion, sanitizeAndStringifyError } from './utils';
 import { getValueFromParameterStore } from './ssm';
 import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
 
-
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
@@ -102,7 +101,7 @@ export async function invokeAgentToGetAnswer(
             streamFinalResponse: true
         },
         actionGroups: actionGroups,
-        knowledgeBases: (agentAndTools.agent.knowledgeBases ?? []).map(kb => ({
+        knowledgeBases: (agentAndTools.agent.knowledgeBases ?? []).map((kb) => ({
             knowledgeBaseId: kb.id,
             description: kb.description
         })),

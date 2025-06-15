@@ -122,7 +122,10 @@ Props:
 {#if useCase === 'button'}
     <Button variant="ghost" onclick={() => (expanded = !expanded)}>
         <span class="font-medium">{title}</span>
-        <ChevronRight class="transition-transform duration-200 data-[state=open]:rotate-90" data-state={expanded || forceExpandedComputed ? 'open' : 'closed'} />
+        <ChevronRight
+            class="transition-transform duration-200 data-[state=open]:rotate-90"
+            data-state={expanded || forceExpandedComputed ? 'open' : 'closed'}
+        />
     </Button>
     {#if expanded || forceExpandedComputed}
         <div class="p-4 {disabled ? 'opacity-60 pointer-events-none' : ''}">
@@ -138,7 +141,10 @@ Props:
             <div class="flex-grow flex items-center gap-1 {forceExpandedComputed ? 'h-8 pl-1' : ''}">
                 {#if !forceExpandedComputed}
                     <Button variant="ghost" class="p-1" onclick={() => (expanded = !expanded)}>
-                        <ChevronRight class="transition-transform duration-200 data-[state=open]:rotate-90" data-state={expanded || forceExpandedComputed ? 'open' : 'closed'} />
+                        <ChevronRight
+                            class="transition-transform duration-200 data-[state=open]:rotate-90"
+                            data-state={expanded || forceExpandedComputed ? 'open' : 'closed'}
+                        />
                     </Button>
                 {:else if useCase === 'steps-in-process' && statusObj && statusObj.titleIcon}
                     <statusObj.titleIcon class="w-5 h-5 {statusObj.iconColor}" />

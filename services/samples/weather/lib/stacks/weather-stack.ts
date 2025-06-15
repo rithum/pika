@@ -17,7 +17,7 @@ export interface WeatherStackProps extends cdk.StackProps {
      * This is the name of the deployed pika service without the stage name.  It is needed because we import
      * some pika service stack parameters in this stack.  Specifically, we need the upload bucket name
      * so we can get files that were uploaded to the pika service by the chat converse lambda function.
-     * 
+     *
      * We also need the agent/chatapp custom resource ARN so we can create the weather chatapp, agent and tool.
      */
     pikaServiceProjNameKebabCase: string;
@@ -31,7 +31,11 @@ export class WeatherStack extends cdk.Stack {
 
         this.stage = props.stage;
 
-        const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(this, 'UploadBucketNameParam', `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/s3/upload_bucket_name`);
+        const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(
+            this,
+            'UploadBucketNameParam',
+            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/s3/upload_bucket_name`
+        );
 
         const lambdaRole = new iam.Role(this, 'WeatherLambdaRole', {
             roleName: `${this.stackName}-weather-lambda-role`, // Using this.stackName from the Stack context
@@ -141,7 +145,10 @@ export class WeatherStack extends cdk.Stack {
         customResource.node.addDependency(weatherLambda);
 
         // Get the chat app custom resource ARN
-        const chatAppCustomResourceArn = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/lambda/chat_app_custom_resource_arn`);
+        const chatAppCustomResourceArn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/lambda/chat_app_custom_resource_arn`
+        );
 
         // Create the weather chat app
         const chatAppData: { userId: string; chatApp: ChatAppForIdempotentCreateOrUpdate } = {

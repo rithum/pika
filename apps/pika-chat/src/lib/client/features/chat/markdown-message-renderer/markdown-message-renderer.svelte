@@ -2,7 +2,7 @@
     import { getContext, onMount, tick } from 'svelte';
     import { StreamingMarkdownProcessor, hydrateComponents, MarkdownToHtmlGenerator } from './md-to-html-generator';
     import type { ParsedSegment } from './md-to-html-generator';
-    
+
     // Import all tag components
     import PromptComponent from './markdown-tag-components/prompt.svelte';
     import ChartComponent from './markdown-tag-components/chart.svelte';
@@ -20,7 +20,6 @@
         chatAppState: ChatAppState;
     }
 
-    
     let { message, isStreaming = false, chatAppState: chat }: Props = $props();
     const appState = getContext<AppState>('appState');
 
@@ -30,9 +29,9 @@
         chart: ChartComponent,
         image: ImageComponent,
         chat: ChatComponent,
-        download: DownloadComponent
+        download: DownloadComponent,
     };
-    
+
     let messageContainer: HTMLElement;
     let processor: StreamingMarkdownProcessor | null = null;
     let staticGenerator: MarkdownToHtmlGenerator | null = null;
@@ -52,7 +51,7 @@
 
         // Wait for DOM update, then hydrate components
         await tick();
-        if (messageContainer && result.segments.some(s => s.type === 'placeholder')) {
+        if (messageContainer && result.segments.some((s) => s.type === 'placeholder')) {
             hydrateComponents(messageContainer, result.segments, componentMap, chat, appState);
         }
     }
@@ -74,7 +73,7 @@
 
             // Hydrate any new components
             await tick();
-            if (messageContainer && result.newSegments.some(s => s.type === 'placeholder')) {
+            if (messageContainer && result.newSegments.some((s) => s.type === 'placeholder')) {
                 hydrateComponents(messageContainer, result.newSegments, componentMap, chat, appState);
             }
         }
@@ -89,7 +88,7 @@
 
             // Final hydration pass
             await tick();
-            if (messageContainer && segments.some(s => s.type === 'placeholder')) {
+            if (messageContainer && segments.some((s) => s.type === 'placeholder')) {
                 hydrateComponents(messageContainer, segments, componentMap, chat, appState);
             }
 
@@ -130,10 +129,7 @@
     });
 </script>
 
-<div 
-    bind:this={messageContainer}
-    class="prose prose-gray max-w-none markdown-content"
->
+<div bind:this={messageContainer} class="prose prose-gray max-w-none markdown-content">
     {@html currentHtml}
 </div>
 

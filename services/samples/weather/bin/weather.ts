@@ -7,7 +7,6 @@ import { getLoggedInAccountIdFromSts } from './sts';
 const app = new cdk.App();
 
 async function main() {
-
     // Get stage from context or use default
     const stage = app.node.tryGetContext('stage') || 'test';
 
@@ -32,9 +31,11 @@ async function main() {
     });
 }
 
-main().then(() => {
-    app.synth();
-}).catch((e) => {
-    console.error('Deployment failed', e);
-    process.exit(1);
-});
+main()
+    .then(() => {
+        app.synth();
+    })
+    .catch((e) => {
+        console.error('Deployment failed', e);
+        process.exit(1);
+    });

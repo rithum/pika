@@ -5,7 +5,7 @@ import { MarkdownToHtmlGenerator, StreamingMarkdownProcessor } from './md-to-htm
 // Example 1: Static markdown processing
 export function testStaticMarkdown() {
     const generator = new MarkdownToHtmlGenerator();
-    
+
     const markdown = `
 ## Weather Report
 
@@ -31,23 +31,23 @@ You might want to ask:
 // Example 2: Streaming markdown processing
 export function testStreamingMarkdown() {
     const processor = new StreamingMarkdownProcessor();
-    
+
     // Simulate streaming chunks
     const chunks = [
-        '## Weather Report\n\nHere\'s today\'s weather:\n\n<ima',
+        "## Weather Report\n\nHere's today's weather:\n\n<ima",
         'ge>https://example.com/weather-map.jpg</image>\n\nThe temp',
         'erature forecast:\n\n<chart>{"type":"line","data":{"labels":["Mon"',
         ',"Tue","Wed"],"datasets":[{"label":"Temp","data":[72,75,79]}]}}</ch',
-        'art>\n\nYou might want to ask:\n\n<prompt>What\'s the humidity?</prompt>'
+        "art>\n\nYou might want to ask:\n\n<prompt>What's the humidity?</prompt>",
     ];
-    
+
     chunks.forEach((chunk, index) => {
         console.log(`\n--- Processing chunk ${index + 1} ---`);
         const result = processor.processChunk(chunk);
         console.log('New segments:', result.newSegments);
         console.log('Current HTML length:', result.fullHtml.length);
     });
-    
+
     // Finalize
     const finalResult = processor.finalize();
     console.log('\n--- Final result ---');
@@ -58,18 +58,15 @@ export function testStreamingMarkdown() {
 // Example 3: Handling incomplete tags
 export function testIncompleteTagHandling() {
     const processor = new StreamingMarkdownProcessor();
-    
+
     // Test with tag split across chunks
-    const chunks = [
-        'Here is a prompt: <pr',
-        'ompt>Ask about weather</prompt> and some more text'
-    ];
-    
+    const chunks = ['Here is a prompt: <pr', 'ompt>Ask about weather</prompt> and some more text'];
+
     chunks.forEach((chunk, index) => {
         const result = processor.processChunk(chunk);
         console.log(`Chunk ${index + 1}:`, {
-            hasPlaceholders: result.newSegments.some(s => s.type === 'placeholder'),
-            segmentCount: result.newSegments.length
+            hasPlaceholders: result.newSegments.some((s) => s.type === 'placeholder'),
+            segmentCount: result.newSegments.length,
         });
     });
 }
@@ -77,7 +74,7 @@ export function testIncompleteTagHandling() {
 // Example 4: Complex markdown with multiple features
 export function testComplexMarkdown() {
     const generator = new MarkdownToHtmlGenerator();
-    
+
     const markdown = `
 # Weather Analysis Report
 
@@ -122,27 +119,27 @@ Today's weather shows **significant** variation across regions.
 
     const result = generator.parseMarkdown(markdown);
     const html = generator.combineSegments(result.segments);
-    
+
     console.log('Complex markdown test:');
     console.log('- Total segments:', result.segments.length);
-    console.log('- HTML segments:', result.segments.filter(s => s.type === 'html').length);
-    console.log('- Placeholder segments:', result.segments.filter(s => s.type === 'placeholder').length);
-    console.log('- Tag types found:', [...new Set(result.segments.filter(s => s.tagType).map(s => s.tagType))]);
+    console.log('- HTML segments:', result.segments.filter((s) => s.type === 'html').length);
+    console.log('- Placeholder segments:', result.segments.filter((s) => s.type === 'placeholder').length);
+    console.log('- Tag types found:', [...new Set(result.segments.filter((s) => s.tagType).map((s) => s.tagType))]);
 }
 
 // Run tests if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
     console.log('=== Running markdown generator tests ===\n');
-    
+
     console.log('\n1. Testing static markdown:');
     testStaticMarkdown();
-    
+
     console.log('\n\n2. Testing streaming markdown:');
     testStreamingMarkdown();
-    
+
     console.log('\n\n3. Testing incomplete tag handling:');
     testIncompleteTagHandling();
-    
+
     console.log('\n\n4. Testing complex markdown:');
     testComplexMarkdown();
 }

@@ -6,7 +6,7 @@
     import { ChatAppState } from '../chat-app.state.svelte';
 
     const chat = getContext<ChatAppState>('chatAppState');
-    
+
     let hoveredSessionId: string | null = null;
 </script>
 
@@ -30,8 +30,8 @@
                         class="w-full text-sm font-medium justify-start p-0"
                         disabled={chat.isStreamingResponseNow}
                         onclick={() => chat.setCurrentSessionById(session.sessionId)}
-                        onmouseenter={() => hoveredSessionId = session.sessionId}
-                        onmouseleave={() => hoveredSessionId = null}
+                        onmouseenter={() => (hoveredSessionId = session.sessionId)}
+                        onmouseleave={() => (hoveredSessionId = null)}
                     >
                         <div class="flex items-center w-full justify-between">
                             <div class="truncate text-ellipsis overflow-hidden flex-1 text-left">{session.title}</div>

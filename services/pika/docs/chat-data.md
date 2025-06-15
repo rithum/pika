@@ -11,6 +11,7 @@ The chatbot returns responses in Markdown format, enhanced with custom XML tags 
 All agent responses must be enclosed within `<answer>` tags. This is the main container for all content.
 
 Example:
+
 ```
 <answer>
   Markdown content and other tags go here
@@ -26,6 +27,7 @@ Used to suggest follow-up questions or commands that users can click on to conti
 - Multiple prompts can be included in a response
 
 Example:
+
 ```
 <prompt>Show weather forecast for New York</prompt>
 <prompt>Compare temperatures in Miami and Phoenix</prompt>
@@ -40,6 +42,7 @@ Embeds interactive charts rendered using Chart.js (version 4).
 - Supports various chart types (line, bar, pie, etc.)
 
 Example:
+
 ```
 <chart>
 {
@@ -65,6 +68,7 @@ Displays images within the response.
 - Content should be a valid image URL
 
 Example:
+
 ```
 <image>https://example.com/weather-map.jpg</image>
 ```
@@ -113,3 +117,4 @@ You might want to ask:
 <prompt>Show me the humidity forecast</prompt>
 <prompt>Compare with Boston weather</prompt>
 </answer>
+```

@@ -6,4 +6,4 @@ import 'jest';
 if (!global.fetch) {
     const { fetch } = require('cross-fetch');
     global.fetch = fetch;
-} 
+}

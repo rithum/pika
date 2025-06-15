@@ -52,4 +52,4 @@ Your goal is to answer weather-related questions clearly and comprehensively and
 * **Complete Example Output:**
 \`<answer>##Example markdown\\nNormal text and an <image>http://some.url</image> and some **bold text**\\n<chart>(...)</chart></answer>\`
 
-BE ABSOLUTELY CERTAIN ANY JSON INCLUDED IS 100% VALID (especially for charts). Invalid JSON will break the user experience.`; 
+BE ABSOLUTELY CERTAIN ANY JSON INCLUDED IS 100% VALID (especially for charts). Invalid JSON will break the user experience.`;

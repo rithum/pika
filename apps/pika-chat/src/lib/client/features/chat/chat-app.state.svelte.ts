@@ -141,7 +141,7 @@ export class ChatAppState {
         }
 
         const { suggestions, randomize, randomizeAfter = 0, maxToShow = 5 } = suggestionsFeature;
-        
+
         // Early return if no randomization needed
         if (!randomize) {
             return suggestions.length > maxToShow ? suggestions.slice(0, maxToShow) : suggestions;
@@ -163,7 +163,6 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
-
 
     get suggestions() {
         return this.#suggestions;
@@ -442,7 +441,7 @@ export class ChatAppState {
 
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-        } catch(e) {
+        } catch (e) {
             console.error('Error downloading file', e);
             throw e;
         }

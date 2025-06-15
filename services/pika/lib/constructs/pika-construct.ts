@@ -109,20 +109,10 @@ export class PikaConstruct extends Construct {
     private createComputeResources(storageResources: any) {
         // Create IAM roles
         const bedrockChatRole = this.createBedrockChatRoleForInlineAgent();
-        const lambdaRole = this.createChatLambdaRole(
-            storageResources.chatMessagesTable,
-            storageResources.chatSessionTable,
-            storageResources.chatUserTable,
-            bedrockChatRole
-        );
+        const lambdaRole = this.createChatLambdaRole(storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable, bedrockChatRole);
 
         // Create Lambda functions
-        const chatbotApiFn = this.createChatbotApiFunction(
-            lambdaRole,
-            storageResources.chatMessagesTable,
-            storageResources.chatSessionTable,
-            storageResources.chatUserTable
-        );
+        const chatbotApiFn = this.createChatbotApiFunction(lambdaRole, storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable);
 
         const [chatAdminApiFn, chatAdminRestApi] = this.createChatAdminApiFunction(
             storageResources.agentDefinitionsTable,
@@ -370,11 +360,7 @@ export class PikaConstruct extends Construct {
         return archiveStagingTable;
     }
 
-    private createChatMessagesTable(
-        uploadS3Bucket: s3.Bucket,
-        fileArchiveBucket: s3.Bucket,
-        archiveStagingTable: dynamodb.Table
-    ): dynamodb.Table {
+    private createChatMessagesTable(uploadS3Bucket: s3.Bucket, fileArchiveBucket: s3.Bucket, archiveStagingTable: dynamodb.Table): dynamodb.Table {
         const chatMessagesTable = new dynamodb.Table(this, 'ChatMessagesTable', {
             partitionKey: {
                 name: 'user_id',
@@ -816,12 +802,7 @@ export class PikaConstruct extends Construct {
         });
     }
 
-    private createChatLambdaRole(
-        chatMessagesTable: dynamodb.Table,
-        chatSessionTable: dynamodb.Table,
-        chatUserTable: dynamodb.Table,
-        bedrockChatRole: iam.Role
-    ): iam.Role {
+    private createChatLambdaRole(chatMessagesTable: dynamodb.Table, chatSessionTable: dynamodb.Table, chatUserTable: dynamodb.Table, bedrockChatRole: iam.Role): iam.Role {
         const lambdaRole = new iam.Role(this, 'PikaLambdaRole', {
             roleName: `lambda-role-${this.props.stackName}`,
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -884,12 +865,7 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:Scan',
                                 'dynamodb:UpdateItem'
                             ],
-                            resources: [
-                                chatMessagesTable.tableArn,
-                                chatSessionTable.tableArn,
-                                `${chatSessionTable.tableArn}/index/user-chat-app-index`,
-                                chatUserTable.tableArn
-                            ]
+                            resources: [chatMessagesTable.tableArn, chatSessionTable.tableArn, `${chatSessionTable.tableArn}/index/user-chat-app-index`, chatUserTable.tableArn]
                         })
                     ]
                 })
@@ -931,13 +907,14 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:UseInferenceProfile',
-                                'bedrock:GetInferenceProfile', 'bedrock:GetFoundationModel'
+                            actions: [
+                                'bedrock:InvokeModel',
+                                'bedrock:InvokeModelWithResponseStream',
+                                'bedrock:UseInferenceProfile',
+                                'bedrock:GetInferenceProfile',
+                                'bedrock:GetFoundationModel'
                             ],
-                            resources: [
-                                'arn:aws:bedrock:*::foundation-model/*',
-                                'arn:aws:bedrock:*:*:inference-profile/*'
-                            ]
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -986,10 +963,7 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: [
-                                'bedrock:Retrieve',
-                                'bedrock:RetrieveAndGenerate'
-                            ],
+                            actions: ['bedrock:Retrieve', 'bedrock:RetrieveAndGenerate'],
                             resources: [`arn:aws:bedrock:${this.props.region}:${this.props.account}:knowledge-base/*`],
                             conditions: {
                                 StringEquals: {
@@ -1016,12 +990,7 @@ export class PikaConstruct extends Construct {
     }
 
     // Lambda function creation methods
-    private createChatbotApiFunction(
-        lambdaRole: iam.Role,
-        chatMessagesTable: dynamodb.Table,
-        chatSessionTable: dynamodb.Table,
-        chatUserTable: dynamodb.Table
-    ): lambda.Function {
+    private createChatbotApiFunction(lambdaRole: iam.Role, chatMessagesTable: dynamodb.Table, chatSessionTable: dynamodb.Table, chatUserTable: dynamodb.Table): lambda.Function {
         return new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
             entry: 'src/api/chatbot/index.ts',
             handler: 'handler',
@@ -1377,4 +1346,4 @@ export class PikaConstruct extends Construct {
 
         return api;
     }
-} 
+}

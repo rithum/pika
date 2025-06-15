@@ -20,7 +20,7 @@ export interface MarkdownRenderResult {
 
 // Supported custom tags
 const SUPPORTED_TAGS = ['prompt', 'chart', 'image', 'chat', 'download'] as const;
-type SupportedTag = typeof SUPPORTED_TAGS[number];
+type SupportedTag = (typeof SUPPORTED_TAGS)[number];
 
 // Type for component map
 export type TagComponentMap = Record<SupportedTag, Component>;
@@ -32,7 +32,7 @@ const TAG_PATTERNS = {
     // Matches potentially incomplete opening tags
     incompleteOpen: new RegExp(`<(${SUPPORTED_TAGS.join('|')})(?:[^>]*)?$`),
     // Matches incomplete closing tags
-    incompleteClose: new RegExp(`<\\/(${SUPPORTED_TAGS.join('|')})(?:[^>]*)?$`)
+    incompleteClose: new RegExp(`<\\/(${SUPPORTED_TAGS.join('|')})(?:[^>]*)?$`),
 };
 
 export class MarkdownToHtmlGenerator {
@@ -45,7 +45,7 @@ export class MarkdownToHtmlGenerator {
             html: true,
             linkify: true,
             typographer: true,
-            breaks: true
+            breaks: true,
         });
     }
 
@@ -55,18 +55,18 @@ export class MarkdownToHtmlGenerator {
     parseMarkdown(content: string, previousIncompleteTag: string = ''): MarkdownRenderResult {
         // Combine with any previous incomplete tag
         const fullContent = previousIncompleteTag + content;
-        
+
         // Check for incomplete tags at the end
         const incompleteTagResult = this.detectIncompleteTag(fullContent);
         let processableContent = incompleteTagResult.processableContent;
-        
+
         // Extract complete tags and create segments
         const segments: ParsedSegment[] = [];
         let lastIndex = 0;
-        
+
         // Reset the regex lastIndex
         TAG_PATTERNS.complete.lastIndex = 0;
-        
+
         let match;
         while ((match = TAG_PATTERNS.complete.exec(processableContent)) !== null) {
             // Add any markdown content before this tag
@@ -75,42 +75,42 @@ export class MarkdownToHtmlGenerator {
                 if (markdownContent.trim()) {
                     segments.push({
                         type: 'html',
-                        content: this.md.render(markdownContent)
+                        content: this.md.render(markdownContent),
                     });
                 }
             }
-            
+
             // Add the tag as a placeholder segment
             const tagType = match[1] as SupportedTag;
             const tagContent = match[2];
             const id = `${tagType}-${this.componentIdCounter++}`;
-            
+
             segments.push({
                 type: 'placeholder',
                 content: this.createPlaceholder(tagType, id),
                 tagType,
                 tagContent,
-                id
+                id,
             });
-            
+
             lastIndex = match.index + match[0].length;
         }
-        
+
         // Add any remaining markdown content
         if (lastIndex < processableContent.length) {
             const remainingContent = processableContent.slice(lastIndex);
             if (remainingContent.trim()) {
                 segments.push({
                     type: 'html',
-                    content: this.md.render(remainingContent)
+                    content: this.md.render(remainingContent),
                 });
             }
         }
-        
+
         return {
             segments,
             hasIncompleteTag: incompleteTagResult.hasIncompleteTag,
-            incompleteTagContent: incompleteTagResult.incompleteTagContent
+            incompleteTagContent: incompleteTagResult.incompleteTagContent,
         };
     }
 
@@ -124,17 +124,17 @@ export class MarkdownToHtmlGenerator {
     } {
         // Look for incomplete tags at the end
         const lastOpenTagIndex = content.lastIndexOf('<');
-        
+
         if (lastOpenTagIndex === -1) {
             return {
                 processableContent: content,
                 hasIncompleteTag: false,
-                incompleteTagContent: ''
+                incompleteTagContent: '',
             };
         }
-        
+
         const potentialTag = content.slice(lastOpenTagIndex);
-        
+
         // Check if it's a complete tag
         const closeTagIndex = potentialTag.indexOf('>');
         if (closeTagIndex !== -1) {
@@ -144,40 +144,39 @@ export class MarkdownToHtmlGenerator {
                 const tagName = tagMatch[1];
                 const expectedClosingTag = `</${tagName}>`;
                 const closingTagIndex = content.lastIndexOf(expectedClosingTag);
-                
+
                 if (closingTagIndex === -1 || closingTagIndex < lastOpenTagIndex) {
                     // Opening tag exists but no closing tag
                     return {
                         processableContent: content.slice(0, lastOpenTagIndex),
                         hasIncompleteTag: true,
-                        incompleteTagContent: content.slice(lastOpenTagIndex)
+                        incompleteTagContent: content.slice(lastOpenTagIndex),
                     };
                 }
             }
-            
+
             // Either not our tag or has proper closing
             return {
                 processableContent: content,
                 hasIncompleteTag: false,
-                incompleteTagContent: ''
+                incompleteTagContent: '',
             };
         }
-        
+
         // Check if it might be the start of one of our tags
-        if (TAG_PATTERNS.incompleteOpen.test(potentialTag) || 
-            TAG_PATTERNS.incompleteClose.test(potentialTag)) {
+        if (TAG_PATTERNS.incompleteOpen.test(potentialTag) || TAG_PATTERNS.incompleteClose.test(potentialTag)) {
             return {
                 processableContent: content.slice(0, lastOpenTagIndex),
                 hasIncompleteTag: true,
-                incompleteTagContent: potentialTag
+                incompleteTagContent: potentialTag,
             };
         }
-        
+
         // Not one of our tags
         return {
             processableContent: content,
             hasIncompleteTag: false,
-            incompleteTagContent: ''
+            incompleteTagContent: '',
         };
     }
 
@@ -213,7 +212,7 @@ export class MarkdownToHtmlGenerator {
      * Combine segments into HTML string
      */
     combineSegments(segments: ParsedSegment[]): string {
-        return segments.map(segment => segment.content).join('');
+        return segments.map((segment) => segment.content).join('');
     }
 }
 
@@ -223,41 +222,40 @@ export class MarkdownToHtmlGenerator {
 export function hydrateComponents(
     container: HTMLElement,
     segments: ParsedSegment[],
-    componentMap: Record<string, Component<any, {}, "">>,
+    componentMap: Record<string, Component<any, {}, ''>>,
     chatAppState: ChatAppState,
     appState: AppState
 ): void {
-    const componentSegments = segments.filter(s => s.type === 'placeholder');
-    
+    const componentSegments = segments.filter((s) => s.type === 'placeholder');
+
     for (const segment of componentSegments) {
         if (!segment.id || !segment.tagType || segment.tagContent === undefined) continue;
-        
+
         const placeholder = container.querySelector(`[data-tag-id="${segment.id}"]`);
         if (!placeholder || !(placeholder instanceof HTMLElement)) continue;
-        
+
         try {
             const ComponentClass = componentMap[segment.tagType];
-            
+
             if (!ComponentClass) {
                 throw new Error(`Component not found for tag type: ${segment.tagType}`);
             }
-            
+
             // Clear placeholder content
             placeholder.innerHTML = '';
-            
+
             // Mount the component using Svelte 5 API
             mount(ComponentClass, {
                 target: placeholder,
                 props: {
                     rawTagContent: segment.tagContent,
                     appState,
-                    chatAppState
+                    chatAppState,
                 },
             });
-            
+
             // Remove placeholder classes
             placeholder.classList.remove('markdown-tag-placeholder');
-            
         } catch (error) {
             console.error(`Failed to load component for tag type: ${segment.tagType}`, error);
             placeholder.innerHTML = `<div class="text-red-500">Error loading ${segment.tagType} component</div>`;
@@ -287,24 +285,24 @@ export class StreamingMarkdownProcessor {
     } {
         // Accumulate all content
         this.accumulatedContent += chunk;
-        
+
         // Reparse the entire accumulated content to maintain markdown structure integrity
         const result = this.generator.parseMarkdown(this.accumulatedContent);
-        
+
         // Update incomplete tag buffer
         this.incompleteTagBuffer = result.incompleteTagContent;
-        
+
         // Calculate new segments (segments that weren't in the previous parse)
         const previousSegmentCount = this.allSegments.length;
         this.allSegments = result.segments;
         const newSegments = result.segments.slice(previousSegmentCount);
-        
+
         // Generate full HTML
         const fullHtml = this.generator.combineSegments(this.allSegments);
-        
+
         return {
             newSegments,
-            fullHtml
+            fullHtml,
         };
     }
 
@@ -321,18 +319,18 @@ export class StreamingMarkdownProcessor {
         if (this.incompleteTagBuffer) {
             // Append the incomplete tag buffer to accumulated content
             this.accumulatedContent += this.incompleteTagBuffer;
-            
+
             // Reparse everything one final time
             const finalResult = this.generator.parseMarkdown(this.accumulatedContent);
             this.allSegments = finalResult.segments;
             this.incompleteTagBuffer = '';
         }
-        
+
         const fullHtml = this.generator.combineSegments(this.allSegments);
-        
+
         return {
             finalSegments: this.allSegments,
-            fullHtml
+            fullHtml,
         };
     }
 

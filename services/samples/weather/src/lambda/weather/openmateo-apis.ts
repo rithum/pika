@@ -151,7 +151,13 @@ export async function getCurrentWeather(p: GetCurrentWeatherParams, agentId: str
     return weatherData;
 }
 
-export async function getCurrentWeatherFromS3CsvFile(p: GetCurrentWeatherFromS3CsvFileParams, uploadS3BucketName: string, region: string, agentId: string, sessionId: string): Promise<any[]> {
+export async function getCurrentWeatherFromS3CsvFile(
+    p: GetCurrentWeatherFromS3CsvFileParams,
+    uploadS3BucketName: string,
+    region: string,
+    agentId: string,
+    sessionId: string
+): Promise<any[]> {
     if (!s3Client) {
         s3Client = new S3Client({ region });
     }

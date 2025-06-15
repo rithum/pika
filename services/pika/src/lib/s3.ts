@@ -1,4 +1,14 @@
-import { CopyObjectCommand, DeleteObjectCommand, GetObjectTaggingCommand, GetObjectTaggingCommandOutput, PutObjectCommand, PutObjectTaggingCommand, S3, S3Client, Tag } from '@aws-sdk/client-s3';
+import {
+    CopyObjectCommand,
+    DeleteObjectCommand,
+    GetObjectTaggingCommand,
+    GetObjectTaggingCommandOutput,
+    PutObjectCommand,
+    PutObjectTaggingCommand,
+    S3,
+    S3Client,
+    Tag
+} from '@aws-sdk/client-s3';
 import { getRegion } from './utils';
 
 let s3: S3Client | undefined;

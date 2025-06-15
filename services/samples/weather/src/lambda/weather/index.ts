@@ -41,7 +41,7 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
         try {
             const authData = JSON.parse(gunzipBase64EncodedString(authDataGzipHexEncoded));
             if (authData.accessToken) {
-                console.log('Access token found in authData:', redactData({authData}, 'authData'));
+                console.log('Access token found in authData:', redactData({ authData }, 'authData'));
                 accessToken = authData.accessToken;
             } else {
                 throw new Error('Missing accessToken in authData');
@@ -49,7 +49,6 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
         } catch (ex) {
             throw new Error(`Failed to parse authData: ${authDataGzipHexEncoded}. Error: ${ex instanceof Error ? ex.message : String(ex)}`);
         }
-
 
         let params = convertBedrockParamsToCorrectType(event.parameters);
 

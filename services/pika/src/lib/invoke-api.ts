@@ -2,7 +2,6 @@ import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 
-
 interface ApiGatewayRequestParams {
     apiId: string;
     path: string; // e.g., "api/chat/user/123"
@@ -25,9 +24,7 @@ interface ApiGatewayResponse<T = any> {
  * @param params Parameters for the API Gateway request.
  * @returns Promise<ApiGatewayResponse>
  */
-export async function invokeApi<T = any>(
-    params: ApiGatewayRequestParams,
-): Promise<ApiGatewayResponse<T>> {
+export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promise<ApiGatewayResponse<T>> {
     const { apiId, path, stage, method = 'GET', queryParams, body, region = 'us-east-1', headers: customHeaders = {} } = params;
 
     const baseUrl = `https://${apiId}.execute-api.${region}.amazonaws.com`;
@@ -53,9 +50,9 @@ export async function invokeApi<T = any>(
         protocol: invokeUrl.protocol,
         headers: {
             Host: invokeUrl.hostname, // Host header is crucial for SigV4
-            ...customHeaders, // Include any custom headers provided by the caller
+            ...customHeaders // Include any custom headers provided by the caller
         } as Record<string, string>,
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : undefined
     };
 
     // Add Content-Type for requests with a body, if not already set
@@ -65,17 +62,17 @@ export async function invokeApi<T = any>(
 
     // 3. Create a SignatureV4 signer instance
     const credentialsProvider = defaultProvider();
-    
+
     const signer = new SignatureV4({
         credentials: credentialsProvider,
         region,
         service: 'execute-api',
-        sha256: Sha256, // Pass the Sha256 class constructor
+        sha256: Sha256 // Pass the Sha256 class constructor
     });
 
     // 4. Sign the request
     // The sign method returns a Promise<HttpRequest>
-    const signedRequest = (await signer.sign(requestToSign as any) as unknown) as {
+    const signedRequest = (await signer.sign(requestToSign as any)) as unknown as {
         method: string;
         headers: Record<string, string>;
         body?: string;
@@ -88,7 +85,7 @@ export async function invokeApi<T = any>(
         const fetchRequest = new Request(invokeUrl.toString(), {
             method: signedRequest.method,
             headers: signedRequest.headers,
-            body: signedRequest.body,
+            body: signedRequest.body
         });
         response = await fetch(fetchRequest);
     } catch (error) {
@@ -115,15 +112,13 @@ export async function invokeApi<T = any>(
 
     if (!response.ok) {
         console.error(`API Gateway request failed with status ${response.status}:`, responseBodyJson);
-        throw new Error(
-            `API Gateway request failed with status ${response.status}. Response body: ${JSON.stringify(responseBodyJson, null, 2)}`
-        );
+        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${JSON.stringify(responseBodyJson, null, 2)}`);
     }
 
     return {
         statusCode: response.status,
         body: responseBodyJson,
-        headers: response.headers,
+        headers: response.headers
     };
 }
 

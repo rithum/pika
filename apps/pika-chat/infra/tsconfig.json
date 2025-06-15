@@ -17,4 +17,4 @@
     },
     "include": ["src", "bin", "lib/stacks", "infra"],
     "exclude": ["node_modules", "dist", "cdk.out"]
-} 
+}

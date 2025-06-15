@@ -10,7 +10,7 @@
     }
 
     let { rawTagContent, appState }: Props = $props();
-    
+
     let canvasElement: HTMLCanvasElement | undefined = $state();
     let chart: any = null;
     let error = $state<string | null>(null);
@@ -19,7 +19,7 @@
         try {
             // Parse the JSON content
             const chartConfig = JSON.parse(rawTagContent);
-            
+
             // Dynamically import Chart.js
             const { Chart, registerables } = await import('chart.js');
             Chart.register(...registerables);
@@ -31,8 +31,8 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
-                        ...chartConfig.options
-                    }
+                        ...chartConfig.options,
+                    },
                 });
             }
         } catch (err) {

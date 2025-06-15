@@ -32,18 +32,10 @@ export function parseChatAppCustomResourceProperties(str: string): ChatAppDataRe
     return chatAppDataObj;
 }
 
-export type MakeRequestFn = <T = ChatApp | undefined>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-    path: string,
-    body?: any
-) => Promise<T | undefined>;
+export type MakeRequestFn = <T = ChatApp | undefined>(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH', path: string, body?: any) => Promise<T | undefined>;
 
 export function createMakeRequestFn(apiId: string, stage: string, region: string): MakeRequestFn {
-    return async <T = ChatApp | undefined>(
-        method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-        path: string,
-        body?: any
-    ): Promise<T | undefined> => {
+    return async <T = ChatApp | undefined>(method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH', path: string, body?: any): Promise<T | undefined> => {
         let failureCode: number | undefined;
         let failureMessage: string | undefined;
         let result: T | undefined;
@@ -224,4 +216,4 @@ function validateResponse(response: CloudFormationCustomResourceResponse): void 
         console.warn(`Response size ${responseSize} bytes exceeds CloudFormation 4KB limit`);
         // Don't abort, but warn - CloudFormation might still accept it
     }
-} 
+}

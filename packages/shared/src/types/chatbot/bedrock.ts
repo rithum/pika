@@ -225,13 +225,7 @@ export interface BedrockActionGroupFunctionSchemaParameterDetail {
  *
  * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_Trace.html
  */
-export type Trace =
-    | CustomOrchestrationTrace
-    | FailureTrace
-    | GuardRailTrace
-    | PreProcessingTrace
-    | PostProcessingTrace
-    | RoutingClassifierTrace;
+export type Trace = CustomOrchestrationTrace | FailureTrace | GuardRailTrace | PreProcessingTrace | PostProcessingTrace | RoutingClassifierTrace;
 
 export type CustomOrchestrationTrace = Record<string, unknown>;
 export type FailureTrace = Record<string, unknown>;
@@ -367,13 +361,7 @@ export type Observation = {
      * Type: String
      * Required: No
      */
-    type?:
-        | 'ACTION_GROUP'
-        | 'AGENT_COLLABORATOR'
-        | 'KNOWLEDGE_BASE'
-        | 'FINISH'
-        | 'ASK_USER'
-        | 'REPROMPT';
+    type?: 'ACTION_GROUP' | 'AGENT_COLLABORATOR' | 'KNOWLEDGE_BASE' | 'FINISH' | 'ASK_USER' | 'REPROMPT';
 };
 
 /**
@@ -648,12 +636,7 @@ export interface InvocationInput {
      * Specifies whether the agent is invoking an action group or a knowledge base.
      * Valid values: 'ACTION_GROUP' | 'KNOWLEDGE_BASE' | 'FINISH' | 'ACTION_GROUP_CODE_INTERPRETER' | 'AGENT_COLLABORATOR'
      */
-    invocationType?:
-        | 'ACTION_GROUP'
-        | 'KNOWLEDGE_BASE'
-        | 'FINISH'
-        | 'ACTION_GROUP_CODE_INTERPRETER'
-        | 'AGENT_COLLABORATOR';
+    invocationType?: 'ACTION_GROUP' | 'KNOWLEDGE_BASE' | 'FINISH' | 'ACTION_GROUP_CODE_INTERPRETER' | 'AGENT_COLLABORATOR';
 
     /**
      * Contains details about the knowledge base to look up and the query to be made.
@@ -949,12 +932,7 @@ export interface ModelInvocationInput {
     traceId?: string;
 
     /** Which step of the agent sequence this relates to. */
-    type?:
-        | 'PRE_PROCESSING'
-        | 'ORCHESTRATION'
-        | 'KNOWLEDGE_BASE_RESPONSE_GENERATION'
-        | 'POST_PROCESSING'
-        | 'ROUTING_CLASSIFIER';
+    type?: 'PRE_PROCESSING' | 'ORCHESTRATION' | 'KNOWLEDGE_BASE_RESPONSE_GENERATION' | 'POST_PROCESSING' | 'ROUTING_CLASSIFIER';
 }
 
 /* -------------------------------------------------------------------------- */

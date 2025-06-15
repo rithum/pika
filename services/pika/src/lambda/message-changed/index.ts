@@ -24,7 +24,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
     const uploadS3Bucket = process.env.UPLOAD_S3_BUCKET;
     const stagingTableName = process.env.STAGING_TABLE_NAME;
-    
+
     if (!uploadS3Bucket) {
         throw new Error('UPLOAD_S3_BUCKET is not set');
     }
@@ -82,15 +82,10 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                     const isTTL = isTTLDeletion(record);
                     if (isTTL) {
                         console.log(`Message ${deletedItem.messageId} was deleted due to TTL expiration`);
-                        
+
                         // Stage the TTL-deleted record for batch archival
-                        await stageTTLDeletion(
-                            deletedItem,
-                            'message',
-                            record.eventSourceARN?.split('/')[1] || 'chat-messages',
-                            stagingTableName
-                        );
-                        
+                        await stageTTLDeletion(deletedItem, 'message', record.eventSourceARN?.split('/')[1] || 'chat-messages', stagingTableName);
+
                         // Note: We're NOT deleting S3 files here - they'll be handled by the archive processor
                         // This prevents race conditions and ensures all data is archived together
                     } else {
@@ -127,15 +122,10 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
  * @param sourceTable Source DynamoDB table name
  * @param stagingTableName Name of the staging table
  */
-async function stageTTLDeletion(
-    record: any,
-    recordType: 'message' | 'session',
-    sourceTable: string,
-    stagingTableName: string
-): Promise<void> {
+async function stageTTLDeletion(record: any, recordType: 'message' | 'session', sourceTable: string, stagingTableName: string): Promise<void> {
     const ttlExpiredAt = record.exp_date_unix_seconds || Math.floor(Date.now() / 1000);
     const now = new Date();
-    
+
     // Create staging record
     const stagingItem = {
         // Partition key - using timestamp prefix for even distribution
@@ -153,15 +143,17 @@ async function stageTTLDeletion(
         // Store the complete record as JSON
         data: { S: JSON.stringify(record) },
         // TTL for staging records (7 days)
-        exp_date_unix_seconds: { N: String(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)) }
+        exp_date_unix_seconds: { N: String(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60) }
     };
-    
+
     try {
-        await ddbClient.send(new PutItemCommand({
-            TableName: stagingTableName,
-            Item: stagingItem
-        }));
-        
+        await ddbClient.send(
+            new PutItemCommand({
+                TableName: stagingTableName,
+                Item: stagingItem
+            })
+        );
+
         console.log(`Staged ${recordType} record: ${stagingItem.record_id.S}`);
     } catch (error) {
         console.error(`Failed to stage ${recordType} record: ${error}`);

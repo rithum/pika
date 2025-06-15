@@ -4,7 +4,7 @@
     import ChatLayout from '$client/features/chat/layout/chat-layout.svelte';
     import { getContext, setContext } from 'svelte';
     import type { PageData } from './$types';
-    
+
     const { data }: { data: PageData } = $props();
 
     const chatApp = data.chatApp;

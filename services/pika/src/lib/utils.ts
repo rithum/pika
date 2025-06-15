@@ -1,7 +1,6 @@
 import { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
 
-
 export function createSessionToken(sessionId: string, companyId: string, userId: string) {
     return createHash('sha256')
         .update(sessionId + ':' + companyId + ':' + userId)
@@ -54,7 +53,7 @@ export function getChatUserTable(): string {
 /**
  * Extracts the message id from the message id string and increments it by 1.
  * If the message id is not provided, it returns 1.
- * 
+ *
  * @param messageId The message id string.
  * @returns The incremented message id.
  */
@@ -69,7 +68,7 @@ export function extractAndIncrementMessageId(messageId?: string): number {
  * Creates a message id string from the session id and the message number.
  * The exact format is sessionId:messageNum where messageNum is a 5 digit number
  * padded with leading zeros.
- * 
+ *
  * @param sessionId The session id.
  * @param messageNum The message number.
  * @returns The message ID.
@@ -80,7 +79,7 @@ export function createMessageId(sessionId: string, messageNum: number): string {
 
 /**
  * Gets the next message id for a given session.
- * 
+ *
  * @param sessionId The session id.
  * @param messageId The message id.
  * @returns The next message id.

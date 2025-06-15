@@ -1,36 +1,36 @@
 {
-  "name": "enterprise-site",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "lint": "prettier --check . && eslint .",
-    "format": "prettier --write ."
-  },
-  "devDependencies": {
-    "@sveltejs/adapter-auto": "catalog:",
-    "@sveltejs/kit": "catalog:",
-    "@sveltejs/vite-plugin-svelte": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "autoprefixer": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-plugin-svelte": "catalog:",
-    "postcss": "catalog:",
-    "prettier": "catalog:",
-    "prettier-plugin-svelte": "catalog:",
-    "svelte": "catalog:",
-    "svelte-check": "catalog:",
-    "tailwindcss": "catalog:",
-    "tailwindcss-animate": "catalog:",
-    "tslib": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:"
-  },
-  "type": "module"
-} 
+	"name": "enterprise-site",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "prettier --check . && eslint .",
+		"format": "prettier --write ."
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "catalog:",
+		"@sveltejs/kit": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@typescript-eslint/eslint-plugin": "catalog:",
+		"@typescript-eslint/parser": "catalog:",
+		"autoprefixer": "catalog:",
+		"eslint": "catalog:",
+		"eslint-config-prettier": "catalog:",
+		"eslint-plugin-svelte": "catalog:",
+		"postcss": "catalog:",
+		"prettier": "catalog:",
+		"prettier-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"tailwindcss": "catalog:",
+		"tailwindcss-animate": "catalog:",
+		"tslib": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	},
+	"type": "module"
+}

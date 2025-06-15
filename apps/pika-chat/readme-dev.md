@@ -6,10 +6,9 @@ Create a file in apps/chatbot named `.env.local`
 
 You will need an entry for everything in [AppConfig](src/lib//server/server-types.ts) except for these
 
-* isLocal: we detect this and will oerwrite whatever you put here
-* awsAccount: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS 
-* awsRegion: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS 
-
+- isLocal: we detect this and will oerwrite whatever you put here
+- awsAccount: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
+- awsRegion: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
 
 [See config](src/lib/server/config.ts)
 
@@ -21,16 +20,14 @@ You must have an encrypted ssm param named `/stack/pika-chat/${stage}/auth/clien
 
 ### Master Cookie Key && Mater Cookie Init Vector
 
-Today we encrypt all cookies in browser sessions with a master key.  Use this tool to generate one: `pnpm run master-key:generate`.
+Today we encrypt all cookies in browser sessions with a master key. Use this tool to generate one: `pnpm run master-key:generate`.
 
 Then create two SSM params named:
 
-* `/stack/pika-chat/${stage}/auth/master-cookie-key` and put the AES-256 key that was generated in it and make sure to select `SecureString` as the type.
-* `/stack/pika-chat/${stage}/auth/master-cookie-init-vector` and put the Initialization Vector that was generated in it and make sure to select `SecureString` as the type.
-
+- `/stack/pika-chat/${stage}/auth/master-cookie-key` and put the AES-256 key that was generated in it and make sure to select `SecureString` as the type.
+- `/stack/pika-chat/${stage}/auth/master-cookie-init-vector` and put the Initialization Vector that was generated in it and make sure to select `SecureString` as the type.
 
 ## Docker
-
 
 ### Installation
 

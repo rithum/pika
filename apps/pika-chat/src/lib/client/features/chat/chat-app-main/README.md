@@ -13,6 +13,7 @@ This system converts markdown content (both streaming and static) into HTML whil
 ## Supported Tags
 
 ### `<prompt>` - Interactive prompts
+
 Renders clickable suggestion buttons for follow-up questions.
 
 ```xml
@@ -20,6 +21,7 @@ Renders clickable suggestion buttons for follow-up questions.
 ```
 
 ### `<chart>` - Data visualizations
+
 Renders Chart.js charts from JSON configuration.
 
 ```xml
@@ -27,6 +29,7 @@ Renders Chart.js charts from JSON configuration.
 ```
 
 ### `<image>` - Images
+
 Displays images with loading states and error handling.
 
 ```xml
@@ -34,6 +37,7 @@ Displays images with loading states and error handling.
 ```
 
 ### `<chat>` - Chat subcomponents
+
 Renders chat-specific UI elements.
 
 ```xml
@@ -47,17 +51,17 @@ Renders chat-specific UI elements.
 ```svelte
 <script lang="ts">
     import MarkdownMessageRenderer from './markdown-message-renderer.svelte';
-    
+
     // For static content
-    let message = "## Hello\n\nThis is **markdown** with a <prompt>Click me</prompt>";
-    
+    let message = '## Hello\n\nThis is **markdown** with a <prompt>Click me</prompt>';
+
     // For streaming content
-    let streamingMessage = $state("");
+    let streamingMessage = $state('');
     let isStreaming = $state(true);
 </script>
 
 <!-- Static rendering -->
-<MarkdownMessageRenderer message={message} />
+<MarkdownMessageRenderer {message} />
 
 <!-- Streaming rendering -->
 <MarkdownMessageRenderer message={streamingMessage} isStreaming={true} />
@@ -70,13 +74,13 @@ import { MarkdownToHtmlGenerator, StreamingMarkdownProcessor } from './md-to-htm
 
 // Static processing
 const generator = new MarkdownToHtmlGenerator();
-const result = generator.parseMarkdown("# Hello **world**");
+const result = generator.parseMarkdown('# Hello **world**');
 const html = generator.combineSegments(result.segments);
 
 // Streaming processing
 const processor = new StreamingMarkdownProcessor();
-const chunk1Result = processor.processChunk("# Hello ");
-const chunk2Result = processor.processChunk("**world**");
+const chunk1Result = processor.processChunk('# Hello ');
+const chunk2Result = processor.processChunk('**world**');
 const finalResult = processor.finalize();
 ```
 
@@ -115,12 +119,13 @@ markdown-tag-components/         # Tag component implementations
 3. The component will receive `rawTagContent` prop with the tag's inner content
 
 Example component:
+
 ```svelte
 <script lang="ts">
     interface Props {
         rawTagContent: string;
     }
-    
+
     let { rawTagContent }: Props = $props();
 </script>
 
@@ -133,6 +138,7 @@ Example component:
 ## Testing
 
 Run the test file to see examples:
+
 ```bash
 node md-to-html-generator.test.ts
 ```

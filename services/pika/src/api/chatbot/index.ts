@@ -24,8 +24,8 @@ import { getUserFromAuthHeader } from '../../lib/jwt';
 // only need to get it once until the lambda is restarted
 let jwtSecret: string | undefined;
 
-type userObjFnTypeHandler<T,U> = (event: APIGatewayProxyEventPika<T>, user: ChatUser) => Promise<U>;
-type userIdFnTypeHandler<T,U> = (event: APIGatewayProxyEventPika<T>, userId: string) => Promise<U>;
+type userObjFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, user: ChatUser) => Promise<U>;
+type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, userId: string) => Promise<U>;
 
 const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdFnTypeHandler<any, any>; passUserObj: boolean }> = {
     'GET:/api/chat/user': {
@@ -95,9 +95,9 @@ export async function handlerFn(event: APIGatewayProxyEventPika<ConverseRequest 
     }
 
     const { httpMethod, resource } = event;
-    
+
     console.log('resource', resource);
-    
+
     const route = `${httpMethod}:${resource}`;
     const routeHandler = routes[route];
     if (!routeHandler) {

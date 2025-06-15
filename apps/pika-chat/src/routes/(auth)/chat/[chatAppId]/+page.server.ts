@@ -36,6 +36,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
     }
 
     return {
-        chatApp
+        chatApp,
     };
-}; 
+};

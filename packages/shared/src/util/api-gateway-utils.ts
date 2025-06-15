@@ -14,7 +14,6 @@ import {
     LambdaFunctionURLEvent
 } from 'aws-lambda';
 
-
 /**
  * Extends the standard Error interface to include an optional HTTP status code.
  * This allows for standardized error handling with appropriate HTTP responses.
@@ -114,10 +113,13 @@ export function apiGatewayFunctionDecorator<TRequestBody, TResponse>(fn: APIGate
 
         // Return resource not found if the response is undefined
         if (response === undefined) {
-            return toResponse({
-                message: 'Resource not found',
-                code: 'RESOURCE_NOT_FOUND'
-            }, 404);
+            return toResponse(
+                {
+                    message: 'Resource not found',
+                    code: 'RESOURCE_NOT_FOUND'
+                },
+                404
+            );
         }
 
         // Either return the structured response directly or wrap the result in a standard response
@@ -185,14 +187,14 @@ export type LambdaFunctionUrlProxyEventPika<T = never> = APIGatewayProxyEventPik
  * Converts a Lambda Function URL event into a standardized API Gateway event.
  * This function ensures that IAM authorization details are properly mapped
  * from the authorizer to the identity property for consistent access patterns.
- * 
+ *
  * Also, parses the body string into the generic type T if it exists and is a string
  *
  * This exists because the Lambda Function URL event has a different structure
  * than the API Gateway event and we almost never use Lambdas that are Function URL based
  * and so it's easier to just convert the event to a standard API Gateway event than
  * to handle the different event types.
- * 
+ *
  * @template T - The request body type
  * @param event - The Lambda Function URL event to convert
  * @returns A standardized API Gateway event
@@ -204,7 +206,7 @@ export function convertFunctionUrlEventToStandardApiGatewayEvent<T>(event: Lambd
         event.requestContext.authorizer.iam.user = event.requestContext.authorizer.iam.userId;
         event.requestContext.authorizer.iam.caller = event.requestContext.authorizer.iam.callerId;
     }
-    
+
     // Parse the body string into the generic type T if it exists and is a string
     if (event.body && typeof event.body === 'string') {
         try {
@@ -222,6 +224,6 @@ export function convertFunctionUrlEventToStandardApiGatewayEvent<T>(event: Lambd
             throw error;
         }
     }
-    
+
     return event;
 }

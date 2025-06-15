@@ -114,4 +114,4 @@ describe('Features Type Change Verification', () => {
         expect(recordsHaveSameElements(features1, features2)).toBe(false);
         expect(recordsHaveSameElements(features2, features1)).toBe(false);
     });
-}); 
+});

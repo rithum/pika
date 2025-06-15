@@ -10,10 +10,7 @@
 <div class="space-y-6">
 	<div class="bg-white shadow-sm rounded-lg p-6 flex items-center justify-between">
 		<h1 class="text-2xl font-semibold text-gray-900">Enterprise Dashboard</h1>
-		
 	</div>
-
-	
 
 	<div class="bg-white shadow-sm rounded-lg p-6">
 		<h2 class="text-lg font-medium text-gray-900">Key Performance Metrics</h2>

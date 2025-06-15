@@ -41,7 +41,6 @@ export async function addUser(user: ChatUser): Promise<ChatUser> {
     user.createDate = now;
     user.lastUpdate = now;
 
-
     console.log('about to add user in chat database', convertToSnakeCase<ChatUser>(user));
 
     await ddbDocClient.put({

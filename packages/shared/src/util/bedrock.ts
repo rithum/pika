@@ -1,12 +1,12 @@
-import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse, Parameter } from "../types/chatbot/bedrock";
-import { BedrockLambdaError } from "../types/chatbot/bedrock-lambda-error";
+import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse, Parameter } from '../types/chatbot/bedrock';
+import { BedrockLambdaError } from '../types/chatbot/bedrock-lambda-error';
 
 /**
  * Handles an error and returns a BedrockLambdaResponse object.
- * 
+ *
  * If the error is an instance of BedrockLambdaError, it will be returned as is.
  * Otherwise, it will be converted to a string and returned as a BedrockLambdaError.
- * 
+ *
  * @param error The error to handle.
  * @returns A BedrockLambdaResponse object.
  */
@@ -49,7 +49,7 @@ export const converters: Record<string, (v: string) => any> = {
                 if (content === '') {
                     return [];
                 }
-                return content.split(',').map(item => item.trim());
+                return content.split(',').map((item) => item.trim());
             }
             // If it doesn't look like an array format, return as single-item array
             return [v];
@@ -66,9 +66,7 @@ export function convertBedrockParamsToCorrectType(params?: Parameter[]): Record<
     return (
         params?.reduce(
             (acc, param) => {
-                acc[param.name] = converters[param.type]
-                    ? converters[param.type](param.value)
-                    : converters.defaultPassThrough(param.value);
+                acc[param.name] = converters[param.type] ? converters[param.type](param.value) : converters.defaultPassThrough(param.value);
                 return acc;
             },
             {} as Record<string, any>
@@ -79,15 +77,13 @@ export function convertBedrockParamsToCorrectType(params?: Parameter[]): Record<
 /**
  * Normalizes the session attributes, converting the type to T.  An empty sessionAttributes object is the
  * same as undefined.
- * 
+ *
  * Type T is the type of the session attributes.
- * 
+ *
  * @param sessionAttributes The session attributes.
  * @returns The normalized session attributes.
  */
-export function normalizeSessionAttributes<T>(
-    sessionAttributes?: Record<string, any> | undefined
-): T | undefined {
+export function normalizeSessionAttributes<T>(sessionAttributes?: Record<string, any> | undefined): T | undefined {
     if (!sessionAttributes || Object.keys(sessionAttributes).length === 0) {
         return undefined;
     }
@@ -97,12 +93,12 @@ export function normalizeSessionAttributes<T>(
 
 /**
  * Creates a BedrockLambdaResponse object.
- * 
+ *
  * Type T is the type of the session attributes.  By including the sessionAttributes
  * parameter, we are telling Bedrock to persist the session attributes for the
  * duration of the session and they will be passed in on all subsequent calls
  * using the event.sessionAttributes parameter.
- * 
+ *
  * @param body The body of the response.
  * @param actionGroup The action group.
  * @param messageVersion The message version.
@@ -125,7 +121,7 @@ export function createBedrockLambdaResponse<T extends Record<string, any>>(
             actionGroup,
             function: functionName,
             functionResponse: {
-                ...(failed ? { responseState: "FAILURE" } : {}),
+                ...(failed ? { responseState: 'FAILURE' } : {}),
                 responseBody: {
                     TEXT: {
                         body: typeof body === 'string' ? body : JSON.stringify(body)

@@ -9,7 +9,7 @@ export const POST: RequestHandler = async ({ request }) => {
     try {
         // Parse the form data containing file and metadata
         const formData = await request.formData();
-        
+
         const file = formData.get('file') as File;
         const s3Key = formData.get('s3Key') as string;
         const fileMimeType = formData.get('fileMimeType') as string;
@@ -60,12 +60,9 @@ export const POST: RequestHandler = async ({ request }) => {
             message: e instanceof Error ? e.message : 'Unknown error',
             name: e instanceof Error ? e.name : 'Unknown',
             region: appConfig.awsRegion,
-            bucket: appConfig.uploadS3Bucket
+            bucket: appConfig.uploadS3Bucket,
         });
-        
-        return getErrorResponse(
-            500,
-            `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
-        );
+
+        return getErrorResponse(500, `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
     }
 };

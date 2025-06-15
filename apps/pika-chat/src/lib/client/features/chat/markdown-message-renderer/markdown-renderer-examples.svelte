@@ -1,6 +1,6 @@
 <script lang="ts">
     import MarkdownMessageRenderer from './markdown-message-renderer.svelte';
-    
+
     // Example 1: Static message with various markdown features and tags
     const staticMessage = `
 ## Weather Report for New York
@@ -29,28 +29,28 @@ Today's weather is **partly cloudy** with a high of 75°F.
     // Example 2: Simulating streaming content
     let streamingMessage = $state('');
     let isStreaming = $state(false);
-    
+
     // Simulate streaming chunks
     const messageChunks = [
         '## Live Weather Update\n\nFetching current conditions',
         '...\n\n**Temperature:** 72°F\n**Humidity:** 65%\n\n',
-        'Here\'s the current radar:\n\n<ima',
+        "Here's the current radar:\n\n<ima",
         'ge>https://example.com/radar.gif</image>\n\n',
-        'You can ask me:\n\n<prompt>Will it rain today?</prompt>'
+        'You can ask me:\n\n<prompt>Will it rain today?</prompt>',
     ];
-    
+
     async function simulateStreaming() {
         isStreaming = true;
         streamingMessage = '';
-        
+
         for (const chunk of messageChunks) {
             streamingMessage += chunk;
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
         }
-        
+
         isStreaming = false;
     }
-    
+
     // Example 3: Message with error handling
     const messageWithErrors = `
 ## Chart with Invalid JSON
@@ -74,24 +74,17 @@ But the rest of the message renders fine!
             <MarkdownMessageRenderer message={staticMessage} files={[]} />
         </div>
     </section>
-    
+
     <section>
         <h2 class="text-2xl font-bold mb-4">Example 2: Streaming Message</h2>
-        <button 
-            onclick={simulateStreaming}
-            class="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
+        <button onclick={simulateStreaming} class="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
             Start Streaming Demo
         </button>
         <div class="bg-gray-50 rounded-lg p-4 min-h-[200px]">
-            <MarkdownMessageRenderer 
-                message={streamingMessage} 
-                isStreaming={isStreaming}
-                files={[]}
-            />
+            <MarkdownMessageRenderer message={streamingMessage} {isStreaming} files={[]} />
         </div>
     </section>
-    
+
     <section>
         <h2 class="text-2xl font-bold mb-4">Example 3: Error Handling</h2>
         <div class="bg-gray-50 rounded-lg p-4">

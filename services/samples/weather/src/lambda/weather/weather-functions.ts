@@ -1,13 +1,13 @@
 /**
  * Weather functions configuration for inline agent.
  * This is a hardcoded version moved from the CDK stack for initial inline agent implementation.
- * 
+ *
  * It is critically important to know that as of now, AWS only allows at most 5 parameters to be passed to a function.
  * When we need more than 5 parameters, we need to use a different approach. We will make the 5th parameter
  * name "jsonParams" and set it to a JSON string of the remaining optional parameters.
  */
 
-import { FunctionDefinition } from "@aws-sdk/client-bedrock-agent-runtime";
+import { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
 
 export const weatherFunctions: FunctionDefinition[] = [
     {
@@ -39,7 +39,8 @@ export const weatherFunctions: FunctionDefinition[] = [
     },
     {
         name: 'getWeatherForecast',
-        description: 'Retrieves weather forecast data for a specified location and time range. Supports hourly and daily variables, multiple weather models, and various units. Returns forecast data in JSON format. At least one of hourly or daily variables should be specified in jsonParams for meaningful results.',
+        description:
+            'Retrieves weather forecast data for a specified location and time range. Supports hourly and daily variables, multiple weather models, and various units. Returns forecast data in JSON format. At least one of hourly or daily variables should be specified in jsonParams for meaningful results.',
         parameters: {
             latitude: {
                 type: 'number',
@@ -63,7 +64,8 @@ export const weatherFunctions: FunctionDefinition[] = [
             },
             jsonParams: {
                 type: 'string',
-                description: 'A JSON string of optional params. Interface is `{\n// List hourly weather variables to retrieve (e.g., temperature_2m, precipitation)\nhourly?:array;\n// List daily weather variables to retrieve (e.g., temperature_2m_max, precipitation_sum)\ndaily?:array;\n// List weather models to use (e.g., ECMWF, GFS). Defaults to best available\nmodels?:array;\n// Timezone for returned data (e.g., America/Los_Angeles), defaults to UTC.\ntimezone?:string;\n}` Provide at least one of hourly or daily.',
+                description:
+                    'A JSON string of optional params. Interface is `{\n// List hourly weather variables to retrieve (e.g., temperature_2m, precipitation)\nhourly?:array;\n// List daily weather variables to retrieve (e.g., temperature_2m_max, precipitation_sum)\ndaily?:array;\n// List weather models to use (e.g., ECMWF, GFS). Defaults to best available\nmodels?:array;\n// Timezone for returned data (e.g., America/Los_Angeles), defaults to UTC.\ntimezone?:string;\n}` Provide at least one of hourly or daily.',
                 required: false
             }
         },
@@ -98,7 +100,8 @@ export const weatherFunctions: FunctionDefinition[] = [
     },
     {
         name: 'getCurrentWeatherFromS3CsvFile',
-        description: 'Retrieves current weather conditions for a specified location from one or more CSV files in S3. Returns data such as temperature, humidity, and wind speed. Each CSV file should have the following format: latitude,longitude,timezone.',
+        description:
+            'Retrieves current weather conditions for a specified location from one or more CSV files in S3. Returns data such as temperature, humidity, and wind speed. Each CSV file should have the following format: latitude,longitude,timezone.',
         parameters: {
             s3Keys: {
                 type: 'array',
@@ -134,7 +137,8 @@ export const weatherFunctions: FunctionDefinition[] = [
             },
             jsonParams: {
                 type: 'string',
-                description: 'A JSON string of optional params. Interface is `{\n// List of hourly weather variables to retrieve (e.g., temperature_2m, precipitation).\nhourly?:array;\n\n// List of daily weather variables to retrieve (e.g., temperature_2m_max, precipitation_sum).\ndaily?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
+                description:
+                    'A JSON string of optional params. Interface is `{\n// List of hourly weather variables to retrieve (e.g., temperature_2m, precipitation).\nhourly?:array;\n\n// List of daily weather variables to retrieve (e.g., temperature_2m_max, precipitation_sum).\ndaily?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
                 required: false
             }
         },
@@ -142,7 +146,8 @@ export const weatherFunctions: FunctionDefinition[] = [
     },
     {
         name: 'getAirQuality',
-        description: 'Retrieves air quality data for a specified location and date range. Supports variables like PM10, carbon monoxide, and AQI indices. Returns data in JSON format.',
+        description:
+            'Retrieves air quality data for a specified location and date range. Supports variables like PM10, carbon monoxide, and AQI indices. Returns data in JSON format.',
         parameters: {
             latitude: {
                 type: 'number',
@@ -166,7 +171,8 @@ export const weatherFunctions: FunctionDefinition[] = [
             },
             jsonParams: {
                 type: 'string',
-                description: 'A JSON string of optional params. Interface is `{\n// List of hourly air quality variables to retrieve (e.g., pm10, carbon_monoxide).\nhourly?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
+                description:
+                    'A JSON string of optional params. Interface is `{\n// List of hourly air quality variables to retrieve (e.g., pm10, carbon_monoxide).\nhourly?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
                 required: false
             }
         },
@@ -174,7 +180,8 @@ export const weatherFunctions: FunctionDefinition[] = [
     },
     {
         name: 'getMarineForecast',
-        description: 'Retrieves marine weather forecast data for a specified location and date range. Supports variables like wave height and swell direction. Returns data in JSON format.',
+        description:
+            'Retrieves marine weather forecast data for a specified location and date range. Supports variables like wave height and swell direction. Returns data in JSON format.',
         parameters: {
             latitude: {
                 type: 'number',
@@ -198,7 +205,8 @@ export const weatherFunctions: FunctionDefinition[] = [
             },
             jsonParams: {
                 type: 'string',
-                description: 'A JSON string of optional params. Interface is `{\n// List of hourly marine variables to retrieve (e.g., wave_height, swell_direction).\nhourly?:array;\n\n// List of daily marine variables to retrieve (e.g., wave_height_max, swell_direction_mean).\ndaily?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
+                description:
+                    'A JSON string of optional params. Interface is `{\n// List of hourly marine variables to retrieve (e.g., wave_height, swell_direction).\nhourly?:array;\n\n// List of daily marine variables to retrieve (e.g., wave_height_max, swell_direction_mean).\ndaily?:array;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
                 required: false
             }
         },
@@ -206,7 +214,8 @@ export const weatherFunctions: FunctionDefinition[] = [
     },
     {
         name: 'getClimateForecast',
-        description: 'Retrieves long-range climate forecast data for a specified location and date range. Supports variables like temperature and precipitation. Returns data in JSON format.',
+        description:
+            'Retrieves long-range climate forecast data for a specified location and date range. Supports variables like temperature and precipitation. Returns data in JSON format.',
         parameters: {
             latitude: {
                 type: 'number',
@@ -230,7 +239,8 @@ export const weatherFunctions: FunctionDefinition[] = [
             },
             jsonParams: {
                 type: 'string',
-                description: 'A JSON string of optional params. Interface is `{\n// List of daily climate variables to retrieve (e.g., temperature_2m_max, precipitation_sum).\ndaily?:string;\n\n// Climate model to use for the forecast (e.g., MPI_ESM1_2_XR).\nmodel?:string;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
+                description:
+                    'A JSON string of optional params. Interface is `{\n// List of daily climate variables to retrieve (e.g., temperature_2m_max, precipitation_sum).\ndaily?:string;\n\n// Climate model to use for the forecast (e.g., MPI_ESM1_2_XR).\nmodel?:string;\n\n// Timezone for the returned data (e.g., America/Los_Angeles).\ntimezone?:string;\n}`',
                 required: false
             }
         },
@@ -253,4 +263,4 @@ export const weatherFunctions: FunctionDefinition[] = [
         },
         requireConfirmation: 'DISABLED'
     }
-]; 
+];

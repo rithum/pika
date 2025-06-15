@@ -30,16 +30,16 @@ export function areSame(val1: unknown, val2: unknown): boolean {
         if (Array.isArray(objValue) && Array.isArray(othValue)) {
             // Create a unique identifier for this comparison pair
             const pairId = { a: objValue, b: othValue };
-            
+
             // Check if we've already started comparing these arrays
             if (visitedPairs.has(pairId)) {
                 // We're in a circular reference, delegate to lodash's default comparison
                 return undefined;
             }
-            
+
             // Mark this pair as being compared
             visitedPairs.add(pairId);
-            
+
             try {
                 if (objValue.length !== othValue.length) {
                     return false; // Different lengths, cannot be same

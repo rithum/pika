@@ -3,17 +3,17 @@ import { GetCurrentWeatherParams } from './types';
 
 /**
  * Parses a collection of CSV files containing weather location data
- * 
+ *
  * @param files - Object where keys are filenames and values are CSV file contents as strings
  * @returns Object where keys are filenames and values are arrays of parsed GetCurrentWeatherParams objects
  * @throws Error if any file cannot be parsed or is missing required data
- * 
+ *
  * @description
  * This function processes multiple CSV files containing geographic coordinates for weather data.
  * It handles two CSV formats:
  * 1. Files with a header row containing "longitude", "latitude", and "timezone" columns
  * 2. Files without headers (assuming column order: longitude, latitude, timezone)
- * 
+ *
  * For each file, it:
  * - Parses the CSV content using PapaParse
  * - Detects if a header row is present
@@ -21,7 +21,7 @@ import { GetCurrentWeatherParams } from './types';
  * - Extracts and validates all data rows
  * - Converts longitude and latitude to numbers
  * - Creates GetCurrentWeatherParams objects for every row in the file
- * 
+ *
  * If any errors occur during parsing (empty files, missing columns, invalid values),
  * they are collected and thrown as a combined error message.
  */
@@ -33,11 +33,11 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
         try {
             // Parse the CSV content
             const parseResult = Papa.parse(fileContent, {
-                skipEmptyLines: true,
+                skipEmptyLines: true
             });
 
             if (parseResult.errors.length > 0) {
-                errors.push(`Error parsing ${fileName}: ${parseResult.errors.map(e => e.message).join(', ')}`);
+                errors.push(`Error parsing ${fileName}: ${parseResult.errors.map((e) => e.message).join(', ')}`);
                 continue;
             }
 
@@ -49,9 +49,7 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
 
             // Check if the first row looks like a header
             const firstRow = rows[0];
-            const hasHeader = firstRow.some(cell => 
-                ['longitude', 'latitude', 'timezone'].includes(cell.toLowerCase().trim())
-            );
+            const hasHeader = firstRow.some((cell) => ['longitude', 'latitude', 'timezone'].includes(cell.toLowerCase().trim()));
 
             let longitudeIndex: number;
             let latitudeIndex: number;
@@ -59,8 +57,8 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
 
             if (hasHeader) {
                 // Validate header and get column indices
-                const headerRow = firstRow.map(h => h.toLowerCase().trim());
-                
+                const headerRow = firstRow.map((h) => h.toLowerCase().trim());
+
                 longitudeIndex = headerRow.indexOf('longitude');
                 latitudeIndex = headerRow.indexOf('latitude');
                 timezoneIndex = headerRow.indexOf('timezone');
@@ -71,7 +69,7 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
                     if (longitudeIndex === -1) missing.push('longitude');
                     if (latitudeIndex === -1) missing.push('latitude');
                     if (timezoneIndex === -1) missing.push('timezone');
-                    
+
                     errors.push(`Error parsing ${fileName}: Missing required columns: ${missing.join(', ')}`);
                     continue;
                 }
@@ -81,7 +79,7 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
                     errors.push(`Error parsing ${fileName}: Expected exactly 3 columns (longitude, latitude, timezone) but found ${firstRow.length}`);
                     continue;
                 }
-                
+
                 // Assume order: longitude, latitude, timezone
                 longitudeIndex = 0;
                 latitudeIndex = 1;
@@ -90,7 +88,7 @@ export function parseCSVFiles(files: Record<string, string>): Record<string, Get
 
             // Process data rows
             const dataRows = hasHeader ? rows.slice(1) : rows;
-            
+
             if (dataRows.length === 0) {
                 errors.push(`Error parsing ${fileName}: No data rows found`);
                 continue;

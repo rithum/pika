@@ -19,5 +19,5 @@ export async function getValueFromParameterStore(parameterName: string, region?:
         WithDecryption: true,
     });
     const response = await ssm.send(command);
-    return response.Parameter?.Value;   
+    return response.Parameter?.Value;
 }

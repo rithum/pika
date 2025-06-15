@@ -17,6 +17,7 @@
         "eslint": "catalog:",
         "eslint-config-prettier": "catalog:",
         "prettier": "catalog:",
+        "prettier-plugin-svelte": "catalog:",
         "turbo": "catalog:",
         "typescript": "catalog:"
     },

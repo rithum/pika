@@ -139,7 +139,10 @@ export class AppConfigProxy implements AppConfig {
                         }
                         this._clientId = result;
                     } else {
-                        const result = await getValueFromParameterStore(`/stack/pika-chat/${stage}/auth/client-id`, region);
+                        const result = await getValueFromParameterStore(
+                            `/stack/pika-chat/${stage}/auth/client-id`,
+                            region
+                        );
                         if (!result) {
                             throw new Error('CLIENT_ID is not set');
                         }
@@ -237,10 +240,7 @@ export class AppConfigProxy implements AppConfig {
             {
                 name: 'jwtSecret',
                 setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string) => {
-                    this._jwtSecret = await getValueFromParameterStore(
-                        `/stack/pika/${stage}/jwt-secret`,
-                        region
-                    );
+                    this._jwtSecret = await getValueFromParameterStore(`/stack/pika/${stage}/jwt-secret`, region);
                 },
             },
             {
@@ -251,7 +251,7 @@ export class AppConfigProxy implements AppConfig {
                         throw new Error('CONVERSE_FUNCTION_URL is not set');
                     }
                 },
-            }
+            },
         ];
     }
 

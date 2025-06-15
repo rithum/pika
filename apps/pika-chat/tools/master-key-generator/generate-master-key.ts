@@ -28,5 +28,9 @@ console.log('----------------------------------------------------------------');
 console.log('\nIMPORTANT:');
 console.log('1. Store these keys securely (e.g., AWS SSM Parameter Store, HashiCorp Vault).');
 console.log('2. DO NOT hardcode these keys into your application source code.');
-console.log('3. Ensure your application loads these keys from environment variables or a secure config service at runtime.');
-console.log('4. The IV should also be stored securely. For AES-GCM, IVs should generally be unique per encryption and not reused with the same key. If using AES-CBC with this static IV, ensure you understand the security implications if the key is not rotated frequently.');
+console.log(
+    '3. Ensure your application loads these keys from environment variables or a secure config service at runtime.'
+);
+console.log(
+    '4. The IV should also be stored securely. For AES-GCM, IVs should generally be unique per encryption and not reused with the same key. If using AES-CBC with this static IV, ensure you understand the security implications if the key is not rotated frequently.'
+);

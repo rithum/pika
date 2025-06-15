@@ -11,18 +11,16 @@
             "dependsOn": ["^lint"],
             "inputs": ["services/*/src/**", "services/*/package.json"]
         },
+        "format": {
+            "cache": false,
+            "inputs": ["**/*.{js,jsx,ts,tsx,json,md,svelte}"]
+        },
         "check-types": {
             "dependsOn": ["^check-types"]
         },
         "test": {
             "dependsOn": ["build"],
-            "inputs": [
-                "services/*/src/**",
-                "services/*/test/**",
-                "services/*/__tests__/**",
-                "services/*/jest.config.js",
-                "services/*/package.json"
-            ],
+            "inputs": ["services/*/src/**", "services/*/test/**", "services/*/__tests__/**", "services/*/jest.config.js", "services/*/package.json"],
             "outputs": ["coverage/**", "junit.xml"]
         },
         "dev": {

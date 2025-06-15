@@ -89,7 +89,7 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                     console.log('Making API request to /api/chat-admin/chat-app with payload:', JSON.stringify(createRequest, null, 2));
                     const result = await makeRequest<ChatAppDataResponse>('POST', `/api/chat-admin/chat-app-data`, createRequest);
                     console.log('API response received:', JSON.stringify(result, null, 2));
-                    
+
                     if (result) {
                         console.log(`Successfully created chat app ${chatAppData.chatApp.chatAppId}`);
                     } else {
@@ -119,7 +119,7 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                     console.log('Making API request to /api/chat-admin/chat-app/{chatAppId} with payload:', JSON.stringify(updateRequest, null, 2));
                     const result = await makeRequest<ChatApp>('PUT', `/api/chat-admin/chat-app/${chatAppData.chatApp.chatAppId}`, updateRequest);
                     console.log('API response received:', JSON.stringify(result, null, 2));
-                    
+
                     if (result) {
                         console.log(`Successfully updated chat app ${chatAppData.chatApp.chatAppId}`);
                     } else {
@@ -153,14 +153,13 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                 Timestamp: new Date().toISOString()
             }
         };
-        
+
         console.log('Operation completed successfully');
-        
     } catch (e) {
         console.error('Error during operation:', e);
         let errorMsg = e instanceof Error ? e.message + ' ' + e.stack : String(e);
         errorMsg = errorMsg.length > 300 ? errorMsg.substring(0, 300) + '...' : errorMsg;
-        
+
         response = {
             ...responseCommon,
             Status: 'FAILED',

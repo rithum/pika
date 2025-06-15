@@ -71,7 +71,7 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
 
         let agentData = parseAgentCustomResourceProperties(agentDataStr);
         console.log('Successfully parsed AgentData for agent:', agentData.agent.agentId);
-        
+
         // If the toolIdToLambdaArnMap is provided, then we need to replace the lambdaArn with the actual arn of the lambda function
         let toolIdToLambdaArnMap = event.ResourceProperties.ToolIdToLambdaArnMap as ToolIdToLambdaArnMap | undefined;
         if (toolIdToLambdaArnMap) {
@@ -109,7 +109,7 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                     console.log('Making API request to /api/chat-admin/agent-data with payload:', JSON.stringify(agentData, null, 2));
                     const result = await makeRequest<AgentAndTools>('POST', `/api/chat-admin/agent-data`, agentData);
                     console.log('API response received:', JSON.stringify(result, null, 2));
-                    
+
                     if (result) {
                         const toolsList = result.tools?.map((tool) => tool.toolId).join(', ') ?? 'none';
                         console.log(`Successfully created or updated agent ${agentData.agent.agentId}, tools: ${toolsList}`);
@@ -144,14 +144,13 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                 Timestamp: new Date().toISOString()
             }
         };
-        
+
         console.log('Operation completed successfully');
-        
     } catch (e) {
         console.error('Error during operation:', e);
         let errorMsg = e instanceof Error ? e.message + ' ' + e.stack : String(e);
         errorMsg = errorMsg.length > 300 ? errorMsg.substring(0, 300) + '...' : errorMsg;
-        
+
         response = {
             ...responseCommon,
             Status: 'FAILED',

@@ -26,7 +26,7 @@ export function getSuccessResponse(): Response {
 export function addSecurityHeaders(response: Response) {
     // TODO: Change this to only allow embedding from the enterprise site
     //response.headers.set('Content-Security-Policy', "frame-ancestors 'self' *.dsco.io http://localhost:*");
-    response.headers.set('Content-Security-Policy', "frame-ancestors *");
+    response.headers.set('Content-Security-Policy', 'frame-ancestors *');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('X-XSS-Protection', '1; mode=block'); // Note: X-XSS-Protection is deprecated by modern browsers, consider CSP.
     response.headers.set('Referrer-Policy', 'strict-origin');

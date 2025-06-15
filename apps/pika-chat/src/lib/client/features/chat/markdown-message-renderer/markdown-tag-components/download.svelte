@@ -21,7 +21,7 @@
             const parsed = JSON.parse(rawTagContent);
             console.log('parsed', parsed);
             if (!parsed.s3Key) {
-                error = 'Missing s3Key in download data'
+                error = 'Missing s3Key in download data';
                 return;
             }
             downloadData = parsed;
@@ -55,18 +55,13 @@
             <p class="text-xs">{error}</p>
         </div>
     {:else if downloadData}
-        <Button
-            onclick={handleDownload}
-            title="Click to download file"
-        >
+        <Button onclick={handleDownload} title="Click to download file">
             <Download class="w-4 h-4" />
             <span class="truncate max-w-xs">
                 {getDisplayTitle(downloadData.s3Key, downloadData.title)}
             </span>
         </Button>
     {:else}
-        <div class="animate-pulse bg-gray-100 rouned-lg p-3 text-gray-500 text-sm">
-            Loading download...
-        </div>
+        <div class="animate-pulse bg-gray-100 rouned-lg p-3 text-gray-500 text-sm">Loading download...</div>
     {/if}
 </div>

@@ -24,7 +24,7 @@ import { SessionData } from '@pika/shared/types/chatbot/chatbot-types';
 // Test coordinates for New York City
 const TEST_COORDINATES = {
     latitude: 40.7128,
-    longitude: -74.0060,
+    longitude: -74.006,
     timezone: 'America/New_York'
 };
 
@@ -40,7 +40,6 @@ const mockSessionData: SessionData = {
 jest.setTimeout(30000);
 
 describe('Open-Meteo API Integration Tests', () => {
-    
     describe('getWeatherForecast', () => {
         it('should fetch weather forecast with basic parameters', async () => {
             const params: GetWeatherForecastParams = {
@@ -50,7 +49,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getWeatherForecast(params);
-            
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -67,7 +66,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getWeatherForecast(params);
-            
+
             expect(result).toBeDefined();
             expect(result.hourly).toBeDefined();
             expect(result.daily).toBeDefined();
@@ -78,7 +77,7 @@ describe('Open-Meteo API Integration Tests', () => {
         it('should fetch weather forecast with date range', async () => {
             const startDate = '2024-01-01';
             const endDate = '2024-01-07';
-            
+
             const params: GetWeatherForecastParams = {
                 latitude: TEST_COORDINATES.latitude,
                 longitude: TEST_COORDINATES.longitude,
@@ -89,7 +88,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getWeatherForecast(params);
-            
+
             expect(result).toBeDefined();
             expect(result.daily).toBeDefined();
             expect(Array.isArray(result.daily.time)).toBe(true);
@@ -106,7 +105,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getCurrentWeather(params);
-            
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -128,7 +127,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getHistoricalWeather(params);
-            
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -148,7 +147,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getHistoricalWeather(params);
-            
+
             expect(result).toBeDefined();
             expect(result.hourly).toBeDefined();
             expect(result.hourly.temperature_2m).toBeDefined();
@@ -166,7 +165,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getAirQuality(params);
-            
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -193,7 +192,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getMarineForecast(params);
-            
+
             expect(result).toBeDefined();
             // Marine APIs may adjust coordinates to nearest water location
             expect(result.latitude).toBeCloseTo(coastalCoords.latitude, 0);
@@ -217,7 +216,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getClimateForecast(params);
-            
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -235,11 +234,11 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getGeocoding(params);
-            
+
             expect(result).toBeDefined();
             expect(Array.isArray(result)).toBe(true);
             expect(result.length).toBeGreaterThan(0);
-            
+
             const firstResult = result[0];
             expect(firstResult.name).toBeDefined();
             expect(firstResult.latitude).toBeDefined();
@@ -255,7 +254,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             const result = await getGeocoding(params);
-            
+
             expect(result).toBeDefined();
             expect(Array.isArray(result)).toBe(true);
             expect(result.length).toBe(0);
@@ -271,14 +270,8 @@ describe('Open-Meteo API Integration Tests', () => {
                 daily: ['temperature_2m_max', 'temperature_2m_min']
             };
 
-            const result = await callOpenMateoApi(
-                'getWeatherForecast',
-                params,
-                mockSessionData,
-                'test-bucket',
-                'us-east-1'
-            );
-            
+            const result = await callOpenMateoApi('getWeatherForecast', params, mockSessionData, 'test-bucket', 'us-east-1');
+
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
             expect(result.longitude).toBeCloseTo(TEST_COORDINATES.longitude, 1);
@@ -292,14 +285,8 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            const result = await callOpenMateoApi(
-                'getCurrentWeather',
-                params,
-                mockSessionData,
-                'test-bucket',
-                'us-east-1'
-            );
-            
+            const result = await callOpenMateoApi('getCurrentWeather', params, mockSessionData, 'test-bucket', 'us-east-1');
+
             expect(result).toBeDefined();
             expect(result.current).toBeDefined();
             expect(result.current.temperature_2m).toBeDefined();
@@ -311,14 +298,8 @@ describe('Open-Meteo API Integration Tests', () => {
                 count: 3
             };
 
-            const result = await callOpenMateoApi(
-                'getGeocoding',
-                params,
-                mockSessionData,
-                'test-bucket',
-                'us-east-1'
-            );
-            
+            const result = await callOpenMateoApi('getGeocoding', params, mockSessionData, 'test-bucket', 'us-east-1');
+
             expect(result).toBeDefined();
             expect(Array.isArray(result)).toBe(true);
             expect(result.length).toBeGreaterThan(0);
@@ -331,15 +312,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 longitude: TEST_COORDINATES.longitude
             };
 
-            await expect(
-                callOpenMateoApi(
-                    'unknownFunction',
-                    params,
-                    mockSessionData,
-                    'test-bucket',
-                    'us-east-1'
-                )
-            ).rejects.toThrow('Unknown function name: unknownFunction');
+            await expect(callOpenMateoApi('unknownFunction', params, mockSessionData, 'test-bucket', 'us-east-1')).rejects.toThrow('Unknown function name: unknownFunction');
         });
     });
 
@@ -367,7 +340,7 @@ describe('Open-Meteo API Integration Tests', () => {
             };
 
             await expect(getCurrentWeather(params)).rejects.toThrow('Network error');
-            
+
             global.fetch = originalFetch;
         });
     });

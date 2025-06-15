@@ -222,15 +222,15 @@ export function recordsHaveSameElements<T>(record1?: Record<string, T>, record2?
     if (!record1 || !record2) {
         return false;
     }
-    
+
     const keys1 = Object.keys(record1);
     const keys2 = Object.keys(record2);
-    
+
     // Check if they have the same number of keys
     if (keys1.length !== keys2.length) {
         return false;
     }
-    
+
     // Check if all keys exist in both records and values are the same
     return keys1.every((key) => {
         if (!(key in record2)) {

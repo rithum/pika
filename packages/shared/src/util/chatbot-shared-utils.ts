@@ -3,22 +3,22 @@
  * Don't add anything that can't be shared (especially dependencies)
  */
 
-import { FeatureIdType } from "../types/chatbot/chatbot-types";
-import { ChatAppFeature } from "../types/chatbot/chatbot-types";
-import { ChatApp } from "../types/chatbot/chatbot-types";
+import { FeatureIdType } from '../types/chatbot/chatbot-types';
+import { ChatAppFeature } from '../types/chatbot/chatbot-types';
+import { ChatApp } from '../types/chatbot/chatbot-types';
 import camelcaseKeys from 'camelcase-keys';
 import snakecaseKeys from 'snakecase-keys';
 
 /**
  * Generate a unique S3 key name for a chat file upload.
- * 
+ *
  * Use the uuid module to generate the v7 uuid as in
- * 
+ *
  * Replace punctation that isn't _ or - with a _
- * 
+ *
  * import { v7 as uuidv7 } from 'uuid';
  * uuidv7()
- * 
+ *
  * @param userId - The user id of the user uploading the file
  * @param fileName - The name of the file to upload. it should already be sanitized by calling sanitizeFileName
  * @param v7Uuid - The uuidv7 uuid of the file
@@ -30,28 +30,26 @@ export function generateChatFileUploadS3KeyName(userId: string, fileName: string
 
 /**
  * Remove all punctuation from a file name except for the ending period for the file extension if it exists
- * 
+ *
  * @param fileName - The name of the file to sanitize
  * @returns The sanitized file name
  */
 export function sanitizeFileName(fileName: string): string {
     const lastDotIndex = fileName.lastIndexOf('.');
-    
+
     // If there's no dot, or the dot is at the end, or the dot is at the beginning, just remove all punctuation
     if (lastDotIndex === -1 || lastDotIndex === fileName.length - 1 || lastDotIndex === 0) {
         return fileName.replace(/[^a-zA-Z0-9_-]/g, '');
     }
-    
+
     const nameWithoutExtension = fileName.substring(0, lastDotIndex);
     const extension = fileName.substring(lastDotIndex + 1);
-    
+
     const sanitizedName = nameWithoutExtension.replace(/[^a-zA-Z0-9_-]/g, '');
     const sanitizedExtension = extension.replace(/[^a-zA-Z0-9_-]/g, '');
-    
+
     return sanitizedName + '.' + sanitizedExtension;
 }
-
-
 
 type ToSnakeCase<S extends string> = S extends `${infer T}${infer U}` ? `${T extends Capitalize<T> ? '_' : ''}${Lowercase<T>}${ToSnakeCase<U>}` : S;
 
@@ -79,15 +77,12 @@ export function convertStringToSnakeCase(str: string): string {
     return Object.keys(converted)[0];
 }
 
-/** 
+/**
  * This lets us get a feature from a chat app and make sure it is the correct type.
  */
-export function getFeature<T extends FeatureIdType>(
-    chatApp: ChatApp, 
-    featureId: T
-): Extract<ChatAppFeature, { featureId: T }> | undefined {
+export function getFeature<T extends FeatureIdType>(chatApp: ChatApp, featureId: T): Extract<ChatAppFeature, { featureId: T }> | undefined {
     const feature = chatApp.features?.[featureId];
-    
+
     if (feature && feature.featureId === featureId) {
         return feature as Extract<ChatAppFeature, { featureId: T }>;
     }

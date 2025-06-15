@@ -16,7 +16,7 @@ interface ConverseFunctionResponse {
 /**
  * Invokes the Lambda Function URL for the converse function with IAM authentication.
  * Returns the streaming response body for real-time processing.
- * 
+ *
  * @param request The converse request parameters
  * @returns Promise<ConverseFunctionResponse> with streaming body
  */
@@ -29,7 +29,7 @@ export async function invokeConverseFunctionUrl<T>(
 
     // Parse the Function URL to get hostname and path
     const url = new URL(functionUrl);
-    
+
     // Prepare the request object for signing
     const requestToSign = {
         method: 'POST',
@@ -37,9 +37,9 @@ export async function invokeConverseFunctionUrl<T>(
         path: url.pathname + url.search,
         protocol: url.protocol,
         headers: {
-            'Host': url.hostname,
+            Host: url.hostname,
             'Content-Type': 'application/json',
-            'x-chat-auth': `Bearer ${convertToJwtString(simpleUser)}`
+            'x-chat-auth': `Bearer ${convertToJwtString(simpleUser)}`,
         } as Record<string, string>,
         body: JSON.stringify(request),
     };

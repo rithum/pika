@@ -27,7 +27,7 @@ export class PikaStack extends cdk.Stack {
             projNameKebabCase: props.projNameKebabCase,
             projNameTitleCase: props.projNameTitleCase,
             projNameCamel: props.projNameCamel,
-            projNameHuman: props.projNameHuman,
+            projNameHuman: props.projNameHuman
         });
     }
 }

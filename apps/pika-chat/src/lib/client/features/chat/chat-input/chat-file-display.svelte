@@ -7,7 +7,6 @@
     }
 
     const { file }: Props = $props();
-
 </script>
 
 <div
@@ -25,4 +24,4 @@
         </div>
         <div class="text-xs text-gray-500 dark:text-gray-400">Document</div>
     </div>
-</div> 
+</div>

@@ -3,7 +3,7 @@
     import { Button } from '$lib/components/ui/button';
     import { MessageSquare } from '$lib/icons/lucide';
     import { ChatAppState } from '../../chat-app.state.svelte';
-    
+
     interface Props {
         rawTagContent: string;
         appState: AppState;
@@ -11,14 +11,12 @@
     }
 
     let { rawTagContent, chatAppState: chat }: Props = $props();
-    
 
     function handleClick() {
         chat.chatInput = rawTagContent;
         chat.sendMessage();
     }
 </script>
-
 
 <Button
     onclick={handleClick}

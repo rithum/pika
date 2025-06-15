@@ -4,7 +4,7 @@
  * server and client.
  */
 
-import type { ChatUser, CompanyType } from "@pika/shared/types/chatbot/chatbot-types";
+import type { ChatUser, CompanyType } from '@pika/shared/types/chatbot/chatbot-types';
 
 /** The cookie name is obscure on purpose.  It stands for oauth state. */
 export const OAUTH_STATE_COOKIE_NAME = 'os';

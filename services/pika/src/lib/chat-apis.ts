@@ -8,11 +8,29 @@
 
 //TODO: how do we create a first session with first message?
 
-import type { ChatMessage, ChatMessageForCreate, ChatSession, ChatSessionForCreate, ChatSessionResponse, ChatTitleUpdateRequest, ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    ChatMessage,
+    ChatMessageForCreate,
+    ChatSession,
+    ChatSessionForCreate,
+    ChatSessionResponse,
+    ChatTitleUpdateRequest,
+    ChatUser
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import { getTitleFromBedrockIfNeeded } from './bedrock-agent';
-import { addChatSession, addMessage, getChatMessagesInSession, getChatSessionByUserIdAndSessionId, getUserByUserId, getUserSessionsByUserId, updateSession, updateSessionTitleInDdb, getSessionsByUserIdAndChatAppId } from './chat-ddb';
+import {
+    addChatSession,
+    addMessage,
+    getChatMessagesInSession,
+    getChatSessionByUserIdAndSessionId,
+    getUserByUserId,
+    getUserSessionsByUserId,
+    updateSession,
+    updateSessionTitleInDdb,
+    getSessionsByUserIdAndChatAppId
+} from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
 
@@ -59,9 +77,7 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
     });
 
     let isNewSession = false;
-    let chatSession: ChatSession | undefined = requestData.sessionId ?
-        await getChatSession(user.userId, requestData.sessionId) :
-        undefined;
+    let chatSession: ChatSession | undefined = requestData.sessionId ? await getChatSession(user.userId, requestData.sessionId) : undefined;
 
     console.log('Existing session lookup result:', {
         found: !!chatSession,
@@ -161,13 +177,18 @@ export async function getChatSession(userId: string, sessionId: string): Promise
 /**
  * Add a chat message to the database and update the session with the new message id and update timestamp
  * and usage stats.
- * 
+ *
  * If the chatSession is not provided, we will fetch it from the database.
- * 
+ *
  * If the userQuestionAsked and answerToQuestionFromAgent are provided, we will also update the session title
  * using Bedrock to generate a title.
  */
-export async function addChatMessage(chatMessageForCreate: ChatMessageForCreate, chatSession?: ChatSession, userQuestionAsked?: string, answerToQuestionFromAgent?: string): Promise<ChatMessage> {
+export async function addChatMessage(
+    chatMessageForCreate: ChatMessageForCreate,
+    chatSession?: ChatSession,
+    userQuestionAsked?: string,
+    answerToQuestionFromAgent?: string
+): Promise<ChatMessage> {
     console.log('addChatMessage called with:', {
         sessionId: chatMessageForCreate.sessionId,
         userId: chatMessageForCreate.userId,
@@ -212,10 +233,7 @@ export async function addChatMessage(chatMessageForCreate: ChatMessageForCreate,
     });
 
     console.log('Adding message and updating session in parallel');
-    await Promise.all([
-        addMessage(chatMessage),
-        updateSession(chatMessage.sessionId, chatSession.userId, chatMessage.messageId, chatMessage.timestamp, chatMessage.usage)
-    ]);
+    await Promise.all([addMessage(chatMessage), updateSession(chatMessage.sessionId, chatSession.userId, chatMessage.messageId, chatMessage.timestamp, chatMessage.usage)]);
     console.log('Message added and session updated');
 
     // Update the local object with the new message id and update timestamp

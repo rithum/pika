@@ -12,16 +12,16 @@ function redactData(data: any, attributesToRedact: string | string[]): any {
     if (!data || typeof data !== 'object') {
         return data;
     }
-    
+
     const attributes = Array.isArray(attributesToRedact) ? attributesToRedact : [attributesToRedact];
     const redacted = { ...data };
-    
+
     for (const attr of attributes) {
         if (attr in redacted) {
             redacted[attr] = redactValue(redacted[attr]);
         }
     }
-    
+
     return redacted;
 }
 
@@ -34,7 +34,7 @@ function redactValue(value: any): any {
     if (typeof value === 'string') {
         return '[REDACTED]';
     } else if (Array.isArray(value)) {
-        return value.map(item => redactValue(item));
+        return value.map((item) => redactValue(item));
     } else if (value && typeof value === 'object') {
         const redactedObj: any = {};
         for (const key in value) {

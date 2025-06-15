@@ -17,5 +17,5 @@ export async function getValueFromParameterStore(parameterName: string): Promise
         Name: parameterName,
     });
     const response = await ssm.send(command);
-    return response.Parameter?.Value;   
+    return response.Parameter?.Value;
 }

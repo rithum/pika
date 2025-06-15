@@ -3,20 +3,18 @@
 
 	// Dashboard component for enterprise site
 	let isPanelOpen = $state(false);
-	let panelWidthState: 'normal' | 'fullscreen' = $state('normal')
+	let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
 	let panelWidth = $derived(panelWidthState === 'normal' ? 'w-[500px]' : 'w-[100%]');
 
 	function togglePanel() {
 		isPanelOpen = !isPanelOpen;
 	}
 
-	
-
 	$effect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			// Verify the message is from our chat app
 			// if (event.origin !== "http://localhost:3000") return;
-			
+
 			if (event.data.type === 'PIKA_CHAT_CLOSE') {
 				togglePanel();
 			}
@@ -27,7 +25,7 @@
 		};
 
 		window.addEventListener('message', handleMessage);
-		
+
 		return () => {
 			window.removeEventListener('message', handleMessage);
 		};

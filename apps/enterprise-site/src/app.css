@@ -12,8 +12,8 @@
 	.nav-link {
 		@apply flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900;
 	}
-	
+
 	.nav-link.active {
 		@apply bg-gray-100 text-acme-blue;
 	}
-} 
+}

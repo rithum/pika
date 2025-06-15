@@ -10,7 +10,7 @@ export interface EnhancedResponseStream extends ResponseStream {
      * Tracks whether any data has been written to the stream
      */
     hasWritten: boolean;
-    
+
     /**
      * Handles errors by sending appropriate HTTP response
      * @param error The error to send in the response

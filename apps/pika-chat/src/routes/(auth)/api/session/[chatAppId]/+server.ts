@@ -19,9 +19,11 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
         return json(sessions);
     } catch (e) {
         console.error(e);
-        return getErrorResponse(500, `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
+        return getErrorResponse(
+            500,
+            `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
+        );
     }
-
 
     // try {
 
@@ -53,7 +55,7 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
 
 // export const POST: RequestHandler = async ({ request, params }) => {
 //     try {
-//         const sessionId = params.sessionId; 
+//         const sessionId = params.sessionId;
 //         if (!sessionId) {
 //             return new Response('sessionId is required', { status: 400 });
 //         }

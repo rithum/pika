@@ -99,12 +99,15 @@ export async function getAgentAndTools(agentId: string): Promise<AgentAndTools |
         return undefined;
     }
     const tools = await getToolsByIds(agentDefinition.toolIds ?? []);
-    return { agent: agentDefinition, tools: tools.map((tool) => {
-        if ('ttl' in tool) {
-            delete tool.ttl;
-        }
-        return tool;
-    }) };
+    return {
+        agent: agentDefinition,
+        tools: tools.map((tool) => {
+            if ('ttl' in tool) {
+                delete tool.ttl;
+            }
+            return tool;
+        })
+    };
 }
 
 /**
@@ -116,7 +119,7 @@ export async function getAgentAndTools(agentId: string): Promise<AgentAndTools |
  */
 export async function createOrUpdateAgentIdempotently(agentData: AgentDataRequest): Promise<AgentAndTools> {
     console.log('createOrUpdateAgentIdempotently - Starting with agentId:', agentData.agent.agentId);
-    
+
     try {
         const errors = validateAgentDataRequest(agentData);
         if (errors.length > 0) {
@@ -129,13 +132,13 @@ export async function createOrUpdateAgentIdempotently(agentData: AgentDataReques
 
         console.log('createOrUpdateAgentIdempotently - Checking if agent exists:', agentData.agent.agentId);
         const existingAgent = await getAgent(agentData.agent.agentId);
-        
+
         if (existingAgent) {
             console.log('createOrUpdateAgentIdempotently - Agent exists, updating. Version:', existingAgent.version);
             return await updateAgentData(agentData, existingAgent, now);
         } else {
             console.log('createOrUpdateAgentIdempotently - Agent does not exist, creating new agent');
-            
+
             // Handle agent creation
             console.log('createOrUpdateAgentIdempotently - Processing tools for new agent. Tools provided:', agentData.tools?.length ?? 0);
             const [finalTools, _toolsChanged] = await handleToolsIdempotent(agentData.userId, agentData.agent.toolIds ?? [], [], agentData.tools ?? [], now);
@@ -154,7 +157,7 @@ export async function createOrUpdateAgentIdempotently(agentData: AgentDataReques
             console.log('createOrUpdateAgentIdempotently - Creating agent in database. AgentId:', agent.agentId);
             await createAgent(agent);
             console.log('createOrUpdateAgentIdempotently - Agent created successfully');
-            
+
             return { agent, tools: finalTools };
         }
     } catch (error) {
@@ -700,7 +703,7 @@ export async function getChatApps(): Promise<ChatApp[]> {
  */
 export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined> {
     const chatApp = await getChatAppById(chatAppId);
-    
+
     // The ChatApp type doesn't have a ttl filed but it may be there on the row in ddb.
     // If it is, just remove it from the response
     if (chatApp && 'ttl' in chatApp) {
@@ -753,7 +756,7 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
     if (request.chatApp.chatAppId && request.chatApp.chatAppId !== existingChatApp.chatAppId) {
         // Changing the primary key requires create new + delete old
         const newChatAppId = request.chatApp.chatAppId;
-        
+
         // Check that the new ID doesn't already exist
         const chatAppWithNewId = await getChatApp(newChatAppId);
         if (chatAppWithNewId) {
@@ -855,7 +858,7 @@ export function validateChatAppDefinition(chatApp: Partial<ChatApp>): string[] {
  */
 export async function createOrUpdateChatAppIdempotently(chatAppData: ChatAppDataRequest): Promise<ChatApp> {
     console.log('createOrUpdateChatAppIdempotently - Starting with chatAppId:', chatAppData.chatApp.chatAppId);
-    
+
     try {
         const errors = validateChatAppDataRequest(chatAppData);
         if (errors.length > 0) {
@@ -868,13 +871,13 @@ export async function createOrUpdateChatAppIdempotently(chatAppData: ChatAppData
 
         console.log('createOrUpdateChatAppIdempotently - Checking if chat app exists:', chatAppData.chatApp.chatAppId);
         const existingChatApp = await getChatApp(chatAppData.chatApp.chatAppId);
-        
+
         if (existingChatApp) {
             console.log('createOrUpdateChatAppIdempotently - Chat app exists, updating. Last update:', existingChatApp.lastUpdate);
             return await updateChatAppData(chatAppData, existingChatApp, now);
         } else {
             console.log('createOrUpdateChatAppIdempotently - Chat app does not exist, creating new chat app');
-            
+
             const chatApp: ChatApp = {
                 ...chatAppData.chatApp,
                 createDate: now,
@@ -884,7 +887,7 @@ export async function createOrUpdateChatAppIdempotently(chatAppData: ChatAppData
             console.log('createOrUpdateChatAppIdempotently - Creating chat app in database. ChatAppId:', chatApp.chatAppId);
             await createChatApp(chatApp);
             console.log('createOrUpdateChatAppIdempotently - Chat app created successfully');
-            
+
             return chatApp;
         }
     } catch (error) {
@@ -908,7 +911,7 @@ async function updateChatAppData(chatAppData: ChatAppDataRequest, existingChatAp
     }
 
     console.log('updateChatAppData - Changes detected, updating chat app');
-    
+
     const fieldsToUpdate = {} as Record<UpdateableChatAppFields, any>;
     const fieldsToRemove: UpdateableChatAppFields[] = [];
 
@@ -917,7 +920,7 @@ async function updateChatAppData(chatAppData: ChatAppDataRequest, existingChatAp
     handleRequiredFieldUpdate(chatAppData.chatApp.agentId, existingChatApp.agentId, 'agentId', fieldsToUpdate);
     handleRequiredFieldUpdate(chatAppData.chatApp.mode, existingChatApp.mode, 'mode', fieldsToUpdate);
     handleRequiredFieldUpdate(chatAppData.chatApp.enabled, existingChatApp.enabled, 'enabled', fieldsToUpdate);
-    
+
     // Handle optional fields that can be updated or removed
     handleOptionalFieldUpdate(chatAppData.chatApp.dontCacheThis, existingChatApp.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
     handleObjectFieldUpdate(chatAppData.chatApp.features, existingChatApp.features, 'features', fieldsToUpdate, fieldsToRemove, true);
@@ -941,15 +944,15 @@ function chatAppsAreSame(chatApp1: ChatAppForIdempotentCreateOrUpdate, chatApp2:
     if (chatApp1.agentId !== chatApp2.agentId) return false;
     if (chatApp1.mode !== chatApp2.mode) return false;
     if (chatApp1.enabled !== chatApp2.enabled) return false;
-    
+
     // Compare optional fields
     if (chatApp1.dontCacheThis !== chatApp2.dontCacheThis) return false;
-    
+
     // Compare features record
     if (!recordsHaveSameElements(chatApp1.features, chatApp2.features)) {
         return false;
     }
-    
+
     return true;
 }
 

@@ -1,0 +1,43 @@
+# Template Configuration
+name: 'Default Pika Template'
+description: 'Standard Pika Framework chat application template'
+version: '1.0.0'
+
+# Features included in this template
+features:
+    - authentication
+    - custom-components
+    - aws-integration
+    - sample-weather-app (optional)
+
+# Required dependencies
+dependencies:
+    - '@aws-sdk/client-bedrock-runtime'
+    - 'svelte'
+    - 'sveltekit'
+
+# Template variables
+variables:
+    projectName:
+        type: string
+        required: true
+        description: 'Name of the project'
+
+    authProvider:
+        type: string
+        required: true
+        options: ['mock', 'auth-js', 'custom', 'enterprise-sso']
+        default: 'mock'
+        description: 'Authentication provider to use'
+
+    includeWeatherApp:
+        type: boolean
+        default: true
+        description: 'Include sample weather application'
+
+# Post-creation steps
+postCreate:
+    - 'Install dependencies'
+    - 'Initialize git repository'
+    - 'Create initial configuration'
+    - 'Setup authentication provider'

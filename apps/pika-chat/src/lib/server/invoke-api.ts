@@ -3,7 +3,6 @@ import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { appConfig } from './config';
 
-
 interface ApiGatewayRequestParams {
     apiId: string;
     path: string; // e.g., "api/chat/user/123"
@@ -24,9 +23,7 @@ interface ApiGatewayResponse<T = any> {
  * @param params Parameters for the API Gateway request.
  * @returns Promise<ApiGatewayResponse>
  */
-export async function invokeApi<T = any>(
-    params: ApiGatewayRequestParams,
-): Promise<ApiGatewayResponse<T>> {
+export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promise<ApiGatewayResponse<T>> {
     const { apiId, path, method = 'GET', queryParams, body, headers: customHeaders = {} } = params;
 
     const baseUrl = `https://${apiId}.execute-api.${appConfig.awsRegion}.amazonaws.com/${appConfig.stage}`;
@@ -70,7 +67,7 @@ export async function invokeApi<T = any>(
 
     // 4. Sign the request
     // The sign method returns a Promise<HttpRequest>
-    const signedRequest = (await signer.sign(requestToSign as any) as unknown) as {
+    const signedRequest = (await signer.sign(requestToSign as any)) as unknown as {
         method: string;
         headers: Record<string, string>;
         body?: string;
@@ -88,7 +85,9 @@ export async function invokeApi<T = any>(
         response = await fetch(fetchRequest);
     } catch (error) {
         console.error('Fetch request failed:', error);
-        throw new Error(`Network error or failed to fetch from API Gateway: ${error instanceof Error ? error.message + ' ' + error.stack : String(error)}`);
+        throw new Error(
+            `Network error or failed to fetch from API Gateway: ${error instanceof Error ? error.message + ' ' + error.stack : String(error)}`
+        );
     }
 
     // 6. Process the response
@@ -99,11 +98,13 @@ export async function invokeApi<T = any>(
         // return a 404
         return {
             statusCode: 404,
-            body: {error: 'Not Found'} as T,
+            body: { error: 'Not Found' } as T,
             headers: new Headers(),
-        }
+        };
     } else if (response.status >= 400) {
-        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${responseBodyText}`);
+        throw new Error(
+            `API Gateway request failed with status ${response.status}. Response body: ${responseBodyText}`
+        );
     }
 
     try {

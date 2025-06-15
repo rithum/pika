@@ -64,7 +64,6 @@ export class PikaChatStack extends cdk.Stack {
             REDIRECT_CALLBACK_URI_PATH: '/oauth/callback', // Used to redirect after auth
         };
 
-
         // Create the chatbot webapp using the construct
         this.webapp = new PikaChatConstruct(this, 'PikaChatConstruct', {
             stage: this.stage,

@@ -44,7 +44,10 @@ export class AppState {
         }
     }
 
-    constructor(private readonly fetchz: FetchZ, user: ChatUser) {
+    constructor(
+        private readonly fetchz: FetchZ,
+        user: ChatUser
+    ) {
         this.#isMobile = new IsMobile();
         this.#identity = new IdentityState(user);
     }

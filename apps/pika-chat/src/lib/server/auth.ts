@@ -84,7 +84,9 @@ export async function handleAuthCallback(event: RequestEvent): Promise<Response>
 
     let oauthState: AuthState;
     try {
-        oauthState = JSON.parse(decryptCookieString(oauthStateCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector));
+        oauthState = JSON.parse(
+            decryptCookieString(oauthStateCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
+        );
         if (!oauthState.nonce || !oauthState.codeVerifier || !oauthState.timestamp) {
             return new Response('Invalid OAuth state', { status: 400 });
         }
@@ -135,7 +137,10 @@ export async function logout(event: RequestEvent): Promise<Response> {
  *
  * It uses the refresh token to get a new access token.
  */
-export async function refresh(event: RequestEvent, user: AuthenticatedUser<UserAuthData>): Promise<Response | AuthenticatedUser<UserAuthData>> {
+export async function refresh(
+    event: RequestEvent,
+    user: AuthenticatedUser<UserAuthData>
+): Promise<Response | AuthenticatedUser<UserAuthData>> {
     const newUser = await getUserUsingAuthInfo(event, {
         type: 'refresh',
         refreshToken: user.authData.refreshToken,
@@ -207,11 +212,11 @@ async function getUserUsingAuthInfo(
         let chatUser = await getChatUser(user.userId);
         if (!chatUser) {
             // Clone and get rid of the auth data which should not be stored in the chat database, turning an AuthenticatedUser into a ChatUser
-            chatUser = {...user} as ChatUser;
+            chatUser = { ...user } as ChatUser;
             delete (chatUser as any).authData;
             await createChatUser(chatUser);
         }
-        
+
         // Now make sure the user we have has the same features as the user we got from the platform api
         user.features = chatUser.features;
     } catch (e) {

@@ -2,7 +2,7 @@ import { getChatMessages } from '$lib/server/chat-apis';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-    const { sessionId } = params; 
+    const { sessionId } = params;
     if (!sessionId) {
         return new Response('sessionId is required', { status: 400 });
     }

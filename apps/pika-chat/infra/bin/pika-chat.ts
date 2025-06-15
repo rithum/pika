@@ -8,7 +8,6 @@ import { PikaChatStack } from '../lib/stacks/pika-chat-stack.js';
 const app = new cdk.App();
 
 async function main() {
-
     // Get stage from context or use default
     const stage = app.node.tryGetContext('stage') || 'test';
     const vpcId = await getValueFromParameterStore(`/pika/${stage}/networking/vpc/id`);
@@ -48,13 +47,15 @@ async function main() {
         projNameCamel,
         projNameKebabCase,
         projNameHuman,
-        pikaServiceProjNameKebabCase
+        pikaServiceProjNameKebabCase,
     });
 }
 
-main().then(() => {
-    app.synth();
-}).catch(error => {
-    console.error(error);
-    process.exit(1);
-});
+main()
+    .then(() => {
+        app.synth();
+    })
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });

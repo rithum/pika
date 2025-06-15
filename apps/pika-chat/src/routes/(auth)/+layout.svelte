@@ -52,7 +52,6 @@
 
 {@render children?.()}
 
-
 <AppSettings />
 
 <Toaster position="top-center" richColors closeButton />

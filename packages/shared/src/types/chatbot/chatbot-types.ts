@@ -401,7 +401,7 @@ export interface AgentDefinition {
     /** Rollout gating configuration per account/org/region.  If not provided, the agent will be accessible to all users. */
     rolloutPolicy?: RolloutPolicy;
     /** Cache configuration for testing and debugging, used in lambdas that create LRU caches for agent definitions */
-    dontCacheThis?: boolean
+    dontCacheThis?: boolean;
     /** List of tool definitions that this agent uses */
     toolIds: string[];
     /** A list of knowledge bases that are associated with this agent. */
@@ -654,7 +654,7 @@ export interface UpdateChatAppRequest {
 export type ChatAppMode = 'fullpage' | 'embedded';
 
 export interface ChatApp {
-    /** 
+    /**
      * Unique ID for the chat. Only - and _ allowed.  Will
      * be used in URL to access the chatbot so keep that in mind
      */
@@ -701,7 +701,6 @@ export interface ChatApp {
 }
 
 export interface KnowledgeBase {
-
     /** A unique identifier for the knowledge base  */
     id: string;
 
@@ -711,9 +710,6 @@ export interface KnowledgeBase {
     /** A description of the knowledge base */
     description: string;
 }
-
-
-
 
 export type UpdateableChatAppFields = Extract<keyof ChatApp, 'mode' | 'dontCacheThis' | 'title' | 'agentId' | 'features' | 'enabled'>;
 
@@ -725,7 +721,7 @@ export type ChatAppForIdempotentCreateOrUpdate = Omit<ChatApp, 'createDate' | 'l
 
 /**
  * This allows you to do an idempotent create or update of a chat app.
- * 
+ *
  * If you use this you must provide a chatAppId so we can match up what's there already with what is being provided.
  */
 export interface ChatAppDataRequest {
@@ -816,7 +812,7 @@ export interface SuggestionsFeature extends Feature {
     randomize?: boolean;
 
     /**
-     * If randomize is true, then this is the number of messages after which to randomize the suggestions.  
+     * If randomize is true, then this is the number of messages after which to randomize the suggestions.
      * This allws a certain number of suggestions to always show followed by random suggestions.  Defaults to 0.
      */
     randomizeAfter?: number;
@@ -848,4 +844,3 @@ export interface PromptInputFieldLabelFeature extends Feature {
     /** Defaults to "Ready to chat".  The label to show above the prompt input field. */
     promptInputFieldLabel?: string;
 }
-

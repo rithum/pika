@@ -2,7 +2,11 @@ import { refresh } from '$lib/server/auth';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { addSecurityHeaders, decryptCookieString, deleteCookies, encryptCookieString } from '$lib/server/utils';
-import { AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME, AUTHENTICATED_USER_COOKIE_NAME, type UserAuthData } from '$lib/shared-types';
+import {
+    AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME,
+    AUTHENTICATED_USER_COOKIE_NAME,
+    type UserAuthData,
+} from '$lib/shared-types';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 
@@ -23,23 +27,22 @@ export const handle: Handle = async ({ event, resolve }) => {
     const pathName = event.url.pathname.endsWith('/') ? event.url.pathname.slice(0, -1) : event.url.pathname;
 
     // ===== Public Routes (No Auth Required) =====
-    
+
     // Health check endpoint - accessible without authentication
     if (pathName === '/health') {
         // Return minimal response for load balancer health checks
-        return new Response('OK', { 
+        return new Response('OK', {
             status: 200,
             headers: {
-                'Content-Type': 'text/plain'
-            }
+                'Content-Type': 'text/plain',
+            },
         });
     }
 
     // ===== Authentication Routes =====
-    
-    
+
     // ===== Protected Routes (Auth Required) =====
-    
+
     // Verify user is authenticated
     let userCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
     if (!userCookie) {
@@ -65,8 +68,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                 history: {
                     type: 'history',
                     history: true,
-                }
-            }
+                },
+            },
         };
 
         event.cookies.set(
@@ -107,7 +110,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Parse and validate user data and user auth data
     let user: AuthenticatedUser<UserAuthData>;
     try {
-        user = JSON.parse(decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector));
+        user = JSON.parse(
+            decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
+        );
     } catch (e) {
         // Invalid cookie - clear it and redirect to login
         deleteCookies(event);
@@ -128,7 +133,9 @@ export const handle: Handle = async ({ event, resolve }) => {
         );
         userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
         try {
-            user = JSON.parse(decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector));
+            user = JSON.parse(
+                decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
+            );
         } catch (e) {
             // Invalid cookie - clear it and redirect to login
             deleteCookies(event);
@@ -139,7 +146,11 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Make sure the access token is valid
     let userAccessToken: string;
     try {
-        userAccessToken = decryptCookieString(userAccessTokenCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        userAccessToken = decryptCookieString(
+            userAccessTokenCookie!,
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
     } catch (e) {
         // Invalid cookie - clear it and redirect to login
         deleteCookies(event);
@@ -149,7 +160,6 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Due to cookie size limits, we store the access token in a separate cookie.  So we need to add it to the user object.
     user.authData.accessToken = userAccessToken;
 
-    
     // Set user and config in locals for server-side use
     event.locals = { user, appConfig };
 

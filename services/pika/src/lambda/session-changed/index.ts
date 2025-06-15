@@ -30,17 +30,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         // We only care about REMOVE events for sessions
         if (record.eventName === 'REMOVE' && record.dynamodb?.OldImage) {
             const deletedSession = unmarshall(record.dynamodb.OldImage as any) as ChatSession;
-            
+
             if (isTTLDeletion(record)) {
                 console.log(`Session ${deletedSession.sessionId} was deleted due to TTL expiration`);
-                
+
                 // Stage the TTL-deleted record for batch archival
-                await stageTTLDeletion(
-                    deletedSession,
-                    'session',
-                    record.eventSourceARN?.split('/')[1] || 'chat-sessions',
-                    stagingTableName
-                );
+                await stageTTLDeletion(deletedSession, 'session', record.eventSourceARN?.split('/')[1] || 'chat-sessions', stagingTableName);
             } else {
                 console.log(`Session ${deletedSession.sessionId} was manually deleted`);
                 // For manual deletions, we don't archive - just log it
@@ -56,15 +51,10 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
  * @param sourceTable Source DynamoDB table name
  * @param stagingTableName Name of the staging table
  */
-async function stageTTLDeletion(
-    record: any,
-    recordType: 'message' | 'session',
-    sourceTable: string,
-    stagingTableName: string
-): Promise<void> {
+async function stageTTLDeletion(record: any, recordType: 'message' | 'session', sourceTable: string, stagingTableName: string): Promise<void> {
     const ttlExpiredAt = record.exp_date_unix_seconds || Math.floor(Date.now() / 1000);
     const now = new Date();
-    
+
     // Create staging record
     const stagingItem = {
         // Partition key - using timestamp prefix for even distribution
@@ -82,15 +72,17 @@ async function stageTTLDeletion(
         // Store the complete record as JSON
         data: { S: JSON.stringify(record) },
         // TTL for staging records (7 days)
-        exp_date_unix_seconds: { N: String(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)) }
+        exp_date_unix_seconds: { N: String(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60) }
     };
-    
+
     try {
-        await ddbClient.send(new PutItemCommand({
-            TableName: stagingTableName,
-            Item: stagingItem
-        }));
-        
+        await ddbClient.send(
+            new PutItemCommand({
+                TableName: stagingTableName,
+                Item: stagingItem
+            })
+        );
+
         console.log(`Staged ${recordType} record: ${stagingItem.record_id.S}`);
     } catch (error) {
         console.error(`Failed to stage ${recordType} record: ${error}`);
