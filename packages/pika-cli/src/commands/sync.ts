@@ -1,365 +1,333 @@
 import inquirer from 'inquirer';
-import { configManager } from '../utils/config-manager.js';
-import { gitManager } from '../utils/git-manager.js';
+import path from 'path';
 import { fileManager } from '../utils/file-manager.js';
+import { gitManager } from '../utils/git-manager.js';
 import { logger } from '../utils/logger.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import path from 'path';
-import semver from 'semver';
+import type { ExecOptions } from 'child_process';
 
 const execAsync = promisify(exec);
+
+// GitHub repository URL - should match create-app.ts
+const PIKA_REPO_URL = 'https://github.com/rithum/pika.git';
 
 interface SyncOptions {
     version?: string;
     dryRun?: boolean;
-    force?: boolean;
 }
 
-interface SyncResult {
-    success: boolean;
-    version: string;
-    changedFiles: string[];
-    conflicts: string[];
-    warnings: string[];
+interface SyncChange {
+    type: 'modified' | 'added' | 'deleted';
+    path: string;
+    sourcePath: string;
+    targetPath: string;
+}
+
+interface SyncConfig {
+    pikaVersion: string;
+    createdAt: string;
+    lastSync: string;
+    protectedAreas: string[];
+    initialConfiguration?: any;
 }
 
 export async function syncCommand(options: SyncOptions = {}): Promise<void> {
     try {
-        logger.header('🔄 Pika Framework Sync');
+        logger.header('🔄 Pika Framework - Sync Updates');
 
-        // Verify this is a Pika project
-        if (!(await configManager.isPikaProject())) {
-            logger.error('This is not a Pika project. Run this command from a Pika project directory.');
+        // Ensure we're in a Pika project directory
+        const syncConfigPath = path.join(process.cwd(), '.pika-sync.json');
+        if (!(await fileManager.exists(syncConfigPath))) {
+            logger.error('❌ Not in a Pika project directory (no .pika-sync.json found)');
+            logger.info('Run this command from a directory created with `pika create-app`');
             return;
         }
 
-        // Load current configuration
-        const config = await configManager.loadConfig();
-        const syncConfig = await configManager.loadSyncConfig();
-
-        if (!config || !syncConfig) {
-            logger.error('Failed to load project configuration. Please check your pika.config.json and .pika-sync.json files.');
+        // Read sync configuration
+        let syncConfig: SyncConfig;
+        try {
+            const syncConfigContent = await fileManager.readFile(syncConfigPath);
+            syncConfig = JSON.parse(syncConfigContent);
+        } catch (error) {
+            logger.error('Failed to read .pika-sync.json configuration file');
             return;
         }
 
-        // Get target version
-        const targetVersion = options.version || (await getLatestFrameworkVersion());
+        // Determine target version
+        const targetVersion = options.version || 'latest';
 
-        if (!targetVersion) {
-            logger.error('Could not determine target version to sync to.');
-            return;
+        if (options.dryRun) {
+            logger.info('🔍 Dry run mode - showing what would be updated...');
+            logger.newLine();
         }
 
-        // Check if already up to date
-        if (semver.gte(syncConfig.version, targetVersion)) {
-            logger.success(`Project is already up to date (v${syncConfig.version})`);
-            return;
-        }
+        const spinner = logger.startSpinner('Preparing sync...');
 
-        // Show sync plan
-        await showSyncPlan(syncConfig.version, targetVersion, config);
+        try {
+            // Download latest Pika framework
+            logger.updateSpinner(`Downloading Pika framework ${targetVersion}...`);
+            const tempDir = await downloadPikaFramework(targetVersion);
+            logger.stopSpinner(true, 'Framework downloaded');
 
-        // Confirm sync unless dry run or force
-        if (!options.dryRun && !options.force) {
-            const { confirm } = await inquirer.prompt([
+            // Compare files and identify changes
+            const analysisSpinner = logger.startSpinner('Analyzing changes...');
+            const protectedAreas = syncConfig.protectedAreas || getDefaultProtectedAreas();
+            const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas);
+            logger.stopSpinner(true, 'Analysis complete');
+
+            if (changes.length === 0) {
+                logger.success('✅ No updates available - your project is up to date!');
+                await cleanupTempDir(tempDir);
+                return;
+            }
+
+            // Show changes
+            logger.info(`📋 Found ${changes.length} files to update:`);
+            changes.forEach((change) => {
+                console.log(`  ${getChangeIcon(change.type)} ${change.path}`);
+            });
+            logger.newLine();
+
+            if (options.dryRun) {
+                logger.info('🔍 Dry run complete - no changes applied');
+                await cleanupTempDir(tempDir);
+                return;
+            }
+
+            // Confirm sync
+            const { proceed } = await inquirer.prompt([
                 {
                     type: 'confirm',
-                    name: 'confirm',
-                    message: `Sync from v${syncConfig.version} to v${targetVersion}?`,
-                    default: false
+                    name: 'proceed',
+                    message: 'Apply these changes?',
+                    default: true
                 }
             ]);
 
-            if (!confirm) {
+            if (!proceed) {
                 logger.info('Sync cancelled.');
+                await cleanupTempDir(tempDir);
                 return;
             }
+
+            // Apply changes
+            const applySpinner = logger.startSpinner('Applying changes...');
+            await applyChanges(changes);
+            logger.stopSpinner(true, 'Changes applied');
+
+            // Update sync config
+            const configSpinner = logger.startSpinner('Updating sync configuration...');
+            await updateSyncConfig(syncConfigPath, syncConfig, targetVersion);
+            logger.stopSpinner(true, 'Configuration updated');
+
+            // Create git commit if in a git repository
+            try {
+                const gitSpinner = logger.startSpinner('Committing changes...');
+                await gitManager.addAll(process.cwd());
+                await gitManager.commit(`sync: Update Pika framework to ${targetVersion}`, process.cwd());
+                logger.stopSpinner(true, 'Changes committed to git');
+            } catch (error) {
+                logger.warn('⚠️  Not in git repository or commit failed - you may need to commit manually');
+            }
+
+            // Cleanup
+            await cleanupTempDir(tempDir);
+
+            logger.success('✅ Sync complete!');
+            showSyncSuccessMessage();
+        } catch (error) {
+            logger.stopSpinner(false, 'Sync failed');
+            throw error;
         }
-
-        // Perform the sync
-        const result = await performSync(targetVersion, options, config, syncConfig);
-
-        // Show results
-        showSyncResults(result, options.dryRun || false);
     } catch (error) {
-        logger.error('Sync failed:', error);
+        logger.error('Failed to sync Pika framework:', error);
         process.exit(1);
     }
 }
 
-async function getLatestFrameworkVersion(): Promise<string | null> {
+async function downloadPikaFramework(version: string): Promise<string> {
+    const tempDir = path.join(process.cwd(), '.pika-temp');
+
+    // Remove existing temp directory
+    if (await fileManager.exists(tempDir)) {
+        await fileManager.removeDirectory(tempDir);
+    }
+
+    // Clone framework
     try {
-        // In a real implementation, this would fetch from the Pika framework repository
-        // For now, return a mock version
-        logger.debug('Fetching latest framework version...');
-
-        // Simulate API call to get latest version
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        return '1.1.0'; // Mock latest version
-    } catch (error) {
-        logger.error('Failed to fetch latest framework version:', error);
-        return null;
-    }
-}
-
-async function showSyncPlan(currentVersion: string, targetVersion: string, config: any): Promise<void> {
-    logger.info(`Sync Plan:`);
-    logger.table({
-        'Current Version': currentVersion,
-        'Target Version': targetVersion,
-        Project: config.projectName,
-        'Auth Provider': config.auth.provider,
-        'Service Organization': config.services.organization
-    });
-
-    logger.newLine();
-    logger.info('Protected paths (will not be modified):');
-    const syncConfig = await configManager.loadSyncConfig();
-    if (syncConfig) {
-        syncConfig.protectedPaths.forEach((path) => {
-            console.log(`  • ${path}`);
-        });
-    }
-}
-
-async function performSync(targetVersion: string, options: SyncOptions, config: any, syncConfig: any): Promise<SyncResult> {
-    const result: SyncResult = {
-        success: false,
-        version: targetVersion,
-        changedFiles: [],
-        conflicts: [],
-        warnings: []
-    };
-
-    const spinner = logger.startSpinner('Preparing sync...');
-
-    try {
-        // Check for uncommitted changes
-        if (!options.force && (await gitManager.hasUncommittedChanges())) {
-            result.warnings.push('Uncommitted changes detected. Consider committing before sync.');
-
-            if (!options.dryRun) {
-                const { proceed } = await inquirer.prompt([
-                    {
-                        type: 'confirm',
-                        name: 'proceed',
-                        message: 'Continue with uncommitted changes?',
-                        default: false
-                    }
-                ]);
-
-                if (!proceed) {
-                    throw new Error('Sync cancelled due to uncommitted changes.');
-                }
-            }
+        if (version === 'latest') {
+            await execAsync(`git clone --depth 1 ${PIKA_REPO_URL} "${tempDir}"`);
+        } else {
+            await execAsync(`git clone --depth 1 --branch ${version} ${PIKA_REPO_URL} "${tempDir}"`);
         }
-
-        // Create sync branch
-        const syncBranch = `pika-sync-${targetVersion}-${Date.now()}`;
-
-        if (!options.dryRun) {
-            logger.updateSpinner('Creating sync branch...');
-            await gitManager.createBranch(syncBranch);
-        }
-
-        // Download framework updates
-        logger.updateSpinner('Downloading framework updates...');
-        const frameworkPath = await downloadFrameworkVersion(targetVersion);
-
-        // Identify files to update
-        logger.updateSpinner('Analyzing changes...');
-        const filesToUpdate = await identifyFrameworkFiles(frameworkPath, syncConfig.protectedPaths);
-
-        result.changedFiles = filesToUpdate;
-
-        // Apply updates
-        if (!options.dryRun) {
-            logger.updateSpinner('Applying updates...');
-            await applyFrameworkUpdates(frameworkPath, filesToUpdate, syncConfig.protectedPaths);
-        }
-
-        // Check for conflicts with custom code
-        logger.updateSpinner('Checking for conflicts...');
-        const conflicts = await checkForConflicts(syncConfig.customPaths);
-        result.conflicts = conflicts;
-
-        if (conflicts.length > 0 && !options.force) {
-            throw new Error(`Conflicts detected in custom code: ${conflicts.join(', ')}`);
-        }
-
-        // Update configuration
-        if (!options.dryRun) {
-            logger.updateSpinner('Updating configuration...');
-            await updateSyncConfiguration(targetVersion, result.changedFiles);
-
-            // Commit changes
-            await gitManager.addAll();
-            await gitManager.commit(`Sync to Pika Framework v${targetVersion}`);
-        }
-
-        logger.stopSpinner(true, `Sync ${options.dryRun ? 'plan' : 'completed'} successfully`);
-        result.success = true;
-    } catch (error) {
-        logger.stopSpinner(false, 'Sync failed');
-        throw error;
+    } catch (e) {
+        throw new Error(`Failed to download Pika framework: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
 
-    return result;
+    return tempDir;
 }
 
-async function downloadFrameworkVersion(version: string): Promise<string> {
-    // In a real implementation, this would download the specific version
-    // from the Pika framework repository (GitHub releases, npm, etc.)
+async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
+    const changes: SyncChange[] = [];
 
-    const tempDir = path.join(process.cwd(), '.pika-temp', version);
-    await fileManager.ensureDir(tempDir);
+    // Compare framework files recursively
+    await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
 
-    logger.debug(`Mock download of framework v${version} to ${tempDir}`);
-
-    // For now, return the current framework path as a mock
-    return path.resolve(__dirname, '../../../..');
+    return changes;
 }
 
-async function identifyFrameworkFiles(frameworkPath: string, protectedPaths: string[]): Promise<string[]> {
-    const allFiles = await fileManager.findFiles('**/*', frameworkPath);
+async function compareDirectories(sourcePath: string, targetPath: string, relativePath: string, protectedAreas: string[], changes: SyncChange[]): Promise<void> {
+    const sourceFullPath = path.join(sourcePath, relativePath);
 
-    // Filter out protected paths and non-framework files
-    const frameworkFiles = allFiles.filter((file) => {
-        // Skip protected paths
-        if (protectedPaths.some((protectedPath) => file.includes(protectedPath))) {
-            return false;
-        }
+    if (!(await fileManager.exists(sourceFullPath))) {
+        return;
+    }
 
-        // Skip common non-framework directories
-        if (file.includes('node_modules') || file.includes('.git') || file.includes('dist') || file.includes('.turbo')) {
-            return false;
-        }
+    const { readdir } = await import('fs/promises');
+    const sourceFiles = await readdir(sourceFullPath, { withFileTypes: true });
 
-        return true;
-    });
+    for (const file of sourceFiles) {
+        const fileName = file.name;
+        const relativeFilePath = path.join(relativePath, fileName).replace(/\\/g, '/'); // Normalize path separators
+        const sourceFilePath = path.join(sourcePath, relativeFilePath);
+        const targetFilePath = path.join(targetPath, relativeFilePath);
 
-    return frameworkFiles;
-}
-
-async function applyFrameworkUpdates(frameworkPath: string, filesToUpdate: string[], protectedPaths: string[]): Promise<void> {
-    for (const file of filesToUpdate) {
-        const sourcePath = path.join(frameworkPath, file);
-        const destPath = path.resolve(file);
-
-        // Double-check that we're not overwriting protected files
-        if (protectedPaths.some((protectedPath) => file.includes(protectedPath))) {
-            logger.warn(`Skipping protected file: ${file}`);
+        // Skip protected areas
+        if (isProtectedArea(relativeFilePath, protectedAreas)) {
             continue;
         }
 
-        if (await fileManager.exists(sourcePath)) {
-            await fileManager.copyFile(sourcePath, destPath);
-            logger.debug(`Updated: ${file}`);
+        // Check if this is a directory
+        const isDirectory = file.isDirectory();
+
+        // Skip directories we don't want to sync
+        if (isDirectory && shouldSkipDirectory(fileName)) {
+            continue;
         }
-    }
-}
 
-async function checkForConflicts(customPaths: string[]): Promise<string[]> {
-    const conflicts: string[] = [];
+        // Skip optional sample directories if user removed them
+        if (isDirectory && isOptionalSampleDirectory(relativeFilePath)) {
+            const targetExists = await fileManager.exists(targetFilePath);
+            if (!targetExists) {
+                console.log(`  ⏭️  Skipping ${relativeFilePath} (user removed)`);
+                console.log(`     To restore: mkdir -p ${relativeFilePath} && pika sync`);
+                continue; // User deleted it, don't restore
+            }
+        }
 
-    for (const customPath of customPaths) {
-        if (await fileManager.exists(customPath)) {
-            // Check if custom path has been modified
-            try {
-                const status = await gitManager.getStatus();
-                if (status.includes(customPath)) {
-                    conflicts.push(customPath);
-                }
-            } catch (error) {
-                logger.debug(`Could not check git status for ${customPath}:`, error);
+        if (isDirectory) {
+            await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+        } else {
+            // Compare file content
+            const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
+            if (hasChanged) {
+                const exists = await fileManager.exists(targetFilePath);
+                changes.push({
+                    type: exists ? 'modified' : 'added',
+                    path: relativeFilePath,
+                    sourcePath: sourceFilePath,
+                    targetPath: targetFilePath
+                });
             }
         }
     }
-
-    return conflicts;
 }
 
-async function updateSyncConfiguration(version: string, changedFiles: string[]): Promise<void> {
-    const syncConfig = await configManager.loadSyncConfig();
-
-    if (syncConfig) {
-        // Update sync configuration
-        syncConfig.version = version;
-        syncConfig.lastSync = new Date().toISOString();
-        syncConfig.syncHistory.push({
-            version,
-            timestamp: new Date().toISOString(),
-            changes: changedFiles
-        });
-
-        // Keep only last 10 sync history entries
-        if (syncConfig.syncHistory.length > 10) {
-            syncConfig.syncHistory = syncConfig.syncHistory.slice(-10);
+function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
+    return protectedAreas.some((area) => {
+        if (area.endsWith('/')) {
+            return filePath.startsWith(area);
         }
-
-        await configManager.saveSyncConfig(syncConfig);
-    }
-
-    // Also update main config framework version
-    const config = await configManager.loadConfig();
-    if (config) {
-        config.framework.version = version;
-        config.framework.lastSync = new Date().toISOString();
-        await configManager.saveConfig(config);
-    }
-}
-
-function showSyncResults(result: SyncResult, isDryRun: boolean): void {
-    logger.newLine();
-
-    if (result.success) {
-        logger.success(`Sync ${isDryRun ? 'plan' : 'completed'} successfully!`);
-    } else {
-        logger.error('Sync failed');
-    }
-
-    logger.newLine();
-    logger.info('Summary:');
-    logger.table({
-        'Target Version': result.version,
-        'Files Changed': result.changedFiles.length,
-        Conflicts: result.conflicts.length,
-        Warnings: result.warnings.length
+        return filePath === area;
     });
+}
 
-    if (result.changedFiles.length > 0) {
-        logger.info('Changed files:');
-        result.changedFiles.slice(0, 10).forEach((file) => {
-            console.log(`  • ${file}`);
-        });
+function shouldSkipDirectory(dirName: string): boolean {
+    return ['node_modules', '.git', '.turbo', 'dist', 'build', '.svelte-kit', 'cdk.out', 'packages', 'future-changes', '.pika-temp'].includes(dirName);
+}
 
-        if (result.changedFiles.length > 10) {
-            console.log(`  • ... and ${result.changedFiles.length - 10} more files`);
+function isOptionalSampleDirectory(filePath: string): boolean {
+    const optionalDirs = ['services/samples/weather', 'apps/samples/enterprise-site'];
+    return optionalDirs.includes(filePath);
+}
+
+async function fileHasChanged(sourcePath: string, targetPath: string): Promise<boolean> {
+    try {
+        if (!(await fileManager.exists(targetPath))) {
+            return true; // File doesn't exist in target, so it's new
         }
-    }
 
-    if (result.conflicts.length > 0) {
-        logger.warn('Conflicts detected:');
-        result.conflicts.forEach((conflict) => {
-            console.log(`  ⚠ ${conflict}`);
-        });
+        const sourceContent = await fileManager.readFile(sourcePath);
+        const targetContent = await fileManager.readFile(targetPath);
+        return sourceContent !== targetContent;
+    } catch (error) {
+        // Error reading files, assume changed
+        return true;
     }
+}
 
-    if (result.warnings.length > 0) {
-        logger.warn('Warnings:');
-        result.warnings.forEach((warning) => {
-            console.log(`  ⚠ ${warning}`);
-        });
-    }
+async function applyChanges(changes: SyncChange[]): Promise<void> {
+    for (const change of changes) {
+        logger.debug(`Applying ${change.type}: ${change.path}`);
 
-    if (!isDryRun && result.success) {
-        logger.newLine();
-        logger.info('Next steps:');
-        console.log('  • Test your application: pnpm dev');
-        console.log('  • Check custom components still work');
-        console.log('  • Review authentication configuration');
-        console.log('  • Update deployment if needed');
+        // Ensure target directory exists
+        const targetDir = path.dirname(change.targetPath);
+        await fileManager.ensureDir(targetDir);
+
+        // Copy file
+        await fileManager.copyFile(change.sourcePath, change.targetPath);
     }
+}
+
+async function updateSyncConfig(syncConfigPath: string, syncConfig: SyncConfig, targetVersion: string): Promise<void> {
+    syncConfig.lastSync = new Date().toISOString();
+    syncConfig.pikaVersion = targetVersion;
+
+    await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
+}
+
+async function cleanupTempDir(tempDir: string): Promise<void> {
+    try {
+        if (await fileManager.exists(tempDir)) {
+            await fileManager.removeDirectory(tempDir);
+        }
+    } catch (error) {
+        logger.debug('Failed to cleanup temp directory:', error);
+    }
+}
+
+function getChangeIcon(type: string): string {
+    switch (type) {
+        case 'modified':
+            return '📝';
+        case 'added':
+            return '➕';
+        case 'deleted':
+            return '🗑️';
+        default:
+            return '📄';
+    }
+}
+
+function getDefaultProtectedAreas(): string[] {
+    return [
+        'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
+        'services/custom/',
+        'apps/custom/',
+        '.env',
+        '.env.local',
+        '.env.*',
+        'pika.config.ts',
+        '.pika-sync.json'
+    ];
+}
+
+function showSyncSuccessMessage(): void {
+    logger.newLine();
+    logger.info('Next steps:');
+    console.log('  • Test your application: pnpm dev');
+    console.log('  • Verify custom components still work');
+    console.log('  • Check authentication configuration');
+    console.log('  • Review any new framework features');
 }

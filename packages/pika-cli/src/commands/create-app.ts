@@ -191,6 +191,30 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
 
         await fileManager.writeFile(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
     }
+
+    // Create .pika-sync.json
+    const syncConfigPath = path.join(config.projectPath, '.pika-sync.json');
+    const syncConfig = {
+        pikaVersion: '1.0.0', // This should match the CLI version
+        createdAt: new Date().toISOString(),
+        lastSync: new Date().toISOString(),
+        protectedAreas: [
+            'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
+            'services/custom/',
+            'apps/custom/',
+            '.env',
+            '.env.local',
+            '.env.*',
+            'pika.config.ts',
+            '.pika-sync.json'
+        ],
+        initialConfiguration: {
+            // We can add more configuration here as needed
+            createdAt: new Date().toISOString()
+        }
+    };
+
+    await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
 }
 
 async function createUserGitignore(projectPath: string): Promise<void> {
@@ -287,13 +311,16 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     logger.newLine();
 
     logger.info('Key customization areas:');
-    console.log('  • Authentication: apps/pika-chat/src/hooks.server.ts');
-    console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/');
-    console.log('  • Custom Services: services/ directory');
+    //TODO: bring this back once we figure out what we are doing with auth
+    //-console.log('  • Authentication: apps/pika-chat/src/hooks.server.ts');
+    console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
+    console.log('  • Custom Webapps: apps/custom directory');
+    console.log('  • Custom Services: services/custom directory');
     logger.newLine();
 
     logger.info('Learn more:');
-    console.log('  • Framework docs: https://github.com/yourusername/pika');
+    console.log('  • Framework docs: https://github.com/rithum/pika');
     console.log('  • Deploy to AWS: See services/pika/README.md');
-    console.log('  • Customize auth: See apps/pika-chat/src/hooks.server.ts');
+    //TODO: bring this back once we figure out what we are doing with auth
+    //-console.log('  • Customize auth: See apps/pika-chat/src/hooks.server.ts');
 }

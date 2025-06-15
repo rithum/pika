@@ -811,6 +811,16 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
             continue;
         }
 
+        // Skip optional sample directories if user removed them
+        if (file.isDirectory() && isOptionalSampleDirectory(relativeFilePath)) {
+            const targetExists = await fileExists(targetFilePath);
+            if (!targetExists) {
+                console.log(`  ⏭️  Skipping ${relativeFilePath} (user removed)`);
+                console.log(`     To restore: mkdir -p ${relativeFilePath} && pika sync`);
+                continue; // User deleted it, don't restore
+            }
+        }
+
         if (file.isDirectory()) {
             await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
         } else {
@@ -840,6 +850,14 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
 
 function shouldSkipDirectory(dirName: string): boolean {
     return ['node_modules', '.git', '.turbo', 'dist', 'build', '.svelte-kit', 'cdk.out', 'packages/pika-cli', 'future-changes', '.pika-temp'].includes(dirName);
+}
+
+function isOptionalSampleDirectory(filePath: string): boolean {
+    const optionalDirs = [
+        'services/samples/weather',
+        'apps/samples/enterprise-site'
+    ];
+    return optionalDirs.includes(filePath);
 }
 
 async function fileHasChanged(sourcePath: string, targetPath: string): Promise<boolean> {
