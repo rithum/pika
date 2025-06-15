@@ -2,14 +2,15 @@
     "name": "pika-cli",
     "version": "1.0.0",
     "description": "CLI tool for creating and managing Pika framework chat applications",
+    "type": "module",
     "main": "dist/index.js",
     "bin": {
         "pika": "dist/index.js"
     },
     "scripts": {
-        "build": "tsx scripts/build.ts",
-        "build:tsc": "tsc",
-        "dev": "tsx src/index.ts",
+        "build": "tsup",
+        "build:watch": "tsup --watch",
+        "dev": "tsup --watch",
         "start": "node dist/index.js",
         "clean": "rm -rf dist",
         "lint": "eslint src --ext .ts",
@@ -18,7 +19,7 @@
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
         "type-check": "tsc --noEmit",
-        "prepublishOnly": "npm run build"
+        "prepublishOnly": "pnpm run build"
     },
     "keywords": [
         "pika",
@@ -32,30 +33,31 @@
     "author": "Pika Framework Team",
     "license": "MIT",
     "dependencies": {
-        "commander": "catalog:",
-        "inquirer": "catalog:",
         "chalk": "catalog:",
-        "ora": "catalog:",
+        "commander": "catalog:",
         "fs-extra": "catalog:",
-        "semver": "catalog:",
-        "node-fetch": "^3.3.2",
-        "mustache": "catalog:",
         "glob": "catalog:",
+        "inquirer": "catalog:",
+        "minimatch": "catalog:",
+        "mustache": "catalog:",
+        "ora": "catalog:",
+        "semver": "catalog:",
         "yaml": "catalog:"
     },
     "devDependencies": {
         "@pika/eslint-config": "workspace:*",
         "@pika/typescript-config": "workspace:*",
-        "@types/node": "catalog:",
-        "@types/inquirer": "catalog:",
         "@types/fs-extra": "catalog:",
-        "@types/mustache": "catalog:",
-        "@types/semver": "catalog:",
-        "typescript": "catalog:",
-        "tsx": "catalog:",
-        "jest": "catalog:",
+        "@types/inquirer": "catalog:",
         "@types/jest": "catalog:",
-        "ts-jest": "catalog:"
+        "@types/mustache": "catalog:",
+        "@types/node": "catalog:",
+        "@types/semver": "catalog:",
+        "jest": "catalog:",
+        "ts-jest": "catalog:",
+        "tsup": "catalog:",
+        "tsx": "catalog:",
+        "typescript": "catalog:"
     },
     "engines": {
         "node": ">=22.0.0"

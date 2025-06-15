@@ -86,39 +86,175 @@ export async function runCli() {
 
 ## 4. Create App Command (`src/commands/create-app.ts`)
 
-```typescript
-import { setupProject } from '../prompts';
-import { generateTemplate } from '../template-generator';
-import { initializeGit } from '../git-operations';
-import { installDependencies } from '../file-operations';
-import type { ProjectConfig } from '../prompts';
+### Strategy: Clone-and-Clean Approach
 
+The create-app command uses a **clone-and-clean strategy** rather than complex templating:
+
+1. **Clone the complete Pika monorepo** from GitHub
+2. **Clean up repository artifacts** (remove .git, GitHub workflows, etc.)
+3. **Remove CLI package** (users don't need pika-cli source)
+4. **Initialize as new repository** for the user's project
+5. **Install dependencies** and show setup instructions
+
+### Implementation Flow
+
+```typescript
 export async function createAppCommand(projectName?: string, options?: any) {
     try {
         console.log('🚀 Creating new Pika project...\n');
 
-        // 1. Get project configuration
-        const config = await setupProject(projectName, options);
+        // 1. Get project configuration (minimal prompts for now)
+        const config = await getBasicProjectConfig(projectName, options);
 
-        // 2. Generate template
-        await generateTemplate(config);
+        // 2. Clone Pika repository
+        await clonePikaRepository(config.projectPath);
 
-        // 3. Initialize git if requested
-        if (options.git) {
-            await initializeGit(config.projectPath);
+        // 3. Clean up repository artifacts
+        await cleanupRepositoryArtifacts(config.projectPath);
+
+        // 4. Remove CLI package (users don't need it)
+        await removeCLIPackage(config.projectPath);
+
+        // 5. Update package.json with user's project name
+        await updateProjectMetadata(config);
+
+        // 6. Initialize new git repository
+        if (!options.skipGit) {
+            await initializeNewGitRepository(config.projectPath);
         }
 
-        // 4. Install dependencies if requested
-        if (options.install) {
+        // 7. Install dependencies
+        if (!options.skipInstall) {
             await installDependencies(config.projectPath);
         }
 
-        // 5. Show success message and next steps
+        // 8. Show success message and next steps
         showSuccessMessage(config);
     } catch (error) {
         console.error('Failed to create Pika app:', error);
         process.exit(1);
     }
+}
+
+// Core implementation functions
+async function clonePikaRepository(targetPath: string): Promise<void> {
+    console.log('📥 Cloning Pika framework repository...');
+    
+    // Clone the repository (shallow clone for speed)
+    await execAsync(`git clone --depth 1 https://github.com/yourusername/pika.git ${targetPath}`);
+    
+    console.log('✅ Repository cloned successfully');
+}
+
+async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
+    console.log('🧹 Cleaning up repository artifacts...');
+    
+    const artifactsToRemove = [
+        '.git',                    // Remove original git history
+        '.github',                 // Remove GitHub workflows/templates
+        'future-changes',          // Remove planning documents
+        '.gitignore'               // We'll create a new one
+    ];
+    
+    for (const artifact of artifactsToRemove) {
+        const artifactPath = path.join(projectPath, artifact);
+        if (await fileManager.exists(artifactPath)) {
+            await fileManager.removeDirectory(artifactPath);
+            console.log(`  ✅ Removed ${artifact}`);
+        }
+    }
+    
+    // Create new .gitignore appropriate for user projects
+    await createUserGitignore(projectPath);
+}
+
+async function removeCLIPackage(projectPath: string): Promise<void> {
+    console.log('🗑️  Removing CLI package (not needed in user projects)...');
+    
+    const cliPackagePath = path.join(projectPath, 'packages/pika-cli');
+    if (await fileManager.exists(cliPackagePath)) {
+        await fileManager.removeDirectory(cliPackagePath);
+        console.log('  ✅ CLI package removed');
+    }
+    
+    // Update root package.json to remove CLI workspace reference
+    await updateRootPackageJson(projectPath);
+}
+
+async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
+    console.log('📝 Updating project metadata...');
+    
+    // Update root package.json
+    const rootPackageJsonPath = path.join(config.projectPath, 'package.json');
+    const rootPackageJson = JSON.parse(await fileManager.readFile(rootPackageJsonPath));
+    
+    rootPackageJson.name = config.projectName;
+    rootPackageJson.description = config.description || `A chat application built with Pika Framework`;
+    
+    // Remove CLI from workspaces
+    if (rootPackageJson.workspaces) {
+        rootPackageJson.workspaces = rootPackageJson.workspaces.filter(
+            (workspace: string) => !workspace.includes('pika-cli')
+        );
+    }
+    
+    await fileManager.writeFile(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
+    
+    // Update individual app package.json files if needed
+    await updateAppPackageJson(config);
+}
+
+async function createUserGitignore(projectPath: string): Promise<void> {
+    const gitignoreContent = `# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.turbo/
+.svelte-kit/
+cdk.out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Custom services (if using external organization)
+# Uncomment if you plan to keep services in separate repos:
+# services/custom/
+`;
+    
+    await fileManager.writeFile(path.join(projectPath, '.gitignore'), gitignoreContent);
+}
+
+async function initializeNewGitRepository(projectPath: string): Promise<void> {
+    console.log('🔧 Initializing new git repository...');
+    
+    await gitManager.initRepository(projectPath);
+    await gitManager.addAll(projectPath);
+    await gitManager.commit('Initial commit: Pika project created', projectPath);
+    
+    console.log('✅ New git repository initialized');
 }
 
 function showSuccessMessage(config: ProjectConfig) {

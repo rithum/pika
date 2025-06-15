@@ -2,7 +2,6 @@ import inquirer from 'inquirer';
 import path from 'path';
 import { fileManager } from '../utils/file-manager.js';
 import { gitManager } from '../utils/git-manager.js';
-import { configManager } from '../utils/config-manager.js';
 import { logger } from '../utils/logger.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -11,6 +10,9 @@ import type { ExecOptions } from 'child_process';
 
 const execAsync = promisify(exec);
 
+// GitHub repository URL - update this to your actual repo
+const PIKA_REPO_URL = 'https://github.com/rithum/pika.git';
+
 interface CreateAppOptions {
     template?: string;
     directory?: string;
@@ -18,34 +20,26 @@ interface CreateAppOptions {
     skipGit?: boolean;
 }
 
-interface ProjectSetupAnswers {
+interface ProjectConfig {
     projectName: string;
-    description: string;
-    includeWeatherApp: boolean;
-    authProvider: 'mock' | 'auth-js' | 'custom' | 'enterprise-sso';
-    serviceOrganization: 'monorepo' | 'external';
-    awsRegion: string;
-    deploymentStage: string;
-    enterpriseFeatures: boolean;
+    description?: string;
+    projectPath: string;
 }
 
 export async function createApp(projectName?: string, options: CreateAppOptions = {}): Promise<void> {
     try {
         logger.header('🐦 Pika Framework - Create New Chat Application');
 
-        // Get project setup information
-        const answers = await getProjectSetupAnswers(projectName);
-
-        // Determine output directory
-        const outputDir = options.directory || path.resolve(process.cwd(), answers.projectName);
+        // Get basic project configuration (simplified)
+        const config = await getBasicProjectConfig(projectName, options);
 
         // Check if directory already exists
-        if (await fileManager.exists(outputDir)) {
+        if (await fileManager.exists(config.projectPath)) {
             const { overwrite } = await inquirer.prompt([
                 {
                     type: 'confirm',
                     name: 'overwrite',
-                    message: `Directory "${outputDir}" already exists. Overwrite?`,
+                    message: `Directory "${config.projectName}" already exists. Overwrite?`,
                     default: false
                 }
             ]);
@@ -55,32 +49,48 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
                 return;
             }
 
-            await fileManager.removeDirectory(outputDir);
+            await fileManager.removeDirectory(config.projectPath);
         }
 
-        // Create project
         const spinner = logger.startSpinner('Creating Pika project...');
 
         try {
-            await createProjectStructure(outputDir, answers, options);
-            logger.stopSpinner(true, 'Project structure created');
+            // 1. Clone Pika repository
+            logger.updateSpinner('Cloning Pika framework repository...');
+            await clonePikaRepository(config.projectPath);
+            logger.stopSpinner(true, 'Repository cloned successfully');
 
-            // Install dependencies
+            // 2. Clean up repository artifacts
+            logger.updateSpinner('Cleaning up repository artifacts...');
+            await cleanupRepositoryArtifacts(config.projectPath);
+            logger.stopSpinner(true, 'Repository artifacts cleaned');
+
+            // 3. Remove CLI package (users don't need it)
+            logger.updateSpinner('Removing CLI package...');
+            await removeCLIPackage(config.projectPath);
+            logger.stopSpinner(true, 'CLI package removed');
+
+            // 4. Update project metadata
+            logger.updateSpinner('Updating project metadata...');
+            await updateProjectMetadata(config);
+            logger.stopSpinner(true, 'Project metadata updated');
+
+            // 5. Install dependencies
             if (!options.skipInstall) {
                 logger.updateSpinner('Installing dependencies...');
-                await installDependencies(outputDir);
+                await installDependencies(config.projectPath);
                 logger.stopSpinner(true, 'Dependencies installed');
             }
 
-            // Initialize git repository
+            // 6. Initialize new git repository
             if (!options.skipGit) {
-                logger.updateSpinner('Initializing git repository...');
-                await initializeGitRepository(outputDir, answers);
+                logger.updateSpinner('Initializing new git repository...');
+                await initializeNewGitRepository(config.projectPath);
                 logger.stopSpinner(true, 'Git repository initialized');
             }
 
             // Show completion message
-            showCompletionMessage(answers.projectName, outputDir, options);
+            showCompletionMessage(config, options);
         } catch (error) {
             logger.stopSpinner(false, 'Failed to create project');
             throw error;
@@ -91,416 +101,151 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
     }
 }
 
-async function getProjectSetupAnswers(projectName?: string): Promise<ProjectSetupAnswers> {
-    const questions: Array<DistinctQuestion<ProjectSetupAnswers>> = [
-        {
+async function getBasicProjectConfig(projectName?: string, options: CreateAppOptions = {}): Promise<ProjectConfig> {
+    const questions: Array<DistinctQuestion<any>> = [];
+
+    // Only ask for project name if not provided
+    if (!projectName) {
+        questions.push({
             type: 'input',
             name: 'projectName',
             message: 'Project name:',
-            default: projectName || 'my-pika-app',
+            default: 'my-pika-app',
             validate: (input: string) => {
                 if (!input.trim()) return 'Project name is required';
                 if (!/^[a-zA-Z0-9-_]+$/.test(input)) return 'Project name can only contain letters, numbers, hyphens, and underscores';
                 return true;
-            },
-            when: () => !projectName
-        },
-        {
-            type: 'input',
-            name: 'description',
-            message: 'Project description:',
-            default: 'A chat application built with Pika Framework'
-        },
-        {
-            type: 'confirm',
-            name: 'includeWeatherApp',
-            message: 'Include sample weather app?',
-            default: true
-        },
-        {
-            type: 'list',
-            name: 'authProvider',
-            message: 'Choose authentication strategy:',
-            choices: [
-                { name: 'Mock (for development)', value: 'mock' },
-                { name: 'Auth.js (OAuth providers)', value: 'auth-js' },
-                { name: 'Custom (bring your own)', value: 'custom' },
-                { name: 'Enterprise SSO', value: 'enterprise-sso' }
-            ],
-            default: 'mock'
-        },
-        {
-            type: 'list',
-            name: 'serviceOrganization',
-            message: 'Service organization preference:',
-            choices: [
-                { name: 'Monorepo (embed services in project)', value: 'monorepo' },
-                { name: 'External (separate service repositories)', value: 'external' }
-            ],
-            default: 'monorepo'
-        },
-        {
-            type: 'input',
-            name: 'awsRegion',
-            message: 'AWS region:',
-            default: 'us-east-1'
-        },
-        {
-            type: 'input',
-            name: 'deploymentStage',
-            message: 'Default deployment stage:',
-            default: 'dev'
-        },
-        {
-            type: 'confirm',
-            name: 'enterpriseFeatures',
-            message: 'Enable enterprise features (advanced auth, monitoring)?',
-            default: false
-        }
-    ];
-
-    const answers = await inquirer.prompt<ProjectSetupAnswers>(questions);
-
-    // Use provided projectName if available
-    if (projectName) {
-        answers.projectName = projectName;
-    }
-
-    return answers as ProjectSetupAnswers;
-}
-
-async function createProjectStructure(outputDir: string, answers: ProjectSetupAnswers, options: CreateAppOptions): Promise<void> {
-    // Get the template path (for now, we'll use the existing pika structure)
-    const templatePath = getTemplatePath(options.template || 'default');
-
-    // Template variables for mustache templating
-    const templateVariables = {
-        projectName: answers.projectName,
-        description: answers.description,
-        authProvider: answers.authProvider,
-        serviceOrganization: answers.serviceOrganization,
-        awsRegion: answers.awsRegion,
-        deploymentStage: answers.deploymentStage,
-        includeWeatherApp: answers.includeWeatherApp,
-        enterpriseFeatures: answers.enterpriseFeatures,
-        timestamp: new Date().toISOString()
-    };
-
-    // Copy template to output directory
-    const excludePatterns = ['node_modules', '.git', 'dist', '.turbo', '.DS_Store', '*.log'];
-
-    // Add weather app to exclusions if not wanted
-    if (!answers.includeWeatherApp) {
-        excludePatterns.push('services/weather');
-    }
-
-    await fileManager.copyTemplate(templatePath, outputDir, {
-        exclude: excludePatterns,
-        templateVariables,
-        transform: (content, filePath) => {
-            // Custom transformations for specific files
-            if (filePath.endsWith('package.json')) {
-                const packageJson = JSON.parse(content);
-                packageJson.name = answers.projectName;
-                packageJson.description = answers.description;
-                return JSON.stringify(packageJson, null, 2);
             }
-            return content;
-        }
+        });
+    }
+
+    // Optional: Ask for description
+    questions.push({
+        type: 'input',
+        name: 'description',
+        message: 'Project description (optional):',
+        default: 'A chat application built with Pika Framework'
     });
 
-    // Create custom directories
-    await createCustomDirectories(outputDir, answers);
+    const answers = questions.length > 0 ? await inquirer.prompt(questions) : {};
 
-    // Generate configuration files
-    await generateConfigFiles(outputDir, answers);
+    // Build config object
+    const config: ProjectConfig = {
+        projectName: projectName || answers.projectName,
+        description: answers.description,
+        projectPath: options.directory || path.resolve(process.cwd(), projectName || answers.projectName)
+    };
 
-    // Setup authentication based on provider choice
-    await setupAuthentication(outputDir, answers.authProvider);
+    return config;
 }
 
-function getTemplatePath(template: string): string {
-    // For now, use the existing pika project structure as template
-    // In a real implementation, this would point to template directories
-    const packageRoot = path.resolve(__dirname, '../../..');
-    return path.resolve(packageRoot, '..');
-}
-
-async function createCustomDirectories(outputDir: string, answers: ProjectSetupAnswers): Promise<void> {
-    // Create custom components directory
-    const customComponentsDir = path.join(outputDir, 'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
-    await fileManager.ensureDir(customComponentsDir);
-
-    // Create index.ts for component registry
-    const componentIndexContent = `// Custom Markdown Tag Components Registry
-// Add your custom components here for automatic discovery
-
-export interface CustomComponentMap {
-  // Add your component interfaces here
-  // Example: 'order': typeof OrderComponent;
-}
-
-// Export your custom components here
-export const customComponents: Partial<CustomComponentMap> = {
-  // Example: order: OrderComponent
-};
-
-export default customComponents;
-`;
-
-    await fileManager.writeFile(path.join(customComponentsDir, 'index.ts'), componentIndexContent);
-
-    // Create example custom component
-    const exampleComponentContent = `<script lang="ts">
-  export let title: string = 'Custom Component';
-  export let content: string = '';
-</script>
-
-<div class="custom-component">
-  <h3>{title}</h3>
-  <p>{content}</p>
-</div>
-
-<style>
-  .custom-component {
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 16px;
-    margin: 8px 0;
-    background: #f8fafc;
-  }
-  
-  h3 {
-    margin: 0 0 8px 0;
-    color: #2d3748;
-  }
-  
-  p {
-    margin: 0;
-    color: #4a5568;
-  }
-</style>
-`;
-
-    await fileManager.writeFile(path.join(customComponentsDir, 'example.svelte'), exampleComponentContent);
-
-    // Create custom services directory if monorepo
-    if (answers.serviceOrganization === 'monorepo') {
-        const customServicesDir = path.join(outputDir, 'services/custom');
-        await fileManager.ensureDir(customServicesDir);
-
-        // Create .gitkeep to preserve directory
-        await fileManager.writeFile(path.join(customServicesDir, '.gitkeep'), '# This directory is for your custom services\n');
+// Core implementation functions for clone-and-clean approach
+async function clonePikaRepository(targetPath: string): Promise<void> {
+    try {
+        // Clone the repository (shallow clone for speed)
+        await execAsync(`git clone --depth 1 ${PIKA_REPO_URL} "${targetPath}"`);
+    } catch (e) {
+        throw new Error(`Failed to clone Pika repository: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
 }
 
-async function generateConfigFiles(outputDir: string, answers: ProjectSetupAnswers): Promise<void> {
-    // Create pika.config.json
-    const config = configManager.createDefaultConfig(answers.projectName);
-    config.auth.provider = answers.authProvider;
-    config.services.organization = answers.serviceOrganization;
-    config.deployment.region = answers.awsRegion;
-    config.deployment.stage = answers.deploymentStage;
-    config.features.sampleWeatherApp = answers.includeWeatherApp;
-    config.features.enterpriseFeatures = answers.enterpriseFeatures;
+async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
+    const artifactsToRemove = [
+        '.git', // Remove original git history
+        '.github', // Remove GitHub workflows/templates
+        'future-changes', // Remove planning documents
+        '.gitignore' // We'll create a new one
+    ];
 
-    await configManager.saveConfig(config, outputDir);
+    for (const artifact of artifactsToRemove) {
+        const artifactPath = path.join(projectPath, artifact);
+        if (await fileManager.exists(artifactPath)) {
+            await fileManager.removeDirectory(artifactPath);
+        }
+    }
 
-    // Create .pika-sync.json
-    const syncConfig = configManager.createDefaultSyncConfig();
-    await configManager.saveSyncConfig(syncConfig, outputDir);
+    // Create new .gitignore appropriate for user projects
+    await createUserGitignore(projectPath);
 }
 
-async function setupAuthentication(outputDir: string, provider: string): Promise<void> {
-    const authDir = path.join(outputDir, 'apps/pika-chat/src/auth');
-    await fileManager.ensureDir(authDir);
-
-    // Create base auth types and interfaces
-    const authTypesContent = `// Pika Framework Authentication Types
-export interface PikaUser {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  roles?: string[];
-  permissions?: string[];
-}
-
-export interface AuthProvider {
-  name: string;
-  authenticate(): Promise<PikaUser | null>;
-  logout(): Promise<void>;
-  getCurrentUser(): Promise<PikaUser | null>;
-  isAuthenticated(): Promise<boolean>;
-}
-
-export interface AuthConfig {
-  provider: string;
-  options: Record<string, any>;
-}
-`;
-
-    await fileManager.writeFile(path.join(authDir, 'types.ts'), authTypesContent);
-
-    // Create auth provider based on selection
-    await createAuthProvider(authDir, provider);
-}
-
-async function createAuthProvider(authDir: string, provider: string): Promise<void> {
-    const providersDir = path.join(authDir, 'providers');
-    await fileManager.ensureDir(providersDir);
-
-    switch (provider) {
-        case 'mock':
-            await createMockAuthProvider(providersDir);
-            break;
-        case 'auth-js':
-            await createAuthJsProvider(providersDir);
-            break;
-        case 'custom':
-            await createCustomAuthProvider(providersDir);
-            break;
-        case 'enterprise-sso':
-            await createEnterpriseSSOProvider(providersDir);
-            break;
+async function removeCLIPackage(projectPath: string): Promise<void> {
+    const cliPackagePath = path.join(projectPath, 'packages/pika-cli');
+    if (await fileManager.exists(cliPackagePath)) {
+        await fileManager.removeDirectory(cliPackagePath);
     }
 }
 
-async function createMockAuthProvider(providersDir: string): Promise<void> {
-    const mockAuthContent = `import type { AuthProvider, PikaUser } from '../types.js';
+async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
+    // Update root package.json
+    const rootPackageJsonPath = path.join(config.projectPath, 'package.json');
 
-export class MockAuthProvider implements AuthProvider {
-  name = 'mock';
-  
-  private mockUser: PikaUser = {
-    id: 'mock-user-1',
-    email: 'user@example.com',
-    name: 'Mock User',
-    avatar: 'https://ui-avatars.com/api/?name=Mock+User',
-    roles: ['user'],
-    permissions: ['chat:read', 'chat:write']
-  };
+    if (await fileManager.exists(rootPackageJsonPath)) {
+        const rootPackageJson = JSON.parse(await fileManager.readFile(rootPackageJsonPath));
 
-  async authenticate(): Promise<PikaUser | null> {
-    // Mock authentication always succeeds
-    return this.mockUser;
-  }
+        rootPackageJson.name = config.projectName;
+        if (config.description) {
+            rootPackageJson.description = config.description;
+        }
 
-  async logout(): Promise<void> {
-    // Mock logout
-    console.log('Mock user logged out');
-  }
+        // Remove CLI from workspaces if it exists
+        if (rootPackageJson.workspaces) {
+            rootPackageJson.workspaces = rootPackageJson.workspaces.filter((workspace: string) => !workspace.includes('pika-cli'));
+        }
 
-  async getCurrentUser(): Promise<PikaUser | null> {
-    return this.mockUser;
-  }
-
-  async isAuthenticated(): Promise<boolean> {
-    return true;
-  }
+        await fileManager.writeFile(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
+    }
 }
+
+async function createUserGitignore(projectPath: string): Promise<void> {
+    const gitignoreContent = `# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.turbo/
+.svelte-kit/
+cdk.out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Custom services (if using external organization)
+# Uncomment if you plan to keep services in separate repos:
+# services/custom/
 `;
 
-    await fileManager.writeFile(path.join(providersDir, 'mock-auth.ts'), mockAuthContent);
+    await fileManager.writeFile(path.join(projectPath, '.gitignore'), gitignoreContent);
 }
 
-async function createAuthJsProvider(providersDir: string): Promise<void> {
-    const authJsContent = `import type { AuthProvider, PikaUser } from '../types.js';
-// Note: You'll need to install @auth/sveltekit and configure it
-
-export class AuthJsProvider implements AuthProvider {
-  name = 'auth-js';
-
-  async authenticate(): Promise<PikaUser | null> {
-    // Implement Auth.js authentication
-    throw new Error('Auth.js provider not yet implemented. See documentation for setup instructions.');
-  }
-
-  async logout(): Promise<void> {
-    // Implement Auth.js logout
-    throw new Error('Auth.js provider not yet implemented. See documentation for setup instructions.');
-  }
-
-  async getCurrentUser(): Promise<PikaUser | null> {
-    // Get current user from Auth.js session
-    throw new Error('Auth.js provider not yet implemented. See documentation for setup instructions.');
-  }
-
-  async isAuthenticated(): Promise<boolean> {
-    // Check Auth.js session
-    throw new Error('Auth.js provider not yet implemented. See documentation for setup instructions.');
-  }
-}
-`;
-
-    await fileManager.writeFile(path.join(providersDir, 'auth-js.ts'), authJsContent);
+async function initializeNewGitRepository(projectPath: string): Promise<void> {
+    await gitManager.initRepository(projectPath);
+    await gitManager.addAll(projectPath);
+    await gitManager.commit('Initial commit: Pika project created', projectPath);
 }
 
-async function createCustomAuthProvider(providersDir: string): Promise<void> {
-    const customAuthContent = `import type { AuthProvider, PikaUser } from '../types.js';
-
-export class CustomAuthProvider implements AuthProvider {
-  name = 'custom';
-
-  async authenticate(): Promise<PikaUser | null> {
-    // TODO: Implement your custom authentication logic
-    // This is where you integrate with your existing auth system
-    
-    throw new Error('Custom auth provider not implemented. Please implement authentication logic.');
-  }
-
-  async logout(): Promise<void> {
-    // TODO: Implement your custom logout logic
-    throw new Error('Custom auth provider not implemented. Please implement logout logic.');
-  }
-
-  async getCurrentUser(): Promise<PikaUser | null> {
-    // TODO: Implement logic to get current user
-    throw new Error('Custom auth provider not implemented. Please implement getCurrentUser logic.');
-  }
-
-  async isAuthenticated(): Promise<boolean> {
-    // TODO: Implement authentication check
-    throw new Error('Custom auth provider not implemented. Please implement isAuthenticated logic.');
-  }
-}
-`;
-
-    await fileManager.writeFile(path.join(providersDir, 'custom-auth.ts'), customAuthContent);
-}
-
-async function createEnterpriseSSOProvider(providersDir: string): Promise<void> {
-    const enterpriseAuthContent = `import type { AuthProvider, PikaUser } from '../types.js';
-
-export class EnterpriseSSOProvider implements AuthProvider {
-  name = 'enterprise-sso';
-
-  async authenticate(): Promise<PikaUser | null> {
-    // TODO: Implement SAML/OIDC/Enterprise SSO integration
-    throw new Error('Enterprise SSO provider not implemented. Please configure your SSO integration.');
-  }
-
-  async logout(): Promise<void> {
-    // TODO: Implement SSO logout with proper redirect
-    throw new Error('Enterprise SSO provider not implemented. Please configure SSO logout.');
-  }
-
-  async getCurrentUser(): Promise<PikaUser | null> {
-    // TODO: Get user from SSO session/token
-    throw new Error('Enterprise SSO provider not implemented. Please configure user retrieval.');
-  }
-
-  async isAuthenticated(): Promise<boolean> {
-    // TODO: Validate SSO session/token
-    throw new Error('Enterprise SSO provider not implemented. Please configure session validation.');
-  }
-}
-`;
-
-    await fileManager.writeFile(path.join(providersDir, 'enterprise-sso.ts'), enterpriseAuthContent);
-}
-
-async function installDependencies(outputDir: string): Promise<void> {
+async function installDependencies(projectPath: string): Promise<void> {
     try {
         // Check if pnpm is available, fallback to npm
         let packageManager = 'npm';
@@ -514,7 +259,7 @@ async function installDependencies(outputDir: string): Promise<void> {
         const installCommand = packageManager === 'pnpm' ? 'pnpm install' : 'npm install';
 
         await execAsync(installCommand, {
-            cwd: outputDir
+            cwd: projectPath
         } as ExecOptions);
     } catch (error) {
         logger.warn('Failed to install dependencies automatically. You can install them manually later.');
@@ -522,39 +267,36 @@ async function installDependencies(outputDir: string): Promise<void> {
     }
 }
 
-async function initializeGitRepository(outputDir: string, answers: ProjectSetupAnswers): Promise<void> {
-    try {
-        await gitManager.initRepository(outputDir);
-        await gitManager.addAll(outputDir);
-        await gitManager.commit(`Initial commit: Created ${answers.projectName} with Pika Framework`, outputDir);
-    } catch (error) {
-        logger.warn('Failed to initialize git repository. You can do this manually later.');
-        logger.debug('Git initialization error:', error);
-    }
-}
-
-function showCompletionMessage(projectName: string, outputDir: string, options: CreateAppOptions): void {
-    logger.success(`Successfully created ${projectName}!`);
+function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions): void {
+    logger.success(`🎉 Successfully created ${config.projectName}!`);
     logger.newLine();
 
     logger.info('Next steps:');
-    console.log(`  cd ${path.relative(process.cwd(), outputDir)}`);
+    console.log(`  cd ${path.relative(process.cwd(), config.projectPath)}`);
 
     if (options.skipInstall) {
         console.log('  pnpm install  # or npm install');
     }
 
-    console.log('  pnpm dev      # or npm run dev');
+    console.log('  pnpm dev      # Start development server');
     logger.newLine();
 
-    logger.info('Available commands:');
-    console.log('  pika auth setup <provider>  # Configure authentication');
-    console.log('  pika component add <name>   # Add custom component');
-    console.log('  pika sync                   # Sync with framework updates');
+    logger.info('What you got:');
+    console.log('  • Complete Pika framework with all features');
+    console.log('  • Sample weather app (remove from services/ if not needed)');
+    console.log('  • Ready-to-customize authentication system');
+    console.log('  • Custom component support');
+    console.log('  • Clean git repository (ready for your remote)');
     logger.newLine();
 
-    logger.info('Documentation:');
-    console.log('  • Authentication: See apps/pika-chat/src/auth/README.md');
-    console.log('  • Custom Components: See custom-markdown-tag-components/README.md');
-    console.log('  • Deployment: See docs/deployment.md');
+    logger.info('Key customization areas:');
+    console.log('  • Authentication: apps/pika-chat/src/hooks.server.ts');
+    console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/');
+    console.log('  • Custom Services: services/ directory');
+    logger.newLine();
+
+    logger.info('Learn more:');
+    console.log('  • Framework docs: https://github.com/yourusername/pika');
+    console.log('  • Deploy to AWS: See services/pika/README.md');
+    console.log('  • Customize auth: See apps/pika-chat/src/hooks.server.ts');
 }

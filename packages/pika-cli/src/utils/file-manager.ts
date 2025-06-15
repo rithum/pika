@@ -3,6 +3,7 @@ import path from 'path';
 import { glob } from 'glob';
 import mustache from 'mustache';
 import { logger } from './logger.js';
+import { minimatch } from 'minimatch';
 
 export interface CopyOptions {
     exclude?: string[];
@@ -29,7 +30,14 @@ export class FileManager {
                 const sourceItem = path.join(sourcePath, item);
                 const destItem = path.join(destPath, item);
 
-                const shouldExclude = exclude.some((pattern) => sourceItem.includes(pattern) || item.match(new RegExp(pattern)));
+                const shouldExclude = exclude.some((pattern) => {
+                    // Handle glob patterns
+                    if (pattern.includes('*')) {
+                        return minimatch(sourceItem, pattern) || minimatch(item, pattern);
+                    }
+                    // Handle simple string matches
+                    return sourceItem.includes(pattern) || item === pattern;
+                });
 
                 if (!shouldExclude) {
                     await this.copyTemplate(sourceItem, destItem, options);

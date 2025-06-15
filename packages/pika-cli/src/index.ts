@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { Command } from 'commander';
 import { createApp } from './commands/create-app.js';
 import { syncCommand } from './commands/sync.js';
@@ -33,17 +31,44 @@ program
 program
     .command('component')
     .description('Manage custom markdown components')
-    .option('add <name>', 'Add a new custom component')
-    .option('list', 'List all registered components')
-    .option('validate', 'Validate component registry')
-    .action(componentCommand);
+    .addCommand(
+        new Command('add')
+            .description('Add a new custom component')
+            .argument('<name>', 'Name of the component to add')
+            .action(async (name) => {
+                await componentCommand({ add: name });
+            })
+    )
+    .addCommand(
+        new Command('list').description('List all registered components').action(async () => {
+            await componentCommand({ list: true });
+        })
+    )
+    .addCommand(
+        new Command('validate').description('Validate component registry').action(async () => {
+            await componentCommand({ validate: true });
+        })
+    );
 
 program
     .command('auth')
     .description('Manage authentication configuration')
-    .option('setup <provider>', 'Setup authentication provider (mock, auth-js, custom, enterprise-sso)')
-    .option('status', 'Show current authentication status')
-    .action(authCommand);
+    .addCommand(
+        new Command('setup')
+            .description('Setup authentication provider')
+            .argument('<provider>', 'Authentication provider (mock, auth-js, custom, enterprise-sso)')
+            .action(async (provider) => {
+                await authCommand({ setup: provider });
+            })
+    )
+    .addCommand(
+        new Command('status').description('Show current authentication status').action(async () => {
+            await authCommand({ status: true });
+        })
+    )
+    .action(async () => {
+        await authCommand();
+    });
 
 // Global error handler
 program.exitOverride((err) => {

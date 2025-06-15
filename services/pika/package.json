@@ -21,6 +21,7 @@
         "@pika/typescript-config": "workspace:*",
         "@aws-crypto/sha256-js": "catalog:",
         "@aws-sdk/client-s3": "catalog:",
+        "@aws-sdk/client-sts": "catalog:",
         "@aws-sdk/credential-provider-node": "catalog:",
         "@smithy/signature-v4": "catalog:",
         "@aws-sdk/util-dynamodb": "catalog:",

@@ -2,14 +2,21 @@
     "extends": "@pika/typescript-config/base.json",
     "compilerOptions": {
         "outDir": "./dist",
-        "rootDir": "./src",
-        "target": "ES2020",
-        "module": "commonjs",
-        "moduleResolution": "node",
+        "rootDir": ".",
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "allowSyntheticDefaultImports": true,
         "resolveJsonModule": true,
         "sourceMap": true
     },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist", "**/*.test.ts"]
+    "include": [
+        "src/**/*",
+        "tsup.config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.test.ts"
+    ]
 }
