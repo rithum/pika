@@ -60,34 +60,31 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
             await clonePikaRepository(config.projectPath);
             logger.stopSpinner(true, 'Repository cloned successfully');
 
+            // Start a persistent spinner for the rest of the setup
+            const setupSpinner = logger.startSpinner('Setting up your project (this may take a minute)...');
+
             // 2. Clean up repository artifacts
-            logger.updateSpinner('Cleaning up repository artifacts...');
             await cleanupRepositoryArtifacts(config.projectPath);
-            logger.stopSpinner(true, 'Repository artifacts cleaned');
 
             // 3. Remove CLI package (users don't need it)
-            logger.updateSpinner('Removing CLI package...');
             await removeCLIPackage(config.projectPath);
-            logger.stopSpinner(true, 'CLI package removed');
 
             // 4. Update project metadata
-            logger.updateSpinner('Updating project metadata...');
             await updateProjectMetadata(config);
-            logger.stopSpinner(true, 'Project metadata updated');
 
             // 5. Install dependencies
             if (!options.skipInstall) {
-                logger.updateSpinner('Installing dependencies...');
                 await installDependencies(config.projectPath);
-                logger.stopSpinner(true, 'Dependencies installed');
             }
 
             // 6. Initialize new git repository
             if (!options.skipGit) {
-                logger.updateSpinner('Initializing new git repository...');
                 await initializeNewGitRepository(config.projectPath);
-                logger.stopSpinner(true, 'Git repository initialized');
             }
+
+            // Stop the persistent spinner right before the final message
+            logger.stopSpinner(true, 'Project setup complete!');
+            logger.newLine();
 
             // Show completion message
             showCompletionMessage(config, options);
