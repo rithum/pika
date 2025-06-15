@@ -8,4 +8,4 @@ module.exports = {
         'no-console': 'off', // CLI tools need console output
         '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
-}; 
+};
