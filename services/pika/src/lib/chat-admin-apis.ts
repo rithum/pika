@@ -405,10 +405,10 @@ export async function updateAgentDefinition(request: UpdateAgentRequest): Promis
     handleOptionalFieldUpdate(request.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);
 
     if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
-        throw new Error('No changes to update');
+        return existingAgent;
+    } else {
+        return await updateAgent(existingAgent, fieldsToUpdate, fieldsToRemove, request.userId, now);
     }
-
-    return await updateAgent(existingAgent, fieldsToUpdate, fieldsToRemove, request.userId, now);
 }
 
 /**
@@ -805,10 +805,10 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
         handleObjectFieldUpdate(request.chatApp.features, existingChatApp.features, 'features', fieldsToUpdate, fieldsToRemove, true);
 
         if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
-            throw new Error('No changes to update');
+            return existingChatApp;
+        } else {
+            return await updateChatApp(existingChatApp, fieldsToUpdate, fieldsToRemove, now);
         }
-
-        return await updateChatApp(existingChatApp, fieldsToUpdate, fieldsToRemove, now);
     }
 }
 

@@ -17,7 +17,6 @@ interface CreateAppOptions {
     template?: string;
     directory?: string;
     skipInstall?: boolean;
-    skipGit?: boolean;
 }
 
 interface ProjectConfig {
@@ -77,11 +76,6 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
                 await installDependencies(config.projectPath);
             }
 
-            // 6. Initialize new git repository
-            if (!options.skipGit) {
-                await initializeNewGitRepository(config.projectPath);
-            }
-
             // Stop the persistent spinner right before the final message
             logger.stopSpinner(true, 'Project setup complete!');
             logger.newLine();
@@ -139,8 +133,32 @@ async function getBasicProjectConfig(projectName?: string, options: CreateAppOpt
 // Core implementation functions for clone-and-clean approach
 async function clonePikaRepository(targetPath: string): Promise<void> {
     try {
-        // Clone the repository (shallow clone for speed)
-        await execAsync(`git clone --depth 1 ${PIKA_REPO_URL} "${targetPath}"`);
+        // Create a temporary directory for the clone
+        const tempDir = path.join(path.dirname(targetPath), '.pika-temp-clone');
+
+        // Clone the repository to temp directory (shallow clone for speed)
+        await execAsync(`git clone --depth 1 ${PIKA_REPO_URL} "${tempDir}"`);
+
+        // Remove .git directory from temp directory to ensure clean state
+        const gitDir = path.join(tempDir, '.git');
+        if (await fileManager.exists(gitDir)) {
+            await fileManager.removeDirectory(gitDir);
+        }
+
+        // Copy all files to target directory
+        const { cp } = await import('fs/promises');
+        await cp(tempDir, targetPath, {
+            recursive: true
+        });
+
+        // Clean up temp directory
+        await fileManager.removeDirectory(tempDir);
+
+        // Double check that no .git directory exists in target
+        const targetGitDir = path.join(targetPath, '.git');
+        if (await fileManager.exists(targetGitDir)) {
+            await fileManager.removeDirectory(targetGitDir);
+        }
     } catch (e) {
         throw new Error(`Failed to clone Pika repository: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
@@ -148,7 +166,6 @@ async function clonePikaRepository(targetPath: string): Promise<void> {
 
 async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
     const artifactsToRemove = [
-        '.git', // Remove original git history
         '.github', // Remove GitHub workflows/templates
         'future-changes', // Remove planning documents
         '.gitignore' // We'll create a new one
@@ -173,25 +190,6 @@ async function removeCLIPackage(projectPath: string): Promise<void> {
 }
 
 async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
-    // Update root package.json
-    const rootPackageJsonPath = path.join(config.projectPath, 'package.json');
-
-    if (await fileManager.exists(rootPackageJsonPath)) {
-        const rootPackageJson = JSON.parse(await fileManager.readFile(rootPackageJsonPath));
-
-        rootPackageJson.name = config.projectName;
-        if (config.description) {
-            rootPackageJson.description = config.description;
-        }
-
-        // Remove CLI from workspaces if it exists
-        if (rootPackageJson.workspaces) {
-            rootPackageJson.workspaces = rootPackageJson.workspaces.filter((workspace: string) => !workspace.includes('pika-cli'));
-        }
-
-        await fileManager.writeFile(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
-    }
-
     // Create .pika-sync.json
     const syncConfigPath = path.join(config.projectPath, '.pika-sync.json');
     const syncConfig = {
@@ -206,10 +204,12 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             '.env.local',
             '.env.*',
             'pika.config.ts',
-            '.pika-sync.json'
+            '.pika-sync.json',
+            '.gitignore', // Add .gitignore to protected areas
+            'package.json', // Add package.json to protected areas
+            'pnpm-lock.yaml' // Add pnpm-lock.yaml to protected areas
         ],
         initialConfiguration: {
-            // We can add more configuration here as needed
             createdAt: new Date().toISOString()
         }
     };
@@ -260,12 +260,6 @@ logs/
     await fileManager.writeFile(path.join(projectPath, '.gitignore'), gitignoreContent);
 }
 
-async function initializeNewGitRepository(projectPath: string): Promise<void> {
-    await gitManager.initRepository(projectPath);
-    await gitManager.addAll(projectPath);
-    await gitManager.commit('Initial commit: Pika project created', projectPath);
-}
-
 async function installDependencies(projectPath: string): Promise<void> {
     try {
         // Check if pnpm is available, fallback to npm
@@ -307,20 +301,20 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Sample weather app (remove from services/ if not needed)');
     console.log('  • Ready-to-customize authentication system');
     console.log('  • Custom component support');
-    console.log('  • Clean git repository (ready for your remote)');
     logger.newLine();
 
     logger.info('Key customization areas:');
-    //TODO: bring this back once we figure out what we are doing with auth
-    //-console.log('  • Authentication: apps/pika-chat/src/hooks.server.ts');
     console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
     console.log('  • Custom Webapps: apps/custom directory');
     console.log('  • Custom Services: services/custom directory');
     logger.newLine();
 
+    logger.info('Version control:');
+    console.log('  • Initialize git: git init && git add . && git commit -m "Initial commit"');
+    console.log('  • Or use your preferred version control system');
+    logger.newLine();
+
     logger.info('Learn more:');
     console.log('  • Framework docs: https://github.com/rithum/pika');
     console.log('  • Deploy to AWS: See services/pika/README.md');
-    //TODO: bring this back once we figure out what we are doing with auth
-    //-console.log('  • Customize auth: See apps/pika-chat/src/hooks.server.ts');
 }
