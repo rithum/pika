@@ -111,3 +111,4 @@ catalog:
   '@types/mustache': ^4.2.6
   yaml: ^2.8.0
   minimatch: ^10.0.3
+  diff: ^8.0.2

@@ -207,7 +207,10 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             '.pika-sync.json',
             '.gitignore', // Add .gitignore to protected areas
             'package.json', // Add package.json to protected areas
-            'pnpm-lock.yaml' // Add pnpm-lock.yaml to protected areas
+            'pnpm-lock.yaml', // Add pnpm-lock.yaml to protected areas
+            // Infrastructure stack files - users should customize these
+            'apps/pika-chat/infra/bin/pika-chat.ts',
+            'services/pika/bin/pika.ts'
         ],
         initialConfiguration: {
             createdAt: new Date().toISOString()
@@ -307,6 +310,14 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
     console.log('  • Custom Webapps: apps/custom directory');
     console.log('  • Custom Services: services/custom directory');
+    console.log('  • Infrastructure: apps/pika-chat/infra/bin/pika-chat.ts and services/pika/bin/pika.ts');
+    logger.newLine();
+
+    logger.info('Infrastructure customization:');
+    console.log('  • Update project names and descriptions in stack files');
+    console.log('  • Configure VPC IDs, account IDs, and regions for your environment');
+    console.log('  • Add custom AWS resources or modify existing ones');
+    console.log('  • These files are protected from framework updates');
     logger.newLine();
 
     logger.info('Version control:');

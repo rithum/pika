@@ -24,8 +24,11 @@ program
     .command('sync')
     .description('Synchronize with upstream Pika framework changes')
     .option('--version <version>', 'Specific version to sync to (default: latest)')
+    .option('--branch <branch>', 'Specific branch to sync from (default: main)')
     .option('--dry-run', 'Preview changes without applying them')
     .option('--force', 'Force sync even if there are conflicts')
+    .option('--diff', 'Show diffs for all changes without applying them')
+    .option('--editor-diff', 'Open diffs in Cursor or VS Code for all changes without applying them')
     .action(syncCommand);
 
 program

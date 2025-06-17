@@ -7,6 +7,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { ExecOptions } from 'child_process';
 import { existsSync } from 'fs';
+import { readdir, stat } from 'fs/promises';
+import fsExtra from 'fs-extra';
 
 const execAsync = promisify(exec);
 
@@ -15,7 +17,10 @@ const PIKA_REPO_URL = 'https://github.com/rithum/pika.git';
 
 interface SyncOptions {
     version?: string;
+    branch?: string;
     dryRun?: boolean;
+    diff?: boolean;
+    editorDiff?: boolean;
 }
 
 interface SyncChange {
@@ -31,6 +36,7 @@ interface SyncConfig {
     lastSync: string;
     protectedAreas: string[];
     initialConfiguration?: any;
+    pikaBranch?: string;
 }
 
 async function findPikaProjectRoot(startDir: string): Promise<string | null> {
@@ -53,12 +59,11 @@ function isSampleDirectory(filePath: string): boolean {
 }
 
 async function checkForUserModificationsOutsideProtectedAreas(projectRoot: string, protectedAreas: string[]): Promise<void> {
-    const { readdir } = await import('fs/promises');
-    const { stat } = await import('fs/promises');
-    const path = await import('path');
-
     try {
         const filesOutsideProtectedAreas: string[] = [];
+
+        // Get the list of files that are part of the original framework
+        const frameworkFiles = await getFrameworkFiles(projectRoot);
 
         // Recursively scan directory for files
         async function scanDirectory(dir: string, relativePath: string = '') {
@@ -74,7 +79,7 @@ async function checkForUserModificationsOutsideProtectedAreas(projectRoot: strin
                 }
 
                 // Skip files that are part of the framework (in node_modules, etc)
-                if (shouldSkipDirectory(path.dirname(relativeFilePath))) {
+                if (shouldSkipDirectory(relativeFilePath)) {
                     continue;
                 }
 
@@ -83,10 +88,15 @@ async function checkForUserModificationsOutsideProtectedAreas(projectRoot: strin
                     continue;
                 }
 
+                // Skip files that are part of the original framework
+                if (frameworkFiles.has(relativeFilePath)) {
+                    continue;
+                }
+
                 if (entry.isDirectory()) {
                     await scanDirectory(fullPath, relativeFilePath);
                 } else {
-                    // This is a file outside protected areas
+                    // This is a file outside protected areas and not part of the framework
                     filesOutsideProtectedAreas.push(relativeFilePath);
                 }
             }
@@ -116,6 +126,41 @@ async function checkForUserModificationsOutsideProtectedAreas(projectRoot: strin
     } catch (error) {
         logger.debug('Failed to check for files outside protected areas:', error);
     }
+}
+
+async function getFrameworkFiles(projectRoot: string): Promise<Set<string>> {
+    const frameworkFiles = new Set<string>();
+
+    // Get the list of files from the latest framework version
+    const tempDir = await downloadPikaFramework('latest');
+
+    try {
+        async function scanFrameworkFiles(dir: string, relativePath: string = '') {
+            const entries = await readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                const relativeFilePath = path.join(relativePath, entry.name).replace(/\\/g, '/');
+
+                // Skip files that are part of the framework (in node_modules, etc)
+                if (shouldSkipDirectory(relativeFilePath)) {
+                    continue;
+                }
+
+                if (entry.isDirectory()) {
+                    await scanFrameworkFiles(fullPath, relativeFilePath);
+                } else {
+                    frameworkFiles.add(relativeFilePath);
+                }
+            }
+        }
+
+        await scanFrameworkFiles(tempDir);
+    } finally {
+        await cleanupTempDir(tempDir);
+    }
+
+    return frameworkFiles;
 }
 
 export async function syncCommand(options: SyncOptions = {}): Promise<void> {
@@ -159,11 +204,13 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             const protectedAreas = syncConfig.protectedAreas || getDefaultProtectedAreas();
             await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas);
 
-            // Rest of the sync logic remains the same, but using projectRoot instead of process.cwd()
+            // Determine target version and branch
             const targetVersion = options.version || 'latest';
+            const targetBranch = options.branch || 'main';
 
             if (options.dryRun) {
                 logger.info('🔍 Dry run mode - showing what would be updated...');
+                logger.info(`📋 Target: ${targetVersion} (branch: ${targetBranch})`);
                 logger.newLine();
             }
 
@@ -171,8 +218,8 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
             try {
                 // Download latest Pika framework
-                logger.updateSpinner(`Downloading Pika framework ${targetVersion}...`);
-                const tempDir = await downloadPikaFramework(targetVersion);
+                logger.updateSpinner(`Downloading Pika framework ${targetVersion} from branch ${targetBranch}...`);
+                const tempDir = await downloadPikaFramework(targetVersion, targetBranch);
                 logger.stopSpinner(true, 'Framework downloaded');
 
                 // Compare files and identify changes
@@ -193,6 +240,35 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 });
                 logger.newLine();
 
+                // If --diff flag is set, show diffs and exit
+                if (options.diff) {
+                    logger.info('🔍 Showing diffs for changed files (no changes will be applied):');
+                    for (const change of changes) {
+                        await showDiff(change);
+                    }
+                    await cleanupTempDir(tempDir);
+                    return;
+                }
+
+                // If --editor-diff flag is set, open diffs in editor and exit
+                if (options.editorDiff) {
+                    logger.info('🔍 Opening diffs in your editor (Cursor or VS Code)...');
+                    const editor = await detectEditor();
+                    if (!editor) {
+                        logger.warn('No supported editor (Cursor or VS Code) found in PATH. Falling back to terminal diff.');
+                        for (const change of changes) {
+                            await showDiff(change);
+                        }
+                    } else {
+                        for (const change of changes) {
+                            await openEditorDiff(change, editor);
+                        }
+                        logger.info('All diffs opened in your editor.');
+                    }
+                    await cleanupTempDir(tempDir);
+                    return;
+                }
+
                 if (options.dryRun) {
                     logger.info('🔍 Dry run complete - no changes applied');
                     await cleanupTempDir(tempDir);
@@ -204,7 +280,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     {
                         type: 'confirm',
                         name: 'proceed',
-                        message: 'Apply these changes?',
+                        message: `Apply these changes from branch ${targetBranch}?`,
                         default: true
                     }
                 ]);
@@ -222,14 +298,14 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
                 // Update sync config
                 const configSpinner = logger.startSpinner('Updating sync configuration...');
-                await updateSyncConfig(syncConfigPath, syncConfig, targetVersion);
+                await updateSyncConfig(syncConfigPath, syncConfig, targetVersion, targetBranch);
                 logger.stopSpinner(true, 'Configuration updated');
 
                 // Create git commit if in a git repository
                 try {
                     const gitSpinner = logger.startSpinner('Committing changes...');
                     await gitManager.addAll(projectRoot);
-                    await gitManager.commit(`sync: Update Pika framework to ${targetVersion}`, projectRoot);
+                    await gitManager.commit(`sync: Update Pika framework to ${targetVersion} (${targetBranch})`, projectRoot);
                     logger.stopSpinner(true, 'Changes committed to git');
                 } catch (error) {
                     logger.warn('⚠️  Not in git repository or commit failed - you may need to commit manually');
@@ -254,7 +330,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
     }
 }
 
-async function downloadPikaFramework(version: string): Promise<string> {
+async function downloadPikaFramework(version: string, branch: string = 'main'): Promise<string> {
     const tempDir = path.join(process.cwd(), '.pika-temp');
 
     // Remove existing temp directory
@@ -265,12 +341,12 @@ async function downloadPikaFramework(version: string): Promise<string> {
     // Clone framework
     try {
         if (version === 'latest') {
-            await execAsync(`git clone --depth 1 ${PIKA_REPO_URL} "${tempDir}"`);
+            await execAsync(`git clone --depth 1 --branch ${branch} ${PIKA_REPO_URL} "${tempDir}"`);
         } else {
-            await execAsync(`git clone --depth 1 --branch ${version} ${PIKA_REPO_URL} "${tempDir}"`);
+            await execAsync(`git clone --depth 1 --branch ${branch} ${PIKA_REPO_URL} "${tempDir}"`);
         }
     } catch (e) {
-        throw new Error(`Failed to download Pika framework: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        throw new Error(`Failed to download Pika framework from branch ${branch}: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
 
     return tempDir;
@@ -279,8 +355,11 @@ async function downloadPikaFramework(version: string): Promise<string> {
 async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
     const changes: SyncChange[] = [];
 
-    // Compare framework files recursively
+    // Compare framework files recursively (source -> target)
     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
+
+    // Check for files that exist in target but not in source (deleted files)
+    await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes);
 
     return changes;
 }
@@ -310,7 +389,7 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
         const isDirectory = file.isDirectory();
 
         // Skip directories we don't want to sync
-        if (isDirectory && shouldSkipDirectory(fileName)) {
+        if (isDirectory && shouldSkipDirectory(relativeFilePath)) {
             continue;
         }
 
@@ -342,6 +421,69 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
     }
 }
 
+async function findDeletedFiles(sourcePath: string, targetPath: string, relativePath: string, protectedAreas: string[], changes: SyncChange[]): Promise<void> {
+    const targetFullPath = path.join(targetPath, relativePath);
+
+    if (!(await fileManager.exists(targetFullPath))) {
+        return;
+    }
+
+    const { readdir } = await import('fs/promises');
+    const targetFiles = await readdir(targetFullPath, { withFileTypes: true });
+
+    for (const file of targetFiles) {
+        const fileName = file.name;
+        const relativeFilePath = path.join(relativePath, fileName).replace(/\\/g, '/'); // Normalize path separators
+        const sourceFilePath = path.join(sourcePath, relativeFilePath);
+        const targetFilePath = path.join(targetPath, relativeFilePath);
+
+        // Skip protected areas
+        if (isProtectedArea(relativeFilePath, protectedAreas)) {
+            continue;
+        }
+
+        // Skip directories we don't want to sync
+        if (shouldSkipDirectory(relativeFilePath)) {
+            continue;
+        }
+
+        // Skip optional sample directories - users can remove these
+        if (isOptionalSampleDirectory(relativeFilePath)) {
+            continue;
+        }
+
+        // Check if this is a directory
+        const isDirectory = file.isDirectory();
+
+        if (isDirectory) {
+            // Check if directory exists in source
+            if (!(await fileManager.exists(sourceFilePath))) {
+                // Directory was deleted from source, mark for deletion
+                changes.push({
+                    type: 'deleted',
+                    path: relativeFilePath,
+                    sourcePath: '', // No source path for deleted files
+                    targetPath: targetFilePath
+                });
+            } else {
+                // Recursively check subdirectories
+                await findDeletedFiles(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+            }
+        } else {
+            // Check if file exists in source
+            if (!(await fileManager.exists(sourceFilePath))) {
+                // File was deleted from source, mark for deletion
+                changes.push({
+                    type: 'deleted',
+                    path: relativeFilePath,
+                    sourcePath: '', // No source path for deleted files
+                    targetPath: targetFilePath
+                });
+            }
+        }
+    }
+}
+
 function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
     return protectedAreas.some((area) => {
         if (area.endsWith('/')) {
@@ -351,8 +493,43 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
     });
 }
 
-function shouldSkipDirectory(dirName: string): boolean {
-    return ['node_modules', '.git', '.turbo', 'dist', 'build', '.svelte-kit', 'cdk.out', 'packages', 'future-changes', '.pika-temp'].includes(dirName);
+function shouldSkipDirectory(dirPath: string): boolean {
+    const skipPatterns = [
+        'node_modules',
+        '.git',
+        '.turbo',
+        'dist',
+        'build',
+        '.svelte-kit',
+        'cdk.out',
+        'packages',
+        'future-changes',
+        '.pika-temp',
+        '.DS_Store',
+        'Thumbs.db',
+        '.vscode',
+        '.idea',
+        '*.swp',
+        '*.swo',
+        '*.tmp',
+        '*.temp',
+        '*.log',
+        'logs',
+        '.pnpm-store',
+        '.npm',
+        '.cache',
+        'coverage',
+        '.nyc_output',
+        '.next',
+        '.nuxt',
+        '.output',
+        '.vercel',
+        '.netlify',
+        '.env.local',
+        '.env.*.local'
+    ];
+
+    return skipPatterns.some((pattern) => dirPath.includes(pattern));
 }
 
 function isOptionalSampleDirectory(filePath: string): boolean {
@@ -379,18 +556,33 @@ async function applyChanges(changes: SyncChange[]): Promise<void> {
     for (const change of changes) {
         logger.debug(`Applying ${change.type}: ${change.path}`);
 
-        // Ensure target directory exists
-        const targetDir = path.dirname(change.targetPath);
-        await fileManager.ensureDir(targetDir);
+        if (change.type === 'deleted') {
+            // Remove file or directory
+            if (await fileManager.exists(change.targetPath)) {
+                const { stat } = await import('fs/promises');
+                const stats = await stat(change.targetPath);
 
-        // Copy file
-        await fileManager.copyFile(change.sourcePath, change.targetPath);
+                if (stats.isDirectory()) {
+                    await fileManager.removeDirectory(change.targetPath);
+                } else {
+                    await fsExtra.remove(change.targetPath);
+                }
+            }
+        } else {
+            // Ensure target directory exists
+            const targetDir = path.dirname(change.targetPath);
+            await fileManager.ensureDir(targetDir);
+
+            // Copy file
+            await fileManager.copyFile(change.sourcePath, change.targetPath);
+        }
     }
 }
 
-async function updateSyncConfig(syncConfigPath: string, syncConfig: SyncConfig, targetVersion: string): Promise<void> {
+async function updateSyncConfig(syncConfigPath: string, syncConfig: SyncConfig, targetVersion: string, targetBranch: string): Promise<void> {
     syncConfig.lastSync = new Date().toISOString();
     syncConfig.pikaVersion = targetVersion;
+    syncConfig.pikaBranch = targetBranch;
 
     await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
 }
@@ -430,7 +622,10 @@ function getDefaultProtectedAreas(): string[] {
         '.pika-sync.json',
         '.gitignore', // Always protect .gitignore
         'package.json', // Always protect package.json
-        'pnpm-lock.yaml' // Always protect pnpm-lock.yaml
+        'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
+        // Infrastructure stack files - users should customize these
+        'apps/pika-chat/infra/bin/pika-chat.ts',
+        'services/pika/bin/pika.ts'
     ];
 }
 
@@ -441,4 +636,88 @@ function showSyncSuccessMessage(): void {
     console.log('  • Verify custom components still work');
     console.log('  • Check authentication configuration');
     console.log('  • Review any new framework features');
+    console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
+    console.log('  • Update service stack as needed: services/pika/bin/pika.ts');
+}
+
+async function showDiff(change: SyncChange): Promise<void> {
+    const chalk = (await import('chalk')).default;
+    if (change.type === 'modified') {
+        // Try to use git diff --no-index for best UX
+        try {
+            const { stdout } = await execAsync(`git diff --no-index --color "${change.targetPath}" "${change.sourcePath}"`);
+            if (stdout.trim()) {
+                console.log(chalk.yellow(`--- ${change.targetPath}`));
+                console.log(chalk.yellow(`+++ ${change.sourcePath}`));
+                console.log(stdout);
+            } else {
+                console.log(chalk.green(`No visible diff for ${change.path}`));
+            }
+        } catch (e) {
+            // Fallback: simple inline diff
+            await showSimpleDiff(change.targetPath, change.sourcePath, change.path);
+        }
+    } else if (change.type === 'added') {
+        const fs = await import('fs/promises');
+        const content = await fs.readFile(change.sourcePath, 'utf8');
+        console.log(chalk.green(`➕ Added: ${change.path}`));
+        console.log(chalk.gray('--- New file content: ---'));
+        console.log(content);
+    } else if (change.type === 'deleted') {
+        const fs = await import('fs/promises');
+        if (await fileManager.exists(change.targetPath)) {
+            const content = await fs.readFile(change.targetPath, 'utf8');
+            console.log(chalk.red(`🗑️ Deleted: ${change.path}`));
+            console.log(chalk.gray('--- Deleted file content: ---'));
+            console.log(content);
+        } else {
+            console.log(chalk.red(`🗑️ Deleted: ${change.path}`));
+            console.log(chalk.gray('--- File already missing locally ---'));
+        }
+    }
+}
+
+async function showSimpleDiff(fileA: string, fileB: string, label: string): Promise<void> {
+    const chalk = (await import('chalk')).default;
+    const fs = await import('fs/promises');
+    try {
+        const [a, b] = await Promise.all([fs.readFile(fileA, 'utf8'), fs.readFile(fileB, 'utf8')]);
+        const diff = await import('diff');
+        const changes = diff.createPatch(label, a, b);
+        console.log(chalk.yellow(changes));
+    } catch (e) {
+        console.log(chalk.red(`Could not show diff for ${label}`));
+    }
+}
+
+async function detectEditor(): Promise<'cursor' | 'code' | null> {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    try {
+        await execAsync('cursor --version');
+        return 'cursor';
+    } catch {}
+    try {
+        await execAsync('code --version');
+        return 'code';
+    } catch {}
+    return null;
+}
+
+async function openEditorDiff(change: SyncChange, editor: 'cursor' | 'code'): Promise<void> {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const chalk = (await import('chalk')).default;
+    if (change.type === 'modified') {
+        await execAsync(`${editor} --diff "${change.targetPath}" "${change.sourcePath}"`);
+        console.log(chalk.cyan(`[${editor}] Diff opened for: ${change.path}`));
+    } else if (change.type === 'added') {
+        await execAsync(`${editor} "${change.sourcePath}"`);
+        console.log(chalk.green(`[${editor}] New file opened: ${change.path}`));
+    } else if (change.type === 'deleted') {
+        await execAsync(`${editor} "${change.targetPath}"`);
+        console.log(chalk.red(`[${editor}] Deleted file opened (local): ${change.path}`));
+    }
 }

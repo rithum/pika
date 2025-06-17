@@ -35,6 +35,7 @@
     "dependencies": {
         "chalk": "catalog:",
         "commander": "catalog:",
+        "diff": "catalog:",
         "fs-extra": "catalog:",
         "glob": "catalog:",
         "inquirer": "catalog:",

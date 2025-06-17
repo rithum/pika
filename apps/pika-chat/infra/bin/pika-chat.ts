@@ -1,4 +1,19 @@
 #!/usr/bin/env node
+/**
+ * Pika Chat Infrastructure Stack Definition
+ *
+ * This file defines the AWS CDK stack for the Pika Chat application.
+ *
+ * IMPORTANT: This file is protected from framework updates and is meant to be customized.
+ * You should:
+ * - Update the project name variables below to match your project
+ * - Configure VPC IDs, account IDs, and regions for your environment
+ * - Add any custom AWS resources your application needs
+ * - Modify stack properties as needed for your deployment
+ *
+ * This file will NOT be overwritten when you run 'pika sync'.
+ */
+
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { getValueFromParameterStore } from './ssm.js';
@@ -21,7 +36,7 @@ async function main() {
 
     const env = {
         account: loggedInAccountId,
-        region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+        region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
     };
 
     //TODO: get these from an environment variable or something
@@ -47,7 +62,7 @@ async function main() {
         projNameCamel,
         projNameKebabCase,
         projNameHuman,
-        pikaServiceProjNameKebabCase,
+        pikaServiceProjNameKebabCase
     });
 }
 
