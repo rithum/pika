@@ -192,6 +192,7 @@ async function removeCLIPackage(projectPath: string): Promise<void> {
 async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
     // Create .pika-sync.json
     const syncConfigPath = path.join(config.projectPath, '.pika-sync.json');
+
     const syncConfig = {
         pikaVersion: '1.0.0', // This should match the CLI version
         createdAt: new Date().toISOString(),
@@ -211,6 +212,20 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             // Infrastructure stack files - users should customize these
             'apps/pika-chat/infra/bin/pika-chat.ts',
             'services/pika/bin/pika.ts'
+        ],
+        // User-defined protected areas - these will be merged with the default protectedAreas
+        // Users can add additional protected areas or override defaults by removing them from here
+        userProtectedAreas: [
+            // Add your custom protected areas here
+            // Example: 'my-custom-file.ts',
+            // Example: 'apps/my-custom-app/',
+        ],
+        // User-defined unprotected areas - these files will be allowed to be updated by sync
+        // even though they are in the default protectedAreas list
+        userUnprotectedAreas: [
+            // Add files here that you want to allow framework updates for
+            // Example: 'apps/pika-chat/infra/bin/pika-chat.ts',  // Allow infrastructure file updates
+            // Example: 'services/pika/bin/pika.ts',             // Allow service stack updates
         ],
         initialConfiguration: {
             createdAt: new Date().toISOString()
@@ -310,7 +325,8 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
     console.log('  • Custom Webapps: apps/custom directory');
     console.log('  • Custom Services: services/custom directory');
-    console.log('  • Infrastructure: apps/pika-chat/infra/bin/pika-chat.ts and services/pika/bin/pika.ts');
+    console.log('  • Chat App Stack: apps/pika-chat/infra/bin/pika-chat.ts (AWS CDK stack definition)');
+    console.log('  • Service Stack: services/pika/bin/pika.ts (AWS CDK stack definition)');
     logger.newLine();
 
     logger.info('Infrastructure customization:');
@@ -318,6 +334,7 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Configure VPC IDs, account IDs, and regions for your environment');
     console.log('  • Add custom AWS resources or modify existing ones');
     console.log('  • These files are protected from framework updates');
+    console.log('  • To allow stack files to be updated: edit .pika-sync.json userUnprotectedAreas');
     logger.newLine();
 
     logger.info('Version control:');
@@ -327,5 +344,6 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
 
     logger.info('Learn more:');
     console.log('  • Framework docs: https://github.com/rithum/pika');
+    console.log('  • Customization guide: ./docs/help/customization.md');
     console.log('  • Deploy to AWS: See services/pika/README.md');
 }

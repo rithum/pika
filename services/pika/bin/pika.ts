@@ -12,6 +12,10 @@
  * - Modify stack properties as needed for your deployment
  *
  * This file will NOT be overwritten when you run 'pika sync'.
+ *
+ * To allow this file to be updated by framework syncs:
+ * 1. Edit .pika-sync.json
+ * 2. Add 'services/pika/bin/pika.ts' to the userUnprotectedAreas array
  */
 
 import 'source-map-support/register';

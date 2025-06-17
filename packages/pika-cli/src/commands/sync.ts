@@ -35,6 +35,8 @@ interface SyncConfig {
     createdAt: string;
     lastSync: string;
     protectedAreas: string[];
+    userProtectedAreas?: string[];
+    userUnprotectedAreas?: string[];
     initialConfiguration?: any;
     pikaBranch?: string;
 }
@@ -193,6 +195,9 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             return;
         }
 
+        // Show current sync status
+        showCurrentSyncStatus(syncConfig);
+
         // Store original working directory
         const originalCwd = process.cwd();
 
@@ -201,12 +206,21 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             process.chdir(projectRoot);
 
             // Check for user modifications outside protected areas
-            const protectedAreas = syncConfig.protectedAreas || getDefaultProtectedAreas();
+            const protectedAreas = getMergedProtectedAreas(syncConfig);
             await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas);
 
             // Determine target version and branch
             const targetVersion = options.version || 'latest';
-            const targetBranch = options.branch || 'main';
+            const targetBranch = options.branch || syncConfig.pikaBranch || 'main';
+
+            // Log what we're syncing from
+            if (options.branch) {
+                logger.info(`🔄 Syncing from branch: ${targetBranch} (explicitly specified)`);
+            } else if (syncConfig.pikaBranch) {
+                logger.info(`🔄 Syncing from branch: ${targetBranch} (last synced branch)`);
+            } else {
+                logger.info(`🔄 Syncing from branch: ${targetBranch} (default)`);
+            }
 
             if (options.dryRun) {
                 logger.info('🔍 Dry run mode - showing what would be updated...');
@@ -301,20 +315,11 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 await updateSyncConfig(syncConfigPath, syncConfig, targetVersion, targetBranch);
                 logger.stopSpinner(true, 'Configuration updated');
 
-                // Create git commit if in a git repository
-                try {
-                    const gitSpinner = logger.startSpinner('Committing changes...');
-                    await gitManager.addAll(projectRoot);
-                    await gitManager.commit(`sync: Update Pika framework to ${targetVersion} (${targetBranch})`, projectRoot);
-                    logger.stopSpinner(true, 'Changes committed to git');
-                } catch (error) {
-                    logger.warn('⚠️  Not in git repository or commit failed - you may need to commit manually');
-                }
-
                 // Cleanup
                 await cleanupTempDir(tempDir);
 
                 logger.success('✅ Sync complete!');
+                logger.info(`📋 Synced from branch: ${targetBranch}`);
                 showSyncSuccessMessage();
             } catch (error) {
                 logger.stopSpinner(false, 'Sync failed');
@@ -720,4 +725,41 @@ async function openEditorDiff(change: SyncChange, editor: 'cursor' | 'code'): Pr
         await execAsync(`${editor} "${change.targetPath}"`);
         console.log(chalk.red(`[${editor}] Deleted file opened (local): ${change.path}`));
     }
+}
+
+function showCurrentSyncStatus(syncConfig: SyncConfig): void {
+    logger.newLine();
+    logger.info('Current sync status:');
+    console.log(`  • Pika version: ${syncConfig.pikaVersion}`);
+    console.log(`  • Last sync: ${new Date(syncConfig.lastSync).toLocaleString()}`);
+    console.log(`  • Last synced branch: ${syncConfig.pikaBranch || 'main (default)'}`);
+    console.log(`  • Default protected areas: ${syncConfig.protectedAreas.length} directories/files protected`);
+    if (syncConfig.userProtectedAreas && syncConfig.userProtectedAreas.length > 0) {
+        console.log(`  • User protected areas: ${syncConfig.userProtectedAreas.length} additional areas protected`);
+    } else {
+        console.log(`  • User protected areas: None configured`);
+    }
+    if (syncConfig.userUnprotectedAreas && syncConfig.userUnprotectedAreas.length > 0) {
+        console.log(`  • User unprotected areas: ${syncConfig.userUnprotectedAreas.length} areas allowed to sync`);
+    } else {
+        console.log(`  • User unprotected areas: None configured`);
+    }
+    logger.newLine();
+}
+
+function getMergedProtectedAreas(syncConfig: SyncConfig): string[] {
+    const defaultProtectedAreas = getDefaultProtectedAreas();
+    const userProtectedAreas = syncConfig.userProtectedAreas || [];
+    const userUnprotectedAreas = syncConfig.userUnprotectedAreas || [];
+
+    // Start with default protected areas
+    let mergedAreas = [...defaultProtectedAreas];
+
+    // Add user protected areas
+    mergedAreas = [...new Set([...mergedAreas, ...userProtectedAreas])];
+
+    // Remove user unprotected areas (files that should be allowed to sync)
+    mergedAreas = mergedAreas.filter((area) => !userUnprotectedAreas.includes(area));
+
+    return mergedAreas;
 }
