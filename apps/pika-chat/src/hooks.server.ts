@@ -125,15 +125,6 @@ export const handle: Handle = async ({ event, resolve }) => {
         }
     }
 
-    // Handle access token cookie (for backward compatibility)
-    let userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
-    if (!userAccessTokenCookie && user) {
-        // Set a default access token if none exists (for backward compatibility)
-        const accessToken = (user as any).authData?.accessToken || '123';
-        // Note: We're not setting this cookie anymore since we handle everything in the main user cookie
-        // This is just for backward compatibility if needed
-    }
-
     // Set user and config in locals for server-side use
     event.locals = { user, appConfig };
 
