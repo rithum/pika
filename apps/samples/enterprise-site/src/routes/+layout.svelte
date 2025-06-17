@@ -1,6 +1,14 @@
 <script lang="ts">
 	import '../app.css';
 
+	import type { Snippet } from 'svelte';
+
+    interface Props {
+        children?: Snippet<[]>;
+    }
+
+    const { children }: Props = $props();
+
 	// Dashboard component for enterprise site
 	let isPanelOpen = $state(false);
 	let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
@@ -144,7 +152,7 @@
 
 		<!-- Main Content -->
 		<main class="flex-1 p-8">
-			<slot />
+			{@render children?.()}
 		</main>
 	</div>
 </div>

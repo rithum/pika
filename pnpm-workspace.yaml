@@ -1,7 +1,11 @@
 packages:
   - 'packages/*'
   - 'apps/*'
-  - 'services/*' 
+  - 'apps/samples/*'
+  - 'apps/custom/*'
+  - 'services/*'
+  - 'services/custom/*'
+  - 'services/samples/*'
 
 # Default catalog
 catalog:

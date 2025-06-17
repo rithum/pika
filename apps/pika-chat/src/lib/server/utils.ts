@@ -1,29 +1,25 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
-import {
-    AUTHENTICATED_USER_COOKIE_NAME,
-    type AuthData,
-    type AuthenticatedUser,
-    type UserAuthData,
-} from '$lib/shared-types';
+import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
 import path from 'path';
+import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
         success: false,
-        error,
+        error
     };
     return json(err, { status });
 }
 
 export function getSuccessResponse(): Response {
     const success: SuccessResponse = {
-        success: true,
+        success: true
     };
     return json(success);
 }
 
-export function addSecurityHeaders(response: Response) {
+export function addSecurityHeaders(response: Response): Response {
     // TODO: Change this to only allow embedding from the enterprise site
     //response.headers.set('Content-Security-Policy', "frame-ancestors 'self' *.dsco.io http://localhost:*");
     response.headers.set('Content-Security-Policy', 'frame-ancestors *');
@@ -52,70 +48,10 @@ export function addSecurityHeaders(response: Response) {
     return response;
 }
 
-/**
- * Get user data from the server
- * @param url - The URL of the server
- * @param authData - The authentication data
- * @returns A tuple containing the user data, and the access token
- */
-export async function getUserDataFromServer(url: string, authData: AuthData): Promise<AuthenticatedUser> {
-    const [userResponse, companyResponse] = await Promise.all([
-        fetch(`${url}/api/user`, {
-            headers: { Authorization: `Bearer ${authData.accessToken.accessToken}` },
-        }),
-        fetch(`${url}/api/company`, {
-            headers: { Authorization: `Bearer ${authData.accessToken.accessToken}` },
-        }),
-    ]);
-
-    const user = (await userResponse.json()) as {
-        value: {
-            id: string;
-            firstNames: string;
-            lastName: string;
-            email: string;
-            profileImageThumb: string;
-        };
-    };
-
-    const company = (await companyResponse.json()) as {
-        companyId: number;
-        name: string;
-        type: string;
-    };
-
-    const userAuthData: UserAuthData = {
-        accessToken: authData.accessToken.accessToken,
-        expiresAt: authData.idToken.expiresAt,
-        refreshToken: authData.refreshToken,
-    };
-
-    // Returning the default features
-    return {
-        userId: user.value.id,
-        email: user.value.email,
-        firstName: user.value.firstNames,
-        lastName: user.value.lastName,
-        companyName: company.name,
-        companyType: company.type,
-        authData: userAuthData,
-        features: {
-            instruction: {
-                type: 'instruction',
-                instruction: '',
-            },
-            history: {
-                type: 'history',
-                history: true,
-            },
-        },
-    };
-}
-
-export function concatUrlWithPath(baseUrl: string, relativePath: string): string {
-    const parsedUrl = new URL(baseUrl);
-    parsedUrl.pathname = path.join(parsedUrl.pathname, relativePath);
-    return parsedUrl.toString();
+export function concatUrlWithPath(baseUrl: string, path: string): string {
+    const url = new URL(baseUrl);
+    url.pathname = path;
+    return url.toString();
 }
 
 import crypto from 'crypto';
@@ -141,11 +77,7 @@ const ALGORITHM = 'aes-256-cbc';
  * @returns The encrypted string (ciphertext) as a hexadecimal string.
  * @throws Error if encryption fails or if the IV is not configured.
  */
-export function encryptCookieString(
-    plainTextCookieString: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function encryptCookieString(plainTextCookieString: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -175,11 +107,7 @@ export function encryptCookieString(
  * @returns The decrypted plaintext string.
  * @throws Error if decryption fails or if the IV is not configured.
  */
-export function decryptCookieString(
-    encryptedCookieStringHex: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function decryptCookieString(encryptedCookieStringHex: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -201,6 +129,155 @@ export function decryptCookieString(
     }
 }
 
-export function deleteCookies(event: RequestEvent) {
+// Cookie size limit (4KB = 4096 bytes)
+const COOKIE_SIZE_LIMIT = 4096;
+const COOKIE_NAME_PREFIX = 'au'; // Authenticated User
+const COOKIE_PART_SEPARATOR = '_part_';
+
+/**
+ * Serializes an AuthenticatedUser object to one or more cookies
+ * If the serialized data exceeds 4KB, it will be split across multiple cookies
+ */
+export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: AuthenticatedUser<unknown>, masterCookieKey: string, masterCookieInitVector: string): void {
+    // Serialize the user object to JSON
+    const userJson = JSON.stringify(user);
+
+    // Encrypt the JSON string
+    const encryptedData = encryptCookieString(userJson, masterCookieKey, masterCookieInitVector);
+
+    // Check if the encrypted data fits in a single cookie
+    if (encryptedData.length <= COOKIE_SIZE_LIMIT) {
+        // Single cookie approach
+        event.cookies.set(AUTHENTICATED_USER_COOKIE_NAME, encryptedData, {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax'
+        });
+    } else {
+        // Multi-cookie approach - split the encrypted data
+        const chunks = splitStringIntoChunks(encryptedData, COOKIE_SIZE_LIMIT);
+
+        // Set the main cookie with metadata
+        const metadata = {
+            totalParts: chunks.length,
+            totalSize: encryptedData.length,
+            timestamp: Date.now()
+        };
+
+        event.cookies.set(AUTHENTICATED_USER_COOKIE_NAME, JSON.stringify(metadata), {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax'
+        });
+
+        // Set each chunk as a separate cookie
+        chunks.forEach((chunk, index) => {
+            const cookieName = `${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${index}`;
+            event.cookies.set(cookieName, chunk, {
+                path: '/',
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax'
+            });
+        });
+    }
+}
+
+/**
+ * Deserializes an AuthenticatedUser object from cookies
+ * Handles both single-cookie and multi-cookie scenarios
+ */
+export function deserializeAuthenticatedUserFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): AuthenticatedUser<unknown> | undefined {
+    const mainCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
+
+    if (!mainCookie) {
+        return undefined;
+    }
+
+    try {
+        // Try to parse as metadata first (multi-cookie scenario)
+        const metadata = JSON.parse(mainCookie);
+
+        if (metadata.totalParts && metadata.totalSize) {
+            // Multi-cookie scenario
+            return deserializeFromMultipleCookies(event, metadata, masterCookieKey, masterCookieInitVector);
+        } else {
+            // Single cookie scenario (legacy or small data)
+            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
+            return JSON.parse(decryptedData);
+        }
+    } catch (error) {
+        // If JSON.parse fails, it might be a single encrypted cookie
+        try {
+            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
+            return JSON.parse(decryptedData);
+        } catch (decryptError) {
+            console.error('Failed to deserialize user from cookies:', error);
+            return undefined;
+        }
+    }
+}
+
+/**
+ * Clears all authentication-related cookies
+ */
+export function clearAuthenticatedUserCookies(event: RequestEvent): void {
+    // Clear the main cookie
     event.cookies.delete(AUTHENTICATED_USER_COOKIE_NAME, { path: '/' });
+
+    // Clear any part cookies (for multi-cookie scenarios)
+    const allCookies = event.cookies.getAll();
+    allCookies.forEach((cookie) => {
+        if (cookie.name.startsWith(`${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}`)) {
+            event.cookies.delete(cookie.name, { path: '/' });
+        }
+    });
+}
+
+/**
+ * Splits a string into chunks of specified size
+ */
+function splitStringIntoChunks(str: string, chunkSize: number): string[] {
+    const chunks: string[] = [];
+    for (let i = 0; i < str.length; i += chunkSize) {
+        chunks.push(str.slice(i, i + chunkSize));
+    }
+    return chunks;
+}
+
+/**
+ * Deserializes user data from multiple cookies
+ */
+function deserializeFromMultipleCookies(
+    event: RequestEvent,
+    metadata: { totalParts: number; totalSize: number; timestamp: number },
+    masterCookieKey: string,
+    masterCookieInitVector: string
+): AuthenticatedUser<unknown> {
+    // Collect all parts
+    const parts: string[] = [];
+    for (let i = 0; i < metadata.totalParts; i++) {
+        const cookieName = `${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${i}`;
+        const part = event.cookies.get(cookieName);
+
+        if (!part) {
+            throw new Error(`Missing cookie part ${i}`);
+        }
+
+        parts.push(part);
+    }
+
+    // Reconstruct the encrypted data
+    const encryptedData = parts.join('');
+
+    // Verify the size matches
+    if (encryptedData.length !== metadata.totalSize) {
+        throw new Error('Cookie data size mismatch');
+    }
+
+    // Decrypt and parse
+    const decryptedData = decryptCookieString(encryptedData, masterCookieKey, masterCookieInitVector);
+    return JSON.parse(decryptedData);
 }

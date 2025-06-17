@@ -2,7 +2,6 @@ import { getErrorResponse } from '$lib/server/utils';
 import type { ConverseRequest, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type RequestHandler } from '@sveltejs/kit';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
-import type { UserAuthData } from '$lib/shared-types';
 import { appConfig } from '$lib/server/config';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -35,9 +34,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return new Response('Unauthorized', { status: 401 });
         }
 
-        const simpleUser: SimpleAuthenticatedUser<UserAuthData> = {
+        const simpleUser: SimpleAuthenticatedUser<typeof user.authData> = {
             userId: user.userId,
-            authData: user.authData,
+            authData: user.authData
         };
 
         // Replace the s3Bucket with appConfig.uploadS3Bucket in any files we have
@@ -45,12 +44,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             params.files = params.files?.map((file) => ({
                 ...file,
                 s3Bucket: appConfig.uploadS3Bucket,
-                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket),
+                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket)
             }));
         }
 
         // Invoke the Lambda Function URL
-        const lambdaResponse = await invokeConverseFunctionUrl<UserAuthData>(params, simpleUser);
+        const lambdaResponse = await invokeConverseFunctionUrl<typeof user.authData>(params, simpleUser);
 
         if (!lambdaResponse.body) {
             console.error('Lambda response missing body');
@@ -63,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const responseHeaders: Record<string, string> = {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
+            Connection: 'keep-alive'
         };
 
         if (sessionId) {
@@ -74,13 +73,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         // Since your Lambda streams plain text, we just pass it through
         return new Response(lambdaResponse.body, {
             status: 200,
-            headers: responseHeaders,
+            headers: responseHeaders
         });
     } catch (e) {
         console.error('Error in message handler:', e);
-        return getErrorResponse(
-            500,
-            `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
-        );
+        return getErrorResponse(500, `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
     }
 };

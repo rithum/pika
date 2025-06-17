@@ -1,12 +1,12 @@
 // import type { Session } from '@auth/sveltekit';
-import type { appConfig } from '$lib/server/config';
-import type { AuthenticatedUser, UserAuthData } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AppConfig } from '$lib/server/server-types';
+import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 
 declare global {
     namespace App {
         interface Locals {
             // auth: () => Promise<Session | null>;
-            user: AuthenticatedUser<UserAuthData>;
+            user: AuthenticatedUser<unknown>;
             appConfig: AppConfig;
         }
         // interface PageData {

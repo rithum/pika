@@ -199,6 +199,7 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
         lastSync: new Date().toISOString(),
         protectedAreas: [
             'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
+            'apps/pika-chat/src/lib/server/auth-provider/',
             'services/custom/',
             'apps/custom/',
             '.env',

@@ -41,13 +41,3 @@ export interface IdTokenClaims {
     exp?: number;
     iss?: string;
 }
-
-export interface AuthenticatedUser extends ChatUser {
-    authData: UserAuthData;
-}
-
-export interface UserAuthData {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt?: number;
-}

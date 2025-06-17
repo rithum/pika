@@ -27,7 +27,29 @@ Pika Framework provides several designated areas where you can add your custom c
 - Custom emoji or reaction components
 - Business-specific data visualization components
 
-### 2. Custom Web Applications
+### 2. Authentication
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/`
+
+**Purpose:** Implement custom authentication flows for your specific SSO or auth provider.
+
+**What to put here:**
+
+- Authentication provider implementation
+- OAuth flow handlers
+- SSO integration logic
+- Custom user data types
+
+**Example use cases:**
+
+- Company SSO integration
+- Custom OAuth providers
+- Multi-tenant authentication
+- Role-based access control
+
+**Documentation:** See [Authentication Guide](./authentication.md) for detailed implementation instructions.
+
+### 3. Custom Web Applications
 
 **Location:** `apps/custom/`
 
@@ -47,7 +69,7 @@ Pika Framework provides several designated areas where you can add your custom c
 - Internal tools and utilities
 - Separate applications for different user types
 
-### 3. Custom Services
+### 4. Custom Services
 
 **Location:** `services/custom/`
 
@@ -67,7 +89,7 @@ Pika Framework provides several designated areas where you can add your custom c
 - Data analytics services
 - Third-party integrations (CRM, marketing tools, etc.)
 
-### 4. Stack Definition Files (Protected by Default)
+### 5. Stack Definition Files (Protected by Default)
 
 **Locations:**
 
@@ -136,6 +158,7 @@ Always place your custom code in the designated customization areas. Files outsi
 Each customization area has a specific purpose. Use the appropriate area for your custom code:
 
 - UI components → Custom Components
+- Authentication logic → Custom Authentication
 - New applications → Custom Web Applications
 - Backend services → Custom Services
 - Infrastructure changes → Stack Definition Files

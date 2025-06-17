@@ -1,7 +1,6 @@
 import jsonwebtoken from 'jsonwebtoken';
 const { sign, verify } = jsonwebtoken;
 import { appConfig } from './config';
-import type { UserAuthData } from '$lib/shared-types';
 import type { SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 
 /**

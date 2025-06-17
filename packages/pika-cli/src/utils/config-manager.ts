@@ -138,7 +138,7 @@ export class ConfigManager {
             lastSync: new Date().toISOString(),
             syncHistory: [],
             protectedPaths: [
-                'apps/pika-chat/src/auth/providers/custom-auth.ts',
+                'apps/pika-chat/src/lib/server/auth-provider/',
                 'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
                 'services/custom/',
                 '.env*',

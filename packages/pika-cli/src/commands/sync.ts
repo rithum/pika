@@ -618,6 +618,7 @@ function getChangeIcon(type: string): string {
 function getDefaultProtectedAreas(): string[] {
     return [
         'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
+        'apps/pika-chat/src/lib/server/auth-provider/',
         'services/custom/',
         'apps/custom/',
         '.env',
@@ -639,7 +640,7 @@ function showSyncSuccessMessage(): void {
     logger.info('Next steps:');
     console.log('  • Test your application: pnpm dev');
     console.log('  • Verify custom components still work');
-    console.log('  • Check authentication configuration');
+    console.log('  • Check custom authentication configuration');
     console.log('  • Review any new framework features');
     console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
     console.log('  • Update service stack as needed: services/pika/bin/pika.ts');

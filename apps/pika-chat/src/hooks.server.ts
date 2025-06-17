@@ -1,14 +1,13 @@
-import { refresh } from '$lib/server/auth';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
-import { addSecurityHeaders, decryptCookieString, deleteCookies, encryptCookieString } from '$lib/server/utils';
-import {
-    AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME,
-    AUTHENTICATED_USER_COOKIE_NAME,
-    type UserAuthData,
-} from '$lib/shared-types';
+import { addSecurityHeaders, clearAuthenticatedUserCookies, deserializeAuthenticatedUserFromCookies, serializeAuthenticatedUserToCookies } from '$lib/server/utils';
+import { AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME } from '$lib/shared-types';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
+import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
+import type { AuthProvider } from '$lib/server/auth/types';
+
+let authProvider: AuthProvider | undefined;
 
 // Initialize server configuration
 export const init: ServerInit = async () => {
@@ -34,131 +33,106 @@ export const handle: Handle = async ({ event, resolve }) => {
         return new Response('OK', {
             status: 200,
             headers: {
-                'Content-Type': 'text/plain',
-            },
+                'Content-Type': 'text/plain'
+            }
         });
     }
 
-    // ===== Authentication Routes =====
+    // Login page - accessible without authentication
+    if (pathName === '/login') {
+        // Allow access to login page without authentication
+        return addSecurityHeaders(await resolve(event));
+    }
 
     // ===== Protected Routes (Auth Required) =====
 
-    // Verify user is authenticated
-    let userCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
-    if (!userCookie) {
-        // Just make a mock cookie for now
-        const user: AuthenticatedUser<UserAuthData> = {
-            userId: '123',
-            authData: {
-                accessToken: '123',
-                expiresAt: 1717987200,
-                refreshToken: '123',
-            },
-            email: 'test@test.com',
-            firstName: 'Test',
-            lastName: 'User',
-            companyId: '123',
-            companyName: 'Test Company',
-            companyType: 'retailer',
-            features: {
-                instruction: {
-                    type: 'instruction',
-                    instruction: 'You are a helpful assistant that can answer questions and help with tasks.',
-                },
-                history: {
-                    type: 'history',
-                    history: true,
-                },
-            },
-        };
+    let user: AuthenticatedUser<unknown> | undefined;
+    authProvider = authProvider || (await loadAuthProvider());
 
-        event.cookies.set(
-            AUTHENTICATED_USER_COOKIE_NAME,
-            encryptCookieString(JSON.stringify(user), appConfig.masterCookieKey, appConfig.masterCookieInitVector),
-            {
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax',
-            }
-        );
+    // Try to deserialize user from cookies
+    user = deserializeAuthenticatedUserFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
 
-        // Handle chat user creation/retrieval
-        console.log('Checking for existing chat user...');
-        let chatUser = await getChatUser(user.userId);
-
-        if (!chatUser) {
-            console.log('Chat user not found, creating new chat user...');
-            // Clone and get rid of the auth data which should not be stored in the chat database
-            const newChatUser = { ...user } as any;
-            delete newChatUser.authData;
-            chatUser = await createChatUser(newChatUser);
-            console.log('New chat user created:', {
-                userId: chatUser?.userId,
-                features: Object.keys(chatUser?.features || {}),
-            });
-        } else {
-            console.log('Existing chat user found:', {
-                userId: chatUser.userId,
-                features: Object.keys(chatUser.features || {}),
-            });
-        }
-
-        userCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
-    }
-
-    // Parse and validate user data and user auth data
-    let user: AuthenticatedUser<UserAuthData>;
-    try {
-        user = JSON.parse(
-            decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
-        );
-    } catch (e) {
-        // Invalid cookie - clear it and redirect to login
-        deleteCookies(event);
-        throw redirect(302, '/auth/login');
-    }
-
-    let userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
-    if (!userAccessTokenCookie) {
-        event.cookies.set(
-            AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME,
-            encryptCookieString('123', appConfig.masterCookieKey, appConfig.masterCookieInitVector),
-            {
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax',
-            }
-        );
-        userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
+    if (!user) {
+        // No user cookie - attempt initial authentication
         try {
-            user = JSON.parse(
-                decryptCookieString(userCookie!, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
-            );
-        } catch (e) {
-            // Invalid cookie - clear it and redirect to login
-            deleteCookies(event);
-            throw redirect(302, '/auth/login');
+            // Attempt authentication
+            const authResult = await authProvider.authenticate(event);
+
+            if (authResult instanceof Response) {
+                // Handle redirects, OAuth flows, etc.
+                return authResult;
+            }
+
+            // User authenticated successfully
+            user = authResult;
+
+            // Serialize the user to cookies (handles large data automatically)
+            serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+
+            // Handle chat user creation/retrieval
+            console.log('Checking for existing chat user...');
+            let chatUser = await getChatUser(user.userId);
+
+            if (!chatUser) {
+                console.log('Chat user not found, creating new chat user...');
+                // Clone and get rid of the auth data which should not be stored in the chat database
+                const newChatUser = { ...user } as any;
+                delete newChatUser.authData;
+                chatUser = await createChatUser(newChatUser);
+                console.log('New chat user created:', {
+                    userId: chatUser?.userId,
+                    features: Object.keys(chatUser?.features || {})
+                });
+            } else {
+                console.log('Existing chat user found:', {
+                    userId: chatUser.userId,
+                    features: Object.keys(chatUser.features || {})
+                });
+            }
+        } catch (error) {
+            if (error instanceof NotAuthenticatedError) {
+                // Clear any invalid cookies
+                clearAuthenticatedUserCookies(event);
+                // Redirect to login
+                throw redirect(302, '/login');
+            }
+            // Re-throw other errors
+            throw error;
         }
     }
 
-    // Make sure the access token is valid
-    let userAccessToken: string;
-    try {
-        userAccessToken = decryptCookieString(
-            userAccessTokenCookie!,
-            appConfig.masterCookieKey,
-            appConfig.masterCookieInitVector
-        );
-    } catch (e) {
-        // Invalid cookie - clear it and redirect to login
-        deleteCookies(event);
-        throw redirect(302, '/auth/login');
+    // Give the auth provider a chance to validate/refresh the user's authentication
+    if (authProvider.validateUser && user) {
+        try {
+            const validationResult = await authProvider.validateUser(event, user);
+
+            if (validationResult) {
+                // Provider returned updated user with refreshed tokens
+                user = validationResult;
+
+                // Update the user cookies with the refreshed data
+                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+            }
+            // If validationResult is undefined, no action needed
+        } catch (error) {
+            if (error instanceof ForceUserToReauthenticateError) {
+                // Clear cookies and redirect to login
+                clearAuthenticatedUserCookies(event);
+                throw redirect(302, '/login');
+            }
+            // Re-throw other errors
+            throw error;
+        }
     }
 
-    // Due to cookie size limits, we store the access token in a separate cookie.  So we need to add it to the user object.
-    user.authData.accessToken = userAccessToken;
+    // Handle access token cookie (for backward compatibility)
+    let userAccessTokenCookie = event.cookies.get(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME);
+    if (!userAccessTokenCookie && user) {
+        // Set a default access token if none exists (for backward compatibility)
+        const accessToken = (user as any).authData?.accessToken || '123';
+        // Note: We're not setting this cookie anymore since we handle everything in the main user cookie
+        // This is just for backward compatibility if needed
+    }
 
     // Set user and config in locals for server-side use
     event.locals = { user, appConfig };
