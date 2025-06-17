@@ -642,6 +642,7 @@ function showSyncSuccessMessage(): void {
     console.log('  • Verify custom components still work');
     console.log('  • Check custom authentication configuration');
     console.log('  • Review any new framework features');
+    console.log('  • Update project names in pika-config.ts if needed (protected from sync)');
     console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
     console.log('  • Update service stack as needed: services/pika/bin/pika.ts');
 }

@@ -323,6 +323,7 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     logger.newLine();
 
     logger.info('Key customization areas:');
+    console.log('  • Project Configuration: pika-config.ts (update project names here)');
     console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
     console.log('  • Custom Webapps: apps/custom directory');
     console.log('  • Custom Services: services/custom directory');
@@ -331,7 +332,8 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     logger.newLine();
 
     logger.info('Infrastructure customization:');
-    console.log('  • Update project names and descriptions in stack files');
+    console.log('  • Update project names in pika-config.ts (recommended)');
+    console.log('  • Or update project names and descriptions in stack files directly');
     console.log('  • Configure VPC IDs, account IDs, and regions for your environment');
     console.log('  • Add custom AWS resources or modify existing ones');
     console.log('  • These files are protected from framework updates');

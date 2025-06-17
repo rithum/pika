@@ -22,6 +22,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { PikaStack } from '../lib/stacks';
 import { getLoggedInAccountIdFromSts } from './sts';
+import { pikaConfig } from '../../../pika-config.js';
 
 const app = new cdk.App();
 
@@ -39,11 +40,12 @@ async function main() {
 
     // This is the name that you chose for the project name for the pika service stack.  It is needed because we import
     // some pika service stack parameters in this the pika chat stack.
-    const projNameL = 'pika';
-    const projNameKebabCase = 'pika';
-    const projNameTitleCase = 'Pika';
-    const projNameCamel = 'pika';
-    const projNameHuman = 'Pika';
+    const { pika } = pikaConfig;
+    const projNameL = pika.projNameL;
+    const projNameKebabCase = pika.projNameKebabCase;
+    const projNameTitleCase = pika.projNameTitleCase;
+    const projNameCamel = pika.projNameCamel;
+    const projNameHuman = pika.projNameHuman;
 
     // Create the Pika stack
     new PikaStack(app, `${projNameKebabCase}-${stage}`, {

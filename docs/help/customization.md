@@ -6,6 +6,43 @@ This guide explains the different customization areas in your Pika project and h
 
 Pika Framework provides several designated areas where you can add your custom code without worrying about it being overwritten during framework updates. These areas are protected from sync operations and are designed to be your primary extension points.
 
+## Central Configuration
+
+### Project Configuration
+
+**Location:** `pika-config.ts` (root directory)
+
+**Purpose:** Central configuration file for project names and settings used across your Pika project.
+
+**What to customize here:**
+
+- **Project Names**: Update the project names for both Pika backend and Pika Chat frontend stacks
+- **Resource Naming**: All AWS resources will use these names for consistent naming across your infrastructure
+- **Stack Descriptions**: Stack descriptions are automatically generated from these names
+
+**Example customization:**
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'mycompany', // All lowercase: mycompany
+        projNameKebabCase: 'mycompany', // Kebab case: mycompany
+        projNameTitleCase: 'MyCompany', // Title case: MyCompany
+        projNameCamel: 'mycompany', // Camel case: mycompany
+        projNameHuman: 'My Company' // Human readable: My Company
+    },
+    pikaChat: {
+        projNameL: 'mycompanychat', // All lowercase: mycompanychat
+        projNameKebabCase: 'mycompany-chat', // Kebab case: mycompany-chat
+        projNameTitleCase: 'MyCompanyChat', // Title case: MyCompanyChat
+        projNameCamel: 'myCompanyChat', // Camel case: myCompanyChat
+        projNameHuman: 'My Company Chat' // Human readable: My Company Chat
+    }
+};
+```
+
+**Important:** This file is protected from framework updates and will never be overwritten when you run `pika sync`. All stack definition files automatically import and use these values.
+
 ## Customization Areas
 
 ### 1. Custom Components
@@ -100,11 +137,11 @@ Pika Framework provides several designated areas where you can add your custom c
 
 **What to customize here:**
 
-- Project names and descriptions
 - VPC configurations
 - Account IDs and regions
 - Custom AWS resources
 - Environment-specific settings
+- **Note:** Project names are automatically imported from `pika-config.ts`
 
 **Important:** These files are protected from framework updates by default. If you want to receive framework updates for these files, add them to the `userUnprotectedAreas` array in `.pika-sync.json`.
 
@@ -120,11 +157,18 @@ Pika Framework provides several designated areas where you can add your custom c
 
 ### Pika Configuration
 
-**File:** `pika.config.ts`
+**File:** `pika-config.ts`
 
-**Purpose:** Framework-specific configuration for authentication, components, services, and deployment settings.
+**Purpose:** Central configuration for project names and settings used across all stacks and resources.
 
 **Protected:** Yes - this file is never overwritten by sync operations.
+
+**Key Features:**
+
+- Type-safe configuration with TypeScript
+- Centralized project naming for consistent resource naming
+- Automatically imported by all stack definition files
+- Single source of truth for project identity
 
 ## Sync Configuration
 
@@ -153,17 +197,22 @@ This file tracks your sync status and allows you to customize which files are pr
 
 Always place your custom code in the designated customization areas. Files outside these areas may be overwritten during framework updates.
 
-### 2. Keep Customizations Focused
+### 2. Configure Project Names First
+
+Before customizing anything else, update the project names in `pika-config.ts` to match your organization and project requirements. This ensures consistent naming across all AWS resources.
+
+### 3. Keep Customizations Focused
 
 Each customization area has a specific purpose. Use the appropriate area for your custom code:
 
+- Project names and settings → `pika-config.ts`
 - UI components → Custom Components
 - Authentication logic → Custom Authentication
 - New applications → Custom Web Applications
 - Backend services → Custom Services
 - Infrastructure changes → Stack Definition Files
 
-### 3. Version Control
+### 4. Version Control
 
 Initialize git in your project and commit your customizations regularly:
 
@@ -173,11 +222,11 @@ git add .
 git commit -m "Initial commit with customizations"
 ```
 
-### 4. Test After Updates
+### 5. Test After Updates
 
 After running `pika sync`, always test your customizations to ensure they still work correctly.
 
-### 5. Document Your Changes
+### 6. Document Your Changes
 
 Keep documentation of your customizations, especially for complex changes to stack definitions or custom services.
 
@@ -186,7 +235,7 @@ Keep documentation of your customizations, especially for complex changes to sta
 When you run `pika sync`, the framework will:
 
 1. Update framework files with the latest changes
-2. Preserve all files in protected areas
+2. Preserve all files in protected areas (including `pika-config.ts`)
 3. Merge your `userProtectedAreas` with the default protected areas
 4. Remove files in `userUnprotectedAreas` from protection
 
@@ -201,8 +250,9 @@ This ensures your customizations are preserved while you receive the latest fram
 
 ## Next Steps
 
-1. **Explore the sample code** in each customization area to understand the patterns
-2. **Start with small customizations** like adding a custom component
-3. **Gradually build up** to more complex customizations
-4. **Test your changes** thoroughly before deploying to production
-5. **Keep your framework updated** with regular sync operations
+1. **Update project names** in `pika-config.ts` to match your organization
+2. **Explore the sample code** in each customization area to understand the patterns
+3. **Start with small customizations** like adding a custom component
+4. **Gradually build up** to more complex customizations
+5. **Test your changes** thoroughly before deploying to production
+6. **Keep your framework updated** with regular sync operations

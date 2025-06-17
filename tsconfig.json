@@ -1,0 +1,26 @@
+{
+    "extends": "./packages/typescript-config/base.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@pika/shared/*": [
+                "packages/shared/src/*"
+            ],
+            "@pika/shared": [
+                "packages/shared/src"
+            ]
+        },
+        "moduleResolution": "Bundler",
+        "allowImportingTsExtensions": true,
+        "noEmit": true
+    },
+    "include": [
+        "pika-config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "**/node_modules",
+        "**/dist",
+        "**/build"
+    ]
+}

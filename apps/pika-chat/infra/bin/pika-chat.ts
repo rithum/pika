@@ -23,6 +23,7 @@ import * as cdk from 'aws-cdk-lib';
 import { getValueFromParameterStore } from './ssm.js';
 import { getLoggedInAccountIdFromSts } from './sts.js';
 import { PikaChatStack } from '../lib/stacks/pika-chat-stack.js';
+import { pikaConfig } from '../../../../pika-config.js';
 
 const app = new cdk.App();
 
@@ -45,15 +46,16 @@ async function main() {
 
     //TODO: get these from an environment variable or something
     // These are the values for the project name for the pika chat stack
-    const projNameL = 'pikachat';
-    const projNameKebabCase = 'pika-chat';
-    const projNameTitleCase = 'PikaChat';
-    const projNameCamel = 'pikaChat';
-    const projNameHuman = 'Pika Chat';
+    const { pikaChat } = pikaConfig;
+    const projNameL = pikaChat.projNameL;
+    const projNameKebabCase = pikaChat.projNameKebabCase;
+    const projNameTitleCase = pikaChat.projNameTitleCase;
+    const projNameCamel = pikaChat.projNameCamel;
+    const projNameHuman = pikaChat.projNameHuman;
 
     // This is the name that you chose for the project name for the pika service stack.  It is needed because we import
     // some pika service stack parameters in this the pika chat stack.
-    const pikaServiceProjNameKebabCase = 'pika';
+    const pikaServiceProjNameKebabCase = pikaConfig.pika.projNameKebabCase;
 
     // Create the Pika Chat stack
     new PikaChatStack(app, `${projNameKebabCase}-${stage}`, {
