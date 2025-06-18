@@ -121,7 +121,8 @@ async function checkForUserModificationsOutsideProtectedAreas(projectRoot: strin
                 .forEach((area) => {
                     logger.warn(`    • ${area}`);
                 });
-            logger.warn('\n    All custom files and directories should be placed in these extension point directories.');
+            logger.warn('\n    Additionally, any directory or file path containing a segment starting with "custom-" is automatically protected.');
+            logger.warn('    All custom files and directories should be placed in these extension point directories.');
             logger.warn('    Files outside these areas may be overwritten during sync.');
             logger.warn('    Consider moving your changes to the appropriate extension point directories.');
             logger.newLine();
@@ -530,6 +531,16 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
 }
 
 function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
+    // Check if any path segment starts with 'custom-'
+    const pathSegments = filePath.split('/');
+    const hasCustomSegment = pathSegments.some((segment) => segment.startsWith('custom-'));
+
+    if (hasCustomSegment) {
+        logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches custom- pattern`);
+        return true;
+    }
+
+    // Check against explicit protected areas
     const isProtected = protectedAreas.some((area) => {
         if (area.endsWith('/')) {
             return filePath.startsWith(area);
@@ -693,7 +704,7 @@ function getDefaultProtectedAreas(): string[] {
         '.env',
         '.env.local',
         '.env.*',
-        'pika.config.ts',
+        'pika-config.ts',
         '.pika-sync.json',
         '.gitignore', // Always protect .gitignore
         'package.json', // Always protect package.json
@@ -714,6 +725,11 @@ function showSyncSuccessMessage(): void {
     console.log('  • Update project names in pika-config.ts if needed (protected from sync)');
     console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
     console.log('  • Update service stack as needed: services/pika/bin/pika.ts');
+    logger.newLine();
+    logger.info('Protection features:');
+    console.log('  • Any directory or file path containing a segment starting with "custom-" is automatically protected');
+    console.log('  • Custom directories can be placed anywhere in the project structure');
+    console.log('  • Protected areas and custom- directories are preserved during sync');
     logger.newLine();
     logger.info('Sample directory handling:');
     console.log('  • Sample directories (services/samples/weather, apps/samples/enterprise-site) are automatically synced');
@@ -811,6 +827,7 @@ function showCurrentSyncStatus(syncConfig: SyncConfig): void {
     console.log(`  • Last sync: ${new Date(syncConfig.lastSync).toLocaleString()}`);
     console.log(`  • Last synced branch: ${syncConfig.pikaBranch || 'main (default)'}`);
     console.log(`  • Default protected areas: ${syncConfig.protectedAreas.length} directories/files protected`);
+    console.log(`  • Custom- protection: Any path segment starting with "custom-" is automatically protected`);
     if (syncConfig.userProtectedAreas && syncConfig.userProtectedAreas.length > 0) {
         console.log(`  • User protected areas: ${syncConfig.userProtectedAreas.length} additional areas protected`);
     } else {

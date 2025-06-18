@@ -206,7 +206,7 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             '.env',
             '.env.local',
             '.env.*',
-            'pika.config.ts',
+            'pika-config.ts',
             '.pika-sync.json',
             '.gitignore', // Add .gitignore to protected areas
             'package.json', // Add package.json to protected areas
