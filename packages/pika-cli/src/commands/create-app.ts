@@ -168,7 +168,8 @@ async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
     const artifactsToRemove = [
         '.github', // Remove GitHub workflows/templates
         'future-changes', // Remove planning documents
-        '.gitignore' // We'll create a new one
+        '.gitignore', // We'll create a new one
+        'node_modules' // Remove any existing node_modules from the template
     ];
 
     for (const artifact of artifactsToRemove) {
@@ -281,22 +282,89 @@ logs/
 
 async function installDependencies(projectPath: string): Promise<void> {
     try {
-        // Check if pnpm is available, fallback to npm
-        let packageManager = 'npm';
+        // Check if pnpm is available
+        let pnpmAvailable = false;
         try {
             await execAsync('pnpm --version');
-            packageManager = 'pnpm';
+            pnpmAvailable = true;
         } catch {
-            // pnpm not available, use npm
+            // pnpm not available
         }
 
-        const installCommand = packageManager === 'pnpm' ? 'pnpm install' : 'npm install';
+        if (!pnpmAvailable) {
+            logger.warn('pnpm is not installed on your system.');
+            logger.newLine();
 
+            const { shouldInstallPnpm } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'shouldInstallPnpm',
+                    message: 'Would you like to install pnpm? (Recommended for Pika projects)',
+                    default: true
+                }
+            ]);
+
+            if (shouldInstallPnpm) {
+                logger.info('Installing pnpm...');
+                try {
+                    // Try to install pnpm globally
+                    await execAsync('npm install -g pnpm');
+                    logger.success('pnpm installed successfully!');
+                    pnpmAvailable = true;
+                } catch (error) {
+                    logger.error('Failed to install pnpm automatically.');
+                    logger.info('Please install pnpm manually:');
+                    console.log('  npm install -g pnpm');
+                    console.log('  # or');
+                    console.log('  curl -fsSL https://get.pnpm.io/install.sh | sh -');
+                    logger.newLine();
+
+                    const { continueWithNpm } = await inquirer.prompt([
+                        {
+                            type: 'confirm',
+                            name: 'continueWithNpm',
+                            message: 'Continue with npm instead? (Some features may not work optimally)',
+                            default: false
+                        }
+                    ]);
+
+                    if (!continueWithNpm) {
+                        logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                        return;
+                    }
+                }
+            } else {
+                const { continueWithNpm } = await inquirer.prompt([
+                    {
+                        type: 'confirm',
+                        name: 'continueWithNpm',
+                        message: 'Continue with npm instead? (Some features may not work optimally)',
+                        default: false
+                    }
+                ]);
+
+                if (!continueWithNpm) {
+                    logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                    return;
+                }
+            }
+        }
+
+        const packageManager = pnpmAvailable ? 'pnpm' : 'npm';
+        const installCommand = pnpmAvailable ? 'pnpm install' : 'npm install';
+
+        logger.info(`Installing dependencies with ${packageManager}...`);
         await execAsync(installCommand, {
             cwd: projectPath
         } as ExecOptions);
+
+        logger.success('Dependencies installed successfully!');
     } catch (error) {
-        logger.warn('Failed to install dependencies automatically. You can install them manually later.');
+        logger.warn('Failed to install dependencies automatically.');
+        logger.info('You can install them manually:');
+        console.log('  pnpm install  # (recommended)');
+        console.log('  # or');
+        console.log('  npm install');
         logger.debug('Dependency installation error:', error);
     }
 }
