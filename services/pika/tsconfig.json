@@ -6,8 +6,27 @@
         "sourceMap": true,
         "inlineSources": true,
         "resolveJsonModule": true,
-        "experimentalDecorators": true
+        "experimentalDecorators": true,
+        "baseUrl": ".",
+        "paths": {
+            "@pika/shared/*": [
+                "../../packages/shared/src/*"
+            ],
+            "@pika/shared": [
+                "../../packages/shared/src"
+            ]
+        }
     },
-    "include": ["src", "bin", "lib/stacks", "tools/jwt-secret-generator", "test"],
-    "exclude": ["node_modules", "dist", "cdk.out"]
+    "include": [
+        "src",
+        "bin",
+        "lib/stacks",
+        "tools/jwt-secret-generator",
+        "test"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "cdk.out"
+    ]
 }

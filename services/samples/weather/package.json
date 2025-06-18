@@ -17,8 +17,9 @@
         "cdk:diff": "cdk diff"
     },
     "devDependencies": {
-        "@pika/typescript-config": "workspace:*",
         "@aws-sdk/client-s3": "catalog:",
+        "@aws-sdk/client-sts": "catalog:",
+        "@pika/typescript-config": "workspace:*",
         "@types/aws-lambda": "catalog:",
         "@types/jest": "catalog:",
         "@types/node": "catalog:",
@@ -37,10 +38,10 @@
         "typescript": "catalog:"
     },
     "dependencies": {
-        "@pika/shared": "workspace:*",
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
         "@aws-sdk/client-bedrock-runtime": "catalog:",
         "@aws-sdk/client-lambda": "catalog:",
+        "@pika/shared": "workspace:*",
         "source-map-support": "catalog:"
     },
     "files": [

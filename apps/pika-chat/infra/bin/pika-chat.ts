@@ -23,7 +23,9 @@ import * as cdk from 'aws-cdk-lib';
 import { getValueFromParameterStore } from './ssm.js';
 import { getLoggedInAccountIdFromSts } from './sts.js';
 import { PikaChatStack } from '../lib/stacks/pika-chat-stack.js';
-import { pikaConfig } from '../../../../pika-config.js';
+
+// We are copying the root pika-config.ts file to a local build directory so that it can be imported by the pika-chat stack cleanly.
+import { pikaConfig } from '../build/pika-config.js';
 
 const app = new cdk.App();
 

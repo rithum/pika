@@ -33,7 +33,8 @@ const mockSessionData: SessionData = {
     sessionId: 'test-session-id',
     companyId: 'test-company-id',
     companyType: 'retailer',
-    date: new Date().toISOString()
+    date: new Date().toISOString(),
+    agentId: 'test-agent-id'
 };
 
 // Increase timeout for integration tests since they hit real APIs
@@ -104,7 +105,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            const result = await getCurrentWeather(params);
+            const result = await getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId);
 
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
@@ -324,7 +325,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: 'UTC'
             };
 
-            await expect(getCurrentWeather(params)).rejects.toThrow();
+            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId)).rejects.toThrow('Network error');
         });
 
         it('should handle network errors gracefully', async () => {
@@ -339,7 +340,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            await expect(getCurrentWeather(params)).rejects.toThrow('Network error');
+            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId)).rejects.toThrow('Network error');
 
             global.fetch = originalFetch;
         });
