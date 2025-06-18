@@ -119,3 +119,36 @@ export function sanitizeAndStringifyError(error: unknown): string {
 export function isTTLDeletion(record: DynamoDBRecord): boolean {
     return record.userIdentity?.type === 'Service' && record.userIdentity?.principalId === 'dynamodb.amazonaws.com';
 }
+
+/**
+ * Recursively converts Date objects to ISO strings in an object
+ * This is needed because AWS Bedrock returns Date objects in trace metadata
+ * but DynamoDB marshalling doesn't support Date objects
+ *
+ * Example:
+ * Input: { metadata: { endTime: new Date('2025-06-18T21:55:25.326Z') } }
+ * Output: { metadata: { endTime: '2025-06-18T21:55:25.326Z' } }
+ */
+export function convertDatesToStrings(obj: any): any {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+
+    if (obj instanceof Date) {
+        return obj.toISOString();
+    }
+
+    if (Array.isArray(obj)) {
+        return obj.map(convertDatesToStrings);
+    }
+
+    if (typeof obj === 'object') {
+        const result: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+            result[key] = convertDatesToStrings(value);
+        }
+        return result;
+    }
+
+    return obj;
+}
