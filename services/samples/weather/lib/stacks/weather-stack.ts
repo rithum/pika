@@ -21,6 +21,11 @@ export interface WeatherStackProps extends cdk.StackProps {
      * We also need the agent/chatapp custom resource ARN so we can create the weather chatapp, agent and tool.
      */
     pikaServiceProjNameKebabCase: string;
+    projNameL: string; // All lowercase e.g. weather
+    projNameKebabCase: string; // Kebab case e.g. weather
+    projNameTitleCase: string; // Title case e.g. Weather
+    projNameCamel: string; // Camel case e.g. weather
+    projNameHuman: string; // Human readable e.g. Weather
 }
 
 export class WeatherStack extends cdk.Stack {
@@ -37,7 +42,7 @@ export class WeatherStack extends cdk.Stack {
             `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/s3/upload_bucket_name`
         );
 
-        const lambdaRole = new iam.Role(this, 'WeatherLambdaRole', {
+        const lambdaRole = new iam.Role(this, `${props.projNameTitleCase}LambdaRole`, {
             roleName: `${this.stackName}-weather-lambda-role`, // Using this.stackName from the Stack context
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
             inlinePolicies: {
@@ -70,7 +75,7 @@ export class WeatherStack extends cdk.Stack {
         });
 
         // This is the action the agent will take when it needs to get the weather
-        const weatherLambda = new nodejs.NodejsFunction(this, 'WeatherToolLambda', {
+        const weatherLambda = new nodejs.NodejsFunction(this, `${props.projNameTitleCase}ToolLambda`, {
             runtime: lambda.Runtime.NODEJS_22_X,
             entry: path.join(__dirname, '../../src/lambda/weather/index.ts'),
             handler: 'handler',
@@ -105,15 +110,15 @@ export class WeatherStack extends cdk.Stack {
         const agentData: AgentDataRequest = {
             userId: `cloudformation/${this.stackName}`,
             agent: {
-                agentId: `weather-agent-${this.stage}`,
+                agentId: `${props.projNameKebabCase}-agent-${this.stage}`,
                 basePrompt: weatherAgentInstruction
             },
             tools: [
                 {
-                    toolId: `weather-tool-${this.stage}`,
-                    name: 'weather-tool',
-                    displayName: 'Weather Tool',
-                    description: 'A tool that can be used to answer questions about the weather',
+                    toolId: `${props.projNameKebabCase}-tool-${this.stage}`,
+                    name: `${props.projNameKebabCase}-tool`,
+                    displayName: `${props.projNameTitleCase} Tool`,
+                    description: `A tool that can be used to answer questions about the weather`,
                     executionType: 'lambda',
                     lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED',
                     functionSchema: weatherFunctions,
@@ -125,7 +130,7 @@ export class WeatherStack extends cdk.Stack {
         // Compress and encode the agent data
         const agentDataCompressed = gzipAndBase64EncodeString(JSON.stringify(agentData));
 
-        const customResource = new cdk.CustomResource(this, 'WeatherAgentCustomResource', {
+        const customResource = new cdk.CustomResource(this, `${props.projNameTitleCase}AgentCustomResource`, {
             serviceToken: customResourceArn,
             properties: {
                 Stage: this.stage,
@@ -133,7 +138,7 @@ export class WeatherStack extends cdk.Stack {
                 ToolIdToLambdaArnMap: {
                     // This lazy thing causes the actual value to be resolved at deployment time
                     // so it doesn't put ${Token[TOKEN.31]} in for the value
-                    [`weather-tool-${this.stage}`]: cdk.Lazy.string({
+                    [`${props.projNameKebabCase}-tool-${this.stage}`]: cdk.Lazy.string({
                         produce: () => weatherLambda.functionArn
                     })
                 },
@@ -158,7 +163,7 @@ export class WeatherStack extends cdk.Stack {
                 mode: 'fullpage',
                 dontCacheThis: true,
                 title: 'Weather Chat',
-                agentId: `weather-agent-${this.stage}`,
+                agentId: `${props.projNameKebabCase}-agent-${this.stage}`,
                 features: {
                     fileUpload: {
                         featureId: 'fileUpload',
@@ -185,7 +190,7 @@ export class WeatherStack extends cdk.Stack {
         // Compress and encode the chat app data
         const chatAppDataCompressed = gzipAndBase64EncodeString(JSON.stringify(chatAppData));
 
-        const chatAppCustomResource = new cdk.CustomResource(this, 'WeatherChatAppCustomResource', {
+        const chatAppCustomResource = new cdk.CustomResource(this, `${props.projNameTitleCase}ChatAppCustomResource`, {
             serviceToken: chatAppCustomResourceArn,
             properties: {
                 Stage: this.stage,

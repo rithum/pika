@@ -1,4 +1,4 @@
-import type { PikaConfig } from '@pika/shared/types/pika-types';
+import type { PikaConfig } from './packages/shared/src/types/pika-types';
 
 export const pikaConfig: PikaConfig = {
     pika: {
@@ -14,5 +14,12 @@ export const pikaConfig: PikaConfig = {
         projNameTitleCase: 'PikaChat',
         projNameCamel: 'pikaChat',
         projNameHuman: 'Pika Chat'
+    },
+    weather: {
+        projNameL: 'weather',
+        projNameKebabCase: 'weather',
+        projNameTitleCase: 'Weather',
+        projNameCamel: 'weather',
+        projNameHuman: 'Weather'
     }
 };

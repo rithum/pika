@@ -86,7 +86,7 @@
 		<div class="h-full flex flex-col">
 			<div class="flex-1">
 				<iframe
-					src="http://localhost:3000/chat/weather?mode=embedded"
+					src="http://localhost:3000/chat/order-analyzer?mode=embedded"
 					class="w-full h-full border-0"
 					title="AI Chat Interface"
 				></iframe>

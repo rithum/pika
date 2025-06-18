@@ -7,8 +7,29 @@
         "inlineSources": true,
         "resolveJsonModule": true,
         "experimentalDecorators": true,
-        "types": ["jest", "node"]
+        "baseUrl": ".",
+        "types": [
+            "node",
+            "jest"
+        ],
+        "paths": {
+            "@pika/shared/*": [
+                "../../packages/shared/src/*"
+            ],
+            "@pika/shared": [
+                "../../packages/shared/src"
+            ]
+        }
     },
-    "include": ["src", "bin", "lib/stacks", "test"],
-    "exclude": ["node_modules", "dist", "cdk.out"]
+    "include": [
+        "src",
+        "bin",
+        "lib/stacks",
+        "test"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "cdk.out"
+    ]
 }
