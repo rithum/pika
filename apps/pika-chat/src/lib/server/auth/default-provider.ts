@@ -7,7 +7,7 @@ import type { AuthProvider } from './types';
  * when no custom authentication provider is implemented
  */
 export default class DefaultAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<undefined>> {
+    async authenticate(_event: RequestEvent, _stage: string): Promise<AuthenticatedUser<undefined>> {
         // Create a mock user (existing behavior)
         const user: AuthenticatedUser<undefined> = {
             userId: '123',
