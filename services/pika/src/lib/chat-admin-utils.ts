@@ -84,21 +84,35 @@ export function handleArrayFieldUpdate<T, K extends keyof T>(
     isOptional: boolean = false
 ): void {
     if (newArray !== undefined) {
-        if (newArray === null && isOptional) {
-            // Explicitly removing the field
-            if (existingArray !== undefined) {
+        if (newArray === null) {
+            // Explicitly removing the field (only if optional)
+            if (isOptional && existingArray !== undefined) {
                 fieldsToRemove.push(fieldName);
+            } else if (!isOptional) {
+                // For required fields, null should be treated as an empty array
+                fieldsToUpdate[fieldName] = [] as T[K];
             }
-        } else if (Array.isArray(newArray) && Array.isArray(existingArray)) {
-            // Compare arrays by length and elements
-            const arraysAreDifferent = newArray.length !== existingArray.length || !newArray.every((item) => existingArray.includes(item));
+        } else if (Array.isArray(newArray)) {
+            // newArray is a valid array
+            if (Array.isArray(existingArray)) {
+                // Both are arrays - compare them properly
+                const arraysAreDifferent =
+                    newArray.length !== existingArray.length || !newArray.every((item) => existingArray.includes(item)) || !existingArray.every((item) => newArray.includes(item));
 
-            if (arraysAreDifferent) {
+                if (arraysAreDifferent) {
+                    fieldsToUpdate[fieldName] = newArray as T[K];
+                }
+            } else {
+                // existingArray is not an array (undefined, null, or other type)
+                // Update with the new array
                 fieldsToUpdate[fieldName] = newArray as T[K];
             }
-        } else if (newArray !== existingArray) {
-            // Handle case where one is undefined/null and the other isn't
-            fieldsToUpdate[fieldName] = newArray as T[K];
+        } else {
+            // newArray is not null but also not an array - this is likely an error
+            // but we'll update it anyway to maintain consistency
+            if (newArray !== existingArray) {
+                fieldsToUpdate[fieldName] = newArray as T[K];
+            }
         }
     }
 }

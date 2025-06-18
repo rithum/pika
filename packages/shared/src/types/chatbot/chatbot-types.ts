@@ -421,7 +421,10 @@ export interface AgentDefinition {
     test?: boolean;
 }
 
-export type UpdateableAgentDefinitionFields = Extract<keyof AgentDefinition, 'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 'rolloutPolicy' | 'dontCacheThis'>;
+export type UpdateableAgentDefinitionFields = Extract<
+    keyof AgentDefinition,
+    'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases'
+>;
 
 export type AgentDefinitionForUpdate = Partial<Omit<AgentDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy' | 'test'>> & {
     agentId: string;

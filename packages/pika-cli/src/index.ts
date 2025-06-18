@@ -29,6 +29,7 @@ program
     .option('--force', 'Force sync even if there are conflicts')
     .option('--diff', 'Show diffs for all changes without applying them')
     .option('--editor-diff', 'Open diffs in Cursor or VS Code for all changes without applying them')
+    .option('--debug', 'Enable debug logging')
     .action(syncCommand);
 
 program

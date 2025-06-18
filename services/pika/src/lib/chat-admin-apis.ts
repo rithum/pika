@@ -198,6 +198,7 @@ async function updateAgentData(agentData: AgentDataRequest, existingAgent: Agent
 
         // Handle optional fields that can be updated or removed
         handleArrayFieldUpdate(agentData.agent.accessRules, existingAgent.accessRules, 'accessRules', fieldsToUpdate, fieldsToRemove, true);
+        handleArrayFieldUpdate(agentData.agent.knowledgeBases, existingAgent.knowledgeBases, 'knowledgeBases', fieldsToUpdate, fieldsToRemove, true);
         handleObjectFieldUpdate(agentData.agent.rolloutPolicy, existingAgent.rolloutPolicy, 'rolloutPolicy', fieldsToUpdate, fieldsToRemove, true);
         handleOptionalFieldUpdate(agentData.agent.dontCacheThis, existingAgent.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
         handleOptionalFieldUpdate(agentData.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);

@@ -193,6 +193,30 @@ export async function getAgentsByCreator(createdBy: string): Promise<AgentDefini
 // ===== TOOL OPERATIONS =====
 
 /**
+ * Convert ToolDefinition to snake case, preserving functionSchema as-is
+ */
+function convertToolToSnakeCase(tool: ToolDefinition): SnakeCase<ToolDefinition> {
+    const { functionSchema, ...rest } = tool;
+    const converted = convertToSnakeCase(rest);
+    return {
+        ...converted,
+        function_schema: functionSchema // Preserve functionSchema as-is
+    } as SnakeCase<ToolDefinition>;
+}
+
+/**
+ * Convert ToolDefinition from snake case to camel case, preserving functionSchema as-is
+ */
+function convertToolFromSnakeCase(item: any): ToolDefinition {
+    const { function_schema, ...rest } = item;
+    const converted = convertToCamelCase(rest);
+    return {
+        ...converted,
+        functionSchema: function_schema // Preserve functionSchema as-is
+    } as ToolDefinition;
+}
+
+/**
  * Get all tool definitions with pagination handling
  */
 export async function getAllTools(): Promise<ToolDefinition[]> {
@@ -212,7 +236,7 @@ export async function getAllTools(): Promise<ToolDefinition[]> {
         lastEvaluatedKey = result.LastEvaluatedKey;
     } while (lastEvaluatedKey);
 
-    return allItems.map((item) => convertToCamelCase<ToolDefinition>(item as SnakeCase<ToolDefinition>));
+    return allItems.map((item) => convertToolFromSnakeCase(item));
 }
 
 /**
@@ -226,7 +250,7 @@ export async function getToolById(toolId: string): Promise<ToolDefinition | unde
         }
     });
 
-    return result.Item ? convertToCamelCase<ToolDefinition>(result.Item as SnakeCase<ToolDefinition>) : undefined;
+    return result.Item ? convertToolFromSnakeCase(result.Item) : undefined;
 }
 
 /**
@@ -256,7 +280,7 @@ export async function getToolsByIds(toolIds: string[]): Promise<ToolDefinition[]
             }
         });
 
-        const tools = (result.Responses?.[getToolDefinitionsTable()] || []).map((item) => convertToCamelCase<ToolDefinition>(item as SnakeCase<ToolDefinition>));
+        const tools = (result.Responses?.[getToolDefinitionsTable()] || []).map((item) => convertToolFromSnakeCase(item));
 
         allTools.push(...tools);
     }
@@ -274,7 +298,7 @@ export async function createTool(tool: ToolDefinition): Promise<ToolDefinition> 
 
     await ddbDocClient.put({
         TableName: getToolDefinitionsTable(),
-        Item: convertToSnakeCase<ToolDefinition>(tool),
+        Item: convertToolToSnakeCase(tool),
         ConditionExpression: 'attribute_not_exists(tool_id)' // Prevent overwriting existing tools
     });
 
@@ -309,13 +333,23 @@ export async function updateTool(
 
     for (const [field, value] of Object.entries(fieldsToUpdate)) {
         setExpressions.push(`#${field} = :${field}`);
-        expressionAttributeNames[`#${field}`] = convertStringToSnakeCase(field);
+        // Special handling for functionSchema - don't convert to snake case
+        if (field === 'functionSchema') {
+            expressionAttributeNames[`#${field}`] = 'function_schema';
+        } else {
+            expressionAttributeNames[`#${field}`] = convertStringToSnakeCase(field);
+        }
         expressionAttributeValues[`:${field}`] = value;
     }
 
     for (const field of fieldsToRemove) {
         removeExpressions.push(`#${field}_remove`);
-        expressionAttributeNames[`#${field}_remove`] = convertStringToSnakeCase(field);
+        // Special handling for functionSchema - don't convert to snake case
+        if (field === 'functionSchema') {
+            expressionAttributeNames[`#${field}_remove`] = 'function_schema';
+        } else {
+            expressionAttributeNames[`#${field}_remove`] = convertStringToSnakeCase(field);
+        }
     }
 
     // Build the complete UpdateExpression
@@ -356,7 +390,7 @@ export async function getToolsByExecutionType(executionType: string): Promise<To
         ScanIndexForward: false // Latest version first
     });
 
-    return (result.Items || []).map((item) => convertToCamelCase<ToolDefinition>(item as SnakeCase<ToolDefinition>));
+    return (result.Items || []).map((item) => convertToolFromSnakeCase(item));
 }
 
 /**
@@ -372,7 +406,7 @@ export async function getToolsByLifecycleStatus(status: string): Promise<ToolDef
         }
     });
 
-    return (result.Items || []).map((item) => convertToCamelCase<ToolDefinition>(item as SnakeCase<ToolDefinition>));
+    return (result.Items || []).map((item) => convertToolFromSnakeCase(item));
 }
 
 /**
@@ -389,7 +423,7 @@ export async function getToolsByCreator(createdBy: string): Promise<ToolDefiniti
         ScanIndexForward: false // Most recent first
     });
 
-    return (result.Items || []).map((item) => convertToCamelCase<ToolDefinition>(item as SnakeCase<ToolDefinition>));
+    return (result.Items || []).map((item) => convertToolFromSnakeCase(item));
 }
 
 // ===== CHAT APP OPERATIONS =====

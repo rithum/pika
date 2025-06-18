@@ -21,6 +21,7 @@ interface SyncOptions {
     dryRun?: boolean;
     diff?: boolean;
     editorDiff?: boolean;
+    debug?: boolean;
 }
 
 interface SyncChange {
@@ -167,6 +168,12 @@ async function getFrameworkFiles(projectRoot: string): Promise<Set<string>> {
 
 export async function syncCommand(options: SyncOptions = {}): Promise<void> {
     try {
+        // Enable debug logging if requested
+        if (options.debug) {
+            process.env.PIKA_DEBUG = 'true';
+            logger.debug('[DEBUG] Debug logging enabled for sync command');
+        }
+
         logger.header('🔄 Pika Framework - Sync Updates');
 
         // Find Pika project root by walking up directories
@@ -214,6 +221,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
             // Check for user modifications outside protected areas
             const protectedAreas = getMergedProtectedAreas(syncConfig);
+            logger.debug(`[DEBUG] Using protected areas: ${JSON.stringify(protectedAreas, null, 2)}`);
             await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas);
 
             // Determine target version and branch
@@ -247,6 +255,8 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 const analysisSpinner = logger.startSpinner('Analyzing changes...');
                 const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas);
                 logger.stopSpinner(true, 'Analysis complete');
+
+                logger.debug(`[DEBUG] Total changes found: ${changes.length}`);
 
                 if (changes.length === 0) {
                     logger.success('✅ No updates available - your project is up to date!');
@@ -367,12 +377,16 @@ async function downloadPikaFramework(version: string, branch: string = 'main'): 
 async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
     const changes: SyncChange[] = [];
 
+    logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
+    logger.debug(`[DEBUG] identifyChanges: protected areas count=${protectedAreas.length}`);
+
     // Compare framework files recursively (source -> target)
     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
 
     // Check for files that exist in target but not in source (deleted files)
     await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes);
 
+    logger.debug(`[DEBUG] identifyChanges: found ${changes.length} total changes`);
     return changes;
 }
 
@@ -380,11 +394,14 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
     const sourceFullPath = path.join(sourcePath, relativePath);
 
     if (!(await fileManager.exists(sourceFullPath))) {
+        logger.debug(`[DEBUG] Source directory doesn't exist: ${sourceFullPath}`);
         return;
     }
 
     const { readdir } = await import('fs/promises');
     const sourceFiles = await readdir(sourceFullPath, { withFileTypes: true });
+
+    logger.debug(`[DEBUG] Scanning directory: ${relativePath || 'root'} (${sourceFiles.length} items)`);
 
     for (const file of sourceFiles) {
         const fileName = file.name;
@@ -392,8 +409,11 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
         const sourceFilePath = path.join(sourcePath, relativeFilePath);
         const targetFilePath = path.join(targetPath, relativeFilePath);
 
+        logger.debug(`[DEBUG] Processing: ${relativeFilePath}`);
+
         // Skip protected areas
         if (isProtectedArea(relativeFilePath, protectedAreas)) {
+            logger.debug(`[DEBUG] Skipping protected area: ${relativeFilePath}`);
             continue;
         }
 
@@ -402,6 +422,7 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
 
         // Skip directories we don't want to sync
         if (isDirectory && shouldSkipDirectory(relativeFilePath)) {
+            logger.debug(`[DEBUG] Skipping directory (shouldSkipDirectory): ${relativeFilePath}`);
             continue;
         }
 
@@ -409,19 +430,25 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
         if (isDirectory && isOptionalSampleDirectory(relativeFilePath)) {
             const shouldSkip = await handleSampleDirectorySync(relativeFilePath, sourceFilePath, targetFilePath, changes);
             if (shouldSkip) {
+                logger.debug(`[DEBUG] Skipping sample directory: ${relativeFilePath}`);
                 continue;
             }
         }
 
         if (isDirectory) {
+            logger.debug(`[DEBUG] Recursing into directory: ${relativeFilePath}`);
             await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
         } else {
             // Compare file content
+            logger.debug(`[DEBUG] Comparing file: ${relativeFilePath}`);
             const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
+            logger.debug(`[DEBUG] File ${relativeFilePath} has changed: ${hasChanged}`);
             if (hasChanged) {
                 const exists = await fileManager.exists(targetFilePath);
+                const changeType = exists ? 'modified' : 'added';
+                logger.debug(`[DEBUG] Adding change: ${changeType} - ${relativeFilePath}`);
                 changes.push({
-                    type: exists ? 'modified' : 'added',
+                    type: changeType,
                     path: relativeFilePath,
                     sourcePath: sourceFilePath,
                     targetPath: targetFilePath
@@ -503,12 +530,24 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
 }
 
 function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
-    return protectedAreas.some((area) => {
+    const isProtected = protectedAreas.some((area) => {
         if (area.endsWith('/')) {
             return filePath.startsWith(area);
         }
         return filePath === area;
     });
+
+    if (isProtected) {
+        const matchingArea = protectedAreas.find((area) => {
+            if (area.endsWith('/')) {
+                return filePath.startsWith(area);
+            }
+            return filePath === area;
+        });
+        logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches protected area: ${matchingArea}`);
+    }
+
+    return isProtected;
 }
 
 function shouldSkipDirectory(dirPath: string): boolean {
@@ -547,7 +586,12 @@ function shouldSkipDirectory(dirPath: string): boolean {
         '.env.*.local'
     ];
 
-    return skipPatterns.some((pattern) => dirPath.includes(pattern));
+    const shouldSkip = skipPatterns.some((pattern) => dirPath.includes(pattern));
+    if (shouldSkip) {
+        const matchingPattern = skipPatterns.find((pattern) => dirPath.includes(pattern));
+        logger.debug(`[DEBUG] shouldSkipDirectory: ${dirPath} matches pattern: ${matchingPattern}`);
+    }
+    return shouldSkip;
 }
 
 function isOptionalSampleDirectory(filePath: string): boolean {
@@ -558,14 +602,25 @@ function isOptionalSampleDirectory(filePath: string): boolean {
 async function fileHasChanged(sourcePath: string, targetPath: string): Promise<boolean> {
     try {
         if (!(await fileManager.exists(targetPath))) {
+            logger.debug(`[DEBUG] fileHasChanged: Target file doesn't exist: ${targetPath}`);
             return true; // File doesn't exist in target, so it's new
         }
 
         const sourceContent = await fileManager.readFile(sourcePath);
         const targetContent = await fileManager.readFile(targetPath);
 
-        return sourceContent !== targetContent;
+        const hasChanged = sourceContent !== targetContent;
+        logger.debug(
+            `[DEBUG] fileHasChanged: ${path.basename(sourcePath)} - changed: ${hasChanged} (source: ${sourceContent.length} chars, target: ${targetContent.length} chars)`
+        );
+
+        if (hasChanged) {
+            logger.debug(`[DEBUG] fileHasChanged: Content differs for ${path.basename(sourcePath)}`);
+        }
+
+        return hasChanged;
     } catch (error) {
+        logger.debug(`[DEBUG] fileHasChanged: Error comparing files: ${error}`);
         // Error reading files, assume changed
         return true;
     }

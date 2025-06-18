@@ -1,4 +1,4 @@
-import type { AgentAndTools, AgentDataRequest, AgentDataResponse, ToolIdToLambdaArnMap } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AgentAndTools, AgentDataRequest, AgentDataResponse, KnowledgeBase, ToolIdToLambdaArnMap } from '@pika/shared/types/chatbot/chatbot-types';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
 import { createMakeRequestFn, MakeRequestFn, parseAgentCustomResourceProperties, sendCustomResourceResponse } from './util';
 import { gunzipBase64EncodedString } from '@pika/shared/util/server-utils';
@@ -81,6 +81,16 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
                     console.log(`Replacing lambdaArn for tool ${tool.toolId} from ${tool.lambdaArn} to ${toolIdToLambdaArnMap[tool.toolId]}`);
                     tool.lambdaArn = toolIdToLambdaArnMap[tool.toolId];
                 }
+            });
+        }
+
+        // If the knowledgeBases is provided, then we need to replace the knowledgeBaseId with the actual id of the knowledge base
+        let knowledgeBaseIdToKnowledgeBaseMap = event.ResourceProperties.KnowledgeBaseIdToKnowledgeBaseMap as Record<string, string> | undefined;
+        if (knowledgeBaseIdToKnowledgeBaseMap && agentData.agent.knowledgeBases && agentData.agent.knowledgeBases.length > 0) {
+            console.log('KnowledgeBaseIdToKnowledgeBaseMap provided, replacing knowledgeBaseIds with actual ids', knowledgeBaseIdToKnowledgeBaseMap);
+            agentData.agent.knowledgeBases = agentData.agent.knowledgeBases.map((knowledgeBase) => {
+                knowledgeBase.id = knowledgeBaseIdToKnowledgeBaseMap[knowledgeBase.id];
+                return knowledgeBase;
             });
         }
 
