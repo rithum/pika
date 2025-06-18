@@ -559,7 +559,7 @@ function shouldSkipDirectory(dirPath: string): boolean {
         'build',
         '.svelte-kit',
         'cdk.out',
-        'packages',
+        'packages/pika-cli', // Skip CLI package (removed in create-app.ts)
         'future-changes',
         '.pika-temp',
         '.DS_Store',
