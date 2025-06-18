@@ -55,7 +55,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         // No user cookie - attempt initial authentication
         try {
             // Attempt authentication
-            const authResult = await authProvider.authenticate(event, appConfig.stage);
+            const authResult = await authProvider.authenticate(event);
 
             if (authResult instanceof Response) {
                 // Handle redirects, OAuth flows, etc.

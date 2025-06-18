@@ -22,9 +22,11 @@ export class ForceUserToReauthenticateError extends Error {
 }
 
 /**
- * Simplified interface that custom authentication providers must implement
+ * Abstract class that custom authentication providers must extend
  */
-export interface AuthProvider {
+export abstract class AuthProvider {
+    constructor(protected readonly stage: string) {}
+
     /**
      * Authenticate the user from the request (when no user cookie exists)
      *
@@ -42,10 +44,9 @@ export interface AuthProvider {
      * The framework will handle the rest (cookie setting, user creation, etc.)
      *
      * @param event - The request event
-     * @param stage - The stage of the application (e.g. test, staging, prod, whatever)
      * @returns The authenticated user or a response to redirect to
      */
-    authenticate(event: RequestEvent, stage: string): Promise<AuthenticatedUser<unknown> | Response>;
+    abstract authenticate(event: RequestEvent): Promise<AuthenticatedUser<unknown> | Response>;
 
     /**
      * Validate/refresh the user's authentication (when user cookie exists)
