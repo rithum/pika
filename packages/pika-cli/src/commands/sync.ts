@@ -198,6 +198,13 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
         // Show current sync status
         showCurrentSyncStatus(syncConfig);
 
+        // Explain sample directory handling
+        logger.info('Sample directory behavior:');
+        console.log('  • services/samples/weather and apps/samples/enterprise-site will be synced automatically');
+        console.log("  • Only if you haven't made any modifications to them");
+        console.log('  • Modified samples will be preserved during sync');
+        logger.newLine();
+
         // Store original working directory
         const originalCwd = process.cwd();
 
@@ -400,11 +407,9 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
 
         // Skip optional sample directories if user removed them
         if (isDirectory && isOptionalSampleDirectory(relativeFilePath)) {
-            const targetExists = await fileManager.exists(targetFilePath);
-            if (!targetExists) {
-                console.log(`  ⏭️  Skipping ${relativeFilePath} (user removed)`);
-                console.log(`     To restore: mkdir -p ${relativeFilePath} && pika sync`);
-                continue; // User deleted it, don't restore
+            const shouldSkip = await handleSampleDirectorySync(relativeFilePath, sourceFilePath, targetFilePath, changes);
+            if (shouldSkip) {
+                continue;
             }
         }
 
@@ -454,7 +459,15 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
 
         // Skip optional sample directories - users can remove these
         if (isOptionalSampleDirectory(relativeFilePath)) {
-            continue;
+            // Check if user has modified the sample directory before allowing deletion
+            if (await fileManager.exists(sourceFilePath)) {
+                const hasUserModifications = await hasUserModifiedSampleDirectory(sourceFilePath, targetFilePath);
+                if (hasUserModifications) {
+                    console.log(`  ⏭️  Skipping deletion of ${relativeFilePath} (user has modifications)`);
+                    continue; // Don't delete if user modified it
+                }
+            }
+            continue; // Allow deletion if no user modifications
         }
 
         // Check if this is a directory
@@ -550,6 +563,7 @@ async function fileHasChanged(sourcePath: string, targetPath: string): Promise<b
 
         const sourceContent = await fileManager.readFile(sourcePath);
         const targetContent = await fileManager.readFile(targetPath);
+
         return sourceContent !== targetContent;
     } catch (error) {
         // Error reading files, assume changed
@@ -645,6 +659,12 @@ function showSyncSuccessMessage(): void {
     console.log('  • Update project names in pika-config.ts if needed (protected from sync)');
     console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
     console.log('  • Update service stack as needed: services/pika/bin/pika.ts');
+    logger.newLine();
+    logger.info('Sample directory handling:');
+    console.log('  • Sample directories (services/samples/weather, apps/samples/enterprise-site) are automatically synced');
+    console.log("  • Only if you haven't made any modifications to them");
+    console.log("  • If you've modified a sample, it will be skipped during sync to preserve your changes");
+    console.log("  • If you've removed a sample directory, it won't be restored");
 }
 
 async function showDiff(change: SyncChange): Promise<void> {
@@ -764,4 +784,139 @@ function getMergedProtectedAreas(syncConfig: SyncConfig): string[] {
     mergedAreas = mergedAreas.filter((area) => !userUnprotectedAreas.includes(area));
 
     return mergedAreas;
+}
+
+/**
+ * Checks if a user has modified a sample directory by comparing it with the framework version.
+ * This function recursively compares all files and directories to detect any user modifications.
+ *
+ * @param sourcePath - Path to the sample directory in the framework
+ * @param targetPath - Path to the sample directory in the user's project
+ * @returns true if the user has made any modifications, false otherwise
+ */
+async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: string): Promise<boolean> {
+    // Check if any files in the target directory differ from the source
+    const { readdir } = await import('fs/promises');
+
+    // Files and directories to ignore when comparing sample directories
+    const ignorePatterns = [
+        'node_modules',
+        '.svelte-kit',
+        '.turbo',
+        'dist',
+        'build',
+        '.next',
+        '.nuxt',
+        '.output',
+        'coverage',
+        '.nyc_output',
+        '.cache',
+        '.pnpm-store',
+        '.npm',
+        '*.log',
+        'logs',
+        '.DS_Store',
+        'Thumbs.db',
+        '.vscode',
+        '.idea',
+        '*.swp',
+        '*.swo',
+        '*.tmp',
+        '*.temp'
+    ];
+
+    function shouldIgnoreFile(fileName: string): boolean {
+        return ignorePatterns.some((pattern) => {
+            if (pattern.includes('*')) {
+                // Handle wildcard patterns
+                const regex = new RegExp(pattern.replace('*', '.*'));
+                return regex.test(fileName);
+            }
+            return fileName === pattern;
+        });
+    }
+
+    async function compareDirectoryRecursively(sourceDir: string, targetDir: string): Promise<boolean> {
+        if (!(await fileManager.exists(targetDir))) {
+            return false; // Directory doesn't exist, so no user modifications
+        }
+
+        const sourceFiles = await readdir(sourceDir, { withFileTypes: true });
+        const targetFiles = await readdir(targetDir, { withFileTypes: true });
+
+        // Filter out ignored files
+        const filteredSourceFiles = sourceFiles.filter((f) => !shouldIgnoreFile(f.name));
+        const filteredTargetFiles = targetFiles.filter((f) => !shouldIgnoreFile(f.name));
+
+        // Check if any files exist in target that don't exist in source (user additions)
+        for (const targetFile of filteredTargetFiles) {
+            const sourceFile = filteredSourceFiles.find((f) => f.name === targetFile.name);
+            if (!sourceFile) {
+                return true; // User added a file
+            }
+        }
+
+        // Check each file for modifications
+        for (const sourceFile of filteredSourceFiles) {
+            const targetFile = filteredTargetFiles.find((f) => f.name === sourceFile.name);
+            const sourceFilePath = path.join(sourceDir, sourceFile.name);
+            const targetFilePath = path.join(targetDir, sourceFile.name);
+
+            if (!targetFile) {
+                return true; // User removed a file
+            }
+
+            if (sourceFile.isDirectory() && targetFile.isDirectory()) {
+                // Recursively check subdirectories
+                const hasModifications = await compareDirectoryRecursively(sourceFilePath, targetFilePath);
+                if (hasModifications) {
+                    return true;
+                }
+            } else if (!sourceFile.isDirectory() && !targetFile.isDirectory()) {
+                // Compare file content
+                const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
+                if (hasChanged) {
+                    return true; // User modified the file
+                }
+            } else {
+                // One is file, one is directory - user modified structure
+                return true;
+            }
+        }
+
+        return false; // No modifications found
+    }
+
+    return await compareDirectoryRecursively(sourcePath, targetPath);
+}
+
+/**
+ * Handles the sync decision for optional sample directories.
+ * Determines whether to skip syncing based on user modifications or directory existence.
+ *
+ * @param relativeFilePath - Relative path of the sample directory
+ * @param sourceFilePath - Full path to the sample directory in the framework
+ * @param targetFilePath - Full path to the sample directory in the user's project
+ * @param changes - Array of sync changes (not used in this function but required for consistency)
+ * @returns true if the directory should be skipped, false if it should be synced
+ */
+async function handleSampleDirectorySync(relativeFilePath: string, sourceFilePath: string, targetFilePath: string, changes: SyncChange[]): Promise<boolean> {
+    const targetExists = await fileManager.exists(targetFilePath);
+
+    if (!targetExists) {
+        console.log(`  ⏭️  Skipping ${relativeFilePath} (user removed)`);
+        console.log(`     To restore: mkdir -p ${relativeFilePath} && pika sync`);
+        return true; // Skip this directory
+    }
+
+    // Check if user has modified the sample directory
+    const hasUserModifications = await hasUserModifiedSampleDirectory(sourceFilePath, targetFilePath);
+    if (hasUserModifications) {
+        console.log(`  ⏭️  Skipping ${relativeFilePath} (user has modifications)`);
+        return true; // Skip this directory
+    }
+
+    // User hasn't modified it, so we can sync updates
+    console.log(`  🔄 Syncing ${relativeFilePath} (no user modifications detected)`);
+    return false; // Don't skip, allow normal sync
 }

@@ -1,7 +1,6 @@
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { addSecurityHeaders, clearAuthenticatedUserCookies, deserializeAuthenticatedUserFromCookies, serializeAuthenticatedUserToCookies } from '$lib/server/utils';
-import { AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME } from '$lib/shared-types';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';

@@ -1,7 +1,6 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
-import path from 'path';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 
 export function getErrorResponse(status: number, error: string): Response {
