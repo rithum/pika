@@ -306,64 +306,6 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     return;
                 }
 
-                // Separate user modifications from remote changes
-                const { userModifications, remoteChanges } = separateUserModificationsFromRemoteChanges(changes);
-
-                // Handle user modifications first
-                if (userModifications.length > 0) {
-                    const fileWord = userModifications.length === 1 ? 'file' : 'files';
-                    logger.info(`📋 Found ${userModifications.length} ${fileWord} you have modified that are not in protected areas:`);
-                    userModifications.forEach((change) => {
-                        console.log(`  ${getChangeIcon(change.type)} ${change.path} (your modification)`);
-                    });
-                    logger.newLine();
-
-                    const userChoices = await handleUserModifications(userModifications);
-
-                    // Handle files to protect
-                    const filesToProtect = userChoices.filter((choice) => choice.action === 'protect').map((choice) => choice.path);
-
-                    if (filesToProtect.length > 0) {
-                        await updateSyncConfigWithProtectedFiles(projectRoot, filesToProtect);
-                    }
-
-                    // Filter out skipped files and protected files from changes to apply
-                    const filesToSkip = userChoices.filter((choice) => choice.action === 'skip').map((choice) => choice.path);
-
-                    const filesToProtectSet = new Set(filesToProtect);
-                    const filesToSkipSet = new Set(filesToSkip);
-
-                    // Remove user modifications that are being skipped or protected
-                    const filteredChanges = changes.filter((change) => {
-                        if (change.isUserModification) {
-                            return !filesToSkipSet.has(change.path) && !filesToProtectSet.has(change.path);
-                        }
-                        return true;
-                    });
-
-                    // Update changes array with filtered results
-                    changes.length = 0;
-                    changes.push(...filteredChanges);
-
-                    logger.debug(`[DEBUG] After user modification handling: ${changes.length} changes remaining`);
-                }
-
-                // Show remaining changes (remote changes + user modifications to overwrite)
-                if (changes.length > 0) {
-                    const fileWord = changes.length === 1 ? 'file' : 'files';
-                    logger.info(`📋 Found ${changes.length} ${fileWord} to update from the framework:`);
-                    changes.forEach((change) => {
-                        const icon = getChangeIcon(change.type);
-                        const suffix = change.isUserModification ? ' (overwriting your modification)' : '';
-                        console.log(`  ${icon} ${change.path}${suffix}`);
-                    });
-                    logger.newLine();
-                } else {
-                    logger.success('✅ No framework updates to apply!');
-                    await cleanupTempDir(tempDir);
-                    return;
-                }
-
                 // If --diff flag is set, show diffs and exit
                 if (options.diff) {
                     logger.info('🔍 Showing diffs for changed files (no changes will be applied):');
@@ -389,6 +331,21 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                         }
                         logger.info('All diffs opened in your editor.');
                     }
+                    await cleanupTempDir(tempDir);
+                    return;
+                }
+
+                // Show remaining changes
+                if (changes.length > 0) {
+                    const fileWord = changes.length === 1 ? 'file' : 'files';
+                    logger.info(`📋 Found ${changes.length} ${fileWord} to update from the framework:`);
+                    changes.forEach((change) => {
+                        const icon = getChangeIcon(change.type);
+                        console.log(`  ${icon} ${change.path}`);
+                    });
+                    logger.newLine();
+                } else {
+                    logger.success('✅ No framework updates to apply!');
                     await cleanupTempDir(tempDir);
                     return;
                 }
@@ -473,10 +430,6 @@ async function identifyChanges(sourcePath: string, targetPath: string, protected
     logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
     logger.debug(`[DEBUG] identifyChanges: protected areas count=${protectedAreas.length}`);
 
-    // First, detect user modifications in unprotected files
-    const userModifications = await detectUserModifications(sourcePath, targetPath, protectedAreas);
-    changes.push(...userModifications);
-
     // Compare framework files recursively (source -> target)
     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
 
@@ -486,6 +439,26 @@ async function identifyChanges(sourcePath: string, targetPath: string, protected
     logger.debug(`[DEBUG] identifyChanges: found ${changes.length} total changes`);
     return changes;
 }
+
+// async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
+//     const changes: SyncChange[] = [];
+
+//     logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
+//     logger.debug(`[DEBUG] identifyChanges: protected areas count=${protectedAreas.length}`);
+
+//     // First, detect user modifications in unprotected files
+//     const userModifications = await detectUserModifications(sourcePath, targetPath, protectedAreas);
+//     changes.push(...userModifications);
+
+//     // Compare framework files recursively (source -> target)
+//     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
+
+//     // Check for files that exist in target but not in source (deleted files)
+//     await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes);
+
+//     logger.debug(`[DEBUG] identifyChanges: found ${changes.length} total changes`);
+//     return changes;
+// }
 
 async function compareDirectories(sourcePath: string, targetPath: string, relativePath: string, protectedAreas: string[], changes: SyncChange[]): Promise<void> {
     const sourceFullPath = path.join(sourcePath, relativePath);
@@ -545,13 +518,20 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
             if (hasChanged) {
                 const exists = await fileManager.exists(targetFilePath);
                 const changeType = exists ? 'modified' : 'added';
-                logger.debug(`[DEBUG] Adding change: ${changeType} - ${relativeFilePath}`);
-                changes.push({
-                    type: changeType,
-                    path: relativeFilePath,
-                    sourcePath: sourceFilePath,
-                    targetPath: targetFilePath
-                });
+
+                // Check if this file was already detected as a user modification
+                const alreadyDetected = changes.some((change) => change.path === relativeFilePath);
+                if (!alreadyDetected) {
+                    logger.debug(`[DEBUG] Adding change: ${changeType} - ${relativeFilePath}`);
+                    changes.push({
+                        type: changeType,
+                        path: relativeFilePath,
+                        sourcePath: sourceFilePath,
+                        targetPath: targetFilePath
+                    });
+                } else {
+                    logger.debug(`[DEBUG] Skipping already detected file: ${relativeFilePath}`);
+                }
             }
         }
     }
@@ -711,16 +691,33 @@ async function fileHasChanged(sourcePath: string, targetPath: string): Promise<b
         const sourceContent = await fileManager.readFile(sourcePath);
         const targetContent = await fileManager.readFile(targetPath);
 
-        const hasChanged = sourceContent !== targetContent;
-        logger.debug(
-            `[DEBUG] fileHasChanged: ${path.basename(sourcePath)} - changed: ${hasChanged} (source: ${sourceContent.length} chars, target: ${targetContent.length} chars)`
-        );
-
-        if (hasChanged) {
-            logger.debug(`[DEBUG] fileHasChanged: Content differs for ${path.basename(sourcePath)}`);
+        if (sourceContent === targetContent) {
+            return false;
         }
 
-        return hasChanged;
+        logger.debug(`[DEBUG] fileHasChanged: Content differs for ${path.basename(sourcePath)}`);
+        logger.debug(`[DEBUG] fileHasChanged: Source length: ${sourceContent.length}, Target length: ${targetContent.length}`);
+
+        const sourceNormalized = sourceContent.replace(/\r\n/g, '\n').trim();
+        const targetNormalized = targetContent.replace(/\r\n/g, '\n').trim();
+
+        if (sourceNormalized === targetNormalized) {
+            logger.debug(`[DEBUG] fileHasChanged: Files are identical after normalizing line endings and trimming whitespace.`);
+        } else {
+            logger.debug(`[DEBUG] fileHasChanged: Files still differ after normalization.`);
+        }
+
+        if (process.env.PIKA_DEBUG === 'true') {
+            try {
+                const diff = await import('diff');
+                const patch = diff.createPatch(path.basename(sourcePath), targetContent, sourceContent);
+                logger.debug(`[DEBUG] fileHasChanged: Diff for ${path.basename(sourcePath)}:\n${patch}`);
+            } catch (e) {
+                logger.debug(`[DEBUG] fileHasChanged: Could not generate diff for ${path.basename(sourcePath)}`);
+            }
+        }
+
+        return true;
     } catch (error) {
         logger.debug(`[DEBUG] fileHasChanged: Error comparing files: ${error}`);
         // Error reading files, assume changed
@@ -1131,211 +1128,6 @@ async function handleSampleDirectorySync(relativeFilePath: string, sourceFilePat
     // User hasn't modified it, so we can sync updates
     logger.debug(`Sample directory ${relativeFilePath} has no user modifications - syncing updates`);
     return false; // Don't skip, allow normal sync
-}
-
-/**
- * Detects files that have been modified by the user but are not in protected areas.
- * These are files that exist in both source and target but have different content.
- */
-async function detectUserModifications(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
-    const userModifications: SyncChange[] = [];
-
-    logger.debug(`[DEBUG] detectUserModifications: scanning for user modifications`);
-
-    async function scanForUserModifications(dir: string, relativePath: string = '') {
-        const sourceFullPath = path.join(sourcePath, relativePath);
-        const targetFullPath = path.join(targetPath, relativePath);
-
-        if (!(await fileManager.exists(sourceFullPath)) || !(await fileManager.exists(targetFullPath))) {
-            return;
-        }
-
-        const { readdir } = await import('fs/promises');
-        const sourceFiles = await readdir(sourceFullPath, { withFileTypes: true });
-
-        for (const file of sourceFiles) {
-            const fileName = file.name;
-            const relativeFilePath = path.join(relativePath, fileName).replace(/\\/g, '/');
-            const sourceFilePath = path.join(sourcePath, relativeFilePath);
-            const targetFilePath = path.join(targetPath, relativeFilePath);
-
-            // Skip protected areas
-            if (isProtectedArea(relativeFilePath, protectedAreas)) {
-                continue;
-            }
-
-            // Skip directories we don't want to sync
-            if (shouldSkipDirectory(relativeFilePath)) {
-                continue;
-            }
-
-            // Skip optional sample directories
-            if (isOptionalSampleDirectory(relativeFilePath)) {
-                continue;
-            }
-
-            if (file.isDirectory()) {
-                await scanForUserModifications(sourceFilePath, relativeFilePath);
-            } else {
-                // Check if file exists in target and has different content
-                if (await fileManager.exists(targetFilePath)) {
-                    const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
-                    if (hasChanged) {
-                        logger.debug(`[DEBUG] User modification detected: ${relativeFilePath}`);
-                        userModifications.push({
-                            type: 'modified',
-                            path: relativeFilePath,
-                            sourcePath: sourceFilePath,
-                            targetPath: targetFilePath,
-                            isUserModification: true
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    await scanForUserModifications(sourcePath);
-    logger.debug(`[DEBUG] detectUserModifications: found ${userModifications.length} user modifications`);
-    return userModifications;
-}
-
-/**
- * Handles user modifications by asking the user what to do with each modified file.
- */
-async function handleUserModifications(userModifications: SyncChange[]): Promise<UserModification[]> {
-    if (userModifications.length === 0) {
-        return [];
-    }
-
-    logger.warn('⚠️  WARNING: Found files that you have modified that are not in protected areas:');
-    logger.warn('\n    These files will be overwritten during sync unless you choose to protect them.');
-    logger.warn('    You can:');
-    logger.warn('    • Overwrite: Allow the file to be updated with the latest framework version');
-    logger.warn('    • Protect: Add the file to userProtectedAreas in .pika-sync.json');
-    logger.warn('    • Show diff (on console): Show the differences between your version and framework version');
-    logger.warn('    • Show visual (in Cursor or VS Code): Open diff in your IDE');
-    logger.warn('    • Skip: Skip this file during this sync (it will be overwritten in future syncs)');
-    logger.warn('    • Cancel: Cancel this sync operation');
-    logger.newLine();
-
-    const userChoices: UserModification[] = [];
-
-    for (const modification of userModifications) {
-        let action: string;
-
-        while (true) {
-            const response = await inquirer.prompt([
-                {
-                    type: 'list',
-                    name: 'action',
-                    message: `What would you like to do with "${modification.path}"?`,
-                    choices: [
-                        { name: 'Overwrite (use framework version)', value: 'overwrite' },
-                        { name: 'Protect (add to .pika-sync.json#userProtectedAreas)', value: 'protect' },
-                        { name: 'Show diff (on console)', value: 'showDiff' },
-                        { name: 'Show visual diff (in Cursor or VS Code)', value: 'showVisualDiff' },
-                        { name: 'Skip (skip this file for now)', value: 'skip' },
-                        { name: 'Cancel (cancel this sync operation)', value: 'cancel' }
-                    ],
-                    default: 'overwrite'
-                }
-            ]);
-
-            action = response.action;
-
-            if (action === 'cancel') {
-                logger.info('Sync cancelled by user.');
-                process.exit(0);
-            }
-
-            if (action === 'showDiff') {
-                // Show diff and ask again
-                await showDiff(modification);
-                logger.newLine();
-                continue;
-            }
-
-            if (action === 'showVisualDiff') {
-                // Show visual diff and ask again
-                const editor = await detectEditor();
-                if (!editor) {
-                    logger.warn('No supported editor (Cursor or VS Code) found in PATH. Falling back to terminal diff.');
-                    await showDiff(modification);
-                } else {
-                    await openVisualDiff(modification, editor);
-                }
-                logger.newLine();
-                continue;
-            }
-
-            // For other actions, break out of the loop
-            break;
-        }
-
-        userChoices.push({
-            path: modification.path,
-            action: action as 'overwrite' | 'protect' | 'skip' | 'cancel'
-        });
-    }
-
-    return userChoices;
-}
-
-/**
- * Updates .pika-sync.json to add files to userProtectedAreas.
- */
-async function updateSyncConfigWithProtectedFiles(projectRoot: string, filesToProtect: string[]): Promise<void> {
-    if (filesToProtect.length === 0) {
-        return;
-    }
-
-    const syncConfigPath = path.join(projectRoot, '.pika-sync.json');
-
-    if (!(await fileManager.exists(syncConfigPath))) {
-        throw new Error('.pika-sync.json not found in project root');
-    }
-
-    try {
-        const syncConfigContent = await fileManager.readFile(syncConfigPath);
-        const syncConfig = JSON.parse(syncConfigContent);
-
-        // Get current user protected areas
-        const currentUserProtectedAreas = syncConfig.userProtectedAreas || [];
-
-        // Add new files to protect (avoid duplicates)
-        const newUserProtectedAreas = [...new Set([...currentUserProtectedAreas, ...filesToProtect])];
-
-        // Update the config
-        syncConfig.userProtectedAreas = newUserProtectedAreas;
-
-        await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
-        const fileWord = filesToProtect.length === 1 ? 'file' : 'files';
-        logger.success(`✅ Updated .pika-sync.json with ${filesToProtect.length} new protected ${fileWord}`);
-    } catch (error) {
-        throw new Error(`Failed to update .pika-sync.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-}
-
-/**
- * Separates user modifications from actual remote changes.
- */
-function separateUserModificationsFromRemoteChanges(changes: SyncChange[]): {
-    userModifications: SyncChange[];
-    remoteChanges: SyncChange[];
-} {
-    const userModifications: SyncChange[] = [];
-    const remoteChanges: SyncChange[] = [];
-
-    for (const change of changes) {
-        if (change.isUserModification) {
-            userModifications.push(change);
-        } else {
-            remoteChanges.push(change);
-        }
-    }
-
-    return { userModifications, remoteChanges };
 }
 
 /**
