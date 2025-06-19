@@ -1,11 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PartialPikaChatConstructProps, PikaChatConstruct, PikaChatConstructProps } from './pika-chat-construct.js';
 import { CustomStackDefs } from './custom-stack-defs.js';
+import { PartialPikaChatConstructProps, PikaChatConstruct, PikaChatConstructProps } from './pika-chat-construct.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -14,7 +12,6 @@ const __dirname = path.dirname(__filename);
 
 export interface PikaChatStackProps extends cdk.StackProps {
     stage: string;
-    vpcId: string;
     projNameL: string; // All lowercase e.g. pikachat
     projNameTitleCase: string; // Title case e.g. PikaChat
     projNameCamel: string; // Camel case e.g. pikaChat
