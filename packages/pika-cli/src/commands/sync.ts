@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { ExecOptions } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import fsExtra from 'fs-extra';
 
@@ -20,8 +20,9 @@ interface SyncOptions {
     branch?: string;
     dryRun?: boolean;
     diff?: boolean;
-    editorDiff?: boolean;
+    visualDiff?: boolean;
     debug?: boolean;
+    help?: boolean;
 }
 
 interface SyncChange {
@@ -29,6 +30,7 @@ interface SyncChange {
     path: string;
     sourcePath: string;
     targetPath: string;
+    isUserModification?: boolean; // New field to distinguish user modifications from remote changes
 }
 
 interface SyncConfig {
@@ -40,6 +42,38 @@ interface SyncConfig {
     userUnprotectedAreas?: string[];
     initialConfiguration?: any;
     pikaBranch?: string;
+}
+
+/*
+// This is defined in @pika/shared/src/types/pika-types.ts
+interface PikaConfig {
+    pika: {
+        projNameL: string;
+        projNameKebabCase: string;
+        projNameTitleCase: string;
+        projNameCamel: string;
+        projNameHuman: string;
+    };
+    pikaChat: {
+        projNameL: string;
+        projNameKebabCase: string;
+        projNameTitleCase: string;
+        projNameCamel: string;
+        projNameHuman: string;
+    };
+    weather?: {
+        projNameL: string;
+        projNameKebabCase: string;
+        projNameTitleCase: string;
+        projNameCamel: string;
+        projNameHuman: string;
+    };
+}
+*/
+
+interface UserModification {
+    path: string;
+    action: 'overwrite' | 'protect' | 'skip' | 'cancel';
 }
 
 async function findPikaProjectRoot(startDir: string): Promise<string | null> {
@@ -169,6 +203,12 @@ async function getFrameworkFiles(projectRoot: string): Promise<Set<string>> {
 
 export async function syncCommand(options: SyncOptions = {}): Promise<void> {
     try {
+        // Show help if requested
+        if (options.help) {
+            showSyncHelp();
+            return;
+        }
+
         // Enable debug logging if requested
         if (options.debug) {
             process.env.PIKA_DEBUG = 'true';
@@ -209,8 +249,9 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
         // Explain sample directory handling
         logger.info('Sample directory behavior:');
         console.log('  • services/samples/weather and apps/samples/enterprise-site will be synced automatically');
-        console.log("  • Only if you haven't made any modifications to them");
-        console.log('  • Modified samples will be preserved during sync');
+        console.log("  • ...only if you haven't made any modifications to them");
+        console.log('  • Changes made to sample apps/services will be preserved during sync');
+        console.log('  • Deleted sample apps/services will not be restored (you can delete sample apps/services)');
         logger.newLine();
 
         // Store original working directory
@@ -265,12 +306,63 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     return;
                 }
 
-                // Show changes
-                logger.info(`📋 Found ${changes.length} files to update:`);
-                changes.forEach((change) => {
-                    console.log(`  ${getChangeIcon(change.type)} ${change.path}`);
-                });
-                logger.newLine();
+                // Separate user modifications from remote changes
+                const { userModifications, remoteChanges } = separateUserModificationsFromRemoteChanges(changes);
+
+                // Handle user modifications first
+                if (userModifications.length > 0) {
+                    const fileWord = userModifications.length === 1 ? 'file' : 'files';
+                    logger.info(`📋 Found ${userModifications.length} ${fileWord} you have modified that are not in protected areas:`);
+                    userModifications.forEach((change) => {
+                        console.log(`  ${getChangeIcon(change.type)} ${change.path} (your modification)`);
+                    });
+                    logger.newLine();
+
+                    const userChoices = await handleUserModifications(userModifications);
+
+                    // Handle files to protect
+                    const filesToProtect = userChoices.filter((choice) => choice.action === 'protect').map((choice) => choice.path);
+
+                    if (filesToProtect.length > 0) {
+                        await updateSyncConfigWithProtectedFiles(projectRoot, filesToProtect);
+                    }
+
+                    // Filter out skipped files and protected files from changes to apply
+                    const filesToSkip = userChoices.filter((choice) => choice.action === 'skip').map((choice) => choice.path);
+
+                    const filesToProtectSet = new Set(filesToProtect);
+                    const filesToSkipSet = new Set(filesToSkip);
+
+                    // Remove user modifications that are being skipped or protected
+                    const filteredChanges = changes.filter((change) => {
+                        if (change.isUserModification) {
+                            return !filesToSkipSet.has(change.path) && !filesToProtectSet.has(change.path);
+                        }
+                        return true;
+                    });
+
+                    // Update changes array with filtered results
+                    changes.length = 0;
+                    changes.push(...filteredChanges);
+
+                    logger.debug(`[DEBUG] After user modification handling: ${changes.length} changes remaining`);
+                }
+
+                // Show remaining changes (remote changes + user modifications to overwrite)
+                if (changes.length > 0) {
+                    const fileWord = changes.length === 1 ? 'file' : 'files';
+                    logger.info(`📋 Found ${changes.length} ${fileWord} to update from the framework:`);
+                    changes.forEach((change) => {
+                        const icon = getChangeIcon(change.type);
+                        const suffix = change.isUserModification ? ' (overwriting your modification)' : '';
+                        console.log(`  ${icon} ${change.path}${suffix}`);
+                    });
+                    logger.newLine();
+                } else {
+                    logger.success('✅ No framework updates to apply!');
+                    await cleanupTempDir(tempDir);
+                    return;
+                }
 
                 // If --diff flag is set, show diffs and exit
                 if (options.diff) {
@@ -282,8 +374,8 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     return;
                 }
 
-                // If --editor-diff flag is set, open diffs in editor and exit
-                if (options.editorDiff) {
+                // If --visual-diff flag is set, open diffs in editor and exit
+                if (options.visualDiff) {
                     logger.info('🔍 Opening diffs in your editor (Cursor or VS Code)...');
                     const editor = await detectEditor();
                     if (!editor) {
@@ -293,7 +385,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                         }
                     } else {
                         for (const change of changes) {
-                            await openEditorDiff(change, editor);
+                            await openVisualDiff(change, editor);
                         }
                         logger.info('All diffs opened in your editor.');
                     }
@@ -312,7 +404,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     {
                         type: 'confirm',
                         name: 'proceed',
-                        message: `Apply these changes from branch ${targetBranch}?`,
+                        message: `Apply ${changes.length} framework changes from branch ${targetBranch}?`,
                         default: true
                     }
                 ]);
@@ -381,6 +473,10 @@ async function identifyChanges(sourcePath: string, targetPath: string, protected
     logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
     logger.debug(`[DEBUG] identifyChanges: protected areas count=${protectedAreas.length}`);
 
+    // First, detect user modifications in unprotected files
+    const userModifications = await detectUserModifications(sourcePath, targetPath, protectedAreas);
+    changes.push(...userModifications);
+
     // Compare framework files recursively (source -> target)
     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
 
@@ -433,6 +529,8 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
             if (shouldSkip) {
                 logger.debug(`[DEBUG] Skipping sample directory: ${relativeFilePath}`);
                 continue;
+            } else {
+                logger.debug(`[DEBUG] Syncing sample directory: ${relativeFilePath}`);
             }
         }
 
@@ -485,17 +583,9 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
             continue;
         }
 
-        // Skip optional sample directories - users can remove these
+        // Skip optional sample directories - users can remove these, but we don't delete them
         if (isOptionalSampleDirectory(relativeFilePath)) {
-            // Check if user has modified the sample directory before allowing deletion
-            if (await fileManager.exists(sourceFilePath)) {
-                const hasUserModifications = await hasUserModifiedSampleDirectory(sourceFilePath, targetFilePath);
-                if (hasUserModifications) {
-                    console.log(`  ⏭️  Skipping deletion of ${relativeFilePath} (user has modifications)`);
-                    continue; // Don't delete if user modified it
-                }
-            }
-            continue; // Allow deletion if no user modifications
+            continue; // Skip sample directories in deletion check
         }
 
         // Check if this is a directory
@@ -556,9 +646,10 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
             return filePath === area;
         });
         logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches protected area: ${matchingArea}`);
+        return true;
     }
 
-    return isProtected;
+    return false;
 }
 
 function shouldSkipDirectory(dirPath: string): boolean {
@@ -708,10 +799,7 @@ function getDefaultProtectedAreas(): string[] {
         '.pika-sync.json',
         '.gitignore', // Always protect .gitignore
         'package.json', // Always protect package.json
-        'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
-        // Infrastructure stack files - users should customize these
-        'apps/pika-chat/infra/bin/pika-chat.ts',
-        'services/pika/bin/pika.ts'
+        'pnpm-lock.yaml' // Always protect pnpm-lock.yaml
     ];
 }
 
@@ -723,8 +811,8 @@ function showSyncSuccessMessage(): void {
     console.log('  • Check custom authentication configuration');
     console.log('  • Review any new framework features');
     console.log('  • Update project names in pika-config.ts if needed (protected from sync)');
-    console.log('  • Update chat app stack as needed: apps/pika-chat/infra/bin/pika-chat.ts');
-    console.log('  • Update service stack as needed: services/pika/bin/pika.ts');
+    console.log('  • Update chat app stack as needed: apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts');
+    console.log('  • Update service stack as needed: services/pika/lib/stacks/custom-stack-defs.ts');
     logger.newLine();
     logger.info('Protection features:');
     console.log('  • Any directory or file path containing a segment starting with "custom-" is automatically protected');
@@ -736,6 +824,7 @@ function showSyncSuccessMessage(): void {
     console.log("  • Only if you haven't made any modifications to them");
     console.log("  • If you've modified a sample, it will be skipped during sync to preserve your changes");
     console.log("  • If you've removed a sample directory, it won't be restored");
+    console.log("  • This allows you to remove samples you don't want and keep modifications to samples you're learning from");
 }
 
 async function showDiff(change: SyncChange): Promise<void> {
@@ -803,7 +892,7 @@ async function detectEditor(): Promise<'cursor' | 'code' | null> {
     return null;
 }
 
-async function openEditorDiff(change: SyncChange, editor: 'cursor' | 'code'): Promise<void> {
+async function openVisualDiff(change: SyncChange, editor: 'cursor' | 'code'): Promise<void> {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
@@ -838,6 +927,13 @@ function showCurrentSyncStatus(syncConfig: SyncConfig): void {
     } else {
         console.log(`  • User unprotected areas: None configured`);
     }
+
+    logger.newLine();
+    logger.info('Configuration:');
+    console.log('  • Edit .pika-sync.json to customize protection behavior');
+    console.log('  • Add files to userProtectedAreas to protect them from framework updates');
+    console.log('  • Add files to userUnprotectedAreas to allow framework updates to overwrite them');
+    console.log('  • Files with "custom-" in their path are automatically protected');
     logger.newLine();
 }
 
@@ -894,7 +990,23 @@ async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: st
         '*.swp',
         '*.swo',
         '*.tmp',
-        '*.temp'
+        '*.temp',
+        'package-lock.json',
+        'pnpm-lock.yaml',
+        'yarn.lock',
+        '.env',
+        '.env.local',
+        '.env.*.local',
+        'tsconfig.tsbuildinfo',
+        '.eslintcache',
+        '.prettierignore',
+        '.gitignore',
+        'README.md',
+        'CHANGELOG.md',
+        'LICENSE',
+        '*.min.js',
+        '*.min.css',
+        '*.map'
     ];
 
     function shouldIgnoreFile(fileName: string): boolean {
@@ -910,6 +1022,7 @@ async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: st
 
     async function compareDirectoryRecursively(sourceDir: string, targetDir: string): Promise<boolean> {
         if (!(await fileManager.exists(targetDir))) {
+            logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: Target directory doesn't exist: ${targetDir}`);
             return false; // Directory doesn't exist, so no user modifications
         }
 
@@ -920,10 +1033,15 @@ async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: st
         const filteredSourceFiles = sourceFiles.filter((f) => !shouldIgnoreFile(f.name));
         const filteredTargetFiles = targetFiles.filter((f) => !shouldIgnoreFile(f.name));
 
+        logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: Comparing ${sourceDir} vs ${targetDir}`);
+        logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: Source files: ${filteredSourceFiles.map((f) => f.name).join(', ')}`);
+        logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: Target files: ${filteredTargetFiles.map((f) => f.name).join(', ')}`);
+
         // Check if any files exist in target that don't exist in source (user additions)
         for (const targetFile of filteredTargetFiles) {
             const sourceFile = filteredSourceFiles.find((f) => f.name === targetFile.name);
             if (!sourceFile) {
+                logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: User added file: ${targetFile.name}`);
                 return true; // User added a file
             }
         }
@@ -935,6 +1053,7 @@ async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: st
             const targetFilePath = path.join(targetDir, sourceFile.name);
 
             if (!targetFile) {
+                logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: User removed file: ${sourceFile.name}`);
                 return true; // User removed a file
             }
 
@@ -948,14 +1067,17 @@ async function hasUserModifiedSampleDirectory(sourcePath: string, targetPath: st
                 // Compare file content
                 const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
                 if (hasChanged) {
+                    logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: User modified file: ${sourceFile.name}`);
                     return true; // User modified the file
                 }
             } else {
                 // One is file, one is directory - user modified structure
+                logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: Structure changed for: ${sourceFile.name}`);
                 return true;
             }
         }
 
+        logger.debug(`[DEBUG] hasUserModifiedSampleDirectory: No modifications found in ${sourceDir}`);
         return false; // No modifications found
     }
 
@@ -976,19 +1098,298 @@ async function handleSampleDirectorySync(relativeFilePath: string, sourceFilePat
     const targetExists = await fileManager.exists(targetFilePath);
 
     if (!targetExists) {
-        console.log(`  ⏭️  Skipping ${relativeFilePath} (user removed)`);
-        console.log(`     To restore: mkdir -p ${relativeFilePath} && pika sync`);
-        return true; // Skip this directory
+        logger.debug(`Sample directory ${relativeFilePath} was removed by user - allowing removal`);
+        return true; // Skip this directory - user removed it
     }
 
     // Check if user has modified the sample directory
     const hasUserModifications = await hasUserModifiedSampleDirectory(sourceFilePath, targetFilePath);
     if (hasUserModifications) {
-        console.log(`  ⏭️  Skipping ${relativeFilePath} (user has modifications)`);
-        return true; // Skip this directory
+        logger.debug(`Sample directory ${relativeFilePath} has user modifications - preserving changes`);
+        return true; // Skip this directory - preserve user modifications
     }
 
     // User hasn't modified it, so we can sync updates
-    console.log(`  🔄 Syncing ${relativeFilePath} (no user modifications detected)`);
+    logger.debug(`Sample directory ${relativeFilePath} has no user modifications - syncing updates`);
     return false; // Don't skip, allow normal sync
+}
+
+/**
+ * Detects files that have been modified by the user but are not in protected areas.
+ * These are files that exist in both source and target but have different content.
+ */
+async function detectUserModifications(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
+    const userModifications: SyncChange[] = [];
+
+    logger.debug(`[DEBUG] detectUserModifications: scanning for user modifications`);
+
+    async function scanForUserModifications(dir: string, relativePath: string = '') {
+        const sourceFullPath = path.join(sourcePath, relativePath);
+        const targetFullPath = path.join(targetPath, relativePath);
+
+        if (!(await fileManager.exists(sourceFullPath)) || !(await fileManager.exists(targetFullPath))) {
+            return;
+        }
+
+        const { readdir } = await import('fs/promises');
+        const sourceFiles = await readdir(sourceFullPath, { withFileTypes: true });
+
+        for (const file of sourceFiles) {
+            const fileName = file.name;
+            const relativeFilePath = path.join(relativePath, fileName).replace(/\\/g, '/');
+            const sourceFilePath = path.join(sourcePath, relativeFilePath);
+            const targetFilePath = path.join(targetPath, relativeFilePath);
+
+            // Skip protected areas
+            if (isProtectedArea(relativeFilePath, protectedAreas)) {
+                continue;
+            }
+
+            // Skip directories we don't want to sync
+            if (shouldSkipDirectory(relativeFilePath)) {
+                continue;
+            }
+
+            // Skip optional sample directories
+            if (isOptionalSampleDirectory(relativeFilePath)) {
+                continue;
+            }
+
+            if (file.isDirectory()) {
+                await scanForUserModifications(sourceFilePath, relativeFilePath);
+            } else {
+                // Check if file exists in target and has different content
+                if (await fileManager.exists(targetFilePath)) {
+                    const hasChanged = await fileHasChanged(sourceFilePath, targetFilePath);
+                    if (hasChanged) {
+                        logger.debug(`[DEBUG] User modification detected: ${relativeFilePath}`);
+                        userModifications.push({
+                            type: 'modified',
+                            path: relativeFilePath,
+                            sourcePath: sourceFilePath,
+                            targetPath: targetFilePath,
+                            isUserModification: true
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    await scanForUserModifications(sourcePath);
+    logger.debug(`[DEBUG] detectUserModifications: found ${userModifications.length} user modifications`);
+    return userModifications;
+}
+
+/**
+ * Handles user modifications by asking the user what to do with each modified file.
+ */
+async function handleUserModifications(userModifications: SyncChange[]): Promise<UserModification[]> {
+    if (userModifications.length === 0) {
+        return [];
+    }
+
+    logger.warn('⚠️  WARNING: Found files that you have modified that are not in protected areas:');
+    logger.warn('\n    These files will be overwritten during sync unless you choose to protect them.');
+    logger.warn('    You can:');
+    logger.warn('    • Overwrite: Allow the file to be updated with the latest framework version');
+    logger.warn('    • Protect: Add the file to userProtectedAreas in .pika-sync.json');
+    logger.warn('    • Skip: Skip this file during this sync (it will be overwritten in future syncs)');
+    logger.warn('    • Cancel: Cancel this sync operation');
+    logger.newLine();
+
+    const userChoices: UserModification[] = [];
+
+    for (const modification of userModifications) {
+        const { action } = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'action',
+                message: `What would you like to do with "${modification.path}"?`,
+                choices: [
+                    { name: 'Overwrite (use framework version)', value: 'overwrite' },
+                    { name: 'Protect (add to userProtectedAreas)', value: 'protect' },
+                    { name: 'Skip (skip this file for now)', value: 'skip' },
+                    { name: 'Cancel (cancel this sync operation)', value: 'cancel' }
+                ],
+                default: 'overwrite'
+            }
+        ]);
+
+        if (action === 'cancel') {
+            logger.info('Sync cancelled by user.');
+            process.exit(0);
+        }
+
+        userChoices.push({
+            path: modification.path,
+            action
+        });
+    }
+
+    return userChoices;
+}
+
+/**
+ * Updates .pika-sync.json to add files to userProtectedAreas.
+ */
+async function updateSyncConfigWithProtectedFiles(projectRoot: string, filesToProtect: string[]): Promise<void> {
+    if (filesToProtect.length === 0) {
+        return;
+    }
+
+    const syncConfigPath = path.join(projectRoot, '.pika-sync.json');
+
+    if (!(await fileManager.exists(syncConfigPath))) {
+        throw new Error('.pika-sync.json not found in project root');
+    }
+
+    try {
+        const syncConfigContent = await fileManager.readFile(syncConfigPath);
+        const syncConfig = JSON.parse(syncConfigContent);
+
+        // Get current user protected areas
+        const currentUserProtectedAreas = syncConfig.userProtectedAreas || [];
+
+        // Add new files to protect (avoid duplicates)
+        const newUserProtectedAreas = [...new Set([...currentUserProtectedAreas, ...filesToProtect])];
+
+        // Update the config
+        syncConfig.userProtectedAreas = newUserProtectedAreas;
+
+        await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
+        const fileWord = filesToProtect.length === 1 ? 'file' : 'files';
+        logger.success(`✅ Updated .pika-sync.json with ${filesToProtect.length} new protected ${fileWord}`);
+    } catch (error) {
+        throw new Error(`Failed to update .pika-sync.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+/**
+ * Separates user modifications from actual remote changes.
+ */
+function separateUserModificationsFromRemoteChanges(changes: SyncChange[]): {
+    userModifications: SyncChange[];
+    remoteChanges: SyncChange[];
+} {
+    const userModifications: SyncChange[] = [];
+    const remoteChanges: SyncChange[] = [];
+
+    for (const change of changes) {
+        if (change.isUserModification) {
+            userModifications.push(change);
+        } else {
+            remoteChanges.push(change);
+        }
+    }
+
+    return { userModifications, remoteChanges };
+}
+
+/**
+ * Shows comprehensive help information about the Pika sync system.
+ */
+function showSyncHelp(): void {
+    logger.header('🔄 Pika Framework - Sync System Help');
+
+    logger.info('Overview:');
+    console.log('  Your Pika project is a fork of the Pika framework that you can check into your own source control.');
+    console.log('  You can continue to receive updates from the Pika framework repository while preserving your customizations.');
+    console.log('  The sync system intelligently merges framework updates with your changes.');
+    logger.newLine();
+
+    logger.info('How It Works:');
+    console.log('  1. The sync command downloads the latest Pika framework from GitHub');
+    console.log('  2. It compares your project with the framework to identify changes');
+    console.log('  3. It applies framework updates while preserving your customizations');
+    console.log('  4. It handles conflicts by asking you how to resolve them');
+    logger.newLine();
+
+    logger.info('Protection System:');
+    console.log('  The sync system uses multiple layers of protection to preserve your work:');
+    console.log('  • Default protected areas: Core customization directories and config files');
+    console.log('  • Custom- protection: Any path segment starting with "custom-" is automatically protected');
+    console.log('  • User protected areas: Additional areas you specify in .pika-sync.json');
+    console.log('  • User unprotected areas: Areas you explicitly allow to sync in .pika-sync.json');
+    logger.newLine();
+
+    logger.info('Configuration via .pika-sync.json:');
+    console.log('  You can customize sync behavior by editing .pika-sync.json:');
+    console.log('  • userProtectedAreas: Add files/directories to protect from framework updates');
+    console.log('  • userUnprotectedAreas: Remove files/directories from default protection');
+    console.log('  • Example: Add "my-custom-file.ts" to userProtectedAreas to protect it');
+    console.log('  • Remember that any path segment starting with "custom-" is automatically protected');
+    logger.newLine();
+
+    logger.info('Default Protected Areas:');
+    console.log('  • apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/');
+    console.log('  • apps/pika-chat/src/lib/server/auth-provider/');
+    console.log('  • services/custom/');
+    console.log('  • apps/custom/');
+    console.log('  • .env, .env.local, .env.*');
+    console.log('  • pika-config.ts');
+    console.log('  • .pika-sync.json');
+    console.log('  • .gitignore, package.json, pnpm-lock.yaml');
+    logger.newLine();
+
+    logger.info('Sample Directory Handling:');
+    console.log('  • services/samples/weather and apps/samples/enterprise-site are sample applications');
+    console.log("  • They will be synced automatically if you haven't modified them");
+    console.log('  • If you modify a sample, your changes will be preserved during sync');
+    console.log("  • If you delete a sample, it won't be restored (you can remove samples you don't want)");
+    console.log('  • This allows you to learn from samples while keeping your modifications');
+    logger.newLine();
+
+    logger.info('User Modification Handling:');
+    console.log('  When you modify files outside protected areas, the sync command will:');
+    console.log('  • Detect your modifications and show you what files are affected');
+    console.log('  • Ask you what to do with each modified file:');
+    console.log('    - Overwrite: Use the framework version (lose your changes)');
+    console.log('    - Protect: Add the file to userProtectedAreas in .pika-sync.json');
+    console.log('    - Skip: Skip this file for now (will be overwritten in future syncs)');
+    console.log('    - Cancel: Cancel the sync operation');
+    logger.newLine();
+
+    logger.info('Best Practices:');
+    console.log('  • Always place custom code in designated areas (custom- directories, protected areas)');
+    console.log('  • Use pika-config.ts for project configuration (automatically protected)');
+    console.log('  • Test your application after each sync to ensure everything works');
+    console.log('  • Commit your changes to source control before syncing');
+    console.log('  • Review the changes before applying them (use --dry-run or --diff or --visual-diff)');
+    logger.newLine();
+
+    logger.info('Sync Options:');
+    console.log('  • --dry-run: Show what would be updated without applying changes');
+    console.log('  • --diff: Show diffs for changed files');
+    console.log('  • --visual-diff: Open diffs in your IDE visually (Cursor or VS Code)');
+    console.log('  • --debug: Enable detailed debug logging');
+    console.log('  • --branch: Sync from a specific branch');
+    console.log('  • --version: Sync to a specific version (not implemented yet)');
+    logger.newLine();
+
+    logger.info('Configuration Files:');
+    console.log('  • .pika-sync.json: Tracks sync status and user protection preferences');
+    console.log('  • pika-config.ts: Project configuration (automatically protected)');
+    console.log('  • Both files are protected from framework updates');
+    logger.newLine();
+
+    logger.info('Source Control Integration:');
+    console.log('  • Your project is a complete, standalone repository');
+    console.log('  • You can commit it to your own Git repository');
+    console.log('  • The sync system works independently of your source control');
+    console.log('  • Framework updates are applied to your local working directory');
+    console.log('  • You control when and how to commit framework updates');
+    logger.newLine();
+
+    logger.info('Troubleshooting:');
+    console.log('  • If sync fails, check your internet connection and GitHub access');
+    console.log("  • Use --debug to see detailed information about what's happening");
+    console.log('  • If you accidentally overwrite changes, check your Git history');
+    console.log('  • Protected areas are never overwritten, so your core customizations are safe');
+    logger.newLine();
+
+    logger.info('Learn More:');
+    console.log('  • Framework documentation: https://github.com/rithum/pika');
+    console.log('  • Customization guide: ./docs/help/customization.md');
+    console.log('  • Run "pika sync --help" for command-line options');
 }

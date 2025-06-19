@@ -73,7 +73,9 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
 
             // 5. Install dependencies
             if (!options.skipInstall) {
-                await installDependencies(config.projectPath);
+                logger.updateSpinner('Installing dependencies with pnpm...');
+                await installDependencies(config.projectPath, true);
+                logger.updateSpinner('Installing dependencies with pnpm... Done.');
             }
 
             // Stop the persistent spinner right before the final message
@@ -81,7 +83,7 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
             logger.newLine();
 
             // Show completion message
-            showCompletionMessage(config, options);
+            await showCompletionMessage(config, options);
         } catch (error) {
             logger.stopSpinner(false, 'Failed to create project');
             throw error;
@@ -210,10 +212,7 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             '.pika-sync.json',
             '.gitignore', // Add .gitignore to protected areas
             'package.json', // Add package.json to protected areas
-            'pnpm-lock.yaml', // Add pnpm-lock.yaml to protected areas
-            // Infrastructure stack files - users should customize these
-            'apps/pika-chat/infra/bin/pika-chat.ts',
-            'services/pika/bin/pika.ts'
+            'pnpm-lock.yaml' // Add pnpm-lock.yaml to protected areas
         ],
         // User-defined protected areas - these will be merged with the default protectedAreas
         // Users can add additional protected areas or override defaults by removing them from here
@@ -226,8 +225,7 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
         // even though they are in the default protectedAreas list
         userUnprotectedAreas: [
             // Add files here that you want to allow framework updates for
-            // Example: 'apps/pika-chat/infra/bin/pika-chat.ts',  // Allow infrastructure file updates
-            // Example: 'services/pika/bin/pika.ts',             // Allow service stack updates
+            // Example: 'my-custom-file.ts',
         ],
         initialConfiguration: {
             createdAt: new Date().toISOString()
@@ -280,7 +278,7 @@ logs/
     await fileManager.writeFile(path.join(projectPath, '.gitignore'), gitignoreContent);
 }
 
-async function installDependencies(projectPath: string): Promise<void> {
+async function installDependencies(projectPath: string, silent: boolean = false): Promise<void> {
     try {
         // Check if pnpm is available
         let pnpmAvailable = false;
@@ -292,8 +290,10 @@ async function installDependencies(projectPath: string): Promise<void> {
         }
 
         if (!pnpmAvailable) {
-            logger.warn('pnpm is not installed on your system.');
-            logger.newLine();
+            if (!silent) {
+                logger.warn('pnpm is not installed on your system.');
+                logger.newLine();
+            }
 
             const { shouldInstallPnpm } = await inquirer.prompt([
                 {
@@ -305,19 +305,25 @@ async function installDependencies(projectPath: string): Promise<void> {
             ]);
 
             if (shouldInstallPnpm) {
-                logger.info('Installing pnpm...');
+                if (!silent) {
+                    logger.info('Installing pnpm...');
+                }
                 try {
                     // Try to install pnpm globally
                     await execAsync('npm install -g pnpm');
-                    logger.success('pnpm installed successfully!');
+                    if (!silent) {
+                        logger.success('pnpm installed successfully!');
+                    }
                     pnpmAvailable = true;
                 } catch (error) {
-                    logger.error('Failed to install pnpm automatically.');
-                    logger.info('Please install pnpm manually:');
-                    console.log('  npm install -g pnpm');
-                    console.log('  # or');
-                    console.log('  curl -fsSL https://get.pnpm.io/install.sh | sh -');
-                    logger.newLine();
+                    if (!silent) {
+                        logger.error('Failed to install pnpm automatically.');
+                        logger.info('Please install pnpm manually:');
+                        console.log('  npm install -g pnpm');
+                        console.log('  # or');
+                        console.log('  curl -fsSL https://get.pnpm.io/install.sh | sh -');
+                        logger.newLine();
+                    }
 
                     const { continueWithNpm } = await inquirer.prompt([
                         {
@@ -329,7 +335,9 @@ async function installDependencies(projectPath: string): Promise<void> {
                     ]);
 
                     if (!continueWithNpm) {
-                        logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                        if (!silent) {
+                            logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                        }
                         return;
                     }
                 }
@@ -344,7 +352,9 @@ async function installDependencies(projectPath: string): Promise<void> {
                 ]);
 
                 if (!continueWithNpm) {
-                    logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                    if (!silent) {
+                        logger.warn('Dependency installation skipped. Please install pnpm and run "pnpm install" manually.');
+                    }
                     return;
                 }
             }
@@ -353,23 +363,29 @@ async function installDependencies(projectPath: string): Promise<void> {
         const packageManager = pnpmAvailable ? 'pnpm' : 'npm';
         const installCommand = pnpmAvailable ? 'pnpm install' : 'npm install';
 
-        logger.info(`Installing dependencies with ${packageManager}...`);
+        if (!silent) {
+            logger.info(`Installing dependencies with ${packageManager}...`);
+        }
         await execAsync(installCommand, {
             cwd: projectPath
         } as ExecOptions);
 
-        logger.success('Dependencies installed successfully!');
+        if (!silent) {
+            logger.success('Dependencies installed successfully!');
+        }
     } catch (error) {
-        logger.warn('Failed to install dependencies automatically.');
-        logger.info('You can install them manually:');
-        console.log('  pnpm install  # (recommended)');
-        console.log('  # or');
-        console.log('  npm install');
+        if (!silent) {
+            logger.warn('Failed to install dependencies automatically.');
+            logger.info('You can install them manually:');
+            console.log('  pnpm install  # (recommended)');
+            console.log('  # or');
+            console.log('  npm install');
+        }
         logger.debug('Dependency installation error:', error);
     }
 }
 
-function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions): void {
+async function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions): Promise<void> {
     logger.success(`🎉 Successfully created ${config.projectName}!`);
     logger.newLine();
 
@@ -384,10 +400,12 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     logger.newLine();
 
     logger.info('What you got:');
-    console.log('  • Complete Pika framework with all features');
-    console.log('  • Sample weather app (remove from services/ if not needed)');
-    console.log('  • Ready-to-customize authentication system');
-    console.log('  • Custom component support');
+    console.log('  • A generic front end to render any chat app in: /apps/pika-chat');
+    console.log('  • A generic chatbot/agent backend that uses your defined chat apps and agents: /services/pika');
+    console.log('  • A weather service showing how to define a chatapp/agent (remove from services/samples/ if not needed)');
+    console.log('  • A sample webapp to demo embedded mode (remove from apps/samples/ if not needed)');
+    console.log('  • Ready-to-customize authentication system in the front end');
+    console.log('  • Custom UI tag component support in the front end');
     logger.newLine();
 
     logger.info('Key customization areas:');
@@ -395,17 +413,21 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
     console.log('  • Custom Webapps: apps/custom directory');
     console.log('  • Custom Services: services/custom directory');
-    console.log('  • Chat App Stack: apps/pika-chat/infra/bin/pika-chat.ts (AWS CDK stack definition)');
-    console.log('  • Service Stack: services/pika/bin/pika.ts (AWS CDK stack definition)');
+    console.log('  • Frontend Chat App Stack: apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts');
+    console.log('  • Backend Service Stack: services/pika/lib/stacks/custom-stack-defs.ts');
     logger.newLine();
 
     logger.info('Infrastructure customization:');
-    console.log('  • Update project names in pika-config.ts (recommended)');
-    console.log('  • Or update project names and descriptions in stack files directly');
-    console.log('  • Configure VPC IDs, account IDs, and regions for your environment');
-    console.log('  • Add custom AWS resources or modify existing ones');
+    console.log('  • Update project names in pika-config.ts used in stack and resource names (recommended)');
+    console.log('  • Modify frontend stack using apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts...');
+    console.log('      • Add resources to the stack before and after the primary construct creation');
+    console.log('      • Modify the props used in the primary construct creation');
+    console.log('      • You will need to set the domain name, certificate ARN and hosted zone ID in the stack for the frontend to work');
+    console.log('  • Modify backend stack using services/pika/lib/stacks/custom-stack-defs.ts...');
+    console.log('      • Add resources to the stack before and after the primary construct creation');
+    console.log('      • Modify the props used in the primary construct creation');
+    console.log('      • You may not need to do anything here, it will just work out of the box');
     console.log('  • These files are protected from framework updates');
-    console.log('  • To allow stack files to be updated: edit .pika-sync.json userUnprotectedAreas');
     logger.newLine();
 
     logger.info('Version control:');
@@ -413,8 +435,56 @@ function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions)
     console.log('  • Or use your preferred version control system');
     logger.newLine();
 
+    logger.info('To run locally:');
+    console.log('  • First, make sure to rename the stacks/resources in pika-config.ts if you want to');
+    console.log('  • We need to deploy the back end stack since front end stack even locally depends on it');
+    console.log('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service');
+    console.log('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app');
+    console.log('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run dev" to hit the front end');
+    console.log('  • Hit http://localhost:3000/chat/weather (or whatever host/port you set in pika-config.ts)');
+    logger.newLine();
+
+    logger.info('To deploy to AWS:');
+    console.log('  • Add custom front end auth in apps/pika-chat/src/lib/server/auth-provider/index.ts');
+    console.log('  • Define the requisite front end stack resources (vpcs, etc) in apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts');
+    console.log("  • Modify the back end stack resources if you need to (probably won't need to) (vpcs, etc) in services/pika/lib/stacks/custom-stack-defs.ts");
+    console.log('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service');
+    console.log('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app');
+    console.log('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run cdk:deploy" to deploy the front end');
+    logger.newLine();
+
     logger.info('Learn more:');
     console.log('  • Framework docs: https://github.com/rithum/pika');
     console.log('  • Customization guide: ./docs/help/customization.md');
     console.log('  • Deploy to AWS: See services/pika/README.md');
+    logger.newLine();
+
+    logger.info('Important: Understanding the sync system');
+    console.log('  We recommend you immediately run:');
+    console.log('  pika sync --help');
+    console.log('  This will explain how you are meant to safely customize this code while');
+    console.log('  continuing to be able to sync down changes from the Pika framework.');
+    logger.newLine();
+
+    // Prompt user to run sync help
+    const { runSyncHelp } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'runSyncHelp',
+            message: 'Would you like to run "pika sync --help" now to learn about the sync system?',
+            default: true
+        }
+    ]);
+
+    if (runSyncHelp) {
+        logger.newLine();
+        logger.info('Running pika sync --help...');
+        logger.newLine();
+
+        // Import and run the sync help
+        const { syncCommand } = await import('./sync.js');
+        await syncCommand({ help: true });
+    } else {
+        logger.info('You can run "pika sync --help" anytime to learn about the sync system.');
+    }
 }

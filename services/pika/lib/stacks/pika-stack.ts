@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { PikaConstruct } from '../constructs/pika-construct';
+import { addStackResoucesAfterWeCreateThePikaConstruct, addStackResoucesBeforeWeCreateThePikaConstruct, getPikaConstructProps } from './custom-stack-defs';
 
 export interface PikaStackProps extends cdk.StackProps {
     stage: string;
@@ -17,17 +18,28 @@ export class PikaStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props: PikaStackProps) {
         super(scope, id, props);
 
+        addStackResoucesBeforeWeCreateThePikaConstruct(this);
+
         // Create the chatbot construct with all the infrastructure
-        this.pikaConstruct = new PikaConstruct(this, `${props.projNameTitleCase}Construct`, {
-            stage: props.stage,
-            stackName: this.stackName,
-            region: this.region,
-            account: this.account,
-            projNameL: props.projNameL,
-            projNameKebabCase: props.projNameKebabCase,
-            projNameTitleCase: props.projNameTitleCase,
-            projNameCamel: props.projNameCamel,
-            projNameHuman: props.projNameHuman
-        });
+        this.pikaConstruct = new PikaConstruct(
+            this,
+            `${props.projNameTitleCase}Construct`,
+            getPikaConstructProps(
+                {
+                    stage: props.stage,
+                    stackName: this.stackName,
+                    region: this.region,
+                    account: this.account,
+                    projNameL: props.projNameL,
+                    projNameKebabCase: props.projNameKebabCase,
+                    projNameTitleCase: props.projNameTitleCase,
+                    projNameCamel: props.projNameCamel,
+                    projNameHuman: props.projNameHuman
+                },
+                this
+            )
+        );
+
+        addStackResoucesAfterWeCreateThePikaConstruct(this);
     }
 }

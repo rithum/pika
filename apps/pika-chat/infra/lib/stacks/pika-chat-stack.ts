@@ -4,7 +4,8 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PikaChatConstruct } from './pika-chat-construct.js';
+import { PikaChatConstruct, PikaChatConstructProps } from './pika-chat-construct.js';
+import { addStackResoucesAfterWeCreateThePikaChatConstruct, addStackResoucesBeforeWeCreateThePikaChatConstruct, getPikaChatConstructProps } from './custom-stack-defs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -33,53 +34,44 @@ export class PikaChatStack extends cdk.Stack {
 
         // Get VPC
         const vpc = ec2.Vpc.fromLookup(this, `${props.projNameCamel}Vpc`, {
-            vpcId: props.vpcId,
+            vpcId: props.vpcId
         });
 
         //BXTODO
         // Get pika-specific configurations from SSM
-        const baseDomain = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/route53/public-domain-name`
-        );
+        const baseDomain = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/route53/public-domain-name`);
 
         //BXTODO
-        const certificateArn = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/acm/certificate-arn`
-        );
+        const certificateArn = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/acm/certificate-arn`);
 
         //BXTODO
-        const hostedZoneId = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/route53/public-hosted-zone-id`
-        );
+        const hostedZoneId = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/route53/public-hosted-zone-id`);
 
-        //BXTODO
-        // Define additional environment variables that are specific to this deployment
-        const additionalEnvironmentVariables = {
-            PLATFORM_API_BASE_URL: 'https://api.pika.com', // Used to get users after auth
-            OAUTH_URL: 'https://id.pika.com/connect/authorize', // Used to get auth token
-            TOKEN_URL: 'https://id.pika.com/connect/token', // Used to get auth token
-            REDIRECT_CALLBACK_URI_PATH: '/oauth/callback', // Used to redirect after auth
-        };
+        addStackResoucesBeforeWeCreateThePikaChatConstruct(this);
+
+        const pikaChatConstructProps: PikaChatConstructProps = getPikaChatConstructProps(
+            {
+                stage: this.stage,
+                vpc: vpc,
+                certificateArn: certificateArn,
+                baseDomain: baseDomain,
+                subdomainPrefix: 'chat',
+                hostedZoneId: hostedZoneId,
+                dockerBuildPath: path.resolve(__dirname, '../../../'), // Path to the root of your project where Dockerfile is located
+                additionalEnvironmentVariables: {},
+                projNameL: props.projNameL,
+                projNameTitleCase: props.projNameTitleCase,
+                projNameCamel: props.projNameCamel,
+                projNameKebabCase: props.projNameKebabCase,
+                projNameHuman: props.projNameHuman,
+                pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase
+            },
+            this
+        );
 
         // Create the chatbot webapp using the construct
-        this.webapp = new PikaChatConstruct(this, 'PikaChatConstruct', {
-            stage: this.stage,
-            vpc: vpc,
-            certificateArn: certificateArn,
-            baseDomain: baseDomain,
-            subdomainPrefix: 'chat',
-            hostedZoneId: hostedZoneId,
-            dockerBuildPath: path.resolve(__dirname, '../../../'), // Path to the root of your project where Dockerfile is located
-            additionalEnvironmentVariables: additionalEnvironmentVariables,
-            projNameL: props.projNameL,
-            projNameTitleCase: props.projNameTitleCase,
-            projNameCamel: props.projNameCamel,
-            projNameKebabCase: props.projNameKebabCase,
-            projNameHuman: props.projNameHuman,
-            pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
-        });
+        this.webapp = new PikaChatConstruct(this, 'PikaChatConstruct', pikaChatConstructProps);
+
+        addStackResoucesAfterWeCreateThePikaChatConstruct(this);
     }
 }
