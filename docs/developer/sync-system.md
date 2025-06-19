@@ -1,0 +1,359 @@
+# Sync System
+
+The Pika Framework sync system allows you to receive updates from the main framework repository while preserving your customizations. This guide explains how the sync system works and how to use it effectively.
+
+## 🔄 Overview
+
+Your Pika project is a fork of the Pika framework that you can check into your own source control. The sync system intelligently merges framework updates with your changes, ensuring you can continue to receive improvements while maintaining your customizations.
+
+## 🛡️ How It Works
+
+### The Sync Process
+
+1. **Download Latest Framework**: The sync command downloads the latest Pika framework from GitHub
+2. **Compare Changes**: It compares your project with the framework to identify changes
+3. **Apply Updates**: It applies framework updates while preserving your customizations
+4. **Handle Conflicts**: It handles conflicts by asking you how to resolve them
+
+### Protection System
+
+The sync system uses multiple layers of protection to preserve your work:
+
+- **Default Protected Areas**: Core customization directories and config files defined in `.pika-sync.json#protectedAreas` (don't modify protectedAreas)
+- **Custom Protection**: Any path segment starting with "custom-" is automatically protected
+- **User Protected Areas**: Additional files you specify in `.pika-sync.json#userProtectedAreas`
+- **User Unprotected Areas**: Files you explicitly allow to sync that are in protectedAreas and that you add to `.pika-sync.json#userUnprotectedAreas`
+
+## ⚙️ Configuration
+
+### Sync Configuration File (`.pika-sync.json`)
+
+The `.pika-sync.json` file tracks your sync status and allows you to customize sync behavior:
+
+```json
+{
+    "pikaVersion": "1.0.0",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "lastSync": "2024-01-01T00:00:00.000Z",
+    "protectedAreas": [
+        "apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/",
+        "apps/pika-chat/src/lib/server/auth-provider/",
+        "services/custom/",
+        "apps/custom/",
+        ".env",
+        ".env.local",
+        ".env.*",
+        "pika-config.ts",
+        ".pika-sync.json",
+        ".gitignore",
+        "package.json",
+        "pnpm-lock.yaml"
+    ],
+    "userProtectedAreas": ["my-custom-file.ts", "apps/my-custom-app/"],
+    "userUnprotectedAreas": ["package.json"],
+    "initialConfiguration": {
+        "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+}
+```
+
+### Key Configuration Sections
+
+#### `protectedAreas`
+
+Framework-managed list of protected files. **Don't edit this section** - it's managed by the framework.
+
+#### `userProtectedAreas`
+
+Additional files you want to protect from framework updates:
+
+```json
+"userProtectedAreas": [
+    "my-custom-config.ts",
+    "apps/my-custom-app/",
+    "services/my-custom-service/"
+]
+```
+
+#### `userUnprotectedAreas`
+
+Default protected files you want to allow updates for:
+
+```json
+"userUnprotectedAreas": [
+    "package.json",
+    "pnpm-lock.yaml"
+]
+```
+
+## 🔒 Default Protected Areas
+
+The following areas are automatically protected from framework updates:
+
+### Core Customization Areas
+
+- `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+- `apps/pika-chat/src/lib/server/auth-provider/`
+- `services/custom/`
+- `apps/custom/`
+
+### Configuration Files
+
+- `.env`, `.env.local`, `.env.*`
+- `pika-config.ts`
+- `.pika-sync.json`
+- `.gitignore`, `package.json`, `pnpm-lock.yaml`
+
+### Automatic Protection
+
+Any path segment starting with "custom-" is automatically protected:
+
+- `custom-components/`
+- `custom-services/`
+- `custom-file.ts`
+
+## 📁 Sample Directory Handling
+
+The sync system handles sample applications intelligently:
+
+### Sample Applications
+
+- `services/samples/weather` and `apps/samples/enterprise-site` are sample applications
+- They will be synced automatically if you haven't modified them
+- If you modify a sample, your changes will be preserved during sync
+- If you delete a sample, it won't be restored (you can remove samples you don't want)
+
+### Learning from Samples
+
+This allows you to:
+
+- Learn from samples while keeping your modifications
+- Remove samples you don't need
+- Customize samples for your use case
+
+## 🔧 Using the Sync Command
+
+### Basic Sync
+
+```bash
+# Sync with the latest framework version
+pika sync
+```
+
+### Sync Options
+
+```bash
+# Show what would be updated without applying changes
+pika sync --dry-run
+
+# Show diffs for changed files
+pika sync --diff
+
+# Open diffs in your IDE visually (Cursor or VS Code)
+pika sync --visual-diff
+
+# Enable detailed debug logging
+pika sync --debug
+
+# Sync from a specific branch
+pika sync --branch develop
+
+# Get help with sync options
+pika sync --help
+```
+
+### Sync Workflow
+
+1. **Check Current Status**:
+
+    ```bash
+    pika sync --dry-run
+    ```
+
+2. **Review Changes**:
+
+    ```bash
+    pika sync --diff
+    ```
+
+3. **Apply Updates**:
+    ```bash
+    pika sync
+    ```
+
+## 🎯 User Modification Handling
+
+When you modify files outside protected areas, the sync command will:
+
+### Detection
+
+- Detect your modifications and show you what files are affected
+- Compare your changes with the framework version
+
+### Resolution Options
+
+For each modified file, you'll be asked what to do:
+
+1. **Overwrite**: Use the framework version (lose your changes)
+2. **Protect**: Add the file to `userProtectedAreas` in `.pika-sync.json`
+3. **Skip**: Skip this file for now (will be overwritten in future syncs)
+4. **Cancel**: Cancel the sync operation
+
+### Example Interaction
+
+```
+File 'apps/pika-chat/src/routes/+page.svelte' has been modified.
+What would you like to do?
+
+1. Overwrite with framework version
+2. Protect this file (add to userProtectedAreas)
+3. Skip this file for now
+4. Cancel sync
+
+Enter your choice (1-4): 2
+```
+
+## 📋 Best Practices
+
+### 1. Use Designated Areas
+
+Always place your custom code in the designated customization areas:
+
+- `apps/custom/` for custom applications
+- `services/custom/` for custom services
+- `custom-markdown-tag-components/` for custom UI components
+- `auth-provider/` for authentication
+- `custom-stack-defs.ts` to customize stack resources
+
+### 2. Configure Project Names First
+
+Update `pika-config.ts` with your project names before making other changes.
+
+### 3. Test After Sync
+
+Always test your application after each sync to ensure everything works correctly.
+
+### 4. Commit Before Syncing
+
+Commit your changes to source control before running sync operations.
+
+### 5. Review Changes
+
+Use `--dry-run` and `--diff` options to review changes before applying them.
+
+### 6. Protect Important Files
+
+Add important custom files to `userProtectedAreas` if they're not in default protected areas.
+
+## 🔄 Source Control Integration
+
+### Your Project is Standalone
+
+- Your project is a complete, standalone repository
+- You can commit it to your own Git repository
+- The sync system works independently of your source control
+
+### Framework Updates
+
+- Framework updates are applied to your local working directory
+- You control when and how to commit framework updates
+- You can review changes before committing
+
+### Recommended Workflow
+
+```bash
+# Before syncing
+git add .
+git commit -m "Save current state before sync"
+
+# Run sync
+pika sync
+
+# Review changes
+git diff
+
+# Commit framework updates
+git add .
+git commit -m "Sync framework updates"
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### 1. Sync Fails
+
+**Symptoms**: Sync command fails with network or GitHub errors
+
+**Solutions**:
+
+- Use `--debug` for detailed information
+
+#### 2. Unexpected File Overwrites
+
+**Symptoms**: Files you expected to be protected were overwritten
+
+**Solutions**:
+
+- Check `.pika-sync.json` configuration
+- Add files to `userProtectedAreas`
+- Review the file path matches exactly
+
+#### 3. Merge Conflicts
+
+**Symptoms**: Sync stops due to merge conflicts
+
+**Solutions**:
+
+- Resolve conflicts manually
+- Use `--diff` to see what changed
+- Consider protecting the file if it's custom
+
+### Getting Help
+
+If you encounter sync issues:
+
+1. **Use debug mode**: `pika sync --debug`
+2. **Check your configuration**: Review `.pika-sync.json`
+3. **Review recent changes**: Use `git log` to see recent commits
+4. **Search existing issues**: Check the [GitHub repository](https://github.com/rithum/pika)
+5. **Create a new issue**: Provide detailed error information
+
+## 📚 Learn More
+
+- **Framework documentation**: [https://github.com/rithum/pika](https://github.com/rithum/pika)
+- **Customization guide**: [Customization Guide](./customization.md)
+- **Run sync help**: `pika sync --help`
+
+## 🎯 Quick Reference
+
+### Essential Commands
+
+```bash
+# Check what would be updated
+pika sync --dry-run
+
+# Sync with latest framework
+pika sync
+
+# Get help
+pika sync --help
+```
+
+### Key Files
+
+- `.pika-sync.json` - Sync configuration
+- `pika-config.ts` - Project configuration (protected)
+- `apps/custom/` - Custom applications (protected)
+- `services/custom/` - Custom services (protected)
+
+### Protection Rules
+
+- Files in `custom-*` directories are automatically protected
+- Configuration files are protected by default
+- Add files to `userProtectedAreas` for additional protection
+- Use `userUnprotectedAreas` to allow updates to default protected files
+
+---
+
+**Ready to sync?** Start with `pika sync --dry-run` to see what updates are available!

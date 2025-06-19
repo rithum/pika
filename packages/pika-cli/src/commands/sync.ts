@@ -799,7 +799,26 @@ function getDefaultProtectedAreas(): string[] {
         '.pika-sync.json',
         '.gitignore', // Always protect .gitignore
         'package.json', // Always protect package.json
-        'pnpm-lock.yaml' // Always protect pnpm-lock.yaml
+        'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
+        // CI/CD configuration directories
+        '.github/', // GitHub Actions workflows
+        '.gitlab/', // GitLab CI/CD configurations
+        '.circleci/', // CircleCI configurations
+        '.bitbucket/', // Bitbucket Pipelines configs
+        '.azure-pipelines/', // Azure Pipelines setup
+        '.azure/', // Azure Pipelines setup (alternative)
+        '.ci/', // Generic or custom-named CI configuration folders
+        // CI/CD configuration files
+        '.gitlab-ci.yml', // GitLab CI
+        '.circleci/config.yml', // CircleCI
+        'bitbucket-pipelines.yml', // Bitbucket
+        'azure-pipelines.yml', // Azure Pipelines
+        'Makefile', // Used to script build/test steps
+        'Jenkinsfile', // Jenkins CI
+        '.travis.yml', // Legacy Travis CI
+        'buildspec.yml', // AWS CodeBuild
+        'taskfile.yml', // Used with go-task
+        '.drone.yml' // Drone CI
     ];
 }
 
@@ -1330,6 +1349,9 @@ function showSyncHelp(): void {
     console.log('  • pika-config.ts');
     console.log('  • .pika-sync.json');
     console.log('  • .gitignore, package.json, pnpm-lock.yaml');
+    console.log('  • CI/CD configurations: .github/, .gitlab/, .circleci/, .bitbucket/, .azure-pipelines/, .ci/');
+    console.log('  • CI/CD files: .gitlab-ci.yml, .circleci/config.yml, bitbucket-pipelines.yml, azure-pipelines.yml');
+    console.log('  • Build scripts: Makefile, Jenkinsfile, .travis.yml, buildspec.yml, taskfile.yml, .drone.yml');
     logger.newLine();
 
     logger.info('Sample Directory Handling:');

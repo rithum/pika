@@ -2,6 +2,86 @@
 
 A framework for rapidly deploying AI-powered chat applications and agents. The name "Pika" (ピカ) in Japanese means "spark" or "flash of electricity," symbolizing its purpose of quickly igniting and powering new agent-based solutions.
 
+![Pika Framework Architecture](./docs/svgs/framework-architecture.drawio.svg)
+
+## 📚 Documentation
+
+Pika Framework documentation is organized into two main categories:
+
+### 🎯 **Conceptual Documentation** (`/docs/concepts/`)
+
+Understand the **why** and **what** of Pika Framework:
+
+- [Nothing New Under the Sun](./docs/concepts/1.nothing-new-under-the-sun.md) - The evolution of software orchestration
+- [Agents Flip the Paradigm](./docs/concepts/2.agents-flip-the-paradigm.md) - How agents change software development
+- [Agent Basics](./docs/concepts/3.agent-basics.md) - Core components of AI agents
+- [Building Agent Infrastructure](./docs/concepts/4.agents-pika.md) - How Pika enables agent development
+- [TonicX Integration Testing](./docs/concepts/5.tonicx.md) - AI-powered testing with Pika
+
+### 🛠️ **Developer Documentation** (`/docs/developer/`)
+
+Learn the **how** - practical guides for building with Pika:
+
+- [Getting Started](./docs/developer/getting-started.md) - Quick start guide
+- [Installation Guide](./docs/developer/installation.md) - Detailed setup instructions
+- [Project Structure](./docs/developer/project-structure.md) - Understanding your Pika project
+- [Stack Management](./docs/developer/stack-management.md) - Best practices for managing chat app stacks
+- [Customization Guide](./docs/developer/customization.md) - How to customize Pika
+- [Authentication Setup](./docs/developer/authentication.md) - Setting up authentication
+- [Local Development](./docs/developer/local-development.md) - Running Pika locally
+- [AWS Deployment](./docs/developer/aws-deployment.md) - Deploying to AWS
+- [Sync System](./docs/developer/sync-system.md) - Managing framework updates
+- [Troubleshooting](./docs/developer/troubleshooting.md) - Common issues and solutions
+
+### 📖 **Documentation Overview**
+
+Start with the [Documentation Overview](./docs/README.md) for a complete guide to navigating the docs.
+
+## 🚀 Getting Started
+
+### Quick Start
+
+1. **Install Pika CLI**:
+
+    ```bash
+    pnpm install -g @pika/cli
+    ```
+
+2. **Create your first application**:
+
+    ```bash
+    pika create-app my-chat-app
+    cd my-chat-app
+    pnpm dev
+    ```
+
+3. **Access your application**:
+    - Main chat interface: `http://localhost:3000`
+    - Weather chat app: `http://localhost:3000/chat/weather`
+
+### What You Get
+
+When you create a Pika application, you receive:
+
+- **Generic Chat Frontend** - Ready-to-use chat interface that works with any agent
+- **Generic Chat Backend** - Core infrastructure for agent management and tool orchestration
+- **Sample Weather Service** - Example of how to define a chat app/agent
+- **Sample Web Application** - Demo of embedded chat mode
+- **Authentication System** - Ready-to-customize authentication
+- **Custom UI Components** - Support for custom markdown tag components
+- **AWS CDK Integration** - Infrastructure as Code for easy deployment
+- **Sync System** - Keep your customizations while receiving framework updates
+
+### Next Steps
+
+1. **Configure your project** - Update `pika-config.ts` with your project names
+2. **Customize authentication** - Set up your authentication provider
+3. **Add custom components** - Create custom UI components for your chat
+4. **Deploy your services** - Deploy to AWS or run locally
+5. **Create custom agents** - Build your own chat applications and agents
+
+For detailed instructions, see the [Getting Started Guide](./docs/developer/getting-started.md).
+
 ## Overview
 
 ### The Bad Approach
@@ -303,19 +383,6 @@ The framework continues to evolve with plans for:
 - Advanced deployment options
 - Better monitoring and cost optimization
 - Enhanced security features
-
-## 📚 Documentation
-
-For detailed documentation, please refer to:
-
-- [Nothing New Under the Sun](./docs/1.nothing-new-under-the-sun.md)
-- [Agents Flip the Paradigm](./docs/2.agents-flip-the-paradigm.md)
-- [Agent Basics](./docs/3.agent-basics.md)
-- [Building Agent Infrastructure](./docs/4.agents-pika.md)
-
-## 🚀 Getting Started
-
-[Coming soon]
 
 ## 🤝 Contributing
 

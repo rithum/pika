@@ -212,7 +212,26 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
             '.pika-sync.json',
             '.gitignore', // Add .gitignore to protected areas
             'package.json', // Add package.json to protected areas
-            'pnpm-lock.yaml' // Add pnpm-lock.yaml to protected areas
+            'pnpm-lock.yaml', // Add pnpm-lock.yaml to protected areas
+            // CI/CD configuration directories
+            '.github/', // GitHub Actions workflows
+            '.gitlab/', // GitLab CI/CD configurations
+            '.circleci/', // CircleCI configurations
+            '.bitbucket/', // Bitbucket Pipelines configs
+            '.azure-pipelines/', // Azure Pipelines setup
+            '.azure/', // Azure Pipelines setup (alternative)
+            '.ci/', // Generic or custom-named CI configuration folders
+            // CI/CD configuration files
+            '.gitlab-ci.yml', // GitLab CI
+            '.circleci/config.yml', // CircleCI
+            'bitbucket-pipelines.yml', // Bitbucket
+            'azure-pipelines.yml', // Azure Pipelines
+            'Makefile', // Used to script build/test steps
+            'Jenkinsfile', // Jenkins CI
+            '.travis.yml', // Legacy Travis CI
+            'buildspec.yml', // AWS CodeBuild
+            'taskfile.yml', // Used with go-task
+            '.drone.yml' // Drone CI
         ],
         // User-defined protected areas - these will be merged with the default protectedAreas
         // Users can add additional protected areas or override defaults by removing them from here
