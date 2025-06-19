@@ -12,8 +12,8 @@
         "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist && rm -rf cdk.out",
         "check-types": "tsc --noEmit",
         "cdk": "cdk",
-        "cdk:synth": "cdk synth",
-        "cdk:deploy": "cdk deploy",
+        "cdk:synth": "cdk synth -c stage=${STAGE:-test}",
+        "cdk:deploy": "cdk deploy -c stage=${STAGE:-test}",
         "cdk:diff": "cdk diff",
         "jwt-secret": "tsx tools/jwt-secret-generator/generate-jwt-secret.ts"
     },

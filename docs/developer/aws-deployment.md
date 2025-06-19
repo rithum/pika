@@ -145,9 +145,21 @@ cd services/pika
 # Build the service
 pnpm build
 
-# Deploy to AWS
+# Deploy to AWS (defaults to 'test' stage)
 pnpm run cdk:deploy
+
+# Deploy to specific stage
+STAGE=prod pnpm run cdk:deploy
+STAGE=staging pnpm run cdk:deploy
+STAGE=dev pnpm run cdk:deploy
 ```
+
+**Stage Configuration:**
+
+- By default, stacks deploy to the `test` stage
+- Use the `STAGE` environment variable to specify a different stage
+- Common stages: `dev`, `staging`, `prod`
+- The stage is used in resource naming and configuration
 
 **What gets deployed:**
 
@@ -163,13 +175,18 @@ Deploy the sample weather service:
 
 ```bash
 # Navigate to the weather service
-cd services/weather
+cd services/samples/weather
 
 # Build the service
 pnpm build
 
-# Deploy to AWS
+# Deploy to AWS (defaults to 'test' stage)
 pnpm run cdk:deploy
+
+# Deploy to specific stage
+STAGE=prod pnpm run cdk:deploy
+STAGE=staging pnpm run cdk:deploy
+STAGE=dev pnpm run cdk:deploy
 ```
 
 **What gets deployed:**
@@ -189,8 +206,13 @@ cd apps/pika-chat
 # Build the application
 pnpm build
 
-# Deploy to AWS
+# Deploy to AWS (defaults to 'test' stage)
 pnpm run cdk:deploy
+
+# Deploy to specific stage
+STAGE=prod pnpm run cdk:deploy
+STAGE=staging pnpm run cdk:deploy
+STAGE=dev pnpm run cdk:deploy
 ```
 
 **What gets deployed:**
