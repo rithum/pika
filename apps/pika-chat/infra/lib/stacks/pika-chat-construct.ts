@@ -113,6 +113,9 @@ export interface PikaChatConstructProps {
     pikaServiceProjNameKebabCase: string;
 }
 
+/** Includes the things we know have to be provided by whomever implements the getPikaChatConstructProps function. */
+export type PartialPikaChatConstructProps = Omit<PikaChatConstructProps, 'vpc' | 'certificateArn' | 'baseDomain' | 'hostedZoneId'>;
+
 export class PikaChatConstruct extends Construct {
     public readonly service: ecs_patterns.ApplicationLoadBalancedFargateService;
     public readonly cluster: ecs.Cluster;
