@@ -73,7 +73,7 @@ interface PikaConfig {
 
 interface UserModification {
     path: string;
-    action: 'overwrite' | 'protect' | 'skip' | 'cancel';
+    action: 'overwrite' | 'protect' | 'skip' | 'cancel' | 'showDiff' | 'showVisualDiff';
 }
 
 async function findPikaProjectRoot(startDir: string): Promise<string | null> {
@@ -1213,6 +1213,8 @@ async function handleUserModifications(userModifications: SyncChange[]): Promise
     logger.warn('    You can:');
     logger.warn('    • Overwrite: Allow the file to be updated with the latest framework version');
     logger.warn('    • Protect: Add the file to userProtectedAreas in .pika-sync.json');
+    logger.warn('    • Show diff (on console): Show the differences between your version and framework version');
+    logger.warn('    • Show visual (in Cursor or VS Code): Open diff in your IDE');
     logger.warn('    • Skip: Skip this file during this sync (it will be overwritten in future syncs)');
     logger.warn('    • Cancel: Cancel this sync operation');
     logger.newLine();
@@ -1220,29 +1222,60 @@ async function handleUserModifications(userModifications: SyncChange[]): Promise
     const userChoices: UserModification[] = [];
 
     for (const modification of userModifications) {
-        const { action } = await inquirer.prompt([
-            {
-                type: 'list',
-                name: 'action',
-                message: `What would you like to do with "${modification.path}"?`,
-                choices: [
-                    { name: 'Overwrite (use framework version)', value: 'overwrite' },
-                    { name: 'Protect (add to userProtectedAreas)', value: 'protect' },
-                    { name: 'Skip (skip this file for now)', value: 'skip' },
-                    { name: 'Cancel (cancel this sync operation)', value: 'cancel' }
-                ],
-                default: 'overwrite'
-            }
-        ]);
+        let action: string;
 
-        if (action === 'cancel') {
-            logger.info('Sync cancelled by user.');
-            process.exit(0);
+        while (true) {
+            const response = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'action',
+                    message: `What would you like to do with "${modification.path}"?`,
+                    choices: [
+                        { name: 'Overwrite (use framework version)', value: 'overwrite' },
+                        { name: 'Protect (add to .pika-sync.json#userProtectedAreas)', value: 'protect' },
+                        { name: 'Show diff (on console)', value: 'showDiff' },
+                        { name: 'Show visual diff (in Cursor or VS Code)', value: 'showVisualDiff' },
+                        { name: 'Skip (skip this file for now)', value: 'skip' },
+                        { name: 'Cancel (cancel this sync operation)', value: 'cancel' }
+                    ],
+                    default: 'overwrite'
+                }
+            ]);
+
+            action = response.action;
+
+            if (action === 'cancel') {
+                logger.info('Sync cancelled by user.');
+                process.exit(0);
+            }
+
+            if (action === 'showDiff') {
+                // Show diff and ask again
+                await showDiff(modification);
+                logger.newLine();
+                continue;
+            }
+
+            if (action === 'showVisualDiff') {
+                // Show visual diff and ask again
+                const editor = await detectEditor();
+                if (!editor) {
+                    logger.warn('No supported editor (Cursor or VS Code) found in PATH. Falling back to terminal diff.');
+                    await showDiff(modification);
+                } else {
+                    await openVisualDiff(modification, editor);
+                }
+                logger.newLine();
+                continue;
+            }
+
+            // For other actions, break out of the loop
+            break;
         }
 
         userChoices.push({
             path: modification.path,
-            action
+            action: action as 'overwrite' | 'protect' | 'skip' | 'cancel'
         });
     }
 
