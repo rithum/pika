@@ -2,6 +2,7 @@ import type { AppState } from '$client/app/app.state.svelte';
 import MarkdownIt from 'markdown-it';
 import { mount, type Component } from 'svelte';
 import type { ChatAppState } from '../chat-app.state.svelte';
+import type { ChatMessage } from '@pika/shared/types/chatbot/chatbot-types';
 
 // Types
 export interface ParsedSegment {
@@ -19,7 +20,8 @@ export interface MarkdownRenderResult {
 }
 
 // Supported custom tags
-const SUPPORTED_TAGS = ['prompt', 'chart', 'image', 'chat', 'download'] as const;
+let SUPPORTED_TAGS = ['prompt', 'chart', 'image', 'chat', 'download', 'trace'] as const;
+
 type SupportedTag = (typeof SUPPORTED_TAGS)[number];
 
 // Type for component map
@@ -33,6 +35,8 @@ const TAG_PATTERNS = {
     incompleteOpen: new RegExp(`<(${SUPPORTED_TAGS.join('|')})(?:[^>]*)?$`),
     // Matches incomplete closing tags
     incompleteClose: new RegExp(`<\\/(${SUPPORTED_TAGS.join('|')})(?:[^>]*)?$`),
+    // Matches potential tags
+    potential: new RegExp(`^<(${SUPPORTED_TAGS.join("|")})>`)
 };
 
 export class MarkdownToHtmlGenerator {
@@ -139,7 +143,7 @@ export class MarkdownToHtmlGenerator {
         const closeTagIndex = potentialTag.indexOf('>');
         if (closeTagIndex !== -1) {
             // Tag is complete, check if it's one of our supported tags that needs a closing tag
-            const tagMatch = potentialTag.match(/^<(prompt|chart|image|chat|download)>/);
+            const tagMatch = potentialTag.match(TAG_PATTERNS.potential);
             if (tagMatch) {
                 const tagName = tagMatch[1];
                 const expectedClosingTag = `</${tagName}>`;
@@ -224,7 +228,8 @@ export function hydrateComponents(
     segments: ParsedSegment[],
     componentMap: Record<string, Component<any, {}, ''>>,
     chatAppState: ChatAppState,
-    appState: AppState
+    appState: AppState,
+    message:ChatMessage,
 ): void {
     const componentSegments = segments.filter((s) => s.type === 'placeholder');
 
@@ -248,6 +253,8 @@ export function hydrateComponents(
             mount(ComponentClass, {
                 target: placeholder,
                 props: {
+                    id:segment.id,
+                    message,
                     rawTagContent: segment.tagContent,
                     appState,
                     chatAppState,

@@ -91,6 +91,12 @@ export function apiGatewayFunctionDecorator<TRequestBody, TResponse>(fn: APIGate
     return async (event, context) => {
         let error: HttpError | undefined;
         let response: undefined | void | APIGatewayProxyResultV2<TResponse>;
+        Object.keys(event.headers).forEach(k=>{
+            let lowerK = k.toLowerCase();
+            if (!event.headers[lowerK]){
+                event.headers[lowerK] = event.headers[k]
+            }
+        })
         try {
             // Parse the request body if present and create a typed event object
             const eventWithType: APIGatewayProxyEventPika<TRequestBody> = {

@@ -21,6 +21,35 @@ const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 
+if (global.awslambda== null){
+    global.awslambda = {
+        streamifyResponse: (handler) => {
+            //handler = streamifyResponseOrig(handler);
+            return (event:any, context:any) => handler(event, context.responseStream, context);
+        },
+        HttpResponseStream: class HttpResponseStream {
+            static from(underlyingStream:any, prelude:any) {
+                let set = (key:any,value:any)=>{};
+                if (underlyingStream.set){
+                    set = underlyingStream.set.bind(underlyingStream);
+                } else if (underlyingStream.headers){
+                    set = underlyingStream.headers.set.bind(underlyingStream.headers);
+                }
+                Object.entries(prelude.headers).forEach(([key, value]) => {
+                    set(key,value);
+                });
+                //underlyingStream.setContentType(METADATA_PRELUDE_CONTENT_TYPE)
+                // const metadataPrelude = JSON.stringify(prelude)
+                // underlyingStream._onBeforeFirstWrite = (write) => {
+                // 	write(metadataPrelude)
+                // 	write(new Uint8Array(DELIMITER_LEN))
+                // }
+                return underlyingStream
+            }
+        } as any
+    };
+}
+
 /**
  * Invokes the Bedrock Inline Agent to generate a response to the user's message.
  * @param chatSession The chat session to invoke the agent on.
@@ -109,6 +138,8 @@ export async function invokeAgentToGetAnswer(
             // Include the conversation history if we need to reattach to the session
             ...(conversationHistory ? { conversationHistory } : {}),
             promptSessionAttributes: {
+                ...chatSession.sessionAttributes,
+                currentDate: new Date().toISOString(),
                 messageId: messageId,
                 ...(authDataGzipHexEncoded ? { authDataGzipHexEncoded } : {})
             },
@@ -126,6 +157,10 @@ export async function invokeAgentToGetAnswer(
     let error: unknown;
     let startingTime = Date.now();
     let model: string | undefined;
+	let lastModelInvocationOutputTraceContent : {
+        [key:string]:unknown;
+        traceId:string;
+    } | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
         inputTokens: 0,
@@ -221,7 +256,13 @@ export async function invokeAgentToGetAnswer(
                     console.log('Model extracted from trace:', model);
                 }
 
-                if (trace.orchestrationTrace.modelInvocationOutput || trace.orchestrationTrace.rationale) {
+                if (
+                    trace.orchestrationTrace?.invocationInput ||
+						trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+						trace.orchestrationTrace?.modelInvocationOutput ||
+						trace.orchestrationTrace?.rationale ||
+						trace.failureTrace
+                    ) {
                     const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
                     const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
 
@@ -236,10 +277,41 @@ export async function invokeAgentToGetAnswer(
                     });
 
                     if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
+                        lastModelInvocationOutputTraceContent = JSON.parse(trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!);
+						lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
+
+
                         // Don't keep the raw response in the trace
                         delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
                     }
+
+                    // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
+                    if (trace.orchestrationTrace?.modelInvocationOutput?.metadata){
+                        fixMetadataDates(trace.orchestrationTrace.modelInvocationOutput.metadata);
+                    }
+                    // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
+                    if (trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.metadata){
+                        fixMetadataDates(trace.orchestrationTrace.observation.actionGroupInvocationOutput.metadata);
+                    }
+
+                    // Detect if we have been going too long and send a prompt to the user to continue
+                    if (trace.failureTrace?.failureReason === "Max iterations exceeded") {
+                        responseStream.write(`This one is taking me awhile to think.<prompt>Continue</prompt>`)
+                    }
+
+                    // Trim the observation to just a preview.  Observations can be large
+                    let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
+                    if (
+                        trace.orchestrationTrace?.observation &&
+                        (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize
+                    ) {
+                        trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text = trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + " ...";
+                    }
+
                     traces.push(trace);
+                    //if (userConfig?.features?.super_admin) {
+                        responseStream.write(`<trace>${JSON.stringify(trace)}</trace>`);
+                    //}
                 }
             }
         }
@@ -291,6 +363,16 @@ export async function invokeAgentToGetAnswer(
     return assistantMessage;
 }
 
+
+function fixMetadataDates(metadata:any){
+    Object.entries(metadata??{}).forEach(([k,v]:[string, unknown])=>{
+        if (v instanceof Date){
+            metadata[k] = v.toJSON();
+        }
+    });
+}
+
+
 /**
  * Generates a title for a chat session using Bedrock.
  *
@@ -331,7 +413,10 @@ IMPORTANT: Return ONLY the title text with no explanations, quotes, or additiona
 
 //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
 interface CustomOrchestrationTraceMember {
-    orchestrationTrace: CustomOrchestrationTrace & {
+    failureTrace?:{
+        failureReason: string;
+    };
+    orchestrationTrace?: CustomOrchestrationTrace & {
         rationale?: {
             text: string;
         };
@@ -339,6 +424,7 @@ interface CustomOrchestrationTraceMember {
             foundationModel: string;
         };
         modelInvocationOutput?: {
+            traceId: string;
             rawResponse?: any;
             metadata?: {
                 usage?: {
@@ -347,5 +433,13 @@ interface CustomOrchestrationTraceMember {
                 };
             };
         };
+
+        invocationInput?:{}
+        observation?:{
+            actionGroupInvocationOutput?:{
+                text:string;
+                metadata?:{};
+            }
+        }
     };
 }
