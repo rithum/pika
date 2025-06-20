@@ -9,7 +9,9 @@ import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { HostedZone } from 'aws-cdk-lib/aws-route53';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
+import { ICertificate } from 'aws-cdk-lib/aws-certificatemanager';
 
 export interface PikaChatConstructProps {
     /**
@@ -23,24 +25,26 @@ export interface PikaChatConstructProps {
     vpc: ec2.IVpc;
 
     /**
-     * Certificate ARN for HTTPS
+     * Certificate ARN for HTTPS, if provided will use Certificate.fromCertificateArn to create the certificate.
+     * Use this or certificate, not both. You must provide one or the other.
      */
-    certificateArn: string;
+    certificateArn?: string;
 
     /**
-     * Base domain name (e.g., 'example.com')
+     * Certificate for HTTPS, if provided will use as is in ecs task definition.
+     * Use this or certificateArn, not both. You must provide one or the other.
      */
-    baseDomain: string;
+    certificate?: ICertificate;
 
     /**
-     * Subdomain prefix for the pika chat webapp (e.g., 'chat' for chat.example.com)
+     * Domain name for the pika chat webapp (e.g., 'chat.example.com' or 'test-chat.example.com'). Must be fully qualified domain name.
      */
-    subdomainPrefix?: string;
+    domainName?: string;
 
     /**
-     * Hosted Zone ID for Route53
+     * Hosted Zone ID for Route53 (optional).  If provided, domainName must also be provided and the domain must be in this hosted zone.
      */
-    hostedZoneId: string;
+    hostedZoneId?: string;
 
     /**
      * Path to the directory containing the Dockerfile (relative to this construct file)
@@ -51,6 +55,11 @@ export interface PikaChatConstructProps {
      * Additional environment variables to add to the ECS task
      */
     additionalEnvironmentVariables?: Record<string, string>;
+
+    /**
+     * Whether to make the load balancer public (default: false)
+     */
+    makeLoadBalancerPublic?: boolean;
 
     /**
      * CPU units for the Fargate task (default: 512)
@@ -114,22 +123,19 @@ export interface PikaChatConstructProps {
 }
 
 /** Includes the things we know have to be provided by whomever implements the getPikaChatConstructProps function. */
-export type PartialPikaChatConstructProps = Omit<PikaChatConstructProps, 'vpc' | 'certificateArn' | 'baseDomain' | 'hostedZoneId'>;
+export type PartialPikaChatConstructProps = Omit<PikaChatConstructProps, 'vpc'>;
 
 export class PikaChatConstruct extends Construct {
     public readonly service: ecs_patterns.ApplicationLoadBalancedFargateService;
     public readonly cluster: ecs.Cluster;
     public readonly dockerImage: ecr_assets.DockerImageAsset;
     public readonly taskRole: iam.Role;
-    public readonly domain: string;
 
     constructor(scope: Construct, id: string, props: PikaChatConstructProps) {
         super(scope, id);
 
         //BXTODO
         // Build the full domain name
-        const subdomainPrefix = props.subdomainPrefix || 'chat';
-        this.domain = `${subdomainPrefix}.${props.baseDomain}`;
 
         // Create Docker image asset
         this.dockerImage = new ecr_assets.DockerImageAsset(this, `${props.projNameTitleCase}Image`, {
@@ -237,7 +243,7 @@ export class PikaChatConstruct extends Construct {
             AWS_ACCOUNT_ID: cdk.Aws.ACCOUNT_ID,
             CHAT_API_ID: apiId,
             CHAT_ADMIN_API_ID: chatAdminApiId,
-            WEBAPP_URL: `https://${this.domain}`,
+            WEBAPP_URL: props.domainName ? cdk.Fn.sub(`https://${props.domainName}`).toString() : 'unknown',
             UPLOAD_S3_BUCKET: uploadS3Bucket,
             CONVERSE_FUNCTION_URL: converseFnUrl
         };
@@ -263,7 +269,7 @@ export class PikaChatConstruct extends Construct {
             sslPolicy: SslPolicy.RECOMMENDED_TLS,
             enableExecuteCommand: false,
             memoryLimitMiB: props.memoryLimitMiB || 2048,
-            publicLoadBalancer: true,
+            publicLoadBalancer: props.makeLoadBalancerPublic || false,
             taskImageOptions: {
                 containerName: `${props.projNameTitleCase}Task-${props.stage}`,
                 image: ecs.ContainerImage.fromDockerImageAsset(this.dockerImage),
@@ -276,13 +282,21 @@ export class PikaChatConstruct extends Construct {
                     logGroup: logGroup
                 })
             },
-            certificate: Certificate.fromCertificateArn(this, `${props.projNameTitleCase}Certificate-${props.stage}`, props.certificateArn),
             enableECSManagedTags: true,
-            domainName: this.domain,
-            domainZone: HostedZone.fromHostedZoneAttributes(this, `${props.projNameTitleCase}DomainZone-${props.stage}`, {
-                hostedZoneId: props.hostedZoneId,
-                zoneName: props.baseDomain
-            }),
+            ...(props.certificate
+                ? { certificate: props.certificate }
+                : props.certificateArn
+                  ? { certificate: Certificate.fromCertificateArn(this, `${props.projNameTitleCase}Certificate-${props.stage}`, props.certificateArn) }
+                  : {}),
+            ...(props.domainName ? { domainName: props.domainName } : {}),
+            ...(props.hostedZoneId && props.domainName
+                ? {
+                      domainZone: HostedZone.fromHostedZoneAttributes(this, `${props.projNameTitleCase}DomainZone-${props.stage}`, {
+                          hostedZoneId: props.hostedZoneId,
+                          zoneName: props.domainName
+                      })
+                  }
+                : {}),
             redirectHTTP: true,
             loadBalancerName: `${props.projNameTitleCase}LoadBalancer-${props.stage}`,
             minHealthyPercent: 50
@@ -297,11 +311,14 @@ export class PikaChatConstruct extends Construct {
             interval: cdk.Duration.seconds(90)
         });
 
-        // Output the service URL
-        new cdk.CfnOutput(this, 'ServiceUrl', {
-            value: `https://${this.domain}`,
-            description: `${props.projNameHuman} Service URL`
-        });
+        if (props.domainName) {
+            // Output the service URL
+            new cdk.CfnOutput(this, 'ChatWebappUrl', {
+                value: cdk.Fn.sub(`https://${props.domainName}`).toString(),
+                description: `${props.projNameHuman} Service URL`,
+                exportName: `chat-webapp-url-${props.projNameKebabCase}-${props.stage}l`
+            });
+        }
 
         // Output the load balancer DNS name
         new cdk.CfnOutput(this, `${props.projNameTitleCase}LoadBalancerDns`, {
