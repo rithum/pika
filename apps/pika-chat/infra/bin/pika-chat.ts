@@ -32,11 +32,11 @@ const app = new cdk.App();
 async function main() {
     // Get stage from context or use default
     const stage = app.node.tryGetContext('stage') || 'test';
-    const vpcId = await getValueFromParameterStore(`/pika/${stage}/networking/vpc/id`);
+    // const vpcId = await getValueFromParameterStore(`/pika/${stage}/networking/vpc/id`);
 
-    if (!vpcId) {
-        throw new Error(`VPC ID not found for stage '${stage}'`);
-    }
+    // if (!vpcId) {
+    //     throw new Error(`VPC ID not found for stage '${stage}'`);
+    // }
 
     const loggedInAccountId = await getLoggedInAccountIdFromSts();
     console.log(`Deploying to stage '${stage}' in account '${loggedInAccountId}'`);
@@ -63,7 +63,6 @@ async function main() {
     new PikaChatStack(app, `${projNameKebabCase}-${stage}`, {
         env,
         stage,
-        vpcId,
         description: `${projNameHuman} - ${stage} stage`,
         projNameL,
         projNameTitleCase,

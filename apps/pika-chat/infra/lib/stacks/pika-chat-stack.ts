@@ -1,10 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PikaChatConstruct } from './pika-chat-construct.js';
+import { CustomStackDefs } from './custom-stack-defs.js';
+import { PartialPikaChatConstructProps, PikaChatConstruct, PikaChatConstructProps } from './pika-chat-construct.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -13,7 +12,6 @@ const __dirname = path.dirname(__filename);
 
 export interface PikaChatStackProps extends cdk.StackProps {
     stage: string;
-    vpcId: string;
     projNameL: string; // All lowercase e.g. pikachat
     projNameTitleCase: string; // Title case e.g. PikaChat
     projNameCamel: string; // Camel case e.g. pikaChat
@@ -22,64 +20,75 @@ export interface PikaChatStackProps extends cdk.StackProps {
     pikaServiceProjNameKebabCase: string; // Kebab case for the pika service stack e.g. pika
 }
 
+/**
+ * You must make changes to the CustomStackDefs class to add your own customizations to the pika stack.
+ */
 export class PikaChatStack extends cdk.Stack {
     private stage: string;
     public readonly webapp: PikaChatConstruct;
+    public stageParam: cdk.CfnParameter;
+    public stageCappedParam: cdk.CfnParameter;
 
     constructor(scope: Construct, id: string, props: PikaChatStackProps) {
         super(scope, id, props);
 
         this.stage = props.stage;
 
-        // Get VPC
-        const vpc = ec2.Vpc.fromLookup(this, `${props.projNameCamel}Vpc`, {
-            vpcId: props.vpcId,
+        //TODO: check for the existence of an input param named stage and if not provided, add it as a required input param with no default value
+        this.stageParam = new cdk.CfnParameter(this, 'stage', {
+            type: 'String',
+            description: 'The stage/environment name (e.g., dev, staging, prod)',
+            allowedPattern: '^[a-zA-Z0-9-]+$',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
         });
+
+        this.stageCappedParam = new cdk.CfnParameter(this, 'Stage', {
+            type: 'String',
+            description: 'The stage/environment name capitalized (e.g., Dev, Staging, Prod)',
+            allowedPattern: '^[a-zA-Z0-9-]+$',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
+        });
+
+        const customStackDefs = new CustomStackDefs(this);
+
+        // Get VPC
+        // const vpc = ec2.Vpc.fromLookup(this, `${props.projNameCamel}Vpc`, {
+        //     vpcId: props.vpcId
+        // });
 
         //BXTODO
         // Get pika-specific configurations from SSM
-        const baseDomain = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/route53/public-domain-name`
-        );
+        //const baseDomain = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/route53/public-domain-name`);
+        // const baseDomain = 'bogus-fix.com';
 
         //BXTODO
-        const certificateArn = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/acm/certificate-arn`
-        );
+        //const certificateArn = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/acm/certificate-arn`);
+        // const certificateArn = 'bogus-fix-cert-arn';
 
         //BXTODO
-        const hostedZoneId = ssm.StringParameter.valueForStringParameter(
-            this,
-            `/pika/${this.stage}/route53/public-hosted-zone-id`
-        );
+        //const hostedZoneId = ssm.StringParameter.valueForStringParameter(this, `/pika/${this.stage}/route53/public-hosted-zone-id`);
+        // const hostedZoneId = 'bogus-fix-hosted-zone-id';
 
-        //BXTODO
-        // Define additional environment variables that are specific to this deployment
-        const additionalEnvironmentVariables = {
-            PLATFORM_API_BASE_URL: 'https://api.pika.com', // Used to get users after auth
-            OAUTH_URL: 'https://id.pika.com/connect/authorize', // Used to get auth token
-            TOKEN_URL: 'https://id.pika.com/connect/token', // Used to get auth token
-            REDIRECT_CALLBACK_URI_PATH: '/oauth/callback', // Used to redirect after auth
-        };
+        customStackDefs.addStackResoucesBeforeWeCreateThePikaChatConstruct();
 
-        // Create the chatbot webapp using the construct
-        this.webapp = new PikaChatConstruct(this, 'PikaChatConstruct', {
+        const partialProps: PartialPikaChatConstructProps = {
             stage: this.stage,
-            vpc: vpc,
-            certificateArn: certificateArn,
-            baseDomain: baseDomain,
             subdomainPrefix: 'chat',
-            hostedZoneId: hostedZoneId,
             dockerBuildPath: path.resolve(__dirname, '../../../'), // Path to the root of your project where Dockerfile is located
-            additionalEnvironmentVariables: additionalEnvironmentVariables,
+            additionalEnvironmentVariables: {},
             projNameL: props.projNameL,
             projNameTitleCase: props.projNameTitleCase,
             projNameCamel: props.projNameCamel,
             projNameKebabCase: props.projNameKebabCase,
             projNameHuman: props.projNameHuman,
-            pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
-        });
+            pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase
+        };
+
+        const pikaChatConstructProps: PikaChatConstructProps = customStackDefs.getPikaChatConstructProps(partialProps);
+
+        // Create the chatbot webapp using the construct
+        this.webapp = new PikaChatConstruct(this, 'PikaChatConstruct', pikaChatConstructProps);
+
+        customStackDefs.addStackResoucesAfterWeCreateThePikaChatConstruct();
     }
 }

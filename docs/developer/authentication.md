@@ -61,10 +61,10 @@ Create your main authentication provider:
 // apps/pika-chat/src/lib/server/auth-provider/index.ts
 import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import type { CustomAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '../auth/types';
+import type { AuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '../auth/types';
 import { redirect } from '@sveltejs/kit';
 
-export default class YourAuthProvider implements CustomAuthProvider {
+export default class YourAuthProvider implements AuthProvider {
     async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
         // Check if this is an OAuth callback
         if (event.url.pathname.startsWith('/oauth/callback')) {
@@ -304,7 +304,7 @@ When a user has an existing cookie, the framework:
 
 ```typescript
 // Example: Google OAuth integration with token refresh
-export default class GoogleAuthProvider implements CustomAuthProvider {
+export default class GoogleAuthProvider implements AuthProvider {
     async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
         const token = event.cookies.get('google-token');
         if (!token) {
@@ -362,7 +362,7 @@ export default class GoogleAuthProvider implements CustomAuthProvider {
 
 ```typescript
 // Example: SAML SSO integration
-export default class SAMLAuthProvider implements CustomAuthProvider {
+export default class SAMLAuthProvider implements AuthProvider {
     async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
         const samlResponse = event.url.searchParams.get('SAMLResponse');
         if (samlResponse) {
@@ -397,7 +397,7 @@ export default class SAMLAuthProvider implements CustomAuthProvider {
 
 ```typescript
 // Example: JWT token validation with refresh
-export default class JWTAuthProvider implements CustomAuthProvider {
+export default class JWTAuthProvider implements AuthProvider {
     async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
         const token = event.cookies.get('jwt-token');
         if (!token) {
@@ -438,6 +438,416 @@ export default class JWTAuthProvider implements CustomAuthProvider {
         } catch (error) {
             throw new ForceUserToReauthenticateError('JWT token validation failed');
         }
+    }
+}
+```
+
+### Multi-Tenant Authentication
+
+```typescript
+// Example: Multi-tenant authentication with organization switching
+export default class MultiTenantAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        // Check for organization context in URL or headers
+        const orgId = event.url.searchParams.get('org') || event.request.headers.get('x-organization-id') || event.cookies.get('current-org');
+
+        const token = event.cookies.get('auth-token');
+        if (!token) {
+            return redirect(302, '/login');
+        }
+
+        try {
+            const userData = await this.getUserWithOrganizations(token);
+
+            // If no org specified, use the user's default org
+            const targetOrgId = orgId || userData.defaultOrgId;
+
+            // Verify user has access to this organization
+            const hasAccess = userData.organizations.some((org) => org.id === targetOrgId);
+            if (!hasAccess) {
+                throw new NotAuthenticatedError('Access denied to organization');
+            }
+
+            return this.createMultiTenantUser(userData, targetOrgId);
+        } catch (error) {
+            throw new NotAuthenticatedError('Multi-tenant authentication failed');
+        }
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        // Check if user still has access to current organization
+        const hasAccess = await this.validateOrgAccess(user.userId, user.authData.currentOrgId);
+
+        if (!hasAccess) {
+            // User lost access to current org, try to switch to another accessible org
+            const accessibleOrgs = await this.getUserOrganizations(user.userId);
+            if (accessibleOrgs.length > 0) {
+                const newOrgId = accessibleOrgs[0].id;
+                return this.createMultiTenantUser(user, newOrgId);
+            }
+            throw new ForceUserToReauthenticateError('No accessible organizations');
+        }
+
+        return undefined; // Access still valid
+    }
+
+    private createMultiTenantUser(userData: any, orgId: string): AuthenticatedUser<any> {
+        const org = userData.organizations.find((o) => o.id === orgId);
+        return {
+            userId: userData.id,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            companyId: org.id,
+            companyName: org.name,
+            companyType: org.type,
+            authData: {
+                accessToken: userData.accessToken,
+                currentOrgId: orgId,
+                availableOrgs: userData.organizations.map((o) => ({ id: o.id, name: o.name })),
+                userRole: org.role
+            }
+        };
+    }
+}
+```
+
+### API Key Authentication
+
+```typescript
+// Example: API key authentication for service-to-service communication
+export default class APIKeyAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        const apiKey = event.request.headers.get('x-api-key') || event.cookies.get('api-key');
+
+        if (!apiKey) {
+            throw new NotAuthenticatedError('API key required');
+        }
+
+        try {
+            const serviceData = await this.validateAPIKey(apiKey);
+            return this.createServiceUser(serviceData, apiKey);
+        } catch (error) {
+            throw new NotAuthenticatedError('Invalid API key');
+        }
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        // For API keys, check if the key is still valid and not revoked
+        const isValid = await this.validateAPIKey(user.authData.apiKey);
+
+        if (!isValid) {
+            throw new ForceUserToReauthenticateError('API key revoked or expired');
+        }
+
+        return undefined; // API key still valid
+    }
+
+    private createServiceUser(serviceData: any, apiKey: string): AuthenticatedUser<any> {
+        return {
+            userId: `service_${serviceData.id}`,
+            email: serviceData.email,
+            firstName: serviceData.name,
+            lastName: '',
+            companyId: serviceData.organizationId,
+            companyName: serviceData.organizationName,
+            companyType: 'service',
+            authData: {
+                apiKey,
+                serviceId: serviceData.id,
+                permissions: serviceData.permissions,
+                rateLimit: serviceData.rateLimit
+            }
+        };
+    }
+}
+```
+
+### Session-Based Authentication
+
+```typescript
+// Example: Traditional session-based authentication with Redis
+export default class SessionAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        const sessionId = event.cookies.get('session-id');
+
+        if (!sessionId) {
+            return redirect(302, '/login');
+        }
+
+        try {
+            const sessionData = await this.getSessionFromRedis(sessionId);
+            if (!sessionData) {
+                throw new NotAuthenticatedError('Session not found');
+            }
+
+            // Check if session is expired
+            if (sessionData.expiresAt < Date.now()) {
+                await this.deleteSessionFromRedis(sessionId);
+                throw new NotAuthenticatedError('Session expired');
+            }
+
+            return this.createUserFromSession(sessionData);
+        } catch (error) {
+            event.cookies.delete('session-id');
+            throw new NotAuthenticatedError('Invalid session');
+        }
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        const sessionId = user.authData.sessionId;
+
+        // Check if session still exists and is valid
+        const sessionData = await this.getSessionFromRedis(sessionId);
+
+        if (!sessionData) {
+            throw new ForceUserToReauthenticateError('Session not found');
+        }
+
+        if (sessionData.expiresAt < Date.now()) {
+            await this.deleteSessionFromRedis(sessionId);
+            throw new ForceUserToReauthenticateError('Session expired');
+        }
+
+        // Extend session if it's about to expire
+        const timeUntilExpiry = sessionData.expiresAt - Date.now();
+        if (timeUntilExpiry < 30 * 60 * 1000) {
+            // Less than 30 minutes
+            const extendedSession = await this.extendSession(sessionId);
+            return this.createUserFromSession(extendedSession);
+        }
+
+        return undefined; // Session still valid
+    }
+}
+```
+
+### OAuth2 with PKCE (Public Key Code Exchange)
+
+```typescript
+// Example: OAuth2 with PKCE for enhanced security
+export default class OAuth2PKCEProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        const code = event.url.searchParams.get('code');
+        const state = event.url.searchParams.get('state');
+        const codeVerifier = event.cookies.get('code_verifier');
+
+        if (code && state && codeVerifier) {
+            // OAuth callback - exchange code for tokens
+            return this.handleOAuthCallback(event, code, state, codeVerifier);
+        }
+
+        // Check for existing access token
+        const accessToken = event.cookies.get('access_token');
+        if (accessToken) {
+            try {
+                const userData = await this.getUserWithToken(accessToken);
+                return this.createUserFromOAuth(userData, accessToken);
+            } catch (error) {
+                // Token invalid, clear cookies and redirect to login
+                event.cookies.delete('access_token');
+                event.cookies.delete('refresh_token');
+                return this.startOAuthFlow(event);
+            }
+        }
+
+        // No tokens found, start OAuth flow
+        return this.startOAuthFlow(event);
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        const accessToken = user.authData.accessToken;
+        const refreshToken = user.authData.refreshToken;
+
+        try {
+            // Check if access token is still valid
+            const isValid = await this.validateAccessToken(accessToken);
+
+            if (isValid) {
+                return undefined; // Token still valid
+            }
+
+            // Access token expired, try to refresh
+            if (refreshToken) {
+                const newTokens = await this.refreshAccessToken(refreshToken);
+                const updatedUser = { ...user };
+                updatedUser.authData = {
+                    ...updatedUser.authData,
+                    accessToken: newTokens.access_token,
+                    refreshToken: newTokens.refresh_token,
+                    expiresAt: Date.now() + newTokens.expires_in * 1000
+                };
+                return updatedUser;
+            }
+
+            throw new ForceUserToReauthenticateError('Access token expired and no refresh token');
+        } catch (error) {
+            throw new ForceUserToReauthenticateError('OAuth token validation failed');
+        }
+    }
+
+    private async startOAuthFlow(event: RequestEvent): Promise<Response> {
+        const codeVerifier = this.generateCodeVerifier();
+        const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+        const state = this.generateState();
+
+        // Store PKCE parameters in cookies
+        event.cookies.set('code_verifier', codeVerifier, { httpOnly: true, secure: true });
+        event.cookies.set('oauth_state', state, { httpOnly: true, secure: true });
+
+        const authUrl = new URL('https://your-oauth-provider.com/oauth/authorize');
+        authUrl.searchParams.set('client_id', process.env.OAUTH_CLIENT_ID);
+        authUrl.searchParams.set('redirect_uri', `${event.url.origin}/oauth/callback`);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('scope', 'openid profile email');
+        authUrl.searchParams.set('code_challenge', codeChallenge);
+        authUrl.searchParams.set('code_challenge_method', 'S256');
+        authUrl.searchParams.set('state', state);
+
+        return redirect(302, authUrl.toString());
+    }
+}
+```
+
+### Role-Based Access Control (RBAC)
+
+```typescript
+// Example: Authentication with role-based access control
+export default class RBACAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        const token = event.cookies.get('auth-token');
+        if (!token) {
+            return redirect(302, '/login');
+        }
+
+        try {
+            const userData = await this.getUserWithRoles(token);
+            return this.createRBACUser(userData, token);
+        } catch (error) {
+            throw new NotAuthenticatedError('RBAC authentication failed');
+        }
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        // Check if user's roles have changed
+        const currentRoles = await this.getUserRoles(user.userId);
+        const hasRoleChanges = this.hasRoleChanges(user.authData.roles, currentRoles);
+
+        if (hasRoleChanges) {
+            // User's roles have changed, update the user object
+            const updatedUser = { ...user };
+            updatedUser.authData = {
+                ...updatedUser.authData,
+                roles: currentRoles,
+                permissions: await this.getPermissionsForRoles(currentRoles)
+            };
+            return updatedUser;
+        }
+
+        return undefined; // No changes needed
+    }
+
+    private createRBACUser(userData: any, token: string): AuthenticatedUser<any> {
+        return {
+            userId: userData.id,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            companyId: userData.organizationId,
+            companyName: userData.organizationName,
+            companyType: userData.organizationType,
+            authData: {
+                accessToken: token,
+                roles: userData.roles,
+                permissions: userData.permissions,
+                lastRoleCheck: Date.now()
+            }
+        };
+    }
+}
+```
+
+### Two-Factor Authentication (2FA)
+
+```typescript
+// Example: Authentication with 2FA support
+export default class TwoFactorAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        const token = event.cookies.get('auth-token');
+        const twoFactorToken = event.cookies.get('2fa-token');
+
+        if (!token) {
+            return redirect(302, '/login');
+        }
+
+        try {
+            const userData = await this.getUserData(token);
+
+            // Check if user has 2FA enabled
+            if (userData.twoFactorEnabled && !twoFactorToken) {
+                // User needs to complete 2FA
+                return redirect(302, '/2fa/verify');
+            }
+
+            // Validate 2FA if required
+            if (userData.twoFactorEnabled && twoFactorToken) {
+                const isValid2FA = await this.validateTwoFactorToken(userData.id, twoFactorToken);
+                if (!isValid2FA) {
+                    event.cookies.delete('2fa-token');
+                    return redirect(302, '/2fa/verify');
+                }
+            }
+
+            return this.createTwoFactorUser(userData, token, twoFactorToken);
+        } catch (error) {
+            throw new NotAuthenticatedError('Two-factor authentication failed');
+        }
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        // Check if 2FA token is still valid
+        if (user.authData.twoFactorToken) {
+            const isValid2FA = await this.validateTwoFactorToken(user.userId, user.authData.twoFactorToken);
+            if (!isValid2FA) {
+                throw new ForceUserToReauthenticateError('Two-factor authentication expired');
+            }
+        }
+
+        return undefined; // 2FA still valid
+    }
+}
+```
+
+### Webhook Authentication
+
+```typescript
+// Example: Webhook authentication for external service integration
+export default class WebhookAuthProvider implements AuthProvider {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+        // Verify webhook signature
+        const signature = event.request.headers.get('x-webhook-signature');
+        const payload = await event.request.text();
+
+        if (!this.verifyWebhookSignature(payload, signature)) {
+            throw new NotAuthenticatedError('Invalid webhook signature');
+        }
+
+        const webhookData = JSON.parse(payload);
+
+        // Extract user information from webhook payload
+        const userData = await this.processWebhookData(webhookData);
+        return this.createWebhookUser(userData);
+    }
+
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+        // For webhook-based auth, check if the webhook session is still valid
+        const isValid = await this.validateWebhookSession(user.authData.webhookId);
+
+        if (!isValid) {
+            throw new ForceUserToReauthenticateError('Webhook session expired');
+        }
+
+        return undefined; // Webhook session still valid
     }
 }
 ```
@@ -550,7 +960,7 @@ The framework will automatically use your custom provider once it's implemented.
 ## Next Steps
 
 1. **Choose your auth provider** (OAuth, SAML, JWT, etc.)
-2. **Implement the CustomAuthProvider interface**
+2. **Implement the AuthProvider interface**
 3. **Test your authentication flow**
 4. **Deploy and monitor**
 

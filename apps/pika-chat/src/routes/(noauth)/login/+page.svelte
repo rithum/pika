@@ -15,15 +15,6 @@
         </svg>
         Continue to App
       </a>
-      
-      <div class="text-center">
-        <p class="text-sm text-gray-500">
-          Don't have an account? 
-          <a href="/auth/register" class="font-medium text-indigo-600 hover:text-indigo-500">
-            Sign up
-          </a>
-        </p>
-      </div>
     </div>
   </div>
 </div>

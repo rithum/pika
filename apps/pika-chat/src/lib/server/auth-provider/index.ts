@@ -6,10 +6,14 @@
 /*
 import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import type { CustomAuthProvider } from '../auth/types';
+import type { AuthProvider } from '../auth/types';
 
-export default class YourAuthProvider implements CustomAuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any>> {
+export default class YourAuthProvider extends AuthProvider {
+    constructor(stage: string) {
+        super(stage);
+    }
+
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
         // Your authentication logic here
         throw new Error('Custom authentication not implemented');
     }

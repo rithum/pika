@@ -10,7 +10,7 @@ import {
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
-import { getRegion, sanitizeAndStringifyError } from './utils';
+import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 import { getValueFromParameterStore } from './ssm';
 import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
 
@@ -346,7 +346,7 @@ export async function invokeAgentToGetAnswer(
         message: responseMsg,
         executionDuration: Date.now() - startingTime,
         //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
-        traces: traces as any,
+        traces: convertDatesToStrings(traces) as any,
         usage,
         ...(error ? { additionalData: sanitizeAndStringifyError(error) } : {})
     };

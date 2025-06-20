@@ -28,8 +28,9 @@ program
     .option('--dry-run', 'Preview changes without applying them')
     .option('--force', 'Force sync even if there are conflicts')
     .option('--diff', 'Show diffs for all changes without applying them')
-    .option('--editor-diff', 'Open diffs in Cursor or VS Code for all changes without applying them')
+    .option('--visual-diff', 'Open diffs in Cursor or VS Code for all changes without applying them')
     .option('--debug', 'Enable debug logging')
+    .option('--help', 'Show detailed help about the sync system')
     .action(syncCommand);
 
 program

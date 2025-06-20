@@ -11,6 +11,9 @@ interface ComponentOptions {
     validate?: boolean;
 }
 
+/**
+ * This is a component definition.
+ */
 interface ComponentDefinition {
     name: string;
     filePath: string;

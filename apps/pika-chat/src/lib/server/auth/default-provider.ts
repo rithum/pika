@@ -1,13 +1,17 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import type { AuthProvider } from './types';
+import { AuthProvider } from './types.js';
 
 /**
  * Default mock authentication provider that maintains existing behavior
  * when no custom authentication provider is implemented
  */
-export default class DefaultAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<undefined>> {
+export default class DefaultAuthProvider extends AuthProvider {
+    constructor(stage: string) {
+        super(stage);
+    }
+
+    async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<undefined>> {
         // Create a mock user (existing behavior)
         const user: AuthenticatedUser<undefined> = {
             userId: '123',
