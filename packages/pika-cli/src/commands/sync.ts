@@ -632,17 +632,28 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
     // Check against explicit protected areas
     const isProtected = protectedAreas.some((area) => {
         if (area.endsWith('/')) {
+            // Directory protection (current behavior)
             return filePath.startsWith(area);
+        } else if (area.includes('/')) {
+            // Exact path protection (current behavior)
+            return filePath === area;
+        } else {
+            // Simple filename protection (new gitignore-style behavior)
+            const fileName = path.basename(filePath);
+            return fileName === area;
         }
-        return filePath === area;
     });
 
     if (isProtected) {
         const matchingArea = protectedAreas.find((area) => {
             if (area.endsWith('/')) {
                 return filePath.startsWith(area);
+            } else if (area.includes('/')) {
+                return filePath === area;
+            } else {
+                const fileName = path.basename(filePath);
+                return fileName === area;
             }
-            return filePath === area;
         });
         logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches protected area: ${matchingArea}`);
         return true;

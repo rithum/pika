@@ -24,6 +24,34 @@ The sync system uses multiple layers of protection to preserve your work:
 - **User Protected Areas**: Additional files you specify in `.pika-sync.json#userProtectedAreas`
 - **User Unprotected Areas**: Files you explicitly allow to sync that are in protectedAreas and that you add to `.pika-sync.json#userUnprotectedAreas`
 
+#### Protection Pattern Types
+
+The protection system supports three types of patterns:
+
+1. **Directory Patterns** (ending with `/`): Protects entire directories and all contents
+
+    - Example: `services/custom/` protects all files in the directory and subdirectories
+
+2. **Exact Path Patterns** (containing `/`): Protects specific files at exact locations
+
+    - Example: `apps/pika-chat/my-file.ts` protects only that specific file
+
+3. **Filename Patterns** (no `/`): Protects files with that name anywhere in the project (gitignore-style)
+    - Example: `cdk.context.json` protects any file named `cdk.context.json` regardless of location
+    - Example: `.env` protects all `.env` files at any directory level
+
+#### Pattern Matching Examples
+
+Here's how different patterns work in practice:
+
+| Pattern               | Type       | Matches                                                                         | Doesn't Match                                          |
+| --------------------- | ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `services/custom/`    | Directory  | `services/custom/api.ts`<br>`services/custom/auth/config.ts`                    | `services/custom-api/`                                 |
+| `pika-config.ts`      | Filename   | `pika-config.ts`<br>`apps/chat/pika-config.ts`<br>`services/api/pika-config.ts` | `pika-config.backup.ts`                                |
+| `apps/chat/config.ts` | Exact Path | `apps/chat/config.ts`                                                           | `apps/chat/auth/config.ts`<br>`services/api/config.ts` |
+| `.env`                | Filename   | `.env`<br>`apps/chat/.env`<br>`services/api/.env`                               | `.env.local`<br>`my.env`                               |
+| `.env.*`              | Filename   | `.env.local`<br>`apps/chat/.env.production`                                     | `.env`<br>`custom.env.local`                           |
+
 ## ⚙️ Configuration
 
 ### Sync Configuration File (`.pika-sync.json`)
@@ -65,24 +93,27 @@ Framework-managed list of protected files. **Don't edit this section** - it's ma
 
 #### `userProtectedAreas`
 
-Additional files you want to protect from framework updates:
+Additional files you want to protect from framework updates. Supports all three pattern types:
 
 ```json
 "userProtectedAreas": [
-    "my-custom-config.ts",
-    "apps/my-custom-app/",
-    "services/my-custom-service/"
+    "my-custom-config.ts",           // Filename pattern - protects anywhere
+    "apps/my-custom-app/",           // Directory pattern - protects entire directory
+    "services/api/my-service.ts",    // Exact path pattern - protects specific file
+    "Dockerfile",                    // Filename pattern - protects all Dockerfiles
+    ".env.production"                // Filename pattern - protects anywhere
 ]
 ```
 
 #### `userUnprotectedAreas`
 
-Default protected files you want to allow updates for:
+Default protected files you want to allow updates for. Also supports all three pattern types:
 
 ```json
 "userUnprotectedAreas": [
-    "package.json",
-    "pnpm-lock.yaml"
+    "package.json",                  // Filename pattern - allows updates to all package.json files
+    "pnpm-lock.yaml",               // Filename pattern - allows updates anywhere
+    "apps/pika-chat/specific.ts"    // Exact path pattern - allows updates to specific file only
 ]
 ```
 
@@ -108,9 +139,11 @@ The following areas are automatically protected from framework updates:
 
 Any path segment starting with "custom-" is automatically protected:
 
-- `custom-components/`
-- `custom-services/`
-- `custom-file.ts`
+- `custom-components/` - directory anywhere in project
+- `custom-services/` - directory anywhere in project
+- `custom-file.ts` - file anywhere in project
+- `apps/my-app/custom-config/` - subdirectory with custom- prefix
+- `services/api/custom-middleware.ts` - file with custom- prefix
 
 ## 📁 Sample Directory Handling
 
