@@ -293,6 +293,25 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 const tempDir = await downloadPikaFramework(targetVersion, targetBranch);
                 logger.stopSpinner(true, 'Framework downloaded');
 
+                // Immediately update protected areas from the downloaded framework
+                const protectedAreasSpinner = logger.startSpinner('Updating protected areas from framework...');
+                logger.debug(`[DEBUG] syncCommand: About to call updateProtectedAreasFromFramework`);
+                const protectedAreasUpdated = await updateProtectedAreasFromFramework(tempDir, syncConfigPath, syncConfig);
+                logger.debug(`[DEBUG] syncCommand: updateProtectedAreasFromFramework returned: ${protectedAreasUpdated}`);
+                logger.stopSpinner(true, protectedAreasUpdated ? 'Protected areas updated' : 'Protected areas up to date');
+
+                // If protected areas were updated, refresh the merged protected areas
+                if (protectedAreasUpdated) {
+                    logger.debug(`[DEBUG] syncCommand: Protected areas were updated, refreshing merged protected areas`);
+                    const updatedSyncConfig = JSON.parse(await fileManager.readFile(syncConfigPath));
+                    logger.debug(`[DEBUG] syncCommand: Updated sync config: ${JSON.stringify(updatedSyncConfig, null, 2)}`);
+                    protectedAreas.splice(0, protectedAreas.length, ...getMergedProtectedAreas(updatedSyncConfig));
+                    logger.debug(`[DEBUG] syncCommand: Refreshed protected areas count: ${protectedAreas.length}`);
+                } else {
+                    logger.debug(`[DEBUG] syncCommand: Protected areas were not updated, using existing merged protected areas`);
+                    logger.debug(`[DEBUG] syncCommand: Current protected areas count: ${protectedAreas.length}`);
+                }
+
                 // Compare files and identify changes
                 const analysisSpinner = logger.startSpinner('Analyzing changes...');
                 const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas);
@@ -760,6 +779,118 @@ async function updateSyncConfig(syncConfigPath: string, syncConfig: SyncConfig, 
     await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));
 }
 
+async function updateProtectedAreasFromFramework(tempDir: string, syncConfigPath: string, syncConfig: SyncConfig): Promise<boolean> {
+    try {
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Starting with tempDir=${tempDir}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: syncConfigPath=${syncConfigPath}`);
+
+        // Check if there's a protected-areas.json in the downloaded framework
+        const frameworkProtectedAreasPath = path.join(tempDir, 'packages/pika-cli/src/config/protected-areas.json');
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Looking for file at ${frameworkProtectedAreasPath}`);
+
+        if (!existsSync(frameworkProtectedAreasPath)) {
+            logger.debug('No protected-areas.json found in framework, skipping protected areas update');
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: File does not exist at ${frameworkProtectedAreasPath}`);
+
+            // Let's check what's actually in the temp directory
+            try {
+                const { readdir } = await import('fs/promises');
+                const tempContents = await readdir(tempDir);
+                logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Temp directory contents: ${tempContents.join(', ')}`);
+
+                if (tempContents.includes('packages')) {
+                    const packagesContents = await readdir(path.join(tempDir, 'packages'));
+                    logger.debug(`[DEBUG] updateProtectedAreasFromFramework: packages directory contents: ${packagesContents.join(', ')}`);
+
+                    if (packagesContents.includes('pika-cli')) {
+                        const cliContents = await readdir(path.join(tempDir, 'packages/pika-cli'));
+                        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: pika-cli directory contents: ${cliContents.join(', ')}`);
+
+                        if (cliContents.includes('src')) {
+                            const srcContents = await readdir(path.join(tempDir, 'packages/pika-cli/src'));
+                            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: src directory contents: ${srcContents.join(', ')}`);
+
+                            if (srcContents.includes('config')) {
+                                const configContents = await readdir(path.join(tempDir, 'packages/pika-cli/src/config'));
+                                logger.debug(`[DEBUG] updateProtectedAreasFromFramework: config directory contents: ${configContents.join(', ')}`);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Error exploring temp directory: ${error}`);
+            }
+
+            return false;
+        }
+
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Found protected-areas.json file`);
+        const frameworkProtectedAreas = JSON.parse(readFileSync(frameworkProtectedAreasPath, 'utf8'));
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Parsed framework protected areas: ${JSON.stringify(frameworkProtectedAreas, null, 2)}`);
+
+        // Compare with current protected areas
+        const currentProtectedAreas = syncConfig.protectedAreas || [];
+        const newProtectedAreas = frameworkProtectedAreas.defaultProtectedAreas || [];
+
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Current protected areas count: ${currentProtectedAreas.length}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: New protected areas count: ${newProtectedAreas.length}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Current protected areas: ${JSON.stringify(currentProtectedAreas)}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: New protected areas: ${JSON.stringify(newProtectedAreas)}`);
+
+        // Check if they're different
+        const currentSorted = currentProtectedAreas.sort();
+        const newSorted = newProtectedAreas.sort();
+        const areasChanged = JSON.stringify(currentSorted) !== JSON.stringify(newSorted);
+
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Areas changed: ${areasChanged}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Current sorted: ${JSON.stringify(currentSorted)}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: New sorted: ${JSON.stringify(newSorted)}`);
+
+        if (areasChanged) {
+            logger.info('📋 Found updated protected areas list from framework');
+            logger.info(`   • Current: ${currentProtectedAreas.length} protected areas`);
+            logger.info(`   • New: ${newProtectedAreas.length} protected areas`);
+
+            // Show what's being added/removed
+            const added = newProtectedAreas.filter((area: string) => !currentProtectedAreas.includes(area));
+            const removed = currentProtectedAreas.filter((area: string) => !newProtectedAreas.includes(area));
+
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Added areas: ${JSON.stringify(added)}`);
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Removed areas: ${JSON.stringify(removed)}`);
+
+            if (added.length > 0) {
+                logger.info('   • Added protected areas:');
+                added.forEach((area: string) => logger.info(`     + ${area}`));
+            }
+
+            if (removed.length > 0) {
+                logger.info('   • Removed protected areas:');
+                removed.forEach((area: string) => logger.info(`     - ${area}`));
+            }
+
+            // Update the sync config with new protected areas
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Updating syncConfig.protectedAreas`);
+            syncConfig.protectedAreas = newProtectedAreas;
+
+            // Save the updated config
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Writing updated config to ${syncConfigPath}`);
+            const updatedConfigJson = JSON.stringify(syncConfig, null, 2);
+            logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Updated config JSON: ${updatedConfigJson}`);
+            await fileManager.writeFile(syncConfigPath, updatedConfigJson);
+
+            logger.success('✅ Protected areas updated successfully');
+            return true;
+        } else {
+            logger.debug('Protected areas are up to date');
+            return false;
+        }
+    } catch (error) {
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Error occurred: ${error}`);
+        logger.debug(`[DEBUG] updateProtectedAreasFromFramework: Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
+        return false;
+    }
+}
+
 async function cleanupTempDir(tempDir: string): Promise<void> {
     try {
         if (await fileManager.exists(tempDir)) {
@@ -784,6 +915,18 @@ function getChangeIcon(type: string): string {
 }
 
 function getDefaultProtectedAreas(): string[] {
+    try {
+        // Try to load from the centralized config file
+        const configPath = path.join(__dirname, '../config/protected-areas.json');
+        if (existsSync(configPath)) {
+            const config = JSON.parse(readFileSync(configPath, 'utf8'));
+            return config.defaultProtectedAreas || [];
+        }
+    } catch (error) {
+        logger.debug('Failed to load protected areas config, using fallback:', error);
+    }
+
+    // Fallback to hardcoded list if config file is not available
     return [
         'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
         'apps/pika-chat/src/lib/server/auth-provider/',
@@ -797,6 +940,7 @@ function getDefaultProtectedAreas(): string[] {
         '.gitignore', // Always protect .gitignore
         'package.json', // Always protect package.json
         'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
+        'cdk.context.json', // Always protect CDK-generated context file
         // CI/CD configuration directories
         '.github/', // GitHub Actions workflows
         '.gitlab/', // GitLab CI/CD configurations

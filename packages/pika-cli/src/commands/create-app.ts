@@ -7,11 +7,59 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { DistinctQuestion } from 'inquirer';
 import type { ExecOptions } from 'child_process';
+import { existsSync, readFileSync } from 'fs';
 
 const execAsync = promisify(exec);
 
 // GitHub repository URL - update this to your actual repo
 const PIKA_REPO_URL = 'https://github.com/rithum/pika.git';
+
+function getDefaultProtectedAreas(): string[] {
+    try {
+        // Try to load from the centralized config file
+        const configPath = path.join(__dirname, '../config/protected-areas.json');
+        if (existsSync(configPath)) {
+            const config = JSON.parse(readFileSync(configPath, 'utf8'));
+            return config.defaultProtectedAreas || [];
+        }
+    } catch (error) {
+        logger.debug('Failed to load protected areas config, using fallback:', error);
+    }
+
+    // Fallback to hardcoded list if config file is not available
+    return [
+        'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
+        'apps/pika-chat/src/lib/server/auth-provider/',
+        'services/custom/',
+        'apps/custom/',
+        '.env',
+        '.env.local',
+        '.env.*',
+        'pika-config.ts',
+        '.pika-sync.json',
+        '.gitignore',
+        'package.json',
+        'pnpm-lock.yaml',
+        'cdk.context.json',
+        '.github/',
+        '.gitlab/',
+        '.circleci/',
+        '.bitbucket/',
+        '.azure-pipelines/',
+        '.azure/',
+        '.ci/',
+        '.gitlab-ci.yml',
+        '.circleci/config.yml',
+        'bitbucket-pipelines.yml',
+        'azure-pipelines.yml',
+        'Makefile',
+        'Jenkinsfile',
+        '.travis.yml',
+        'buildspec.yml',
+        'taskfile.yml',
+        '.drone.yml'
+    ];
+}
 
 interface CreateAppOptions {
     template?: string;
@@ -200,39 +248,7 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
         pikaVersion: '1.0.0', // This should match the CLI version
         createdAt: new Date().toISOString(),
         lastSync: new Date().toISOString(),
-        protectedAreas: [
-            'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
-            'apps/pika-chat/src/lib/server/auth-provider/',
-            'services/custom/',
-            'apps/custom/',
-            '.env',
-            '.env.local',
-            '.env.*',
-            'pika-config.ts',
-            '.pika-sync.json',
-            '.gitignore', // Add .gitignore to protected areas
-            'package.json', // Add package.json to protected areas
-            'pnpm-lock.yaml', // Add pnpm-lock.yaml to protected areas
-            // CI/CD configuration directories
-            '.github/', // GitHub Actions workflows
-            '.gitlab/', // GitLab CI/CD configurations
-            '.circleci/', // CircleCI configurations
-            '.bitbucket/', // Bitbucket Pipelines configs
-            '.azure-pipelines/', // Azure Pipelines setup
-            '.azure/', // Azure Pipelines setup (alternative)
-            '.ci/', // Generic or custom-named CI configuration folders
-            // CI/CD configuration files
-            '.gitlab-ci.yml', // GitLab CI
-            '.circleci/config.yml', // CircleCI
-            'bitbucket-pipelines.yml', // Bitbucket
-            'azure-pipelines.yml', // Azure Pipelines
-            'Makefile', // Used to script build/test steps
-            'Jenkinsfile', // Jenkins CI
-            '.travis.yml', // Legacy Travis CI
-            'buildspec.yml', // AWS CodeBuild
-            'taskfile.yml', // Used with go-task
-            '.drone.yml' // Drone CI
-        ],
+        protectedAreas: getDefaultProtectedAreas(),
         // User-defined protected areas - these will be merged with the default protectedAreas
         // Users can add additional protected areas or override defaults by removing them from here
         userProtectedAreas: [
