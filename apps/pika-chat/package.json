@@ -37,6 +37,7 @@
         "@aws-sdk/lib-dynamodb": "catalog:",
         "@aws-sdk/credential-provider-node": "catalog:",
         "@aws-sdk/s3-request-presigner": "catalog:",
+        "@smithy/node-http-handler": "catalog:",
         "@smithy/signature-v4": "catalog:",
         "@iconify-json/ci": "catalog:",
         "@iconify-json/lucide": "catalog:",
