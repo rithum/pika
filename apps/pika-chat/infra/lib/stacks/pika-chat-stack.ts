@@ -26,11 +26,28 @@ export interface PikaChatStackProps extends cdk.StackProps {
 export class PikaChatStack extends cdk.Stack {
     private stage: string;
     public readonly webapp: PikaChatConstruct;
+    public stageParam: cdk.CfnParameter;
+    public stageCappedParam: cdk.CfnParameter;
 
     constructor(scope: Construct, id: string, props: PikaChatStackProps) {
         super(scope, id, props);
 
         this.stage = props.stage;
+
+        //TODO: check for the existence of an input param named stage and if not provided, add it as a required input param with no default value
+        this.stageParam = new cdk.CfnParameter(this, 'stage', {
+            type: 'String',
+            description: 'The stage/environment name (e.g., dev, staging, prod)',
+            allowedPattern: '^[a-zA-Z0-9-]+$',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
+        });
+
+        this.stageCappedParam = new cdk.CfnParameter(this, 'Stage', {
+            type: 'String',
+            description: 'The stage/environment name capitalized (e.g., Dev, Staging, Prod)',
+            allowedPattern: '^[a-zA-Z0-9-]+$',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
+        });
 
         const customStackDefs = new CustomStackDefs(this);
 

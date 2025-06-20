@@ -1,5 +1,6 @@
 import { PartialPikaChatConstructProps, PikaChatConstructProps } from './pika-chat-construct.js';
 import { PikaChatStack } from './pika-chat-stack.js';
+import * as cdk from 'aws-cdk-lib';
 
 /**
  * You must make changes to this class to add your own customizations to the pika stack.
@@ -29,7 +30,8 @@ export class CustomStackDefs {
      * Add resources to the stack before we create the PikaChatConstruct if you want to.
      */
     addStackResoucesBeforeWeCreateThePikaChatConstruct(): void {
-        //TODO: implement if needed
+        isProd: cdk.CfnCondition;
+        isProductionEnv: cdk.CfnCondition;
     }
 
     /**
