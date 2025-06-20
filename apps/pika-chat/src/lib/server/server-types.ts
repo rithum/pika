@@ -111,4 +111,11 @@ export interface AppConfig {
      * env variable: CONVERSE_FUNCTION_URL
      */
     converseFnUrl: string;
+
+    /**
+     * Get an arbitrary config value from the environment or process.env
+     * @param key - The key to get the value for
+     * @returns The value of the key
+     */
+    getArbitraryConfigValue(key: string): string;
 }
