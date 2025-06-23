@@ -172,7 +172,7 @@
     function scrollToBottom() {
         setTimeout(function () {
             if (scrollToDiv) {
-                console.log('scrolling to bottom');
+                // console.log('scrolling to bottom');
                 isProgrammaticallyScrolling = true;
                 scrollToDiv.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
 

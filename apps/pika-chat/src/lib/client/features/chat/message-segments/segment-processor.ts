@@ -193,19 +193,19 @@ export class MessageSegmentProcessor implements SegmentProcessor {
      * should you need to.
      */
     parseMessage(content: string, segments: ProcessedSegment[], isStreaming: boolean): ProcessedSegment[] {
-        console.log('[SEGMENT-PROCESSOR] parseMessage called:', {
-            contentLength: content.length,
-            contentPreview: content.slice(0, 100) + (content.length > 100 ? '...' : ''),
-            existingSegmentCount: segments.length,
-            isStreaming,
-            existingSegments: segments.map((s) => ({
-                id: s.id,
-                type: s.segmentType,
-                status: s.streamingStatus,
-                tag: 'tag' in s ? s.tag : undefined,
-                contentLength: s.rawContent.length
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] parseMessage called:', {
+        //     contentLength: content.length,
+        //     contentPreview: content.slice(0, 100) + (content.length > 100 ? '...' : ''),
+        //     existingSegmentCount: segments.length,
+        //     isStreaming,
+        //     existingSegments: segments.map((s) => ({
+        //         id: s.id,
+        //         type: s.segmentType,
+        //         status: s.streamingStatus,
+        //         tag: 'tag' in s ? s.tag : undefined,
+        //         contentLength: s.rawContent.length
+        //     }))
+        // });
 
         const modifiedSegments: ProcessedSegment[] = [];
 
@@ -221,15 +221,15 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         const lastSegment = segments.length > 0 ? segments[segments.length - 1] : undefined;
         const hasIncompleteLast = !!lastSegment && (lastSegment.streamingStatus === 'streaming' || lastSegment.streamingStatus === 'incomplete');
 
-        console.log('[SEGMENT-PROCESSOR] Processing state:', {
-            hasLastSegment: !!lastSegment,
-            lastSegmentStatus: lastSegment?.streamingStatus,
-            hasIncompleteLast,
-            contentEmpty: content === ''
-        });
+        // console.log('[SEGMENT-PROCESSOR] Processing state:', {
+        //     hasLastSegment: !!lastSegment,
+        //     lastSegmentStatus: lastSegment?.streamingStatus,
+        //     hasIncompleteLast,
+        //     contentEmpty: content === ''
+        // });
 
         if (content === '' && !hasIncompleteLast) {
-            console.log('[SEGMENT-PROCESSOR] Early return - no content and no incomplete segments');
+            // console.log('[SEGMENT-PROCESSOR] Early return - no content and no incomplete segments');
             return modifiedSegments; // No content to process and no incomplete segments
         }
 
@@ -240,60 +240,99 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         let segmentStartIndex = segments.length;
 
         if (hasIncompleteLast) {
-            console.log('[SEGMENT-PROCESSOR] Processing incomplete last segment:', {
-                segmentId: lastSegment!.id,
-                segmentType: lastSegment!.segmentType,
-                status: lastSegment!.streamingStatus,
-                existingContent: lastSegment!.rawContent
-            });
+            // console.log('[SEGMENT-PROCESSOR] Processing incomplete last segment:', {
+            //     segmentId: lastSegment!.id,
+            //     segmentType: lastSegment!.segmentType,
+            //     status: lastSegment!.streamingStatus,
+            //     existingContent: lastSegment!.rawContent
+            // });
 
             // Remove the last incomplete segment and include its content in our parsing (we are guaranteed to have at least one segment)
             const removedSegment = segments.pop() as ProcessedSegment;
+
+            // console.log('[SEGMENT-PROCESSOR] 🔧 RECONSTRUCTION DEBUG:', {
+            //     removedSegmentType: removedSegment.segmentType,
+            //     removedSegmentStatus: removedSegment.streamingStatus,
+            //     removedSegmentTag: 'tag' in removedSegment ? removedSegment.tag : 'N/A',
+            //     removedSegmentContent: removedSegment.rawContent,
+            //     newIncomingContent: content,
+            //     newIncomingContentLength: content.length
+            // });
+
             if (isProcessedTextSegment(removedSegment)) {
                 // For text segments, just prepend the existing content
                 contentToParse = removedSegment.rawContent + content;
-                console.log('[SEGMENT-PROCESSOR] Merged text segment content:', {
-                    originalLength: removedSegment.rawContent.length,
-                    newContentLength: content.length,
-                    totalLength: contentToParse.length
-                });
+                // console.log('[SEGMENT-PROCESSOR] 🔧 TEXT RECONSTRUCTION:', {
+                //     originalContent: removedSegment.rawContent,
+                //     newContent: content,
+                //     reconstructedContent: contentToParse,
+                //     reconstructedLength: contentToParse.length
+                // });
+                // console.log('[SEGMENT-PROCESSOR] Merged text segment content:', {
+                //     originalLength: removedSegment.rawContent.length,
+                //     newContentLength: content.length,
+                //     totalLength: contentToParse.length
+                // });
             } else if (removedSegment.streamingStatus === 'incomplete') {
                 // For incomplete tag segments, reconstruct the partial opening tag
                 const tag = removedSegment.tag;
                 const reconstructedContent = `<${tag}` + content;
 
-                console.log('[SEGMENT-PROCESSOR] Reconstructing incomplete tag:', {
-                    tag,
-                    originalPartial: `<${tag}`,
-                    newContent: content,
-                    reconstructed: reconstructedContent
-                });
+                // console.log('[SEGMENT-PROCESSOR] 🔧 INCOMPLETE TAG RECONSTRUCTION:', {
+                //     tag,
+                //     originalPartial: `<${tag}`,
+                //     newContent: content,
+                //     reconstructedContent,
+                //     reconstructedLength: reconstructedContent.length
+                // });
+
+                // console.log('[SEGMENT-PROCESSOR] Reconstructing incomplete tag:', {
+                //     tag,
+                //     originalPartial: `<${tag}`,
+                //     newContent: content,
+                //     reconstructed: reconstructedContent
+                // });
 
                 // Check if the new content completes the tag and if it's supported
                 const completedTagCheck = this.checkForCompletedTag(reconstructedContent, tag);
 
-                console.log('[SEGMENT-PROCESSOR] Completed tag check:', completedTagCheck);
+                // console.log('[SEGMENT-PROCESSOR] Completed tag check:', completedTagCheck);
 
                 if (completedTagCheck.isNowValid) {
                     // The completed tag is supported, proceed normally
                     contentToParse = reconstructedContent;
                 } else {
                     // The completed tag is not supported, convert to text
-                    console.log('[SEGMENT-PROCESSOR] Converting invalid completed tag to text');
+                    // console.log('[SEGMENT-PROCESSOR] Converting invalid completed tag to text');
                     this.convertIncompleteTagToText(reconstructedContent, segments, modifiedSegments);
                     return modifiedSegments; // Early return since we've handled everything
                 }
             } else {
                 // For streaming tag segments, reconstruct the original tag format
                 const tag = removedSegment.tag;
-                const tagContent = `<${tag}>${removedSegment.rawContent}` + content;
+                //TODO: remove this when we're sure the fix after it worked
+                //const tagContent = `<${tag}>${removedSegment.rawContent}` + content;
+                const tagContent =
+                    //removedSegment.rawContent === ''
+                    removedSegment.rawContent === '' && content.startsWith('>')
+                        ? `<${tag}` + content // Don't add > if no content yet (content should provide it)
+                        : `<${tag}>${removedSegment.rawContent}` + content;
                 contentToParse = tagContent;
-                console.log('[SEGMENT-PROCESSOR] Reconstructing streaming tag:', {
-                    tag,
-                    existingContent: removedSegment.rawContent,
-                    newContent: content,
-                    reconstructed: tagContent
-                });
+
+                // console.log('[SEGMENT-PROCESSOR] 🔧 STREAMING TAG RECONSTRUCTION:', {
+                //     tag,
+                //     existingTagContent: removedSegment.rawContent,
+                //     newContent: content,
+                //     reconstructedTagFormat: `<${tag}>${removedSegment.rawContent}`,
+                //     finalReconstructedContent: tagContent,
+                //     finalLength: tagContent.length
+                // });
+                // console.log('[SEGMENT-PROCESSOR] Reconstructing streaming tag:', {
+                //     tag,
+                //     existingContent: removedSegment.rawContent,
+                //     newContent: content,
+                //     reconstructed: tagContent
+                // });
             }
 
             segmentStartIndex = segments.length;
@@ -302,11 +341,11 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         const tagPattern = this.getSupportedTagsPattern();
         let searchIndex = 0;
 
-        console.log('[SEGMENT-PROCESSOR] Starting tag parsing:', {
-            contentToParseLength: contentToParse.length,
-            segmentStartIndex,
-            tagPatternExists: !!tagPattern
-        });
+        // console.log('[SEGMENT-PROCESSOR] Starting tag parsing:', {
+        //     contentToParseLength: contentToParse.length,
+        //     segmentStartIndex,
+        //     tagPatternExists: !!tagPattern
+        // });
 
         // First, process all complete tags
         while (searchIndex < contentToParse.length) {
@@ -314,29 +353,29 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             const match = tagPattern.exec(remainingContent);
 
             if (!match) {
-                console.log('[SEGMENT-PROCESSOR] No more complete tags found at index:', searchIndex);
+                // console.log('[SEGMENT-PROCESSOR] No more complete tags found at index:', searchIndex);
                 break;
             }
 
             // Adjust match.index to be relative to original content
             const actualIndex = searchIndex + match.index;
 
-            console.log('[SEGMENT-PROCESSOR] Found complete tag:', {
-                tagName: match[1],
-                tagContent: match[2],
-                startIndex: actualIndex,
-                endIndex: actualIndex + match[0].length,
-                fullMatch: match[0]
-            });
+            // console.log('[SEGMENT-PROCESSOR] Found complete tag:', {
+            //     tagName: match[1],
+            //     tagContent: match[2],
+            //     startIndex: actualIndex,
+            //     endIndex: actualIndex + match[0].length,
+            //     fullMatch: match[0]
+            // });
 
             // Add any text content before this tag
             if (actualIndex > searchIndex) {
                 const textContent = contentToParse.slice(searchIndex, actualIndex);
                 if (textContent) {
-                    console.log('[SEGMENT-PROCESSOR] Adding text before tag:', {
-                        textLength: textContent.length,
-                        textPreview: textContent.slice(0, 50)
-                    });
+                    // console.log('[SEGMENT-PROCESSOR] Adding text before tag:', {
+                    //     textLength: textContent.length,
+                    //     textPreview: textContent.slice(0, 50)
+                    // });
                     // Use addTextContent to merge with existing text segments instead of creating new ones
                     this.addTextContent(textContent, segments, modifiedSegments);
                 }
@@ -347,12 +386,12 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             const tagContent = match[2];
             const tagSegment = this.createTagSegment(tagType, tagContent, segments);
             tagSegment.streamingStatus = 'completed'; // Complete tags are always completed
-            console.log('[SEGMENT-PROCESSOR] Created complete tag segment:', {
-                id: tagSegment.id,
-                tag: tagType,
-                contentLength: tagContent.length,
-                isMetadata: 'isMetadata' in tagSegment ? tagSegment.isMetadata : false
-            });
+            // console.log('[SEGMENT-PROCESSOR] Created complete tag segment:', {
+            //     id: tagSegment.id,
+            //     tag: tagType,
+            //     contentLength: tagContent.length,
+            //     isMetadata: 'isMetadata' in tagSegment ? tagSegment.isMetadata : false
+            // });
             segments.push(tagSegment);
             modifiedSegments.push(tagSegment);
 
@@ -362,37 +401,37 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         // Handle remaining content, checking for incomplete tags during streaming
         if (searchIndex < contentToParse.length) {
             const remainingContent = contentToParse.slice(searchIndex);
-            console.log('[SEGMENT-PROCESSOR] Processing remaining content:', {
-                remainingLength: remainingContent.length,
-                remainingPreview: remainingContent.slice(0, 100),
-                isStreaming
-            });
+            // console.log('[SEGMENT-PROCESSOR] Processing remaining content:', {
+            //     remainingLength: remainingContent.length,
+            //     remainingPreview: remainingContent.slice(0, 100),
+            //     isStreaming
+            // });
 
             if (isStreaming) {
                 this.parseRemainingContentStreaming(remainingContent, segments, modifiedSegments);
             } else {
                 // Not streaming, treat all remaining content as text
-                console.log('[SEGMENT-PROCESSOR] Adding remaining content as text (not streaming)');
+                // console.log('[SEGMENT-PROCESSOR] Adding remaining content as text (not streaming)');
                 this.addTextContent(remainingContent, segments, modifiedSegments);
             }
         }
 
         // Set streaming status for the modified segments
         // BEFORE the forEach loop - log all segments before modification
-        console.log('[SEGMENT-PROCESSOR] BEFORE status updates:', {
-            totalSegments: segments.length,
-            isStreaming,
-            segmentStartIndex,
-            allSegments: segments.map((seg, idx) => ({
-                index: idx,
-                segmentId: seg.id,
-                segmentType: seg.segmentType,
-                currentStatus: seg.streamingStatus,
-                isLastSegment: idx === segments.length - 1,
-                contentLength: seg.rawContent?.length || 0,
-                contentPreview: seg.rawContent?.substring(0, 30) || '<no content>'
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] BEFORE status updates:', {
+        //     totalSegments: segments.length,
+        //     isStreaming,
+        //     segmentStartIndex,
+        //     allSegments: segments.map((seg, idx) => ({
+        //         index: idx,
+        //         segmentId: seg.id,
+        //         segmentType: seg.segmentType,
+        //         currentStatus: seg.streamingStatus,
+        //         isLastSegment: idx === segments.length - 1,
+        //         contentLength: seg.rawContent?.length || 0,
+        //         contentPreview: seg.rawContent?.substring(0, 30) || '<no content>'
+        //     }))
+        // });
 
         // Update status for ALL segments, not just modified ones
         // This ensures completed segments stay completed
@@ -400,34 +439,34 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             const oldStatus = segment.streamingStatus;
             const wasModified = modifiedSegments.includes(segment);
 
-            console.log('[SEGMENT-PROCESSOR] 🔍 STATUS UPDATE CHECK:', {
-                segmentId: segment.id,
-                segmentType: segment.segmentType,
-                currentStatus: segment.streamingStatus,
-                wasModified,
-                isLastSegment: index === segments.length - 1,
-                modifiedSegmentIds: modifiedSegments.map((s) => s.id)
-            });
+            // console.log('[SEGMENT-PROCESSOR] 🔍 STATUS UPDATE CHECK:', {
+            //     segmentId: segment.id,
+            //     segmentType: segment.segmentType,
+            //     currentStatus: segment.streamingStatus,
+            //     wasModified,
+            //     isLastSegment: index === segments.length - 1,
+            //     modifiedSegmentIds: modifiedSegments.map((s) => s.id)
+            // });
 
             // Don't override incomplete status or already completed status
             if (segment.streamingStatus === 'incomplete' || segment.streamingStatus === 'completed') {
-                console.log('[SEGMENT-PROCESSOR] SKIPPING status update (keeping existing):', {
-                    segmentId: segment.id,
-                    segmentType: segment.segmentType,
-                    currentStatus: segment.streamingStatus,
-                    reason: segment.streamingStatus === 'incomplete' ? 'incomplete' : 'already completed',
-                    wasModified
-                });
+                // console.log('[SEGMENT-PROCESSOR] SKIPPING status update (keeping existing):', {
+                //     segmentId: segment.id,
+                //     segmentType: segment.segmentType,
+                //     currentStatus: segment.streamingStatus,
+                //     reason: segment.streamingStatus === 'incomplete' ? 'incomplete' : 'already completed',
+                //     wasModified
+                // });
                 return; // Keep existing status for incomplete tags and completed tags
             }
 
             // Only update status for segments that were actually modified in this round
             if (!wasModified) {
-                console.log('[SEGMENT-PROCESSOR] SKIPPING status update (not modified):', {
-                    segmentId: segment.id,
-                    segmentType: segment.segmentType,
-                    currentStatus: segment.streamingStatus
-                });
+                // console.log('[SEGMENT-PROCESSOR] SKIPPING status update (not modified):', {
+                //     segmentId: segment.id,
+                //     segmentType: segment.segmentType,
+                //     currentStatus: segment.streamingStatus
+                // });
                 return; // Don't change status of unmodified segments
             }
 
@@ -438,55 +477,55 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 segment.streamingStatus = 'streaming';
             }
 
-            console.log('[SEGMENT-PROCESSOR] Updated segment streaming status:', {
-                segmentId: segment.id,
-                segmentType: segment.segmentType,
-                oldStatus,
-                newStatus: segment.streamingStatus,
-                isLastSegment: index === segments.length - 1,
-                wasModified
-            });
+            // console.log('[SEGMENT-PROCESSOR] Updated segment streaming status:', {
+            //     segmentId: segment.id,
+            //     segmentType: segment.segmentType,
+            //     oldStatus,
+            //     newStatus: segment.streamingStatus,
+            //     isLastSegment: index === segments.length - 1,
+            //     wasModified
+            // });
         });
 
         // AFTER the forEach loop - log all segments after modification
-        console.log('[SEGMENT-PROCESSOR] AFTER status updates:', {
-            totalSegments: segments.length,
-            allSegments: segments.map((seg, idx) => ({
-                index: idx,
-                segmentId: seg.id,
-                segmentType: seg.segmentType,
-                finalStatus: seg.streamingStatus,
-                isLastSegment: idx === segments.length - 1,
-                contentLength: seg.rawContent?.length || 0,
-                contentPreview: seg.rawContent?.substring(0, 30) || '<no content>'
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] AFTER status updates:', {
+        //     totalSegments: segments.length,
+        //     allSegments: segments.map((seg, idx) => ({
+        //         index: idx,
+        //         segmentId: seg.id,
+        //         segmentType: seg.segmentType,
+        //         finalStatus: seg.streamingStatus,
+        //         isLastSegment: idx === segments.length - 1,
+        //         contentLength: seg.rawContent?.length || 0,
+        //         contentPreview: seg.rawContent?.substring(0, 30) || '<no content>'
+        //     }))
+        // });
 
-        console.log('[SEGMENT-PROCESSOR] parseMessage completed:', {
-            totalSegments: segments.length,
-            modifiedSegmentCount: modifiedSegments.length,
-            finalSegments: segments.map((s) => ({
-                id: s.id,
-                type: s.segmentType,
-                status: s.streamingStatus,
-                tag: 'tag' in s ? s.tag : undefined,
-                contentLength: s.rawContent.length
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] parseMessage completed:', {
+        //     totalSegments: segments.length,
+        //     modifiedSegmentCount: modifiedSegments.length,
+        //     finalSegments: segments.map((s) => ({
+        //         id: s.id,
+        //         type: s.segmentType,
+        //         status: s.streamingStatus,
+        //         tag: 'tag' in s ? s.tag : undefined,
+        //         contentLength: s.rawContent.length
+        //     }))
+        // });
 
         return modifiedSegments;
     }
 
     doneStreaming(segments: ProcessedSegment[]): void {
-        console.log('[SEGMENT-PROCESSOR] doneStreaming called:', {
-            segmentCount: segments.length,
-            segments: segments.map((s) => ({
-                id: s.id,
-                type: s.segmentType,
-                status: s.streamingStatus,
-                tag: 'tag' in s ? s.tag : undefined
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] doneStreaming called:', {
+        //     segmentCount: segments.length,
+        //     segments: segments.map((s) => ({
+        //         id: s.id,
+        //         type: s.segmentType,
+        //         status: s.streamingStatus,
+        //         tag: 'tag' in s ? s.tag : undefined
+        //     }))
+        // });
 
         // Convert any incomplete or streaming segments to text segments
         // Only the last segment can be in progress, but we'll check all just to be safe
@@ -500,12 +539,12 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
             // Only convert truly incomplete segments, not complete tags that happen to have streaming status
             if ((segment.streamingStatus === 'streaming' || segment.streamingStatus === 'incomplete') && !this.isTagSegmentComplete(segment)) {
-                console.log('[SEGMENT-PROCESSOR] Converting incomplete segment to text:', {
-                    segmentId: segment.id,
-                    segmentType: segment.segmentType,
-                    status: segment.streamingStatus,
-                    tag: 'tag' in segment ? segment.tag : undefined
-                });
+                // console.log('[SEGMENT-PROCESSOR] Converting incomplete segment to text:', {
+                //     segmentId: segment.id,
+                //     segmentType: segment.segmentType,
+                //     status: segment.streamingStatus,
+                //     tag: 'tag' in segment ? segment.tag : undefined
+                // });
 
                 // Convert to text segment by reconstructing the original content
                 let reconstructedContent: string;
@@ -524,10 +563,10 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                     }
                 }
 
-                console.log('[SEGMENT-PROCESSOR] Reconstructed content for text segment:', {
-                    originalSegmentId: segment.id,
-                    reconstructedContent: reconstructedContent.slice(0, 100)
-                });
+                // console.log('[SEGMENT-PROCESSOR] Reconstructed content for text segment:', {
+                //     originalSegmentId: segment.id,
+                //     reconstructedContent: reconstructedContent.slice(0, 100)
+                // });
 
                 // Create a new text segment to replace this one
                 const textRenderer = this.#componentRegistry.getRenderer('text');
@@ -542,31 +581,31 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
                 // Replace the segment
                 segments[i] = newTextSegment;
-                console.log('[SEGMENT-PROCESSOR] Replaced segment with text segment:', {
-                    segmentId: segment.id,
-                    newContentLength: reconstructedContent.length
-                });
+                // console.log('[SEGMENT-PROCESSOR] Replaced segment with text segment:', {
+                //     segmentId: segment.id,
+                //     newContentLength: reconstructedContent.length
+                // });
             }
         }
 
-        console.log('[SEGMENT-PROCESSOR] doneStreaming completed:', {
-            finalSegmentCount: segments.length,
-            finalSegments: segments.map((s) => ({
-                id: s.id,
-                type: s.segmentType,
-                status: s.streamingStatus
-            }))
-        });
+        // console.log('[SEGMENT-PROCESSOR] doneStreaming completed:', {
+        //     finalSegmentCount: segments.length,
+        //     finalSegments: segments.map((s) => ({
+        //         id: s.id,
+        //         type: s.segmentType,
+        //         status: s.streamingStatus
+        //     }))
+        // });
     }
 
     /**
      * Parse remaining content during streaming with robust left-to-right parsing
      */
     private parseRemainingContentStreaming(content: string, segments: ProcessedSegment[], modifiedSegments: ProcessedSegment[]): void {
-        console.log('[SEGMENT-PROCESSOR] parseRemainingContentStreaming called:', {
-            contentLength: content.length,
-            contentPreview: content.slice(0, 100)
-        });
+        // console.log('[SEGMENT-PROCESSOR] parseRemainingContentStreaming called:', {
+        //     contentLength: content.length,
+        //     contentPreview: content.slice(0, 100)
+        // });
 
         let currentIndex = 0;
 
@@ -574,20 +613,20 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // Find the next potential tag start
             const nextTagStart = content.indexOf('<', currentIndex);
 
-            console.log('[SEGMENT-PROCESSOR] Looking for next tag:', {
-                currentIndex,
-                nextTagStart,
-                remainingContent: content.slice(currentIndex, currentIndex + 50)
-            });
+            // console.log('[SEGMENT-PROCESSOR] Looking for next tag:', {
+            //     currentIndex,
+            //     nextTagStart,
+            //     remainingContent: content.slice(currentIndex, currentIndex + 50)
+            // });
 
             if (nextTagStart === -1) {
                 // No more tags, add remaining content as text
                 const remainingText = content.slice(currentIndex);
                 if (remainingText) {
-                    console.log('[SEGMENT-PROCESSOR] Adding final text content:', {
-                        textLength: remainingText.length,
-                        textPreview: remainingText.slice(0, 50)
-                    });
+                    // console.log('[SEGMENT-PROCESSOR] Adding final text content:', {
+                    //     textLength: remainingText.length,
+                    //     textPreview: remainingText.slice(0, 50)
+                    // });
                     this.addTextContent(remainingText, segments, modifiedSegments);
                 }
                 break;
@@ -596,24 +635,25 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // Add any text before the tag
             if (nextTagStart > currentIndex) {
                 const textBefore = content.slice(currentIndex, nextTagStart);
-                console.log('[SEGMENT-PROCESSOR] Adding text before tag:', {
-                    textLength: textBefore.length,
-                    textPreview: textBefore.slice(0, 50)
-                });
+                // console.log('[SEGMENT-PROCESSOR] Adding text before tag:', {
+                //     textLength: textBefore.length,
+                //     textPreview: textBefore.slice(0, 50)
+                // });
                 this.addTextContent(textBefore, segments, modifiedSegments);
             }
 
             // Analyze what kind of tag construct we have starting at nextTagStart
             const tagAnalysis = this.analyzeTagConstruct(content, nextTagStart);
 
-            console.log('[SEGMENT-PROCESSOR] Tag analysis result:', {
-                isValid: tagAnalysis.isValid,
-                type: tagAnalysis.type,
-                tagName: tagAnalysis.tagName,
-                partialTagName: tagAnalysis.partialTagName,
-                contentLength: tagAnalysis.content?.length || 0,
-                endIndex: tagAnalysis.endIndex
-            });
+            // console.log('[SEGMENT-PROCESSOR] 🔍 TAG ANALYSIS DEBUG:', {
+            //     contentAtPosition: content.slice(nextTagStart, nextTagStart + 20),
+            //     isValid: tagAnalysis.isValid,
+            //     type: tagAnalysis.type,
+            //     tagName: tagAnalysis.tagName,
+            //     partialTagName: tagAnalysis.partialTagName,
+            //     supportedTags: this.getAllSupportedTags(),
+            //     analysisResult: tagAnalysis
+            // });
 
             if (tagAnalysis.isValid) {
                 if (tagAnalysis.type === 'complete') {
@@ -623,10 +663,10 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                     segments.push(tagSegment);
                     modifiedSegments.push(tagSegment);
                     currentIndex = tagAnalysis.endIndex!;
-                    console.log('[SEGMENT-PROCESSOR] Added complete tag segment:', {
-                        tag: tagAnalysis.tagName,
-                        segmentId: tagSegment.id
-                    });
+                    // console.log('[SEGMENT-PROCESSOR] Added complete tag segment:', {
+                    //     tag: tagAnalysis.tagName,
+                    //     segmentId: tagSegment.id
+                    // });
                 } else if (tagAnalysis.type === 'streaming') {
                     // Found <tag> or <tag> or <tag content but no closing tag
                     const tagSegment = this.createTagSegment(tagAnalysis.tagName!, tagAnalysis.content!, segments);
@@ -634,11 +674,11 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                     segments.push(tagSegment);
                     modifiedSegments.push(tagSegment);
                     currentIndex = content.length; // Consume rest of content as tag content
-                    console.log('[SEGMENT-PROCESSOR] Added streaming tag segment:', {
-                        tag: tagAnalysis.tagName,
-                        segmentId: tagSegment.id,
-                        contentLength: tagAnalysis.content!.length
-                    });
+                    // console.log('[SEGMENT-PROCESSOR] Added streaming tag segment:', {
+                    //     tag: tagAnalysis.tagName,
+                    //     segmentId: tagSegment.id,
+                    //     contentLength: tagAnalysis.content!.length
+                    // });
                 } else if (tagAnalysis.type === 'incomplete') {
                     // Found <ta or incomplete tag name
                     const incompleteSegment = this.createIncompleteTagSegment(`<${tagAnalysis.partialTagName!}`, segments);
@@ -646,20 +686,24 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                     segments.push(incompleteSegment);
                     modifiedSegments.push(incompleteSegment);
                     currentIndex = content.length; // Consume rest of content
-                    console.log('[SEGMENT-PROCESSOR] Added incomplete tag segment:', {
-                        partialTag: tagAnalysis.partialTagName,
-                        segmentId: incompleteSegment.id
-                    });
+                    // console.log('[SEGMENT-PROCESSOR] Added incomplete tag segment:', {
+                    //     partialTag: tagAnalysis.partialTagName,
+                    //     segmentId: incompleteSegment.id
+                    // });
                 }
             } else {
                 // Not a valid tag, treat '<' as literal text
-                console.log('[SEGMENT-PROCESSOR] Invalid tag, treating as literal text');
+                // console.log('[SEGMENT-PROCESSOR] ⚠️ LONE < DETECTED:', {
+                //     contentAtPosition: content.slice(nextTagStart, nextTagStart + 20),
+                //     fullRemainingContent: content.slice(nextTagStart),
+                //     reason: 'Tag construct analysis returned isValid: false'
+                // });
                 this.addTextContent('<', segments, modifiedSegments);
                 currentIndex = nextTagStart + 1;
             }
         }
 
-        console.log('[SEGMENT-PROCESSOR] parseRemainingContentStreaming completed');
+        // console.log('[SEGMENT-PROCESSOR] parseRemainingContentStreaming completed');
     }
 
     /**
@@ -678,9 +722,24 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     } {
         // Extract potential tag pattern: <tagname> or <tagname or <tagname
         const tagPattern = /^<([a-zA-Z][a-zA-Z0-9_.-]*)(>|\s|$)/;
-        const match = content.slice(startIndex).match(tagPattern);
+        const contentToAnalyze = content.slice(startIndex);
+        const match = contentToAnalyze.match(tagPattern);
+
+        // console.log('[SEGMENT-PROCESSOR] 🔍 ANALYZE TAG CONSTRUCT:', {
+        //     startIndex,
+        //     contentToAnalyze: contentToAnalyze.slice(0, 30),
+        //     regexPattern: tagPattern.toString(),
+        //     regexMatch: match
+        //         ? {
+        //               fullMatch: match[0],
+        //               tagName: match[1],
+        //               afterTagName: match[2]
+        //           }
+        //         : null
+        // });
 
         if (!match) {
+            // console.log('[SEGMENT-PROCESSOR] ❌ TAG ANALYSIS FAILED: No regex match');
             return { isValid: false };
         }
 
@@ -691,10 +750,18 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         const allSupportedTags = this.getAllSupportedTags();
         const isFullySupportedTag = allSupportedTags.includes(tagName);
 
+        // console.log('[SEGMENT-PROCESSOR] 🔍 TAG SUPPORT CHECK:', {
+        //     tagName,
+        //     afterTagName: afterTagName === '' ? '<EMPTY>' : afterTagName,
+        //     isFullySupportedTag,
+        //     allSupportedTags
+        // });
+
         if (afterTagName === '>') {
             // We have <tag>, check if it's supported
             if (!isFullySupportedTag) {
                 // Not a supported tag, treat as text
+                // console.log('[SEGMENT-PROCESSOR] ❌ TAG REJECTED: Complete tag not supported');
                 return { isValid: false };
             }
 
@@ -706,6 +773,10 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             if (closingIndex !== -1) {
                 // Found complete tag
                 const tagContent = contentAfterOpening.slice(0, closingIndex);
+                // console.log('[SEGMENT-PROCESSOR] ✅ COMPLETE TAG FOUND:', {
+                //     tagName,
+                //     contentLength: tagContent.length
+                // });
                 return {
                     isValid: true,
                     type: 'complete',
@@ -715,6 +786,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 };
             } else {
                 // No closing tag found, it's streaming
+                // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (no closing):', { tagName });
                 return {
                     isValid: true,
                     type: 'streaming',
@@ -727,11 +799,13 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // We have <tag , check if it's supported
             if (!isFullySupportedTag) {
                 // Not a supported tag, treat as text
+                // console.log('[SEGMENT-PROCESSOR] ❌ TAG REJECTED: Space after unsupported tag');
                 return { isValid: false };
             }
 
             // The space indicates complete tag name, this is streaming
             const contentAfterSpace = content.slice(startIndex + match[0].length);
+            // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (space):', { tagName });
             return {
                 isValid: true,
                 type: 'streaming',
@@ -743,6 +817,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // afterTagName is empty string (end of content), this could be incomplete
             if (isFullySupportedTag) {
                 // This is a complete supported tag name but no closing >, so it's streaming
+                // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (incomplete but supported):', { tagName });
                 return {
                     isValid: true,
                     type: 'streaming',
@@ -753,6 +828,10 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             } else {
                 // This could be a partial tag name - be permissive and create incomplete segment
                 // We'll validate when we get the complete name
+                // console.log('[SEGMENT-PROCESSOR] ✅ INCOMPLETE TAG (partial name):', {
+                //     partialTagName: tagName,
+                //     reason: 'Not in supported tags yet, being permissive'
+                // });
                 return {
                     isValid: true,
                     type: 'incomplete',
@@ -949,20 +1028,20 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     private createTagSegment(tagType: string, tagContent: string, segments: ProcessedSegment[]): ProcessedTagSegment | MetadataTagSegment {
         const nextId = segments.length;
 
-        console.log('[SEGMENT-PROCESSOR] Creating tag segment:', {
-            tagType,
-            tagContentLength: tagContent.length,
-            tagContentPreview: tagContent.slice(0, 100),
-            segmentId: nextId
-        });
+        // console.log('[SEGMENT-PROCESSOR] Creating tag segment:', {
+        //     tagType,
+        //     tagContentLength: tagContent.length,
+        //     tagContentPreview: tagContent.slice(0, 100),
+        //     segmentId: nextId
+        // });
 
         // Check if this is a metadata handler (metadata tags don't render inline)
         const metadataHandler = this.#componentRegistry.getMetadataHandler(tagType);
         if (metadataHandler) {
-            console.log('[SEGMENT-PROCESSOR] Creating metadata tag segment:', {
-                tagType,
-                segmentId: nextId
-            });
+            // console.log('[SEGMENT-PROCESSOR] Creating metadata tag segment:', {
+            //     tagType,
+            //     segmentId: nextId
+            // });
             // Create metadata tag segment
             const metadataSegment: MetadataTagSegment = {
                 id: nextId,
@@ -979,11 +1058,11 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
         // Create regular tag segment with renderer
         const renderer = this.#componentRegistry.getRenderer(tagType);
-        console.log('[SEGMENT-PROCESSOR] Creating regular tag segment:', {
-            tagType,
-            segmentId: nextId,
-            hasRenderer: !!renderer
-        });
+        // console.log('[SEGMENT-PROCESSOR] Creating regular tag segment:', {
+        //     tagType,
+        //     segmentId: nextId,
+        //     hasRenderer: !!renderer
+        // });
         const tagSegment: ProcessedTagSegment = {
             id: nextId,
             segmentType: 'tag',
