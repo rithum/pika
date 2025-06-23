@@ -540,6 +540,7 @@ export class ChatAppState {
             messageId: interimMessageId,
             message: '',
             segments: [],
+            isStreaming: true,
             source: 'assistant',
             timestamp: new Date().toISOString()
         };
@@ -594,22 +595,8 @@ export class ChatAppState {
                 const newSessionId = response.headers.get('x-chatbot-session-id');
                 // If we don't get a new session ID, then we need to throw an error
                 if (!newSessionId) {
+                    interimMessage.isStreaming = false;
                     throw new Error('No session ID returned from server');
-                }
-
-                if (!this.#currentSession) {
-                    // We just set this so overkill, but just in case
-                    throw new Error('No current session');
-                }
-
-                if (!this.#curSessionMessages) {
-                    // We just set this so overkill, but just in case
-                    throw new Error('No current session messages');
-                }
-
-                if (!interimMessage) {
-                    // We just set this so overkill, but just in case
-                    throw new Error('No interim message');
                 }
 
                 // Clear input files and persist state before changing session ID
@@ -691,6 +678,7 @@ export class ChatAppState {
                     // });
 
                     this.#messageProcessor.doneStreaming(interimMsg.segments);
+                    interimMsg.isStreaming = false;
 
                     // console.log('[CHAT-APP-STATE] After doneStreaming:', {
                     //     segmentsAfterDone: interimMsg.segments.length,

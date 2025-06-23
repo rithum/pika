@@ -24,6 +24,7 @@ export interface ProcessedTagSegment extends TagMessageSegment {
 export interface MetadataTagSegment extends TagMessageSegment {
     renderer: undefined;
     isMetadata: true;
+    hasCalledHandler?: boolean;
 }
 
 /**

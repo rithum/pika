@@ -131,6 +131,7 @@ export interface ChatMessage {
 
 export interface ChatMessageForRendering extends ChatMessage {
     segments: MessageSegment[];
+    isStreaming?: boolean;
 }
 
 /** Supported file storage locations */

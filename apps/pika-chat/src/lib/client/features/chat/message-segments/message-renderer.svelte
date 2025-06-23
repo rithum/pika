@@ -4,6 +4,7 @@
     import type { ChatAppState } from '../chat-app.state.svelte';
     import { getContext } from 'svelte';
     import type { ProcessedTextSegment, ProcessedTagSegment, MetadataTagSegment } from './segment-types';
+    import Trace from '../chat-app-main/trace.svelte';
 
     interface Props {
         message: ChatMessageForRendering;
@@ -45,6 +46,10 @@
         message.segments.forEach(segment => {
             if ('isMetadata' in segment && segment.isMetadata) {
                 const metadataSegment = segment as MetadataTagSegment;
+                if (metadataSegment.hasCalledHandler) {
+                    return;
+                }
+                
                 // console.log('[MESSAGE-RENDERER] Applying metadata handler:', {
                 //     messageId: message.messageId,
                 //     segmentId: segment.id,
@@ -52,12 +57,15 @@
                 //     streamingStatus: segment.streamingStatus
                 // });
                 
-                const handler = chatAppState.componentRegistry.getMetadataHandler(metadataSegment.tag);
-                if (handler) {
-                    handler(metadataSegment, message, chatAppState, appState);
-                    // console.log('[MESSAGE-RENDERER] Metadata handler applied successfully');
-                } else {
-                    // console.warn('[MESSAGE-RENDERER] No metadata handler found for tag:', metadataSegment.tag);
+                if (segment.streamingStatus === 'completed') {
+                    const handler = chatAppState.componentRegistry.getMetadataHandler(metadataSegment.tag);
+                    if (handler) {
+                        handler(metadataSegment, message, chatAppState, appState);
+                        metadataSegment.hasCalledHandler = true;
+                        // console.log('[MESSAGE-RENDERER] Metadata handler applied successfully');
+                    } else {
+                        // console.warn('[MESSAGE-RENDERER] No metadata handler found for tag:', metadataSegment.tag);
+                    }
                 }
             }
         });
@@ -86,6 +94,8 @@
         messageId: message.messageId,
         segmentCount: message.segments.length,
     })} -->
+
+    <Trace message={message} appState={appState} />
 
     <!-- Render each processed segment -->
     {#each message.segments as segment (segment.id)}

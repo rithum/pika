@@ -1053,6 +1053,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 renderer: undefined,
                 isMetadata: true
             };
+            console.log(`[SEGMENT-PROCESSOR] Creating metadata tag segment: ${tagType} with content: ${tagContent}`);
             return metadataSegment;
         }
 
