@@ -4,12 +4,13 @@
     import ChatLayout from '$client/features/chat/layout/chat-layout.svelte';
     import { getContext, setContext } from 'svelte';
     import type { PageData } from './$types';
+    import { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
 
     const { data }: { data: PageData } = $props();
 
     const chatApp = data.chatApp;
     const appState = getContext<AppState>('appState');
-    const chatAppState = appState.addChatApp(chatApp);
+    const chatAppState = appState.addChatApp(chatApp, ComponentRegistry.create());
 
     setContext('chatAppState', chatAppState);
 

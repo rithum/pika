@@ -130,6 +130,10 @@ export interface ChatMessage {
     exp_date_unix_seconds?: number;
 }
 
+export interface ChatMessageForRendering extends ChatMessage {
+    segments: MessageSegment[];
+}
+
 /** Supported file storage locations */
 export const ChatMessageFileLocationType = ['s3'] as const;
 export type ChatMessageFileLocationType = (typeof ChatMessageFileLocationType)[number];
@@ -847,3 +851,49 @@ export interface PromptInputFieldLabelFeature extends Feature {
     /** Defaults to "Ready to chat".  The label to show above the prompt input field. */
     promptInputFieldLabel?: string;
 }
+
+export type SegmentType = 'text' | 'tag';
+
+/**
+ * Represents the status of content being streamed into a segment.
+ */
+export type StreamingStatus =
+    /**
+     * Initial tag start detected (e.g., "<ta") but not enough characters to determine the full tag name.
+     * Indicates partial progress in tag parsing and requires more content to identify the tag.
+     */
+    | 'incomplete'
+    /**
+     * Actively receiving streaming content into the associated segment.
+     * More data is expected and the segment is not yet complete.
+     */
+    | 'streaming'
+    /**
+     * Streaming of content into this segment is finished and no more data will be added.
+     */
+    | 'completed'
+    /**
+     * An error occurred while streaming content into this segment. Content may be incomplete or corrupted.
+     */
+    | 'error';
+
+export interface MessageSegmentBase {
+    /** The position of the segment in the message */
+    id: number;
+    segmentType: SegmentType;
+    rawContent: string;
+    streamingStatus: StreamingStatus;
+    rendererType?: string;
+}
+
+export interface TagMessageSegment extends MessageSegmentBase {
+    segmentType: 'tag';
+    tag: string;
+    attributes?: Record<string, string>;
+}
+
+export interface TextMessageSegment extends MessageSegmentBase {
+    segmentType: 'text';
+}
+
+export type MessageSegment = TagMessageSegment | TextMessageSegment;

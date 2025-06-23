@@ -71,8 +71,8 @@
         {#if showCheckmark}
             <Check class="w-3.5 h-3.5 text-green-500" />
         {:else}
-            <Button variant="ghost" class="h-full w-full min-h-0 p-0 rounded-none" onclick={copy}>
-                <Copy class="w-3.5 h-3.5 text-gray-400" disabled={!value} />
+            <Button variant="ghost" class="h-full w-full min-h-0 p-0 rounded-none" onclick={copy} disabled={!value}>
+                <Copy class="w-3.5 h-3.5 text-gray-400" />
             </Button>
         {/if}
     </span>

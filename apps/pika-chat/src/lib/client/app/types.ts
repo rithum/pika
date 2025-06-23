@@ -54,8 +54,15 @@ export interface HotKey extends HotKeyBase {
     htmlDisplayWindows?: string;
 }
 
+export interface TableSettings {
+    key: string; // Shown to user in settings dialog
+    hiddenColumns?: string[];
+    numRows?: number;
+}
+
 export interface AppSettings {
     hideTooltips?: boolean;
+    tableSettings?: TableSettings[];
 }
 
 export interface ErrorResponse {

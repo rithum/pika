@@ -1,6 +1,5 @@
 <script lang="ts">
     import ChatInput from '../chat-input/chat-input.svelte';
-    import MarkdownMessageRenderer from '$client/features/chat/markdown-message-renderer/markdown-message-renderer.svelte';
     import ChatFileDisplay from '../chat-input/chat-file-display.svelte';
     import { getContext } from 'svelte';
     import { AppState } from '$client/app/app.state.svelte';
@@ -8,7 +7,8 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { ChatAppState } from '../chat-app.state.svelte';
     import ExpandableContainer from '$comps/ui-pika/expandable-container/expandable-container.svelte';
-    import Prompt from '../markdown-message-renderer/markdown-tag-components/prompt.svelte';
+    import Prompt from '../message-segments/default-components/prompt.svelte';
+    import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -53,7 +53,7 @@
 
             if (hasTriedToScrollToBottom && !isScrolledToBottom(resizeHeightEl)) {
                 userScrollOffOfBottom = true;
-                console.log('User scrolled away from bottom - setting userScrollOffOfBottom = true');
+                // console.log('User scrolled away from bottom - setting userScrollOffOfBottom = true');
             }
         }
 
@@ -63,10 +63,6 @@
             resizeHeightEl.removeEventListener('scroll', handleScroll);
         };
     });
-
-    $inspect('session', chat.currentSession);
-    $inspect('messageChunkCount', chat.messageChunkCount);
-    $inspect('currentSessionMessages', chat.currentSessionMessages);
 
     $effect(() => {
         const session = chat.currentSession;
@@ -78,7 +74,7 @@
 
         if (sessionChanged) {
             userScrollOffOfBottom = false;
-            console.log('Reset userScrollOffOfBottom - session changed');
+            // console.log('Reset userScrollOffOfBottom - session changed');
         }
 
         // Update previous values
@@ -241,8 +237,8 @@
                                             </div>
                                         </div>
                                     {:else}
-                                        <MarkdownMessageRenderer
-                                            message={message.message}
+                                        <MessageRenderer
+                                            {message}
                                             files={message.files ?? []}
                                             chatAppState={chat}
                                             isStreaming={chat.isStreamingResponseNow &&
@@ -284,7 +280,7 @@
                             <ExpandableContainer title="Suggestions" useCase="button">
                                 <div class="flex flex-col gap-2 items-start">
                                     {#each chat.suggestions as suggestion}
-                                        <Prompt rawTagContent={suggestion} {appState} chatAppState={chat} />
+                                        <Prompt segment={{ rawContent: suggestion } as ProcessedTagSegment} {appState} chatAppState={chat} />
                                     {/each}
                                 </div>
                             </ExpandableContainer>

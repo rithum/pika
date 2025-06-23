@@ -14,7 +14,7 @@
     // You can expand this based on your specific chat subcomponent needs
 </script>
 
-<div class="chat-subcomponent my-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+<div class="my-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
     <div class="flex items-start space-x-3">
         <div class="flex-shrink-0">
             <svg
@@ -37,9 +37,3 @@
         </div>
     </div>
 </div>
-
-<style>
-    .chat-subcomponent {
-        /* Add any specific styling for chat components */
-    }
-</style>

@@ -7,8 +7,11 @@ import {
     type ChatApp,
     type ChatMessage,
     type ChatMessageFile,
+    type ChatMessageForRendering,
+    type ChatMessagesResponse,
     type ChatSession,
-    type ConverseRequest,
+    type ChatSessionsResponse,
+    type ConverseRequest
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
@@ -17,21 +20,22 @@ import { v7 as uuidv7 } from 'uuid';
 import { UploadInstance } from '../upload/upload-instance.svelte';
 import { UploadState } from '../upload/upload.state.svelte';
 import { ChatFileValidationError } from './lib/ChatFileValidationError';
+import type { ComponentRegistry } from './message-segments/component-registry';
+import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
 
 const MAX_FILES = 5;
 
+//TODO: get from feature, it's already there just use it
 const SUPPORTED_FILE_TYPES: Record<string, string> = {
-    'text/csv': 'csv (Comma Separated Values)',
+    'text/csv': 'csv (Comma Separated Values)'
     // 'application/pdf': 'pdf (Portable Document Format)',
     // 'text/plain': 'txt (Plain Text)',
 };
 
+//TODO: put this in the download feature
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const INPROGRESS_INPUT_MSGS_KEY = 'inprogress-input-msgs';
-
-//TODO: set this in an environment variable
-// const DEFAULT_AGENT_ID = 'weather-agent-dev';
 
 /**
  * Structure for persisting input state in localStorage
@@ -56,7 +60,7 @@ export class ChatAppState {
     #appState = $state<AppState>() as AppState;
     #chatSessions = $state<ChatSession[]>([]);
     #currentSession = $state<ChatSession>() as ChatSession; // Initialized in constructor
-    #curSessionMessages = $state<ChatMessage[]>([]);
+    #curSessionMessages = $state<ChatMessageForRendering[]>([]);
     #inputFiles = $state<UploadInstance[]>([]);
     #newSession = $derived(!!this.#currentSession); // We don't have a session created yet that we are working within
     #isInterimSession = $derived(this.#currentSession?.sessionId?.startsWith('interim-'));
@@ -67,6 +71,8 @@ export class ChatAppState {
     #uploadState = $state<UploadState>() as UploadState;
     #retrievingMessages = $state<boolean>(false);
     #messageChunkCount = $state<number>(0); // Allows reactive response to streaming response (scroll to bottom most obvious case)
+    #componentRegistry = $state<ComponentRegistry>() as ComponentRegistry; // renderers and metadata handlers for chat message segments
+    #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #waitingForFirstStreamedResponse = $derived.by(() => {
         const streaming = this.#streamingResponseNow;
         const interimMessageId = this.#interimMessageId;
@@ -163,6 +169,10 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get componentRegistry() {
+        return this.#componentRegistry;
+    }
 
     get suggestions() {
         return this.#suggestions;
@@ -290,7 +300,8 @@ export class ChatAppState {
         private readonly fetchz: FetchZ,
         chatApp: ChatApp,
         page: Page,
-        appState: AppState
+        appState: AppState,
+        componentRegistry: ComponentRegistry
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -298,6 +309,26 @@ export class ChatAppState {
         this.#uploadState = new UploadState(this.fetchz);
         this.#setSession(undefined);
         this.#page = page;
+        this.#componentRegistry = componentRegistry;
+        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
+
+        // Add logging for session messages array changes
+        // $effect(() => {
+        //     const messages = this.#curSessionMessages;
+        //     console.log('[CHAT-APP-STATE] Session messages array changed:', {
+        //         messagesCount: messages.length,
+        //         messagesArrayId: Object.prototype.toString.call(messages),
+        //         messageIds: messages.map((msg) => msg.messageId),
+        //         interimMessage: messages.find((msg) => msg.messageId?.startsWith('interim-'))
+        //             ? {
+        //                   messageId: messages.find((msg) => msg.messageId?.startsWith('interim-'))!.messageId,
+        //                   messageObjectId: Object.prototype.toString.call(messages.find((msg) => msg.messageId?.startsWith('interim-'))),
+        //                   segmentsArrayId: Object.prototype.toString.call(messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments),
+        //                   segmentsCount: messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments.length
+        //               }
+        //             : null
+        //     });
+        // });
     }
 
     setCurrentSessionById(sessionId: string) {
@@ -338,15 +369,13 @@ export class ChatAppState {
                         size: upload.size,
                         lastModified: upload.lastModified,
                         type: upload.type,
-                        status: upload.status,
+                        status: upload.status
                     }) as UploadInstance
             );
 
         const hasFileStillOnTheObject = completedUploads.some((upload) => !!upload.file);
         if (hasFileStillOnTheObject) {
-            throw new Error(
-                'Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.'
-            );
+            throw new Error('Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.');
         }
 
         if (text === '' && completedUploads.length === 0) {
@@ -354,7 +383,7 @@ export class ChatAppState {
         } else {
             this.#inprogressInputs[sessionId] = {
                 text,
-                uploads: completedUploads,
+                uploads: completedUploads
             };
         }
 
@@ -372,9 +401,7 @@ export class ChatAppState {
         } else {
             // Make a new interim session if we don't have an interim sessionId/message in progress in local storage
             // otherwise use the interim sessionId from local storage
-            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) =>
-                key.startsWith('interim-')
-            );
+            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) => key.startsWith('interim-'));
             this.#currentSession = {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
                 userId: this.#appState.identity.user.userId,
@@ -388,10 +415,10 @@ export class ChatAppState {
                     companyType: this.#appState.identity.user.companyType,
                     firstName: this.#appState.identity.user.firstName,
                     lastName: this.#appState.identity.user.lastName,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
                 },
                 createDate: new Date().toISOString(),
-                lastUpdate: new Date().toISOString(),
+                lastUpdate: new Date().toISOString()
             };
             this.#curSessionMessages = [];
         }
@@ -420,7 +447,12 @@ export class ChatAppState {
         try {
             const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);
             if (resp.ok) {
-                this.#chatSessions = await resp.json();
+                const sessionsResult = (await resp.json()) as ChatSessionsResponse;
+                if (sessionsResult.success) {
+                    this.#chatSessions = sessionsResult.sessions;
+                } else {
+                    console.error('Error refreshing chat sessions from server', sessionsResult.error);
+                }
             }
         } catch (e) {
             console.error('Error refreshing chat sessions from server', e);
@@ -454,9 +486,9 @@ export class ChatAppState {
             this.#retrievingMessages = true;
             const resp = await this.fetchz(`/api/message/${this.#currentSession.sessionId}`);
             if (resp.ok) {
-                const msgResult = await resp.json();
+                const msgResult = (await resp.json()) as ChatMessagesResponse;
                 if (msgResult.success) {
-                    this.#curSessionMessages = msgResult.messages;
+                    this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
                 } else {
                     console.error('Error refreshing messages for current session', msgResult.error);
                 }
@@ -477,7 +509,7 @@ export class ChatAppState {
 
         let sessionId = this.#currentSession.sessionId;
 
-        // Add user message to the conversation immediately
+        // Add user message to the conversation immediately (a ChatMessage is what is sent to the server and saved to the database)
         const userMessage: ChatMessage = {
             userId: this.#appState.identity.user.userId,
             sessionId,
@@ -494,21 +526,22 @@ export class ChatAppState {
                     locationType: 's3',
                     size: file.size,
                     lastModified: file.lastModified,
-                    type: file.type,
-                })),
-            }),
+                    type: file.type
+                }))
+            })
         };
-        this.#curSessionMessages.push(userMessage);
+        this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...userMessage, segments: [] }, false));
 
         // Add interim assistant message for streaming
         const interimMessageId = `interim-${uuidv7()}`;
-        const interimMessage: ChatMessage = {
+        const interimMessage: ChatMessageForRendering = {
             userId: this.#appState.identity.user.userId,
             sessionId,
             messageId: interimMessageId,
             message: '',
+            segments: [],
             source: 'assistant',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
         };
         this.#curSessionMessages.push(interimMessage);
 
@@ -527,7 +560,7 @@ export class ChatAppState {
                       locationType: 's3',
                       size: file.size,
                       lastModified: file.lastModified,
-                      type: file.type,
+                      type: file.type
                   }));
 
         const wasInterimSession = this.#isInterimSession;
@@ -541,15 +574,15 @@ export class ChatAppState {
                 companyType: this.#appState.identity.user.companyType,
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
-                ...(files && { files }),
+                ...(files && { files })
             };
             // Send the message to the server and stream the response
             const response = await this.fetchz('/api/message', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(converseRequest),
+                body: JSON.stringify(converseRequest)
             });
 
             if (!response.ok) {
@@ -584,14 +617,42 @@ export class ChatAppState {
                 this.#inputFiles = [];
                 this.#persistInputState();
 
+                // console.log('[CHAT-APP-STATE] Updating session ID from interim to real:', {
+                //     oldSessionId: this.#currentSession.sessionId,
+                //     newSessionId: newSessionId,
+                //     messagesCount: this.#curSessionMessages.length,
+                //     currentInterimMsg: interimMessage
+                //         ? {
+                //               messageId: interimMessage.messageId,
+                //               segmentsCount: interimMessage.segments.length,
+                //               messageObjectId: Object.prototype.toString.call(interimMessage),
+                //               segmentsArrayId: Object.prototype.toString.call(interimMessage.segments)
+                //           }
+                //         : 'not found'
+                // });
+
                 // Update the current session with the real session ID
                 this.#currentSession.sessionId = newSessionId;
 
                 // Update the messages with the new session ID
+                const oldMessages = this.#curSessionMessages;
                 this.#curSessionMessages = this.#curSessionMessages.map((msg) => ({
                     ...msg,
-                    sessionId: newSessionId,
+                    sessionId: newSessionId
                 }));
+
+                // console.log('[CHAT-APP-STATE] After session ID update:', {
+                //     oldMessagesArrayId: Object.prototype.toString.call(oldMessages),
+                //     newMessagesArrayId: Object.prototype.toString.call(this.#curSessionMessages),
+                //     interimMsgAfterUpdate: this.getMessageByMessageId(interimMessageId)
+                //         ? {
+                //               messageId: this.getMessageByMessageId(interimMessageId)!.messageId,
+                //               messageObjectId: Object.prototype.toString.call(this.getMessageByMessageId(interimMessageId)),
+                //               segmentsArrayId: Object.prototype.toString.call(this.getMessageByMessageId(interimMessageId)!.segments),
+                //               segmentsCount: this.getMessageByMessageId(interimMessageId)!.segments.length
+                //           }
+                //         : 'not found after update'
+                // });
             }
 
             const reader = response.body?.getReader();
@@ -614,9 +675,39 @@ export class ChatAppState {
                 this.#appendToInterimMessage(decoder.decode(value, { stream: true }));
             }
 
+            // Streaming is complete - convert any incomplete/streaming segments to text
+            if (this.#interimMessageId) {
+                const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
+                if (interimMsg) {
+                    // console.log('[CHAT-APP-STATE] Calling doneStreaming:', {
+                    //     interimMessageId: this.#interimMessageId,
+                    //     segmentsBeforeDone: interimMsg.segments.length,
+                    //     segmentStatusesBeforeDone: interimMsg.segments.map((seg, idx) => ({
+                    //         index: idx,
+                    //         segmentType: seg.segmentType,
+                    //         streamingStatus: seg.streamingStatus,
+                    //         rawContentLength: seg.rawContent?.length || 0
+                    //     }))
+                    // });
+
+                    this.#messageProcessor.doneStreaming(interimMsg.segments);
+
+                    // console.log('[CHAT-APP-STATE] After doneStreaming:', {
+                    //     segmentsAfterDone: interimMsg.segments.length,
+                    //     segmentStatusesAfterDone: interimMsg.segments.map((seg, idx) => ({
+                    //         index: idx,
+                    //         segmentType: seg.segmentType,
+                    //         streamingStatus: seg.streamingStatus,
+                    //         rawContentLength: seg.rawContent?.length || 0
+                    //     }))
+                    // });
+                }
+            }
+
             // Refresh sessions and its messages
             this.refreshChatSessions();
             this.refreshMessagesForCurrentSession();
+
             // Files already cleared above for interim sessions, but clear for non-interim sessions too
             if (!wasInterimSession) {
                 this.#inputFiles = [];
@@ -640,17 +731,88 @@ export class ChatAppState {
     }
 
     #appendToInterimMessage(message: string) {
+        // console.log('[CHAT-APP-STATE] appendToInterimMessage called:', {
+        //     chunkLength: message.length,
+        //     chunkPreview: message.substring(0, 50),
+        //     interimMessageId: this.#interimMessageId,
+        //     messageChunkCount: this.#messageChunkCount
+        // });
+
         if (this.#interimMessageId) {
             const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
             if (interimMsg) {
-                interimMsg.message += message; // Append instead of replace
+                // console.log('[CHAT-APP-STATE] Found interim message:', {
+                //     messageId: interimMsg.messageId,
+                //     currentMessageLength: interimMsg.message.length,
+                //     segmentsCount: interimMsg.segments.length,
+                //     messageObjectId: Object.prototype.toString.call(interimMsg),
+                //     segmentsArrayId: Object.prototype.toString.call(interimMsg.segments)
+                // });
+
+                const oldMessage = interimMsg.message;
+                interimMsg.message += message;
+
+                // console.log('[CHAT-APP-STATE] Updated message text:', {
+                //     oldLength: oldMessage.length,
+                //     newLength: interimMsg.message.length,
+                //     chunkAdded: message.length
+                // });
+
+                // Pass only the new chunk to the processor, not the full accumulated message
+                // console.log('[CHAT-APP-STATE] Calling messageProcessor.parseMessage:', {
+                //     chunkLength: message.length,
+                //     segmentsBeforeProcessing: interimMsg.segments.length,
+                //     streaming: true
+                // });
+
+                this.#messageProcessor.parseMessage(message, interimMsg.segments, true); // streaming=true
+
+                // console.log('[CHAT-APP-STATE] After messageProcessor.parseMessage:', {
+                //     segmentsAfterProcessing: interimMsg.segments.length,
+                //     segmentStatuses: interimMsg.segments.map((seg, idx) => ({
+                //         index: idx,
+                //         segmentType: seg.segmentType,
+                //         streamingStatus: seg.streamingStatus,
+                //         rawContentPreview: seg.rawContent?.substring(0, 30) || '<no content>',
+                //         tag: seg.segmentType === 'tag' ? (seg as any).tag : undefined
+                //     }))
+                // });
+
                 this.#messageChunkCount++;
+            } else {
+                // console.warn('[CHAT-APP-STATE] Could not find interim message with ID:', this.#interimMessageId);
             }
+        } else {
+            // console.warn('[CHAT-APP-STATE] No interim message ID set');
         }
     }
+    #processMessageIntoSegments(message: ChatMessageForRendering, isStreaming: boolean): ChatMessageForRendering {
+        this.#messageProcessor.parseMessage(message.message, message.segments, isStreaming);
+        return message;
+    }
 
-    getMessageByMessageId(messageId: string): ChatMessage | undefined {
-        return this.#curSessionMessages?.find((msg) => msg.messageId === messageId);
+    getMessageByMessageId(messageId: string): ChatMessageForRendering | undefined {
+        const foundMessage = this.#curSessionMessages?.find((msg) => msg.messageId === messageId);
+
+        // Only log for interim messages to avoid spam
+        // if (messageId.startsWith('interim-')) {
+        //     console.log('[CHAT-APP-STATE] getMessageByMessageId called:', {
+        //         requestedMessageId: messageId,
+        //         foundMessage: foundMessage
+        //             ? {
+        //                   messageId: foundMessage.messageId,
+        //                   messageObjectId: Object.prototype.toString.call(foundMessage),
+        //                   segmentsArrayId: Object.prototype.toString.call(foundMessage.segments),
+        //                   segmentsCount: foundMessage.segments.length,
+        //                   messageLength: foundMessage.message.length
+        //               }
+        //             : null,
+        //         totalMessages: this.#curSessionMessages?.length || 0,
+        //         messagesArrayId: Object.prototype.toString.call(this.#curSessionMessages)
+        //     });
+        // }
+
+        return foundMessage;
     }
 
     async uploadFiles(files: File[]) {
@@ -666,9 +828,7 @@ export class ChatAppState {
 
         // Throw an error if any of the files are not one of the supported file types
         if (files.some((file) => !Object.keys(SUPPORTED_FILE_TYPES).includes(file.type))) {
-            throw new ChatFileValidationError(
-                'Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', ')
-            );
+            throw new ChatFileValidationError('Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', '));
         }
 
         // Create upload instances for the new files
@@ -712,11 +872,11 @@ export class ChatAppState {
             messageId: `user-mock-${uuidv7()}`,
             message: 'What is the weather like in New York?',
             source: 'user',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
         };
 
         // Add the user message to current session messages
-        this.#curSessionMessages.push(userMessage);
+        this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...userMessage, segments: [] }, false));
 
         // Wait 1 second, then create assistant response and start streaming
         setTimeout(() => {
@@ -728,11 +888,11 @@ export class ChatAppState {
                 messageId: assistantMessageId,
                 message: '',
                 source: 'assistant',
-                timestamp: new Date().toISOString(),
+                timestamp: new Date().toISOString()
             };
 
             // Add the assistant message to current session messages
-            this.#curSessionMessages.push(assistantMessage);
+            this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...assistantMessage, segments: [] }, true));
 
             // Define the mock weather response content to stream
             const mockResponse =

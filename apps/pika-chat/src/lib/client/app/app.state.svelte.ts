@@ -7,6 +7,7 @@ import type { ChatApp, ChatUser } from '@pika/shared/types/chatbot/chatbot-types
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
+import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
 
 export class AppState {
     #settings: AppSettingsState | undefined;
@@ -52,7 +53,7 @@ export class AppState {
         this.#identity = new IdentityState(user);
     }
 
-    addChatApp(chatApp: ChatApp): ChatAppState {
+    addChatApp(chatApp: ChatApp, componentRegistry: ComponentRegistry): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
         }
@@ -61,7 +62,7 @@ export class AppState {
         if (chatAppState) {
             chatAppState.chatApp = chatApp;
         } else {
-            this.#chatApps[chatApp.chatAppId] = new ChatAppState(this.fetchz, chatApp, this.#page, this);
+            this.#chatApps[chatApp.chatAppId] = new ChatAppState(this.fetchz, chatApp, this.#page, this, componentRegistry);
         }
         return this.#chatApps[chatApp.chatAppId];
     }

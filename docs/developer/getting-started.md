@@ -79,7 +79,7 @@ When you create a Pika application, you receive a complete, production-ready cha
 ### Key Features
 
 - **Authentication System** - Ready-to-customize authentication in the frontend
-- **Custom UI Components** - Support for custom markdown tag components
+- **Custom Message Tags** - Render XML tags from LLM responses with custom UI components
 - **AWS CDK Integration** - Infrastructure as Code for easy deployment
 - **Sync System** - Keep your customizations while receiving framework updates
 
@@ -162,7 +162,7 @@ After creating your application, you'll want to:
 2. **Choose Your Stack Approach** - Decide whether to modify existing stacks or create custom ones
 3. **Define Your First Chat App** - Modify the weather sample or create a new stack for your first chat app
 4. **Customize Authentication** - Set up your authentication provider
-5. **Add Custom Components** - Create custom UI components for your chat
+5. **Add Custom Message Tags** - Create custom renderers for XML tags in LLM responses
 6. **Deploy Your Services** - Deploy to AWS or run locally
 
 ## 📚 Learn More

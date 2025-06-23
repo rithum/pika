@@ -54,6 +54,7 @@ catalog:
   '@sveltejs/adapter-node': ^5.2.12
   '@sveltejs/kit': ^2.21.0
   '@sveltejs/vite-plugin-svelte': ^5.0.3
+  'embla-carousel-svelte': ^8.6.0
   svelte-sonner: ^1.0.1
   vite: ^6.3.5
   svelte: ^5.30.2

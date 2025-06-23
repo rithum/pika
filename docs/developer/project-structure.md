@@ -59,7 +59,7 @@ apps/pika-chat/
 
 **Customization Areas:**
 
-- **Custom Components**: `src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+- **Custom Message Tags**: `src/lib/client/features/chat/message-segments/custom-components/`
 - **Authentication**: `src/lib/server/auth-provider/`
 - **Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
 
@@ -236,7 +236,7 @@ Pika Framework automatically protects certain areas from being overwritten durin
 
 ### Default Protected Areas
 
-- `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+- `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
 - `apps/pika-chat/src/lib/server/auth-provider/`
 - `services/custom/`
 - `apps/custom/`
@@ -264,10 +264,10 @@ You can add additional protected areas by editing `.pika-sync.json`:
 **Purpose:** Update project names and settings
 **Protected:** Yes
 
-### 2. Custom Components
+### 2. Custom Message Tags
 
-**Location:** `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
-**Purpose:** Add custom UI components for chat messages
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+**Purpose:** Add custom renderers for XML tags in LLM responses and metadata handlers
 **Protected:** Yes
 
 ### 3. Authentication

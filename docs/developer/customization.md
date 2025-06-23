@@ -45,24 +45,28 @@ export const pikaConfig: PikaConfig = {
 
 ## Customization Areas
 
-### 1. Custom Components
+### 1. Custom Message Tag Renderers
 
-**Location:** `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
 
-**Purpose:** Add custom markdown components that will be rendered in chat messages.
+**Purpose:** Add custom renderers for XML tags in LLM responses for inline visual components and metadata handlers for processing non-visual tags.
 
 **What to put here:**
 
-- Custom Svelte components for rendering specific markdown tags
-- Components that extend the chat message rendering capabilities
-- Custom UI elements that should appear in chat messages
+- Custom Svelte components for rendering XML tags (e.g., `<order>`, `<dialog>`, `<code>`)
+- Metadata handlers for processing XML tags that don't render visually (e.g., `<some-command>`)
+- TypeScript files with supporting logic
+- Custom UI components for displaying structured data from LLMs
 
 **Example use cases:**
 
-- Custom code syntax highlighting components
-- Special formatting for mentions or links
-- Custom emoji or reaction components
-- Business-specific data visualization components
+- Custom data visualization components (charts, graphs, tables)
+- Interactive widgets (forms, buttons, controls)
+- File display components (PDFs, documents, media)
+- Business-specific data renderers (customer cards, product displays, interactive elements)
+- Analytics and telemetry handlers
+
+**Documentation:** See [Custom Message Tags Guide](./custom-message-tags.md) for detailed implementation instructions.
 
 ### 2. Authentication
 

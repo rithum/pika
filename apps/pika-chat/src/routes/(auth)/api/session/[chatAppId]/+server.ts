@@ -16,13 +16,10 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
     }
     try {
         const sessions = await getChatSessions(user.userId, chatAppId);
-        return json(sessions);
+        return json({ success: true, sessions });
     } catch (e) {
         console.error(e);
-        return getErrorResponse(
-            500,
-            `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
-        );
+        return getErrorResponse(500, `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
     }
 
     // try {

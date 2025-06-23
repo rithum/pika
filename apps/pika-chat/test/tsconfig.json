@@ -1,0 +1,44 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        // Override some settings for Jest compatibility
+        "module": "ESNext",
+        "target": "ES2022",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": false,
+        "isolatedModules": true,
+        "declaration": false,
+        "declarationMap": false,
+        "sourceMap": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        // Add Jest types
+        "types": [
+            "jest",
+            "node"
+        ],
+        // Path mapping for SvelteKit aliases
+        "baseUrl": "../",
+        "paths": {
+            "$lib/*": [
+                "src/lib/*"
+            ],
+            "@pika/shared/*": [
+                "../../packages/shared/src/*"
+            ]
+        }
+    },
+    "include": [
+        "../src/**/*",
+        "./**/*"
+    ],
+    "exclude": [
+        "../node_modules",
+        "../build",
+        "../.svelte-kit"
+    ]
+}
