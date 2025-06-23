@@ -103,8 +103,11 @@
             for (const entry of entries) {
                 // Check if the content size has changed
                 if (entry.contentBoxSize || entry.borderBoxSize) {
-                    console.log('scrollToDiv height changed, scrolling to bottom');
-                    scrollToBottom();
+                    // Only autoscroll if the user hasn't scrolled away
+                    if (!userScrollOffOfBottom){
+                        console.log('scrollToDiv height changed, scrolling to bottom');
+                        scrollToBottom();
+                    }
                 }
             }
         });

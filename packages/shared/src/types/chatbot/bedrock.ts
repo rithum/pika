@@ -1,3 +1,5 @@
+import { FailureTrace, Observation, OrchestrationModelInvocationOutput, Rationale } from '@aws-sdk/client-bedrock-agent-runtime';
+
 /**
  * Represents the input event structure passed to a Lambda function by an Amazon Bedrock Agent Action Group.
  */
@@ -220,393 +222,406 @@ export interface BedrockActionGroupFunctionSchemaParameterDetail {
     description?: string;
 }
 
-/**
- * Note only took time to define the OrchestrationTrace object.  All of them are defined in:
- *
- * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_Trace.html
- */
-export type Trace = CustomOrchestrationTrace | FailureTrace | GuardRailTrace | PreProcessingTrace | PostProcessingTrace | RoutingClassifierTrace;
+// export interface Trace {
+//     failureTrace?: FailureTrace;
+//     orchestrationTrace?: OrchestrationTrace;
+// }
 
-export type CustomOrchestrationTrace = Record<string, unknown>;
-export type FailureTrace = Record<string, unknown>;
-export type GuardRailTrace = Record<string, unknown>;
-export type PreProcessingTrace = Record<string, unknown>;
-export type PostProcessingTrace = Record<string, unknown>;
-export type RoutingClassifierTrace = Record<string, unknown>;
+// export interface OrchestrationTrace {
+//     rationale: Rationale;
+//     observation?: Observation;
+//     invocationInput?: InvocationInput;
+//     modelInvocationOutput?: OrchestrationModelInvocationOutput;
+//     modelInvocationInput?: ModelInvocationInput;
+// }
 
-/**
- * Represents the OrchestrationTrace object from the AWS Bedrock Agent Runtime.
- * It contains details about the orchestration step, in which the agent
- * determines the order in which actions are executed and which knowledge bases
- * are retrieved.
- *
- * This data type is a UNION, so only one of the following members can be specified when used or returned.
- *
- * Based on: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_OrchestrationTrace.html
- */
-export interface OrchestrationTrace {
-    /**
-     * Contains information pertaining to the action group or knowledge base
-     * that is being invoked.
-     */
-    invocationInput?: InvocationInput;
+// /**
+//  * Note only took time to define the OrchestrationTrace object.  All of them are defined in:
+//  *
+//  * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_Trace.html
+//  */
+// export type Trace = CustomOrchestrationTrace | FailureTrace | GuardRailTrace | PreProcessingTrace | PostProcessingTrace | RoutingClassifierTrace;
 
-    /**
-     * The input for the orchestration step.
-     * The type is ORCHESTRATION. The text contains the prompt.
-     * The inferenceConfiguration, parserMode, and overrideLambda values are set
-     * in the PromptOverrideConfiguration object that was set when the agent
-     * was created or updated.
-     */
-    modelInvocationInput?: ModelInvocationInput;
+// export type CustomOrchestrationTrace = Record<string, unknown>;
+// export type FailureTrace = Record<string, unknown>;
+// export type GuardRailTrace = Record<string, unknown>;
+// export type PreProcessingTrace = Record<string, unknown>;
+// export type PostProcessingTrace = Record<string, unknown>;
+// export type RoutingClassifierTrace = Record<string, unknown>;
 
-    /**
-     * Contains information pertaining to the output from the foundation model
-     * that is being invoked.
-     */
-    modelInvocationOutput?: OrchestrationModelInvocationOutput;
+// /**
+//  * Represents the OrchestrationTrace object from the AWS Bedrock Agent Runtime.
+//  * It contains details about the orchestration step, in which the agent
+//  * determines the order in which actions are executed and which knowledge bases
+//  * are retrieved.
+//  *
+//  * This data type is a UNION, so only one of the following members can be specified when used or returned.
+//  *
+//  * Based on: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_OrchestrationTrace.html
+//  */
+// export interface OrchestrationTrace {
+//     /**
+//      * Contains information pertaining to the action group or knowledge base
+//      * that is being invoked.
+//      */
+//     invocationInput?: InvocationInput;
 
-    /**
-     * Details about the observation (the output of the action group Lambda or knowledge base)
-     * made by the agent.
-     */
-    observation?: Observation;
+//     /**
+//      * The input for the orchestration step.
+//      * The type is ORCHESTRATION. The text contains the prompt.
+//      * The inferenceConfiguration, parserMode, and overrideLambda values are set
+//      * in the PromptOverrideConfiguration object that was set when the agent
+//      * was created or updated.
+//      */
+//     modelInvocationInput?: ModelInvocationInput;
 
-    /**
-     * Details about the reasoning, based on the input, that the agent uses to
-     * justify carrying out an action group or getting information from a knowledge base.
-     */
-    rationale?: Rationale;
-}
+//     /**
+//      * Contains information pertaining to the output from the foundation model
+//      * that is being invoked.
+//      */
+//     modelInvocationOutput?: OrchestrationModelInvocationOutput;
 
-/**
- * Represents the reasoning, based on the input, that the agent uses to justify carrying out an action group or retrieving information from a knowledge base.
- */
-export type Rationale = {
-    /**
-     * The reasoning or thought process of the agent, based on the input.
-     *
-     * Type: string
-     * Required: No
-     */
-    text?: string;
+//     /**
+//      * Details about the observation (the output of the action group Lambda or knowledge base)
+//      * made by the agent.
+//      */
+//     observation?: Observation;
 
-    /**
-     * The unique identifier of the trace step.
-     *
-     * Type: string
-     * Length Constraints: Minimum length of 2. Maximum length of 16.
-     * Required: No
-     */
-    traceId?: string;
-};
+//     /**
+//      * Details about the reasoning, based on the input, that the agent uses to
+//      * justify carrying out an action group or getting information from a knowledge base.
+//      */
+//     rationale?: Rationale;
+// }
 
-/**
- * Contains the result or output of an action group or knowledge base, or the response to the user.
- */
-export type Observation = {
-    /**
-     * Contains the JSON-formatted string returned by the API invoked by the action group.
-     * Type: ActionGroupInvocationOutput object
-     * Required: No
-     */
-    actionGroupInvocationOutput?: ActionGroupInvocationOutput;
+// /**
+//  * Represents the reasoning, based on the input, that the agent uses to justify carrying out an action group or retrieving information from a knowledge base.
+//  */
+// export type Rationale = {
+//     /**
+//      * The reasoning or thought process of the agent, based on the input.
+//      *
+//      * Type: string
+//      * Required: No
+//      */
+//     text?: string;
 
-    /**
-     * A collaborator's invocation output.
-     * Type: AgentCollaboratorInvocationOutput object
-     * Required: No
-     */
-    agentCollaboratorInvocationOutput?: AgentCollaboratorInvocationOutput;
+//     /**
+//      * The unique identifier of the trace step.
+//      *
+//      * Type: string
+//      * Length Constraints: Minimum length of 2. Maximum length of 16.
+//      * Required: No
+//      */
+//     traceId?: string;
+// };
 
-    /**
-     * Contains the JSON-formatted string returned by the API invoked by the code interpreter.
-     * Type: CodeInterpreterInvocationOutput object
-     * Required: No
-     */
-    codeInterpreterInvocationOutput?: CodeInterpreterInvocationOutput;
+// /**
+//  * Contains the result or output of an action group or knowledge base, or the response to the user.
+//  */
+// export type Observation = {
+//     /**
+//      * Contains the JSON-formatted string returned by the API invoked by the action group.
+//      * Type: ActionGroupInvocationOutput object
+//      * Required: No
+//      */
+//     actionGroupInvocationOutput?: ActionGroupInvocationOutput;
 
-    /**
-     * Contains details about the response to the user.
-     * Type: FinalResponse object
-     * Required: No
-     */
-    finalResponse?: FinalResponse;
+//     /**
+//      * A collaborator's invocation output.
+//      * Type: AgentCollaboratorInvocationOutput object
+//      * Required: No
+//      */
+//     agentCollaboratorInvocationOutput?: AgentCollaboratorInvocationOutput;
 
-    /**
-     * Contains details about the results from looking up the knowledge base.
-     * Type: KnowledgeBaseLookupOutput object
-     * Required: No
-     */
-    knowledgeBaseLookupOutput?: KnowledgeBaseLookupOutput;
+//     /**
+//      * Contains the JSON-formatted string returned by the API invoked by the code interpreter.
+//      * Type: CodeInterpreterInvocationOutput object
+//      * Required: No
+//      */
+//     codeInterpreterInvocationOutput?: CodeInterpreterInvocationOutput;
 
-    /**
-     * Contains details about the response to reprompt the input.
-     * Type: RepromptResponse object
-     * Required: No
-     */
-    repromptResponse?: RepromptResponse;
+//     /**
+//      * Contains details about the response to the user.
+//      * Type: FinalResponse object
+//      * Required: No
+//      */
+//     finalResponse?: FinalResponse;
 
-    /**
-     * The unique identifier of the trace.
-     * Type: String
-     * Length Constraints: Minimum length of 2. Maximum length of 16.
-     * Required: No
-     */
-    traceId?: string;
+//     /**
+//      * Contains details about the results from looking up the knowledge base.
+//      * Type: KnowledgeBaseLookupOutput object
+//      * Required: No
+//      */
+//     knowledgeBaseLookupOutput?: KnowledgeBaseLookupOutput;
 
-    /**
-     * Specifies what kind of information the agent returns in the observation.
-     * Valid Values: ACTION_GROUP | AGENT_COLLABORATOR | KNOWLEDGE_BASE | FINISH | ASK_USER | REPROMPT
-     * Type: String
-     * Required: No
-     */
-    type?: 'ACTION_GROUP' | 'AGENT_COLLABORATOR' | 'KNOWLEDGE_BASE' | 'FINISH' | 'ASK_USER' | 'REPROMPT';
-};
+//     /**
+//      * Contains details about the response to reprompt the input.
+//      * Type: RepromptResponse object
+//      * Required: No
+//      */
+//     repromptResponse?: RepromptResponse;
 
-/**
- * Contains details about the agent's response to reprompt the input.
- */
-export type RepromptResponse = {
-    /**
-     * Specifies what output is prompting the agent to reprompt the input.
-     *
-     * Valid values:
-     * - 'ACTION_GROUP'
-     * - 'KNOWLEDGE_BASE'
-     * - 'PARSER'
-     *
-     * Type: string
-     * Required: No
-     */
-    source?: 'ACTION_GROUP' | 'KNOWLEDGE_BASE' | 'PARSER';
+//     /**
+//      * The unique identifier of the trace.
+//      * Type: String
+//      * Length Constraints: Minimum length of 2. Maximum length of 16.
+//      * Required: No
+//      */
+//     traceId?: string;
 
-    /**
-     * The text reprompting the input.
-     *
-     * Type: string
-     * Required: No
-     */
-    text?: string;
-};
+//     /**
+//      * Specifies what kind of information the agent returns in the observation.
+//      * Valid Values: ACTION_GROUP | AGENT_COLLABORATOR | KNOWLEDGE_BASE | FINISH | ASK_USER | REPROMPT
+//      * Type: String
+//      * Required: No
+//      */
+//     type?: 'ACTION_GROUP' | 'AGENT_COLLABORATOR' | 'KNOWLEDGE_BASE' | 'FINISH' | 'ASK_USER' | 'REPROMPT';
+// };
 
-export interface ActionGroupInvocationOutput {
-    /**
-     * Contains the JSON-formatted string returned by the API invoked by the action group.
-     */
-    text?: string;
-}
+// /**
+//  * Contains details about the agent's response to reprompt the input.
+//  */
+// export type RepromptResponse = {
+//     /**
+//      * Specifies what output is prompting the agent to reprompt the input.
+//      *
+//      * Valid values:
+//      * - 'ACTION_GROUP'
+//      * - 'KNOWLEDGE_BASE'
+//      * - 'PARSER'
+//      *
+//      * Type: string
+//      * Required: No
+//      */
+//     source?: 'ACTION_GROUP' | 'KNOWLEDGE_BASE' | 'PARSER';
 
-/** Output from an agent collaborator. */
-export interface AgentCollaboratorInvocationOutput {
-    /** The output's agent collaborator alias ARN. */
-    agentCollaboratorAliasArn?: string;
-    /** The output's agent collaborator name. */
-    agentCollaboratorName?: string;
-    /** The output's output.  */
-    output?: string;
-}
+//     /**
+//      * The text reprompting the input.
+//      *
+//      * Type: string
+//      * Required: No
+//      */
+//     text?: string;
+// };
 
-/**
- * Represents the output returned by the code interpreter after executing code.
- */
-export type CodeInterpreterInvocationOutput = {
-    /**
-     * Contains the error message returned from code execution, if any.
-     *
-     * Type: string
-     * Required: No
-     */
-    executionError?: string;
+// export interface ActionGroupInvocationOutput {
+//     /**
+//      * Contains the JSON-formatted string returned by the API invoked by the action group.
+//      */
+//     text?: string;
+// }
 
-    /**
-     * Contains the successful output returned from code execution.
-     *
-     * Type: string
-     * Required: No
-     */
-    executionOutput?: string;
+// /** Output from an agent collaborator. */
+// export interface AgentCollaboratorInvocationOutput {
+//     /** The output's agent collaborator alias ARN. */
+//     agentCollaboratorAliasArn?: string;
+//     /** The output's agent collaborator name. */
+//     agentCollaboratorName?: string;
+//     /** The output's output.  */
+//     output?: string;
+// }
 
-    /**
-     * Indicates if the execution of the code timed out.
-     *
-     * Type: boolean
-     * Required: No
-     */
-    executionTimeout?: boolean;
+// /**
+//  * Represents the output returned by the code interpreter after executing code.
+//  */
+// export type CodeInterpreterInvocationOutput = {
+//     /**
+//      * Contains the error message returned from code execution, if any.
+//      *
+//      * Type: string
+//      * Required: No
+//      */
+//     executionError?: string;
 
-    /**
-     * Contains output files, if generated by code execution.
-     *
-     * Type: Array of strings
-     * Required: No
-     */
-    files?: string[];
-};
+//     /**
+//      * Contains the successful output returned from code execution.
+//      *
+//      * Type: string
+//      * Required: No
+//      */
+//     executionOutput?: string;
 
-/** Contains details about the response to the user. */
-export interface FinalResponse {
-    /**
-     * The text in the response to the user.
-     */
-    text?: string;
-}
+//     /**
+//      * Indicates if the execution of the code timed out.
+//      *
+//      * Type: boolean
+//      * Required: No
+//      */
+//     executionTimeout?: boolean;
 
-// Represents the output from the foundation model during the orchestration step
-export interface OrchestrationModelInvocationOutput {
-    /**
-     * Information about the foundation model output from the orchestration step.
-     */
-    metadata?: Metadata;
+//     /**
+//      * Contains output files, if generated by code execution.
+//      *
+//      * Type: Array of strings
+//      * Required: No
+//      */
+//     files?: string[];
+// };
 
-    /**
-     * Details of the raw response from the foundation model output.
-     */
-    rawResponse?: RawResponse;
+// /** Contains details about the response to the user. */
+// export interface FinalResponse {
+//     /**
+//      * The text in the response to the user.
+//      */
+//     text?: string;
+// }
 
-    /**
-     * Content about the reasoning that the model made during the orchestration step.
-     * Note: This is a union type; only one member can be specified or returned.
-     */
-    reasoningContent?: ReasoningContentBlock;
+// // Represents the output from the foundation model during the orchestration step
+// export interface OrchestrationModelInvocationOutput {
+//     /**
+//      * Information about the foundation model output from the orchestration step.
+//      */
+//     metadata?: Metadata;
 
-    /**
-     * The unique identifier of the trace.
-     */
-    traceId?: string; // Constraints: Minimum length of 2. Maximum length of 16.
-}
+//     /**
+//      * Details of the raw response from the foundation model output.
+//      */
+//     rawResponse?: RawResponse;
+
+//     /**
+//      * Content about the reasoning that the model made during the orchestration step.
+//      * Note: This is a union type; only one member can be specified or returned.
+//      */
+//     reasoningContent?: ReasoningContentBlock;
+
+//     /**
+//      * The unique identifier of the trace.
+//      */
+//     traceId?: string; // Constraints: Minimum length of 2. Maximum length of 16.
+// }
 
 /** Contains details about the results from looking up the knowledge base. */
-export interface KnowledgeBaseLookupOutput {
-    /** Contains metadata about the sources cited for the generated response. */
-    retrievedReferences?: RetrievedReference[];
-}
+// export interface KnowledgeBaseLookupOutput {
+//     /** Contains metadata about the sources cited for the generated response. */
+//     retrievedReferences?: RetrievedReference[];
+// }
 
-/** Contains metadata about a source cited for the generated response. */
-export interface RetrievedReference {
-    /** Contains the cited text from the data source. */
-    content?: RetrievalResultContent;
+// /** Contains metadata about a source cited for the generated response. */
+// export interface RetrievedReference {
+//     /** Contains the cited text from the data source. */
+//     content?: RetrievalResultContent;
 
-    /** Contains information about the location of the data source. */
-    location?: RetrievalResultLocation;
+//     /** Contains information about the location of the data source. */
+//     location?: RetrievalResultLocation;
 
-    /**
-     * Contains metadata attributes and their values for the file in the data source. For more information, see Metadata and filtering.
-     * Type: String to JSON value map
-     * Map Entries: Maximum number of items.
-     * Key Length Constraints: Minimum length of 1. Maximum length of 100.
-     */
-    metadata?: string;
-}
+//     /**
+//      * Contains metadata attributes and their values for the file in the data source. For more information, see Metadata and filtering.
+//      * Type: String to JSON value map
+//      * Map Entries: Maximum number of items.
+//      * Key Length Constraints: Minimum length of 1. Maximum length of 100.
+//      */
+//     metadata?: string;
+// }
 
-/**
- * Contains information about a chunk of text from a data source in the knowledge base. If the result is
- * from a structured data source, the cell in the database and the type of the value is also identified.
- */
-export interface RetrievalResultContent {
-    /**
-     * A data URI with base64-encoded content from the data source. The URI is in the following format:
-     *  returned in the following format: data:image/jpeg;base64,${base64-encoded string}.
-     */
-    byteContent?: string;
+// /**
+//  * Contains information about a chunk of text from a data source in the knowledge base. If the result is
+//  * from a structured data source, the cell in the database and the type of the value is also identified.
+//  */
+// export interface RetrievalResultContent {
+//     /**
+//      * A data URI with base64-encoded content from the data source. The URI is in the following format:
+//      *  returned in the following format: data:image/jpeg;base64,${base64-encoded string}.
+//      */
+//     byteContent?: string;
 
-    /** Specifies information about the rows with the cells to return in retrieval. */
-    row?: RetrievalResultContentColumn;
+//     /** Specifies information about the rows with the cells to return in retrieval. */
+//     row?: RetrievalResultContentColumn;
 
-    /** The cited text from the data source. */
-    text?: string;
+//     /** The cited text from the data source. */
+//     text?: string;
 
-    /** The type of content in the retrieval result. */
-    type: 'TEXT' | 'IMAGE' | 'ROW';
-}
+//     /** The type of content in the retrieval result. */
+//     type: 'TEXT' | 'IMAGE' | 'ROW';
+// }
 
-/** Contains information about a column with a cell to return in retrieval. */
-export interface RetrievalResultContentColumn {
-    /**
-     * The name of the column.
-     */
-    columnName?: string;
+// /** Contains information about a column with a cell to return in retrieval. */
+// export interface RetrievalResultContentColumn {
+//     /**
+//      * The name of the column.
+//      */
+//     columnName?: string;
 
-    /** Te value in the column. */
-    columnValue?: string;
+//     /** Te value in the column. */
+//     columnValue?: string;
 
-    /** The data type of the value. */
-    type: 'BLOB' | 'BOOLEAN' | 'DOUBLE' | 'NULL' | 'LONG' | 'STRING';
-}
+//     /** The data type of the value. */
+//     type: 'BLOB' | 'BOOLEAN' | 'DOUBLE' | 'NULL' | 'LONG' | 'STRING';
+// }
 
-/**
- * Not defining this.  YOu find it here
- * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_RetrievalResultLocation.html
- */
-export type RetrievalResultLocation = Record<string, unknown>;
+// /**
+//  * Not defining this.  YOu find it here
+//  * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_RetrievalResultLocation.html
+//  */
+// export type RetrievalResultLocation = Record<string, unknown>;
 
-/**
- * Provides details of the foundation model.
- */
-export interface Metadata {
-    /**
-     * Contains details of the foundation model usage.
-     */
-    usage?: Usage;
-}
+// /**
+//  * Provides details of the foundation model.
+//  */
+// export interface Metadata {
+//     /**
+//      * Contains details of the foundation model usage.
+//      */
+//     usage?: Usage;
+// }
 
-/**
- * Provides details of the foundation model usage.
- */
-export interface Usage {
-    /**
-     * The number of tokens in the input.
-     */
-    inputTokens?: number;
+// /**
+//  * Provides details of the foundation model usage.
+//  */
+// export interface Usage {
+//     /**
+//      * The number of tokens in the input.
+//      */
+//     inputTokens?: number;
 
-    /**
-     * The number of tokens in the output.
-     */
-    outputTokens?: number;
-}
+//     /**
+//      * The number of tokens in the output.
+//      */
+//     outputTokens?: number;
+// }
 
-/**
- * Contains the raw output from the foundation model.
- */
-export interface RawResponse {
-    /** The foundation model's raw output content. */
-    content?: string;
-}
+// /**
+//  * Contains the raw output from the foundation model.
+//  */
+// export interface RawResponse {
+//     /** The foundation model's raw output content. */
+//     content?: string;
+// }
 
-/**
- * Contains content regarding the reasoning that the foundation model made with respect to the content in the content block.
- * Reasoning refers to a Chain of Thought (CoT) that the model generates to enhance the accuracy of its final response.
- *
- * This data type is a UNION, so only one of the following members can be specified when used or returned.
- */
-export interface ReasoningContentBlock {
-    /** Contains information about the reasoning that the model used to return the content in the content block. */
-    reasoningText?: ReasoningTextBlock;
-    /**
-     * The content in the reasoning that was encrypted by the model provider for trust and safety reasons.
-     *
-     * Base64-encoded binary data object
-     */
-    redactedContent?: string;
-}
+// /**
+//  * Contains content regarding the reasoning that the foundation model made with respect to the content in the content block.
+//  * Reasoning refers to a Chain of Thought (CoT) that the model generates to enhance the accuracy of its final response.
+//  *
+//  * This data type is a UNION, so only one of the following members can be specified when used or returned.
+//  */
+// export interface ReasoningContentBlock {
+//     /** Contains information about the reasoning that the model used to return the content in the content block. */
+//     reasoningText?: ReasoningTextBlock;
+//     /**
+//      * The content in the reasoning that was encrypted by the model provider for trust and safety reasons.
+//      *
+//      * Base64-encoded binary data object
+//      */
+//     redactedContent?: string;
+// }
 
-/**
- * Contains information about the reasoning that the model used to return the content in the content block.
- */
-export interface ReasoningTextBlock {
-    /**
-     * Text describing the reasoning that the model used to return the content in the content block.
-     */
-    text: string;
+// /**
+//  * Contains information about the reasoning that the model used to return the content in the content block.
+//  */
+// export interface ReasoningTextBlock {
+//     /**
+//      * Text describing the reasoning that the model used to return the content in the content block.
+//      */
+//     text: string;
 
-    /**
-     * A hash of all the messages in the conversation to ensure that the content in the reasoning
-     * text block isn't tampered with. You must submit the signature in subsequent Converse requests,
-     * in addition to the previous messages. If the previous messages are tampered with, the response
-     * throws an error.
-     */
-    signature?: string;
-}
+//     /**
+//      * A hash of all the messages in the conversation to ensure that the content in the reasoning
+//      * text block isn't tampered with. You must submit the signature in subsequent Converse requests,
+//      * in addition to the previous messages. If the previous messages are tampered with, the response
+//      * throws an error.
+//      */
+//     signature?: string;
+// }
 
 /**
  * Represents the ReasoningContentBlock object from the AWS Bedrock Agent Runtime.

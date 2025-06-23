@@ -1,5 +1,12 @@
 import { SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import * as jwt from 'jsonwebtoken';
+//import * as jwt from 'jsonwebtoken';
+import * as jwt2 from 'jsonwebtoken';
+
+// Added this because running locally did not import default correctly
+let jwt = jwt2;
+if ('default' in jwt) {
+    jwt = jwt['default'] as any;
+}
 
 /**
  * Converts a payload containing a userId into a JWT string.

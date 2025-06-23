@@ -1,7 +1,6 @@
 //TODO: make sure to turn on model invocation logging in aws
 
-import type { Trace } from './bedrock';
-import type { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { FunctionDefinition, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 
 export type CompanyType = 'retailer' | 'supplier';
 

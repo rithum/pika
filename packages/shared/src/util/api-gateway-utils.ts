@@ -91,6 +91,15 @@ export function apiGatewayFunctionDecorator<TRequestBody, TResponse>(fn: APIGate
     return async (event, context) => {
         let error: HttpError | undefined;
         let response: undefined | void | APIGatewayProxyResultV2<TResponse>;
+
+        // Just in case, add another version of the headers with all lowercase keys;
+        // helps when running locally.  Seems APIGateway automatically converts to lowercase
+        Object.keys(event.headers).forEach((k) => {
+            let lowerK = k.toLowerCase();
+            if (!event.headers[lowerK]) {
+                event.headers[lowerK] = event.headers[k];
+            }
+        });
         try {
             // Parse the request body if present and create a typed event object
             const eventWithType: APIGatewayProxyEventPika<TRequestBody> = {

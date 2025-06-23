@@ -5,7 +5,8 @@ import {
     ConversationHistory,
     CustomOrchestrationTrace,
     InvokeInlineAgentCommand,
-    InvokeInlineAgentCommandInput
+    InvokeInlineAgentCommandInput,
+    Trace
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
@@ -13,6 +14,7 @@ import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 import { getValueFromParameterStore } from './ssm';
 import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
+// import { Trace } from './bedrock-types';
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
@@ -20,6 +22,36 @@ const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
+
+// This code helps when running locally.  It's not needed for production.
+if (global.awslambda == null) {
+    global.awslambda = {
+        streamifyResponse: (handler) => {
+            //handler = streamifyResponseOrig(handler);
+            return (event: any, context: any) => handler(event, context.responseStream, context);
+        },
+        HttpResponseStream: class HttpResponseStream {
+            static from(underlyingStream: any, prelude: any) {
+                let set = (key: any, value: any) => {};
+                if (underlyingStream.set) {
+                    set = underlyingStream.set.bind(underlyingStream);
+                } else if (underlyingStream.headers) {
+                    set = underlyingStream.headers.set.bind(underlyingStream.headers);
+                }
+                Object.entries(prelude.headers).forEach(([key, value]) => {
+                    set(key, value);
+                });
+                //underlyingStream.setContentType(METADATA_PRELUDE_CONTENT_TYPE)
+                // const metadataPrelude = JSON.stringify(prelude)
+                // underlyingStream._onBeforeFirstWrite = (write) => {
+                // 	write(metadataPrelude)
+                // 	write(new Uint8Array(DELIMITER_LEN))
+                // }
+                return underlyingStream;
+            }
+        } as any
+    };
+}
 
 /**
  * Invokes the Bedrock Inline Agent to generate a response to the user's message.
@@ -109,6 +141,9 @@ export async function invokeAgentToGetAnswer(
             // Include the conversation history if we need to reattach to the session
             ...(conversationHistory ? { conversationHistory } : {}),
             promptSessionAttributes: {
+                // Everything in here is available to the agent in the prompt
+                ...chatSession.sessionAttributes,
+                currentDate: new Date().toISOString(),
                 messageId: messageId,
                 ...(authDataGzipHexEncoded ? { authDataGzipHexEncoded } : {})
             },
@@ -124,6 +159,13 @@ export async function invokeAgentToGetAnswer(
     };
 
     let error: unknown;
+    //TODO: is there a better type for this?
+    let lastModelInvocationOutputTraceContent:
+        | {
+              [key: string]: unknown;
+              traceId: string;
+          }
+        | undefined;
     let startingTime = Date.now();
     let model: string | undefined;
     let responseMsg = '';
@@ -134,7 +176,7 @@ export async function invokeAgentToGetAnswer(
         outputCost: 0,
         totalCost: 0
     };
-    let traces: CustomOrchestrationTraceMember[] = [];
+    let traces: Trace[] = [];
 
     console.log('Command input built successfully');
     console.log('InvokeInlineAgentCommandInput:', JSON.stringify(cmdInput, null, 2));
@@ -184,7 +226,7 @@ export async function invokeAgentToGetAnswer(
             }
 
             if (chunk.trace?.trace) {
-                const trace = chunk.trace.trace as CustomOrchestrationTraceMember;
+                const trace = chunk.trace.trace as Trace;
                 console.log(`Processing trace for chunk ${chunkCount}`);
                 console.log(`Trace:`, JSON.stringify(trace, null, 2));
 
@@ -221,7 +263,14 @@ export async function invokeAgentToGetAnswer(
                     console.log('Model extracted from trace:', model);
                 }
 
-                if (trace.orchestrationTrace.modelInvocationOutput || trace.orchestrationTrace.rationale) {
+                //TODO: check type when done
+                if (
+                    trace.orchestrationTrace?.invocationInput ||
+                    trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+                    trace.orchestrationTrace?.modelInvocationOutput ||
+                    trace.orchestrationTrace?.rationale ||
+                    trace.failureTrace
+                ) {
                     const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
                     const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
 
@@ -236,6 +285,13 @@ export async function invokeAgentToGetAnswer(
                     });
 
                     if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
+                        lastModelInvocationOutputTraceContent = JSON.parse(trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!);
+                        //TODO: check type when done
+                        if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
+                            lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
+                        } else {
+                            throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
+                        }
                         // Don't keep the raw response in the trace
                         delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
                     }
@@ -274,7 +330,7 @@ export async function invokeAgentToGetAnswer(
         message: responseMsg,
         executionDuration: Date.now() - startingTime,
         //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
-        traces: convertDatesToStrings(traces) as any,
+        traces: convertDatesToStrings(traces) as Trace[],
         usage,
         ...(error ? { additionalData: sanitizeAndStringifyError(error) } : {})
     };
@@ -330,22 +386,22 @@ IMPORTANT: Return ONLY the title text with no explanations, quotes, or additiona
 }
 
 //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
-interface CustomOrchestrationTraceMember {
-    orchestrationTrace: CustomOrchestrationTrace & {
-        rationale?: {
-            text: string;
-        };
-        modelInvocationInput?: {
-            foundationModel: string;
-        };
-        modelInvocationOutput?: {
-            rawResponse?: any;
-            metadata?: {
-                usage?: {
-                    inputTokens: number;
-                    outputTokens: number;
-                };
-            };
-        };
-    };
-}
+// interface CustomOrchestrationTraceMember {
+//     orchestrationTrace: CustomOrchestrationTrace & {
+//         rationale?: {
+//             text: string;
+//         };
+//         modelInvocationInput?: {
+//             foundationModel: string;
+//         };
+//         modelInvocationOutput?: {
+//             rawResponse?: any;
+//             metadata?: {
+//                 usage?: {
+//                     inputTokens: number;
+//                     outputTokens: number;
+//                 };
+//             };
+//         };
+//     };
+// }
