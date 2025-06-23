@@ -1,18 +1,18 @@
+import { AgentAndTools, ChatMessageForCreate, ChatMessageUsage, ChatSession, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import {
     AgentActionGroup,
     BedrockAgentRuntimeClient,
     ConversationHistory,
+    CustomOrchestrationTrace,
     InvokeInlineAgentCommand,
-    InvokeInlineAgentCommandInput,
-    Trace
+    InvokeInlineAgentCommandInput
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { AgentAndTools, ChatMessageForCreate, ChatMessageUsage, ChatSession, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
 import { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
-// import { Trace } from './bedrock-types';
+import { getValueFromParameterStore } from './ssm';
+import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
@@ -21,7 +21,6 @@ const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 
-// This code helps when running locally.  It's not needed for production.
 if (global.awslambda == null) {
     global.awslambda = {
         streamifyResponse: (handler) => {
@@ -139,7 +138,6 @@ export async function invokeAgentToGetAnswer(
             // Include the conversation history if we need to reattach to the session
             ...(conversationHistory ? { conversationHistory } : {}),
             promptSessionAttributes: {
-                // Everything in here is available to the agent in the prompt
                 ...chatSession.sessionAttributes,
                 currentDate: new Date().toISOString(),
                 messageId: messageId,
@@ -159,7 +157,6 @@ export async function invokeAgentToGetAnswer(
     let error: unknown;
     let startingTime = Date.now();
     let model: string | undefined;
-    //TODO: is there a better type for this?
     let lastModelInvocationOutputTraceContent:
         | {
               [key: string]: unknown;
@@ -174,7 +171,7 @@ export async function invokeAgentToGetAnswer(
         outputCost: 0,
         totalCost: 0
     };
-    let traces: Trace[] = [];
+    let traces: CustomOrchestrationTraceMember[] = [];
 
     console.log('Command input built successfully');
     console.log('InvokeInlineAgentCommandInput:', JSON.stringify(cmdInput, null, 2));
@@ -224,7 +221,7 @@ export async function invokeAgentToGetAnswer(
             }
 
             if (chunk.trace?.trace) {
-                const trace = chunk.trace.trace as Trace;
+                const trace = chunk.trace.trace as CustomOrchestrationTraceMember;
                 console.log(`Processing trace for chunk ${chunkCount}`);
                 console.log(`Trace:`, JSON.stringify(trace, null, 2));
 
@@ -261,7 +258,6 @@ export async function invokeAgentToGetAnswer(
                     console.log('Model extracted from trace:', model);
                 }
 
-                //TODO: check type when done
                 if (
                     trace.orchestrationTrace?.invocationInput ||
                     trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
@@ -284,39 +280,35 @@ export async function invokeAgentToGetAnswer(
 
                     if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
                         lastModelInvocationOutputTraceContent = JSON.parse(trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!);
-                        //TODO: check type when done
-                        if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
-                            lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
-                        } else {
-                            throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
-                        }
+                        lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
+
                         // Don't keep the raw response in the trace
                         delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
                     }
-                    // TODO: These weren't saving dates to DynamoDB correctly.  A fix was made so commenting out for now.
-                    // Leaving in place until we are sure it's working.
-                    // if (trace.orchestrationTrace?.modelInvocationOutput?.metadata) {
-                    //     fixMetadataDates(trace.orchestrationTrace.modelInvocationOutput.metadata);
-                    // }
-                    // // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
-                    // if (trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.metadata) {
-                    //     fixMetadataDates(trace.orchestrationTrace.observation.actionGroupInvocationOutput.metadata);
-                    // }
 
-                    // // Detect if we have been going too long and send a prompt to the user to continue
-                    // if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
-                    //     responseStream.write(`This one is taking me awhile to think.<prompt>Continue</prompt>`);
-                    // }
+                    // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
+                    if (trace.orchestrationTrace?.modelInvocationOutput?.metadata) {
+                        fixMetadataDates(trace.orchestrationTrace.modelInvocationOutput.metadata);
+                    }
+                    // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
+                    if (trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.metadata) {
+                        fixMetadataDates(trace.orchestrationTrace.observation.actionGroupInvocationOutput.metadata);
+                    }
 
-                    // // Trim the observation to just a preview.  Observations can be large
-                    // let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
-                    // if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
-                    //     trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
-                    //         trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
-                    // }
+                    // Detect if we have been going too long and send a prompt to the user to continue
+                    if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
+                        responseStream.write(`This one is taking me awhile to think.<prompt>Continue</prompt>`);
+                    }
+
+                    // Trim the observation to just a preview.  Observations can be large
+                    let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
+                    if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
+                        trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
+                            trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
+                    }
+
                     traces.push(trace);
                     //if (userConfig?.features?.super_admin) {
-                    // This writes the traces to the response stream back to the client that invoked the agent.
                     responseStream.write(`<trace>${JSON.stringify(trace)}</trace>`);
                     //}
                 }
@@ -353,7 +345,7 @@ export async function invokeAgentToGetAnswer(
         message: responseMsg,
         executionDuration: Date.now() - startingTime,
         //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
-        traces: convertDatesToStrings(traces) as Trace[],
+        traces: convertDatesToStrings(traces) as any,
         usage,
         ...(error ? { additionalData: sanitizeAndStringifyError(error) } : {})
     };
@@ -368,6 +360,14 @@ export async function invokeAgentToGetAnswer(
     console.log('=== INVOKE AGENT END ===');
 
     return assistantMessage;
+}
+
+function fixMetadataDates(metadata: any) {
+    Object.entries(metadata ?? {}).forEach(([k, v]: [string, unknown]) => {
+        if (v instanceof Date) {
+            metadata[k] = v.toJSON();
+        }
+    });
 }
 
 /**
@@ -408,36 +408,35 @@ IMPORTANT: Return ONLY the title text with no explanations, quotes, or additiona
     return parsedResponse.content[0].text;
 }
 
-//TODO: We found the actual type for the SDK and are using it.  Leaving this here for now
-// since there is some confusion as to whether it is correct, although according to TS compiler, it is.
-// interface CustomOrchestrationTraceMember {
-//     failureTrace?: {
-//         failureReason: string;
-//     };
-//     orchestrationTrace?: CustomOrchestrationTrace & {
-//         rationale?: {
-//             text: string;
-//         };
-//         modelInvocationInput?: {
-//             foundationModel: string;
-//         };
-//         modelInvocationOutput?: {
-//             traceId: string;
-//             rawResponse?: any;
-//             metadata?: {
-//                 usage?: {
-//                     inputTokens: number;
-//                     outputTokens: number;
-//                 };
-//             };
-//         };
+//TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
+interface CustomOrchestrationTraceMember {
+    failureTrace?: {
+        failureReason: string;
+    };
+    orchestrationTrace?: CustomOrchestrationTrace & {
+        rationale?: {
+            text: string;
+        };
+        modelInvocationInput?: {
+            foundationModel: string;
+        };
+        modelInvocationOutput?: {
+            traceId: string;
+            rawResponse?: any;
+            metadata?: {
+                usage?: {
+                    inputTokens: number;
+                    outputTokens: number;
+                };
+            };
+        };
 
-//         invocationInput?: {};
-//         observation?: {
-//             actionGroupInvocationOutput?: {
-//                 text: string;
-//                 metadata?: {};
-//             };
-//         };
-//     };
+        invocationInput?: {};
+        observation?: {
+            actionGroupInvocationOutput?: {
+                text: string;
+                metadata?: {};
+            };
+        };
+    };
 }
