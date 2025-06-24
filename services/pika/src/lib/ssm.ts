@@ -13,11 +13,16 @@ function getSsmClient() {
 }
 
 export async function getValueFromParameterStore(parameterName: string): Promise<string | undefined> {
-    const ssm = getSsmClient();
-    const command = new GetParameterCommand({
-        Name: parameterName,
-        WithDecryption: true
-    });
-    const response = await ssm.send(command);
-    return response.Parameter?.Value;
+    try {
+        const ssm = getSsmClient();
+        const command = new GetParameterCommand({
+            Name: parameterName,
+            WithDecryption: true
+        });
+        const response = await ssm.send(command);
+        return response.Parameter?.Value;
+    } catch (error) {
+        console.error(`Error getting value from parameter store for ${parameterName}`, error);
+        throw error;
+    }
 }
