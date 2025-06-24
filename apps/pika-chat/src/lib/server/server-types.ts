@@ -113,6 +113,24 @@ export interface AppConfig {
     converseFnUrl: string;
 
     /**
+     * This is the name of the backend pika service project from the pika-config.ts file.
+     * Must be set in an environment variable.
+     * The name of the pika service project in kebab case
+     *
+     * env variable: PIKA_SERVICE_PROJ_NAME_KEBAB_CASE
+     */
+    pikaServiceProjNameKebabCase: string;
+
+    /**
+     * This is the name of the frontend pika chat project from the pika-config.ts file.
+     * Must be set in an environment variable.
+     * The name of the pika chat project in kebab case
+     *
+     * env variable: PIKA_CHAT_PROJ_NAME_KEBAB_CASE
+     */
+    pikaChatProjNameKebabCase: string;
+
+    /**
      * Get an arbitrary config value from the environment or process.env
      * @param key - The key to get the value for
      * @returns The value of the key

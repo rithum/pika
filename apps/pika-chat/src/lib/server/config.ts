@@ -28,6 +28,8 @@ export class AppConfigProxy implements AppConfig {
     private _converseFnUrl: string | undefined;
     private _chatAdminApiId: string | undefined;
     private _issuer: string | undefined;
+    private _pikaServiceProjNameKebabCase: string | undefined;
+    private _pikaChatProjNameKebabCase: string | undefined;
 
     // This is used to encrypt and decrypt user data when shared from the front end to the back end of the chatbot service
     // and not for authentication of the front end itself.
@@ -53,13 +55,22 @@ export class AppConfigProxy implements AppConfig {
             throw new Error('AWS_REGION is not set');
         }
 
+        this._pikaServiceProjNameKebabCase = env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE ?? process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE;
+        if (!this._pikaServiceProjNameKebabCase) {
+            throw new Error('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE is not set');
+        }
+        this._pikaChatProjNameKebabCase = env.PIKA_CHAT_PROJ_NAME_KEBAB_CASE ?? process.env.PIKA_CHAT_PROJ_NAME_KEBAB_CASE;
+        if (!this._pikaChatProjNameKebabCase) {
+            throw new Error('PIKA_CHAT_PROJ_NAME_KEBAB_CASE is not set');
+        }
+
         const isLocal = env.NODE_ENV === 'development';
         const cache: {
             [key: string]: string | boolean;
         } = {};
 
         for (const configType of this.initConfig) {
-            await configType.setValue(isLocal, stage, cache, region);
+            await configType.setValue(isLocal, stage, cache, region, this._pikaServiceProjNameKebabCase, this._pikaChatProjNameKebabCase);
         }
     }
 
@@ -131,7 +142,7 @@ export class AppConfigProxy implements AppConfig {
             },
             {
                 name: 'clientId',
-                setValue: async (isLocal: boolean, stage: string, _cache: Cache, region: string) => {
+                setValue: async (isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
                     if (isLocal) {
                         const result = env.CLIENT_ID ?? process.env.CLIENT_ID;
                         if (!result) {
@@ -139,7 +150,7 @@ export class AppConfigProxy implements AppConfig {
                         }
                         this._clientId = result;
                     } else {
-                        const result = await getValueFromParameterStore(`/stack/pika-chat/${stage}/auth/client-id`, region);
+                        const result = await getValueFromParameterStore(`/stack/${pikaChatProjNameKebabCase}/${stage}/auth/client-id`, region);
                         if (!result) {
                             throw new Error('CLIENT_ID is not set');
                         }
@@ -199,14 +210,14 @@ export class AppConfigProxy implements AppConfig {
             },
             {
                 name: 'masterCookieKey',
-                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string) => {
-                    this._masterCookieKey = await getValueFromParameterStore(`/stack/pika-chat/${stage}/auth/master-cookie-key`, region);
+                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
+                    this._masterCookieKey = await getValueFromParameterStore(`/stack/${pikaChatProjNameKebabCase}/${stage}/auth/master-cookie-key`, region);
                 }
             },
             {
                 name: 'masterCookieInitVector',
-                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string) => {
-                    this._masterCookieInitVector = await getValueFromParameterStore(`/stack/pika-chat/${stage}/auth/master-cookie-init-vector`, region);
+                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
+                    this._masterCookieInitVector = await getValueFromParameterStore(`/stack/${pikaChatProjNameKebabCase}/${stage}/auth/master-cookie-init-vector`, region);
                 }
             },
             {
@@ -230,8 +241,8 @@ export class AppConfigProxy implements AppConfig {
             },
             {
                 name: 'jwtSecret',
-                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string) => {
-                    this._jwtSecret = await getValueFromParameterStore(`/stack/pika/${stage}/jwt-secret`, region);
+                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, pikaServiceProjNameKebabCase: string, _pikaChatProjNameKebabCase: string) => {
+                    this._jwtSecret = await getValueFromParameterStore(`/stack/${pikaServiceProjNameKebabCase}/${stage}/jwt-secret`, region);
                 }
             },
             {
@@ -345,11 +356,21 @@ export class AppConfigProxy implements AppConfig {
         if (!this._issuer) throw new Error('App config not initialized');
         return this._issuer;
     }
+
+    public get pikaServiceProjNameKebabCase(): string {
+        if (!this._pikaServiceProjNameKebabCase) throw new Error('App config not initialized');
+        return this._pikaServiceProjNameKebabCase;
+    }
+
+    public get pikaChatProjNameKebabCase(): string {
+        if (!this._pikaChatProjNameKebabCase) throw new Error('App config not initialized');
+        return this._pikaChatProjNameKebabCase;
+    }
 }
 
 interface ConfigType {
     name: keyof AppConfigProxy;
-    setValue: (isLocal: boolean, stage: string, cache: Cache, region: string) => Promise<void>;
+    setValue: (isLocal: boolean, stage: string, cache: Cache, region: string, pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => Promise<void>;
 }
 
 interface Cache {

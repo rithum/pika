@@ -243,7 +243,9 @@ export class PikaChatConstruct extends Construct {
             CHAT_ADMIN_API_ID: chatAdminApiId,
             WEBAPP_URL: props.domainName ? cdk.Fn.sub(`https://${props.domainName}`).toString() : 'unknown',
             UPLOAD_S3_BUCKET: uploadS3Bucket,
-            CONVERSE_FUNCTION_URL: converseFnUrl
+            CONVERSE_FUNCTION_URL: converseFnUrl,
+            PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: props.pikaServiceProjNameKebabCase,
+            PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase
         };
 
         const environmentVariables = {

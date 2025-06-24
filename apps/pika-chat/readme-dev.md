@@ -16,7 +16,7 @@ You will need an entry for everything in [AppConfig](src/lib//server/server-type
 
 ### Client ID
 
-You must have an encrypted ssm param named `/stack/pika-chat/${stage}/auth/client-id` whose value is the client ID for chat to auth.
+You must have an encrypted ssm param named `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/client-id` whose value is the client ID for chat to auth.
 
 ### Master Cookie Key && Mater Cookie Init Vector
 
@@ -24,8 +24,8 @@ Today we encrypt all cookies in browser sessions with a master key. Use this too
 
 Then create two SSM params named:
 
-- `/stack/pika-chat/${stage}/auth/master-cookie-key` and put the AES-256 key that was generated in it and make sure to select `SecureString` as the type.
-- `/stack/pika-chat/${stage}/auth/master-cookie-init-vector` and put the Initialization Vector that was generated in it and make sure to select `SecureString` as the type.
+- `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/master-cookie-key` and put the AES-256 key that was generated in it and make sure to select `SecureString` as the type.
+- `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/master-cookie-init-vector` and put the Initialization Vector that was generated in it and make sure to select `SecureString` as the type.
 
 ## Docker
 

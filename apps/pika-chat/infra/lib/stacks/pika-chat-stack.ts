@@ -73,7 +73,6 @@ export class PikaChatStack extends cdk.Stack {
 
         const partialProps: PartialPikaChatConstructProps = {
             stage: this.stage,
-            subdomainPrefix: 'chat',
             dockerBuildPath: path.resolve(__dirname, '../../../'), // Path to the root of your project where Dockerfile is located
             additionalEnvironmentVariables: {},
             projNameL: props.projNameL,

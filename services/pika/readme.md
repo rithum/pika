@@ -4,7 +4,7 @@ This service provides a chatbot API that integrates with AWS Bedrock for AI inte
 
 ## Prerequisites
 
-You must have an ssm param named `/stack/pika/${stage}/jwt-secret` whose values comes by
+You must have an ssm param named `/stack/${chat-service-proj-name-kebab-case}/${stage}/jwt-secret` whose values comes by
 running `pnpm run jwt-secret`. Use the generated 64 bit string as the value. Be sure
 to mark the ssm param's type as SecretString.
 
