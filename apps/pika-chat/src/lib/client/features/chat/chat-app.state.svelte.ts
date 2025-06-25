@@ -414,7 +414,11 @@ export class ChatAppState {
                     firstName: this.#appState.identity.user.firstName,
                     lastName: this.#appState.identity.user.lastName,
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    ...(this.#appState.identity.user.customData ? this.#appState.identity.user.customData : {})
+                    ...(this.#appState.identity.user.customData ? this.#appState.identity.user.customData : {}),
+                    agentId: this.#chatApp.agentId,
+                    userId: this.#appState.identity.user.userId,
+                    chatAppId: this.#chatApp.chatAppId,
+                    currentDate: new Date().toISOString()
                 },
                 createDate: new Date().toISOString(),
                 lastUpdate: new Date().toISOString()
@@ -570,8 +574,6 @@ export class ChatAppState {
                 message: messageToSendToServer,
                 userId: this.#appState.identity.user.userId,
                 sessionId: wasInterimSession ? undefined : sessionId,
-                companyId: this.#appState.identity.user.companyId,
-                companyType: this.#appState.identity.user.companyType,
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
                 ...(files && { files })

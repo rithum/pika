@@ -1,4 +1,4 @@
-import { PikaUserRole, UserType } from './chatbot/chatbot-types';
+import type { PikaUserRole, UserType } from './chatbot/chatbot-types';
 
 export interface PikaConfig {
     pika: PikaStack;

@@ -3,9 +3,7 @@
  * Don't add anything that can't be shared (especially dependencies)
  */
 
-import { FeatureIdType } from '../types/chatbot/chatbot-types';
-import { ChatAppFeature } from '../types/chatbot/chatbot-types';
-import { ChatApp } from '../types/chatbot/chatbot-types';
+import type { ChatApp, ChatAppFeature, FeatureIdType } from '../types/chatbot/chatbot-types';
 import camelcaseKeys from 'camelcase-keys';
 import snakecaseKeys from 'snakecase-keys';
 

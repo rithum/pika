@@ -1,4 +1,4 @@
-import { RecordOrUndef, SimpleAuthenticatedUser } from '../types/chatbot/chatbot-types';
+import type { RecordOrUndef, SimpleAuthenticatedUser } from '../types/chatbot/chatbot-types';
 import * as jwt2 from 'jsonwebtoken';
 
 // Added this because running locally did not import default correctly

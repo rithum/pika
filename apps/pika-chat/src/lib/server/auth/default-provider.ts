@@ -2,11 +2,11 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
-export interface MockAuthData {
+export interface MockAuthData extends Record<string, string | undefined> {
     mockAccessToken: string;
 }
 
-export interface MockCustomData {
+export interface MockCustomData extends Record<string, string | undefined> {
     accountId: string;
     accountName: string;
     accountType: string;

@@ -1,12 +1,12 @@
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { addSecurityHeaders, clearAuthenticatedUserCookies, deserializeAuthenticatedUserFromCookies, serializeAuthenticatedUserToCookies } from '$lib/server/utils';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
 
-let authProvider: AuthProvider | undefined;
+let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 
 // Initialize server configuration
 export const init: ServerInit = async () => {
@@ -45,7 +45,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // ===== Protected Routes (Auth Required) =====
 
-    let user: AuthenticatedUser<unknown, unknown> | undefined;
+    let user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined;
     authProvider = authProvider || (await loadAuthProvider());
 
     // Try to deserialize user from cookies

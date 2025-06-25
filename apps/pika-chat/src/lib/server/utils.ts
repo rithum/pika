@@ -1,7 +1,7 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
@@ -137,7 +137,12 @@ const COOKIE_PART_SEPARATOR = '_part_';
  * Serializes an AuthenticatedUser object to one or more cookies
  * If the serialized data exceeds 4KB, it will be split across multiple cookies
  */
-export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: AuthenticatedUser<unknown, unknown>, masterCookieKey: string, masterCookieInitVector: string): void {
+export function serializeAuthenticatedUserToCookies(
+    event: RequestEvent,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    masterCookieKey: string,
+    masterCookieInitVector: string
+): void {
     // Serialize the user object to JSON
     const userJson = JSON.stringify(user);
 
@@ -192,7 +197,7 @@ export function deserializeAuthenticatedUserFromCookies(
     event: RequestEvent,
     masterCookieKey: string,
     masterCookieInitVector: string
-): AuthenticatedUser<unknown, unknown> | undefined {
+): AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined {
     const mainCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
 
     if (!mainCookie) {
@@ -258,7 +263,7 @@ function deserializeFromMultipleCookies(
     metadata: { totalParts: number; totalSize: number; timestamp: number },
     masterCookieKey: string,
     masterCookieInitVector: string
-): AuthenticatedUser<unknown, unknown> {
+): AuthenticatedUser<RecordOrUndef, RecordOrUndef> {
     // Collect all parts
     const parts: string[] = [];
     for (let i = 0; i < metadata.totalParts; i++) {

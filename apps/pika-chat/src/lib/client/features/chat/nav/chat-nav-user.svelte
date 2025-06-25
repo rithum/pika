@@ -27,7 +27,7 @@
                         </Avatar.Root>
                         <div class="grid flex-1 text-left text-sm leading-tight">
                             <span class="truncate font-semibold">{appState.identity.fullName}</span>
-                            <span class="truncate text-xs">{appState.identity.user.email}</span>
+                            <!-- <span class="truncate text-xs">{appState.identity.user.email}</span> -->
                         </div>
                         <ChevronsUpDown class="ml-auto size-4" />
                     </Sidebar.MenuButton>
@@ -46,7 +46,7 @@
                         </Avatar.Root>
                         <div class="grid flex-1 text-left text-sm leading-tight">
                             <span class="truncate font-semibold">{appState.identity.fullName}</span>
-                            <span class="truncate text-xs">{appState.identity.user.email}</span>
+                            <!-- <span class="truncate text-xs">{appState.identity.user.email}</span> -->
                         </div>
                     </div>
                 </DropdownMenu.Label>
