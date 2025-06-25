@@ -11,7 +11,7 @@ export { NotAuthenticatedError, ForceUserToReauthenticateError };
  * Falls back to the default mock provider if no provider is found
  */
 export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, RecordOrUndef>> {
-    let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
+    let authProvider: any;
 
     try {
         // Use dynamic import - Vite will handle this appropriately during build
@@ -40,6 +40,7 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
 
     try {
         console.log('Custom authentication provider loaded successfully');
+        // At this point, authProvider is confirmed to be a function that we can construct an instance of
         const AuthProviderClass = authProvider as new (stage: string) => AuthProvider<RecordOrUndef, RecordOrUndef>;
         return new AuthProviderClass(appConfig.stage);
     } catch (e) {
