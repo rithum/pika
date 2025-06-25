@@ -118,7 +118,7 @@ export async function invokeAgentToGetAnswer(
         });
     }
 
-    const authDataGzipHexEncoded = simpleUser.authData ? gzipAndBase64EncodeString(JSON.stringify(simpleUser.authData)) : undefined;
+    // const authDataGzipHexEncoded = simpleUser.authData ? gzipAndBase64EncodeString(JSON.stringify(simpleUser.authData)) : undefined;
 
     console.log('Building command input...');
     const cmdInput: InvokeInlineAgentCommandInput = {
@@ -141,13 +141,15 @@ export async function invokeAgentToGetAnswer(
             promptSessionAttributes: {
                 // Everything in here is available to the agent in the prompt
                 ...chatSession.sessionAttributes,
+                ...(simpleUser.customUserData ? simpleUser.customUserData : {}),
                 currentDate: new Date().toISOString(),
-                messageId: messageId,
-                ...(authDataGzipHexEncoded ? { authDataGzipHexEncoded } : {})
+                messageId: messageId
             },
+            //SessionDataWithChatUserCustomDataSpreadIn
             sessionAttributes: {
                 //TODO: why doesn't the definition of sessionAttributes (the type) include userId and currentDate?
                 ...chatSession.sessionAttributes,
+                ...(simpleUser.customUserData ? simpleUser.customUserData : {}),
                 userId: simpleUser.userId,
                 chatAppId: chatSession.chatAppId,
                 agentId: agentAndTools.agent.agentId,

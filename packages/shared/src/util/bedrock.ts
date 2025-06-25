@@ -1,5 +1,6 @@
 import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse, Parameter } from '../types/chatbot/bedrock';
 import { BedrockLambdaError } from '../types/chatbot/bedrock-lambda-error';
+import { RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from '../types/chatbot/chatbot-types';
 
 /**
  * Handles an error and returns a BedrockLambdaResponse object.
@@ -10,7 +11,11 @@ import { BedrockLambdaError } from '../types/chatbot/bedrock-lambda-error';
  * @param error The error to handle.
  * @returns A BedrockLambdaResponse object.
  */
-export function handleBedrockError<T extends Record<string, any>>(error: unknown, event: BedrockActionGroupLambdaEvent, sessionAttributes?: T): BedrockActionGroupLambdaResponse {
+export function handleBedrockError(
+    error: unknown,
+    event: BedrockActionGroupLambdaEvent,
+    sessionAttributes?: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>
+): BedrockActionGroupLambdaResponse {
     if (error instanceof BedrockLambdaError) {
         return createBedrockLambdaResponse(error.message, event.actionGroup, event.messageVersion, event.function ?? 'NoFunctionNameSpecified', sessionAttributes);
     } else {
@@ -83,12 +88,14 @@ export function convertBedrockParamsToCorrectType(params?: Parameter[]): Record<
  * @param sessionAttributes The session attributes.
  * @returns The normalized session attributes.
  */
-export function normalizeSessionAttributes<T>(sessionAttributes?: Record<string, any> | undefined): T | undefined {
+export function normalizeSessionAttributes(
+    sessionAttributes?: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>
+): SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef> | undefined {
     if (!sessionAttributes || Object.keys(sessionAttributes).length === 0) {
         return undefined;
     }
 
-    return sessionAttributes as T;
+    return sessionAttributes;
 }
 
 /**
@@ -107,12 +114,12 @@ export function normalizeSessionAttributes<T>(sessionAttributes?: Record<string,
  * @param failed Whether the response is a failure.
  * @returns A BedrockLambdaResponse object.
  */
-export function createBedrockLambdaResponse<T extends Record<string, any>>(
+export function createBedrockLambdaResponse(
     body: string | Record<string, any>,
     actionGroup: string,
     messageVersion: string,
     functionName: string,
-    sessionAttributes?: T,
+    sessionAttributes?: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>,
     failed?: boolean
 ): BedrockActionGroupLambdaResponse {
     return {

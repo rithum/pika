@@ -1,4 +1,4 @@
-import { FailureTrace, Observation, OrchestrationModelInvocationOutput, Rationale } from '@aws-sdk/client-bedrock-agent-runtime';
+import { RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from './chatbot-types';
 
 /**
  * Represents the input event structure passed to a Lambda function by an Amazon Bedrock Agent Action Group.
@@ -71,8 +71,12 @@ export interface BedrockActionGroupLambdaEvent {
     /**
      * Session attributes that persist for the duration of the session and provide context to the agent.
      * Each time you return these, it updates the session attributes for the current session.
+     *
+     * Our session attributes are a combination of SessionData and ChatUser.customData, which if present, is spread into the sessionAttributes.
+     *
+     * These are made available to the tools of the agent (your lambda functions).
      */
-    sessionAttributes?: Record<string, any>;
+    sessionAttributes?: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>;
 
     /**
      * Prompt session attributes that persist for a single turn and provide short-term context to the agent.
@@ -83,6 +87,8 @@ export interface BedrockActionGroupLambdaEvent {
      * This placeholder will be populated at runtime with the attributes that you specify in the promptSessionAttributes field.
      *
      * https://docs.aws.amazon.com/bedrock/latest/userguide/agents-session-state.html#session-state-attributes
+     *
+     * These are made availabe to the agent itself.
      */
     promptSessionAttributes?: Record<string, any>;
 }
@@ -105,7 +111,7 @@ export interface BedrockActionGroupLambdaResponse {
      * Optional. Session attributes that persist for the duration of the session and provide context to the agent.
      * These attributes can be modified and returned to update the session state.
      */
-    sessionAttributes?: Record<string, any>;
+    sessionAttributes?: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>;
 
     /**
      * Optional. Prompt session attributes that persist for a single turn and provide short-term context to the agent.

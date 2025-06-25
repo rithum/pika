@@ -30,9 +30,10 @@
         "check-types": "tsc --noEmit"
     },
     "devDependencies": {
-        "@pika/typescript-config": "workspace:*",
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "@pika/typescript-config": "workspace:*",
         "@types/aws-lambda": "catalog:",
+        "@types/jsonwebtoken": "catalog:",
         "@types/node": "catalog:",
         "aws-lambda": "catalog:",
         "eslint": "catalog:",
@@ -44,6 +45,7 @@
     ],
     "dependencies": {
         "camelcase-keys": "catalog:",
+        "jsonwebtoken": "catalog:",
         "snakecase-keys": "catalog:"
     }
 }

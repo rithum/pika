@@ -1,9 +1,7 @@
 import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse } from '@pika/shared/types/chatbot/bedrock';
-import { SessionData } from '@pika/shared/types/chatbot/chatbot-types';
+import { RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn, SessionData } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertBedrockParamsToCorrectType, createBedrockLambdaResponse, handleBedrockError, normalizeSessionAttributes } from '@pika/shared/util/bedrock';
 import { callOpenMateoApi } from './openmateo-apis';
-import { gunzipBase64EncodedString } from '@pika/shared/util/server-utils';
-import { redactData } from '@pika/shared/util/server-client-utils';
 
 /**
  * Lambda handler for the Weather API action group.
@@ -11,7 +9,7 @@ import { redactData } from '@pika/shared/util/server-client-utils';
 export async function handler(event: BedrockActionGroupLambdaEvent): Promise<BedrockActionGroupLambdaResponse> {
     console.log('Event received for function:', event.function, 'with params:', JSON.stringify(event.parameters, null, 2));
 
-    let sessionData: SessionData | undefined;
+    let sessionData: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef> | undefined;
 
     try {
         if (!event.function) {
@@ -74,8 +72,9 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
             if (sessionData) {
                 return createBedrockLambdaResponse('A session is already initialized.', event.actionGroup, event.messageVersion, event.function, event.sessionAttributes);
             } else {
+                //TODO: @clint this used to return params as the final arg but now it's sessionData, is this an issue?
                 // The params passed in should be a SessionData object. Return them as the sessionAttributes and Bedrock will persist them for all subsequent calls in the same session.
-                return createBedrockLambdaResponse('Session initialized.', event.actionGroup, event.messageVersion, event.function, params);
+                return createBedrockLambdaResponse('Session initialized.', event.actionGroup, event.messageVersion, event.function, sessionData);
             }
         } else {
             // There had better be a sessionData object since we're performing a real action.
@@ -83,13 +82,14 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
                 throw new Error('Session is not initialized.  Ask the user for the session attributes and then call `initSession`');
             }
 
+            //TODO: @clint why do we need to add sessionId to the sessionData?
             // Just in case, make sure the sessionId from the event is present in the sessionData
-            sessionData.sessionId = event.sessionId;
+            //sessionData.sessionId = event.sessionId;
 
-            const results = await callOpenMateoApi(event.function, params, sessionData, uploadS3BucketName, region);
+            const results = await callOpenMateoApi(event.function, params, sessionData, uploadS3BucketName, region, event.sessionId);
             return createBedrockLambdaResponse(results, event.actionGroup, event.messageVersion, event.function);
         }
     } catch (error) {
-        return handleBedrockError<SessionData>(error, event, sessionData);
+        return handleBedrockError(error, event, sessionData);
     }
 }

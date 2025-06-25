@@ -27,7 +27,7 @@ export interface SessionData {
  * collection of messages between a user and an agent.  The most recent message is
  * lastMessageId.
  */
-export interface ChatSession {
+export interface ChatSession<T extends RecordOrUndef = undefined> {
     /** Unique identifier for this chat session */
     sessionId: string;
     /** Unique identifier of the user participating in the session */
@@ -45,7 +45,7 @@ export interface ChatSession {
     /** ID of the most recent message in the session */
     lastMessageId?: string;
     /** Additional session-specific attributes */
-    sessionAttributes: SessionAttributes;
+    sessionAttributes: SessionDataWithChatUserCustomDataSpreadIn<T>;
     /** Cost of processing input tokens in USD */
     inputCost?: number;
     /** Number of tokens processed in input messages */
@@ -66,29 +66,43 @@ export interface ChatSession {
 }
 
 /**
- * Additional attributes specific to a chat session
+ * Additional attributes specific to a chat session.  This plus ChatUser.customData spreads into the sessionAttributes on a session using the SessionDataWithChatUserCustomDataSpreadIn type.
  */
 export interface SessionAttributes {
-    /** Token for the session, comprised of hash of session id, company id, and user id */
-    token: string;
-    /** Unique identifier for the company associated with the session */
-    companyId: string;
-    /** Type of company participating in the session */
-    companyType: CompanyType;
     /** First name of the user participating in the session */
-    firstName: string;
+    firstName?: string;
     /** Last name of the user participating in the session */
-    lastName: string;
+    lastName?: string;
     /** Timezone of the session in IANA format */
     timezone?: string;
+    //TODO: @clint do we need this still?
+    /** A session token that can be used to identify the session.  This is used to identify the session in the database. */
+    token?: string;
+
+    //TODO: @clint do we need sessionID still in this?
+
+    /** The user's ID */
+    userId: string;
+    //TODO: this seems stupid, commented out.
+    // /** The ID of the session */
+    // sessionId: string;
+    /** The ID of the chat app */
+    chatAppId: string;
+    /** The ID of the agent */
+    agentId: string;
+    /** The current date in ISO 8601 format */
+    currentDate: string;
 }
 
+/** Session attributes with spread type T if T is an object.  T is the type of ChatUser.customData.  If T is undefined, then SessionAttributes is returned. */
+export type SessionDataWithChatUserCustomDataSpreadIn<T extends RecordOrUndef = undefined> = T extends object ? SessionAttributes & T : SessionAttributes;
+
 /** This is used when creating a new chat session initially, the token will be generated. */
-export type SessionAttributesWithoutToken = Omit<SessionAttributes, 'token'>;
+export type SessionAttributesWithoutToken<T extends RecordOrUndef = undefined> = Omit<SessionDataWithChatUserCustomDataSpreadIn<T>, 'token'>;
 
 /** This is used when creating a new chat session initially, the omitted fields are generated. */
-export type ChatSessionForCreate = Omit<ChatSession, 'sessionId' | 'createDate' | 'lastUpdate' | 'sessionAttributes'> & {
-    sessionAttributes: SessionAttributesWithoutToken;
+export type ChatSessionForCreate<T extends RecordOrUndef = undefined> = Omit<ChatSession<T>, 'sessionId' | 'createDate' | 'lastUpdate' | 'sessionAttributes'> & {
+    sessionAttributes: SessionAttributesWithoutToken<T>;
 };
 
 export const MessageSource = ['user', 'assistant'] as const;
@@ -196,29 +210,45 @@ export type ChatMessageFile = ChatMessageFileS3;
  */
 export type ChatMessageForCreate = Omit<ChatMessage, 'messageId' | 'timestamp'>;
 
+export const UserTypes = ['internal-user', 'external-user'] as const;
+export type UserType = (typeof UserTypes)[number];
+
+// A type to differentiate known Pika roles
+type PikaRoleType<T, B> = T & { __pika: B };
+
+// Define known Pika roles
+export const PikaUserRoles = ['pika:content-admin'] as const;
+export type PikaUserRole = PikaRoleType<(typeof PikaUserRoles)[number], 'PikaUserRole'>;
+
+// User-defined roles can be any string, but PikaUserRole is special
+export type UserRole = PikaUserRole | (string & { __pika?: never });
+
+export type RecordOrUndef = Record<string, string | undefined> | undefined;
+
 /**
  * Represents a user in the chat system with their associated features and preferences.
  * This is saved in the chat user database.
+ *
+ * T is the type of customData you want to store in the user object, such as accountId, accountName, accountType, etc. This
+ * data will be available to agent tools but not to the agent itself.
  */
-export interface ChatUser {
+export interface ChatUser<T extends RecordOrUndef = undefined> {
     /** Unique identifier for the user */
     userId: string;
-    /** Email address of the user */
-    email: string;
     /** First name of the user */
-    firstName: string;
+    firstName?: string;
     /** Last name of the user */
-    lastName: string;
-    /** Unique identifier for the company associated with the user */
-    companyId: string;
-    /** Name of the company associated with the user */
-    companyName: string;
-    /** Type of company associated with the user */
-    companyType: CompanyType;
+    lastName?: string;
+    /** Custom user data to associate with the user.  For example, accountId, accountName, accountType, etc. */
+    customData?: T;
     /** ISO 8601 formatted timestamp of when the user was created */
     createDate?: string;
     /** ISO 8601 formatted timestamp of when the user was last updated */
     lastUpdate?: string;
+    /** Some chat apps and features are only accessible to internal users.  This is used to determine if the user is internal or external. */
+    userType?: UserType;
+    /** The only role supported right now is 'pika:content-admin'.  Pika Content Admin users are allowed to view chat sessions and messages for all users to help with debugging. */
+    roles?: (PikaUserRole | string)[];
     /** Map of feature types to their corresponding feature configurations */
     features: {
         [K in FeatureType]: K extends 'instruction' ? InstructionFeature : K extends 'history' ? HistoryFeature : never;
@@ -230,18 +260,25 @@ export interface ChatUser {
  * It is not provided to clients and is used server side.
  *
  * Auth data is data your app needs such as access tokens, refresh tokens, etc.
+ *
+ * T is the type you want to store in the authData field, if any.  This is not stored in the database.
+ * U is the type of customData you want to store in the user object.
  */
-export interface AuthenticatedUser<T> extends ChatUser {
-    authData: T;
+export interface AuthenticatedUser<T extends RecordOrUndef = undefined, U extends RecordOrUndef = undefined> extends ChatUser<U> {
+    authData?: T;
 }
 
 /**
  * This is a simplified version of AuthenticatedUser that is used for auth headers.
- * Note that type T may be the type "undefined" indicating that there is no auth data.
+ * Note that type T may be the type "undefined" indicating that there is no custom user data.
+ * The custom user data comes from the ChatUser.customData field provided by the auth provider.
+ *
+ * Not that JSON.stringify(SimpleAuthenticatedUser) must not be more than 2k in size or you risk
+ * getting an erorr when we try to put it in a JWT token and send it as an http header.
  */
-export interface SimpleAuthenticatedUser<T> {
+export interface SimpleAuthenticatedUser<T extends RecordOrUndef = undefined> {
     userId: string;
-    authData: T;
+    customUserData?: T;
 }
 
 /** Array of available feature types in the system */
@@ -326,15 +363,15 @@ export interface ChatTitleUpdateRequest extends BaseRequestData {
     answerToQuestionFromAgent?: string;
 }
 
-export interface ChatUserResponse {
+export interface ChatUserResponse<T extends RecordOrUndef = undefined> {
     success: boolean;
-    user: ChatUser | undefined;
+    user: ChatUser<T> | undefined;
     error?: string;
 }
 
-export interface ChatUserAddOrUpdateResponse {
+export interface ChatUserAddOrUpdateResponse<T extends RecordOrUndef = undefined> {
     success: boolean;
-    user: ChatUser;
+    user: ChatUser<T>;
     error?: string;
 }
 
@@ -690,6 +727,11 @@ export interface ChatApp {
      * Must be the agentId of an agent that exists in the agent definition table.
      */
     agentId: string;
+
+    /**
+     * The user types that are allowed to access this chat app.  If not provided, then all user types are allowed.
+     */
+    userTypesAllowed?: UserType[];
 
     /** Any feature not explicitly defined and turned on is turned off by default. */
     features?: Partial<Record<FeatureIdType, ChatAppFeature>>;

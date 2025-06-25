@@ -4,7 +4,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
-import { getChatMessagesTable, getChatSessionTable, getChatUserTable } from './utils';
+import { getChatMessagesTable, getChatSessionTable, getChatUserTable, convertChatUserToCamelFromSnakeCase, convertChatUserToSnakeFromCamelCase } from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -33,7 +33,7 @@ export async function getUserByUserId(userId: string): Promise<ChatUser | undefi
         }
     });
 
-    return user.Item ? convertToCamelCase<ChatUser>(user.Item as SnakeCase<ChatUser>) : undefined;
+    return user.Item ? convertChatUserToCamelFromSnakeCase(user.Item as SnakeCase<ChatUser>) : undefined;
 }
 
 export async function addUser(user: ChatUser): Promise<ChatUser> {
@@ -41,11 +41,11 @@ export async function addUser(user: ChatUser): Promise<ChatUser> {
     user.createDate = now;
     user.lastUpdate = now;
 
-    console.log('about to add user in chat database', convertToSnakeCase<ChatUser>(user));
+    console.log('about to add user in chat database', convertChatUserToSnakeFromCamelCase(user));
 
     await ddbDocClient.put({
         TableName: getChatUserTable(),
-        Item: convertToSnakeCase<ChatUser>(user)
+        Item: convertChatUserToSnakeFromCamelCase(user)
     });
 
     return user;
@@ -73,10 +73,10 @@ export async function updateUser(user: ChatUser): Promise<ChatUser> {
     expressionAttributeValues[':lastUpdate'] = now;
 
     // Add other fields if they are provided
-    if (user.email !== undefined) {
-        updateExpressions.push('#email = :email');
-        expressionAttributeNames['#email'] = 'email';
-        expressionAttributeValues[':email'] = user.email;
+    if (user.customData !== undefined) {
+        updateExpressions.push('#customData = :customData');
+        expressionAttributeNames['#customData'] = 'custom_data';
+        expressionAttributeValues[':customData'] = user.customData;
     }
     if (user.firstName !== undefined) {
         updateExpressions.push('#firstName = :firstName');
@@ -87,16 +87,6 @@ export async function updateUser(user: ChatUser): Promise<ChatUser> {
         updateExpressions.push('#lastName = :lastName');
         expressionAttributeNames['#lastName'] = 'last_name';
         expressionAttributeValues[':lastName'] = user.lastName;
-    }
-    if (user.companyId !== undefined) {
-        updateExpressions.push('#companyId = :companyId');
-        expressionAttributeNames['#companyId'] = 'company_id';
-        expressionAttributeValues[':companyId'] = user.companyId;
-    }
-    if (user.companyType !== undefined) {
-        updateExpressions.push('#companyType = :companyType');
-        expressionAttributeNames['#companyType'] = 'company_type';
-        expressionAttributeValues[':companyType'] = user.companyType;
     }
     if (user.features !== undefined) {
         updateExpressions.push('#features = :features');

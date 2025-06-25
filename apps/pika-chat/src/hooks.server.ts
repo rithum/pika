@@ -45,7 +45,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // ===== Protected Routes (Auth Required) =====
 
-    let user: AuthenticatedUser<unknown> | undefined;
+    let user: AuthenticatedUser<unknown, unknown> | undefined;
     authProvider = authProvider || (await loadAuthProvider());
 
     // Try to deserialize user from cookies

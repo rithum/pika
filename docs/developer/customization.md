@@ -43,6 +43,112 @@ export const pikaConfig: PikaConfig = {
 
 **Important:** This file is protected from framework updates and will never be overwritten when you run `pika sync`. All stack definition files automatically import and use these values.
 
+### Site Features Configuration
+
+**Location:** `pika-config.ts` (root directory)
+
+**Purpose:** Configure site-wide features that affect the behavior of your Pika chat application across all users and chat apps.
+
+**Available Features:**
+
+#### Home Page Links to Chat Apps Feature
+
+Control whether users see links to registered chat apps on the home page. This allows you to create different experiences for different user types (internal vs external users, different roles, etc.).
+
+**Configuration Example:**
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        // ... project names configuration
+    },
+    pikaChat: {
+        // ... project names configuration
+    },
+    siteFeatures: {
+        homePageLinksToChatApps: {
+            userChatAppRules: [
+                // External users can only see links to external chat apps
+                {
+                    userTypes: ['external-user'],
+                    chatAppUserTypes: ['external-user']
+                },
+                // Internal users can see links to internal and external chat apps
+                {
+                    userTypes: ['internal-user'],
+                    chatAppUserTypes: ['internal-user', 'external-user']
+                },
+                // Admin users can see all chat apps
+                {
+                    userTypes: ['admin'],
+                    chatAppUserTypes: ['internal-user', 'external-user', 'admin']
+                }
+            ]
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`userChatAppRules`**: Array of rules that define which users can see which chat apps
+    - **`userTypes`**: Array of user types that this rule applies to
+    - **`chatAppUserTypes`**: Array of chat app user types that users matching this rule can see
+
+**How It Works:**
+
+1. When a user visits the chat app home page, the system checks their user type
+2. The system finds all rules where the user's type matches the `userTypes` array
+3. For matching rules, the user will see links to chat apps whose user types are listed in `chatAppUserTypes`
+4. If no rules match the user, they won't see any chat app links on the home page
+
+**Example Scenarios:**
+
+```typescript
+// Scenario 1: Simple internal/external separation
+siteFeatures: {
+    homePageLinksToChatApps: {
+        userChatAppRules: [
+            {
+                userTypes: ['external-user'],
+                chatAppUserTypes: ['external-user']
+            },
+            {
+                userTypes: ['internal-user'],
+                chatAppUserTypes: ['internal-user', 'external-user']
+            }
+        ];
+    }
+}
+
+// Scenario 2: Role-based access with multiple tiers
+siteFeatures: {
+    homePageLinksToChatApps: {
+        userChatAppRules: [
+            {
+                userTypes: ['customer', 'guest'],
+                chatAppUserTypes: ['public']
+            },
+            {
+                userTypes: ['employee'],
+                chatAppUserTypes: ['public', 'internal']
+            },
+            {
+                userTypes: ['manager', 'admin'],
+                chatAppUserTypes: ['public', 'internal', 'admin']
+            }
+        ];
+    }
+}
+```
+
+**Notes:**
+
+- You must have at least one rule to enable this feature
+- User types and chat app user types are defined by your authentication system and chat app configurations
+- Rules are evaluated in order, and a user can match multiple rules (all matching chat app types will be shown)
+- This is a site-wide feature - it affects the entire home page experience across your Pika installation
+
 ## Customization Areas
 
 ### 1. Custom Message Tag Renderers

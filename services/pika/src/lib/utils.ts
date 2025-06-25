@@ -1,9 +1,11 @@
 import { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
+import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import { convertToCamelCase, convertToSnakeCase, SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 
-export function createSessionToken(sessionId: string, companyId: string, userId: string) {
+export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')
-        .update(sessionId + ':' + companyId + ':' + userId)
+        .update(sessionId + ':' + userId)
         .digest('hex');
 }
 
@@ -151,4 +153,42 @@ export function convertDatesToStrings(obj: any): any {
     }
 
     return obj;
+}
+
+/**
+ * Converts a ChatUser object to snake_case for DynamoDB storage.
+ * Preserves the customData value without converting its internal structure.
+ * Only the customData key name gets converted (customData -> custom_data).
+ */
+export function convertChatUserToSnakeFromCamelCase(user: ChatUser): any {
+    const { customData, ...userWithoutCustomData } = user;
+
+    // Convert everything except customData
+    const converted = convertToSnakeCase<ChatUser>(userWithoutCustomData);
+
+    // Add customData back with snake_case key but preserve its value structure
+    if (customData !== undefined) {
+        converted.custom_data = customData;
+    }
+
+    return converted;
+}
+
+/**
+ * Converts a ChatUser object from snake_case (from DynamoDB) to camelCase.
+ * Preserves the customData value without converting its internal structure.
+ * Only the custom_data key name gets converted (custom_data -> customData).
+ */
+export function convertChatUserToCamelFromSnakeCase(user: SnakeCase<ChatUser>): ChatUser {
+    const { custom_data, ...userWithoutCustomData } = user;
+
+    // Convert everything except custom_data
+    const converted = convertToCamelCase<ChatUser>(userWithoutCustomData);
+
+    // Add customData back with camelCase key but preserve its value structure
+    if (custom_data !== undefined) {
+        converted.customData = custom_data;
+    }
+
+    return converted as ChatUser;
 }

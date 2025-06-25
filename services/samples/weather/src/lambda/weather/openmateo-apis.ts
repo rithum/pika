@@ -1,4 +1,4 @@
-import { SessionData } from '@pika/shared/types/chatbot/chatbot-types';
+import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from '@pika/shared/types/chatbot/chatbot-types';
 import { GetObjectCommand, S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { parseCSVFiles } from './csv-parser';
 import {
@@ -360,8 +360,17 @@ export async function getGeocoding(p: GetGeocodingParams): Promise<GeocodingResu
  * @param sessionData - The session data for the user
  * @returns The response from the OpenMateo API as JSON
  */
-export async function callOpenMateoApi(fnName: string, params: Record<string, any>, sessionData: SessionData, uploadS3BucketName: string, region: string): Promise<any> {
-    console.log(`Calling OpenMateo API with function: ${fnName} and params: ${JSON.stringify(params)} for session: ${sessionData.sessionId}`);
+export async function callOpenMateoApi(
+    fnName: string,
+    params: Record<string, any>,
+    sessionData: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef>,
+    uploadS3BucketName: string,
+    region: string,
+    sessionId: string
+): Promise<any> {
+    //TODO: @clint why do we need to add sessionId to the sessionData?
+    //TODO: we used to be console.logging this at thend: `for session: ${sessionData.sessionId}`
+    console.log(`Calling OpenMateo API with function: ${fnName} and params: ${JSON.stringify(params)}`);
 
     let result: any;
 
@@ -373,12 +382,12 @@ export async function callOpenMateoApi(fnName: string, params: Record<string, an
 
         case 'getCurrentWeather':
             assertGetCurrentWeatherParams(params);
-            result = await getCurrentWeather(params, sessionData.agentId, uploadS3BucketName, region, sessionData.sessionId);
+            result = await getCurrentWeather(params, sessionData.agentId, uploadS3BucketName, region, sessionId);
             break;
 
         case 'getCurrentWeatherFromS3CsvFile':
             assertGetCurrentWeatherFromS3CsvFileParams(params);
-            result = await getCurrentWeatherFromS3CsvFile(params, uploadS3BucketName, region, sessionData.agentId, sessionData.sessionId);
+            result = await getCurrentWeatherFromS3CsvFile(params, uploadS3BucketName, region, sessionData.agentId, sessionId);
             break;
 
         case 'getHistoricalWeather':

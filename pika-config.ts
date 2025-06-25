@@ -21,5 +21,16 @@ export const pikaConfig: PikaConfig = {
         projNameTitleCase: 'Weather',
         projNameCamel: 'weather',
         projNameHuman: 'Weather'
+    },
+    siteFeatures: {
+        homePageLinksToChatApps: {
+            // By default, only internal users are able to see links on the home page to chat apps
+            userChatAppRules: [
+                {
+                    userTypes: ['internal-user'],
+                    chatAppUserTypes: ['internal-user', 'external-user']
+                }
+            ]
+        }
     }
 };

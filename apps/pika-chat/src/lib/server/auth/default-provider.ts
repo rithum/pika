@@ -2,30 +2,43 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
+export interface MockAuthData {
+    mockAccessToken: string;
+}
+
+export interface MockCustomData {
+    accountId: string;
+    accountName: string;
+    accountType: string;
+}
+
 /**
  * Default mock authentication provider that maintains existing behavior
  * when no custom authentication provider is implemented
  */
-export default class DefaultAuthProvider extends AuthProvider {
+export default class DefaultAuthProvider extends AuthProvider<MockAuthData, MockCustomData> {
     constructor(stage: string) {
         super(stage);
     }
 
-    async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<undefined>> {
-        // Create a mock user (existing behavior)
-        const user: AuthenticatedUser<undefined> = {
+    async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<MockAuthData, MockCustomData>> {
+        // Create a mock user (existing MockAuthData)
+        const user: AuthenticatedUser<MockAuthData, MockCustomData> = {
             userId: '123',
-            authData: undefined,
-            email: 'test@test.com',
             firstName: 'Test',
             lastName: 'User',
-            companyId: '123',
-            companyName: 'Test Company',
-            companyType: 'retailer',
+            authData: {
+                mockAccessToken: 'aaa-bbb-ccc'
+            },
+            customData: {
+                accountId: '123',
+                accountName: 'Test Company',
+                accountType: 'retailer'
+            },
             features: {
                 instruction: {
                     type: 'instruction',
-                    instruction: 'You are a helpful assistant that can answer questions and help with tasks.'
+                    instruction: 'You are a helpful assistant that can answer questions.'
                 },
                 history: {
                     type: 'history',

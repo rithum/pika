@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
  * Custom exception for authentication failures
@@ -22,9 +22,11 @@ export class ForceUserToReauthenticateError extends Error {
 }
 
 /**
- * Abstract class that custom authentication providers must extend
+ * Abstract class that custom authentication providers must extend.
+ *
+ * Type T is the type of the auth data you will have, if any, type U is the type of the custom data.
  */
-export abstract class AuthProvider {
+export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extends RecordOrUndef = undefined> {
     constructor(protected readonly stage: string) {}
 
     /**
@@ -43,10 +45,16 @@ export abstract class AuthProvider {
      *
      * The framework will handle the rest (cookie setting, user creation, etc.)
      *
+     * When you return the AuthenticatedUser object, the framework will handle the rest (save full AuthenticatedUser in a cookie)
+     * and will save the user in a DynamoDB chat-user table.  The first template argument is the auth data type, the second is the
+     * custom data type.  AuthData will be persisted securely in a cookie but not saved to the database and will not be sent to the
+     * agent or your agent tools.  CustomData will be saved to the database on the user object and will be available to your agent
+     * tools but NOT the agent itself.
+     *
      * @param event - The request event
      * @returns The authenticated user or a response to redirect to
      */
-    abstract authenticate(event: RequestEvent): Promise<AuthenticatedUser<unknown> | Response>;
+    abstract authenticate(event: RequestEvent): Promise<AuthenticatedUser<T, U> | Response>;
 
     /**
      * Validate/refresh the user's authentication (when user cookie exists)
@@ -61,5 +69,5 @@ export abstract class AuthProvider {
      * - AuthenticatedUser: Updated user with refreshed tokens (will replace cookie)
      * - Throws ForceUserToReauthenticateError: User must re-authenticate
      */
-    validateUser?(event: RequestEvent, user: AuthenticatedUser<unknown>): Promise<AuthenticatedUser<unknown> | undefined>;
+    validateUser?(event: RequestEvent, user: AuthenticatedUser<T, U>): Promise<AuthenticatedUser<T, U> | undefined>;
 }

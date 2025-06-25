@@ -3,6 +3,7 @@
 // See docs/help/authentication.md for implementation details
 
 // Example structure (remove this and implement your own):
+// @see ../auth/default-provider.ts file for an example of how to implement an authentication provider.
 /*
 import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';

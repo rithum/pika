@@ -34,9 +34,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return new Response('Unauthorized', { status: 401 });
         }
 
-        const simpleUser: SimpleAuthenticatedUser<typeof user.authData> = {
+        const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
             userId: user.userId,
-            authData: user.authData
+            customUserData: user.customData
         };
 
         // Replace the s3Bucket with appConfig.uploadS3Bucket in any files we have
@@ -49,7 +49,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         // Invoke the Lambda Function URL
-        const lambdaResponse = await invokeConverseFunctionUrl<typeof user.authData>(params, simpleUser);
+        const lambdaResponse = await invokeConverseFunctionUrl<typeof user.customData>(params, simpleUser);
 
         if (!lambdaResponse.body) {
             console.error('Lambda response missing body');

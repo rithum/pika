@@ -137,7 +137,7 @@ const COOKIE_PART_SEPARATOR = '_part_';
  * Serializes an AuthenticatedUser object to one or more cookies
  * If the serialized data exceeds 4KB, it will be split across multiple cookies
  */
-export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: AuthenticatedUser<unknown>, masterCookieKey: string, masterCookieInitVector: string): void {
+export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: AuthenticatedUser<unknown, unknown>, masterCookieKey: string, masterCookieInitVector: string): void {
     // Serialize the user object to JSON
     const userJson = JSON.stringify(user);
 
@@ -188,7 +188,11 @@ export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: A
  * Deserializes an AuthenticatedUser object from cookies
  * Handles both single-cookie and multi-cookie scenarios
  */
-export function deserializeAuthenticatedUserFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): AuthenticatedUser<unknown> | undefined {
+export function deserializeAuthenticatedUserFromCookies(
+    event: RequestEvent,
+    masterCookieKey: string,
+    masterCookieInitVector: string
+): AuthenticatedUser<unknown, unknown> | undefined {
     const mainCookie = event.cookies.get(AUTHENTICATED_USER_COOKIE_NAME);
 
     if (!mainCookie) {
@@ -254,7 +258,7 @@ function deserializeFromMultipleCookies(
     metadata: { totalParts: number; totalSize: number; timestamp: number },
     masterCookieKey: string,
     masterCookieInitVector: string
-): AuthenticatedUser<unknown> {
+): AuthenticatedUser<unknown, unknown> {
     // Collect all parts
     const parts: string[] = [];
     for (let i = 0; i < metadata.totalParts; i++) {

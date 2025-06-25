@@ -161,9 +161,10 @@ After creating your application, you'll want to:
 1. **Configure Your Project** - Update project names used for AWS stack/resources names in `pika-config.ts`
 2. **Choose Your Stack Approach** - Decide whether to modify existing stacks or create custom ones
 3. **Define Your First Chat App** - Modify the weather sample or create a new stack for your first chat app
-4. **Customize Authentication** - Set up your authentication provider
-5. **Add Custom Message Tags** - Create custom renderers for XML tags in LLM responses
-6. **Deploy Your Services** - Deploy to AWS or run locally
+4. **Configure Site Features** - Set up site-wide features like home page chat app links for different user types
+5. **Customize Authentication** - Set up your authentication provider
+6. **Add Custom Message Tags** - Create custom renderers for XML tags in LLM responses
+7. **Deploy Your Services** - Deploy to AWS or run locally
 
 ## 📚 Learn More
 

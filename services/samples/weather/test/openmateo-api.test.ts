@@ -19,7 +19,7 @@ import {
     GetGeocodingParams
 } from '../src/lambda/weather/types';
 
-import { SessionData } from '@pika/shared/types/chatbot/chatbot-types';
+import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from '@pika/shared/types/chatbot/chatbot-types';
 
 // Test coordinates for New York City
 const TEST_COORDINATES = {
@@ -29,11 +29,10 @@ const TEST_COORDINATES = {
 };
 
 // Mock session data for testing - using correct SessionData interface
-const mockSessionData: SessionData = {
-    sessionId: 'test-session-id',
-    companyId: 'test-company-id',
-    companyType: 'retailer',
-    date: new Date().toISOString(),
+const mockSessionData: SessionDataWithChatUserCustomDataSpreadIn<RecordOrUndef> = {
+    userId: 'test-user-id',
+    chatAppId: 'test-chat-app-id',
+    currentDate: new Date().toISOString(),
     agentId: 'test-agent-id'
 };
 
@@ -105,7 +104,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            const result = await getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId);
+            const result = await getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', 'test-session-id');
 
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
@@ -271,7 +270,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 daily: ['temperature_2m_max', 'temperature_2m_min']
             };
 
-            const result = await callOpenMateoApi('getWeatherForecast', params, mockSessionData, 'test-bucket', 'us-east-1');
+            const result = await callOpenMateoApi('getWeatherForecast', params, mockSessionData, 'test-bucket', 'us-east-1', 'test-session-id');
 
             expect(result).toBeDefined();
             expect(result.latitude).toBeCloseTo(TEST_COORDINATES.latitude, 1);
@@ -286,7 +285,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            const result = await callOpenMateoApi('getCurrentWeather', params, mockSessionData, 'test-bucket', 'us-east-1');
+            const result = await callOpenMateoApi('getCurrentWeather', params, mockSessionData, 'test-bucket', 'us-east-1', 'test-session-id');
 
             expect(result).toBeDefined();
             expect(result.current).toBeDefined();
@@ -299,7 +298,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 count: 3
             };
 
-            const result = await callOpenMateoApi('getGeocoding', params, mockSessionData, 'test-bucket', 'us-east-1');
+            const result = await callOpenMateoApi('getGeocoding', params, mockSessionData, 'test-bucket', 'us-east-1', 'test-session-id');
 
             expect(result).toBeDefined();
             expect(Array.isArray(result)).toBe(true);
@@ -313,7 +312,9 @@ describe('Open-Meteo API Integration Tests', () => {
                 longitude: TEST_COORDINATES.longitude
             };
 
-            await expect(callOpenMateoApi('unknownFunction', params, mockSessionData, 'test-bucket', 'us-east-1')).rejects.toThrow('Unknown function name: unknownFunction');
+            await expect(callOpenMateoApi('unknownFunction', params, mockSessionData, 'test-bucket', 'us-east-1', 'test-session-id')).rejects.toThrow(
+                'Unknown function name: unknownFunction'
+            );
         });
     });
 
@@ -325,7 +326,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: 'UTC'
             };
 
-            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId)).rejects.toThrow('Network error');
+            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', 'test-session-id')).rejects.toThrow('Network error');
         });
 
         it('should handle network errors gracefully', async () => {
@@ -340,7 +341,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: TEST_COORDINATES.timezone
             };
 
-            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', mockSessionData.sessionId)).rejects.toThrow('Network error');
+            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', 'test-session-id')).rejects.toThrow('Network error');
 
             global.fetch = originalFetch;
         });

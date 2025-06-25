@@ -9,7 +9,7 @@ declare global {
     namespace App {
         interface Locals {
             // auth: () => Promise<Session | null>;
-            user: AuthenticatedUser<unknown>;
+            user: AuthenticatedUser<unknown, unknown>;
             appConfig: AppConfig;
         }
         // interface PageData {

@@ -18,7 +18,7 @@ import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
 import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUserSessionsByChatAppId, updateSessionTitle } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { getUserFromAuthHeader } from '../../lib/jwt';
+import { extractFromJwtString } from '@pika/shared/util/jwt';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted
@@ -89,7 +89,7 @@ export async function handlerFn(event: APIGatewayProxyEventPika<ConverseRequest 
         throw new Error('Authorization header not found in HTTP header');
     }
 
-    const [simpleUser, error] = getUserFromAuthHeader<undefined>(authHeader, jwtSecret);
+    const [simpleUser, error] = extractFromJwtString<undefined>(authHeader, jwtSecret);
     if (typeof simpleUser === 'number') {
         throw new HttpStatusError(error ?? 'Unauthorized', simpleUser);
     }

@@ -9,6 +9,10 @@ export default defineConfig({
     clean: true,
     treeshake: true,
     outDir: 'dist',
+    // Add this to help IDEs find source files
+    esbuildOptions(options) {
+        options.sourceRoot = '../src';
+    },
     // Preserve the directory structure
     outExtension({ format }) {
         return {

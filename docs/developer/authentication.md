@@ -6,6 +6,233 @@ This guide explains how to implement custom authentication in your Pika project 
 
 Pika Framework provides a flexible authentication system that allows you to implement your own authentication logic while maintaining the framework's user management and chat functionality. Your custom authentication code is protected from framework updates and can handle complex flows like OAuth, SSO, and custom auth providers.
 
+## Understanding User Data Types
+
+The framework uses a two-tier data structure to separate authentication data from business data:
+
+### `AuthenticatedUser<T, U>`
+
+- **T (Auth Data)**: Sensitive authentication information (tokens, sessions, etc.)
+    - Stored securely in encrypted cookies
+    - Never saved to database
+    - Available server-side only
+    - Not sent to agent or tools
+    - Auth Data must be of type `Record<string, string>` or undefined
+- **U (Custom Data)**: Business-specific user information (company details, account info, etc.)
+    - Stored securely in encrypted cookies
+    - Saved to chat user database as `customData`
+    - Available to agent tools (but NOT the agent itself)
+    - Persists across sessions
+    - Custom Data must be of type `Record<string, string>` or undefined
+
+### `ChatUser<T>`
+
+- **T (Custom Data)**: Same as the U type in `AuthenticatedUser<T, U>`
+    - Contains business-specific user information
+    - Core fields: `userId`, `firstName`, `lastName`, `userType`, `role`, `features`
+    - Custom fields: stored in the `customData` property
+
+This separation ensures sensitive auth data stays secure while allowing business data to be accessible where needed.
+
+## User Access Control Features
+
+The framework provides two optional access control features you can leverage in your authentication implementation:
+
+### User Types (Internal vs External)
+
+You can distinguish between different types of users by setting the `userType` field:
+
+- **`internal-user`**: Company employees, administrators, internal staff
+- **`external-user`**: Customers, partners, external users
+
+**Benefits:**
+
+- Control which chat apps are accessible to which user types
+- Implement different UX flows for internal vs external users
+- Apply different security policies
+
+**Usage in Chat Apps:**
+When defining a `ChatApp`, you can restrict access using `userTypesAllowed`:
+
+```typescript
+// Example: Chat app only for internal users
+const internalChatApp: ChatApp = {
+    chatAppId: 'internal-support',
+    title: 'Internal Support Chat',
+    userTypesAllowed: ['internal-user'] // Only internal users can access
+    // ... other properties
+};
+
+// Example: Chat app for all users (default)
+const publicChatApp: ChatApp = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support'
+    // userTypesAllowed not specified = all user types allowed
+    // ... other properties
+};
+```
+
+### User Roles and Permissions
+
+You can assign roles to users for advanced access control and administrative capabilities:
+
+**Special Pika Roles:**
+
+- **`pika:content-admin`**: Super-admin role that grants:
+    - Ability to act as any other user in view only mode (impersonation)
+    - Access to view all chat sessions and messages (debugging)
+    - Administrative privileges across the platform
+
+**Custom Roles:**
+
+- You can define custom roles as plain strings for your business logic
+- **Important:** Do not create custom roles starting with `pika:` (reserved for framework use)
+- Custom roles are not currently used by the framework but will be supported in future versions
+
+**Example Usage:**
+
+```typescript
+// User with admin privileges
+const adminUser: AuthenticatedUser<AuthData, CustomData> = {
+    userId: 'admin-123',
+    firstName: 'John',
+    lastName: 'Admin',
+    userType: 'internal-user',
+    roles: ['pika:content-admin', 'company-admin', 'support-lead']
+    // ... other properties
+};
+
+// Regular user with custom business roles
+const managerUser: AuthenticatedUser<AuthData, CustomData> = {
+    userId: 'manager-456',
+    firstName: 'Jane',
+    lastName: 'Manager',
+    userType: 'internal-user',
+    roles: ['department-manager', 'budget-approver']
+    // ... other properties
+};
+
+// External customer (no special roles)
+const customerUser: AuthenticatedUser<AuthData, CustomData> = {
+    userId: 'customer-789',
+    firstName: 'Bob',
+    lastName: 'Customer',
+    userType: 'external-user'
+    // No roles array = no special permissions
+    // ... other properties
+};
+```
+
+### Implementation Examples
+
+Here are practical examples of how to implement user type and role logic in your authentication provider:
+
+```typescript
+// Example: Determine user type based on email domain
+function determineUserType(email: string, userData: any): UserType {
+    const companyDomains = ['yourcompany.com', 'corp.yourcompany.com'];
+    const emailDomain = email.split('@')[1];
+
+    if (companyDomains.includes(emailDomain)) {
+        return 'internal-user';
+    }
+    return 'external-user';
+}
+
+// Example: Extract roles from your auth provider
+function extractUserRoles(userData: any): string[] {
+    const roles: string[] = [];
+
+    // Add Pika admin role for super admins
+    if (userData.isSuperAdmin) {
+        roles.push('pika:content-admin');
+    }
+
+    // Add custom business roles
+    if (userData.permissions) {
+        if (userData.permissions.includes('manage_team')) {
+            roles.push('team-manager');
+        }
+        if (userData.permissions.includes('approve_budgets')) {
+            roles.push('budget-approver');
+        }
+        if (userData.permissions.includes('view_analytics')) {
+            roles.push('analytics-viewer');
+        }
+    }
+
+    return roles;
+}
+
+// Example: Enhanced authentication method
+private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser<YourCustomAuthData, YourCustomUserData> {
+    const userType = this.determineUserType(userData.email, userData);
+    const roles = this.extractUserRoles(userData);
+
+    return {
+        userId: userData.id,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        userType,
+        roles,
+        customData: {
+            email: userData.email,
+            department: userData.department,
+            companyId: userData.companyId,
+            accountId: userData.accountId
+        },
+        authData: {
+            accessToken: token,
+            refreshToken: userData.refreshToken,
+            expiresAt: userData.expiresAt
+        },
+        features: {
+            instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+            history: { type: 'history', history: true }
+        }
+    };
+}
+```
+
+### Chat App Access Control
+
+Here's how to configure chat apps with user type restrictions:
+
+```typescript
+// Internal-only chat app for employee support
+const employeeChatApp: ChatApp = {
+    chatAppId: 'employee-support',
+    title: 'Employee IT Support',
+    userTypesAllowed: ['internal-user'], // Only employees can access
+    agentId: 'internal-support-agent',
+    mode: 'fullpage',
+    enabled: true
+    // ... other properties
+};
+
+// Customer-facing chat app
+const customerChatApp: ChatApp = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support',
+    userTypesAllowed: ['external-user'], // Only customers can access
+    agentId: 'customer-support-agent',
+    mode: 'embedded',
+    enabled: true
+    // ... other properties
+};
+
+// Admin chat app for debugging (accessible to content admins only)
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-debug',
+    title: 'Admin Debug Chat',
+    // No userTypesAllowed restriction, but features will check for pika:content-admin role
+    agentId: 'debug-agent',
+    mode: 'fullpage',
+    enabled: true
+    // ... other properties
+};
+```
+
 ## Customization Location
 
 **Location:** `apps/pika-chat/src/lib/server/auth-provider/`
@@ -25,6 +252,59 @@ The framework intelligently handles large authentication data by automatically s
 
 This allows you to store arbitrarily large authentication data without worrying about cookie size limits.
 
+## Generic Type System
+
+The Pika authentication system uses TypeScript generics to provide type safety while allowing flexibility in your authentication data structure. This ensures your auth data and custom user data are properly typed throughout the system.
+
+### AuthProvider<T, U> Generic Parameters
+
+When creating your authentication provider, you must extend `AuthProvider<T, U>` where:
+
+- **T (Auth Data Type)**: Contains authentication-specific data like tokens, session IDs, etc.
+
+    - Stored securely in encrypted cookies only
+    - Never saved to database
+    - Available server-side only
+    - Not accessible to agents or tools
+
+- **U (Custom Data Type)**: Contains business-specific user information
+    - Stored in encrypted cookies AND database (`customData` field)
+    - Available to agent tools (but NOT the agent itself)
+    - Persists across sessions
+
+### Example Type Definitions
+
+```typescript
+// T - Auth data (cookies only, not database)
+interface MyAuthData {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt: number;
+}
+
+// U - Custom data (cookies + database)
+interface MyCustomData {
+    companyId: string;
+    accountType: 'retailer' | 'supplier';
+    email: string;
+}
+
+// Properly typed provider
+export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomData> {
+    // Methods are automatically typed with your specific types
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<MyAuthData, MyCustomData> | Response> {
+        // Implementation
+    }
+}
+```
+
+### Type Safety Benefits
+
+- **Compile-time checking**: TypeScript ensures your auth data structure matches throughout your code
+- **IntelliSense support**: IDEs provide accurate autocomplete for your specific auth data fields
+- **Refactoring safety**: Changes to your auth data types are caught at compile time
+- **Clear contracts**: The generic system makes it explicit what data is available where
+
 ## Implementation Steps
 
 ### 1. Create the Custom Auth Provider Directory
@@ -35,37 +315,55 @@ First, create the customization directory:
 mkdir -p apps/pika-chat/src/lib/server/auth-provider
 ```
 
-### 2. Define Your Auth Data Type
+### 2. Define Your Auth and Custom Data Types
 
-Create a type definition file for your custom authentication data:
+Create type definitions for your authentication data and custom user data:
 
 ```typescript
 // apps/pika-chat/src/lib/server/auth-provider/types.ts
+
+// Auth data - stored securely in cookies, never saved to database
+// Available server-side only, not sent to agent or tools
 export interface YourCustomAuthData {
     accessToken: string;
     refreshToken?: string;
     expiresAt?: number;
-    // Add your custom auth properties here
-    identityId?: string;
-    accountId?: string;
-    accountType?: 'retailer' | 'supplier';
+    // Add your auth-specific properties here (tokens, session data, etc.)
     // ... any other auth-specific data (no size limit!)
+}
+
+// Custom data - saved to database with user record
+// Available to agent tools (but NOT the agent itself)
+export interface YourCustomUserData {
+    companyId?: string;
+    companyName?: string;
+    companyType?: 'retailer' | 'supplier';
+    email?: string;
+    accountId?: string;
+    // Add your custom user properties here
+    // ... any other user-specific data you want to persist
 }
 ```
 
 ### 3. Implement Your Auth Provider
 
-Create your main authentication provider:
+Create your main authentication provider. Your provider must extend the generic `AuthProvider<T, U>` class where:
+
+- **T** is your auth data type (stored securely in cookies, not database)
+- **U** is your custom user data type (stored in database as `customData`)
+
+**Important:** Use `extends AuthProvider<YourAuthType, YourCustomType>` not `implements AuthProvider`.
 
 ```typescript
 // apps/pika-chat/src/lib/server/auth-provider/index.ts
 import type { RequestEvent } from '@sveltejs/kit';
 import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import type { AuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '../auth/types';
+import { AuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '../auth/types';
 import { redirect } from '@sveltejs/kit';
+import type { YourCustomAuthData, YourCustomUserData } from './types';
 
-export default class YourAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, YourCustomUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<YourCustomAuthData, YourCustomUserData> | Response> {
         // Check if this is an OAuth callback
         if (event.url.pathname.startsWith('/oauth/callback')) {
             return this.handleOAuthCallback(event);
@@ -93,7 +391,10 @@ export default class YourAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<YourCustomAuthData, YourCustomUserData>
+    ): Promise<AuthenticatedUser<YourCustomAuthData, YourCustomUserData> | undefined> {
         // Check if the user's access token is still valid
         const accessToken = user.authData.accessToken;
 
@@ -182,20 +483,28 @@ export default class YourAuthProvider implements AuthProvider {
         return response.json();
     }
 
-    private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser<any> {
+    private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser<YourCustomAuthData, YourCustomUserData> {
         return {
             userId: userData.id,
-            email: userData.email,
             firstName: userData.firstName,
             lastName: userData.lastName,
-            companyId: userData.companyId,
-            companyName: userData.companyName,
-            companyType: userData.companyType,
+            // User type for access control
+            userType: userData.isEmployee ? 'internal-user' : 'external-user',
+            // Roles for permissions and admin access
+            roles: userData.roles || [], // e.g., ['pika:content-admin', 'support-manager']
+            // Custom data - saved to database, available to agent tools
+            customData: {
+                email: userData.email,
+                companyId: userData.companyId,
+                companyName: userData.companyName,
+                companyType: userData.companyType,
+                accountId: userData.accountId
+            },
+            // Auth data - stored in secure cookie only, never saved to database
             authData: {
                 accessToken: token,
-                identityId: userData.identityId,
-                accountId: userData.accountId,
-                accountType: userData.accountType
+                refreshToken: userData.refreshToken,
+                expiresAt: userData.expiresAt
             },
             features: {
                 instruction: {
@@ -279,23 +588,30 @@ The framework automatically:
 3. **Calls your `validateUser` method** when a user cookie exists to validate/refresh tokens
 4. **Handles the responses**:
     - If `authenticate` returns a `Response` (redirect, OAuth flow), it returns that response
-    - If `authenticate` returns an `AuthenticatedUser`, it sets cookies and continues
+    - If `authenticate` returns an `AuthenticatedUser<T, U>`, it sets cookies and continues
     - If `authenticate` throws `NotAuthenticatedError`, it redirects to login
     - If `validateUser` returns `undefined`, no action is taken
-    - If `validateUser` returns an `AuthenticatedUser`, it updates the cookie
+    - If `validateUser` returns an `AuthenticatedUser<T, U>`, it updates the cookie
     - If `validateUser` throws `ForceUserToReauthenticateError`, it redirects to login
 5. **Manages user creation/retrieval** in the chat database
 6. **Handles secure cookie storage** with automatic size management
+
+### Data Storage and Access
+
+The framework handles two types of user data:
+
+- **Auth Data (T)**: Stored securely in encrypted cookies, never saved to database. Available server-side only. Contains tokens, session data, etc.
+- **Custom Data (U)**: Saved to the chat user database as `customData`. Available to agent tools but NOT the agent itself. Contains business data like company info, account details, etc.
 
 ## Token Validation Flow
 
 When a user has an existing cookie, the framework:
 
-1. **Parses the user cookie** to get the current user data
-2. **Calls `validateUser(event, user)`** with the current user object
+1. **Parses the user cookie** to get the current user data (including both auth data and custom data)
+2. **Calls `validateUser(event, user)`** with the current `AuthenticatedUser<T, U>` object
 3. **Handles the result**:
     - `undefined` → Continue with existing user (no changes needed)
-    - `AuthenticatedUser` → Update cookie with refreshed tokens and continue
+    - `AuthenticatedUser<T, U>` → Update cookie with refreshed auth data and continue
     - `ForceUserToReauthenticateError` → Clear cookies and redirect to login
 
 ## Example Use Cases
@@ -304,8 +620,19 @@ When a user has an existing cookie, the framework:
 
 ```typescript
 // Example: Google OAuth integration with token refresh
-export default class GoogleAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface GoogleAuthData {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+}
+
+interface GoogleUserData {
+    email: string;
+    domain?: string;
+}
+
+export default class GoogleAuthProvider extends AuthProvider<GoogleAuthData, GoogleUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<GoogleAuthData, GoogleUserData> | Response> {
         const token = event.cookies.get('google-token');
         if (!token) {
             return redirect(302, '/login');
@@ -317,14 +644,29 @@ export default class GoogleAuthProvider implements AuthProvider {
 
         return {
             userId: userInfo.id,
-            email: userInfo.email,
             firstName: userInfo.given_name,
-            lastName: userInfo.family_name
-            // ... other required fields
+            lastName: userInfo.family_name,
+            // Determine user type based on Google Workspace domain
+            userType: userInfo.hd === 'yourcompany.com' ? 'internal-user' : 'external-user',
+            // Extract roles from Google groups or custom claims
+            roles: this.extractRolesFromGoogleUser(userInfo),
+            customData: {
+                email: userInfo.email,
+                domain: userInfo.hd // Google Workspace domain
+            },
+            authData: {
+                accessToken: token,
+                refreshToken: userInfo.refresh_token,
+                expiresAt: Date.now() + 3600000 // 1 hour
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
+            }
         };
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<GoogleAuthData, GoogleUserData>): Promise<AuthenticatedUser<GoogleAuthData, GoogleUserData> | undefined> {
         const token = user.authData.accessToken;
 
         try {
@@ -362,8 +704,20 @@ export default class GoogleAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: SAML SSO integration
-export default class SAMLAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface SAMLAuthData {
+    sessionId: string;
+    assertion: string;
+    expiresAt: number;
+}
+
+interface SAMLUserData {
+    email: string;
+    department?: string;
+    organization?: string;
+}
+
+export default class SAMLAuthProvider extends AuthProvider<SAMLAuthData, SAMLUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<SAMLAuthData, SAMLUserData> | Response> {
         const samlResponse = event.url.searchParams.get('SAMLResponse');
         if (samlResponse) {
             const userData = await this.validateSAMLResponse(samlResponse);
@@ -380,7 +734,7 @@ export default class SAMLAuthProvider implements AuthProvider {
         throw new NotAuthenticatedError('No valid SAML session');
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<SAMLAuthData, SAMLUserData>): Promise<AuthenticatedUser<SAMLAuthData, SAMLUserData> | undefined> {
         // For SAML, you might check if the session is still valid
         const sessionValid = await this.validateSAMLSession(user.authData.sessionId);
 
@@ -390,6 +744,28 @@ export default class SAMLAuthProvider implements AuthProvider {
 
         throw new ForceUserToReauthenticateError('SAML session expired');
     }
+
+    private createUserFromSAML(userData: any): AuthenticatedUser<SAMLAuthData, SAMLUserData> {
+        return {
+            userId: userData.nameId,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            customData: {
+                email: userData.email,
+                department: userData.department,
+                organization: userData.organization
+            },
+            authData: {
+                sessionId: userData.sessionId,
+                assertion: userData.assertion,
+                expiresAt: userData.expiresAt
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
+            }
+        };
+    }
 }
 ```
 
@@ -397,8 +773,21 @@ export default class SAMLAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: JWT token validation with refresh
-export default class JWTAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface JWTAuthData {
+    accessToken: string;
+    refreshToken?: string;
+    tokenType: string;
+    expiresAt: number;
+}
+
+interface JWTUserData {
+    email: string;
+    scope: string[];
+    accountId: string;
+}
+
+export default class JWTAuthProvider extends AuthProvider<JWTAuthData, JWTUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<JWTAuthData, JWTUserData> | Response> {
         const token = event.cookies.get('jwt-token');
         if (!token) {
             return redirect(302, '/login');
@@ -407,7 +796,7 @@ export default class JWTAuthProvider implements AuthProvider {
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             const userData = await this.getUserFromDatabase(decoded.userId);
-            return this.createUserFromDatabase(userData);
+            return this.createUserFromDatabase(userData, token);
         } catch (error) {
             // Token invalid or expired
             event.cookies.delete('jwt-token');
@@ -415,7 +804,7 @@ export default class JWTAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<JWTAuthData, JWTUserData>): Promise<AuthenticatedUser<JWTAuthData, JWTUserData> | undefined> {
         const token = user.authData.accessToken;
 
         try {
@@ -439,6 +828,29 @@ export default class JWTAuthProvider implements AuthProvider {
             throw new ForceUserToReauthenticateError('JWT token validation failed');
         }
     }
+
+    private createUserFromDatabase(userData: any, token: string): AuthenticatedUser<JWTAuthData, JWTUserData> {
+        return {
+            userId: userData.id,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            customData: {
+                email: userData.email,
+                scope: userData.scope,
+                accountId: userData.accountId
+            },
+            authData: {
+                accessToken: token,
+                refreshToken: userData.refreshToken,
+                tokenType: 'Bearer',
+                expiresAt: userData.tokenExpiresAt
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
+            }
+        };
+    }
 }
 ```
 
@@ -446,8 +858,22 @@ export default class JWTAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: Multi-tenant authentication with organization switching
-export default class MultiTenantAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface MultiTenantAuthData {
+    accessToken: string;
+    currentOrgId: string;
+    availableOrgs: Array<{ id: string; name: string }>;
+    userRole: string;
+}
+
+interface MultiTenantUserData {
+    email: string;
+    companyId: string;
+    companyName: string;
+    companyType: string;
+}
+
+export default class MultiTenantAuthProvider extends AuthProvider<MultiTenantAuthData, MultiTenantUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> | Response> {
         // Check for organization context in URL or headers
         const orgId = event.url.searchParams.get('org') || event.request.headers.get('x-organization-id') || event.cookies.get('current-org');
 
@@ -474,7 +900,10 @@ export default class MultiTenantAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData>
+    ): Promise<AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> | undefined> {
         // Check if user still has access to current organization
         const hasAccess = await this.validateOrgAccess(user.userId, user.authData.currentOrgId);
 
@@ -491,21 +920,27 @@ export default class MultiTenantAuthProvider implements AuthProvider {
         return undefined; // Access still valid
     }
 
-    private createMultiTenantUser(userData: any, orgId: string): AuthenticatedUser<any> {
+    private createMultiTenantUser(userData: any, orgId: string): AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> {
         const org = userData.organizations.find((o) => o.id === orgId);
         return {
             userId: userData.id,
-            email: userData.email,
             firstName: userData.firstName,
             lastName: userData.lastName,
-            companyId: org.id,
-            companyName: org.name,
-            companyType: org.type,
+            customData: {
+                email: userData.email,
+                companyId: org.id,
+                companyName: org.name,
+                companyType: org.type
+            },
             authData: {
                 accessToken: userData.accessToken,
                 currentOrgId: orgId,
                 availableOrgs: userData.organizations.map((o) => ({ id: o.id, name: o.name })),
                 userRole: org.role
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
             }
         };
     }
@@ -516,8 +951,22 @@ export default class MultiTenantAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: API key authentication for service-to-service communication
-export default class APIKeyAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface APIKeyAuthData {
+    apiKey: string;
+    serviceId: string;
+    permissions: string[];
+    rateLimit: number;
+}
+
+interface ServiceUserData {
+    email: string;
+    companyId: string;
+    companyName: string;
+    companyType: string;
+}
+
+export default class APIKeyAuthProvider extends AuthProvider<APIKeyAuthData, ServiceUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<APIKeyAuthData, ServiceUserData> | Response> {
         const apiKey = event.request.headers.get('x-api-key') || event.cookies.get('api-key');
 
         if (!apiKey) {
@@ -532,7 +981,7 @@ export default class APIKeyAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<APIKeyAuthData, ServiceUserData>): Promise<AuthenticatedUser<APIKeyAuthData, ServiceUserData> | undefined> {
         // For API keys, check if the key is still valid and not revoked
         const isValid = await this.validateAPIKey(user.authData.apiKey);
 
@@ -543,20 +992,26 @@ export default class APIKeyAuthProvider implements AuthProvider {
         return undefined; // API key still valid
     }
 
-    private createServiceUser(serviceData: any, apiKey: string): AuthenticatedUser<any> {
+    private createServiceUser(serviceData: any, apiKey: string): AuthenticatedUser<APIKeyAuthData, ServiceUserData> {
         return {
             userId: `service_${serviceData.id}`,
-            email: serviceData.email,
             firstName: serviceData.name,
             lastName: '',
-            companyId: serviceData.organizationId,
-            companyName: serviceData.organizationName,
-            companyType: 'service',
+            customData: {
+                email: serviceData.email,
+                companyId: serviceData.organizationId,
+                companyName: serviceData.organizationName,
+                companyType: 'service'
+            },
             authData: {
                 apiKey,
                 serviceId: serviceData.id,
                 permissions: serviceData.permissions,
                 rateLimit: serviceData.rateLimit
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
             }
         };
     }
@@ -567,8 +1022,18 @@ export default class APIKeyAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: Traditional session-based authentication with Redis
-export default class SessionAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface SessionAuthData {
+    sessionId: string;
+    expiresAt: number;
+}
+
+interface SessionUserData {
+    email: string;
+    lastLogin: number;
+}
+
+export default class SessionAuthProvider extends AuthProvider<SessionAuthData, SessionUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<SessionAuthData, SessionUserData> | Response> {
         const sessionId = event.cookies.get('session-id');
 
         if (!sessionId) {
@@ -594,7 +1059,7 @@ export default class SessionAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<SessionAuthData, SessionUserData>): Promise<AuthenticatedUser<SessionAuthData, SessionUserData> | undefined> {
         const sessionId = user.authData.sessionId;
 
         // Check if session still exists and is valid
@@ -626,8 +1091,20 @@ export default class SessionAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: OAuth2 with PKCE for enhanced security
-export default class OAuth2PKCEProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface OAuth2PKCEAuthData {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+    codeVerifier: string;
+}
+
+interface OAuth2PKCEUserData {
+    email: string;
+    scope: string[];
+}
+
+export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData, OAuth2PKCEUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData> | Response> {
         const code = event.url.searchParams.get('code');
         const state = event.url.searchParams.get('state');
         const codeVerifier = event.cookies.get('code_verifier');
@@ -655,7 +1132,10 @@ export default class OAuth2PKCEProvider implements AuthProvider {
         return this.startOAuthFlow(event);
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData>
+    ): Promise<AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData> | undefined> {
         const accessToken = user.authData.accessToken;
         const refreshToken = user.authData.refreshToken;
 
@@ -713,8 +1193,22 @@ export default class OAuth2PKCEProvider implements AuthProvider {
 
 ```typescript
 // Example: Authentication with role-based access control
-export default class RBACAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface RBACAuthData {
+    accessToken: string;
+    roles: string[];
+    permissions: string[];
+    lastRoleCheck: number;
+}
+
+interface RBACUserData {
+    email: string;
+    companyId: string;
+    companyName: string;
+    companyType: string;
+}
+
+export default class RBACAuthProvider extends AuthProvider<RBACAuthData, RBACUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<RBACAuthData, RBACUserData> | Response> {
         const token = event.cookies.get('auth-token');
         if (!token) {
             return redirect(302, '/login');
@@ -728,7 +1222,7 @@ export default class RBACAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<RBACAuthData, RBACUserData>): Promise<AuthenticatedUser<RBACAuthData, RBACUserData> | undefined> {
         // Check if user's roles have changed
         const currentRoles = await this.getUserRoles(user.userId);
         const hasRoleChanges = this.hasRoleChanges(user.authData.roles, currentRoles);
@@ -747,20 +1241,26 @@ export default class RBACAuthProvider implements AuthProvider {
         return undefined; // No changes needed
     }
 
-    private createRBACUser(userData: any, token: string): AuthenticatedUser<any> {
+    private createRBACUser(userData: any, token: string): AuthenticatedUser<RBACAuthData, RBACUserData> {
         return {
             userId: userData.id,
-            email: userData.email,
             firstName: userData.firstName,
             lastName: userData.lastName,
-            companyId: userData.organizationId,
-            companyName: userData.organizationName,
-            companyType: userData.organizationType,
+            customData: {
+                email: userData.email,
+                companyId: userData.organizationId,
+                companyName: userData.organizationName,
+                companyType: userData.organizationType
+            },
             authData: {
                 accessToken: token,
                 roles: userData.roles,
                 permissions: userData.permissions,
                 lastRoleCheck: Date.now()
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
             }
         };
     }
@@ -771,8 +1271,19 @@ export default class RBACAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: Authentication with 2FA support
-export default class TwoFactorAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface TwoFactorAuthData {
+    accessToken: string;
+    twoFactorToken?: string;
+    twoFactorEnabled: boolean;
+}
+
+interface TwoFactorUserData {
+    email: string;
+    phoneNumber: string;
+}
+
+export default class TwoFactorAuthProvider extends AuthProvider<TwoFactorAuthData, TwoFactorUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData> | Response> {
         const token = event.cookies.get('auth-token');
         const twoFactorToken = event.cookies.get('2fa-token');
 
@@ -804,7 +1315,10 @@ export default class TwoFactorAuthProvider implements AuthProvider {
         }
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData>
+    ): Promise<AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData> | undefined> {
         // Check if 2FA token is still valid
         if (user.authData.twoFactorToken) {
             const isValid2FA = await this.validateTwoFactorToken(user.userId, user.authData.twoFactorToken);
@@ -822,8 +1336,19 @@ export default class TwoFactorAuthProvider implements AuthProvider {
 
 ```typescript
 // Example: Webhook authentication for external service integration
-export default class WebhookAuthProvider implements AuthProvider {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
+interface WebhookAuthData {
+    webhookId: string;
+    signature: string;
+    timestamp: number;
+}
+
+interface WebhookUserData {
+    sourceSystem: string;
+    accountId: string;
+}
+
+export default class WebhookAuthProvider extends AuthProvider<WebhookAuthData, WebhookUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<WebhookAuthData, WebhookUserData> | Response> {
         // Verify webhook signature
         const signature = event.request.headers.get('x-webhook-signature');
         const payload = await event.request.text();
@@ -839,7 +1364,7 @@ export default class WebhookAuthProvider implements AuthProvider {
         return this.createWebhookUser(userData);
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<WebhookAuthData, WebhookUserData>): Promise<AuthenticatedUser<WebhookAuthData, WebhookUserData> | undefined> {
         // For webhook-based auth, check if the webhook session is still valid
         const isValid = await this.validateWebhookSession(user.authData.webhookId);
 
@@ -852,14 +1377,38 @@ export default class WebhookAuthProvider implements AuthProvider {
 }
 ```
 
+### Best Practices for Access Control
+
+**User Types:**
+
+- Use clear, consistent logic to determine user types (e.g., email domain, explicit user properties)
+- Document your user type assignment rules for your team
+- Consider edge cases (e.g., contractors, partners) and how they should be classified
+- Test access restrictions thoroughly for both user types
+
+**Roles:**
+
+- Only assign `pika:content-admin` to trusted administrators who need debugging access
+- Use descriptive names for custom roles that clearly indicate their purpose
+- Avoid roles starting with `pika:` for custom business logic
+- Consider implementing role hierarchies in your business logic
+- Document what each custom role represents for future development
+
+**Security Considerations:**
+
+- Validate user types and roles from your auth provider rather than trusting client data
+- Implement proper authorization checks on the server side
+- Log role assignments and changes for audit purposes
+- Regularly review and audit admin role assignments
+
 ## Best Practices
 
 ### 1. Error Handling
 
-Always handle authentication errors gracefully:
+Always handle authentication errors gracefully. When extending `AuthProvider<T, U>`, your methods are already properly typed:
 
 ```typescript
-async validateUser(event: RequestEvent, user: AuthenticatedUser<any>): Promise<AuthenticatedUser<any> | undefined> {
+async validateUser(event: RequestEvent, user: AuthenticatedUser<T, U>): Promise<AuthenticatedUser<T, U> | undefined> {
     try {
         // Your validation logic
         const isValid = await this.validateToken(user.authData.accessToken);
@@ -931,9 +1480,19 @@ describe('YourAuthProvider', () => {
 ### Common Issues
 
 1. **Provider not detected**: Ensure your provider is the default export
-2. **Type errors**: Make sure your auth data type extends the base interface
-3. **Redirect loops**: Check your authentication logic
-4. **Cookie issues**: Verify cookie settings and domain configuration
+2. **Type errors with generics**: Common mistake - do NOT declare your own generic parameters:
+
+    ```typescript
+    // ❌ WRONG - Don't redeclare generics
+    export default class MyProvider<MyAuthData, MyCustomData> extends AuthProvider {
+
+    // ✅ CORRECT - Use your concrete types
+    export default class MyProvider extends AuthProvider<MyAuthData, MyCustomData> {
+    ```
+
+3. **Type errors**: Make sure your auth data types match your interface definitions
+4. **Redirect loops**: Check your authentication logic
+5. **Cookie issues**: Verify cookie settings and domain configuration
 
 ### Debug Mode
 

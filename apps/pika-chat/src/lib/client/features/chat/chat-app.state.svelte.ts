@@ -410,12 +410,11 @@ export class ChatAppState {
                 agentId: 'interim-agent-id',
                 identityId: this.#appState.identity.user.userId,
                 sessionAttributes: {
-                    companyId: this.#appState.identity.user.companyId,
                     token: 'interim-token',
-                    companyType: this.#appState.identity.user.companyType,
                     firstName: this.#appState.identity.user.firstName,
                     lastName: this.#appState.identity.user.lastName,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    ...(this.#appState.identity.user.customData ? this.#appState.identity.user.customData : {})
                 },
                 createDate: new Date().toISOString(),
                 lastUpdate: new Date().toISOString()

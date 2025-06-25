@@ -41,7 +41,7 @@ These documents provide the **how** - practical guides for installing, configuri
 - [Installation Guide](./developer/installation.md) - Detailed setup instructions
 - [Project Structure](./developer/project-structure.md) - Understanding your Pika project
 - [Stack Management](./developer/stack-management.md) - Best practices for managing chat app stacks
-- [Customization Guide](./developer/customization.md) - How to customize Pika
+- [Customization Guide](./developer/customization.md) - How to customize Pika and configure site features
 - [Authentication Setup](./developer/authentication.md) - Setting up authentication
 - [Local Development](./developer/local-development.md) - Running Pika locally
 - [AWS Deployment](./developer/aws-deployment.md) - Deploying to AWS

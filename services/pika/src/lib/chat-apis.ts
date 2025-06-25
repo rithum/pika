@@ -15,7 +15,8 @@ import type {
     ChatSessionForCreate,
     ChatSessionResponse,
     ChatTitleUpdateRequest,
-    ChatUser
+    ChatUser,
+    RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
@@ -66,12 +67,10 @@ export async function getUser(userId: string): Promise<ChatUser | undefined> {
  *
  * @returns A tuple with the chat session object and a boolean indicating if it was newly created
  */
-export async function ensureChatSession(user: ChatUser, requestData: BaseRequestData, agentId: string, chatAppId: string): Promise<[ChatSession, boolean]> {
+export async function ensureChatSession(user: ChatUser<RecordOrUndef>, requestData: BaseRequestData, agentId: string, chatAppId: string): Promise<[ChatSession, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
         sessionId: requestData.sessionId,
-        companyId: requestData.companyId,
-        companyType: requestData.companyType,
         agentId,
         chatAppId
     });
@@ -86,21 +85,6 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
 
     if (!chatSession) {
         console.log('No existing session found, creating new session');
-        const companyId = requestData.companyId ?? user.companyId;
-        const companyType = requestData.companyType ?? user.companyType;
-
-        console.log('Using company info:', {
-            companyId,
-            companyType,
-            fromRequest: {
-                companyId: requestData.companyId,
-                companyType: requestData.companyType
-            },
-            fromUser: {
-                companyId: user.companyId,
-                companyType: user.companyType
-            }
-        });
 
         chatSession = await createChatSession({
             userId: user.userId,
@@ -108,11 +92,14 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
             agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
             agentAliasId: agentId, //'weather-agent-alias',//requestData.agentAliasId ?? getAgentAliasId(),
             sessionAttributes: {
-                companyId,
-                companyType,
+                ...(user.customData ? user.customData : {}),
                 firstName: user.firstName,
                 lastName: user.lastName,
-                timezone: requestData.timezone
+                timezone: requestData.timezone,
+                agentId,
+                chatAppId,
+                currentDate: new Date().toISOString(),
+                userId: user.userId
             },
             identityId: user.userId
         });
@@ -144,7 +131,7 @@ export async function ensureChatSession(user: ChatUser, requestData: BaseRequest
  */
 export async function createChatSession(chatSessionForCreate: ChatSessionForCreate): Promise<ChatSession> {
     let sessionId = uuidv7();
-    const token = createSessionToken(sessionId, chatSessionForCreate.sessionAttributes.companyId, chatSessionForCreate.userId);
+    const token = createSessionToken(sessionId, chatSessionForCreate.userId);
     const date = new Date().toISOString();
     const chatSession: ChatSession = {
         ...chatSessionForCreate,

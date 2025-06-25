@@ -28,7 +28,7 @@ A specialized stream used to handle the real-time streaming of assistant respons
 
 ### SessionAttributes
 
-Additional metadata associated with a chat session, including information about the user (firstName, lastName), their company (companyId, companyType), and other context like timezone.
+Additional metadata associated with a chat session, including information about the user (firstName, lastName, userId), any custom user data provided by the authentication provider (ChatUser.customData) spread into the object and other context like sessionId, agentId, chatAppId, currentDate and timezone.
 
 ### ChatMessageUsage
 

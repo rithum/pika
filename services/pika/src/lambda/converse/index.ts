@@ -7,6 +7,7 @@ import {
     ChatSession,
     ChatUser,
     ConverseRequest,
+    RecordOrUndef,
     SimpleAuthenticatedUser
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, LambdaFunctionUrlProxyEventPika } from '@pika/shared/util/api-gateway-utils';
@@ -17,7 +18,7 @@ import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { getUserFromAuthHeader } from '../../lib/jwt';
+import { extractFromJwtString } from '@pika/shared/util/jwt';
 import { LRUCache } from 'lru-cache';
 import { getAgentAndTools } from '../../lib/chat-admin-apis';
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
@@ -82,7 +83,7 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         }
 
         console.log('Validating JWT token...');
-        const [simpleUser, error] = getUserFromAuthHeader<any>(authHeader, jwtSecret);
+        const [simpleUser, error] = extractFromJwtString<RecordOrUndef>(authHeader, jwtSecret);
         console.log('JWT validation result:', {
             userFromHeader: typeof simpleUser === 'number' ? simpleUser : redactData(simpleUser, 'authData'),
             error
@@ -148,19 +149,9 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
 
         console.log('Fetching user data...');
         const user = await getUser(converseRequest.userId);
-        console.log('User fetched:', { userId: user?.userId, companyId: user?.companyId, companyType: user?.companyType });
+        console.log('User fetched:', { userId: user?.userId });
         if (!user) {
             throw new UnauthorizedError('User not found');
-        }
-
-        if (converseRequest.companyId && converseRequest.companyId !== user.companyId) {
-            console.error('Company ID mismatch:', { userCompanyId: user.companyId, requestCompanyId: converseRequest.companyId });
-            throw new UnauthorizedError('Unauthorized: companyId mismatch');
-        }
-
-        if (converseRequest.companyType && converseRequest.companyType !== user.companyType) {
-            console.error('Company type mismatch:', { userCompanyType: user.companyType, requestCompanyType: converseRequest.companyType });
-            throw new UnauthorizedError('Unauthorized: companyType mismatch');
         }
 
         if (!converseRequest.agentId) {
@@ -244,8 +235,8 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
 async function converse(
     chatSession: ChatSession,
     isNewSession: boolean,
-    user: ChatUser,
-    simpleUser: SimpleAuthenticatedUser<any>,
+    user: ChatUser<RecordOrUndef>,
+    simpleUser: SimpleAuthenticatedUser<RecordOrUndef>,
     message: string,
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
