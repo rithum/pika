@@ -5,6 +5,7 @@ import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbo
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
+import { mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 
@@ -83,6 +84,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                     features: Object.keys(chatUser?.features || {})
                 });
             } else {
+                // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
+                mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
                 console.log('Existing chat user found:', {
                     userId: chatUser.userId,
                     features: Object.keys(chatUser.features || {})
@@ -103,6 +106,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Give the auth provider a chance to validate/refresh the user's authentication
     if (authProvider.validateUser && user) {
         try {
+            // Only validate if needed (let the provider decide based on time/expiry)
             const validationResult = await authProvider.validateUser(event, user);
 
             if (validationResult) {

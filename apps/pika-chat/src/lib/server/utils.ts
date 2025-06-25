@@ -1,7 +1,7 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
@@ -288,4 +288,29 @@ function deserializeFromMultipleCookies(
     // Decrypt and parse
     const decryptedData = decryptCookieString(encryptedData, masterCookieKey, masterCookieInitVector);
     return JSON.parse(decryptedData);
+}
+
+/**
+ * If someone has added pika:xxx roles to the chat user database that may have been added indepently of the auth provider, we need to merge them in
+ * to the authenticated user object.
+ *
+ * @param authenticatedUser - The authenticated user object
+ * @param existingChatUser - The existing chat user object
+ * @returns The merged authenticated user object
+ */
+export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, existingChatUser: ChatUser<RecordOrUndef>): void {
+    if (existingChatUser.roles && existingChatUser.roles.length > 0) {
+        const pikaRoles = existingChatUser.roles.filter((role) => role.startsWith('pika:'));
+        if (pikaRoles.length > 0) {
+            if (!authenticatedUser.roles) {
+                authenticatedUser.roles = [];
+            }
+            // Add any missing roles to the authenticated user
+            for (const role of pikaRoles) {
+                if (!authenticatedUser.roles?.includes(role)) {
+                    authenticatedUser.roles.push(role);
+                }
+            }
+        }
+    }
 }

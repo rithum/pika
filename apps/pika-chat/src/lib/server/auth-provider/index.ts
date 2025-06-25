@@ -1,25 +1,10 @@
 // This file is a placeholder for custom authentication providers
 // Users should replace this file with their own authentication implementation
-// See docs/help/authentication.md for implementation details
-
-// Example structure (remove this and implement your own):
-// @see ../auth/default-provider.ts file for an example of how to implement an authentication provider.
-/*
-import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import type { AuthProvider } from '../auth/types';
-
-export default class YourAuthProvider extends AuthProvider {
-    constructor(stage: string) {
-        super(stage);
-    }
-
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<any> | Response> {
-        // Your authentication logic here
-        throw new Error('Custom authentication not implemented');
-    }
-}
-*/
+//
+// For a complete working example with time-based validation, multi-endpoint fallback,
+// and comprehensive error handling, see ./custom-example.ts
+//
+// See docs/developer/authentication.md for implementation details
 
 // Export null to indicate no custom provider is implemented
 export default null;

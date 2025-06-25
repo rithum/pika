@@ -305,11 +305,28 @@ export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomDat
 - **Refactoring safety**: Changes to your auth data types are caught at compile time
 - **Clear contracts**: The generic system makes it explicit what data is available where
 
+## Complete Working Example
+
+A fully functional authentication provider example is included at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts`. This example demonstrates:
+
+- **Time-based validation** (validates only every 5 minutes for performance)
+- **Multi-endpoint fallback** (tries admin and regular endpoints)
+- **Comprehensive error handling** and logging
+- **Generic, customizable structure** for any HTTP-based auth system
+- **Cookie management** and redirect handling
+
+**To use this example:**
+
+1. Copy the contents of `custom-example.ts`
+2. Paste into your `index.ts` file
+3. Customize the URLs, types, and business logic for your auth provider
+4. Update the user lookup mechanism (database or API)
+
 ## Implementation Steps
 
 ### 1. Create the Custom Auth Provider Directory
 
-First, create the customization directory:
+The customization directory should already exist, but if not:
 
 ```bash
 mkdir -p apps/pika-chat/src/lib/server/auth-provider
@@ -615,6 +632,8 @@ When a user has an existing cookie, the framework:
     - `ForceUserToReauthenticateError` → Clear cookies and redirect to login
 
 ## Example Use Cases
+
+**💡 TIP:** Before reviewing these examples, check out the complete working example at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts` which includes time-based validation and multi-endpoint fallback patterns you can copy directly.
 
 ### OAuth Provider Integration
 
