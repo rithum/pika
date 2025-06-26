@@ -1,20 +1,34 @@
-import type { PageServerLoad } from './$types';
-import { error } from '@sveltejs/kit';
+import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import type { ChatApp, ChatAppMode } from '@pika/shared/types/chatbot/chatbot-types';
-import { getChatApp } from '$lib/server/chat-admin-apis';
+import { error } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, url }) => {
+export const load: PageServerLoad = async ({ params, url, locals }) => {
     const { chatAppId } = params;
     const modeParam = url.searchParams.get('mode') || undefined;
     let chatApp: ChatApp | undefined;
 
-    let mode: ChatAppMode | undefined;
+    //TODO: what are we going to do with mode param.  We should probably just remove it.
+    // let mode: ChatAppMode | undefined;
     if (modeParam && modeParam !== 'fullpage' && modeParam !== 'embedded') {
         throw error(400, 'Invalid mode');
     }
 
+    if (!locals.user) {
+        throw error(401, 'Unauthorized');
+    }
+
+    if (!chatAppId) {
+        throw error(400, 'Chat app ID is required');
+    }
+
     try {
-        chatApp = await getChatApp(chatAppId);
+        const matchingChatApps = await getMatchingChatApps(locals.user, undefined, chatAppId);
+        if (matchingChatApps && matchingChatApps.length === 1) {
+            chatApp = matchingChatApps[0];
+        } else {
+            throw error(404, 'Chat app not found');
+        }
     } catch (e) {
         if (e instanceof Error && e.message.includes('404')) {
             throw error(404, 'Chat app not found');
@@ -36,6 +50,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
     }
 
     return {
-        chatApp,
+        chatApp
     };
 };

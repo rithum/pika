@@ -163,6 +163,8 @@ export class WeatherStack extends cdk.Stack {
                 mode: 'fullpage',
                 dontCacheThis: true,
                 title: 'Weather Chat',
+                description: 'A chat app that can be used to answer questions about the weather, used for testing the framework.',
+                userTypesAllowed: ['internal-user'],
                 agentId: `${props.projNameKebabCase}-agent-${this.stage}`,
                 features: {
                     fileUpload: {

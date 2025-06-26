@@ -281,6 +281,43 @@ export interface SimpleAuthenticatedUser<T extends RecordOrUndef = undefined> {
     customUserData?: T;
 }
 
+/**
+ * By default, content rules exclude anything not explicitly included.
+ */
+export interface UserChatAppRule {
+    /**
+     * The user types allowed to access the content this rule is applied to.
+     *
+     * If you support both internal and external users and internal/external chat apps then you should
+     * create two ChatAppContentRule objects, one for internal users and one for external users.
+     */
+    userTypes?: UserType[];
+
+    /**
+     * The user types allowed to access the chat apps this rule is applied to.
+     *
+     * If you support both internal and external users and internal/external chat apps then you should
+     * create two ChatAppContentRule objects, one for internal users and one for external users.
+     */
+    chatAppUserTypes?: UserType[];
+
+    /** The user roles allowed to access the content this rule is applied to.  Use `*` for all roles. */
+    userRoles?: PikaUserRole[];
+
+    /**
+     * The chat apps to include on the home page with these user roles.
+     *
+     * If not provided, then the user roles allowed in the chat app will be used.
+     */
+    chatAppUserRoles?: PikaUserRole[];
+
+    /** Explicitly included chat apps.  Use `*` for all chat apps.*/
+    chatAppIdsToInclude?: string[];
+
+    /** Explicitly excluded chat apps.  `*` will not be allowed since all chat apps are excluded by default. */
+    chatAppIdsToExclude?: string[];
+}
+
 /** Array of available feature types in the system */
 export const FeatureTypeArr = ['instruction', 'history'] as const;
 /** Type representing the available feature types */
@@ -674,6 +711,20 @@ export interface CreateToolRequest {
     tool: ToolDefinitionForCreate;
     userId: string;
 }
+export interface GetChatAppsByRulesRequest {
+    /** We use this to lookup the user and their userType. */
+    userId: string;
+    /** The rules to validate against. */
+    userChatAppRules: UserChatAppRule[];
+    /** If provided, then we will only return this one chat app and then only if the user is allowed to access it. */
+    chatAppId?: string;
+}
+
+export interface GetChatAppsByRulesResponse {
+    success: boolean;
+    chatApps: ChatApp[];
+    error?: string;
+}
 
 export interface UpdateToolRequest {
     tool: ToolDefinitionForUpdate;
@@ -723,6 +774,12 @@ export interface ChatApp {
     title: string;
 
     /**
+     * A description of the chat app.  This is used to describe the chat app to the user and in navigation.
+     * Required.  Must be less than 300 characters (not currently enforced but will be in the future).
+     */
+    description: string;
+
+    /**
      * The ID of the agent that should be invoked for this chat app (e.g. 'weather-agent').
      * Must be the agentId of an agent that exists in the agent definition table.
      */
@@ -747,6 +804,37 @@ export interface ChatApp {
 
     /** If true, this is a test chat app that will get deleted after 1 day.  This is used for testing. */
     test?: boolean;
+}
+
+export interface ChatAppLite {
+    /**
+     * Unique ID for the chat. Only - and _ allowed.  Will
+     * be used in URL to access the chatbot so keep that in mind
+     */
+    chatAppId: string;
+
+    /**
+     * The title of the chat app, a human readable name.  This is the title that will be displayed in the title bar of the chat app when
+     * in fullpage mode.
+     */
+    title: string;
+
+    /**
+     * A description of the chat app.  This is used to describe the chat app to the user and in navigation.
+     * Required.  Must be less than 300 characters (not currently enforced but will be in the future).
+     */
+    description: string;
+
+    /**
+     * The ID of the agent that should be invoked for this chat app (e.g. 'weather-agent').
+     * Must be the agentId of an agent that exists in the agent definition table.
+     */
+    agentId: string;
+
+    /**
+     * The user types that are allowed to access this chat app.  If not provided, then all user types are allowed.
+     */
+    userTypesAllowed?: UserType[];
 }
 
 export interface KnowledgeBase {

@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { pikaConfig } from '../../pika-config';
+import { siteFeaturesVitePlugin } from './tools/site-features-vite-plugin/site-featuers-vite-plugin';
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => {
@@ -11,6 +12,7 @@ export default defineConfig(async () => {
 
     return {
         plugins: [
+            siteFeaturesVitePlugin(),
             sveltekit(),
             Icons({
                 compiler: 'svelte'

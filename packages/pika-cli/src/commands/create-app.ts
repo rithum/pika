@@ -271,7 +271,11 @@ async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
 }
 
 async function createUserGitignore(projectPath: string): Promise<void> {
-    const gitignoreContent = `# Dependencies
+    const gitignoreContent = `
+# Custom site features file created by the site-features-vite-plugin when you run locally or build
+apps/pika-chat/src/lib/server/custom-site-features.ts
+
+# Dependencies
 node_modules/
 .pnpm-store/
 

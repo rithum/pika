@@ -6,6 +6,52 @@ This guide explains how to implement custom authentication in your Pika project 
 
 Pika Framework provides a flexible authentication system that allows you to implement your own authentication logic while maintaining the framework's user management and chat functionality. Your custom authentication code is protected from framework updates and can handle complex flows like OAuth, SSO, and custom auth providers.
 
+## 🚨 CRITICAL SECURITY WARNING
+
+**⚠️ THE DEFAULT MOCK AUTHENTICATION IS NOT SECURE ⚠️**
+
+### Default Behavior - Development Only
+
+Pika Framework ships with a **default mock authentication provider** located at `apps/pika-chat/src/lib/server/auth/default-provider.ts` that:
+
+- **Hardcodes a single test user** (`userId: '123', firstName: 'Test', lastName: 'User'`)
+- **Requires no password or validation** - anyone visiting your site is automatically authenticated
+- **Does not assign a `userType`** - this can cause security issues with chat app access control
+- **Returns the same mock user for every request**
+
+### Production Deployment Requirements
+
+**🔒 BEFORE DEPLOYING PUBLICLY, YOU MUST:**
+
+1. **Replace the mock provider** with your own authentication implementation
+2. **Assign proper `userType` values** (`internal-user` or `external-user`) to all users
+3. **Configure `userTypesAllowed`** on all chat apps to control access
+4. **Test authentication flows** thoroughly in staging environment
+
+### Security Risk
+
+The mock provider creates a significant security vulnerability:
+
+```typescript
+// ❌ CURRENT MOCK PROVIDER - INSECURE
+async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<MockAuthData, MockCustomData>> {
+    return {
+        userId: '123',
+        firstName: 'Test',
+        lastName: 'User',
+        userType: 'internal-user', // marked as internal user for development
+        // ⚠️ No actual authentication - anyone can access!
+        // ... rest of user data
+    };
+}
+```
+
+**Fix this by implementing a custom provider that:**
+
+- Validates real user credentials
+- Assigns appropriate `userType` values
+- Implements proper access controls
+
 ## Understanding User Data Types
 
 The framework uses a two-tier data structure to separate authentication data from business data:
@@ -230,6 +276,83 @@ const adminChatApp: ChatApp = {
     mode: 'fullpage',
     enabled: true
     // ... other properties
+};
+```
+
+## Quick Reference: Security Essentials
+
+### 🔒 Production Deployment Checklist
+
+**Before deploying to production, ensure:**
+
+| ✅  | Security Requirement                             | Why It Matters                  |
+| --- | ------------------------------------------------ | ------------------------------- |
+| ✅  | Custom auth provider implemented                 | Mock provider has no security   |
+| ✅  | All users have `userType` assigned               | Controls chat app access        |
+| ✅  | Chat apps have `userTypesAllowed` configured     | Prevents unauthorized access    |
+| ✅  | Internal tools restricted to `['internal-user']` | Protects admin functionality    |
+| ✅  | Customer-facing apps restricted appropriately    | Data privacy and access control |
+
+### 👥 User Type Quick Guide
+
+```typescript
+// User type assignment in your auth provider
+const user: AuthenticatedUser = {
+    // ... other fields
+    userType: 'internal-user', // Company employees, staff, admins
+    // OR
+    userType: 'external-user' // Customers, partners, external users
+};
+```
+
+### 🛡️ Chat App Access Control
+
+```typescript
+// Restrict to internal users only (admin tools, employee resources)
+const internalApp: ChatApp = {
+    chatAppId: 'admin-dashboard',
+    title: 'Admin Dashboard',
+    userTypesAllowed: ['internal-user'] // Only internal users
+};
+
+// Restrict to external users only (customer support, public services)
+const externalApp: ChatApp = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support',
+    userTypesAllowed: ['external-user'] // Only external users
+};
+
+// Allow both user types (general purpose, shared resources)
+const sharedApp: ChatApp = {
+    chatAppId: 'general-chat',
+    title: 'General Chat'
+    // No userTypesAllowed = accessible to both types
+};
+```
+
+### ⚠️ Common Security Mistakes
+
+```typescript
+// ❌ DANGEROUS - Missing userType assignment
+const user: AuthenticatedUser = {
+    userId: 'user123',
+    firstName: 'John',
+    lastName: 'Doe'
+    // Missing userType = potential security issues
+};
+
+// ❌ DANGEROUS - Admin tools accessible to all users
+const adminTools: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools'
+    // Missing userTypesAllowed = everyone can access admin tools!
+};
+
+// ❌ DANGEROUS - Customer data exposed to internal users
+const customerApp: ChatApp = {
+    chatAppId: 'customer-data',
+    title: 'Customer Portal'
+    // Missing userTypesAllowed = internal users can see customer data
 };
 ```
 

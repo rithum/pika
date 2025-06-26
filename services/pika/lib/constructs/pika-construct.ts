@@ -117,7 +117,8 @@ export class PikaConstruct extends Construct {
         const [chatAdminApiFn, chatAdminRestApi] = this.createChatAdminApiFunction(
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
-            storageResources.chatAppTable
+            storageResources.chatAppTable,
+            storageResources.chatUserTable
         );
 
         // Create custom resources
@@ -1017,7 +1018,8 @@ export class PikaConstruct extends Construct {
     private createChatAdminApiFunction(
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
-        chatAppTable: dynamodb.Table
+        chatAppTable: dynamodb.Table,
+        chatUserTable: dynamodb.Table
     ): [lambda.Function, apigateway.RestApi] {
         const lambdaRole = new iam.Role(this, 'ChatAdminApiLambdaRole', {
             roleName: `chat-admin-api-lambda-role-${this.props.stackName}`,
@@ -1052,6 +1054,19 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:UpdateItem'
                             ],
                             resources: [agentDefinitionsTable.tableArn, toolDefinitionsTable.tableArn, chatAppTable.tableArn]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'dynamodb:BatchGetItem',
+                                'dynamodb:DescribeTable',
+                                'dynamodb:GetItem',
+                                'dynamodb:GetRecords',
+                                'dynamodb:GetShardIterator',
+                                'dynamodb:Query',
+                                'dynamodb:Scan'
+                            ],
+                            resources: [chatUserTable.tableArn]
                         })
                     ]
                 })
@@ -1069,6 +1084,7 @@ export class PikaConstruct extends Construct {
                 AGENT_DEFINITIONS_TABLE: agentDefinitionsTable.tableName,
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
                 CHAT_APP_TABLE: chatAppTable.tableName,
+                CHAT_USER_TABLE: chatUserTable.tableName,
                 STAGE: this.props.stage
             },
             bundling: {
@@ -1126,6 +1142,11 @@ export class PikaConstruct extends Construct {
         const chatApp = chatAdmin.addResource('chat-app');
         const chatAppData = chatAdmin.addResource('chat-app-data');
         chatAppData.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn), {
+            authorizationType: apigateway.AuthorizationType.IAM
+        });
+
+        const chatAppByRules = chatAdmin.addResource('chat-app-by-rules');
+        chatAppByRules.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn), {
             authorizationType: apigateway.AuthorizationType.IAM
         });
 

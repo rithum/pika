@@ -33,15 +33,15 @@ export function getRegion(): string {
 }
 
 export function getChatMessagesTable(): string {
-    return getFromEnv('CHAT_MESSAGES_TABLE', 'chat-messages-table');
+    return getFromEnv('CHAT_MESSAGES_TABLE');
 }
 
 export function getChatSessionTable(): string {
-    return getFromEnv('CHAT_SESSION_TABLE', 'chat-session-table');
+    return getFromEnv('CHAT_SESSION_TABLE');
 }
 
 export function getChatUserTable(): string {
-    return getFromEnv('CHAT_USER_TABLE', 'chat-user-table');
+    return getFromEnv('CHAT_USER_TABLE');
 }
 
 // export function getAgentId(): string {

@@ -51,9 +51,9 @@ export const pikaConfig: PikaConfig = {
 
 **Available Features:**
 
-#### Home Page Links to Chat Apps Feature
+#### Home Page Configuration
 
-Control whether users see links to registered chat apps on the home page. This allows you to create different experiences for different user types (internal vs external users, different roles, etc.).
+Configure the home page experience including title, welcome message, and chat app links visibility.
 
 **Configuration Example:**
 
@@ -66,24 +66,33 @@ export const pikaConfig: PikaConfig = {
         // ... project names configuration
     },
     siteFeatures: {
-        homePageLinksToChatApps: {
-            userChatAppRules: [
-                // External users can only see links to external chat apps
-                {
-                    userTypes: ['external-user'],
-                    chatAppUserTypes: ['external-user']
-                },
-                // Internal users can see links to internal and external chat apps
-                {
-                    userTypes: ['internal-user'],
-                    chatAppUserTypes: ['internal-user', 'external-user']
-                },
-                // Admin users can see all chat apps
-                {
-                    userTypes: ['admin'],
-                    chatAppUserTypes: ['internal-user', 'external-user', 'admin']
-                }
-            ]
+        homePage: {
+            // Optional: Custom title for the home page
+            homePageTitle: 'Welcome to My Company Chat',
+
+            // Optional: Custom welcome message
+            welcomeMessage: 'Get started by selecting a chat app below or asking me anything!',
+
+            // Optional: Configure which users see links to which chat apps
+            linksToChatApps: {
+                userChatAppRules: [
+                    // External users can only see links to external chat apps
+                    {
+                        userTypes: ['external-user'],
+                        chatAppUserTypes: ['external-user']
+                    },
+                    // Internal users can see links to internal and external chat apps
+                    {
+                        userTypes: ['internal-user'],
+                        chatAppUserTypes: ['internal-user', 'external-user']
+                    },
+                    // Admin users can see all chat apps
+                    {
+                        userTypes: ['admin'],
+                        chatAppUserTypes: ['internal-user', 'external-user', 'admin']
+                    }
+                ]
+            }
         }
     }
 };
@@ -91,9 +100,12 @@ export const pikaConfig: PikaConfig = {
 
 **Key Configuration Options:**
 
-- **`userChatAppRules`**: Array of rules that define which users can see which chat apps
-    - **`userTypes`**: Array of user types that this rule applies to
-    - **`chatAppUserTypes`**: Array of chat app user types that users matching this rule can see
+- **`homePageTitle`** (optional): Custom title for the home page. If not provided, a default title will be used.
+- **`welcomeMessage`** (optional): Custom welcome message displayed on the home page. If not provided, a default message will be used.
+- **`linksToChatApps`** (optional): Configuration for showing chat app links to users
+    - **`userChatAppRules`**: Array of rules that define which users can see which chat apps
+        - **`userTypes`**: Array of user types that this rule applies to
+        - **`chatAppUserTypes`**: Array of chat app user types that users matching this rule can see
 
 **How It Works:**
 
@@ -105,48 +117,69 @@ export const pikaConfig: PikaConfig = {
 **Example Scenarios:**
 
 ```typescript
-// Scenario 1: Simple internal/external separation
+// Scenario 1: Simple home page customization with basic chat app links
 siteFeatures: {
-    homePageLinksToChatApps: {
-        userChatAppRules: [
-            {
-                userTypes: ['external-user'],
-                chatAppUserTypes: ['external-user']
-            },
-            {
-                userTypes: ['internal-user'],
-                chatAppUserTypes: ['internal-user', 'external-user']
-            }
-        ];
+    homePage: {
+        homePageTitle: "Customer Support Portal",
+        welcomeMessage: "Welcome! How can we help you today?",
+        linksToChatApps: {
+            userChatAppRules: [
+                {
+                    userTypes: ['external-user'],
+                    chatAppUserTypes: ['external-user']
+                },
+                {
+                    userTypes: ['internal-user'],
+                    chatAppUserTypes: ['internal-user', 'external-user']
+                }
+            ]
+        }
     }
 }
 
-// Scenario 2: Role-based access with multiple tiers
+// Scenario 2: Role-based access with custom messaging
 siteFeatures: {
-    homePageLinksToChatApps: {
-        userChatAppRules: [
-            {
-                userTypes: ['customer', 'guest'],
-                chatAppUserTypes: ['public']
-            },
-            {
-                userTypes: ['employee'],
-                chatAppUserTypes: ['public', 'internal']
-            },
-            {
-                userTypes: ['manager', 'admin'],
-                chatAppUserTypes: ['public', 'internal', 'admin']
-            }
-        ];
+    homePage: {
+        homePageTitle: "Corporate AI Assistant",
+        welcomeMessage: "Select the appropriate assistant for your role below, or ask any general question to get started.",
+        linksToChatApps: {
+            userChatAppRules: [
+                {
+                    userTypes: ['customer', 'guest'],
+                    chatAppUserTypes: ['public']
+                },
+                {
+                    userTypes: ['employee'],
+                    chatAppUserTypes: ['public', 'internal']
+                },
+                {
+                    userTypes: ['manager', 'admin'],
+                    chatAppUserTypes: ['public', 'internal', 'admin']
+                }
+            ]
+        }
+    }
+}
+
+// Scenario 3: Just custom title and message without chat app links
+siteFeatures: {
+    homePage: {
+        homePageTitle: "AI Assistant",
+        welcomeMessage: "Ask me anything to get started!"
     }
 }
 ```
 
 **Notes:**
 
-- You must have at least one rule to enable this feature
-- User types and chat app user types are defined by your authentication system and chat app configurations
-- Rules are evaluated in order, and a user can match multiple rules (all matching chat app types will be shown)
+- All home page configuration options are optional
+- If `homePageTitle` is not provided, a default title will be used
+- If `welcomeMessage` is not provided, a default welcome message will be used
+- For chat app links feature:
+    - You must have at least one rule to enable showing chat app links
+    - User types and chat app user types are defined by your authentication system and chat app configurations
+    - Rules are evaluated in order, and a user can match multiple rules (all matching chat app types will be shown)
+    - If no rules match the user, they won't see any chat app links on the home page
 - This is a site-wide feature - it affects the entire home page experience across your Pika installation
 
 ## Customization Areas

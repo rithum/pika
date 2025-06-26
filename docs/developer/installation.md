@@ -110,6 +110,43 @@ pika --version
 
 You should see the version number of the Pika CLI.
 
+## 🚨 IMPORTANT: Security Notice for Production
+
+**⚠️ READ THIS BEFORE DEPLOYING TO PRODUCTION ⚠️**
+
+Pika Framework includes a **mock authentication provider** for development that:
+
+- **Automatically authenticates anyone** who visits your site as a test user
+- **Provides no real security** - no passwords or validation required
+- **Is designed for development only** - not suitable for production use
+
+**Before deploying to production:**
+
+1. **Implement a custom authentication provider** (see [Authentication Guide](./authentication.md))
+2. **Configure user types** (`internal-user` vs `external-user`) properly
+3. **Set chat app access controls** using `userTypesAllowed`
+4. **Test your authentication** thoroughly in staging
+
+**Security risk example:**
+
+```typescript
+// Accessible by internal users only
+const adminTools: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools'
+    // No userTypesAllowed means defaults to internal-user
+};
+
+// Accessible by internal users only
+const adminTools: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools',
+    userTypesAllowed: ['internal-user']
+};
+```
+
+👉 **Learn more:** [Getting Started Security Guide](./getting-started.md#critical-security-and-authentication)
+
 ### CLI Commands
 
 Once installed, you'll have access to these commands:

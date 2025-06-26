@@ -17,12 +17,8 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
         // Use dynamic import - Vite will handle this appropriately during build
         const authModule = await import('../auth-provider');
         authProvider = authModule.default ?? undefined;
-        if (!authProvider) {
-            throw new Error('Auth provider is undefined');
-        }
     } catch (e) {
         // Provider file doesn't exist or has errors
-        console.log('No auth provider found, using default mock authentication');
         console.log('Auth provider load error:', e);
         return new DefaultAuthProvider(appConfig.stage);
     }

@@ -1,4 +1,4 @@
-import type { PikaUserRole, UserType } from './chatbot/chatbot-types';
+import type { UserChatAppRule } from './chatbot/chatbot-types';
 
 export interface PikaConfig {
     pika: PikaStack;
@@ -10,7 +10,29 @@ export interface PikaConfig {
 }
 
 export interface SiteFeatures {
-    homePageLinksToChatApps?: HomePageLinksToChatAppsSiteFeature;
+    homePage?: HomePageSiteFeature;
+}
+
+export interface HomePageSiteFeature {
+    /**
+     * The title of the home page.  If not provided, the default title will be used.  This is used
+     * to describe the home page to the user and in navigation.
+     */
+    homePageTitle?: string;
+
+    /**
+     * The welcome message to display on the home page.  If not provided, the default welcome message will be used.
+     * This is used to describe the home page to the user and in navigation.
+     */
+    welcomeMessage?: string;
+
+    //TODO: add icon support
+
+    /**
+     * Whether to have the chat app home page show links to registered chat apps. If none of the
+     * userChatAppRules match the user, then the user will not see any links to chat apps on the home page.
+     */
+    linksToChatApps?: HomePageLinksToChatAppsSiteFeature;
 }
 
 /**
@@ -46,43 +68,6 @@ export interface HomePageLinksToChatAppsSiteFeature {
      * ```
      */
     userChatAppRules: UserChatAppRule[];
-}
-
-/**
- * By default, content rules exclude anything not explicitly included.
- */
-export interface UserChatAppRule {
-    /**
-     * The user types allowed to access the content this rule is applied to.  Use `*` for all user types.
-     *
-     * If you support both internal and external users and internal/external chat apps then you should
-     * create two ChatAppContentRule objects, one for internal users and one for external users.
-     */
-    userTypes?: UserType[];
-
-    /**
-     * The user types allowed to access the chat apps this rule is applied to.  Use `*` for all user types.
-     *
-     * If you support both internal and external users and internal/external chat apps then you should
-     * create two ChatAppContentRule objects, one for internal users and one for external users.
-     */
-    chatAppUserTypes?: UserType[];
-
-    /** The user roles allowed to access the content this rule is applied to.  Use `*` for all roles. */
-    userRoles?: PikaUserRole[];
-
-    /**
-     * The chat apps to include on the home page with these user roles.
-     *
-     * If not provided, then the user roles allowed in the chat app will be used.
-     */
-    chatAppUserRoles?: PikaUserRole[];
-
-    /** Explicitly included chat apps.  Use `*` for all chat apps.*/
-    chatAppIdsToInclude?: string[];
-
-    /** Explicitly excluded chat apps.  `*` will not be allowed since all chat apps are excluded by default. */
-    chatAppIdsToExclude?: string[];
 }
 
 export interface BaseStackConfig {

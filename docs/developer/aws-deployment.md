@@ -66,9 +66,16 @@ Pika uses a two-stack deployment model:
 
 ## 🔧 Step-by-Step Deployment
 
-### 1. Configure Your Project
+### 1. Configure Project Settings
 
-First, update your project configuration in `pika-config.ts`:
+Before deployment, update your project configuration:
+
+```bash
+# Edit project configuration
+# pika-config.ts
+```
+
+**Example configuration:**
 
 ```typescript
 export const pikaConfig: PikaConfig = {
@@ -88,6 +95,66 @@ export const pikaConfig: PikaConfig = {
     }
 };
 ```
+
+## 🚨 SECURITY CHECKLIST - REQUIRED FOR PRODUCTION
+
+**⚠️ DO NOT DEPLOY TO PRODUCTION WITHOUT COMPLETING THIS CHECKLIST ⚠️**
+
+Before deploying to production, verify each of these security requirements:
+
+### ✅ Authentication Security
+
+- [ ] **Custom authentication provider implemented** (not using mock provider)
+- [ ] **All users assigned proper `userType`** (`internal-user` or `external-user`)
+- [ ] **Authentication tested** with real user accounts
+- [ ] **Session management** properly configured (timeouts, refresh tokens)
+- [ ] **HTTPS enforced** in production (SSL certificates configured)
+
+### ✅ Chat App Access Control
+
+- [ ] **Review all chat apps** for proper `userTypesAllowed` configuration
+- [ ] **Internal-only chat apps** restricted to `['internal-user']`
+- [ ] **External-facing chat apps** restricted to `['external-user']` if needed
+- [ ] **Admin/debug chat apps** properly restricted
+- [ ] **Test access controls** with both internal and external user accounts
+
+### ✅ Infrastructure Security
+
+- [ ] **VPC configuration** reviewed and secured
+- [ ] **IAM roles** follow least-privilege principle
+- [ ] **Environment variables** contain no hardcoded secrets
+- [ ] **API Gateway** properly configured with authentication
+- [ ] **Lambda functions** have appropriate permissions
+
+### Security Risk Examples
+
+```typescript
+// Accessible by internal users only
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools'
+    // Missing userTypesAllowed means chat app may only be accessed by internal users by default
+};
+
+// Accessible by internal users only
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools',
+    userTypesAllowed: ['internal-user']
+};
+
+// Accessible by both user types
+const supportChatApp: ChatApp = {
+    chatAppId: 'data-anyalytics',
+    title: 'Data Analytics',
+    userTypesAllowed: ['internal-user', 'external-user']
+};
+```
+
+**🔗 Critical Reading:**
+
+- [Authentication Guide](./authentication.md) - Implementation details
+- [User Types and Access Control](#user-access-control-features) - Security concepts
 
 ### 2. Set Up Authentication
 

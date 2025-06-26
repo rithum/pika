@@ -83,6 +83,64 @@ When you create a Pika application, you receive a complete, production-ready cha
 - **AWS CDK Integration** - Infrastructure as Code for easy deployment
 - **Sync System** - Keep your customizations while receiving framework updates
 
+## 🚨 CRITICAL: Security and Authentication
+
+**⚠️ DO NOT DEPLOY TO PRODUCTION WITHOUT READING THIS SECTION ⚠️**
+
+### Default Mock Authentication - DEVELOPMENT ONLY
+
+Pika Framework ships with a **mock authentication provider** that:
+
+- **Hardcodes a single test user** with no password requirement
+- **Automatically logs in anyone** who visits your site as this test user
+- **Provides no real security** - anyone can access your chat applications
+- **Is intended for development and testing only**
+
+**🔒 PRODUCTION DEPLOYMENT REQUIREMENTS:**
+
+1. **Implement a custom authentication provider** before deploying publicly
+2. **Configure user types and chat app visibility** to prevent unauthorized access
+3. **Test your authentication thoroughly** in a staging environment
+
+### Understanding User Types and Chat App Security
+
+Pika Framework uses a **two-tier security model** that you must understand:
+
+#### User Types
+
+- **`internal-user`**: Company employees, administrators, internal staff
+- **`external-user`**: Customers, partners, external users
+- Users without a defined userType are set to 'internal-user' by default
+
+#### Chat App Visibility
+
+- **Internal-only**: Chat apps accessible only to `internal-user` types
+- **External-only**: Chat apps accessible only to `external-user` types
+- **Both**: Chat apps accessible to both user types (default if not specified)
+
+#### Security Risk Example
+
+```typescript
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Administrative Tools'
+    // No userTypesAllowed means we restrict the app to internal users only
+};
+
+// ✅ SECURE - This chat app is restricted to internal users only
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Administrative Tools',
+    userTypesAllowed: ['internal-user'] // Only internal users can access
+};
+```
+
+**📖 Next Steps for Production:**
+
+1. Read the [Authentication Guide](./authentication.md) to implement your auth provider
+2. Review [Chat App Security](#) to configure proper access controls
+3. Test your setup in a staging environment before going live
+
 ## 🏗️ Project Structure
 
 Your Pika application follows a monorepo structure:

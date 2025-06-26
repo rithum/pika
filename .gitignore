@@ -1,3 +1,6 @@
+# Custom site features file created by the site-features-vite-plugin when you run locally or build
+apps/pika-chat/src/lib/server/custom-site-features.ts
+
 node_modules
 build
 .svelte-kit

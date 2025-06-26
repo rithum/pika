@@ -23,14 +23,18 @@ export const pikaConfig: PikaConfig = {
         projNameHuman: 'Weather'
     },
     siteFeatures: {
-        homePageLinksToChatApps: {
-            // By default, only internal users are able to see links on the home page to chat apps
-            userChatAppRules: [
-                {
-                    userTypes: ['internal-user'],
-                    chatAppUserTypes: ['internal-user', 'external-user']
-                }
-            ]
+        homePage: {
+            homePageTitle: 'Pika Chat Apps',
+            welcomeMessage: 'Welcome to the Pika Chat Apps home page!',
+            linksToChatApps: {
+                // By default, only internal users are able to see links on the home page to chat apps
+                userChatAppRules: [
+                    {
+                        userTypes: ['internal-user'],
+                        chatAppUserTypes: ['internal-user', 'external-user']
+                    }
+                ]
+            }
         }
     }
 };

@@ -3,42 +3,48 @@ import {
     AgentDataResponse,
     AgentDefinition,
     BaseRequestData,
+    ChatApp,
+    ChatAppDataRequest,
+    ChatAppDataResponse,
     CreateAgentRequest,
+    CreateChatAppRequest,
     CreateToolRequest,
+    GetChatAppsByRulesRequest,
+    GetChatAppsByRulesResponse,
     SearchToolsRequest,
     ToolDefinition,
     UpdateAgentRequest,
-    UpdateToolRequest,
-    ChatApp,
-    CreateChatAppRequest,
     UpdateChatAppRequest,
-    ChatAppDataRequest,
-    ChatAppDataResponse
+    UpdateToolRequest,
+    UserChatAppRule,
+    UserType
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { getUser } from '../../lib/chat-apis';
 import {
     createAgentDefinition,
+    createChatAppDefinition,
     createOrUpdateAgentIdempotently,
+    createOrUpdateChatAppIdempotently,
     createToolDefinition,
     getAgent,
     getAgents,
+    getChatApp,
+    getChatApps,
     getTool,
     getTools,
     searchToolsByIds,
     updateAgentDefinition,
+    updateChatAppDefinition,
     updateToolDefinition,
     validateAgentDefinition,
-    validateToolDefinition,
-    getChatApps,
-    getChatApp,
-    createChatAppDefinition,
-    updateChatAppDefinition,
     validateChatAppDefinition,
-    createOrUpdateChatAppIdempotently
+    validateToolDefinition
 } from '../../lib/chat-admin-apis';
 import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
+import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 
 type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>) => Promise<U>;
 
@@ -87,6 +93,9 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'PUT:/api/chat-admin/chat-app/{chatAppId}': {
         handler: handleUpdateChatApp
+    },
+    'POST:/api/chat-admin/chat-app-by-rules': {
+        handler: handleGetChatAppByRules
     }
 };
 
@@ -107,6 +116,7 @@ export async function handlerFn(
         | SearchToolsRequest
         | CreateChatAppRequest
         | UpdateChatAppRequest
+        | GetChatAppsByRulesRequest
         | BaseRequestData
         | void
     >
@@ -401,6 +411,49 @@ async function handleGetAllChatApps(_event: APIGatewayProxyEventPika<void>): Pro
         success: true,
         chatApps
     };
+}
+
+/**
+ * POST:/api/chat-admin/chat-app-by-rules
+ */
+async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAppsByRulesRequest>): Promise<GetChatAppsByRulesResponse> {
+    const requestBody = event.body;
+    if (!requestBody) {
+        throw new Error('Request body is required');
+    }
+
+    if (!requestBody.userId) {
+        throw new Error('userId is required');
+    }
+
+    let response: GetChatAppsByRulesResponse = {
+        success: true,
+        chatApps: []
+    };
+
+    const userChatAppRules: UserChatAppRule[] = requestBody.userChatAppRules || [];
+
+    if (userChatAppRules.length > 0) {
+        const user = await getUser(requestBody.userId);
+        if (!user) {
+            throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
+        }
+
+        let chatApps: ChatApp[] = [];
+        if (requestBody.chatAppId) {
+            const chatApp = await getChatApp(requestBody.chatAppId);
+            if (!chatApp) {
+                console.log(`Chat App ${requestBody.chatAppId} not found, returning empty list`);
+                return response;
+            }
+            chatApps.push(chatApp);
+        } else {
+            chatApps = await getChatApps();
+        }
+        response.chatApps = getMatchingChatApps(user.userType ?? 'external-user', userChatAppRules, chatApps);
+    }
+
+    return response;
 }
 
 /**

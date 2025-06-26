@@ -15,6 +15,12 @@ export interface MockCustomData extends Record<string, string | undefined> {
 /**
  * Default mock authentication provider that maintains existing behavior
  * when no custom authentication provider is implemented
+ *
+ * ⚠️ SECURITY WARNING: This provider is for development only!
+ * - Automatically authenticates anyone as the same hardcoded user
+ * - Provides no real security or access control
+ * - Must be replaced with custom authentication before production deployment
+ * - See <root>docs/developer/getting-started.md for more information
  */
 export default class DefaultAuthProvider extends AuthProvider<MockAuthData, MockCustomData> {
     constructor(stage: string) {
@@ -27,6 +33,7 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
             userId: '123',
             firstName: 'Test',
             lastName: 'User',
+            userType: 'internal-user', // Assign as internal user for development
             authData: {
                 mockAccessToken: 'aaa-bbb-ccc'
             },
