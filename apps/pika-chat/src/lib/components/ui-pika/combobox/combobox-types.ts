@@ -1,5 +1,5 @@
-export interface ComboboxOption {
-    label: string;
-    secondaryLabel?: string;
-    value: string;
+export interface ComboboxMapping<T> {
+    value: (item: T) => string;
+    label: (item: T) => string;
+    secondaryLabel?: (item: T) => string;
 }

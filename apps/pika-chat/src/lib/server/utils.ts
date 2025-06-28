@@ -1,25 +1,20 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
-import type {
-    AuthenticatedUser,
-    ChatUser,
-    RecordOrUndef,
-    UserOverrideData,
-} from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ChatUser, RecordOrUndef, UserOverrideData } from '@pika/shared/types/chatbot/chatbot-types';
 import { siteFeatures } from '$lib/server/custom-site-features';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
         success: false,
-        error,
+        error
     };
     return json(err, { status });
 }
 
 export function getSuccessResponse(): Response {
     const success: SuccessResponse = {
-        success: true,
+        success: true
     };
     return json(success);
 }
@@ -82,11 +77,7 @@ const ALGORITHM = 'aes-256-cbc';
  * @returns The encrypted string (ciphertext) as a hexadecimal string.
  * @throws Error if encryption fails or if the IV is not configured.
  */
-export function encryptCookieString(
-    plainTextCookieString: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function encryptCookieString(plainTextCookieString: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -116,11 +107,7 @@ export function encryptCookieString(
  * @returns The decrypted plaintext string.
  * @throws Error if decryption fails or if the IV is not configured.
  */
-export function decryptCookieString(
-    encryptedCookieStringHex: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function decryptCookieString(encryptedCookieStringHex: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -170,7 +157,7 @@ export function serializeAuthenticatedUserToCookies(
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
     } else {
         // Multi-cookie approach - split the encrypted data
@@ -180,14 +167,14 @@ export function serializeAuthenticatedUserToCookies(
         const metadata = {
             totalParts: chunks.length,
             totalSize: encryptedData.length,
-            timestamp: Date.now(),
+            timestamp: Date.now()
         };
 
         event.cookies.set(AUTHENTICATED_USER_COOKIE_NAME, JSON.stringify(metadata), {
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
 
         // Set each chunk as a separate cookie
@@ -197,7 +184,7 @@ export function serializeAuthenticatedUserToCookies(
                 path: '/',
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax',
+                sameSite: 'lax'
             });
         });
     }
@@ -224,12 +211,7 @@ export function deserializeAuthenticatedUserFromCookies(
 
         if (metadata.totalParts && metadata.totalSize) {
             // Multi-cookie scenario
-            return deserializeFromMultipleCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>(
-                event,
-                metadata,
-                masterCookieKey,
-                masterCookieInitVector
-            );
+            return deserializeFromMultipleCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>(event, metadata, masterCookieKey, masterCookieInitVector);
         } else {
             // Single cookie scenario (legacy or small data)
             const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
@@ -269,12 +251,7 @@ const USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX = 'uod'; // User Override Data
  * Serializes an AuthenticatedUser object to one or more cookies
  * If the serialized data exceeds 4KB, it will be split across multiple cookies
  */
-export function serializeUserOverrideDataToCookies(
-    event: RequestEvent,
-    data: UserOverrideData,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): void {
+export function serializeUserOverrideDataToCookies(event: RequestEvent, data: UserOverrideData, masterCookieKey: string, masterCookieInitVector: string): void {
     // Serialize the data object to JSON
     const dataJson = JSON.stringify(data);
 
@@ -288,7 +265,7 @@ export function serializeUserOverrideDataToCookies(
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
     } else {
         // Multi-cookie approach - split the encrypted data
@@ -298,14 +275,14 @@ export function serializeUserOverrideDataToCookies(
         const metadata = {
             totalParts: chunks.length,
             totalSize: encryptedData.length,
-            timestamp: Date.now(),
+            timestamp: Date.now()
         };
 
         event.cookies.set(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX, JSON.stringify(metadata), {
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
 
         // Set each chunk as a separate cookie
@@ -315,7 +292,7 @@ export function serializeUserOverrideDataToCookies(
                 path: '/',
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax',
+                sameSite: 'lax'
             });
         });
     }
@@ -325,11 +302,7 @@ export function serializeUserOverrideDataToCookies(
  * Deserializes an AuthenticatedUser object from cookies
  * Handles both single-cookie and multi-cookie scenarios
  */
-export function deserializeUserOverrideDataFromCookies(
-    event: RequestEvent,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): UserOverrideData | undefined {
+export function deserializeUserOverrideDataFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): UserOverrideData | undefined {
     const mainCookie = event.cookies.get(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX);
 
     if (!mainCookie) {
@@ -342,12 +315,7 @@ export function deserializeUserOverrideDataFromCookies(
 
         if (metadata.totalParts && metadata.totalSize) {
             // Multi-cookie scenario
-            return deserializeFromMultipleCookies<UserOverrideData>(
-                event,
-                metadata,
-                masterCookieKey,
-                masterCookieInitVector
-            );
+            return deserializeFromMultipleCookies<UserOverrideData>(event, metadata, masterCookieKey, masterCookieInitVector);
         } else {
             // Single cookie scenario (legacy or small data)
             const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
@@ -435,10 +403,7 @@ function deserializeFromMultipleCookies<T>(
  * @param existingChatUser - The existing chat user object
  * @returns The merged authenticated user object
  */
-export function mergeAuthenticatedUserWithExistingChatUser(
-    authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    existingChatUser: ChatUser<RecordOrUndef>
-): void {
+export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, existingChatUser: ChatUser<RecordOrUndef>): void {
     if (existingChatUser.roles && existingChatUser.roles.length > 0) {
         const pikaRoles = existingChatUser.roles.filter((role) => role.startsWith('pika:'));
         if (pikaRoles.length > 0) {
@@ -501,7 +466,7 @@ export function isUserAllowedToUseUserDataOverrides(user: AuthenticatedUser<Reco
  * // Returns true because 'address.city' is missing
  * ```
  */
-export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, overrideDataForThisChatApp: RecordOrUndef): boolean {
     // First check if the user is even allowed to use the user data overrides feature
     if (!isUserAllowedToUseUserDataOverrides(user)) {
         return false;
@@ -514,8 +479,10 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
         return false;
     }
 
-    // If the user doesn't have a customData object, they need to provide data overrides
-    if (!user.customData) {
+    let customUserData: RecordOrUndef = overrideDataForThisChatApp || user.customData;
+
+    // If the user doesn't have the data required for this chat app, they need to provide overrides
+    if (!customUserData) {
         return true;
     }
 
@@ -523,7 +490,7 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
     for (const attribute of attributes) {
         // Dereference the attribute understanding they may have used dot notation
         const attributeParts = attribute.split('.');
-        let currentValue: any = user.customData;
+        let currentValue: any = customUserData;
 
         // Navigate through nested object properties
         for (const part of attributeParts) {

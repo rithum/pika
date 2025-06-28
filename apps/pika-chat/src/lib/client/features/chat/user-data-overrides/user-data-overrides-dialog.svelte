@@ -11,6 +11,15 @@
     let customComp = $state<CustomDataOverridesUi>() as CustomDataOverridesUi;
     let dataChanged = $state(false);
     let saving = $derived(chat.userDataOverrideOperationInProgress['saveUserOverrideData']);
+    let clearing = $derived(chat.userDataOverrideOperationInProgress['clearUserOverrideData']);
+    let showSuccessMessage = $state(false);
+
+    $effect(() => {
+        chat.sendUserOverrideDataCommand({
+            chatAppId: chat.chatApp.chatAppId,
+            command: 'getInitialDialogData',
+        });
+    });
 
     //TODO: this is a hack to work around a bug  where the body element is not having
     // pointer-events: none removed when the dialog is closed.
@@ -41,8 +50,8 @@
             data: await customComp.getDataToPostToServer(),
         });
 
-        chat.userDataOverrideDialogOpen = false;
         customComp.reset();
+        showSuccessMessage = true;
     }
 
     async function clearUserOverrideData() {
@@ -53,55 +62,76 @@
             command: 'clearUserOverrideData',
         });
 
-        chat.userDataOverrideDialogOpen = false;
         chat.valuesForAutoCompleteForUserOverrideDialog = {};
+        showSuccessMessage = true;
     }
 </script>
 
 {#if chat.userDataOverrideSettings.enabled}
     <Dialog.Root bind:open={chat.userDataOverrideDialogOpen}>
         <Dialog.Content>
-            <Dialog.Header>
-                <Dialog.Title>Override User Data</Dialog.Title>
-                <Dialog.Description>
-                    Override user data values to use with this chat app. This override will persist until you login
-                    again or clear the override.
-                </Dialog.Description>
-            </Dialog.Header>
-            <div class="p-6 max-w-3xl mx-auto w-full">
-                <!-- This is your custom UI component that will be rendered here -->
-                <CustomDataOverridesUi
-                    bind:this={customComp}
-                    bind:isValid
-                    bind:dataChanged
-                    disabled={saving}
-                    initialDataFromServer={chat.initialDataForUserOverrideDialog}
-                    valuesForAutoComplete={chat.valuesForAutoCompleteForUserOverrideDialog}
-                    {getValuesForAutoComplete}
-                    userDataOverrideOperationInProgress={chat.userDataOverrideOperationInProgress}
-                />
-            </div>
-            <div class="flex gap-2">
-                <Button disabled={saving} variant="outline" onclick={clearUserOverrideData}>Clear Override Data</Button>
-                <div class="flex justify-end gap-2 flex-1 items-center">
-                    {#if saving}
-                        <span
-                            class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
-                        ></span>
-                    {/if}
-                    <Button disabled={saving || !isValid || !dataChanged} onclick={saveUserOverrideData}>Save</Button>
-                    <Button disabled={saving || !dataChanged} variant="outline" onclick={() => customComp.reset()}
-                        >Reset</Button
-                    >
-                    <Button
-                        disabled={saving}
-                        variant="outline"
-                        onclick={() => (chat.userDataOverrideDialogOpen = false)}
-                    >
-                        Cancel
-                    </Button>
+            {#if showSuccessMessage}
+                <Dialog.Header>
+                    <Dialog.Title>Success</Dialog.Title>
+                    <div class="pt-4 pb-4 text-sm text-muted-foreground">
+                        Please refresh the page for this to take effect.
+                    </div>
+                    <Button onclick={() => window.location.reload()}>Refresh</Button>
+                </Dialog.Header>
+            {:else}
+                <Dialog.Header>
+                    <Dialog.Title>Override User Data</Dialog.Title>
+                    <Dialog.Description>
+                        Override user data values to use with this chat app. This override will persist until you login
+                        again or clear the override.
+                    </Dialog.Description>
+                </Dialog.Header>
+                <div class="p-6 max-w-3xl mx-auto w-full">
+                    <!-- This is your custom UI component that will be rendered here -->
+                    <CustomDataOverridesUi
+                        bind:this={customComp}
+                        bind:isValid
+                        bind:dataChanged
+                        disabled={saving || clearing}
+                        initialDataFromServer={chat.initialDataForUserOverrideDialog}
+                        valuesForAutoComplete={chat.valuesForAutoCompleteForUserOverrideDialog}
+                        {getValuesForAutoComplete}
+                        userDataOverrideOperationInProgress={chat.userDataOverrideOperationInProgress}
+                    />
                 </div>
-            </div>
+                <div class="flex gap-2">
+                    <div class="flex gap-2 items-center">
+                        <Button disabled={saving} variant="outline" onclick={clearUserOverrideData}
+                            >Clear Override Data</Button
+                        >
+                        {#if clearing}
+                            <span
+                                class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+                            ></span>
+                        {/if}
+                    </div>
+                    <div class="flex justify-end gap-2 flex-1 items-center">
+                        {#if saving}
+                            <span
+                                class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+                            ></span>
+                        {/if}
+                        <Button disabled={saving || !isValid || !dataChanged} onclick={saveUserOverrideData}
+                            >Save</Button
+                        >
+                        <Button disabled={saving || !dataChanged} variant="outline" onclick={() => customComp.reset()}
+                            >Reset</Button
+                        >
+                        <Button
+                            disabled={saving}
+                            variant="outline"
+                            onclick={() => (chat.userDataOverrideDialogOpen = false)}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            {/if}
         </Dialog.Content>
     </Dialog.Root>
 {/if}

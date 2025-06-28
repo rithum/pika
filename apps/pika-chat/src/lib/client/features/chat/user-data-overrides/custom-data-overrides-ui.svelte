@@ -77,22 +77,13 @@
 
     let loading = $derived(userDataOverrideOperationInProgress['getValuesForAutoComplete']);
 
-    let originalAccountFromServer = $derived(
-        initialDataFromServer as
-            | { accountId: string; details: { accountName: string; accountType: 'standard' | 'premium' } }
-            | undefined
-    );
+    let originalAccountFromServer = $derived(initialDataFromServer as Account | undefined);
 
     //TODO: delete this once you make this component your own
     // Note, taking advantage of a svelte 5 feature where you can temporarily assign a value to a derived value,
     // which we do when they select an account from the combobox, and then it will be set back to the derived value
     // when the server updates initialDataFromServer.
-    let selectedAccount = $derived(
-        initialDataFromServer as
-            | { accountId: string; details: { accountName: string; accountType: 'standard' | 'premium' } }
-            | undefined
-    );
-    $inspect('selectedAccount', selectedAccount);
+    let selectedAccount = $derived(initialDataFromServer as Account | undefined);
 
     //TODO: delete this once you make this component your own
     const valuesAsAccounts = $derived.by(() => {
@@ -124,7 +115,7 @@
         //TODO: replace all this with whatever you need, it's all just demo placeholder code.
         // Return the data you want to post to the server that will be passed to the `userOverrideDataPostedFromDialog`
         // method in `src/routes/(auth)/api/user-data-override/custom-user-data.ts` (yours to implement if you need it).
-        return undefined;
+        return selectedAccount;
     }
 
     //TODO: delete this once you make this component your own
@@ -136,13 +127,8 @@
         };
     }
 
-    function valueChanged(value: string) {
-        const account = valuesAsAccounts.find((account) => account.accountId === value);
-        if (account) {
-            selectedAccount = account;
-        } else {
-            selectedAccount = undefined;
-        }
+    function valueChanged(value: Account) {
+        selectedAccount = value;
 
         // Are initialDataFromServer and selectedAccount different?
         // Smart comparison for account data
@@ -180,13 +166,26 @@
         // This will cause the valuesForAutoComplete property to be updated with the new values.
         await getValuesForAutoComplete('accountComponent', value);
     }
+
+    interface Account {
+        accountId: string;
+        details: {
+            accountName: string;
+            accountType: 'standard' | 'premium';
+        };
+    }
 </script>
 
 <div class="text-sm text-muted-foreground">Answer questions on behalf of:</div>
 
 <Combobox
-    value={selectedAccount ? selectedAccount.accountId : ''}
-    options={valuesAsComboboxOptions}
+    value={selectedAccount}
+    mapping={{
+        value: (value) => value.accountId,
+        label: (value) => value.details.accountName,
+        secondaryLabel: (value) => value.details.accountType,
+    }}
+    options={valuesAsAccounts}
     onValueChanged={valueChanged}
     {onSearchValueChanged}
     {loading}

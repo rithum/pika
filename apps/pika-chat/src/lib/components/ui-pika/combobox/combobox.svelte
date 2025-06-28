@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" generics="T">
     import { Check, ChevronsUpDown } from '$icons/lucide';
     import { tick } from 'svelte';
     import * as Command from '$lib/components/ui/command';
@@ -7,10 +7,11 @@
     import { cn } from '$lib/utils';
     import indefinite from 'indefinite';
     import plur from 'plur';
-    import type { ComboboxOption } from './combobox-types';
+    import type { ComboboxMapping } from './combobox-types';
 
     let {
         value = $bindable(),
+        mapping,
         options,
         optionTypeName = 'option',
         // We will figure out the plural form of the data type name using the plur library if not provided
@@ -24,11 +25,12 @@
         showValueInListEntries = false,
         disabled = false,
     }: {
-        value: string;
-        options: (ComboboxOption | string)[];
+        value: T | undefined;
+        mapping: ComboboxMapping<T>;
+        options: T[] | undefined;
         inputPlaceholder?: string;
         searchPlaceholder?: string;
-        onValueChanged?: (value: string) => void;
+        onValueChanged?: (value: T) => void;
         onSearchValueChanged?: (value: string) => void;
         debounceSearchMs?: number;
         widthClasses?: string;
@@ -43,14 +45,16 @@
 
     $effect(() => {
         // Throw an exception if there is an options array and if all values are not unique
-        if (
-            options &&
-            options.length > 0 &&
-            new Set(options.map((opt) => (typeof opt === 'string' ? opt : opt.value))).size !== options.length
-        ) {
-            throw new Error(`All values in the options array must be unique: ${JSON.stringify(options)}`);
+        if (options && options.length > 0 && new Set(options.map((opt) => getValue(opt))).size !== options.length) {
+            throw new Error(
+                `All values in the options (returned from your mappings.getValue fn) array must be unique: ${JSON.stringify(options)}`
+            );
         }
     });
+
+    const getValue = (item: T) => mapping.value(item);
+    const getLabel = (item: T) => mapping.label(item);
+    const getSecondaryLabel = (item: T) => mapping.secondaryLabel?.(item);
 
     const plurarFormOfOptionTypeName = $derived(optionTypeNamePlural ?? plur(optionTypeName));
     const optionTypeNamePrecededByArticle = $derived(indefinite(optionTypeName));
@@ -59,16 +63,10 @@
     let triggerRef = $state<HTMLButtonElement>(null!);
     let searchDebounceTimeout = $state<ReturnType<typeof setTimeout> | undefined>();
     let searchValue = $state('');
+    let labelToDisplayInButton = $derived(value ? getLabel(value) : selectAnOptionText);
 
-    // Normalize options to always have .value and .label
-    // Using $derived.by to ensure more stable object references
-    const normalizedOptions = $derived.by(() => {
-        return options.map((opt) =>
-            typeof opt === 'string'
-                ? ({ value: opt, label: opt } as ComboboxOption)
-                : ({ value: opt.value, label: opt.label, secondaryLabel: opt.secondaryLabel } as ComboboxOption)
-        );
-    });
+    // Add the current value to the options if it's not already in the options
+    const normalizedOptions = $derived(options ? [...options] : []);
 
     // Only show options if we meet the minimum search criteria
     const visibleOptions = $derived.by(() => {
@@ -82,10 +80,6 @@
         }
         return normalizedOptions;
     });
-
-    $inspect('visibleOptions', visibleOptions);
-
-    const selectedValue = $derived(normalizedOptions.find((f) => f.value === value)?.label ?? selectAnOptionText);
 
     // We want to refocus the trigger button when the user selects
     // an item from the list so users can continue navigating the
@@ -109,9 +103,7 @@
                 aria-expanded={open}
                 {disabled}
             >
-                <span class="flex-1 text-left truncate">
-                    {selectedValue || selectAnOptionText}
-                </span>
+                <span class="flex-1 text-left truncate">{labelToDisplayInButton}</span>
                 <ChevronsUpDown class="ml-2 shrink-0 opacity-50" />
             </Button>
         {/snippet}
@@ -122,7 +114,7 @@
                 bind:value={searchValue}
                 oninput={(e: Event) => {
                     if (onSearchValueChanged) {
-                        const value = (e.target as HTMLInputElement).value;
+                        const val = (e.target as HTMLInputElement).value;
 
                         // Always clear existing timeout
                         if (searchDebounceTimeout) {
@@ -130,7 +122,7 @@
                         }
 
                         // Only make server call if we meet minimum characters
-                        if (value.length >= minCharactersForSearch) {
+                        if (val.length >= minCharactersForSearch) {
                             // Set new timeout
                             searchDebounceTimeout = setTimeout(() => {
                                 onSearchValueChanged((e.target as HTMLInputElement).value);
@@ -164,43 +156,48 @@
                 {/if}
                 <Command.Group value={plurarFormOfOptionTypeName}>
                     {#key visibleOptions}
-                        {#each visibleOptions as option, index (option.value)}
+                        {#each visibleOptions as option (getValue(option))}
                             <Command.Item
-                                value={option.value}
+                                value={getValue(option)}
                                 onSelect={() => {
-                                    if (value !== option.value) {
-                                        value = option.value;
-                                        if (onValueChanged) onValueChanged(option.value);
+                                    if (!value || getValue(value) !== getValue(option)) {
+                                        value = option;
+                                        if (onValueChanged) onValueChanged(value);
                                     }
                                     closeAndFocusTrigger();
                                 }}
                                 class={cn(
                                     'flex items-start gap-2 px-2 py-2',
-                                    (option.secondaryLabel || showValueInListEntries) && 'py-2.5 min-h-[3rem]'
+                                    (getSecondaryLabel(option) || showValueInListEntries) && 'py-2.5 min-h-[3rem]'
                                 )}
                             >
-                                <Check class={cn('mt-1 flex-shrink-0', value !== option.value && 'text-transparent')} />
+                                <Check
+                                    class={cn(
+                                        'mt-1 flex-shrink-0',
+                                        (!value || getValue(value) !== getValue(option)) && 'text-transparent'
+                                    )}
+                                />
                                 <div class="flex-1 min-w-0">
                                     <!-- Primary label -->
                                     <div class="font-medium text-sm leading-tight truncate">
-                                        {option.label}
+                                        {getLabel(option)}
                                     </div>
 
                                     <!-- Secondary and tertiary info in a row -->
-                                    {#if option.secondaryLabel || showValueInListEntries}
+                                    {#if getSecondaryLabel(option) || showValueInListEntries}
                                         <div class="flex items-center gap-2 mt-0.5">
-                                            {#if option.secondaryLabel}
+                                            {#if getSecondaryLabel(option)}
                                                 <span class="text-xs text-muted-foreground truncate flex-shrink-0">
-                                                    {option.secondaryLabel}
+                                                    {getSecondaryLabel(option)}
                                                 </span>
                                             {/if}
                                             {#if showValueInListEntries}
                                                 <!-- Separator dot if we have both secondary label and value -->
-                                                {#if option.secondaryLabel}
+                                                {#if getSecondaryLabel(option)}
                                                     <span class="text-xs text-muted-foreground/50">•</span>
                                                 {/if}
                                                 <span class="text-xs text-muted-foreground/70 font-mono truncate">
-                                                    {option.value}
+                                                    {getValue(option)}
                                                 </span>
                                             {/if}
                                         </div>

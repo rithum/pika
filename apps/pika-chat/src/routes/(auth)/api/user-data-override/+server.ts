@@ -3,11 +3,7 @@ import { appConfig } from '$lib/server/config';
 import { serializeUserOverrideDataToCookies } from '$lib/server/utils';
 import type { UserOverrideDataCommandRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
-import {
-    getInitialDataForUserDataOverrideDialog,
-    getValuesForAutoComplete,
-    userOverrideDataPostedFromDialog,
-} from './custom-user-data';
+import { getInitialDataForUserDataOverrideDialog, getValuesForAutoComplete, userOverrideDataPostedFromDialog } from './custom-user-data';
 
 export const POST: RequestHandler = async (event) => {
     const { locals, request } = event;
@@ -32,18 +28,13 @@ export const POST: RequestHandler = async (event) => {
         const initialData = getInitialDataForUserDataOverrideDialog(user, chatApp);
         return json({
             success: true,
-            data: initialData,
+            data: initialData
         });
     } else if (overrideReq.command === 'getValuesForAutoComplete') {
-        const valuesForAutoComplete = getValuesForAutoComplete(
-            overrideReq.componentName,
-            overrideReq.valueProvidedByUser,
-            user,
-            chatApp
-        );
+        const valuesForAutoComplete = getValuesForAutoComplete(overrideReq.componentName, overrideReq.valueProvidedByUser, user, chatApp);
         return json({
             success: true,
-            data: valuesForAutoComplete,
+            data: valuesForAutoComplete
         });
     } else if (overrideReq.command === 'saveUserOverrideData') {
         const savedData = userOverrideDataPostedFromDialog(user, chatApp, overrideReq.data);
@@ -55,30 +46,20 @@ export const POST: RequestHandler = async (event) => {
         user.overrideData[chatApp.chatAppId] = savedData;
         locals.user = user;
 
-        serializeUserOverrideDataToCookies(
-            event,
-            { data: user.overrideData },
-            appConfig.masterCookieKey,
-            appConfig.masterCookieInitVector
-        );
+        serializeUserOverrideDataToCookies(event, { data: user.overrideData }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
 
         return json({
             success: true,
-            data: savedData,
+            data: savedData
         });
     } else if (overrideReq.command === 'clearUserOverrideData') {
         if (user.overrideData) {
             delete user.overrideData[chatApp.chatAppId];
         }
         locals.user = user;
-        serializeUserOverrideDataToCookies(
-            event,
-            { data: user.overrideData ?? {} },
-            appConfig.masterCookieKey,
-            appConfig.masterCookieInitVector
-        );
+        serializeUserOverrideDataToCookies(event, { data: user.overrideData ?? {} }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
         return json({
-            success: true,
+            success: true
         });
     }
 
