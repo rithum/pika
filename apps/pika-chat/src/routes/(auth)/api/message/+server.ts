@@ -36,7 +36,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
             userId: user.userId,
-            customUserData: user.customData
+            customUserData: user.customData,
         };
 
         // Replace the s3Bucket with appConfig.uploadS3Bucket in any files we have
@@ -44,7 +44,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             params.files = params.files?.map((file) => ({
                 ...file,
                 s3Bucket: appConfig.uploadS3Bucket,
-                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket)
+                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket),
             }));
         }
 
@@ -62,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const responseHeaders: Record<string, string> = {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-cache',
-            Connection: 'keep-alive'
+            Connection: 'keep-alive',
         };
 
         if (sessionId) {
@@ -73,10 +73,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         // Since your Lambda streams plain text, we just pass it through
         return new Response(lambdaResponse.body, {
             status: 200,
-            headers: responseHeaders
+            headers: responseHeaders,
         });
     } catch (e) {
         console.error('Error in message handler:', e);
-        return getErrorResponse(500, `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
+        return getErrorResponse(
+            500,
+            `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
+        );
     }
 };

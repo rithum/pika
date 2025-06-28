@@ -9,6 +9,12 @@
     const chat = getContext<ChatAppState>('chatAppState');
     const fullPage = $derived(chat.chatApp.mode === 'fullpage');
     let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
+    let userNeedsToProvideDataOverrides = $derived.by(() => {
+        const settings = chat.userDataOverrideSettings;
+        const enabled = settings.enabled;
+        const userNeedsToProvideDataOverrides = settings.userNeedsToProvideDataOverrides;
+        return enabled && userNeedsToProvideDataOverrides;
+    });
 
     // const appSideBarHotKey: HotKey = createHotKey({
     //     key: 'b',
@@ -95,12 +101,38 @@
             {@render newChatButton()}
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
-                    <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
-                        ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
-                    >
+                    <div class="relative">
+                        <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                            ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                        >
+                        {#if userNeedsToProvideDataOverrides}
+                            <div
+                                class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                            >
+                                !
+                            </div>
+                        {/if}
+                    </div>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content>
                     <DropdownMenu.Group>
+                        {#if chat.userDataOverrideSettings.enabled}
+                            <DropdownMenu.Item
+                                onclick={() => {
+                                    chat.userDataOverrideDialogOpen = true;
+                                }}
+                            >
+                                {#if userNeedsToProvideDataOverrides}
+                                    <span
+                                        class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                                    >
+                                        !
+                                    </span>
+                                {/if}
+                                Override User Data</DropdownMenu.Item
+                            >
+                            <DropdownMenu.Separator />
+                        {/if}
                         {#if panelWidthState !== 'fullscreen'}
                             <DropdownMenu.Item
                                 onclick={() => {
@@ -126,6 +158,41 @@
                     tellParentToClose();
                 }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
             >
+        {:else if chat.userDataOverrideSettings.enabled}
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                    <div class="relative">
+                        <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                            ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                        >
+                        {#if userNeedsToProvideDataOverrides}
+                            <div
+                                class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                            >
+                                !
+                            </div>
+                        {/if}
+                    </div>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                    <DropdownMenu.Group>
+                        <DropdownMenu.Item
+                            onclick={() => {
+                                chat.userDataOverrideDialogOpen = true;
+                            }}
+                        >
+                            {#if userNeedsToProvideDataOverrides}
+                                <span
+                                    class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                                >
+                                    !
+                                </span>
+                            {/if}
+                            Override User Data
+                        </DropdownMenu.Item>
+                    </DropdownMenu.Group>
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
         {/if}
         {#if chat.pageHeaderRight}{@render chat.pageHeaderRight()}{/if}
     </div>

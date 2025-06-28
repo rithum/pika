@@ -6,7 +6,7 @@ let ssm: SSMClient | undefined;
 function getSsmClient(region?: string) {
     if (!ssm) {
         ssm = new SSMClient({
-            region: region ?? appConfig.awsRegion
+            region: region ?? appConfig.awsRegion,
         });
     }
     return ssm;
@@ -17,7 +17,7 @@ export async function getValueFromParameterStore(parameterName: string, region?:
         const ssm = getSsmClient(region);
         const command = new GetParameterCommand({
             Name: parameterName,
-            WithDecryption: true
+            WithDecryption: true,
         });
         const response = await ssm.send(command);
         return response.Parameter?.Value;

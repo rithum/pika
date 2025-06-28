@@ -11,10 +11,10 @@
 </script>
 
 <Sidebar.Group>
-    {#if chat.chatSessions.length > 0}
+    {#if chat.sortedChatSessions.length > 0}
         <Sidebar.GroupLabel>Recents</Sidebar.GroupLabel>
         <div class="flex flex-col w-full pl-2">
-            {#each chat.chatSessions as session}
+            {#each chat.sortedChatSessions as session}
                 {#if session.sessionId === chat.currentSession?.sessionId}
                     <div class="flex gap-2 items-center w-full justify-between">
                         <div class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium">

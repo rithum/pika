@@ -8,7 +8,6 @@ export interface MockAuthData extends Record<string, string | undefined> {
 
 export interface MockCustomData extends Record<string, string | undefined> {
     accountId: string;
-    accountName: string;
     accountType: string;
 }
 
@@ -38,10 +37,9 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
                 mockAccessToken: 'aaa-bbb-ccc'
             },
             customData: {
-                accountId: '123',
-                accountName: 'Test Company',
-                accountType: 'retailer'
-            },
+                // accountId: '123',
+                // accountType: 'standard',
+            } as MockCustomData,
             features: {
                 instruction: {
                     type: 'instruction',

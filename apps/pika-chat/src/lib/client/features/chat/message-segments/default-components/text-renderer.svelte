@@ -52,7 +52,7 @@
         //     htmlContentLength: htmlContent.length,
         //     isStreaming: segment.streamingStatus === 'streaming',
         // });
-        
+
         if (container && htmlContent) {
             container.innerHTML = htmlContent;
             // console.log('[TEXT-RENDERER] Container HTML updated');
@@ -69,7 +69,7 @@
     // DEBUGGING: Track segment status vs isStreaming discrepancies
     // $effect(() => {
     //     const segmentStreaming = segment.streamingStatus === 'streaming';
-        
+
     //     console.log('[TEXT-RENDERER] 📋 STATUS CHECK:', {
     //         segmentId: segment.id,
     //         segmentStreamingStatus: segment.streamingStatus,
@@ -83,14 +83,14 @@
     // const shouldRender = $derived(() => {
     //     const trimmed = segment.rawContent.trim();
     //     const hasContent = trimmed.length > 0;
-        
+
     //     if (!hasContent) {
-    //         console.log('[TEXT-RENDERER] Skipping render - no meaningful content:', { 
-    //             rawContent: JSON.stringify(segment.rawContent), 
-    //             rawContentLength: segment.rawContent.length 
+    //         console.log('[TEXT-RENDERER] Skipping render - no meaningful content:', {
+    //             rawContent: JSON.stringify(segment.rawContent),
+    //             rawContentLength: segment.rawContent.length
     //         });
     //     }
-        
+
     //     return hasContent;
     // });
 
@@ -123,8 +123,8 @@
 </script>
 
 {#if segment.rawContent.trim() !== ''}
-    <div 
-        bind:this={container} 
+    <div
+        bind:this={container}
         class="prose prose-gray max-w-none markdown-content"
         class:streaming={segment.streamingStatus === 'streaming'}
     >
@@ -143,49 +143,42 @@
     :global(.markdown-content) {
         word-break: break-word;
     }
-    
+
     :global(.markdown-content pre) {
         @apply bg-gray-100 rounded p-4 overflow-x-auto;
     }
 
-    
     :global(.markdown-content code) {
         @apply bg-gray-100 rounded px-1 py-0.5 text-sm;
     }
 
-    
     :global(.markdown-content pre code) {
         @apply bg-transparent p-0;
     }
 
-    
     :global(.markdown-content blockquote) {
         @apply border-l-4 border-gray-300 pl-4 italic;
     }
 
-    
     :global(.markdown-content table) {
         @apply w-full border-collapse;
     }
 
-    
     :global(.markdown-content th),
     :global(.markdown-content td) {
         @apply border border-gray-300 px-3 py-2;
     }
 
-    
     :global(.markdown-content th) {
         @apply bg-gray-100 font-semibold;
     }
 
     /* Streaming indicator styles */
-    
+
     .streaming {
         @apply relative;
     }
 
-    
     .streaming::after {
         content: '';
         @apply inline-block w-2 h-4 bg-gray-400 opacity-75 animate-pulse ml-1;

@@ -79,7 +79,9 @@ export class AppSettingsState {
                 tableSettings.hiddenColumns = tableSettings.hiddenColumns.filter((c) => c !== col);
             } else {
                 // Add if not already present
-                tableSettings.hiddenColumns = tableSettings.hiddenColumns.includes(col) ? tableSettings.hiddenColumns : [...tableSettings.hiddenColumns, col];
+                tableSettings.hiddenColumns = tableSettings.hiddenColumns.includes(col)
+                    ? tableSettings.hiddenColumns
+                    : [...tableSettings.hiddenColumns, col];
             }
         } else {
             if (!visible) {

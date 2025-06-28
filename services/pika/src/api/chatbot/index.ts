@@ -139,6 +139,9 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
     // Just in case, override the userId with the one from the jwt
     user.userId = userId;
 
+    // Just in case they passed in the overrideData field, we need to remove it
+    delete user.overrideData;
+
     let userToReturn: ChatUser;
 
     // Check if the user already exists

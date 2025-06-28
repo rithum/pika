@@ -35,6 +35,10 @@ export const pikaConfig: PikaConfig = {
                     }
                 ]
             }
+        },
+        userDataOverrides: {
+            enabled: true,
+            promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId', 'accountType']
         }
     }
 };

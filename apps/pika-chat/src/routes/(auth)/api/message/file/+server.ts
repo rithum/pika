@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request }) => {
             ContentType: fileMimeType,
             ContentLength: parseInt(fileSize),
             // We will detect when the chat message is written to the database and then set the confirmed tag to true
-            Tagging: 'chat=true&confirmed=false'
+            Tagging: 'chat=true&confirmed=false',
         });
 
         await s3Client.send(putCommand);
@@ -60,7 +60,7 @@ export const POST: RequestHandler = async ({ request }) => {
             message: e instanceof Error ? e.message : 'Unknown error',
             name: e instanceof Error ? e.name : 'Unknown',
             region: appConfig.awsRegion,
-            bucket: appConfig.uploadS3Bucket
+            bucket: appConfig.uploadS3Bucket,
         });
 
         return getErrorResponse(500, `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);

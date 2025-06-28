@@ -7,19 +7,17 @@
     }
 
     const { children, disabled }: Props = $props();
-
 </script>
 
 {#if children}
     {#if disabled}
         {@render children()}
     {:else}
-        <span  class="wave-char">
+        <span class="wave-char">
             {@render children()}
         </span>
     {/if}
 {/if}
-
 
 <style lang="postcss">
     :root {

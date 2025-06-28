@@ -68,11 +68,11 @@
         if (showPlaceholder) {
             const allPlaceholders = document.querySelectorAll('[data-prompt-placeholder]');
             const allButtons = document.querySelectorAll('[data-prompt-button]');
-            
+
             // Also capture ALL gray elements that might be the culprit
             const grayElements = document.querySelectorAll('.bg-gray-100, .animate-pulse, [class*="gray"]');
             const textRendererElements = document.querySelectorAll('[data-segment-type="text"]');
-            
+
             // console.log('[PROMPT-RENDERER] 🚨 PLACEHOLDER DEBUG:', {
             //     segmentId: segment.id,
             //     showPlaceholder,
@@ -141,13 +141,15 @@
         showPlaceholder,
         timestamp: new Date().toISOString()
     })} -->
-    
+
     <!-- DEBUGGING: Capture a comprehensive DOM snapshot when we render a placeholder -->
     {(() => {
         setTimeout(() => {
             const messageContainer = document.querySelector(`[data-message-id]`);
             if (messageContainer) {
-                const allGrayElements = messageContainer.querySelectorAll('.bg-gray-100, .animate-pulse, [class*="gray"], .streaming');
+                const allGrayElements = messageContainer.querySelectorAll(
+                    '.bg-gray-100, .animate-pulse, [class*="gray"], .streaming'
+                );
                 // console.log('[PROMPT-RENDERER] 🌐 COMPREHENSIVE DOM SNAPSHOT (placeholder render):', {
                 //     segmentId: segment.id,
                 //     messageContainer: messageContainer,
@@ -165,8 +167,8 @@
             }
         }, 100); // Small delay to ensure DOM is updated
     })()}
-    
-    <div 
+
+    <div
         class="animate-pulse bg-gray-100 rounded-lg p-3 text-gray-500 text-sm"
         data-prompt-placeholder={segment.id}
         data-streaming-status={segment.streamingStatus}
@@ -191,4 +193,4 @@
         <MessageSquare class="w-4 h-4" />
         {segment.rawContent}
     </Button>
-{/if} 
+{/if}

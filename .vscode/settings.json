@@ -6,10 +6,14 @@
     "tailwindCSS.includeLanguages": {
         "svelte": "html"
     },
+    "svelte.enable-ts-plugin": true,
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "prettier.configPath": ".prettierrc",
     "prettier.requireConfig": true,
+    "prettier.resolveGlobalModules": false,
+    "prettier.useEditorConfig": false,
+    "prettier.ignorePath": ".prettierignore",
     "[typescript]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
@@ -18,5 +22,8 @@
     },
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[svelte]": {
+        "editor.defaultFormatter": "svelte.svelte-vscode"
     }
 }

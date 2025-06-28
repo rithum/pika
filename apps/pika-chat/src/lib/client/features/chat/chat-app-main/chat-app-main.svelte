@@ -9,6 +9,7 @@
     import ExpandableContainer from '$comps/ui-pika/expandable-container/expandable-container.svelte';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
+    import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -104,7 +105,7 @@
                 // Check if the content size has changed
                 if (entry.contentBoxSize || entry.borderBoxSize) {
                     // Only autoscroll if the user hasn't scrolled away
-                    if (!userScrollOffOfBottom){
+                    if (!userScrollOffOfBottom) {
                         console.log('scrollToDiv height changed, scrolling to bottom');
                         scrollToBottom();
                     }
@@ -283,7 +284,11 @@
                             <ExpandableContainer title="Suggestions" useCase="button">
                                 <div class="flex flex-col gap-2 items-start">
                                     {#each chat.suggestions as suggestion}
-                                        <Prompt segment={{ rawContent: suggestion } as ProcessedTagSegment} {appState} chatAppState={chat} />
+                                        <Prompt
+                                            segment={{ rawContent: suggestion } as ProcessedTagSegment}
+                                            {appState}
+                                            chatAppState={chat}
+                                        />
                                     {/each}
                                 </div>
                             </ExpandableContainer>
@@ -310,6 +315,10 @@
         </div>
     {/if}
 {/snippet}
+
+{#if chat.userDataOverrideSettings.enabled}
+    <UserDataOverridesDialog />
+{/if}
 
 <style>
     @keyframes pulse-dot {

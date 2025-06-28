@@ -5,7 +5,7 @@ import type {
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
     RecordOrUndef,
-    UserChatAppRule
+    UserChatAppRule,
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
@@ -17,12 +17,14 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`,
+        },
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(`Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+        throw new Error(
+            `Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`
+        );
     }
 
     return response.body.chatApp;
@@ -40,7 +42,11 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
  * @param chatAppId
  * @returns
  */
-export async function getMatchingChatApps(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, userChatAppRules?: UserChatAppRule[], chatAppId?: string): Promise<ChatApp[]> {
+export async function getMatchingChatApps(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    userChatAppRules?: UserChatAppRule[],
+    chatAppId?: string
+): Promise<ChatApp[]> {
     let rules: UserChatAppRule[] = userChatAppRules ?? [];
     if (chatAppId) {
         const userType = user.userType ?? 'external-user';
@@ -55,12 +61,14 @@ export async function getMatchingChatApps(user: AuthenticatedUser<RecordOrUndef,
         method: 'POST',
         body: request,
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
-        }
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`,
+        },
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(`Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+        throw new Error(
+            `Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`
+        );
     }
 
     return response.body.chatApps;

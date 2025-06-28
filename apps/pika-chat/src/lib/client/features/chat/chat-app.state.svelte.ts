@@ -11,7 +11,13 @@ import {
     type ChatMessagesResponse,
     type ChatSession,
     type ChatSessionsResponse,
-    type ConverseRequest
+    type ConverseRequest,
+    type GetInitialDialogDataResponse,
+    type GetValuesForAutoCompleteResponse,
+    type SaveUserOverrideDataResponse,
+    type UserOverrideDataCommandRequest,
+    type UserOverrideDataCommandResponse,
+    UserOverrideDataCommand
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
@@ -23,6 +29,7 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
+import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 
 const MAX_FILES = 5;
 
@@ -59,6 +66,12 @@ export class ChatAppState {
     #chatApp = $state<ChatApp>() as ChatApp;
     #appState = $state<AppState>() as AppState;
     #chatSessions = $state<ChatSession[]>([]);
+    #sortedChatSessions = $derived.by(() => {
+        const arr = [...this.#chatSessions];
+        return arr.sort((a, b) => {
+            return new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime();
+        });
+    });
     #currentSession = $state<ChatSession>() as ChatSession; // Initialized in constructor
     #curSessionMessages = $state<ChatMessageForRendering[]>([]);
     #inputFiles = $state<UploadInstance[]>([]);
@@ -84,6 +97,15 @@ export class ChatAppState {
     #page: Page | undefined;
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
+    #userDataOverrideSettings = $state<UserDataOverrideSettings>() as UserDataOverrideSettings;
+    #userDataOverrideDialogOpen = $state(false);
+    #userNeedsToProvideDataOverrides = $derived(this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides);
+    userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean> = $state({
+        getInitialDialogData: false,
+        getValuesForAutoComplete: false,
+        saveUserOverrideData: false,
+        clearUserOverrideData: false
+    });
     #appSidebarState: SidebarState | undefined;
     #appSidebarOpen = $derived.by(() => {
         if (!this.#appSidebarState) {
@@ -127,6 +149,17 @@ export class ChatAppState {
 
         return result;
     });
+    #user = $derived.by(() => {
+        // If the user has override data for this chat app, we need to merge it with the user object.
+        const user = this.#appState.identity.user;
+        const userOverrideData = user.overrideData?.[this.chatApp.chatAppId];
+        if (userOverrideData) {
+            return { ...user, customData: userOverrideData };
+        }
+        return user;
+    });
+    valuesForAutoCompleteForUserOverrideDialog = $state<Record<string, unknown[] | undefined>>({});
+    initialDataForUserOverrideDialog = $state<unknown | undefined>(undefined);
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -169,6 +202,30 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get user() {
+        return this.#user;
+    }
+
+    get sortedChatSessions() {
+        return this.#sortedChatSessions;
+    }
+
+    get userDataOverrideSettings() {
+        return this.#userDataOverrideSettings;
+    }
+
+    get userDataOverrideDialogOpen() {
+        return this.#userDataOverrideDialogOpen;
+    }
+
+    set userDataOverrideDialogOpen(value: boolean) {
+        // Just in case, if they aren't allowed to use user overrides, don't let them open the dialog
+        if (!this.#userDataOverrideSettings.enabled) {
+            return;
+        }
+        this.#userDataOverrideDialogOpen = value;
+    }
 
     get componentRegistry() {
         return this.#componentRegistry;
@@ -301,7 +358,8 @@ export class ChatAppState {
         chatApp: ChatApp,
         page: Page,
         appState: AppState,
-        componentRegistry: ComponentRegistry
+        componentRegistry: ComponentRegistry,
+        userDataOverrideSettings: UserDataOverrideSettings
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -311,6 +369,11 @@ export class ChatAppState {
         this.#page = page;
         this.#componentRegistry = componentRegistry;
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
+        this.#userDataOverrideSettings = userDataOverrideSettings;
+
+        if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
+            this.#userDataOverrideDialogOpen = true;
+        }
 
         // Add logging for session messages array changes
         // $effect(() => {
@@ -404,19 +467,19 @@ export class ChatAppState {
             let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) => key.startsWith('interim-'));
             this.#currentSession = {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
-                userId: this.#appState.identity.user.userId,
+                userId: this.#user.userId,
                 agentAliasId: 'interim-agent-alias-id',
                 chatAppId: this.#chatApp.chatAppId,
                 agentId: 'interim-agent-id',
-                identityId: this.#appState.identity.user.userId,
+                identityId: this.#user.userId,
                 sessionAttributes: {
                     token: 'interim-token',
-                    firstName: this.#appState.identity.user.firstName,
-                    lastName: this.#appState.identity.user.lastName,
+                    firstName: this.#user.firstName,
+                    lastName: this.#user.lastName,
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    ...(this.#appState.identity.user.customData ? this.#appState.identity.user.customData : {}),
+                    ...(this.#user.customData ? this.#user.customData : {}),
                     agentId: this.#chatApp.agentId,
-                    userId: this.#appState.identity.user.userId,
+                    userId: this.#user.userId,
                     chatAppId: this.#chatApp.chatAppId,
                     currentDate: new Date().toISOString()
                 },
@@ -506,6 +569,11 @@ export class ChatAppState {
     async sendMessage() {
         if (!this.#chatInput.trim()) return;
 
+        if (this.#userNeedsToProvideDataOverrides) {
+            this.#userDataOverrideDialogOpen = true;
+            return;
+        }
+
         this.#streamingResponseNow = true;
         this.#messageChunkCount = 0;
         const messageToSendToServer = this.#chatInput;
@@ -514,7 +582,7 @@ export class ChatAppState {
 
         // Add user message to the conversation immediately (a ChatMessage is what is sent to the server and saved to the database)
         const userMessage: ChatMessage = {
-            userId: this.#appState.identity.user.userId,
+            userId: this.#user.userId,
             sessionId,
             messageId: `user-${uuidv7()}`,
             message: messageToSendToServer,
@@ -538,7 +606,7 @@ export class ChatAppState {
         // Add interim assistant message for streaming
         const interimMessageId = `interim-${uuidv7()}`;
         const interimMessage: ChatMessageForRendering = {
-            userId: this.#appState.identity.user.userId,
+            userId: this.#user.userId,
             sessionId,
             messageId: interimMessageId,
             message: '',
@@ -572,7 +640,7 @@ export class ChatAppState {
         try {
             const converseRequest: ConverseRequest = {
                 message: messageToSendToServer,
-                userId: this.#appState.identity.user.userId,
+                userId: this.#user.userId,
                 sessionId: wasInterimSession ? undefined : sessionId,
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
@@ -719,6 +787,47 @@ export class ChatAppState {
         }
     }
 
+    async sendUserOverrideDataCommand(request: UserOverrideDataCommandRequest) {
+        try {
+            this.userDataOverrideOperationInProgress[request.command] = true;
+            const response = await this.fetchz('/api/user-data-override', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                //TODO: handle error
+                throw new Error('Failed to send user override data command');
+            }
+
+            const json: UserOverrideDataCommandResponse = await response.json();
+            if (!json) {
+                throw new Error('Invalid response for presigned URL');
+            } else if ('success' in json && json.success === false) {
+                throw new Error(json.error);
+            } else if (request.command === 'getInitialDialogData') {
+                this.initialDataForUserOverrideDialog = (json as GetInitialDialogDataResponse).data ?? undefined;
+            } else if (request.command === 'getValuesForAutoComplete') {
+                if (!this.valuesForAutoCompleteForUserOverrideDialog) {
+                    this.valuesForAutoCompleteForUserOverrideDialog = {};
+                }
+                this.valuesForAutoCompleteForUserOverrideDialog[request.componentName] = (json as GetValuesForAutoCompleteResponse).data ?? undefined;
+            } else if (request.command === 'saveUserOverrideData') {
+                this.#appState.identity.updateUserOverrideData(this.#chatApp.chatAppId, (json as SaveUserOverrideDataResponse).data);
+            } else if (request.command === 'clearUserOverrideData') {
+                this.#appState.identity.clearUserOverrideData(this.#chatApp.chatAppId);
+            }
+        } catch (e) {
+            console.error('Error sending user override data command', e);
+            throw e;
+        } finally {
+            this.userDataOverrideOperationInProgress[request.command] = false;
+        }
+    }
+
     #appendToInterimMessage(message: string) {
         // console.log('[CHAT-APP-STATE] appendToInterimMessage called:', {
         //     chunkLength: message.length,
@@ -824,7 +933,7 @@ export class ChatAppState {
         const newInstances: UploadInstance[] = [];
         for (const file of files) {
             const fileName = sanitizeFileName(file.name);
-            const s3Key = generateChatFileUploadS3KeyName(this.#appState.identity.user.userId, fileName, uuidv7());
+            const s3Key = generateChatFileUploadS3KeyName(this.#user.userId, fileName, uuidv7());
             const instance = new UploadInstance({ s3Key, file, fileName });
             newInstances.push(instance);
             this.#inputFiles.push(instance);
@@ -856,7 +965,7 @@ export class ChatAppState {
 
         // Create a user message asking about weather
         const userMessage: ChatMessage = {
-            userId: this.#appState.identity.user.userId,
+            userId: this.#user.userId,
             sessionId: this.#currentSession.sessionId,
             messageId: `user-mock-${uuidv7()}`,
             message: 'What is the weather like in New York?',
@@ -872,7 +981,7 @@ export class ChatAppState {
             // Create assistant message with empty content initially
             const assistantMessageId = `assistant-mock-${uuidv7()}`;
             const assistantMessage: ChatMessage = {
-                userId: this.#appState.identity.user.userId,
+                userId: this.#user.userId,
                 sessionId: this.#currentSession.sessionId,
                 messageId: assistantMessageId,
                 message: '',

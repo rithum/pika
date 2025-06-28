@@ -15,8 +15,8 @@ export default defineConfig(async () => {
             siteFeaturesVitePlugin(),
             sveltekit(),
             Icons({
-                compiler: 'svelte'
-            })
+                compiler: 'svelte',
+            }),
         ],
         server: {
             // Use custom config if available, otherwise use defaults
@@ -26,15 +26,15 @@ export default defineConfig(async () => {
             ...(viteConfig?.server?.https && {
                 https: {
                     key: fs.readFileSync(path.resolve(__dirname, viteConfig.server.https.key)),
-                    cert: fs.readFileSync(path.resolve(__dirname, viteConfig.server.https.cert))
-                }
-            })
+                    cert: fs.readFileSync(path.resolve(__dirname, viteConfig.server.https.cert)),
+                },
+            }),
         },
         preview: {
             // Use custom config if available, otherwise use defaults
             host: viteConfig?.preview?.host ?? 'localhost',
             port: viteConfig?.preview?.port ?? 3000,
-            strictPort: viteConfig?.preview?.strictPort ?? true
-        }
+            strictPort: viteConfig?.preview?.strictPort ?? true,
+        },
     };
 });

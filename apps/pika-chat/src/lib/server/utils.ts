@@ -1,19 +1,25 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { AUTHENTICATED_USER_COOKIE_NAME, type AuthData } from '$lib/shared-types';
 import { json, type RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    ChatUser,
+    RecordOrUndef,
+    UserOverrideData,
+} from '@pika/shared/types/chatbot/chatbot-types';
+import { siteFeatures } from '$lib/server/custom-site-features';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
         success: false,
-        error
+        error,
     };
     return json(err, { status });
 }
 
 export function getSuccessResponse(): Response {
     const success: SuccessResponse = {
-        success: true
+        success: true,
     };
     return json(success);
 }
@@ -76,7 +82,11 @@ const ALGORITHM = 'aes-256-cbc';
  * @returns The encrypted string (ciphertext) as a hexadecimal string.
  * @throws Error if encryption fails or if the IV is not configured.
  */
-export function encryptCookieString(plainTextCookieString: string, masterKeyHex: string, masterCookieInitVector: string): string {
+export function encryptCookieString(
+    plainTextCookieString: string,
+    masterKeyHex: string,
+    masterCookieInitVector: string
+): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -106,7 +116,11 @@ export function encryptCookieString(plainTextCookieString: string, masterKeyHex:
  * @returns The decrypted plaintext string.
  * @throws Error if decryption fails or if the IV is not configured.
  */
-export function decryptCookieString(encryptedCookieStringHex: string, masterKeyHex: string, masterCookieInitVector: string): string {
+export function decryptCookieString(
+    encryptedCookieStringHex: string,
+    masterKeyHex: string,
+    masterCookieInitVector: string
+): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -130,7 +144,7 @@ export function decryptCookieString(encryptedCookieStringHex: string, masterKeyH
 
 // Cookie size limit (4KB = 4096 bytes)
 const COOKIE_SIZE_LIMIT = 4096;
-const COOKIE_NAME_PREFIX = 'au'; // Authenticated User
+const AUTH_USER_COOKIE_NAME_PREFIX = 'au'; // Authenticated User
 const COOKIE_PART_SEPARATOR = '_part_';
 
 /**
@@ -156,7 +170,7 @@ export function serializeAuthenticatedUserToCookies(
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax'
+            sameSite: 'lax',
         });
     } else {
         // Multi-cookie approach - split the encrypted data
@@ -166,24 +180,24 @@ export function serializeAuthenticatedUserToCookies(
         const metadata = {
             totalParts: chunks.length,
             totalSize: encryptedData.length,
-            timestamp: Date.now()
+            timestamp: Date.now(),
         };
 
         event.cookies.set(AUTHENTICATED_USER_COOKIE_NAME, JSON.stringify(metadata), {
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax'
+            sameSite: 'lax',
         });
 
         // Set each chunk as a separate cookie
         chunks.forEach((chunk, index) => {
-            const cookieName = `${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${index}`;
+            const cookieName = `${AUTH_USER_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${index}`;
             event.cookies.set(cookieName, chunk, {
                 path: '/',
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax'
+                sameSite: 'lax',
             });
         });
     }
@@ -210,7 +224,12 @@ export function deserializeAuthenticatedUserFromCookies(
 
         if (metadata.totalParts && metadata.totalSize) {
             // Multi-cookie scenario
-            return deserializeFromMultipleCookies(event, metadata, masterCookieKey, masterCookieInitVector);
+            return deserializeFromMultipleCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>(
+                event,
+                metadata,
+                masterCookieKey,
+                masterCookieInitVector
+            );
         } else {
             // Single cookie scenario (legacy or small data)
             const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
@@ -238,7 +257,125 @@ export function clearAuthenticatedUserCookies(event: RequestEvent): void {
     // Clear any part cookies (for multi-cookie scenarios)
     const allCookies = event.cookies.getAll();
     allCookies.forEach((cookie) => {
-        if (cookie.name.startsWith(`${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}`)) {
+        if (cookie.name.startsWith(`${AUTH_USER_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}`)) {
+            event.cookies.delete(cookie.name, { path: '/' });
+        }
+    });
+}
+
+const USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX = 'uod'; // User Override Data
+
+/**
+ * Serializes an AuthenticatedUser object to one or more cookies
+ * If the serialized data exceeds 4KB, it will be split across multiple cookies
+ */
+export function serializeUserOverrideDataToCookies(
+    event: RequestEvent,
+    data: UserOverrideData,
+    masterCookieKey: string,
+    masterCookieInitVector: string
+): void {
+    // Serialize the data object to JSON
+    const dataJson = JSON.stringify(data);
+
+    // Encrypt the JSON string
+    const encryptedData = encryptCookieString(dataJson, masterCookieKey, masterCookieInitVector);
+
+    // Check if the encrypted data fits in a single cookie
+    if (encryptedData.length <= COOKIE_SIZE_LIMIT) {
+        // Single cookie approach
+        event.cookies.set(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX, encryptedData, {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        });
+    } else {
+        // Multi-cookie approach - split the encrypted data
+        const chunks = splitStringIntoChunks(encryptedData, COOKIE_SIZE_LIMIT);
+
+        // Set the main cookie with metadata
+        const metadata = {
+            totalParts: chunks.length,
+            totalSize: encryptedData.length,
+            timestamp: Date.now(),
+        };
+
+        event.cookies.set(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX, JSON.stringify(metadata), {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        });
+
+        // Set each chunk as a separate cookie
+        chunks.forEach((chunk, index) => {
+            const cookieName = `${USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${index}`;
+            event.cookies.set(cookieName, chunk, {
+                path: '/',
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+            });
+        });
+    }
+}
+
+/**
+ * Deserializes an AuthenticatedUser object from cookies
+ * Handles both single-cookie and multi-cookie scenarios
+ */
+export function deserializeUserOverrideDataFromCookies(
+    event: RequestEvent,
+    masterCookieKey: string,
+    masterCookieInitVector: string
+): UserOverrideData | undefined {
+    const mainCookie = event.cookies.get(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX);
+
+    if (!mainCookie) {
+        return undefined;
+    }
+
+    try {
+        // Try to parse as metadata first (multi-cookie scenario)
+        const metadata = JSON.parse(mainCookie);
+
+        if (metadata.totalParts && metadata.totalSize) {
+            // Multi-cookie scenario
+            return deserializeFromMultipleCookies<UserOverrideData>(
+                event,
+                metadata,
+                masterCookieKey,
+                masterCookieInitVector
+            );
+        } else {
+            // Single cookie scenario (legacy or small data)
+            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
+            return JSON.parse(decryptedData);
+        }
+    } catch (error) {
+        // If JSON.parse fails, it might be a single encrypted cookie
+        try {
+            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
+            return JSON.parse(decryptedData);
+        } catch (decryptError) {
+            console.error('Failed to deserialize user override data from cookies:', error);
+            return undefined;
+        }
+    }
+}
+
+/**
+ * Clears all authentication-related cookies
+ */
+export function clearUserOverrideDataCookies(event: RequestEvent): void {
+    // Clear the main cookie
+    event.cookies.delete(USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX, { path: '/' });
+
+    // Clear any part cookies (for multi-cookie scenarios)
+    const allCookies = event.cookies.getAll();
+    allCookies.forEach((cookie) => {
+        if (cookie.name.startsWith(`${USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}`)) {
             event.cookies.delete(cookie.name, { path: '/' });
         }
     });
@@ -258,16 +395,16 @@ function splitStringIntoChunks(str: string, chunkSize: number): string[] {
 /**
  * Deserializes user data from multiple cookies
  */
-function deserializeFromMultipleCookies(
+function deserializeFromMultipleCookies<T>(
     event: RequestEvent,
     metadata: { totalParts: number; totalSize: number; timestamp: number },
     masterCookieKey: string,
     masterCookieInitVector: string
-): AuthenticatedUser<RecordOrUndef, RecordOrUndef> {
+): T {
     // Collect all parts
     const parts: string[] = [];
     for (let i = 0; i < metadata.totalParts; i++) {
-        const cookieName = `${COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${i}`;
+        const cookieName = `${AUTH_USER_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${i}`;
         const part = event.cookies.get(cookieName);
 
         if (!part) {
@@ -298,7 +435,10 @@ function deserializeFromMultipleCookies(
  * @param existingChatUser - The existing chat user object
  * @returns The merged authenticated user object
  */
-export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, existingChatUser: ChatUser<RecordOrUndef>): void {
+export function mergeAuthenticatedUserWithExistingChatUser(
+    authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    existingChatUser: ChatUser<RecordOrUndef>
+): void {
     if (existingChatUser.roles && existingChatUser.roles.length > 0) {
         const pikaRoles = existingChatUser.roles.filter((role) => role.startsWith('pika:'));
         if (pikaRoles.length > 0) {
@@ -313,4 +453,91 @@ export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: Au
             }
         }
     }
+}
+
+/**
+ * Whether the user is allowed to use the user data overrides feature.
+ *
+ * @param user - The user to check
+ * @returns Whether the user is allowed to use the user data overrides feature
+ */
+export function isUserAllowedToUseUserDataOverrides(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    let result = siteFeatures?.userDataOverrides?.enabled ?? false;
+    if (result) {
+        // If they didn't specify whom to turn this feature on for, we default it to be only for internal users
+        const userTypesAllowed = siteFeatures?.userDataOverrides?.userTypesAllowed ?? ['internal-user'];
+        // If there is no user type on the logged in user, we assume they are an external user
+        if (!userTypesAllowed.includes(user.userType ?? 'external-user')) {
+            result = false;
+        }
+    }
+    return result;
+}
+
+/**
+ * Determines whether a user needs to provide data overrides before accessing a chat app.
+ *
+ * This function checks if the user is allowed to use the user data overrides feature and
+ * whether any required custom data attributes are missing, null, undefined, or empty from their user object.
+ *
+ * @param user - The authenticated user object to check
+ * @returns `true` if the user needs to provide data overrides, `false` otherwise
+ *
+ * @example
+ * ```ts
+ * // Simple attributes (no dots) - checks direct properties
+ * const user = { id: '123', customData: { companyName: 'Acme', companyId: '' } };
+ * // If config requires ['companyName', 'companyId']
+ * const needsOverrides = doesUserNeedToProvideDataOverrides(user);
+ * // Returns true because 'companyId' is empty string
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Nested attributes with dot notation
+ * const user = { id: '123', customData: { address: { street: '123 Main St' } } };
+ * // If config requires ['address.city', 'address.street']
+ * const needsOverrides = doesUserNeedToProvideDataOverrides(user);
+ * // Returns true because 'address.city' is missing
+ * ```
+ */
+export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    // First check if the user is even allowed to use the user data overrides feature
+    if (!isUserAllowedToUseUserDataOverrides(user)) {
+        return false;
+    }
+
+    const attributes = siteFeatures?.userDataOverrides?.promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing ?? [];
+
+    // If no attributes are configured to check, then no overrides are needed
+    if (attributes.length === 0) {
+        return false;
+    }
+
+    // If the user doesn't have a customData object, they need to provide data overrides
+    if (!user.customData) {
+        return true;
+    }
+
+    // Check if any of the required attributes are missing
+    for (const attribute of attributes) {
+        // Dereference the attribute understanding they may have used dot notation
+        const attributeParts = attribute.split('.');
+        let currentValue: any = user.customData;
+
+        // Navigate through nested object properties
+        for (const part of attributeParts) {
+            if (currentValue === null || currentValue === undefined || typeof currentValue !== 'object') {
+                return true; // Path doesn't exist or we hit a non-object value
+            }
+            currentValue = currentValue[part];
+        }
+
+        // Check if the final value exists and is not null/undefined
+        if (currentValue === null || currentValue === undefined || currentValue === '') {
+            return true; // Required attribute is missing
+        }
+    }
+
+    return false;
 }

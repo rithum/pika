@@ -62,7 +62,7 @@
             // console.log('[CHART-RENDERER] Skipping chart init - still showing placeholder');
             return; // Don't initialize while streaming
         }
-        
+
         try {
             // Parse the JSON content
             // console.log('[CHART-RENDERER] Parsing chart config:', {
@@ -72,13 +72,13 @@
             const chartConfig = JSON.parse(rawTagContent);
 
             // Yield to browser for other renders
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise((resolve) => requestAnimationFrame(resolve));
 
             // Dynamically import Chart.js
             const { Chart, registerables } = await import('chart.js');
 
             // Yield before chart creation
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise((resolve) => requestAnimationFrame(resolve));
 
             Chart.register(...registerables);
 
@@ -116,7 +116,7 @@
         const theChartCanBeInitialized = chartCanBeInitialized;
         const dontHaveChartYet = !chart;
         const haveCanvasEl = !!canvasElement;
-        
+
         // console.log('[CHART-RENDERER] Chart initialization effect triggered:', {
         //     segmentId: segment.id,
         //     theChartCanBeInitialized,
@@ -174,7 +174,7 @@
             showPlaceholder,
             timestamp: new Date().toISOString()
         })} -->
-        <div 
+        <div
             class="animate-pulse bg-gray-100 rounded-lg p-6 text-center text-gray-500"
             data-chart-placeholder={segment.id}
             data-streaming-status={segment.streamingStatus}
@@ -189,7 +189,7 @@
             streamingStatus: segment.streamingStatus,
             timestamp: new Date().toISOString()
         })} -->
-        <div 
+        <div
             class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700"
             data-chart-error={segment.id}
             data-streaming-status={segment.streamingStatus}
@@ -205,7 +205,7 @@
             showPlaceholder,
             timestamp: new Date().toISOString()
         })} -->
-        <div 
+        <div
             class="bg-white rounded-lg shadow-sm p-4"
             data-chart-canvas={segment.id}
             data-streaming-status={segment.streamingStatus}

@@ -4,7 +4,7 @@ import {
     OAUTH_STATE_COOKIE_MAX_AGE,
     OAUTH_STATE_COOKIE_NAME,
     type AuthData,
-    type IdTokenClaims
+    type IdTokenClaims,
 } from '$lib/shared-types';
 import type { AuthenticatedUser, ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -28,24 +28,31 @@ export async function redirectToAuth(event: RequestEvent) {
     const oauthData: AuthState = {
         nonce,
         codeVerifier,
-        timestamp: Date.now()
+        timestamp: Date.now(),
     };
 
     // Set secure cookie with OAuth data
-    event.cookies.set(OAUTH_STATE_COOKIE_NAME, encryptCookieString(JSON.stringify(oauthData), appConfig.masterCookieKey, appConfig.masterCookieInitVector), {
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: OAUTH_STATE_COOKIE_MAX_AGE
-    });
+    event.cookies.set(
+        OAUTH_STATE_COOKIE_NAME,
+        encryptCookieString(JSON.stringify(oauthData), appConfig.masterCookieKey, appConfig.masterCookieInitVector),
+        {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            maxAge: OAUTH_STATE_COOKIE_MAX_AGE,
+        }
+    );
 
     const authUrl = new URL(appConfig.oauthUrl);
     authUrl.searchParams.append('client_id', appConfig.clientId);
     authUrl.searchParams.append('code_challenge', codeChallenge);
     authUrl.searchParams.append('code_challenge_method', 'S256');
     authUrl.searchParams.append('nonce', nonce);
-    authUrl.searchParams.append('redirect_uri', concatUrlWithPath(appConfig.webappUrl, appConfig.redirectCallbackUriPath));
+    authUrl.searchParams.append(
+        'redirect_uri',
+        concatUrlWithPath(appConfig.webappUrl, appConfig.redirectCallbackUriPath)
+    );
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('state', state);
     authUrl.searchParams.append('scope', 'openid profile company email offline_access');
@@ -76,7 +83,9 @@ export async function handleAuthCallback(event: RequestEvent): Promise<Response>
 
     let oauthState: AuthState;
     try {
-        oauthState = JSON.parse(decryptCookieString(oauthStateCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector));
+        oauthState = JSON.parse(
+            decryptCookieString(oauthStateCookie, appConfig.masterCookieKey, appConfig.masterCookieInitVector)
+        );
         if (!oauthState.nonce || !oauthState.codeVerifier || !oauthState.timestamp) {
             return new Response('Invalid OAuth state', { status: 400 });
         }
@@ -99,7 +108,7 @@ export async function handleAuthCallback(event: RequestEvent): Promise<Response>
             type: 'first-time',
             codeVerifier: oauthState.codeVerifier,
             code,
-            redirectUri: concatUrlWithPath(appConfig.webappUrl, appConfig.redirectCallbackUriPath)
+            redirectUri: concatUrlWithPath(appConfig.webappUrl, appConfig.redirectCallbackUriPath),
         });
 
         if (authData instanceof Response) {
@@ -127,10 +136,13 @@ export async function logout(event: RequestEvent): Promise<Response> {
  *
  * It uses the refresh token to get a new access token.
  */
-export async function refresh(event: RequestEvent, user: AuthenticatedUser<UserAuthData>): Promise<Response | AuthenticatedUser<UserAuthData>> {
+export async function refresh(
+    event: RequestEvent,
+    user: AuthenticatedUser<UserAuthData>
+): Promise<Response | AuthenticatedUser<UserAuthData>> {
     const newUser = await getUserUsingAuthInfo(event, {
         type: 'refresh',
-        refreshToken: user.authData.refreshToken
+        refreshToken: user.authData.refreshToken,
     });
 
     return newUser;
@@ -140,7 +152,10 @@ export async function refresh(event: RequestEvent, user: AuthenticatedUser<UserA
  * This will use the params passed in to get the auth data and then retrieve the user
  * and return the user and auth data combined, having been saved in a secure cookie.
  */
-async function getUserUsingAuthInfo(event: RequestEvent, params: AuthCodeToTokenDataFirstTime | AuthCodeToTokenDataRefresh): Promise<AuthenticatedUser<UserAuthData> | Response> {
+async function getUserUsingAuthInfo(
+    event: RequestEvent,
+    params: AuthCodeToTokenDataFirstTime | AuthCodeToTokenDataRefresh
+): Promise<AuthenticatedUser<UserAuthData> | Response> {
     const redirectUri = concatUrlWithPath(appConfig.webappUrl, appConfig.redirectCallbackUriPath);
 
     const body =
@@ -150,20 +165,20 @@ async function getUserUsingAuthInfo(event: RequestEvent, params: AuthCodeToToken
                   client_id: appConfig.clientId,
                   code_verifier: params.codeVerifier,
                   code: params.code,
-                  redirect_uri: redirectUri
+                  redirect_uri: redirectUri,
               })
             : new URLSearchParams({
                   grant_type: 'refresh_token',
                   client_id: appConfig.clientId,
-                  refresh_token: params.refreshToken
+                  refresh_token: params.refreshToken,
               });
 
     const tokenResponse = await fetch(appConfig.tokenUrl, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body
+        body,
     });
 
     if (!tokenResponse.ok) {
@@ -181,13 +196,13 @@ async function getUserUsingAuthInfo(event: RequestEvent, params: AuthCodeToToken
             expiresAt: idTokenClaims?.exp,
             authorizeUrl: appConfig.oauthUrl,
             issuer: idTokenClaims?.iss,
-            clientId: appConfig.clientId
+            clientId: appConfig.clientId,
         },
         accessToken: {
             accessToken: tokens.access_token,
-            claims: accessTokenClaims
+            claims: accessTokenClaims,
         },
-        refreshToken: tokens.refresh_token
+        refreshToken: tokens.refresh_token,
     };
 
     const user = await getUserDataFromServer(appConfig.platformApiBaseUrl, authData);
@@ -212,19 +227,27 @@ async function getUserUsingAuthInfo(event: RequestEvent, params: AuthCodeToToken
     const accessToken = user.authData.accessToken;
     delete (user as any).authData.accessToken;
 
-    event.cookies.set(AUTHENTICATED_USER_COOKIE_NAME, encryptCookieString(JSON.stringify(user), appConfig.masterCookieKey, appConfig.masterCookieInitVector), {
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax'
-    });
+    event.cookies.set(
+        AUTHENTICATED_USER_COOKIE_NAME,
+        encryptCookieString(JSON.stringify(user), appConfig.masterCookieKey, appConfig.masterCookieInitVector),
+        {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        }
+    );
 
-    event.cookies.set(AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME, encryptCookieString(accessToken, appConfig.masterCookieKey, appConfig.masterCookieInitVector), {
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax'
-    });
+    event.cookies.set(
+        AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME,
+        encryptCookieString(accessToken, appConfig.masterCookieKey, appConfig.masterCookieInitVector),
+        {
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        }
+    );
 
     // Put it back on the user object for the return value.
     user.authData.accessToken = accessToken;

@@ -15,9 +15,9 @@ export default {
             'ts-jest',
             {
                 useESM: true,
-                tsconfig: 'test/tsconfig.json'
-            }
-        ]
+                tsconfig: 'test/tsconfig.json',
+            },
+        ],
     },
 
     // Test file patterns
@@ -26,7 +26,7 @@ export default {
     // Module name mapping to handle SvelteKit path aliases
     moduleNameMapper: {
         '^\\$lib/(.*)$': '<rootDir>/src/lib/$1',
-        '^@pika/shared/(.*)$': '<rootDir>/../../packages/shared/$1'
+        '^@pika/shared/(.*)$': '<rootDir>/../../packages/shared/$1',
     },
 
     // Enable ES modules
@@ -39,5 +39,5 @@ export default {
     collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/**/*.svelte'],
 
     // Ignore node_modules and build directories
-    testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/build/', '<rootDir>/.svelte-kit/']
+    testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/build/', '<rootDir>/.svelte-kit/'],
 };

@@ -43,20 +43,20 @@
         //     segmentCount: message.segments.length
         // });
 
-        message.segments.forEach(segment => {
+        message.segments.forEach((segment) => {
             if ('isMetadata' in segment && segment.isMetadata) {
                 const metadataSegment = segment as MetadataTagSegment;
                 if (metadataSegment.hasCalledHandler) {
                     return;
                 }
-                
+
                 // console.log('[MESSAGE-RENDERER] Applying metadata handler:', {
                 //     messageId: message.messageId,
                 //     segmentId: segment.id,
                 //     tag: metadataSegment.tag,
                 //     streamingStatus: segment.streamingStatus
                 // });
-                
+
                 if (segment.streamingStatus === 'completed') {
                     const handler = chatAppState.componentRegistry.getMetadataHandler(metadataSegment.tag);
                     if (handler) {
@@ -95,7 +95,7 @@
         segmentCount: message.segments.length,
     })} -->
 
-    <Trace message={message} appState={appState} />
+    <Trace {message} {appState} />
 
     <!-- Render each processed segment -->
     {#each message.segments as segment (segment.id)}
@@ -119,12 +119,8 @@
                         rawContentLength: textSegment.rawContent.length,
                         timestamp: new Date().toISOString()
                     })} -->
-                    
-                    <textSegment.renderer 
-                        segment={textSegment}
-                        {appState}
-                        {chatAppState}
-                    />
+
+                    <textSegment.renderer segment={textSegment} {appState} {chatAppState} />
                 {:else}
                     <!-- {console.warn('[MESSAGE-RENDERER] Text segment missing renderer:', {
                         messageId: message.messageId,
@@ -142,11 +138,7 @@
                 })} -->
                 {@const tagSegment = segment as ProcessedTagSegment}
                 {#if tagSegment.renderer}
-                    <tagSegment.renderer 
-                        segment={tagSegment}
-                        {appState}
-                        {chatAppState}
-                    />
+                    <tagSegment.renderer segment={tagSegment} {appState} {chatAppState} />
                 {:else}
                     <!-- {console.warn('[MESSAGE-RENDERER] Tag segment missing renderer:', {
                         messageId: message.messageId,
@@ -154,9 +146,11 @@
                         tag: segment.tag
                     })} -->
                     <!-- Fallback for unknown tag types -->
-                    <div class="unknown-tag-warning bg-yellow-50 border border-yellow-200 rounded p-2 text-sm text-yellow-800">
+                    <div
+                        class="unknown-tag-warning bg-yellow-50 border border-yellow-200 rounded p-2 text-sm text-yellow-800"
+                    >
                         <strong>Unknown tag:</strong> &lt;{tagSegment.tag}&gt;
-                        <br/>
+                        <br />
                         <span class="text-xs text-yellow-600">{tagSegment.rawContent}</span>
                     </div>
                 {/if}
@@ -176,7 +170,7 @@
             {/if}
         </div>
     {/each}
-    
+
     <!-- Show files if any -->
     {#if files.length > 0}
         <!-- {console.log('[MESSAGE-RENDERER] Rendering files:', {

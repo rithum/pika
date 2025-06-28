@@ -39,14 +39,14 @@ export class PikaChatStack extends cdk.Stack {
             type: 'String',
             description: 'The stage/environment name (e.g., dev, staging, prod)',
             allowedPattern: '^[a-zA-Z0-9-]+$',
-            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens',
         });
 
         this.stageCappedParam = new cdk.CfnParameter(this, 'Stage', {
             type: 'String',
             description: 'The stage/environment name capitalized (e.g., Dev, Staging, Prod)',
             allowedPattern: '^[a-zA-Z0-9-]+$',
-            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens',
         });
 
         const customStackDefs = new CustomStackDefs(this);
@@ -80,7 +80,7 @@ export class PikaChatStack extends cdk.Stack {
             projNameCamel: props.projNameCamel,
             projNameKebabCase: props.projNameKebabCase,
             projNameHuman: props.projNameHuman,
-            pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase
+            pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
         };
 
         const pikaChatConstructProps: PikaChatConstructProps = customStackDefs.getPikaChatConstructProps(partialProps);

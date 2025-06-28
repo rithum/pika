@@ -32,9 +32,7 @@
 
 <div class="image-container my-4">
     {#if showPlaceholder}
-        <div class="animate-pulse bg-gray-100 rounded-lg p-12 text-center text-gray-500">
-            Loading image...
-        </div>
+        <div class="animate-pulse bg-gray-100 rounded-lg p-12 text-center text-gray-500">Loading image...</div>
     {:else if imageError}
         <div class="bg-gray-100 rounded-lg p-8 text-center text-gray-500">
             <svg
@@ -92,4 +90,4 @@
         max-height: 600px;
         object-fit: contain;
     }
-</style> 
+</style>

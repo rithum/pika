@@ -1,6 +1,11 @@
 import { MessageSegmentProcessor } from '../src/lib/client/features/chat/message-segments/segment-processor';
 import type { ComponentRegistry } from '../src/lib/client/features/chat/message-segments/component-registry';
-import type { ProcessedSegment, ProcessedTextSegment, ProcessedTagSegment, MetadataTagSegment } from '../src/lib/client/features/chat/message-segments/segment-types';
+import type {
+    ProcessedSegment,
+    ProcessedTextSegment,
+    ProcessedTagSegment,
+    MetadataTagSegment,
+} from '../src/lib/client/features/chat/message-segments/segment-types';
 
 // Mock components for testing
 const mockTextRenderer = {
@@ -17,9 +22,12 @@ const mockAnothertagRenderer = {
 const mockMetadataHandler = jest.fn();
 
 // Create a comprehensive mock ComponentRegistry
-const createMockComponentRegistry = (supportedTags: string[] = ['tag', 'anothertag'], metadataTags: string[] = ['metadata-tag']) => {
+const createMockComponentRegistry = (
+    supportedTags: string[] = ['tag', 'anothertag'],
+    metadataTags: string[] = ['metadata-tag']
+) => {
     const renderers: Record<string, any> = {
-        text: mockTextRenderer
+        text: mockTextRenderer,
     };
 
     // Add supported tag renderers
@@ -48,14 +56,18 @@ const createMockComponentRegistry = (supportedTags: string[] = ['tag', 'anothert
         unregisterRenderer: jest.fn().mockReturnValue(false),
         unregisterMetadataHandler: jest.fn().mockReturnValue(false),
         getRegisteredRendererTypes: jest.fn().mockReturnValue(Object.keys(renderers)),
-        getRegisteredMetadataHandlerTypes: jest.fn().mockReturnValue(Object.keys(metadataHandlers))
+        getRegisteredMetadataHandlerTypes: jest.fn().mockReturnValue(Object.keys(metadataHandlers)),
     } as any;
 
     return mockComponentRegistry;
 };
 
 // Helper functions for test assertions
-const expectTextSegment = (segment: ProcessedSegment, content: string, streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error') => {
+const expectTextSegment = (
+    segment: ProcessedSegment,
+    content: string,
+    streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error'
+) => {
     const seg = segment as ProcessedTextSegment;
     expect(seg.segmentType).toBe('text');
     expect(seg.rawContent).toBe(content);
@@ -63,7 +75,12 @@ const expectTextSegment = (segment: ProcessedSegment, content: string, streaming
     expect(seg.rendererType).toBe('text');
 };
 
-const expectTagSegment = (segment: ProcessedSegment, tag: string, content: string, streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error') => {
+const expectTagSegment = (
+    segment: ProcessedSegment,
+    tag: string,
+    content: string,
+    streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error'
+) => {
     expect(segment.segmentType).toBe('tag');
     expect((segment as ProcessedTagSegment).tag).toBe(tag);
     expect(segment.rawContent).toBe(content);
@@ -71,7 +88,12 @@ const expectTagSegment = (segment: ProcessedSegment, tag: string, content: strin
     expect(segment.rendererType).toBe(tag);
 };
 
-const expectMetadataSegment = (segment: ProcessedSegment, tag: string, content: string, streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error') => {
+const expectMetadataSegment = (
+    segment: ProcessedSegment,
+    tag: string,
+    content: string,
+    streamingStatus: 'streaming' | 'completed' | 'incomplete' | 'error'
+) => {
     expect(segment.segmentType).toBe('tag');
     expect((segment as MetadataTagSegment).tag).toBe(tag);
     expect(segment.rawContent).toBe(content);
@@ -109,8 +131,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'existing',
                         streamingStatus: 'completed',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = processor.parseMessage('', segments, false);
@@ -162,7 +184,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should parse multiple complete tags', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('<tag>content1</tag><anothertag>content2</anothertag>', segments, false);
+                const result = processor.parseMessage(
+                    '<tag>content1</tag><anothertag>content2</anothertag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(2);
                 expect(segments).toHaveLength(2);
@@ -374,7 +400,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should treat nested tags as content in complete mode', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag><anothertag>nested</anothertag></tag>', segments, false);
+                const result = processor.parseMessage(
+                    'text <tag><anothertag>nested</anothertag></tag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(2);
                 expect(segments).toHaveLength(2);
@@ -429,7 +459,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle complete tag followed by complete tag', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag>content</tag><anothertag>more</anothertag>', segments, false);
+                const result = processor.parseMessage(
+                    'text <tag>content</tag><anothertag>more</anothertag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);
@@ -440,7 +474,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle complete tags with text after', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag>content</tag><anothertag>more</anothertag> final text', segments, false);
+                const result = processor.parseMessage(
+                    'text <tag>content</tag><anothertag>more</anothertag> final text',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(4);
                 expect(segments).toHaveLength(4);
@@ -462,8 +500,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'Hello ',
                         streamingStatus: 'streaming',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = processor.parseMessage('world!', segments, true);
@@ -482,8 +520,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'Hello ',
                         streamingStatus: 'completed',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = processor.parseMessage('world!', segments, true);
@@ -503,8 +541,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'content',
                         streamingStatus: 'completed',
                         rendererType: 'tag',
-                        renderer: mockTagRenderer
-                    } as ProcessedTagSegment
+                        renderer: mockTagRenderer,
+                    } as ProcessedTagSegment,
                 ];
 
                 const result = processor.parseMessage('text', segments, true);
@@ -660,8 +698,8 @@ describe('MessageSegmentProcessor', () => {
                     rawContent: 'existing',
                     streamingStatus: 'completed',
                     rendererType: 'text',
-                    renderer: mockTextRenderer
-                } as ProcessedTextSegment
+                    renderer: mockTextRenderer,
+                } as ProcessedTextSegment,
             ];
 
             const result = processor.parseMessage(' new text', segments, false);
@@ -733,7 +771,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle text <tag>somecontent</tag><anothertag>more content</anothertag> - all complete', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag>somecontent</tag><anothertag>more content</anothertag>', segments, false);
+                const result = processor.parseMessage(
+                    'text <tag>somecontent</tag><anothertag>more content</anothertag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);
@@ -744,7 +786,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle text <tag>somecontent</tag><anothertag>more content</anothertag> more text - with final text', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag>somecontent</tag><anothertag>more content</anothertag> more text', segments, false);
+                const result = processor.parseMessage(
+                    'text <tag>somecontent</tag><anothertag>more content</anothertag> more text',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(4);
                 expect(segments).toHaveLength(4);
@@ -764,8 +810,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'text ',
                         streamingStatus: 'streaming',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = processor.parseMessage('<ta', segments, true);
@@ -785,8 +831,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'text ',
                         streamingStatus: 'completed',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = processor.parseMessage('<ta', segments, true);
@@ -871,7 +917,7 @@ describe('MessageSegmentProcessor', () => {
                 id: 'test-message',
                 content: 'test content',
                 segments: [],
-                traces: []
+                traces: [],
             };
             mockChatAppState = { componentRegistry: mockComponentRegistry };
             mockAppState = { user: { id: 'test-user' } };
@@ -889,7 +935,7 @@ describe('MessageSegmentProcessor', () => {
                 expect.objectContaining({
                     tag: 'metadata-tag',
                     rawContent: '{"event": "test"}',
-                    streamingStatus: 'completed'
+                    streamingStatus: 'completed',
                 }),
                 mockMessage,
                 mockChatAppState,
@@ -923,7 +969,10 @@ describe('MessageSegmentProcessor', () => {
             proc.applyMetadataHandlers(segments, mockMessage, mockChatAppState, mockAppState);
 
             expect(errorHandler).toHaveBeenCalled();
-            expect(consoleSpy).toHaveBeenCalledWith("Error applying metadata handler for tag 'error-tag':", expect.any(Error));
+            expect(consoleSpy).toHaveBeenCalledWith(
+                "Error applying metadata handler for tag 'error-tag':",
+                expect.any(Error)
+            );
 
             consoleSpy.mockRestore();
         });
@@ -989,8 +1038,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'previous ',
                         streamingStatus: 'streaming',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = proc.parseMessage('<ta>', segments, true);
@@ -1012,8 +1061,8 @@ describe('MessageSegmentProcessor', () => {
                         rawContent: 'previous ',
                         streamingStatus: 'completed',
                         rendererType: 'text',
-                        renderer: mockTextRenderer
-                    } as ProcessedTextSegment
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
                 ];
 
                 const result = proc.parseMessage('<ta>', segments, true);
@@ -1076,21 +1125,39 @@ describe('MessageSegmentProcessor', () => {
         describe('Deeply nested content handling', () => {
             it('should handle deeply nested tags as content', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('<tag><level1><level2><level3>deep content</level3></level2></level1></tag>', segments, false);
+                const result = processor.parseMessage(
+                    '<tag><level1><level2><level3>deep content</level3></level2></level1></tag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(1);
                 expect(segments).toHaveLength(1);
-                expectTagSegment(result[0], 'tag', '<level1><level2><level3>deep content</level3></level2></level1>', 'completed');
+                expectTagSegment(
+                    result[0],
+                    'tag',
+                    '<level1><level2><level3>deep content</level3></level2></level1>',
+                    'completed'
+                );
             });
 
             it('should handle mixed text and nested tags in streaming', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('prefix <tag>content <nested>more</nested> and <another>tag</another>', segments, true);
+                const result = processor.parseMessage(
+                    'prefix <tag>content <nested>more</nested> and <another>tag</another>',
+                    segments,
+                    true
+                );
 
                 expect(result).toHaveLength(2);
                 expect(segments).toHaveLength(2);
                 expectTextSegment(result[0], 'prefix ', 'completed');
-                expectTagSegment(result[1], 'tag', 'content <nested>more</nested> and <another>tag</another>', 'streaming');
+                expectTagSegment(
+                    result[1],
+                    'tag',
+                    'content <nested>more</nested> and <another>tag</another>',
+                    'streaming'
+                );
             });
 
             it('should handle partial nested closing tags in streaming', () => {
@@ -1107,7 +1174,11 @@ describe('MessageSegmentProcessor', () => {
         describe('Complex multi-tag scenarios', () => {
             it('should handle alternating complete and streaming tags', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('<tag>complete</tag> text <anothertag>streaming content', segments, true);
+                const result = processor.parseMessage(
+                    '<tag>complete</tag> text <anothertag>streaming content',
+                    segments,
+                    true
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);
@@ -1162,7 +1233,7 @@ describe('MessageSegmentProcessor', () => {
                     expect.objectContaining({
                         tag: 'tag',
                         rawContent: 'content',
-                        renderer: undefined
+                        renderer: undefined,
                     })
                 );
             });
@@ -1180,7 +1251,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle mixed valid and invalid tags', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('<tag>valid</tag> text <invalid>><<> more <anothertag>also valid</anothertag>', segments, false);
+                const result = processor.parseMessage(
+                    '<tag>valid</tag> text <invalid>><<> more <anothertag>also valid</anothertag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);
@@ -1293,7 +1368,11 @@ describe('MessageSegmentProcessor', () => {
                 const proc = new MessageSegmentProcessor(registry);
                 const segments: ProcessedSegment[] = [];
 
-                const result = proc.parseMessage('<CamelCase>content1</CamelCase><lowercase>content2</lowercase>', segments, false);
+                const result = proc.parseMessage(
+                    '<CamelCase>content1</CamelCase><lowercase>content2</lowercase>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(2);
                 expect(segments).toHaveLength(2);
@@ -1334,7 +1413,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should handle multiple consecutive empty tags', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('<tag></tag><anothertag></anothertag><tag></tag>', segments, false);
+                const result = processor.parseMessage(
+                    '<tag></tag><anothertag></anothertag><tag></tag>',
+                    segments,
+                    false
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);
@@ -1423,7 +1506,11 @@ describe('MessageSegmentProcessor', () => {
 
             it('should mark complete tags as completed in complex streaming scenarios', () => {
                 const segments: ProcessedSegment[] = [];
-                const result = processor.parseMessage('text <tag>content</tag><anothertag>more</anothertag>', segments, true);
+                const result = processor.parseMessage(
+                    'text <tag>content</tag><anothertag>more</anothertag>',
+                    segments,
+                    true
+                );
 
                 expect(result).toHaveLength(3);
                 expect(segments).toHaveLength(3);

@@ -17,28 +17,14 @@
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         // Add Jest types
-        "types": [
-            "jest",
-            "node"
-        ],
+        "types": ["jest", "node"],
         // Path mapping for SvelteKit aliases
         "baseUrl": "../",
         "paths": {
-            "$lib/*": [
-                "src/lib/*"
-            ],
-            "@pika/shared/*": [
-                "../../packages/shared/src/*"
-            ]
+            "$lib/*": ["src/lib/*"],
+            "@pika/shared/*": ["../../packages/shared/src/*"]
         }
     },
-    "include": [
-        "../src/**/*",
-        "./**/*"
-    ],
-    "exclude": [
-        "../node_modules",
-        "../build",
-        "../.svelte-kit"
-    ]
+    "include": ["../src/**/*", "./**/*"],
+    "exclude": ["../node_modules", "../build", "../.svelte-kit"]
 }

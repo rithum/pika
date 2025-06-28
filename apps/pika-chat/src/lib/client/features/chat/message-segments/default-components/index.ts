@@ -22,7 +22,7 @@ export const defaultRenderers: Record<string, Component<any>> = {
     chat: ChatComponent,
     download: DownloadComponent,
     image: ImageComponent,
-    prompt: PromptComponent
+    prompt: PromptComponent,
 };
 
 /**
@@ -30,5 +30,5 @@ export const defaultRenderers: Record<string, Component<any>> = {
  * have a function that is called to effect whatever side effect is needed.
  */
 export const defaultMetadataHandlers: Record<string, MetadataTagHandler> = {
-    trace: traceMetadataHandler
+    trace: traceMetadataHandler,
 };

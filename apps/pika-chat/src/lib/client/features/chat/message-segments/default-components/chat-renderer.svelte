@@ -22,9 +22,7 @@
 </script>
 
 {#if showPlaceholder}
-    <div class="animate-pulse bg-gray-100 rounded-lg p-3 text-gray-500 text-sm">
-        Loading chat component...
-    </div>
+    <div class="animate-pulse bg-gray-100 rounded-lg p-3 text-gray-500 text-sm">Loading chat component...</div>
 {:else}
     <div class="my-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div class="flex items-start space-x-3">

@@ -8,13 +8,13 @@ const config = {
     trailingSlash: 'always',
     kit: {
         adapter: adapter({
-            out: 'build/apps/pika-chat'
+            out: 'build/apps/pika-chat',
         }),
         csp: {
-            mode: 'auto'
+            mode: 'auto',
         },
         csrf: {
-            checkOrigin: true
+            checkOrigin: true,
         },
         alias: {
             $lib: path.resolve('./src/lib'),
@@ -26,9 +26,9 @@ const config = {
             $client: path.resolve('./src/lib/client'),
             '$client/*': path.resolve('./src/lib/client/*'),
             '@pika/shared': path.resolve('../../packages/shared/src'),
-            '@pika/shared/*': path.resolve('../../packages/shared/src/*')
-        }
-    }
+            '@pika/shared/*': path.resolve('../../packages/shared/src/*'),
+        },
+    },
 };
 
 export default config;

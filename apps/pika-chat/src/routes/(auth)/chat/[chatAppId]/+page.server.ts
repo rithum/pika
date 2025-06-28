@@ -2,6 +2,9 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import type { ChatApp, ChatAppMode } from '@pika/shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { doesUserNeedToProvideDataOverrides, isUserAllowedToUseUserDataOverrides } from '$lib/server/utils';
+import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
+import { siteFeatures } from '$lib/server/custom-site-features';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
     const { chatAppId } = params;
@@ -49,7 +52,15 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
         chatApp.mode = modeParam as ChatAppMode;
     }
 
+    const { userTypesAllowed, ...userDataOverridesRest } = siteFeatures?.userDataOverrides ?? {};
+    let userDataOverrideSettings: UserDataOverrideSettings = {
+        ...userDataOverridesRest,
+        enabled: isUserAllowedToUseUserDataOverrides(locals.user),
+        userNeedsToProvideDataOverrides: doesUserNeedToProvideDataOverrides(locals.user),
+    };
+
     return {
-        chatApp
+        chatApp,
+        userDataOverrideSettings,
     };
 };

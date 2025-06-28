@@ -447,6 +447,9 @@ importers:
       '@types/jsonwebtoken':
         specifier: 'catalog:'
         version: 9.0.9
+      '@types/lodash.clonedeep':
+        specifier: 'catalog:'
+        version: 4.5.9
       '@types/markdown-it':
         specifier: 'catalog:'
         version: 14.1.2
@@ -510,6 +513,9 @@ importers:
       jsonwebtoken:
         specifier: 'catalog:'
         version: 9.0.2
+      lodash.clonedeep:
+        specifier: 'catalog:'
+        version: 4.5.0
       markdown-it:
         specifier: 'catalog:'
         version: 14.1.0

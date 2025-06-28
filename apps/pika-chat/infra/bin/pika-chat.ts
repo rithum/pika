@@ -43,7 +43,7 @@ async function main() {
 
     const env = {
         account: loggedInAccountId,
-        region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
+        region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
     };
 
     //TODO: get these from an environment variable or something
@@ -69,7 +69,7 @@ async function main() {
         projNameCamel,
         projNameKebabCase,
         projNameHuman,
-        pikaServiceProjNameKebabCase
+        pikaServiceProjNameKebabCase,
     });
 }
 

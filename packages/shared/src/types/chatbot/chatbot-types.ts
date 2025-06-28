@@ -241,6 +241,17 @@ export interface ChatUser<T extends RecordOrUndef = undefined> {
     lastName?: string;
     /** Custom user data to associate with the user.  For example, accountId, accountName, accountType, etc. */
     customData?: T;
+    /**
+     * This will be set by the pika infrastructure when we find a user that is allowed to use the user override data
+     * feature and actually has used the webapp user override data dialog to choose what values to override.
+     *
+     * This allows for the user to override `customData` specific to a chat app.
+     *
+     * It is never persisted to the database, it is saved server side in a secure cookie.
+     *
+     * The key is the chatAppId and the value is the override data for that chat app.
+     */
+    overrideData?: Record<string, T>;
     /** ISO 8601 formatted timestamp of when the user was created */
     createDate?: string;
     /** ISO 8601 formatted timestamp of when the user was last updated */
@@ -1027,3 +1038,60 @@ export interface TextMessageSegment extends MessageSegmentBase {
 }
 
 export type MessageSegment = TagMessageSegment | TextMessageSegment;
+
+export const UserOverrideDataCommand = ['getInitialDialogData', 'getValuesForAutoComplete', 'saveUserOverrideData', 'clearUserOverrideData'] as const;
+export type UserOverrideDataCommand = (typeof UserOverrideDataCommand)[number];
+
+export type UserOverrideDataCommandRequest = GetInitialDialogDataRequest | GetValuesForAutoCompleteRequest | SaveUserOverrideDataRequest | ClearUserOverrideDataRequest;
+export type UserOverrideDataCommandResponse = GetInitialDialogDataResponse | GetValuesForAutoCompleteResponse | SaveUserOverrideDataResponse | ClearUserOverrideDataResponse;
+
+export interface UserOverrideDataCommandRequestBase {
+    command: UserOverrideDataCommand;
+    chatAppId: string;
+}
+
+export interface GetInitialDialogDataRequest extends UserOverrideDataCommandRequestBase {
+    command: 'getInitialDialogData';
+}
+
+export interface GetValuesForAutoCompleteRequest extends UserOverrideDataCommandRequestBase {
+    command: 'getValuesForAutoComplete';
+    componentName: string;
+    valueProvidedByUser: string;
+}
+
+export interface SaveUserOverrideDataRequest extends UserOverrideDataCommandRequestBase {
+    command: 'saveUserOverrideData';
+    data: unknown | undefined;
+}
+
+export interface ClearUserOverrideDataRequest extends UserOverrideDataCommandRequestBase {
+    command: 'clearUserOverrideData';
+}
+
+export interface UserOverrideDataCommandResponseBase {
+    success: boolean;
+    error?: string;
+}
+
+export interface GetInitialDialogDataResponse extends UserOverrideDataCommandResponseBase {
+    data: unknown | undefined;
+}
+
+export interface GetValuesForAutoCompleteResponse extends UserOverrideDataCommandResponseBase {
+    data: unknown[] | undefined;
+}
+
+export interface SaveUserOverrideDataResponse extends UserOverrideDataCommandResponseBase {
+    data: RecordOrUndef;
+}
+
+export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase {}
+
+/**
+ * This is the type used to persist the user data override data to a cookie if provided.
+ */
+export interface UserOverrideData {
+    /** The outer key is the chatAppId and the inner key is the user data override data. */
+    data: Record<string, RecordOrUndef>;
+}

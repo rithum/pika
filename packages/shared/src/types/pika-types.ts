@@ -11,7 +11,84 @@ export interface PikaConfig {
 
 export interface SiteFeatures {
     homePage?: HomePageSiteFeature;
+    userDataOverrides?: UserDataOverridesSiteFeature;
 }
+
+/**
+ * When turned on, the front end will allow users to override user values set by the auth provider
+ * in `ChatUser.customData`.  For example, perhaps an internal user needs the ability to choose an account
+ * to act as.  This feature then allows them to set the accountId perhaps on `ChatUser.customData.accountId`.
+ * using a UI component that you the developer will provide.  @see <root>/docs/developer/user-overrides
+ */
+export interface UserDataOverridesSiteFeature {
+    /** Whether to enable the user overrides feature. */
+    enabled: boolean;
+
+    /**
+     * The user types that are allowed to use the user overrides feature.  If not provided, defaults to `['internal-user']`
+     * meaning that if the feature is enabled, only internal users will be able to use it.
+     */
+    userTypesAllowed?: string[];
+
+    /**
+     * The title of the menu item that will be displayed to authorized users that when clicked will
+     * open the dialog allowing them to override user data.  Defaults to "Override User Data".
+     */
+    menuItemTitle?: string;
+
+    /**
+     * The title of the dialog that will be displayed when the user clicks the menu item.  Defaults to "Override User Data".
+     */
+    dialogTitle?: string;
+
+    /**
+     * The description that appears benath the title in the dialog window. Defaults to
+     * "Override user data values to use with this chat app.  This override will persist until you
+     * login again or clear the override."
+     */
+    dialogDescription?: string;
+
+    /**
+     * The description that appears benath the title in the dialog window when the user needs to provide data overrides.
+     * Defaults to the same as dialogDescription.  Use this to say something like, "You need to provide data overrides to use this chat app."
+     */
+    dialogDescriptionWhenUserNeedsToProvideDataOverrides?: string;
+
+    /**
+     * Whether to prompt the user if their user object's customData object is missing any of the custom user
+     * data attributes that are required for the chat app.  If any of these attributes is missing and the user
+     * is allowed to use the user data overrides feature, the user will be prompted to enter the missing attributes
+     * when they open the chat app.  If not provided, defaults to false.
+     *
+     * So, when they open a chat app and they are allowed to use the user data overrides feature, and
+     * any of these attributes are missing on the users's customData attribute provided by the auth provider
+     * then the user will be prompted to enter the missing attributes and will not be able to use the chat app
+     * until they have provided the data overrides that presumably will be used to fill in the missing attributes.
+     *
+     * Note, you can use dot notation to specify nested attributes.  For example, if you want to prompt the user
+     * if the user object's customData object is missing the attribute "address.street", you can specify
+     * "address.street" in the array.  The root of the attibute path is the user.customData object itself.
+     *
+     * So, if your customData object was this and you needed to prompt the user if the companyName or companyId
+     * attributes were missing, you would specify "companyName" or "companyId" in the array.
+     *
+     * ```ts
+     * export interface MyCustomUserData {
+     *     companyName: string;
+     *     companyId: string;
+     * }
+     * ```
+     *
+     * The prompt will be shown if the data is missing each time they come to chat app and if they dismiss the prompt,
+     * the prompt will be shown if they try to submit a message to the agent instead of sending the message.
+     */
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing?: string[];
+}
+
+/** Used in front end to pass settings from server to client. */
+export type UserDataOverrideSettings = Omit<UserDataOverridesSiteFeature, 'userTypesAllowed' | 'promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing'> & {
+    userNeedsToProvideDataOverrides: boolean;
+};
 
 export interface HomePageSiteFeature {
     /**

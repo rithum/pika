@@ -1,34 +1,42 @@
 <script lang="ts">
-    import { page } from '$app/state';
     import type { AppState } from '$client/app/app.state.svelte';
-    import ChatHome from '$client/features/chat/chat-app-main/chat-app-main.svelte';
-    import { getContext } from 'svelte';
     import { Button } from '$lib/components/ui/button';
+    import { getContext } from 'svelte';
+    import type { PageData } from './$types';
+    import { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
 
     const appState = getContext<AppState>('appState');
     const { data }: { data: PageData } = $props();
 
-    const internalApps = $derived(data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('internal-user')));
-    const externalApps = $derived(data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('external-user')));
+    const internalApps = $derived(
+        data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('internal-user'))
+    );
+    const externalApps = $derived(
+        data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('external-user'))
+    );
 
     // New derived values for cleaner organization
-    const bothApps = $derived(data.chatApps.filter((app) => {
-        const userTypes = app.userTypesAllowed ?? ['internal-user'];
-        return userTypes.includes('internal-user') && userTypes.includes('external-user');
-    }));
-    const internalOnlyApps = $derived(data.chatApps.filter((app) => {
-        const userTypes = app.userTypesAllowed ?? ['internal-user'];
-        return userTypes.includes('internal-user') && !userTypes.includes('external-user');
-    }));
-    const externalOnlyApps = $derived(data.chatApps.filter((app) => {
-        const userTypes = app.userTypesAllowed ?? ['internal-user'];
-        return !userTypes.includes('internal-user') && userTypes.includes('external-user');
-    }));
+    const bothApps = $derived(
+        data.chatApps.filter((app) => {
+            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            return userTypes.includes('internal-user') && userTypes.includes('external-user');
+        })
+    );
+    const internalOnlyApps = $derived(
+        data.chatApps.filter((app) => {
+            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            return userTypes.includes('internal-user') && !userTypes.includes('external-user');
+        })
+    );
+    const externalOnlyApps = $derived(
+        data.chatApps.filter((app) => {
+            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            return !userTypes.includes('internal-user') && userTypes.includes('external-user');
+        })
+    );
 
     const pageTitle = $derived(data.homePageTitle ?? 'Chat Apps');
     const welcomeMessage = $derived(data.welcomeMessage ?? 'Welcome to the chatbot app');
-
-    
 </script>
 
 {#if data.chatApps && data.chatApps.length === 0}
@@ -45,14 +53,16 @@
                 <h1 class="text-4xl font-bold text-gray-900">{pageTitle}</h1>
             </div>
         </div>
-        
+
         <!-- Main Content -->
         <div class="container mx-auto p-6 max-w-7xl">
             {#if appState.identity.isInternalUser}
                 {#if bothApps.length > 0}
                     <div class="mb-12">
                         <h2 class="text-3xl font-bold text-gray-900 mb-2">Available to External Users</h2>
-                        <p class="text-gray-600 mb-6">Chat applications accessible by both internal team members and external users</p>
+                        <p class="text-gray-600 mb-6">
+                            Chat applications accessible by both internal team members and external users
+                        </p>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {#each bothApps as app}
                                 {@render chatAppCard(app, 'both')}
@@ -84,7 +94,7 @@
                         </div>
                     </div>
                 {/if}
-            {:else} 
+            {:else}
                 <div class="mb-12">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Available Chat Apps</h2>
                     <p class="text-gray-600 mb-6">Select a chat application to get started</p>
@@ -100,7 +110,9 @@
 {/if}
 
 {#snippet chatAppCard(app: ChatAppLite, appType?: string)}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden h-full flex flex-col">
+    <div
+        class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden h-full flex flex-col"
+    >
         <!-- Card Header -->
         <div class="p-6 pb-4 flex-grow">
             <div class="flex items-start justify-between mb-3">
@@ -110,35 +122,43 @@
                 {#if appState.identity.isInternalUser && appType}
                     <div class="flex gap-1 flex-shrink-0 ml-3">
                         {#if appType === 'both'}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"
+                            >
                                 External
                             </span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            >
                                 Internal
                             </span>
                         {:else if appType === 'internal'}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            >
                                 Internal
                             </span>
                         {:else if appType === 'external'}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                            >
                                 External
                             </span>
                         {/if}
                     </div>
                 {/if}
             </div>
-            
+
             <!-- Description placeholder - you may want to add this to your data -->
             <p class="text-gray-600 text-sm leading-relaxed">
                 {app.description || 'AI-powered chat assistant to help with your questions and tasks.'}
             </p>
         </div>
-        
+
         <!-- Card Footer -->
         <div class="px-6 pb-6 mt-auto">
-            <Button 
-                href="/chat/{app.chatAppId}" 
+            <Button
+                href="/chat/{app.chatAppId}"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200"
             >
                 Launch Chat

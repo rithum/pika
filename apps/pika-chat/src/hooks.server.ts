@@ -1,6 +1,15 @@
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
-import { addSecurityHeaders, clearAuthenticatedUserCookies, deserializeAuthenticatedUserFromCookies, serializeAuthenticatedUserToCookies } from '$lib/server/utils';
+import {
+    addSecurityHeaders,
+    clearAuthenticatedUserCookies,
+    clearUserOverrideDataCookies,
+    deserializeAuthenticatedUserFromCookies,
+    serializeAuthenticatedUserToCookies,
+    deserializeUserOverrideDataFromCookies,
+    serializeUserOverrideDataToCookies,
+    isUserAllowedToUseUserDataOverrides,
+} from '$lib/server/utils';
 import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
@@ -33,8 +42,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         return new Response('OK', {
             status: 200,
             headers: {
-                'Content-Type': 'text/plain'
-            }
+                'Content-Type': 'text/plain',
+            },
         });
     }
 
@@ -67,7 +76,12 @@ export const handle: Handle = async ({ event, resolve }) => {
             user = authResult;
 
             // Serialize the user to cookies (handles large data automatically)
-            serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+            serializeAuthenticatedUserToCookies(
+                event,
+                user,
+                appConfig.masterCookieKey,
+                appConfig.masterCookieInitVector
+            );
 
             // Handle chat user creation/retrieval
             console.log('Checking for existing chat user...');
@@ -81,20 +95,21 @@ export const handle: Handle = async ({ event, resolve }) => {
                 chatUser = await createChatUser(newChatUser);
                 console.log('New chat user created:', {
                     userId: chatUser?.userId,
-                    features: Object.keys(chatUser?.features || {})
+                    features: Object.keys(chatUser?.features || {}),
                 });
             } else {
                 // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
                 mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
                 console.log('Existing chat user found:', {
                     userId: chatUser.userId,
-                    features: Object.keys(chatUser.features || {})
+                    features: Object.keys(chatUser.features || {}),
                 });
             }
         } catch (error) {
             if (error instanceof NotAuthenticatedError) {
                 // Clear any invalid cookies
                 clearAuthenticatedUserCookies(event);
+                clearUserOverrideDataCookies(event);
                 // Redirect to login
                 throw redirect(302, '/login');
             }
@@ -114,17 +129,36 @@ export const handle: Handle = async ({ event, resolve }) => {
                 user = validationResult;
 
                 // Update the user cookies with the refreshed data
-                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+                serializeAuthenticatedUserToCookies(
+                    event,
+                    user,
+                    appConfig.masterCookieKey,
+                    appConfig.masterCookieInitVector
+                );
             }
             // If validationResult is undefined, no action needed
         } catch (error) {
             if (error instanceof ForceUserToReauthenticateError) {
                 // Clear cookies and redirect to login
                 clearAuthenticatedUserCookies(event);
+                clearUserOverrideDataCookies(event);
                 throw redirect(302, '/login');
             }
             // Re-throw other errors
             throw error;
+        }
+    }
+
+    // If the user is allowed to use the user data overrides feature, we need to deserialize the user override data from cookies
+    // and merge it with the user object.
+    if (isUserAllowedToUseUserDataOverrides(user)) {
+        const userOverrideData = deserializeUserOverrideDataFromCookies(
+            event,
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
+        if (userOverrideData) {
+            user.overrideData = userOverrideData.data;
         }
     }
 

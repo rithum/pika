@@ -42,9 +42,9 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         headers: {
             Host: url.hostname,
             'Content-Type': 'application/json',
-            'x-chat-auth': xChatAuthToken
+            'x-chat-auth': xChatAuthToken,
         } as Record<string, string>,
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
     };
 
     // Create a SignatureV4 signer instance for Lambda service
@@ -52,7 +52,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         credentials: defaultProvider(),
         region: region,
         service: 'lambda', // Lambda Function URLs use 'lambda' service for signing
-        sha256: Sha256
+        sha256: Sha256,
     });
 
     // Sign the request
@@ -68,18 +68,22 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         response = await fetch(functionUrl, {
             method: signedRequest.method,
             headers: signedRequest.headers,
-            body: signedRequest.body
+            body: signedRequest.body,
         });
     } catch (error) {
         console.error('Failed to invoke converse function URL:', error);
-        throw new Error(`Network error or failed to fetch from Lambda Function URL: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+            `Network error or failed to fetch from Lambda Function URL: ${error instanceof Error ? error.message : String(error)}`
+        );
     }
 
     // Check if the response was successful
     if (!response.ok) {
         const errorText = await response.text();
         console.error(`Lambda Function URL request failed with status ${response.status}:`, errorText);
-        throw new Error(`Lambda Function URL request failed with status ${response.status}: ${response.statusText}. Response: ${errorText}`);
+        throw new Error(
+            `Lambda Function URL request failed with status ${response.status}: ${response.statusText}. Response: ${errorText}`
+        );
     }
 
     return {
@@ -87,6 +91,6 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         headers: response.headers,
         ok: response.ok,
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
     };
 }

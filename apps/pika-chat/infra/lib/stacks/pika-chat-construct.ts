@@ -139,40 +139,58 @@ export class PikaChatConstruct extends Construct {
         this.dockerImage = new ecr_assets.DockerImageAsset(this, `${props.projNameTitleCase}Image`, {
             directory: props.dockerBuildPath,
             buildArgs: {
-                BUILDPLATFORM: 'linux/amd64'
+                BUILDPLATFORM: 'linux/amd64',
             },
-            platform: ecr_assets.Platform.LINUX_AMD64
+            platform: ecr_assets.Platform.LINUX_AMD64,
         });
 
         // Store the image URI in SSM for reference by other services
         new ssm.StringParameter(this, `${props.projNameTitleCase}EcrImageUriParam`, {
             parameterName: `/stack/${props.projNameKebabCase}/${props.stage}/ecr/${props.projNameKebabCase}-image-uri`,
             stringValue: this.dockerImage.imageUri,
-            description: `URI of the ${props.projNameHuman} Docker image in ECR`
+            description: `URI of the ${props.projNameHuman} Docker image in ECR`,
         });
 
         // Create ECS cluster
         this.cluster = new ecs.Cluster(this, `${props.projNameTitleCase}Cluster`, {
-            vpc: props.vpc
+            vpc: props.vpc,
         });
 
         // Param comes from the pika service stack
-        const apiId = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/id`);
+        const apiId = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/id`
+        );
 
         // Param comes from the pika service stack
-        const chatAdminApiId = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/chat_admin_id`);
+        const chatAdminApiId = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/chat_admin_id`
+        );
 
         // Param comes from the pika service stack
-        const converseFnUrl = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_url`);
+        const converseFnUrl = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_url`
+        );
 
         // Param comes from the pika service stack
-        const chatAppTableArn = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/ddb_table/chat_app_table_arn`);
+        const chatAppTableArn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/ddb_table/chat_app_table_arn`
+        );
 
         // Param comes from the pika service stack
-        const uploadS3Bucket = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/s3/upload_bucket_name`);
+        const uploadS3Bucket = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/s3/upload_bucket_name`
+        );
 
         // Param comes from the pika service stack
-        const uploadS3BucketArn = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/s3/upload_bucket_arn`);
+        const uploadS3BucketArn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/s3/upload_bucket_arn`
+        );
 
         // Create task role with necessary permissions
         this.taskRole = new iam.Role(this, `${props.projNameTitleCase}TaskRole`, {
@@ -185,8 +203,8 @@ export class PikaChatConstruct extends Construct {
                             actions: ['execute-api:Invoke'],
                             resources: [
                                 `arn:aws:execute-api:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:${apiId}/*`,
-                                `arn:aws:execute-api:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:${chatAdminApiId}/*`
-                            ]
+                                `arn:aws:execute-api:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:${chatAdminApiId}/*`,
+                            ],
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -194,14 +212,14 @@ export class PikaChatConstruct extends Construct {
                             resources: [`arn:aws:execute-api:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:*/*`],
                             conditions: {
                                 StringEquals: {
-                                    'aws:ResourceTag/pika-api': 'true'
-                                }
-                            }
+                                    'aws:ResourceTag/pika-api': 'true',
+                                },
+                            },
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/*`]
+                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/*`],
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -210,27 +228,34 @@ export class PikaChatConstruct extends Construct {
                                 ssm.StringParameter.valueForStringParameter(
                                     this,
                                     `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_arn` // Comes from the pika service stack
-                                )
-                            ]
+                                ),
+                            ],
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['sts:GetCallerIdentity'],
-                            resources: ['*']
+                            resources: ['*'],
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan', 'dynamodb:BatchGetItem'],
-                            resources: [chatAppTableArn]
+                            resources: [chatAppTableArn],
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAcl', 's3:PutObjectAcl', 's3:PutObjectTagging'],
-                            resources: [uploadS3BucketArn, `${uploadS3BucketArn}/*`]
-                        })
-                    ]
-                })
-            }
+                            actions: [
+                                's3:GetObject',
+                                's3:PutObject',
+                                's3:DeleteObject',
+                                's3:GetObjectAcl',
+                                's3:PutObjectAcl',
+                                's3:PutObjectTagging',
+                            ],
+                            resources: [uploadS3BucketArn, `${uploadS3BucketArn}/*`],
+                        }),
+                    ],
+                }),
+            },
         });
 
         // Build environment variables
@@ -245,62 +270,76 @@ export class PikaChatConstruct extends Construct {
             UPLOAD_S3_BUCKET: uploadS3Bucket,
             CONVERSE_FUNCTION_URL: converseFnUrl,
             PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: props.pikaServiceProjNameKebabCase,
-            PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase
+            PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase,
         };
 
         const environmentVariables = {
             ...baseEnvironmentVariables,
-            ...props.additionalEnvironmentVariables
+            ...props.additionalEnvironmentVariables,
         };
 
         // Create log group first to preserve logical ID
         const logGroup = new LogGroup(this, `${props.projNameTitleCase}LogGroup`, {
             logGroupName: `/ecs/${props.projNameTitleCase}-${props.stage}`,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
-            retention: props.logRetention || RetentionDays.ONE_WEEK
+            retention: props.logRetention || RetentionDays.ONE_WEEK,
         });
 
         // Create the Fargate service
-        this.service = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${props.projNameTitleCase}FargateService`, {
-            cluster: this.cluster,
-            cpu: props.cpu || 512,
-            desiredCount: props.desiredCount || 1,
-            protocol: ApplicationProtocol.HTTPS,
-            sslPolicy: SslPolicy.RECOMMENDED_TLS,
-            enableExecuteCommand: false,
-            memoryLimitMiB: props.memoryLimitMiB || 2048,
-            publicLoadBalancer: props.makeLoadBalancerPublic || false,
-            taskImageOptions: {
-                containerName: `${props.projNameTitleCase}Task-${props.stage}`,
-                image: ecs.ContainerImage.fromDockerImageAsset(this.dockerImage),
-                containerPort: props.containerPort || 3000,
-                environment: environmentVariables,
-                taskRole: this.taskRole,
-                enableLogging: true,
-                logDriver: ecs.LogDriver.awsLogs({
-                    streamPrefix: `${props.projNameTitleCase}-${props.stage}`,
-                    logGroup: logGroup
-                })
-            },
-            enableECSManagedTags: true,
-            ...(props.certificate
-                ? { certificate: props.certificate }
-                : props.certificateArn
-                  ? { certificate: Certificate.fromCertificateArn(this, `${props.projNameTitleCase}Certificate-${props.stage}`, props.certificateArn) }
-                  : {}),
-            ...(props.domainName ? { domainName: props.domainName } : {}),
-            ...(props.hostedZoneId && props.domainName
-                ? {
-                      domainZone: HostedZone.fromHostedZoneAttributes(this, `${props.projNameTitleCase}DomainZone-${props.stage}`, {
-                          hostedZoneId: props.hostedZoneId,
-                          zoneName: props.domainName
-                      })
-                  }
-                : {}),
-            redirectHTTP: true,
-            loadBalancerName: `${props.projNameTitleCase}LoadBalancer-${props.stage}`,
-            minHealthyPercent: 50
-        });
+        this.service = new ecs_patterns.ApplicationLoadBalancedFargateService(
+            this,
+            `${props.projNameTitleCase}FargateService`,
+            {
+                cluster: this.cluster,
+                cpu: props.cpu || 512,
+                desiredCount: props.desiredCount || 1,
+                protocol: ApplicationProtocol.HTTPS,
+                sslPolicy: SslPolicy.RECOMMENDED_TLS,
+                enableExecuteCommand: false,
+                memoryLimitMiB: props.memoryLimitMiB || 2048,
+                publicLoadBalancer: props.makeLoadBalancerPublic || false,
+                taskImageOptions: {
+                    containerName: `${props.projNameTitleCase}Task-${props.stage}`,
+                    image: ecs.ContainerImage.fromDockerImageAsset(this.dockerImage),
+                    containerPort: props.containerPort || 3000,
+                    environment: environmentVariables,
+                    taskRole: this.taskRole,
+                    enableLogging: true,
+                    logDriver: ecs.LogDriver.awsLogs({
+                        streamPrefix: `${props.projNameTitleCase}-${props.stage}`,
+                        logGroup: logGroup,
+                    }),
+                },
+                enableECSManagedTags: true,
+                ...(props.certificate
+                    ? { certificate: props.certificate }
+                    : props.certificateArn
+                      ? {
+                            certificate: Certificate.fromCertificateArn(
+                                this,
+                                `${props.projNameTitleCase}Certificate-${props.stage}`,
+                                props.certificateArn
+                            ),
+                        }
+                      : {}),
+                ...(props.domainName ? { domainName: props.domainName } : {}),
+                ...(props.hostedZoneId && props.domainName
+                    ? {
+                          domainZone: HostedZone.fromHostedZoneAttributes(
+                              this,
+                              `${props.projNameTitleCase}DomainZone-${props.stage}`,
+                              {
+                                  hostedZoneId: props.hostedZoneId,
+                                  zoneName: props.domainName,
+                              }
+                          ),
+                      }
+                    : {}),
+                redirectHTTP: true,
+                loadBalancerName: `${props.projNameTitleCase}LoadBalancer-${props.stage}`,
+                minHealthyPercent: 50,
+            }
+        );
 
         // Configure health check
         this.service.targetGroup.configureHealthCheck({
@@ -308,7 +347,7 @@ export class PikaChatConstruct extends Construct {
             port: 'traffic-port',
             unhealthyThresholdCount: 5,
             timeout: cdk.Duration.seconds(60),
-            interval: cdk.Duration.seconds(90)
+            interval: cdk.Duration.seconds(90),
         });
 
         if (props.domainName) {
@@ -316,14 +355,14 @@ export class PikaChatConstruct extends Construct {
             new cdk.CfnOutput(this, 'ChatWebappUrl', {
                 value: cdk.Fn.sub(`https://${props.domainName}`).toString(),
                 description: `${props.projNameHuman} Service URL`,
-                exportName: `chat-webapp-url-${props.projNameKebabCase}-${props.stage}l`
+                exportName: `chat-webapp-url-${props.projNameKebabCase}-${props.stage}l`,
             });
         }
 
         // Output the load balancer DNS name
         new cdk.CfnOutput(this, `${props.projNameTitleCase}LoadBalancerDns`, {
             value: this.service.loadBalancer.loadBalancerDnsName,
-            description: `${props.projNameHuman} Load Balancer DNS Name`
+            description: `${props.projNameHuman} Load Balancer DNS Name`,
         });
     }
 }
