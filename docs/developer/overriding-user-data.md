@@ -94,7 +94,7 @@ import type { AuthenticatedUser, ChatApp, RecordOrUndef } from '@pika/shared/typ
 /**
  * Get initial data for the override dialog
  */
-export function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp): unknown | undefined {
+export async function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp): Promise<unknown | undefined> {
     // Return existing override data if available
     if (user.overrideData && user.overrideData[chatApp.chatAppId]) {
         const overrideData = user.overrideData[chatApp.chatAppId];
@@ -113,12 +113,12 @@ export function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<
 /**
  * Get values for auto-complete inputs
  */
-export function getValuesForAutoComplete(
+export async function getValuesForAutoComplete(
     componentName: string,
     valueProvidedByUser: string,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
     chatApp: ChatApp
-): unknown[] | undefined {
+): Promise<unknown[] | undefined> {
     // Example: Return filtered account list based on search
     if (componentName === 'accountSelector') {
         if (!valueProvidedByUser || valueProvidedByUser.trim() === '') {
@@ -150,7 +150,11 @@ export function getValuesForAutoComplete(
 /**
  * Process posted override data
  */
-export function userOverrideDataPostedFromDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp, overrideData: unknown | undefined): RecordOrUndef {
+export async function userOverrideDataPostedFromDialog(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatApp: ChatApp,
+    overrideData: unknown | undefined
+): Promise<RecordOrUndef> {
     if (!overrideData) {
         return undefined; // Clear overrides
     }

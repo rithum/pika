@@ -11,7 +11,7 @@ import type { AuthenticatedUser, ChatApp, RecordOrUndef, UserOverrideData } from
  * @param chatApp The chat app that the user is overriding the user for
  * @returns The initial data for the user data override dialog to render your custom UI component, if any
  */
-export function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp): unknown | undefined {
+export async function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp): Promise<unknown | undefined> {
     /*
         Replace everything in this function with your own implementation.  It's here as a working example.
         You may use fetch to reach out to an API. If you are going to call a resource in AWS, be sure you add permissions 
@@ -61,12 +61,12 @@ export function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<
  * @param chatApp The chat app that the user is overriding the user for
  * @returns
  */
-export function getValuesForAutoComplete(
+export async function getValuesForAutoComplete(
     _componentName: string,
     valueProvidedByUser: string,
     _user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
     _chatApp: ChatApp
-): unknown[] | undefined {
+): Promise<unknown[] | undefined> {
     /*
         Replace everything in this function with your own implementation.  You may use fetch to reach out to an API.
         If you are going to call a resource in AWS, be sure you add permissions to the ECS webapp task role so the
@@ -117,7 +117,11 @@ export function getValuesForAutoComplete(
  * @returns The complete bag of ChatUser.customData that we will use when calling the chat API or when invoking the agent. If you
  *          pass undefined then we remove any override data associated with this user and chat app.
  */
-export function userOverrideDataPostedFromDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp, overrideData: unknown | undefined): RecordOrUndef {
+export async function userOverrideDataPostedFromDialog(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatApp: ChatApp,
+    overrideData: unknown | undefined
+): Promise<RecordOrUndef> {
     /*
         Replace everything in this function with your own implementation.  Your job is to take the data posted from the user data override dialog
         that you chose to send and turn it into a bag of string keys and string values or undefined to return and use as the override data.

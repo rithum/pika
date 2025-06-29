@@ -38,19 +38,19 @@ export const POST: RequestHandler = async (event) => {
     }
 
     if (overrideReq.command === 'getInitialDialogData') {
-        const initialData = getInitialDataForUserDataOverrideDialog(user, chatApp);
+        const initialData = await getInitialDataForUserDataOverrideDialog(user, chatApp);
         return json({
             success: true,
             data: initialData
         });
     } else if (overrideReq.command === 'getValuesForAutoComplete') {
-        const valuesForAutoComplete = getValuesForAutoComplete(overrideReq.componentName, overrideReq.valueProvidedByUser, user, chatApp);
+        const valuesForAutoComplete = await getValuesForAutoComplete(overrideReq.componentName, overrideReq.valueProvidedByUser, user, chatApp);
         return json({
             success: true,
             data: valuesForAutoComplete
         });
     } else if (overrideReq.command === 'saveUserOverrideData') {
-        const savedData = userOverrideDataPostedFromDialog(user, chatApp, overrideReq.data);
+        const savedData = await userOverrideDataPostedFromDialog(user, chatApp, overrideReq.data);
 
         // Now update the user object with the new override data and update the cookie.
         if (!user.overrideData) {
