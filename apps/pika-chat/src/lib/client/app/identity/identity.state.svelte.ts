@@ -1,4 +1,4 @@
-import type { ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatUser, ChatUserLite, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 export class IdentityState {
     #user = $state<ChatUser<RecordOrUndef>>() as ChatUser<RecordOrUndef>;
@@ -30,11 +30,25 @@ export class IdentityState {
         this.#user.overrideData[chatAppId] = data;
     }
 
+    updateViewingContentFor(chatAppId: string, data: ChatUserLite) {
+        if (!this.#user.viewingContentFor) {
+            this.#user.viewingContentFor = {};
+        }
+        this.#user.viewingContentFor[chatAppId] = data;
+    }
+
     clearUserOverrideData(chatAppId: string) {
         if (!this.#user.overrideData) {
             return;
         }
         delete this.#user.overrideData[chatAppId];
+    }
+
+    clearViewingContentFor(chatAppId: string) {
+        if (!this.#user.viewingContentFor) {
+            return;
+        }
+        delete this.#user.viewingContentFor[chatAppId];
     }
 
     async logout() {

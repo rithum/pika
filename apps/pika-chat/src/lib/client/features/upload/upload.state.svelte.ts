@@ -1,4 +1,4 @@
-import type { FetchZ } from '$client/app/shared-types';
+import type { FetchZ } from '$client/app/types';
 import { UploadInstance } from './upload-instance.svelte';
 
 export class UploadState {

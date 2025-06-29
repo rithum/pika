@@ -74,7 +74,9 @@
                         <TooltipPlus tooltip="New Chat">
                             <Button
                                 variant="ghost"
-                                disabled={chat.isInterimSession || chat.isStreamingResponseNow}
+                                disabled={chat.isInterimSession ||
+                                    chat.isStreamingResponseNow ||
+                                    chat.isViewingContentForAnotherUser}
                                 size="icon"
                                 class="pl-0 pr-0 w-8"
                                 onclick={() => {

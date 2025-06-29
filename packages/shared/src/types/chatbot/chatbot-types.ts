@@ -242,6 +242,13 @@ export interface ChatUser<T extends RecordOrUndef = undefined> {
     /** Custom user data to associate with the user.  For example, accountId, accountName, accountType, etc. */
     customData?: T;
     /**
+     * If the user is a content admin, this will be set to the user they are viewing content for.
+     * This is used to allow content admins to view chat sessions and messages for all users for debugging purposes.
+     *
+     * The key is the chatAppId and the value is the user they are viewing content for.
+     */
+    viewingContentFor?: Record<string, ChatUserLite>;
+    /**
      * This will be set by the pika infrastructure when we find a user that is allowed to use the user override data
      * feature and actually has used the webapp user override data dialog to choose what values to override.
      *
@@ -264,6 +271,12 @@ export interface ChatUser<T extends RecordOrUndef = undefined> {
     features: {
         [K in FeatureType]: K extends 'instruction' ? InstructionFeature : K extends 'history' ? HistoryFeature : never;
     };
+}
+
+export interface ChatUserLite {
+    userId: string;
+    firstName?: string;
+    lastName?: string;
 }
 
 /**
@@ -414,6 +427,12 @@ export interface ChatTitleUpdateRequest extends BaseRequestData {
 export interface ChatUserResponse<T extends RecordOrUndef = undefined> {
     success: boolean;
     user: ChatUser<T> | undefined;
+    error?: string;
+}
+
+export interface ChatUserSearchResponse {
+    success: boolean;
+    users: ChatUserLite[];
     error?: string;
 }
 
@@ -1039,6 +1058,51 @@ export interface TextMessageSegment extends MessageSegmentBase {
 
 export type MessageSegment = TagMessageSegment | TextMessageSegment;
 
+export type ContentAdminRequest = ViewContentForUserRequest | StopViewingContentForUserRequest | GetValuesForContentAdminAutoCompleteRequest;
+export type ContentAdminResponse = ViewContentForUserResponse | StopViewingContentForUserResponse | GetValuesForContentAdminAutoCompleteResponse;
+
+export const ContentAdminCommand = ['viewContentForUser', 'stopViewingContentForUser', 'getValuesForAutoComplete'] as const;
+export type ContentAdminCommand = (typeof ContentAdminCommand)[number];
+
+export interface ContentAdminCommandRequestBase {
+    command: ContentAdminCommand;
+    chatAppId: string;
+}
+
+export interface ViewContentForUserRequest extends ContentAdminCommandRequestBase {
+    command: 'viewContentForUser';
+    user: ChatUserLite;
+    chatAppId: string;
+}
+
+export interface StopViewingContentForUserRequest extends ContentAdminCommandRequestBase {
+    command: 'stopViewingContentForUser';
+}
+
+export interface GetValuesForContentAdminAutoCompleteRequest extends ContentAdminCommandRequestBase {
+    command: 'getValuesForAutoComplete';
+    valueProvidedByUser: string;
+}
+
+export interface ContentAdminCommandResponseBase {
+    success: boolean;
+    error?: string;
+}
+
+export interface GetValuesForContentAdminAutoCompleteResponse extends ContentAdminCommandResponseBase {
+    data: ChatUserLite[] | undefined;
+}
+
+export interface ViewContentForUserResponse extends ContentAdminCommandResponseBase {
+    data: ChatUserLite | undefined;
+}
+
+export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase {}
+
+export interface GetViewingContentForUserResponse extends ContentAdminCommandResponseBase {
+    data: ChatUserLite[] | undefined;
+}
+
 export const UserOverrideDataCommand = ['getInitialDialogData', 'getValuesForAutoComplete', 'saveUserOverrideData', 'clearUserOverrideData'] as const;
 export type UserOverrideDataCommand = (typeof UserOverrideDataCommand)[number];
 
@@ -1094,4 +1158,9 @@ export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandRe
 export interface UserOverrideData {
     /** The outer key is the chatAppId and the inner key is the user data override data. */
     data: Record<string, RecordOrUndef>;
+}
+
+export interface ContentAdminData {
+    /** The outer key is the chatAppId and the inner key is the user data override data. */
+    data: Record<string, ChatUserLite>;
 }

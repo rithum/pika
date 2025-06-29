@@ -1,6 +1,6 @@
 import { getChatSessions } from '$lib/server/chat-apis';
 import { getPresignedUploadResponse } from '$lib/server/s3';
-import { getErrorResponse } from '$lib/server/utils';
+import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
 import type { PresignedUrlUploadRequest } from '@pika/shared/types/upload-types';
 import { json, type RequestHandler } from '@sveltejs/kit';
 
@@ -14,15 +14,25 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
     if (!user) {
         return new Response('Unauthorized', { status: 401 });
     }
+
+    let userId: string | undefined;
+    if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
+        if (!isUserContentAdmin(locals.user)) {
+            throw new Response('Forbidden', { status: 403 });
+        }
+        userId = locals.user.viewingContentFor[chatAppId]?.userId;
+    }
+
+    if (!userId) {
+        userId = user.userId;
+    }
+
     try {
-        const sessions = await getChatSessions(user.userId, chatAppId);
+        const sessions = await getChatSessions(userId, chatAppId);
         return json({ success: true, sessions });
     } catch (e) {
         console.error(e);
-        return getErrorResponse(
-            500,
-            `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
-        );
+        return getErrorResponse(500, `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
     }
 
     // try {

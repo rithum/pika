@@ -9,9 +9,10 @@
         segment: ProcessedTagSegment;
         appState: AppState;
         chatAppState: ChatAppState;
+        disabled?: boolean;
     }
 
-    let { segment, chatAppState: chat }: Props = $props();
+    let { segment, chatAppState: chat, disabled }: Props = $props();
 
     function handleClick() {
         // console.log('[PROMPT-RENDERER] Button clicked:', {
@@ -189,6 +190,7 @@
         title="Click to use this prompt"
         data-prompt-button={segment.id}
         data-streaming-status={segment.streamingStatus}
+        {disabled}
     >
         <MessageSquare class="w-4 h-4" />
         {segment.rawContent}

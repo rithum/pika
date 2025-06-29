@@ -10,7 +10,12 @@
 
     const chatApp = data.chatApp;
     const appState = getContext<AppState>('appState');
-    const chatAppState = appState.addChatApp(chatApp, ComponentRegistry.create(), data.userDataOverrideSettings);
+    const chatAppState = appState.addChatApp(
+        chatApp,
+        ComponentRegistry.create(),
+        data.userDataOverrideSettings,
+        data.userIsContentAdmin
+    );
 
     setContext('chatAppState', chatAppState);
 

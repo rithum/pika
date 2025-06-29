@@ -1,20 +1,18 @@
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
-import {
-    addSecurityHeaders,
-    clearAuthenticatedUserCookies,
-    clearUserOverrideDataCookies,
-    deserializeAuthenticatedUserFromCookies,
-    serializeAuthenticatedUserToCookies,
-    deserializeUserOverrideDataFromCookies,
-    serializeUserOverrideDataToCookies,
-    isUserAllowedToUseUserDataOverrides
-} from '$lib/server/utils';
+import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
 import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
 import { mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
+import {
+    deserializeAuthenticatedUserFromCookies,
+    serializeAuthenticatedUserToCookies,
+    deserializeUserOverrideDataFromCookies,
+    clearAllCookies,
+    deserializeContentAdminDataFromCookies
+} from '$lib/server/cookies';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 
@@ -93,8 +91,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         } catch (error) {
             if (error instanceof NotAuthenticatedError) {
                 // Clear any invalid cookies
-                clearAuthenticatedUserCookies(event);
-                clearUserOverrideDataCookies(event);
+                clearAllCookies(event);
                 // Redirect to login
                 throw redirect(302, '/login');
             }
@@ -120,8 +117,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         } catch (error) {
             if (error instanceof ForceUserToReauthenticateError) {
                 // Clear cookies and redirect to login
-                clearAuthenticatedUserCookies(event);
-                clearUserOverrideDataCookies(event);
+                clearAllCookies(event);
                 throw redirect(302, '/login');
             }
             // Re-throw other errors
@@ -135,6 +131,15 @@ export const handle: Handle = async ({ event, resolve }) => {
         const userOverrideData = deserializeUserOverrideDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
         if (userOverrideData) {
             user.overrideData = userOverrideData.data;
+        }
+    }
+
+    // If the user is allowed to use the content admin feature, we need to deserialize the content admin data from cookies
+    // and merge it with the user object.
+    if (isUserContentAdmin(user)) {
+        const contentAdminData = deserializeContentAdminDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        if (contentAdminData) {
+            user.viewingContentFor = contentAdminData.data;
         }
     }
 

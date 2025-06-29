@@ -39,6 +39,9 @@ export const pikaConfig: PikaConfig = {
         userDataOverrides: {
             enabled: true,
             promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId', 'accountType']
+        },
+        contentAdmin: {
+            enabled: true
         }
     }
 };

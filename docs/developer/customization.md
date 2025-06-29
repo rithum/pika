@@ -182,6 +182,63 @@ siteFeatures: {
     - If no rules match the user, they won't see any chat app links on the home page
 - This is a site-wide feature - it affects the entire home page experience across your Pika installation
 
+#### User Data Override Configuration
+
+Configure the user data override feature to allow authorized users to act on behalf of different accounts or contexts:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        userDataOverrides: {
+            enabled: true,
+
+            // Optional: Specify which user types can use this feature (defaults to ['internal-user'])
+            userTypesAllowed: ['internal-user', 'admin'],
+
+            // Optional: Customize UI text
+            menuItemTitle: 'Switch Account Context',
+            dialogTitle: 'Account Override',
+            dialogDescription: 'Select the account context to use for this chat app.',
+
+            // Optional: Force users to provide overrides if missing required data
+            promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId', 'accountType']
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`enabled`** (required): Whether to enable the feature
+- **`userTypesAllowed`** (optional): Array of user types that can use this feature (defaults to `['internal-user']`)
+- **`menuItemTitle`** (optional): Text for the menu item that opens the override dialog
+- **`dialogTitle`** (optional): Title of the override dialog
+- **`promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing`** (optional): Force override dialog if these custom data attributes are missing
+
+#### Content Admin Configuration
+
+Configure the content admin feature to allow super-admin users to view other users' chat content:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        contentAdmin: {
+            enabled: true
+        }
+    }
+};
+```
+
+**Additional Setup Required:**
+
+- Users must have the `pika:content-admin` role assigned in their user record
+- Role assignment can be done manually in DynamoDB or automatically through your authentication provider
+- See [Content Admin Guide](./content-admin.md) for detailed setup instructions
+
+**Security Note:** Only assign the `pika:content-admin` role to trusted users who need debugging access to other users' chat data.
+
 ## Customization Areas
 
 ### 1. Custom Message Tag Renderers
@@ -287,6 +344,26 @@ siteFeatures: {
 - **Note:** Project names are automatically imported from `pika-config.ts`
 
 **Important:** These files are protected from framework updates by default. If you want to receive framework updates for these files, add them to the `userUnprotectedAreas` array in `.pika-sync.json`.
+
+### User Data Override Feature
+
+**Purpose:** Allow authorized users to override their authentication-provided data for specific chat apps.
+
+**Use Case:** Internal users acting on behalf of different accounts, companies, or customer contexts without requiring separate authentication sessions.
+
+**Configuration:** Enable in `pika-config.ts` siteFeatures and implement custom UI and server logic.
+
+**Documentation:** See [User Data Override Guide](./overriding-user-data.md) for complete implementation details.
+
+### Content Admin Feature
+
+**Purpose:** Allow designated super-admin users to view chat sessions and messages for any user in the system for debugging and support.
+
+**Use Case:** Customer support agents, developers troubleshooting issues, and QA teams verifying functionality across different user profiles.
+
+**Configuration:** Enable in `pika-config.ts` siteFeatures and assign `pika:content-admin` role to authorized users.
+
+**Documentation:** See [Content Admin Guide](./content-admin.md) for complete setup and usage instructions.
 
 ## Configuration Files
 

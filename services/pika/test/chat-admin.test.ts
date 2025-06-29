@@ -167,6 +167,7 @@ describe('Chat Admin API Integration Tests', () => {
         dontCacheThis: true,
         test: true,
         title: 'Test Chat App',
+        description: 'Test Chat App Description',
         agentId: '', // Will be set to a valid agent ID
         features: {
             fileUpload: {
@@ -444,6 +445,7 @@ describe('Chat Admin API Integration Tests', () => {
                     dontCacheThis: true,
                     test: true,
                     title: 'Idempotent Test Chat App',
+                    description: 'Idempotent Test Chat App Description',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
                     features: {
                         fileUpload: {
@@ -488,6 +490,7 @@ describe('Chat Admin API Integration Tests', () => {
                     dontCacheThis: true,
                     test: true,
                     title: 'Idempotent Test Chat App',
+                    description: 'Idempotent Test Chat App Description',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
                     features: {
                         fileUpload: {
@@ -528,6 +531,7 @@ describe('Chat Admin API Integration Tests', () => {
                     mode: 'embedded' as const,
                     dontCacheThis: false,
                     title: 'UPDATED Idempotent Test Chat App',
+                    description: 'UPDATED Idempotent Test Chat App Description',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
                     features: {
                         fileUpload: {
@@ -572,6 +576,7 @@ describe('Chat Admin API Integration Tests', () => {
                     mode: 'fullpage' as const,
                     test: true,
                     title: '', // Invalid: empty title
+                    description: 'Invalid Test Chat App Description',
                     agentId: 'non-existent-agent', // Invalid: non-existent agent
                     features: {} as Record<FeatureIdType, ChatAppFeature>,
                     enabled: true

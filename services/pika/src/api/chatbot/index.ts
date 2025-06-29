@@ -9,13 +9,14 @@ import {
     ChatUser,
     ChatUserAddOrUpdateResponse,
     ChatUserResponse,
+    ChatUserSearchResponse,
     ConverseRequest
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
 import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
-import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUserSessionsByChatAppId, updateSessionTitle } from '../../lib/chat-apis';
+import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUserSessionsByChatAppId, searchForUsers, updateSessionTitle } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { extractFromJwtString } from '@pika/shared/util/jwt';
@@ -30,6 +31,10 @@ type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, userId: st
 const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdFnTypeHandler<any, any>; passUserObj: boolean }> = {
     'GET:/api/chat/user': {
         handler: handleGetUser,
+        passUserObj: false
+    },
+    'GET:/api/chat/user/search/{partialUserId}': {
+        handler: handleSearchForUsers,
         passUserObj: false
     },
     'POST:/api/chat/user': {
@@ -127,6 +132,24 @@ async function handleGetUser(_event: APIGatewayProxyEventPika<void>, userId: str
 }
 
 /**
+ * GET:/api/chat/user/search/{partialUserId}
+ *
+ * The userId arg is the logged in user's userId.
+ */
+async function handleSearchForUsers(event: APIGatewayProxyEventPika<void>, userId: string): Promise<ChatUserSearchResponse> {
+    const partialUserId = event.pathParameters?.partialUserId;
+    if (!partialUserId) {
+        throw new Error('Partial user ID is required');
+    }
+
+    const users = await searchForUsers(partialUserId.trim());
+    return {
+        success: true,
+        users
+    };
+}
+
+/**
  * POST:/api/chat/user
  */
 async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser>, userId: string): Promise<ChatUserAddOrUpdateResponse | undefined> {
@@ -139,8 +162,9 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
     // Just in case, override the userId with the one from the jwt
     user.userId = userId;
 
-    // Just in case they passed in the overrideData field, we need to remove it
+    // Just in case they passed in the overrideData or viewingContentFor fields, we need to remove it
     delete user.overrideData;
+    delete user.viewingContentFor;
 
     let userToReturn: ChatUser;
 

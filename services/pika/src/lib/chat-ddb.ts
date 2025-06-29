@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatMessageUsage, ChatSession, ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatMessage, ChatMessageUsage, ChatSession, ChatUser, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
@@ -25,6 +25,22 @@ const ddbDocClient = DynamoDBDocument.from(ddbClient, {
     }
 });
 
+export async function searchForUsersByPartialUserId(partialUserId: string): Promise<ChatUserLite[]> {
+    const users = await ddbDocClient.query({
+        TableName: getChatUserTable(),
+        IndexName: 'user-search-index',
+        KeyConditionExpression: 'user_id_prefix = :userIdPrefix and begins_with(user_id_lower, :userIdLower)',
+        ExpressionAttributeValues: {
+            ':userIdPrefix': partialUserId.slice(0, 3).toLowerCase(),
+            ':userIdLower': partialUserId.toLowerCase()
+        },
+        ProjectionExpression: 'user_id, first_name, last_name',
+        Limit: 20
+    });
+
+    return (users.Items || []).map((item) => convertChatUserToCamelFromSnakeCase(item as SnakeCase<ChatUser>));
+}
+
 export async function getUserByUserId(userId: string): Promise<ChatUser | undefined> {
     const user = await ddbDocClient.get({
         TableName: getChatUserTable(),
@@ -33,13 +49,22 @@ export async function getUserByUserId(userId: string): Promise<ChatUser | undefi
         }
     });
 
-    return user.Item ? convertChatUserToCamelFromSnakeCase(user.Item as SnakeCase<ChatUser>) : undefined;
+    // Start by removing the two attributes we added to the user for autocomplete search.
+    const userItem = user.Item as SnakeCase<ChatUser>;
+    delete (userItem as any).userIdPrefix;
+    delete (userItem as any).userIdLower;
+
+    return userItem ? convertChatUserToCamelFromSnakeCase(userItem) : undefined;
 }
 
 export async function addUser(user: ChatUser): Promise<ChatUser> {
     const now = new Date().toISOString();
     user.createDate = now;
     user.lastUpdate = now;
+
+    // We add two attributes to the user to make it so we can do an autocomplete search.
+    (user as any).userIdPrefix = user.userId.slice(0, 3).toLowerCase(); // Used as partition key for the GSI.
+    (user as any).userIdLower = user.userId.toLowerCase(); // This is used for case insensitive searches.
 
     console.log('about to add user in chat database', convertChatUserToSnakeFromCamelCase(user));
 

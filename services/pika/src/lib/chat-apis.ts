@@ -16,6 +16,7 @@ import type {
     ChatSessionResponse,
     ChatTitleUpdateRequest,
     ChatUser,
+    ChatUserLite,
     RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
@@ -30,7 +31,8 @@ import {
     getUserSessionsByUserId,
     updateSession,
     updateSessionTitleInDdb,
-    getSessionsByUserIdAndChatAppId
+    getSessionsByUserIdAndChatAppId,
+    searchForUsersByPartialUserId
 } from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
@@ -59,6 +61,20 @@ export async function getUserSessionsByChatAppId(userId: string, chatAppId: stri
  */
 export async function getUser(userId: string): Promise<ChatUser | undefined> {
     return await getUserByUserId(userId);
+}
+
+/**
+ * Search for users by partial user id.  This is used to autocomplete the user id field.  If
+ * partialUserId isn't at least 3 characters, we will return an empty list.
+ *
+ * @param partialUserId The partial user id to search for.
+ * @returns A list of users that match the partial user id.
+ */
+export async function searchForUsers(partialUserId: string): Promise<ChatUserLite[]> {
+    if (partialUserId.length < 3) {
+        return [];
+    }
+    return await searchForUsersByPartialUserId(partialUserId);
 }
 
 /**

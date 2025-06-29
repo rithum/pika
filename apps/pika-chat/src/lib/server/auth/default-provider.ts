@@ -49,7 +49,8 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
                     type: 'history',
                     history: true
                 }
-            }
+            },
+            roles: ['pika:content-admin']
         };
 
         return user;

@@ -3,7 +3,7 @@
     import { Button } from '$lib/components/ui/button';
     import { getContext } from 'svelte';
     import type { PageData } from './$types';
-    import { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
 
     const appState = getContext<AppState>('appState');
     const { data }: { data: PageData } = $props();

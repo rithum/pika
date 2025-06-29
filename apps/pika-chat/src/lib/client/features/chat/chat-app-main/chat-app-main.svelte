@@ -10,6 +10,7 @@
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
+    import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -288,6 +289,7 @@
                                             segment={{ rawContent: suggestion } as ProcessedTagSegment}
                                             {appState}
                                             chatAppState={chat}
+                                            disabled={chat.isViewingContentForAnotherUser}
                                         />
                                     {/each}
                                 </div>
@@ -318,6 +320,10 @@
 
 {#if chat.userDataOverrideSettings.enabled}
     <UserDataOverridesDialog />
+{/if}
+
+{#if chat.userIsContentAdmin}
+    <ContentAdminDialog />
 {/if}
 
 <style>

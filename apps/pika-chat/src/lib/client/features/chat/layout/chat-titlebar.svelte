@@ -131,6 +131,17 @@
                                 {/if}
                                 Override User Data</DropdownMenu.Item
                             >
+                        {/if}
+                        {#if chat.userIsContentAdmin}
+                            <DropdownMenu.Item
+                                onclick={() => {
+                                    chat.contentAdminDialogOpen = true;
+                                }}
+                            >
+                                View Content for User
+                            </DropdownMenu.Item>
+                        {/if}
+                        {#if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
                             <DropdownMenu.Separator />
                         {/if}
                         {#if panelWidthState !== 'fullscreen'}
@@ -158,7 +169,7 @@
                     tellParentToClose();
                 }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
             >
-        {:else if chat.userDataOverrideSettings.enabled}
+        {:else if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger>
                     <div class="relative">
@@ -176,20 +187,31 @@
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content>
                     <DropdownMenu.Group>
-                        <DropdownMenu.Item
-                            onclick={() => {
-                                chat.userDataOverrideDialogOpen = true;
-                            }}
-                        >
-                            {#if userNeedsToProvideDataOverrides}
-                                <span
-                                    class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
-                                >
-                                    !
-                                </span>
-                            {/if}
-                            Override User Data
-                        </DropdownMenu.Item>
+                        {#if chat.userDataOverrideSettings.enabled}
+                            <DropdownMenu.Item
+                                onclick={() => {
+                                    chat.userDataOverrideDialogOpen = true;
+                                }}
+                            >
+                                {#if userNeedsToProvideDataOverrides}
+                                    <span
+                                        class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                                    >
+                                        !
+                                    </span>
+                                {/if}
+                                Override User Data
+                            </DropdownMenu.Item>
+                        {/if}
+                        {#if chat.userIsContentAdmin}
+                            <DropdownMenu.Item
+                                onclick={() => {
+                                    chat.contentAdminDialogOpen = true;
+                                }}
+                            >
+                                View Content for User
+                            </DropdownMenu.Item>
+                        {/if}
                     </DropdownMenu.Group>
                 </DropdownMenu.Content>
             </DropdownMenu.Root>
@@ -202,7 +224,7 @@
     <TooltipPlus tooltip="New Chat">
         <Button
             variant="ghost"
-            disabled={chat.isInterimSession || chat.isStreamingResponseNow}
+            disabled={chat.isInterimSession || chat.isStreamingResponseNow || chat.isViewingContentForAnotherUser}
             size="icon"
             class="pl-0 pr-0 w-8"
             onclick={() => {

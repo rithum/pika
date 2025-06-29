@@ -553,7 +553,7 @@ export class PikaConstruct extends Construct {
     }
 
     private createChatUserTable(): dynamodb.Table {
-        return new dynamodb.Table(this, 'ChatUserTable', {
+        const chatUserTable = new dynamodb.Table(this, 'ChatUserTable', {
             partitionKey: {
                 name: 'user_id',
                 type: dynamodb.AttributeType.STRING
@@ -562,6 +562,22 @@ export class PikaConstruct extends Construct {
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
         });
+
+        // Add GSI for efficient user ID prefix searching
+        chatUserTable.addGlobalSecondaryIndex({
+            indexName: 'user-search-index',
+            partitionKey: {
+                name: 'user_id_prefix',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'user_id_lower',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        return chatUserTable;
     }
 
     private createChatAppTable(): dynamodb.Table {
@@ -866,7 +882,13 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:Scan',
                                 'dynamodb:UpdateItem'
                             ],
-                            resources: [chatMessagesTable.tableArn, chatSessionTable.tableArn, `${chatSessionTable.tableArn}/index/user-chat-app-index`, chatUserTable.tableArn]
+                            resources: [
+                                chatMessagesTable.tableArn,
+                                chatSessionTable.tableArn,
+                                `${chatSessionTable.tableArn}/index/user-chat-app-index`,
+                                chatUserTable.tableArn,
+                                `${chatUserTable.tableArn}/index/*`
+                            ]
                         })
                     ]
                 })
@@ -937,6 +959,7 @@ export class PikaConstruct extends Construct {
                                 chatMessagesTable.tableArn,
                                 chatSessionTable.tableArn,
                                 chatUserTable.tableArn,
+                                `${chatUserTable.tableArn}/index/*`,
                                 agentDefinitionsTable.tableArn,
                                 toolDefinitionsTable.tableArn,
                                 chatAppTable.tableArn
@@ -1066,7 +1089,7 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:Query',
                                 'dynamodb:Scan'
                             ],
-                            resources: [chatUserTable.tableArn]
+                            resources: [chatUserTable.tableArn, `${chatUserTable.tableArn}/index/*`]
                         })
                     ]
                 })
@@ -1361,6 +1384,11 @@ export class PikaConstruct extends Construct {
         // GET /api/chat/user
         const userResource = chats.addResource('user');
         userResource.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        // GET /api/chat/user/search/{partialUserId}
+        const search = userResource.addResource('search');
+        const searchByPartialUserId = search.addResource('{partialUserId}');
+        searchByPartialUserId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
 
         // POST /api/chat/user
         userResource.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));

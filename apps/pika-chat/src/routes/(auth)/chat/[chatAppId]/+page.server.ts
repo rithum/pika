@@ -2,7 +2,7 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import type { ChatApp, ChatAppMode, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { doesUserNeedToProvideDataOverrides, isUserAllowedToUseUserDataOverrides } from '$lib/server/utils';
+import { doesUserNeedToProvideDataOverrides, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
 import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 import { siteFeatures } from '$lib/server/custom-site-features';
 
@@ -52,15 +52,20 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
         chatApp.mode = modeParam as ChatAppMode;
     }
 
+    // Note you don't get to set user override data if you are viewing content for another user.
+    const userIsContentAdmin = isUserContentAdmin(locals.user);
+    const isViewingContentForAnotherUser = locals.user.viewingContentFor && !!locals.user.viewingContentFor[chatAppId];
     const { userTypesAllowed, ...userDataOverridesRest } = siteFeatures?.userDataOverrides ?? {};
     let userDataOverrideSettings: UserDataOverrideSettings = {
-        ...userDataOverridesRest,
-        enabled: isUserAllowedToUseUserDataOverrides(locals.user),
-        userNeedsToProvideDataOverrides: doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId])
+        ...(isViewingContentForAnotherUser ? {} : userDataOverridesRest),
+        enabled: !isViewingContentForAnotherUser && isUserAllowedToUseUserDataOverrides(locals.user),
+        userNeedsToProvideDataOverrides:
+            !isViewingContentForAnotherUser && doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
     };
 
     return {
         chatApp,
-        userDataOverrideSettings
+        userDataOverrideSettings,
+        userIsContentAdmin
     };
 };

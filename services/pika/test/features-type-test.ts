@@ -71,6 +71,7 @@ describe('Features Type Change Verification', () => {
             chatAppId: 'test-app',
             mode: 'fullpage',
             title: 'Test App',
+            description: 'Test App Description',
             agentId: 'test-agent',
             features: {
                 fileUpload: {

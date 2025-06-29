@@ -1,4 +1,5 @@
 import { appConfig } from '$lib/server/config';
+import { isUserContentAdmin } from '$lib/server/utils';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { error, type RequestHandler } from '@sveltejs/kit';
 
@@ -25,7 +26,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     try {
         const getObjectCommand = new GetObjectCommand({
             Bucket: appConfig.uploadS3Bucket,
-            Key: decodedS3Key,
+            Key: decodedS3Key
         });
 
         const response = await s3Client.send(getObjectCommand);
@@ -58,7 +59,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
         return new Response(stream, {
             status: 200,
-            headers,
+            headers
         });
     } catch (err) {
         console.error('Error downloading file from S3', err);

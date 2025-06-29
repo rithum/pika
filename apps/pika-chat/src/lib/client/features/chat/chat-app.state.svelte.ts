@@ -1,9 +1,11 @@
 import type { AppState } from '$client/app/app.state.svelte';
-import type { FetchZ } from '$client/app/shared-types';
+import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
 import {
+    ContentAdminCommand,
     DEFAULT_FEATURE_ENABLED_VALUE,
     FEATURE_NAMES,
+    UserOverrideDataCommand,
     type ChatApp,
     type ChatMessage,
     type ChatMessageFile,
@@ -11,14 +13,18 @@ import {
     type ChatMessagesResponse,
     type ChatSession,
     type ChatSessionsResponse,
+    type ChatUserLite,
+    type ContentAdminRequest,
+    type ContentAdminResponse,
     type ConverseRequest,
     type GetInitialDialogDataResponse,
     type GetValuesForAutoCompleteResponse,
+    type GetValuesForContentAdminAutoCompleteResponse,
     type SaveUserOverrideDataResponse,
     type UserOverrideDataCommandRequest,
-    type UserOverrideDataCommandResponse,
-    UserOverrideDataCommand
+    type UserOverrideDataCommandResponse
 } from '@pika/shared/types/chatbot/chatbot-types';
+import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
@@ -29,7 +35,6 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
-import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 
 const MAX_FILES = 5;
 
@@ -97,14 +102,25 @@ export class ChatAppState {
     #page: Page | undefined;
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
+    #userIsContentAdmin = $state<boolean>(false);
+    #contentAdminDialogOpen = $state<boolean>(false);
     #userDataOverrideSettings = $state<UserDataOverrideSettings>() as UserDataOverrideSettings;
     #userDataOverrideDialogOpen = $state(false);
-    #userNeedsToProvideDataOverrides = $derived(this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides);
+    #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
+
+    // You may not have overridden data if you are viewing content for another user.
+    #userNeedsToProvideDataOverrides = $derived(!this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides);
+
     userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean> = $state({
         getInitialDialogData: false,
         getValuesForAutoComplete: false,
         saveUserOverrideData: false,
         clearUserOverrideData: false
+    });
+    contentAdminOperationInProgress: Record<ContentAdminCommand, boolean> = $state({
+        viewContentForUser: false,
+        stopViewingContentForUser: false,
+        getValuesForAutoComplete: false
     });
     #appSidebarState: SidebarState | undefined;
     #appSidebarOpen = $derived.by(() => {
@@ -114,10 +130,11 @@ export class ChatAppState {
         return this.#appState.isMobile ? this.#appSidebarState.openMobile : this.#appSidebarState.open;
     });
     #enableFileUpload = $derived.by(() => {
+        const isViewingContentForAnotherUser = this.#isViewingContentForAnotherUser;
         const fileUploadFeature = getFeature(this.chatApp, 'fileUpload');
         let result = DEFAULT_FEATURE_ENABLED_VALUE.fileUpload;
 
-        if (fileUploadFeature) {
+        if (!isViewingContentForAnotherUser && fileUploadFeature) {
             result = fileUploadFeature.enabled;
 
             // If they don't have mimeTypesAllowed, then we act like it is disabled and log it
@@ -152,14 +169,20 @@ export class ChatAppState {
     #user = $derived.by(() => {
         // If the user has override data for this chat app, we need to merge it with the user object.
         const user = this.#appState.identity.user;
-        const userOverrideData = user.overrideData?.[this.chatApp.chatAppId];
-        if (userOverrideData) {
-            return { ...user, customData: userOverrideData };
+
+        // You don't get to override data if you are viewing content for another user.
+        if (!this.#isViewingContentForAnotherUser) {
+            const userOverrideData = user.overrideData?.[this.chatApp.chatAppId];
+            if (userOverrideData) {
+                return { ...user, customData: userOverrideData };
+            }
         }
+
         return user;
     });
     valuesForAutoCompleteForUserOverrideDialog = $state<Record<string, unknown[] | undefined>>({});
     initialDataForUserOverrideDialog = $state<unknown | undefined>(undefined);
+    valuesForAutoCompleteForContentAdminDialog = $state<ChatUserLite[] | undefined>(undefined);
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -202,6 +225,30 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get userIsContentAdmin() {
+        return this.#userIsContentAdmin;
+    }
+
+    get contentAdminDialogOpen() {
+        return this.#contentAdminDialogOpen;
+    }
+
+    set contentAdminDialogOpen(value: boolean) {
+        if (!this.#userIsContentAdmin) {
+            return;
+        }
+
+        this.#contentAdminDialogOpen = value;
+    }
+
+    get userNeedsToProvideDataOverrides() {
+        return this.#userNeedsToProvideDataOverrides;
+    }
+
+    get isViewingContentForAnotherUser() {
+        return this.#isViewingContentForAnotherUser;
+    }
 
     get user() {
         return this.#user;
@@ -284,10 +331,14 @@ export class ChatAppState {
     }
 
     get chatInput() {
-        return this.#chatInput;
+        return this.#isViewingContentForAnotherUser ? 'You may not send messages while viewing content for another user.' : this.#chatInput;
     }
 
     set chatInput(msg: string) {
+        if (this.#isViewingContentForAnotherUser) {
+            return;
+        }
+
         this.#chatInput = msg;
         this.#persistInputState();
     }
@@ -359,7 +410,8 @@ export class ChatAppState {
         page: Page,
         appState: AppState,
         componentRegistry: ComponentRegistry,
-        userDataOverrideSettings: UserDataOverrideSettings
+        userDataOverrideSettings: UserDataOverrideSettings,
+        userIsContentAdmin: boolean
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -370,6 +422,7 @@ export class ChatAppState {
         this.#componentRegistry = componentRegistry;
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
         this.#userDataOverrideSettings = userDataOverrideSettings;
+        this.#userIsContentAdmin = userIsContentAdmin;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;
@@ -550,7 +603,7 @@ export class ChatAppState {
 
         try {
             this.#retrievingMessages = true;
-            const resp = await this.fetchz(`/api/message/${this.#currentSession.sessionId}`);
+            const resp = await this.fetchz(`/api/message/${this.#chatApp.chatAppId}/${this.#currentSession.sessionId}`);
             if (resp.ok) {
                 const msgResult = (await resp.json()) as ChatMessagesResponse;
                 if (msgResult.success) {
@@ -805,7 +858,7 @@ export class ChatAppState {
 
             const json: UserOverrideDataCommandResponse = await response.json();
             if (!json) {
-                throw new Error('Invalid response for presigned URL');
+                throw new Error('Invalid response for user override data command');
             } else if ('success' in json && json.success === false) {
                 throw new Error(json.error);
             } else if (request.command === 'getInitialDialogData') {
@@ -825,6 +878,45 @@ export class ChatAppState {
             throw e;
         } finally {
             this.userDataOverrideOperationInProgress[request.command] = false;
+        }
+    }
+
+    async sendContentAdminCommand(request: ContentAdminRequest) {
+        try {
+            this.contentAdminOperationInProgress[request.command] = true;
+            const response = await this.fetchz('/api/content-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                //TODO: handle error
+                throw new Error('Failed to send content admin command');
+            }
+
+            const json: ContentAdminResponse = await response.json();
+            if (!json) {
+                throw new Error('Invalid response for content admin command');
+            } else if ('success' in json && json.success === false) {
+                throw new Error(json.error);
+            } else if (request.command === 'getValuesForAutoComplete') {
+                if (!this.valuesForAutoCompleteForContentAdminDialog) {
+                    this.valuesForAutoCompleteForContentAdminDialog = [];
+                }
+                this.valuesForAutoCompleteForContentAdminDialog = (json as GetValuesForContentAdminAutoCompleteResponse).data ?? undefined;
+            } else if (request.command === 'viewContentForUser') {
+                this.#appState.identity.updateViewingContentFor(this.#chatApp.chatAppId, request.user);
+            } else if (request.command === 'stopViewingContentForUser') {
+                this.#appState.identity.clearViewingContentFor(this.#chatApp.chatAppId);
+            }
+        } catch (e) {
+            console.error('Error sending content admin command', e);
+            throw e;
+        } finally {
+            this.contentAdminOperationInProgress[request.command] = false;
         }
     }
 

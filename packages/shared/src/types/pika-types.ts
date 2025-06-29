@@ -12,6 +12,19 @@ export interface PikaConfig {
 export interface SiteFeatures {
     homePage?: HomePageSiteFeature;
     userDataOverrides?: UserDataOverridesSiteFeature;
+    contentAdmin?: ContentAdminSiteFeature;
+}
+
+/**
+ * A content admin is a user that can use the UI to select any user of the system and view their chat
+ * sessions and messages in each for the purpose of debugging and troubleshooting.  By default,
+ * this feature is turned off.  To turn it on, you must set the `enabled` property to `true`.
+ *
+ * Further, you will have to go into the DynamoDB table named `chat-users-${your-stack-name}` and
+ * add the `pika:content-admin` role to the user.
+ */
+export interface ContentAdminSiteFeature {
+    enabled: boolean;
 }
 
 /**

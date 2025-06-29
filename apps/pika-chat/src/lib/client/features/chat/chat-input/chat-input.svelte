@@ -142,7 +142,9 @@
                         <Button
                             variant="default"
                             class="w-9 h-9"
-                            disabled={!chat.chatInput.trim()}
+                            disabled={chat.isViewingContentForAnotherUser ||
+                                chat.userNeedsToProvideDataOverrides ||
+                                !chat.chatInput.trim()}
                             onclick={async () => await chat.sendMessage()}
                         >
                             <ArrowUp style="width: 1.3rem; height: 1.3rem;" />
@@ -154,7 +156,7 @@
     </div>
 
     <!-- Hidden file input -->
-    {#if chat.enableFileUpload}
+    {#if chat.enableFileUpload && !chat.isViewingContentForAnotherUser}
         <input
             type="file"
             bind:this={fileInput}
