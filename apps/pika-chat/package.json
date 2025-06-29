@@ -51,6 +51,7 @@
         "@sveltejs/vite-plugin-svelte": "catalog:",
         "@tailwindcss/typography": "catalog:",
         "@tanstack/table-core": "catalog:",
+        "@types/elasticsearch": "catalog:",
         "@types/indefinite": "catalog:",
         "@types/jest": "catalog:",
         "@types/jsonwebtoken": "catalog:",

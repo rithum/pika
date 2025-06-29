@@ -90,6 +90,9 @@ catalogs:
     '@types/aws-lambda':
       specifier: ^8.10.149
       version: 8.10.149
+    '@types/elasticsearch':
+      specifier: ^5.0.43
+      version: 5.0.43
     '@types/fs-extra':
       specifier: ^11.0.4
       version: 11.0.4
@@ -450,6 +453,9 @@ importers:
       '@tanstack/table-core':
         specifier: 'catalog:'
         version: 8.21.3
+      '@types/elasticsearch':
+        specifier: 'catalog:'
+        version: 5.0.43
       '@types/indefinite':
         specifier: 'catalog:'
         version: 2.3.4
@@ -2527,6 +2533,9 @@ packages:
 
   '@types/cookie@0.6.0':
     resolution: {integrity: sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==}
+
+  '@types/elasticsearch@5.0.43':
+    resolution: {integrity: sha512-N+MpzURpDCWd7zaJ7CE1aU+nBSeAABLhDE0lGodQ0LLftx7ku6hjTXLr9OAFZLSXiWL3Xxx8jts485ynrcm5NA==}
 
   '@types/estree@1.0.7':
     resolution: {integrity: sha512-w28IoSUCJpidD/TGviZwwMJckNESJZXFu7NBZ5YJ4mEUnNraUn9Pm8HSZm/jDF1pDWYKspWE7oVphigUPRakIQ==}
@@ -8501,6 +8510,8 @@ snapshots:
   '@types/command-line-usage@5.0.4': {}
 
   '@types/cookie@0.6.0': {}
+
+  '@types/elasticsearch@5.0.43': {}
 
   '@types/estree@1.0.7': {}
 
