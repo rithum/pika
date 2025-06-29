@@ -41,6 +41,7 @@
         "@iconify-json/ci": "catalog:",
         "@iconify-json/lucide": "catalog:",
         "@internationalized/date": "catalog:",
+        "@opensearch-project/opensearch": "catalog:",
         "@pika/shared": "workspace:*",
         "@smithy/node-http-handler": "catalog:",
         "@smithy/signature-v4": "catalog:",

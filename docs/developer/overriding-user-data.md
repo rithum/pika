@@ -36,7 +36,7 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
 
             // Optional: Specify which user types can use this feature (defaults to ['internal-user'])
-            userTypesAllowed: ['internal-user', 'admin'],
+            userTypesAllowed: ['internal-user'],
 
             // Optional: Customize UI text
 
