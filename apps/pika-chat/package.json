@@ -38,6 +38,7 @@
         "@aws-sdk/credential-provider-node": "catalog:",
         "@aws-sdk/lib-dynamodb": "catalog:",
         "@aws-sdk/s3-request-presigner": "catalog:",
+        "@elastic/elasticsearch": "catalog:",
         "@iconify-json/ci": "catalog:",
         "@iconify-json/lucide": "catalog:",
         "@internationalized/date": "catalog:",
