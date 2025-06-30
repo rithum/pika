@@ -73,9 +73,6 @@ export const handle: Handle = async ({ event, resolve }) => {
             // User authenticated successfully
             user = authResult;
 
-            // Serialize the user to cookies (handles large data automatically)
-            serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
-
             // Handle chat user creation/retrieval
             let chatUser = await getChatUser(user.userId);
 
@@ -88,6 +85,9 @@ export const handle: Handle = async ({ event, resolve }) => {
                 // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
                 mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
             }
+
+            // Serialize the user to cookies (handles large data automatically)
+            serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
         } catch (error) {
             if (error instanceof NotAuthenticatedError) {
                 // Clear any invalid cookies

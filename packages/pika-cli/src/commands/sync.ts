@@ -970,7 +970,10 @@ function getDefaultProtectedAreas(): string[] {
         '.travis.yml', // Legacy Travis CI
         'buildspec.yml', // AWS CodeBuild
         'taskfile.yml', // Used with go-task
-        '.drone.yml' // Drone CI
+        '.drone.yml', // Drone CI
+        'README.md', // README file
+        'readme.md', // README file
+        'README-pika.md' // The original README file from the framework
     ];
 }
 

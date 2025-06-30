@@ -867,7 +867,13 @@ export class ChatAppState {
                 if (!this.valuesForAutoCompleteForUserOverrideDialog) {
                     this.valuesForAutoCompleteForUserOverrideDialog = {};
                 }
-                this.valuesForAutoCompleteForUserOverrideDialog[request.componentName] = (json as GetValuesForAutoCompleteResponse).data ?? undefined;
+
+                const values = (json as GetValuesForAutoCompleteResponse).data ?? undefined;
+                if (values) {
+                    this.valuesForAutoCompleteForUserOverrideDialog[request.componentName] = values;
+                } else {
+                    delete this.valuesForAutoCompleteForUserOverrideDialog[request.componentName];
+                }
             } else if (request.command === 'saveUserOverrideData') {
                 this.#appState.identity.updateUserOverrideData(this.#chatApp.chatAppId, (json as SaveUserOverrideDataResponse).data);
             } else if (request.command === 'clearUserOverrideData') {

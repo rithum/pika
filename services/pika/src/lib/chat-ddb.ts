@@ -50,9 +50,11 @@ export async function getUserByUserId(userId: string): Promise<ChatUser | undefi
     });
 
     // Start by removing the two attributes we added to the user for autocomplete search.
-    const userItem = user.Item as SnakeCase<ChatUser>;
-    delete (userItem as any).userIdPrefix;
-    delete (userItem as any).userIdLower;
+    const userItem = user.Item as SnakeCase<ChatUser> | undefined;
+    if (userItem) {
+        delete (userItem as any).user_id_prefix;
+        delete (userItem as any).user_id_lower;
+    }
 
     return userItem ? convertChatUserToCamelFromSnakeCase(userItem) : undefined;
 }
