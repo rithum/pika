@@ -53,37 +53,6 @@ export interface AppConfig {
 
     /**
      * Must be set in an environment variable.
-     * The base url for the platform api including getting user info after authenticated and so forth
-     *
-     * env variable: PLATFORM_API_BASE_URL
-     */
-    platformApiBaseUrl: string;
-
-    /**
-     * Must be set in an environment variable.
-     * The url for the oauth provider
-     *
-     * env variable: OAUTH_URL
-     */
-    oauthUrl: string;
-
-    /**
-     * The url for the oauth provider to get tokens
-     *
-     * env variable: TOKEN_URL
-     */
-    tokenUrl: string;
-
-    /**
-     * Must be set in an environment variable.
-     * The client id for the oauth provider for the chatbot app
-     *
-     * env variable: CLIENT_ID
-     */
-    clientId: string;
-
-    /**
-     * Must be set in an environment variable.
      * The s3 bucket where the chatbot app uploads files
      *
      * env variable: UPLOAD_S3_BUCKET
