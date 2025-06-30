@@ -176,7 +176,7 @@
                         </div>
 
                         <!-- Right column: Text content -->
-                        <div class="flex-1 text-md text-gray-600 pt-1 relative left-[-2px]">
+                        <div class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px]">
                             {@html trace}
                         </div>
                     </div>
