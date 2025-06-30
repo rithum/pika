@@ -973,7 +973,9 @@ function getDefaultProtectedAreas(): string[] {
         '.drone.yml', // Drone CI
         'README.md', // README file
         'readme.md', // README file
-        'README-pika.md' // The original README file from the framework
+        'README-pika.md', // The original README file from the framework
+        'CODEOWNERS', // CODEOWNERS file
+        'CONTRIBUTING.md' // CONTRIBUTING file
     ];
 }
 

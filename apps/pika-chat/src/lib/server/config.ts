@@ -96,17 +96,6 @@ export class AppConfigProxy implements AppConfig {
                 }
             },
             {
-                name: 'issuer',
-                setValue: async (_isLocal: boolean, _stage: string, _cache: Cache) => {
-                    const result = env.OAUTH_URL ?? process.env.OAUTH_URL;
-                    if (!result) {
-                        throw new Error('OAUTH_URL is not set');
-                    }
-                    // The issuer is the same as the oauth url but without the /connect/authorize at the end
-                    this._issuer = result.replace('connect/authorize', '');
-                }
-            },
-            {
                 name: 'redirectCallbackUriPath',
                 setValue: async (_isLocal: boolean, _stage: string, _cache: Cache) => {
                     this._redirectCallbackUriPath = '/auth/callback';
