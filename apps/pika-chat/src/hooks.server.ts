@@ -49,13 +49,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Login page - accessible without authentication
     if (pathName === '/login') {
-        await addToLocalsFromAuthProvider(event, authProvider, user);
+        await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
         // Allow access to login page without authentication
         return addSecurityHeaders(await resolve(event));
     }
 
     if (pathName === '/auth/client-auth') {
-        await addToLocalsFromAuthProvider(event, authProvider, user);
+        await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
         // Allow access to client auth page without authentication
         return addSecurityHeaders(await resolve(event));
     }
@@ -152,7 +152,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Set user and config in locals for server-side use
     event.locals = { user, appConfig };
 
-    await addToLocalsFromAuthProvider(event, authProvider, user);
+    await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
 
     // Process the request to whatever route they were going to with security headers
     return addSecurityHeaders(await resolve(event));
@@ -169,6 +169,7 @@ export const handle: Handle = async ({ event, resolve }) => {
  * @param user - The authenticated user (if there is one)
  */
 async function addToLocalsFromAuthProvider(
+    pathName: string,
     event: RequestEvent<Partial<Record<string, string>>, string | null>,
     authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
@@ -177,7 +178,7 @@ async function addToLocalsFromAuthProvider(
         return;
     }
 
-    const dataToAddToLocals = await authProvider.addValueToLocalsForRoute(event, user);
+    const dataToAddToLocals = await authProvider.addValueToLocalsForRoute(pathName, event, user);
     if (dataToAddToLocals) {
         event.locals = { ...(event.locals ?? {}), customData: dataToAddToLocals };
     }
