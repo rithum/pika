@@ -11,6 +11,7 @@ declare global {
             // auth: () => Promise<Session | null>;
             user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>;
             appConfig: AppConfig;
+            customData?: Record<string, unknown> | undefined;
         }
         // interface PageData {
         //     session?: Session | null;

@@ -27,8 +27,11 @@ import { pikaConfig } from '../../../pika-config.js';
 const app = new cdk.App();
 
 async function main() {
-    // Get stage from context or use default
-    const stage = app.node.tryGetContext('stage') || 'test';
+    // Get stage from context - required for deployment
+    const stage = app.node.tryGetContext('stage');
+    if (!stage) {
+        throw new Error('Stage is required. Please provide it using: pnpm run cdk:deploy --context stage=<stage-name> or set STAGE environment variable');
+    }
 
     const loggedInAccountId = await getLoggedInAccountIdFromSts();
     console.log(`Deploying to stage '${stage}' in account '${loggedInAccountId}'`);

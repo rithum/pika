@@ -62,7 +62,9 @@ function getDefaultProtectedAreas(): string[] {
         'readme.md', // README file
         'README-pika.md', // The original README file from the framework
         'CODEOWNERS', // CODEOWNERS file
-        'CONTRIBUTING.md' // CONTRIBUTING file
+        'CONTRIBUTING.md', // CONTRIBUTING file
+        'apps/pika-chat/src/routes/auth/client-auth/+page.server.ts', // Client auth page that they may customize to implement client side auth
+        'apps/pika-chat/src/routes/auth/client-auth/+page.svelte' // Client auth page that they may customize to implement client side auth
     ];
 }
 

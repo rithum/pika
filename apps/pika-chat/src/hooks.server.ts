@@ -1,18 +1,17 @@
+import { ForceUserToReauthenticateError, loadAuthProvider, NotAuthenticatedError } from '$lib/server/auth';
+import type { AuthProvider } from '$lib/server/auth/types';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
-import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
-import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
-import { loadAuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '$lib/server/auth';
-import type { AuthProvider } from '$lib/server/auth/types';
-import { mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
 import {
-    deserializeAuthenticatedUserFromCookies,
-    serializeAuthenticatedUserToCookies,
-    deserializeUserOverrideDataFromCookies,
     clearAllCookies,
-    deserializeContentAdminDataFromCookies
+    deserializeAuthenticatedUserFromCookies,
+    deserializeContentAdminDataFromCookies,
+    deserializeUserOverrideDataFromCookies,
+    serializeAuthenticatedUserToCookies
 } from '$lib/server/cookies';
+import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
+import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 
@@ -45,16 +44,23 @@ export const handle: Handle = async ({ event, resolve }) => {
         });
     }
 
+    let user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined;
+    authProvider = authProvider || (await loadAuthProvider());
+
     // Login page - accessible without authentication
     if (pathName === '/login') {
+        await addToLocalsFromAuthProvider(event, authProvider, user);
         // Allow access to login page without authentication
         return addSecurityHeaders(await resolve(event));
     }
 
-    // ===== Protected Routes (Auth Required) =====
+    if (pathName === '/auth/client-auth') {
+        await addToLocalsFromAuthProvider(event, authProvider, user);
+        // Allow access to client auth page without authentication
+        return addSecurityHeaders(await resolve(event));
+    }
 
-    let user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined;
-    authProvider = authProvider || (await loadAuthProvider());
+    // ===== Protected Routes (Auth Required) =====
 
     // Try to deserialize user from cookies
     user = deserializeAuthenticatedUserFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
@@ -146,6 +152,33 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Set user and config in locals for server-side use
     event.locals = { user, appConfig };
 
+    await addToLocalsFromAuthProvider(event, authProvider, user);
+
     // Process the request to whatever route they were going to with security headers
     return addSecurityHeaders(await resolve(event));
 };
+
+/**
+ * Add data to the locals from the auth provider.  This is useful for adding values to the locals for the route that are not part of the
+ * AuthenticatedUser object.  For example, lets say that you redirect to /auth/client-auth since you need to start authentication
+ * from the client side.  Maybe you need some URLs in the client side so you can start the auth process.  You can add them to the
+ * locals object and then access them in the +page.server.ts of your route and then pass then into your +page.svelte.
+ *
+ * @param event - The request event (so you can check the path)
+ * @param authProvider - The auth provider
+ * @param user - The authenticated user (if there is one)
+ */
+async function addToLocalsFromAuthProvider(
+    event: RequestEvent<Partial<Record<string, string>>, string | null>,
+    authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
+): Promise<void> {
+    if (!authProvider || !authProvider.addValueToLocalsForRoute) {
+        return;
+    }
+
+    const dataToAddToLocals = await authProvider.addValueToLocalsForRoute(event, user);
+    if (dataToAddToLocals) {
+        event.locals = { ...(event.locals ?? {}), customData: dataToAddToLocals };
+    }
+}

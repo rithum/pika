@@ -754,6 +754,264 @@ When a user has an existing cookie, the framework:
     - `AuthenticatedUser<T, U>` → Update cookie with refreshed auth data and continue
     - `ForceUserToReauthenticateError` → Clear cookies and redirect to login
 
+## Client-Side Authentication Flow
+
+For authentication flows that require client-side processing (such as OAuth popups, social login SDKs, or complex multi-step authentication), the framework provides a dedicated client-side authentication route and helper method.
+
+### Overview
+
+The client-side authentication flow allows your auth provider to:
+
+1. **Detect when client-side processing is needed** in the `authenticate` method
+2. **Redirect to a protected client-side route** (`/auth/client-auth`)
+3. **Pass data to the client** using the `addValueToLocalsForRoute` method
+4. **Handle client-side authentication** in the browser
+5. **Return to server-side authentication** once client-side processing is complete
+
+### Protected Client-Side Files
+
+The framework provides protected files that won't be overwritten during sync operations:
+
+**Location:** `apps/pika-chat/src/routes/auth/client-auth/`
+
+- **`+page.server.ts`**: Server-side logic to access data passed from your auth provider
+- **`+page.svelte`**: Client-side component for handling authentication UI and logic
+
+### The `addValueToLocalsForRoute` Method
+
+Your auth provider can implement the optional `addValueToLocalsForRoute` method to pass data to the client-side authentication route:
+
+```typescript
+async addValueToLocalsForRoute?(
+    event: RequestEvent,
+    user: AuthenticatedUser<T, U> | undefined
+): Promise<Record<string, unknown> | undefined>
+```
+
+**Parameters:**
+
+- `event`: The request event (so you can check the path)
+- `user`: The authenticated user (if there is one)
+
+**Returns:** An object that will be added to the route's `locals` object under the key `customData`
+
+### Implementation Example
+
+Here's how to implement a client-side authentication flow:
+
+```typescript
+// Example: OAuth with client-side popup handling
+interface OAuthClientAuthData {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+}
+
+interface OAuthClientUserData {
+    email: string;
+    provider: string;
+}
+
+export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAuthData, OAuthClientUserData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<OAuthClientAuthData, OAuthClientUserData> | Response> {
+        // Check if this is a callback from client-side auth
+        const authCode = event.url.searchParams.get('auth_code');
+        if (authCode) {
+            // Exchange code for tokens and create user
+            const tokens = await this.exchangeCodeForTokens(authCode);
+            const userData = await this.getUserFromProvider(tokens.access_token);
+            return this.createAuthenticatedUser(userData, tokens);
+        }
+
+        // Check for existing token
+        const token = event.cookies.get('oauth-token');
+        if (token) {
+            try {
+                const userData = await this.getUserFromProvider(token);
+                return this.createAuthenticatedUser(userData, { access_token: token });
+            } catch (error) {
+                // Token invalid, clear it and redirect to client auth
+                event.cookies.delete('oauth-token');
+            }
+        }
+
+        // No valid token found - redirect to client-side auth
+        return redirect(302, '/auth/client-auth');
+    }
+
+    async addValueToLocalsForRoute(
+        event: RequestEvent,
+        user: AuthenticatedUser<OAuthClientAuthData, OAuthClientUserData> | undefined
+    ): Promise<Record<string, unknown> | undefined> {
+        // Only add data for the client-auth route
+        if (event.url.pathname === '/auth/client-auth') {
+            return {
+                oauthClientId: process.env.OAUTH_CLIENT_ID,
+                oauthRedirectUri: `${event.url.origin}/auth/callback`,
+                oauthScopes: 'openid profile email',
+                authProviderUrl: 'https://your-oauth-provider.com/oauth/authorize'
+            };
+        }
+        return undefined;
+    }
+
+    private createAuthenticatedUser(userData: any, tokens: any): AuthenticatedUser<OAuthClientAuthData, OAuthClientUserData> {
+        return {
+            userId: userData.id,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            userType: 'external-user',
+            customData: {
+                email: userData.email,
+                provider: 'oauth'
+            },
+            authData: {
+                accessToken: tokens.access_token,
+                refreshToken: tokens.refresh_token,
+                expiresAt: Date.now() + tokens.expires_in * 1000
+            },
+            features: {
+                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                history: { type: 'history', history: true }
+            }
+        };
+    }
+}
+```
+
+### Client-Side Implementation
+
+Update the protected client-side files to handle your authentication flow:
+
+**`+page.server.ts`:**
+
+```typescript
+import { type RequestEvent } from '@sveltejs/kit';
+
+export async function load(event: RequestEvent): Promise<{ customData: Record<string, unknown> | undefined }> {
+    return { customData: event.locals.customData };
+}
+```
+
+**`+page.svelte`:**
+
+```svelte
+<script lang="ts">
+    import { page } from '$app/stores';
+    import { onMount } from 'svelte';
+
+    const { data } = $page.data;
+    const customData = data.customData;
+
+    onMount(() => {
+        if (customData) {
+            // Start OAuth flow with data from server
+            startOAuthFlow(customData);
+        }
+    });
+
+    function startOAuthFlow(authData: any) {
+        const authUrl = new URL(authData.authProviderUrl);
+        authUrl.searchParams.set('client_id', authData.oauthClientId);
+        authUrl.searchParams.set('redirect_uri', authData.oauthRedirectUri);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('scope', authData.oauthScopes);
+        authUrl.searchParams.set('state', generateRandomState());
+
+        // Open popup or redirect
+        window.location.href = authUrl.toString();
+    }
+
+    function generateRandomState(): string {
+        return Math.random().toString(36).substring(2, 15);
+    }
+</script>
+
+<div class="auth-container">
+    <h2>Authenticating...</h2>
+    <p>Please wait while we redirect you to complete authentication.</p>
+
+    {#if customData}
+        <div class="auth-info">
+            <p>Connecting to: {customData.authProviderUrl}</p>
+        </div>
+    {/if}
+</div>
+
+<style>
+    .auth-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        text-align: center;
+    }
+
+    .auth-info {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+    }
+</style>
+```
+
+### Callback Handling
+
+Create a callback route to handle the return from client-side authentication:
+
+**`apps/pika-chat/src/routes/auth/callback/+page.server.ts`:**
+
+```typescript
+import { redirect } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+
+export async function load(event: RequestEvent) {
+    // Extract auth code from URL
+    const authCode = event.url.searchParams.get('code');
+    const state = event.url.searchParams.get('state');
+
+    if (authCode) {
+        // Redirect back to main app with auth code
+        // The authenticate method will pick up the auth_code parameter
+        return redirect(302, `/?auth_code=${authCode}`);
+    }
+
+    // No auth code - redirect to login
+    return redirect(302, '/auth/client-auth');
+}
+```
+
+### Flow Sequence
+
+1. **User visits protected page** → Framework calls `authenticate()`
+2. **No valid token found** → `authenticate()` returns redirect to `/auth/client-auth`
+3. **Framework calls `addValueToLocalsForRoute()`** → Passes OAuth configuration data
+4. **User sees client-side auth page** → JavaScript starts OAuth flow
+5. **User completes OAuth** → Redirects to `/auth/callback`
+6. **Callback redirects to main app** → With `auth_code` parameter
+7. **Framework calls `authenticate()` again** → Now with `auth_code` parameter
+8. **Authentication completes** → User is authenticated and redirected to original page
+
+### Use Cases
+
+This pattern is ideal for:
+
+- **OAuth providers** that require popup windows or complex client-side flows
+- **Social login SDKs** (Facebook, Google, etc.) that need client-side initialization
+- **Multi-step authentication** flows that require user interaction
+- **CAPTCHA or 2FA** that needs to be handled in the browser
+- **Custom authentication widgets** that require client-side processing
+
+### Security Considerations
+
+- **Validate all data** passed from client to server
+- **Use secure redirect URIs** and validate them on the server
+- **Implement proper state parameter** validation for OAuth flows
+- **Set appropriate cookie security** settings for your domain
+- **Handle authentication errors** gracefully on both client and server
+
 ## Example Use Cases
 
 **💡 TIP:** Before reviewing these examples, check out the complete working example at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts` which includes time-based validation and multi-endpoint fallback patterns you can copy directly.
