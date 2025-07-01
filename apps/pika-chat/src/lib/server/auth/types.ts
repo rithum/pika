@@ -80,9 +80,10 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * So, you return an object and we will add it to the locals object in a key named 'customData'.  The type of the object
      * is the return type of this method.
      *
+     * @param pathName - For convenience, the path name of the route with any trailing slashes removed
      * @param event - The request event (so you can check the path)
      * @param user - The authenticated user (if there is one)
      * @returns The object to add to the locals object in a key named 'customData'
      */
-    async addValueToLocalsForRoute?(event: RequestEvent, user: AuthenticatedUser<T, U> | undefined): Promise<Record<string, unknown> | undefined>;
+    async addValueToLocalsForRoute?(pathName: string, event: RequestEvent, user: AuthenticatedUser<T, U> | undefined): Promise<Record<string, unknown> | undefined>;
 }
