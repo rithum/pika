@@ -67,32 +67,20 @@ export function createHotKey(h: HotKeyBase): HotKey {
         ...(isWindows() && h.useCtrlForMetaOnWindows
             ? {
                   displayWindows: getHotKeyForDisplay(h.alt, true, h.shift, false, h.key),
-                  htmlDisplayWindows: getHotKeyAsHtml(h.alt, true, h.shift, false, h.key),
+                  htmlDisplayWindows: getHotKeyAsHtml(h.alt, true, h.shift, false, h.key)
               }
-            : {}),
+            : {})
     };
 }
 
-function getHotKeyAsHtml(
-    alt: boolean | undefined,
-    ctrl: boolean | undefined,
-    shift: boolean | undefined,
-    meta: boolean | undefined,
-    key: string | undefined
-): string {
+function getHotKeyAsHtml(alt: boolean | undefined, ctrl: boolean | undefined, shift: boolean | undefined, meta: boolean | undefined, key: string | undefined): string {
     const hotKeyStr = getHotKeyForDisplay(alt, ctrl, shift, meta, key);
     if (!hotKeyStr) return '';
 
     return `<span class="bg-white text-black px-1 rounded-md font-bold">${hotKeyStr}</span>`;
 }
 
-export function getHotKeyForDisplay(
-    alt: boolean | undefined,
-    ctrl: boolean | undefined,
-    shift: boolean | undefined,
-    meta: boolean | undefined,
-    key: string | undefined
-) {
+export function getHotKeyForDisplay(alt: boolean | undefined, ctrl: boolean | undefined, shift: boolean | undefined, meta: boolean | undefined, key: string | undefined) {
     const mobile = isMobileDevice();
 
     if (mobile) {
@@ -160,3 +148,26 @@ export function assert(condition: any, message?: string): asserts condition {
 //         return `Expires ${formatDistanceToNow(dateObj, { addSuffix: true })}`;
 //     }
 // }
+
+/**
+ * Format a date to a human friendly string
+ * @param dateToFormat
+ * @returns
+ */
+export function formatDateTime(dateToFormat: string | Date | number): string {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (typeof dateToFormat === 'string' || typeof dateToFormat === 'number') {
+        dateToFormat = new Date(dateToFormat);
+    }
+
+    // Format date as "Today", "Yesterday", or the actual date
+    if (dateToFormat.toDateString() === today.toDateString()) {
+        return 'Today at ' + dateToFormat.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (dateToFormat.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday at ' + dateToFormat.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+        return dateToFormat.toLocaleDateString() + ' at ' + dateToFormat.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+}

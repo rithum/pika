@@ -11,6 +11,7 @@
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
     import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
+    import { formatDateTime } from '../../../../utils';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -228,6 +229,9 @@
                                             {/each}
                                         </div>
                                     {/if}
+                                    <div class="user timestamp">
+                                        {formatDateTime(message.timestamp)}
+                                    </div>
                                 </div>
                             {:else}
                                 <div class="flex flex-col gap-2">
@@ -257,6 +261,10 @@
                                             {/each}
                                         </div>
                                     {/if}
+
+                                    <div class="assistant timestamp">
+                                        {formatDateTime(message.timestamp)}
+                                    </div>
                                 </div>
                             {/if}
                         </div>
@@ -353,5 +361,18 @@
     .dot-3 {
         animation: pulse-dot 1.4s infinite ease-in-out;
         animation-delay: 0.32s;
+    }
+
+    .timestamp {
+        /* margin-top: 0.5rem; */
+        font-size: 0.65rem;
+        opacity: 0.7;
+        text-align: right;
+    }
+    .timestamp.assistant {
+        /* margin-top: 0.5rem; */
+        font-size: 0.65rem;
+        opacity: 0.7;
+        text-align: left;
     }
 </style>

@@ -145,7 +145,7 @@
     }
 
     :global(.markdown-content pre) {
-        @apply bg-gray-100 rounded p-4 overflow-x-auto;
+        @apply rounded p-4 overflow-x-auto;
     }
 
     :global(.markdown-content code) {
