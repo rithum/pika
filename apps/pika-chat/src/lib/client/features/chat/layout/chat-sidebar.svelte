@@ -92,8 +92,9 @@
     <Sidebar.Content>
         <ChatNav />
     </Sidebar.Content>
-    <Sidebar.Footer>
+    <!--TODO: make it a feature flag to show this or not -->
+    <!-- <Sidebar.Footer>
         <ChatNavUser />
-    </Sidebar.Footer>
+    </Sidebar.Footer> -->
     <Sidebar.Rail />
 </Sidebar.Root>
