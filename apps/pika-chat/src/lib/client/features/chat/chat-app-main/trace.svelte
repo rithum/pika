@@ -122,7 +122,7 @@
 
     let { message }: Props = $props();
 
-    let expanded = $state(false);
+    let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {
         return (
