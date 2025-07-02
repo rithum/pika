@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import type { DistinctQuestion } from 'inquirer';
 import type { ExecOptions } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
+import chalk from 'chalk';
 
 const execAsync = promisify(exec);
 
@@ -38,7 +39,6 @@ function getDefaultProtectedAreas(): string[] {
         'pika-config.ts',
         '.pika-sync.json',
         '.gitignore',
-        'package.json',
         'pnpm-lock.yaml',
         'cdk.context.json',
         '.github/',
@@ -82,7 +82,7 @@ interface ProjectConfig {
 
 export async function createApp(projectName?: string, options: CreateAppOptions = {}): Promise<void> {
     try {
-        logger.header('🐦 Pika Framework - Create New Chat Application');
+        console.log(chalk.bold.underline('Pika Framework - Create New Chat Application'));
 
         // Get basic project configuration (simplified)
         const config = await getBasicProjectConfig(projectName, options);
@@ -144,7 +144,7 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
             throw error;
         }
     } catch (error) {
-        logger.error('Failed to create Pika application:', error);
+        console.log(chalk.red.bold('Failed to create Pika application:'), error);
         process.exit(1);
     }
 }
@@ -432,85 +432,83 @@ async function installDependencies(projectPath: string, silent: boolean = false)
 }
 
 async function showCompletionMessage(config: ProjectConfig, options: CreateAppOptions): Promise<void> {
-    logger.success(`🎉 Successfully created ${config.projectName}!`);
-    logger.newLine();
+    console.log(chalk.green.bold(`Successfully created ${config.projectName}!`));
+    console.log();
 
-    logger.info('Next steps:');
-    console.log(`  cd ${path.relative(process.cwd(), config.projectPath)}`);
-
+    console.log(chalk.bold('Next steps:'));
+    console.log(chalk.reset(`  cd ${path.relative(process.cwd(), config.projectPath)}`));
     if (options.skipInstall) {
-        console.log('  pnpm install  # or npm install');
+        console.log(chalk.reset('  pnpm install  # or npm install'));
     }
+    console.log(chalk.reset('  pnpm dev      # Start development server'));
+    console.log();
 
-    console.log('  pnpm dev      # Start development server');
-    logger.newLine();
+    console.log(chalk.bold('What you got:'));
+    console.log(chalk.reset('  • A generic front end to render any chat app in: /apps/pika-chat'));
+    console.log(chalk.reset('  • A generic chatbot/agent backend that uses your defined chat apps and agents: /services/pika'));
+    console.log(chalk.reset('  • A weather service showing how to define a chatapp/agent (remove from services/samples/ if not needed)'));
+    console.log(chalk.reset('  • A sample webapp to demo embedded mode (remove from apps/samples/ if not needed)'));
+    console.log(chalk.reset('  • Ready-to-customize authentication system in the front end'));
+    console.log(chalk.reset('  • Custom UI tag component support in the front end'));
+    console.log();
 
-    logger.info('What you got:');
-    console.log('  • A generic front end to render any chat app in: /apps/pika-chat');
-    console.log('  • A generic chatbot/agent backend that uses your defined chat apps and agents: /services/pika');
-    console.log('  • A weather service showing how to define a chatapp/agent (remove from services/samples/ if not needed)');
-    console.log('  • A sample webapp to demo embedded mode (remove from apps/samples/ if not needed)');
-    console.log('  • Ready-to-customize authentication system in the front end');
-    console.log('  • Custom UI tag component support in the front end');
-    logger.newLine();
+    console.log(chalk.bold('Key customization areas:'));
+    console.log(chalk.reset('  • Project Configuration: pika-config.ts (update project names here)'));
+    console.log(chalk.reset('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components'));
+    console.log(chalk.reset('  • Custom Webapps: apps/custom directory'));
+    console.log(chalk.reset('  • Custom Services: services/custom directory'));
+    console.log(chalk.reset('  • Frontend Chat App Stack: apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts'));
+    console.log(chalk.reset('  • Backend Service Stack: services/pika/lib/stacks/custom-stack-defs.ts'));
+    console.log();
 
-    logger.info('Key customization areas:');
-    console.log('  • Project Configuration: pika-config.ts (update project names here)');
-    console.log('  • Custom Components: apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components');
-    console.log('  • Custom Webapps: apps/custom directory');
-    console.log('  • Custom Services: services/custom directory');
-    console.log('  • Frontend Chat App Stack: apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts');
-    console.log('  • Backend Service Stack: services/pika/lib/stacks/custom-stack-defs.ts');
-    logger.newLine();
+    console.log(chalk.bold('Infrastructure customization:'));
+    console.log(chalk.gray('  • Update project names in pika-config.ts used in stack and resource names (recommended)'));
+    console.log(chalk.gray('  • Modify frontend stack using apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts...'));
+    console.log(chalk.gray('      • Add resources to the stack before and after the primary construct creation'));
+    console.log(chalk.gray('      • Modify the props used in the primary construct creation'));
+    console.log(chalk.gray('      • You will need to set the domain name, certificate ARN and hosted zone ID in the stack for the frontend to work'));
+    console.log(chalk.gray('  • Modify backend stack using services/pika/lib/stacks/custom-stack-defs.ts...'));
+    console.log(chalk.gray('      • Add resources to the stack before and after the primary construct creation'));
+    console.log(chalk.gray('      • Modify the props used in the primary construct creation'));
+    console.log(chalk.gray('      • You may not need to do anything here, it will just work out of the box'));
+    console.log(chalk.gray('  • These files are protected from framework updates'));
+    console.log();
 
-    logger.info('Infrastructure customization:');
-    console.log('  • Update project names in pika-config.ts used in stack and resource names (recommended)');
-    console.log('  • Modify frontend stack using apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts...');
-    console.log('      • Add resources to the stack before and after the primary construct creation');
-    console.log('      • Modify the props used in the primary construct creation');
-    console.log('      • You will need to set the domain name, certificate ARN and hosted zone ID in the stack for the frontend to work');
-    console.log('  • Modify backend stack using services/pika/lib/stacks/custom-stack-defs.ts...');
-    console.log('      • Add resources to the stack before and after the primary construct creation');
-    console.log('      • Modify the props used in the primary construct creation');
-    console.log('      • You may not need to do anything here, it will just work out of the box');
-    console.log('  • These files are protected from framework updates');
-    logger.newLine();
+    console.log(chalk.bold('Version control:'));
+    console.log(chalk.gray('  • Initialize git: git init && git add . && git commit -m "Initial commit"'));
+    console.log(chalk.gray('  • Or use your preferred version control system'));
+    console.log();
 
-    logger.info('Version control:');
-    console.log('  • Initialize git: git init && git add . && git commit -m "Initial commit"');
-    console.log('  • Or use your preferred version control system');
-    logger.newLine();
+    console.log(chalk.bold('To run locally:'));
+    console.log(chalk.gray('  • First, make sure to rename the stacks/resources in pika-config.ts if you want to'));
+    console.log(chalk.gray('  • We need to deploy the back end stack since front end stack even locally depends on it'));
+    console.log(chalk.gray('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service'));
+    console.log(chalk.gray('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app'));
+    console.log(chalk.gray('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run dev" to hit the front end'));
+    console.log(chalk.gray('  • Hit http://localhost:3000/chat/weather (or whatever host/port you set in pika-config.ts)'));
+    console.log();
 
-    logger.info('To run locally:');
-    console.log('  • First, make sure to rename the stacks/resources in pika-config.ts if you want to');
-    console.log('  • We need to deploy the back end stack since front end stack even locally depends on it');
-    console.log('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service');
-    console.log('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app');
-    console.log('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run dev" to hit the front end');
-    console.log('  • Hit http://localhost:3000/chat/weather (or whatever host/port you set in pika-config.ts)');
-    logger.newLine();
+    console.log(chalk.bold('To deploy to AWS:'));
+    console.log(chalk.gray('  • Add custom front end auth in apps/pika-chat/src/lib/server/auth-provider/index.ts'));
+    console.log(chalk.gray('  • Define the requisite front end stack resources (vpcs, etc) in apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts'));
+    console.log(chalk.gray("  • Modify the back end stack resources if you need to (probably won't need to) (vpcs, etc) in services/pika/lib/stacks/custom-stack-defs.ts"));
+    console.log(chalk.gray('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service'));
+    console.log(chalk.gray('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app'));
+    console.log(chalk.gray('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run cdk:deploy" to deploy the front end'));
+    console.log();
 
-    logger.info('To deploy to AWS:');
-    console.log('  • Add custom front end auth in apps/pika-chat/src/lib/server/auth-provider/index.ts');
-    console.log('  • Define the requisite front end stack resources (vpcs, etc) in apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts');
-    console.log("  • Modify the back end stack resources if you need to (probably won't need to) (vpcs, etc) in services/pika/lib/stacks/custom-stack-defs.ts");
-    console.log('  • Then cd services/pika and "pnpm build" and then "pnpm run cdk:deploy" to deploy the back end service');
-    console.log('  • Then cd services/weather and "pnpm build" and then "pnpm run cdk:deploy" to deploy a sample chat app');
-    console.log('  • Then cd apps/pika-chat and "pnpm build" and then "pnpm run cdk:deploy" to deploy the front end');
-    logger.newLine();
+    console.log(chalk.bold('Learn more:'));
+    console.log(chalk.gray('  • Framework docs: https://github.com/rithum/pika'));
+    console.log(chalk.gray('  • Customization guide: ./docs/help/customization.md'));
+    console.log(chalk.gray('  • Deploy to AWS: See services/pika/README.md'));
+    console.log();
 
-    logger.info('Learn more:');
-    console.log('  • Framework docs: https://github.com/rithum/pika');
-    console.log('  • Customization guide: ./docs/help/customization.md');
-    console.log('  • Deploy to AWS: See services/pika/README.md');
-    logger.newLine();
-
-    logger.info('Important: Understanding the sync system');
-    console.log('  We recommend you immediately run:');
-    console.log('  pika sync --help');
-    console.log('  This will explain how you are meant to safely customize this code while');
-    console.log('  continuing to be able to sync down changes from the Pika framework.');
-    logger.newLine();
+    console.log(chalk.bold('Important: Understanding the sync system'));
+    console.log(chalk.gray('  We recommend you immediately run:'));
+    console.log(chalk.gray('  pika sync --help'));
+    console.log(chalk.gray('  This will explain how you are meant to safely customize this code while'));
+    console.log(chalk.gray('  continuing to be able to sync down changes from the Pika framework.'));
+    console.log();
 
     // Prompt user to run sync help
     const { runSyncHelp } = await inquirer.prompt([
@@ -523,14 +521,14 @@ async function showCompletionMessage(config: ProjectConfig, options: CreateAppOp
     ]);
 
     if (runSyncHelp) {
-        logger.newLine();
-        logger.info('Running pika sync --help...');
-        logger.newLine();
+        console.log();
+        console.log(chalk.cyan('Running pika sync --help...'));
+        console.log();
 
         // Import and run the sync help
         const { syncCommand } = await import('./sync.js');
         await syncCommand({ help: true });
     } else {
-        logger.info('You can run "pika sync --help" anytime to learn about the sync system.');
+        console.log(chalk.gray('You can run "pika sync --help" anytime to learn about the sync system.'));
     }
 }

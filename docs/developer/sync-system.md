@@ -6,14 +6,23 @@ The Pika Framework sync system allows you to receive updates from the main frame
 
 Your Pika project is a fork of the Pika framework that you can check into your own source control. The sync system intelligently merges framework updates with your changes, ensuring you can continue to receive improvements while maintaining your customizations.
 
+### 📦 Package.json Special Handling
+
+The sync system includes special handling for `package.json` files to intelligently merge dependencies and scripts:
+
+- **Smart Dependency Merging**: Your added dependencies and scripts are preserved while framework updates are applied
+- **Selective Updates**: Only changed values are updated; your additions remain untouched
+- **Interactive Confirmation**: You're prompted to confirm each package.json change with detailed information about what will be updated
+
 ## 🛡️ How It Works
 
 ### The Sync Process
 
 1. **Download Latest Framework**: The sync command downloads the latest Pika framework from GitHub
 2. **Compare Changes**: It compares your project with the framework to identify changes
-3. **Apply Updates**: It applies framework updates while preserving your customizations
-4. **Handle Conflicts**: It handles conflicts by asking you how to resolve them
+3. **Smart Package.json Merging**: For package.json files, it intelligently merges dependencies and scripts
+4. **Apply Updates**: It applies framework updates while preserving your customizations
+5. **Handle Conflicts**: It handles conflicts by asking you how to resolve them
 
 ### Protection System
 
@@ -145,6 +154,91 @@ Any path segment starting with "custom-" is automatically protected:
 - `apps/my-app/custom-config/` - subdirectory with custom- prefix
 - `services/api/custom-middleware.ts` - file with custom- prefix
 
+## 📦 Package.json Special Handling
+
+The sync system includes intelligent handling for `package.json` files that goes beyond simple file comparison.
+
+### How Package.json Merging Works
+
+When a `package.json` file differs between your fork and the framework, the sync system:
+
+1. **Compares Top-Level Attributes**: Analyzes each attribute (name, version, description, etc.)
+2. **Preserves Your Additions**: If you have attributes the framework doesn't have, they're kept
+3. **Adds Framework Additions**: If the framework has attributes you don't have, they're added
+4. **Smart Dependency Handling**: For `scripts`, `dependencies`, and `devDependencies`:
+    - **Your additions are preserved**: If you add a script or dependency, it stays
+    - **Framework additions are added**: If the framework adds new scripts/dependencies, they're added
+    - **Conflicts are resolved**: If both have the same key with different values, framework wins
+
+### Example Package.json Sync
+
+**Your package.json:**
+
+```json
+{
+    "name": "my-project",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "my-custom-script": "echo 'custom'"
+    },
+    "dependencies": {
+        "react": "^18.0.0",
+        "my-custom-package": "^1.0.0"
+    }
+}
+```
+
+**Framework package.json:**
+
+```json
+{
+    "name": "pika-project",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "test": "vitest"
+    },
+    "dependencies": {
+        "react": "^18.0.0",
+        "vite": "^5.0.0"
+    }
+}
+```
+
+**Result after sync:**
+
+```json
+{
+    "name": "pika-project", // Framework wins (modified)
+    "scripts": {
+        "dev": "vite", // Same, no change
+        "build": "vite build", // Same, no change
+        "test": "vitest", // Added from framework
+        "my-custom-script": "echo 'custom'" // Preserved from fork
+    },
+    "dependencies": {
+        "react": "^18.0.0", // Same, no change
+        "vite": "^5.0.0", // Added from framework
+        "my-custom-package": "^1.0.0" // Preserved from fork
+    }
+}
+```
+
+### Interactive Confirmation
+
+For each package.json file that has changes, you'll see:
+
+```
+📦 Package.json changes detected in apps/pika-chat/package.json:
+   • Modified attributes: name
+   • Added scripts: test
+   • Added dependencies: vite
+   • Your additions will be preserved: my-custom-script, my-custom-package
+
+Apply package.json changes to apps/pika-chat/package.json? (Y/n)
+```
+
 ## 📁 Sample Directory Handling
 
 The sync system handles sample applications intelligently:
@@ -262,19 +356,26 @@ Always place your custom code in the designated customization areas:
 
 Update `pika-config.ts` with your project names before making other changes.
 
-### 3. Test After Sync
+### 3. Manage Dependencies Intelligently
+
+- **Add custom dependencies**: Add them to your package.json files - they'll be preserved during sync
+- **Add custom scripts**: Add them to your package.json files - they'll be preserved during sync
+- **Don't modify framework dependencies**: Let the framework manage its own dependencies
+- **Review package.json changes**: Always review what the sync system proposes to change
+
+### 4. Test After Sync
 
 Always test your application after each sync to ensure everything works correctly.
 
-### 4. Commit Before Syncing
+### 5. Commit Before Syncing
 
 Commit your changes to source control before running sync operations.
 
-### 5. Review Changes
+### 6. Review Changes
 
 Use `--dry-run` and `--diff` options to review changes before applying them.
 
-### 6. Protect Important Files
+### 7. Protect Important Files
 
 Add important custom files to `userProtectedAreas` if they're not in default protected areas.
 
@@ -386,6 +487,13 @@ pika sync --help
 - Configuration files are protected by default
 - Add files to `userProtectedAreas` for additional protection
 - Use `userUnprotectedAreas` to allow updates to default protected files
+
+### Package.json Rules
+
+- Your added dependencies and scripts are automatically preserved
+- Framework updates to existing dependencies are applied
+- New framework dependencies and scripts are added
+- You're prompted to confirm each package.json change
 
 ---
 
