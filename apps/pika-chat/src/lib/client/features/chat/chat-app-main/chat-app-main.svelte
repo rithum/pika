@@ -262,9 +262,11 @@
                                         </div>
                                     {/if}
 
-                                    <div class="assistant timestamp">
-                                        {formatDateTime(message.timestamp)}
-                                    </div>
+                                    {#if !chat.isStreamingResponseNow}
+                                        <div class="assistant timestamp">
+                                            {formatDateTime(message.timestamp)}
+                                        </div>
+                                    {/if}
                                 </div>
                             {/if}
                         </div>
