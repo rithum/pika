@@ -31,7 +31,7 @@ const app = new cdk.App();
 
 async function main() {
     // Get stage from context or use default
-    const stage = app.node.tryGetContext('stage') || 'test';
+    const stage = app.node.tryGetContext('stage');
     // const vpcId = await getValueFromParameterStore(`/pika/${stage}/networking/vpc/id`);
 
     // if (!vpcId) {
@@ -43,7 +43,7 @@ async function main() {
 
     const env = {
         account: loggedInAccountId,
-        region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+        region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
     };
 
     //TODO: get these from an environment variable or something
@@ -69,7 +69,7 @@ async function main() {
         projNameCamel,
         projNameKebabCase,
         projNameHuman,
-        pikaServiceProjNameKebabCase,
+        pikaServiceProjNameKebabCase
     });
 }
 
