@@ -12,11 +12,14 @@ import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
 import { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
+import cloneDeep from 'lodash.clonedeep';
 // import { Trace } from './bedrock-types';
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
+
+const DEFAULT_VERIFICATION_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"//'amazon.nova-micro-v1:0';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
@@ -30,7 +33,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => {};
+                let set = (key: any, value: any) => { };
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -48,6 +51,325 @@ if (global.awslambda == null) {
                 return underlyingStream;
             }
         } as any
+    };
+}
+
+interface InvokeAgentHooks {
+    onStart: () => void;
+    onChunk: (chunk: string, chunkIndex: number) => void;
+    onTrace: (trace: Trace) => void;
+    onEnd: (usage: ChatMessageUsage) => void;
+    onError: (error: any) => void;
+}
+async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string) {
+    let error: unknown;
+    let startingTime = Date.now();
+    let model: string = cmdInput.foundationModel ?? DEFAULT_ANTHROPIC_MODEL;
+
+    let lastModelInvocationOutputTraceContent:
+        | {
+            content: {
+                traceId?: string;
+                input?: unknown;
+                text: string;
+                type?: string;
+                name?: string;
+            }[];
+            traceId: string;
+        }
+        | undefined;
+    let responseMsg = '';
+    let usage: ChatMessageUsage = {
+        inputTokens: 0,
+        outputTokens: 0,
+        inputCost: 0,
+        outputCost: 0,
+        totalCost: 0
+    };
+    let traces: Trace[] = [];
+
+    console.log(label, 'Command input built successfully');
+    console.log(label, 'InvokeInlineAgentCommandInput:', JSON.stringify(cmdInput, null, 2));
+
+    try {
+        console.log(label, 'Creating InvokeInlineAgentCommand...');
+        const cmd = new InvokeInlineAgentCommand(cmdInput);
+        console.log(label, 'InvokeInlineAgentCommand created');
+        console.log(label, 'InvokeInlineAgentCommand:', JSON.stringify(cmd, null, 2));
+
+        console.log(label, 'Sending command to Bedrock Agent Runtime...');
+        const response = await bedrockAgentClient.send(cmd);
+        console.log(label, 'Bedrock Agent Runtime response received');
+        console.log(label, 'InvokeInlineAgentCommandResponse', response);
+
+        if (response.completion === undefined) {
+            console.error(label, 'No completion found in response');
+            throw new Error('No completion found in response');
+        }
+
+
+        hooks.onStart();
+
+        console.log(label, 'Processing completion stream...');
+        let chunkCount = 0;
+        for await (const chunk of response.completion) {
+            chunkCount++;
+            console.log(label, `Processing chunk ${chunkCount}:`, {
+                hasChunkBytes: !!chunk.chunk?.bytes,
+                hasTrace: !!chunk.trace?.trace,
+                chunkBytesLength: chunk.chunk?.bytes?.length
+            });
+
+            if (chunk.chunk?.bytes) {
+                const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes);
+                console.log(label, `Chunk ${chunkCount} decoded:`, {
+                    length: decodedChunk.length,
+                    preview: decodedChunk.substring(0, 100)
+                });
+                responseMsg += decodedChunk;
+
+                hooks.onChunk(decodedChunk, chunkCount);
+                console.log(label, `Chunk ${chunkCount} written to response stream`);
+            }
+
+            if (chunk.trace?.trace) {
+                const trace = chunk.trace.trace as Trace;
+                console.log(label, `Processing trace for chunk ${chunkCount}`);
+                console.log(label, `Trace:`, JSON.stringify(trace, null, 2));
+
+                /*
+                   The trace variable in the case of an error will have this and not trace.orchestrationTrace and the
+                   check below detects it's not there and skips it.  An error results elsewhere and we will get into the 
+                   the catch block.
+
+                    {
+                        "failureTrace": {
+                            "failureCode": 400,
+                            "failureReason": "Invocation of model ID anthropic.claude-3-5-haiku-20241022-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model.",
+                            "metadata": {
+                                "clientRequestId": "6e6f3e88-b9f9-4bcb-b98e-1e3cd0115fad",
+                                "endTime": "2025-05-29T16:15:42.822380245Z",
+                                "operationTotalTimeMs": 92,
+                                "startTime": "2025-05-29T16:15:42.775346536Z",
+                                "totalTimeMs": 47
+                            },
+                            "traceId": "62c56285-5b5b-45f3-b634-8a3f4db30aca-0"
+                        }
+                    }
+                */
+
+                // Add null check for orchestrationTrace
+                if (!trace.orchestrationTrace && !trace.failureTrace) {
+                    console.log(label, `Chunk ${chunkCount} trace has no orchestrationTrace, skipping`);
+                    continue;
+                }
+
+                //TODO: check type when done
+                if (
+                    trace.orchestrationTrace?.invocationInput ||
+                    trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+                    trace.orchestrationTrace?.modelInvocationOutput ||
+                    trace.orchestrationTrace?.rationale ||
+                    trace.failureTrace
+                ) {
+                    const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
+                    const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
+
+                    usage.inputTokens += inputTokens;
+                    usage.outputTokens += outputTokens;
+
+                    console.log(label, `Usage updated from trace:`, {
+                        chunkInputTokens: inputTokens,
+                        chunkOutputTokens: outputTokens,
+                        totalInputTokens: usage.inputTokens,
+                        totalOutputTokens: usage.outputTokens
+                    });
+
+                    if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
+                        let content = trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!;
+                        if (typeof content === "string" && content.match(/^{.*}$/)) {
+                            lastModelInvocationOutputTraceContent = JSON.parse(content);
+                        } else {
+                            lastModelInvocationOutputTraceContent = {
+                                content: [{
+                                    text: content,
+                                }],
+                                traceId: ""
+                            }
+                        }
+                        //TODO: check type when done
+                        if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
+                            lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
+                        } else {
+                            throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
+                        }
+                        // Don't keep the raw response in the trace
+                        delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
+                    }
+
+                    // Detect if we have been going too long and send a prompt to the user to continue
+                    if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
+                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount);
+                    }
+
+                    // // Trim the observation to just a preview.  Observations can be large
+                    // let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
+                    // if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
+                    //     trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
+                    //         trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
+                    // }
+                    traces.push(trace);
+                    hooks.onTrace(trace);
+                }
+            }
+        }
+        console.log(label, 'Completion stream processing finished:', {
+            totalChunks: chunkCount,
+            responseLength: responseMsg.length,
+            tracesCount: traces.length
+        });
+
+    } catch (e) {
+
+        // If there is a hard error when trying to invoke a tool the event with the invocation details doesn't get emitted
+        // but we have the raw model output so we can parse recreate what the invocation event would be
+        if (lastModelInvocationOutputTraceContent && Array.isArray(lastModelInvocationOutputTraceContent.content)) {
+            try {
+                let len = lastModelInvocationOutputTraceContent.content.length;
+                if (!traces[0]?.orchestrationTrace?.invocationInput && lastModelInvocationOutputTraceContent.content[len - 1]?.type == "tool_use") {
+                    let lastRawTrace = lastModelInvocationOutputTraceContent.content[len - 1];
+                    let [action_group_name, action_group_function] = lastRawTrace?.name?.split("__") ?? [];
+                    let t: Trace = {
+                        orchestrationTrace: {
+                            invocationInput: {
+                                actionGroupInvocationInput: {
+                                    executionType: "LAMBDA",
+                                    parameters: Object.entries(lastModelInvocationOutputTraceContent.content[len - 1]?.input ?? {}).map(([key, value]) => {
+                                        let valueType = typeof value;
+                                        return {
+                                            name: key,
+
+                                            // this is not perfect but close
+                                            type: Array.isArray(value)
+                                                ? "array"
+                                                : valueType == "boolean"
+                                                    ? "boolean"
+                                                    : valueType === "number"
+                                                        ? "number"
+                                                        : "string",
+
+                                            value: value
+                                        }
+                                    }),
+                                    actionGroupName: action_group_name,
+                                    function: action_group_function
+                                },
+                                invocationType: "ACTION_GROUP",
+                                traceId: lastRawTrace.traceId
+                            }
+                        }
+                    }
+                    traces.push(t);
+                    hooks.onTrace(t);
+
+                }
+            } catch (e) {
+                // Don't do anything if parsing the raw response fails
+            }
+        }
+
+        console.error(label, '=== BEDROCK AGENT ERROR ===');
+        console.error(label, 'Error invoking inline agent:', e);
+        error = e;
+        hooks.onError(error);
+    }
+
+
+    console.log(label, 'Calculating usage costs...');
+    // Make sure we get a pricing model, default to the default model
+    let price = modelPricing[model || 'default'] || modelPricing.default;
+    usage.inputCost = price.inputPer1000Tokens * (usage.inputTokens / 1000);
+    usage.outputCost = price.outputPer1000Tokens * (usage.outputTokens / 1000);
+    usage.totalCost = usage.inputCost + usage.outputCost;
+    console.log(label, 'Usage costs calculated:', usage);
+
+    hooks.onEnd(usage);
+
+    console.log(label, '=== INVOKE AGENT END ===');
+
+    return {
+        error,
+        message: responseMsg,
+        traces,
+        usage,
+        executionDuration: Date.now() - startingTime,
+    }
+}
+
+
+
+enum VerifyResponseClassification {
+    Accurate = "A",
+    AccurateWithStatedAssumptions = "B",
+    AccurateWithUnstatedAssumptions = "C",
+    Inaccurate = "F"
+}
+
+const verificationReprompts: Record<VerifyResponseClassification, string | null> = {
+    [VerifyResponseClassification.Accurate]: null,
+    [VerifyResponseClassification.AccurateWithStatedAssumptions]: null,
+    [VerifyResponseClassification.AccurateWithUnstatedAssumptions]: "The previous response had assumptions that were not specified.  Specify the assumptions you made.",
+    [VerifyResponseClassification.Inaccurate]: "The previous response is not factually correct.  Fix it with factually correct information"
+};
+
+async function invokeAgentToVerifyAnswer(cmdInput1: InvokeInlineAgentCommandInput) {
+
+    let cmdInput = cloneDeep(cmdInput1);
+
+    // Use the verification model
+    cmdInput.foundationModel = DEFAULT_VERIFICATION_MODEL;
+
+    // Remove tools and kb for verification data
+    delete cmdInput.inlineSessionState?.conversationHistory;
+    delete cmdInput.streamingConfigurations;
+    delete cmdInput.actionGroups;
+    delete cmdInput.knowledgeBases;
+
+
+    cmdInput.instruction = `You are a classification agent.  Classifications are:
+- A: Factually accurate
+- B: Accurate but containing assumptions that are specified in the response
+- C: Accurate but containing assumptions that are not in the response
+- F: Inaccurate or containing made up information
+
+Response with ONLY the classification Letter inside an <answer></answer> tag.  Example: <answer>A</answer>`;
+    cmdInput.inputText = "Classify your previous response";
+
+
+    let invokeResponse = await invokeAgent(cmdInput, {
+        onStart() {
+            // Nothing
+        },
+        onChunk(chunk) {
+            // Nothing
+        },
+        onTrace(trace) {
+            // Nothing
+        },
+        onEnd() {
+            // Nothing
+        },
+        onError(error) {
+            // Nothing
+        },
+    }, "VERIFICATION:");
+
+    let stringClass = invokeResponse.message.replace(/<\/? *answer>/g, "");
+    let r = Object.values(VerifyResponseClassification).find(e => e == stringClass);
+
+    return {
+        ...invokeResponse,
+        classification: r ?? VerifyResponseClassification.Accurate
     };
 }
 
@@ -160,14 +482,7 @@ export async function invokeAgentToGetAnswer(
 
     let error: unknown;
     let startingTime = Date.now();
-    let model: string | undefined;
-    //TODO: is there a better type for this?
-    let lastModelInvocationOutputTraceContent:
-        | {
-              [key: string]: unknown;
-              traceId: string;
-          }
-        | undefined;
+
     let responseMsg = '';
     let usage: ChatMessageUsage = {
         inputTokens: 0,
@@ -178,157 +493,89 @@ export async function invokeAgentToGetAnswer(
     };
     let traces: Trace[] = [];
 
-    console.log('Command input built successfully');
-    console.log('InvokeInlineAgentCommandInput:', JSON.stringify(cmdInput, null, 2));
+    function addUsage(newUsage: ChatMessageUsage) {
+        console.log('Adding usage costs...');
+        usage.inputTokens += newUsage.inputTokens;
+        usage.outputTokens += newUsage.outputTokens;
+        usage.inputCost += newUsage.inputCost;
+        usage.outputCost += newUsage.outputCost;
+        usage.totalCost += newUsage.totalCost;
+        console.log('Current usage costs calculated:', usage);
+    }
 
-    try {
-        console.log('Creating InvokeInlineAgentCommand...');
-        const cmd = new InvokeInlineAgentCommand(cmdInput);
-        console.log('InvokeInlineAgentCommand created');
-        console.log('InvokeInlineAgentCommand:', JSON.stringify(cmd, null, 2));
-
-        console.log('Sending command to Bedrock Agent Runtime...');
-        const response = await bedrockAgentClient.send(cmd);
-        console.log('Bedrock Agent Runtime response received');
-        console.log('InvokeInlineAgentCommandResponse', response);
-
-        if (response.completion === undefined) {
-            console.error('No completion found in response');
-            throw new Error('No completion found in response');
-        }
-
-        console.log('Setting up HTTP response stream...');
-        awslambda.HttpResponseStream.from(responseStream, {
-            statusCode: 200,
-            headers: { 'x-chatbot-session-id': chatSession.sessionId }
-        });
-        console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
-
-        console.log('Processing completion stream...');
-        let chunkCount = 0;
-        for await (const chunk of response.completion) {
-            chunkCount++;
-            console.log(`Processing chunk ${chunkCount}:`, {
-                hasChunkBytes: !!chunk.chunk?.bytes,
-                hasTrace: !!chunk.trace?.trace,
-                chunkBytesLength: chunk.chunk?.bytes?.length
+    let hooks: InvokeAgentHooks = {
+        onStart: function (): void {
+            console.log('Setting up HTTP response stream...');
+            awslambda.HttpResponseStream.from(responseStream, {
+                statusCode: 200,
+                headers: { 'x-chatbot-session-id': chatSession.sessionId }
             });
+            console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
+        },
+        onChunk: function (chunk: string, chunkCount: number): void {
+            responseMsg += chunk;
+            responseStream.write(chunk);
+            console.log(`Chunk ${chunkCount} written to response stream`);
+        },
+        onTrace: function (trace: Trace): void {
+            traces.push(trace);
+            responseStream.write(`<trace>${JSON.stringify(trace)}</trace>`);
+        },
+        onEnd: function (): void {
+            // Nothing
+        },
+        onError: function (error: any): void {
+            throw error;
+        }
+    };
+    try {
+        let mainResponse = await invokeAgent(cmdInput, hooks, "MAIN:");
+        addUsage(mainResponse.usage);
+        if (mainResponse.error) {
+            throw mainResponse.error;
+        }
 
-            if (chunk.chunk?.bytes) {
-                const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes);
-                console.log(`Chunk ${chunkCount} decoded:`, {
-                    length: decodedChunk.length,
-                    preview: decodedChunk.substring(0, 100)
-                });
-                responseMsg += decodedChunk;
-                responseStream.write(decodedChunk);
-                console.log(`Chunk ${chunkCount} written to response stream`);
+        let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
+        addUsage(verifyResponse.usage);
+        if (verifyResponse.error) {
+            console.log("Error during Verification.  Proceeding w/o verification", verifyResponse.error);
+        }
+
+        hooks.onTrace({
+            orchestrationTrace: {
+                rationale: {
+                    text: `Verified Response: ${verifyResponse.classification}`
+                }
             }
+        });
 
-            if (chunk.trace?.trace) {
-                const trace = chunk.trace.trace as Trace;
-                console.log(`Processing trace for chunk ${chunkCount}`);
-                console.log(`Trace:`, JSON.stringify(trace, null, 2));
+        let reprompt = verificationReprompts[verifyResponse.classification];
+        if (reprompt) {
 
-                /*
-                   The trace variable in the case of an error will have this and not trace.orchestrationTrace and the
-                   check below detects it's not there and skips it.  An error results elsewhere and we will get into the 
-                   the catch block.
-
-                    {
-                        "failureTrace": {
-                            "failureCode": 400,
-                            "failureReason": "Invocation of model ID anthropic.claude-3-5-haiku-20241022-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model.",
-                            "metadata": {
-                                "clientRequestId": "6e6f3e88-b9f9-4bcb-b98e-1e3cd0115fad",
-                                "endTime": "2025-05-29T16:15:42.822380245Z",
-                                "operationTotalTimeMs": 92,
-                                "startTime": "2025-05-29T16:15:42.775346536Z",
-                                "totalTimeMs": 47
-                            },
-                            "traceId": "62c56285-5b5b-45f3-b634-8a3f4db30aca-0"
-                        }
+            hooks.onTrace({
+                orchestrationTrace: {
+                    rationale: {
+                        text: "Correcting response."
                     }
-                */
-
-                // Add null check for orchestrationTrace
-                if (!trace.orchestrationTrace) {
-                    console.log(`Chunk ${chunkCount} trace has no orchestrationTrace, skipping`);
-                    continue;
                 }
+            });
+            hooks.onChunk("\n\n### Corrections\n", 100)
+            console.log("Classification requires reprompt:", verifyResponse.classification, reprompt);
+            // Delete history as it was already saturated with the main prompt
+            delete cmdInput.inlineSessionState?.conversationHistory;
 
-                // Extract the model from the trace
-                if (!model && trace.orchestrationTrace.modelInvocationInput?.foundationModel) {
-                    model = trace.orchestrationTrace.modelInvocationInput?.foundationModel;
-                    console.log('Model extracted from trace:', model);
-                }
-
-                //TODO: check type when done
-                if (
-                    trace.orchestrationTrace?.invocationInput ||
-                    trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
-                    trace.orchestrationTrace?.modelInvocationOutput ||
-                    trace.orchestrationTrace?.rationale ||
-                    trace.failureTrace
-                ) {
-                    const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
-                    const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
-
-                    usage.inputTokens += inputTokens;
-                    usage.outputTokens += outputTokens;
-
-                    console.log(`Usage updated from trace:`, {
-                        chunkInputTokens: inputTokens,
-                        chunkOutputTokens: outputTokens,
-                        totalInputTokens: usage.inputTokens,
-                        totalOutputTokens: usage.outputTokens
-                    });
-
-                    if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
-                        lastModelInvocationOutputTraceContent = JSON.parse(trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!);
-                        //TODO: check type when done
-                        if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
-                            lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
-                        } else {
-                            throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
-                        }
-                        // Don't keep the raw response in the trace
-                        delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
-                    }
-                    // TODO: These weren't saving dates to DynamoDB correctly.  A fix was made so commenting out for now.
-                    // Leaving in place until we are sure it's working.
-                    // if (trace.orchestrationTrace?.modelInvocationOutput?.metadata) {
-                    //     fixMetadataDates(trace.orchestrationTrace.modelInvocationOutput.metadata);
-                    // }
-                    // // TODO:These are no saving to Dynamodb correctly.  The dates are not being marshalled correctly
-                    // if (trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.metadata) {
-                    //     fixMetadataDates(trace.orchestrationTrace.observation.actionGroupInvocationOutput.metadata);
-                    // }
-
-                    // // Detect if we have been going too long and send a prompt to the user to continue
-                    // if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
-                    //     responseStream.write(`This one is taking me awhile to think.<prompt>Continue</prompt>`);
-                    // }
-
-                    // // Trim the observation to just a preview.  Observations can be large
-                    // let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
-                    // if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
-                    //     trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
-                    //         trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
-                    // }
-                    traces.push(trace);
-                    //if (userConfig?.features?.super_admin) {
-                    // This writes the traces to the response stream back to the client that invoked the agent.
-                    responseStream.write(`<trace>${JSON.stringify(trace)}</trace>`);
-                    //}
-                }
+            cmdInput.inputText = reprompt;
+            let correctionResponse = await invokeAgent(cmdInput, {
+                ...hooks,
+                onStart() {
+                    // Nothing
+                },
+            }, "CORRECTION:")
+            addUsage(correctionResponse.usage);
+            if (correctionResponse.error) {
+                throw correctionResponse.error;
             }
         }
-        console.log('Completion stream processing finished:', {
-            totalChunks: chunkCount,
-            responseLength: responseMsg.length,
-            tracesCount: traces.length
-        });
     } catch (e) {
         console.error('=== BEDROCK AGENT ERROR ===');
         console.error('Error invoking inline agent:', e);
@@ -338,14 +585,6 @@ export async function invokeAgentToGetAnswer(
         responseStream.write(msg);
         console.log('Error message written to response stream');
     }
-
-    console.log('Calculating usage costs...');
-    // Make sure we get a pricing model, default to the default model
-    let price = modelPricing[model || 'default'] || modelPricing.default;
-    usage.inputCost = price.inputPer1000Tokens * (usage.inputTokens / 1000);
-    usage.outputCost = price.outputPer1000Tokens * (usage.outputTokens / 1000);
-    usage.totalCost = usage.inputCost + usage.outputCost;
-    console.log('Usage costs calculated:', usage);
 
     console.log('Building assistant message response...');
     const assistantMessage: ChatMessageForCreate = {

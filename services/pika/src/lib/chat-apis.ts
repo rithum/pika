@@ -247,7 +247,7 @@ export async function addChatMessage(
         lastUpdate: chatSession.lastUpdate
     });
 
-    if (userQuestionAsked && answerToQuestionFromAgent) {
+    if (userQuestionAsked && answerToQuestionFromAgent && chatSession.title == null) {
         console.log('Updating session title with Bedrock');
         // Use bedrock to generate a title for the session and update the session title in the database
         await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {

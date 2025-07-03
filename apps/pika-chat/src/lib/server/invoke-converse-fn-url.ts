@@ -4,6 +4,8 @@ import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { appConfig } from './config';
 import type { ConverseRequest, RecordOrUndef, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
+import { handler } from "../../../../../services/pika/src/lambda/converse";
+import { PassThrough } from 'stream';
 
 interface ConverseFunctionResponse {
     body: ReadableStream<Uint8Array> | null;
@@ -65,11 +67,65 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
     // Make the fetch call using the signed request details
     let response: Response;
     try {
-        response = await fetch(functionUrl, {
-            method: signedRequest.method,
-            headers: signedRequest.headers,
-            body: signedRequest.body,
-        });
+        if (appConfig.isLocal) {
+            let name = appConfig.pikaServiceProjNameKebabCase;
+            let stage = appConfig.stage;
+            process.env.AWS_REGION = process.env.AWS_REGION ?? "us-east-1";
+            process.env.STAGE = stage;
+            process.env.CHAT_APP_TABLE = `chat-app-${name}-${stage}`;
+
+            process.env.AGENT_DEFINITIONS_TABLE = `agent-definitions-${name}-${stage}`;
+            process.env.CHAT_ADMIN_API_ID = appConfig.chatApiId;
+            process.env.CHAT_MESSAGES_TABLE = `chat-message-${name}-${stage}`;
+            process.env.CHAT_SESSION_TABLE = `chat-session-${name}-${stage}`;
+            process.env.CHAT_USER_TABLE = `chat-user-${name}-${stage}`;
+            process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = name;
+            process.env.TOOL_DEFINITIONS_TABLE = `tool-definitions-${name}-${stage}`;
+            process.env.UPLOAD_S3_BUCKET = `file-uploads-${name}-${stage}`;
+
+            let r1: any, r2: any;
+            let firstBytePromise: Promise<void> & {
+                finished: boolean;
+                resolve: () => void, reject(e: Error): void
+            } = new Promise(function (resolve, reject) {
+                r1 = resolve;
+                r2 = reject;
+            }).finally(function () {
+                firstBytePromise.finished = true;
+            }) as any
+            firstBytePromise.resolve = r1;
+            firstBytePromise.reject = r2;
+            let passThrough: PassThrough & { set: (key: string, value: string) => void } = Object.assign(new PassThrough(), {
+                set: (key: string, value: string) => {
+                    if (!firstBytePromise.finished) {
+                        firstBytePromise.resolve();
+                    }
+                    response.headers.set(key, value);
+                }
+            });
+            response = new Response(passThrough as any);
+            handler({
+                body: request,
+                headers: signedRequest.headers,
+
+                requestContext: {
+                    authorizer: {
+                        iam: await defaultProvider()()
+                    }
+                }
+            } as any, { responseStream: passThrough } as any)!.then(() => {
+                passThrough.end();
+            }).catch((e: any) => {
+                passThrough.emit("error", e);
+            });
+            await firstBytePromise;
+        } else {
+            response = await fetch(functionUrl, {
+                method: signedRequest.method,
+                headers: signedRequest.headers,
+                body: signedRequest.body,
+            });
+        }
     } catch (error) {
         console.error('Failed to invoke converse function URL:', error);
         throw new Error(
