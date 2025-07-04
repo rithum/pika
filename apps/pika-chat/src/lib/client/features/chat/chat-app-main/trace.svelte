@@ -120,7 +120,7 @@
     //     },
     // ];
 
-    let { message }: Props = $props();
+    let { message, appState }: Props = $props();
 
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
@@ -133,17 +133,68 @@
         );
     });
 
+    function renderMarkdown(text: string | object, lang?: string) {
+        let textString: string;
+
+        if (lang === 'try-json') {
+            lang = 'plaintext';
+            if (typeof text === 'string') {
+                try {
+                    text = JSON.parse(text);
+                    // Check the type of the parsed response
+                    lang = typeof text === 'object' ? 'json' : 'plaintext';
+                } catch (e) {
+                    // Couldn't parse it
+                }
+            }
+        }
+
+        if (typeof text == 'object') {
+            lang = 'json';
+            textString = JSON.stringify(text, null, 2);
+        } else {
+            textString = text;
+        }
+
+        return md.render(lang != null ? '```' + lang + '\n' + textString + '\n```\n' : textString);
+    }
+
+    let detailedTrace = appState.identity?.user?.features?.trace?.trace == 'detailed';
+    message.traces?.forEach((trace) => {
+        if (detailedTrace && trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.text) {
+            trace.collapsed = trace.orchestrationTrace?.observation.actionGroupInvocationOutput.text.length > 1000;
+            trace.collapsable = trace.collapsed;
+        }
+    });
     let filteredTraces = $derived.by(() => {
         const traces = message.traces;
         return (traces || [])
-            .filter((val) => 'orchestrationTrace' in val && !!val.orchestrationTrace?.rationale?.text)
             .map((val) => {
-                const rationale = val.orchestrationTrace?.rationale?.text;
-                if (rationale) {
-                    return md.render(rationale);
+                let md;
+                let title;
+                if (val.orchestrationTrace?.rationale?.text) {
+                    md = renderMarkdown(val.orchestrationTrace?.rationale?.text);
+                } else if (val.failureTrace?.failureReason) {
+                    md = renderMarkdown(val.failureTrace.failureReason, 'plaintext');
+                } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
+                    title = 'Parameters:';
+                    md = renderMarkdown(val.orchestrationTrace?.invocationInput.actionGroupInvocationInput, 'json');
+                } else if (detailedTrace && val.orchestrationTrace?.observation?.actionGroupInvocationOutput?.text) {
+                    title = 'Response:';
+                    md = renderMarkdown(
+                        val.orchestrationTrace?.observation.actionGroupInvocationOutput.text,
+                        'try-json'
+                    );
                 }
-                return '';
-            });
+                return md
+                    ? {
+                          title,
+                          markdown: md,
+                          ref: val,
+                      }
+                    : null;
+            })
+            .filter((a) => !!a);
     });
 </script>
 
@@ -177,7 +228,24 @@
 
                         <!-- Right column: Text content -->
                         <div class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px]">
-                            {@html trace}
+                            {#if trace.ref.collapsable}
+                                <button
+                                    onclick={() => (trace.ref.collapsed = !trace.ref.collapsed)}
+                                    class="thinking-step-btn"
+                                >
+                                    {#if trace.ref.collapsed}
+                                        Expand
+                                    {:else}
+                                        Collapse
+                                    {/if}
+                                </button>
+                            {/if}
+                            {#if !trace.ref.collapsed}
+                                {#if trace.title}
+                                    <div>{trace.title}</div>
+                                {/if}
+                                {@html trace.markdown}
+                            {/if}
                         </div>
                     </div>
                 {/each}
@@ -197,3 +265,29 @@
         {/if}
     </div>
 {/if}
+
+<style>
+    .thinking-step-btn {
+        background: white;
+        border: 2px solid #e0e0e0;
+        border-radius: 25px;
+        padding: 5px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        position: relative;
+    }
+
+    .thinking-step-btn:hover {
+        border-color: #007bff;
+        background: #f8f9ff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+    }
+</style>

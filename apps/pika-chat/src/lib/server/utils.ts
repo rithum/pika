@@ -29,20 +29,20 @@ export function addSecurityHeaders(response: Response): Response {
     response.headers.append(
         'Permissions-Policy',
         'geolocation=(self), ' +
-            'microphone=(self), ' +
-            'camera=(self), ' +
-            'midi=(self), ' +
-            'fullscreen=(self), ' +
-            'accelerometer=(self), ' +
-            'gyroscope=(self), ' +
-            'magnetometer=(self), ' +
-            'publickey-credentials-get=(self), ' +
-            'sync-xhr=(self), ' +
-            'usb=(self), ' +
-            'serial=(self), ' +
-            'xr-spatial-tracking=(self), ' +
-            'payment=(self), ' +
-            'picture-in-picture=(self)'
+        'microphone=(self), ' +
+        'camera=(self), ' +
+        'midi=(self), ' +
+        'fullscreen=(self), ' +
+        'accelerometer=(self), ' +
+        'gyroscope=(self), ' +
+        'magnetometer=(self), ' +
+        'publickey-credentials-get=(self), ' +
+        'sync-xhr=(self), ' +
+        'usb=(self), ' +
+        'serial=(self), ' +
+        'xr-spatial-tracking=(self), ' +
+        'payment=(self), ' +
+        'picture-in-picture=(self)'
     );
     return response;
 }
@@ -76,6 +76,11 @@ export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: Au
             }
         }
     }
+
+    // TODO: We should merge everything except the protected pieces of the authenticatedUser
+    // Merge features, and user name
+    Object.assign(authenticatedUser, { features: existingChatUser.features, firstName: existingChatUser.firstName, lastName: existingChatUser.lastName });
+
 }
 
 /**
