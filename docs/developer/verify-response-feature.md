@@ -49,7 +49,7 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
 
             // Optional: Configure auto-reprompt threshold
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions, // 'C'
+            autoRepromptThreshold: 'C'
 
             // Optional: Access control
             userTypes: ['internal-user', 'external-user'],
@@ -76,16 +76,16 @@ Configure when the system should automatically retry:
 
 ```typescript
 // Available threshold options
-import { VerifyResponseClassification } from '@pika/shared/types/chatbot/chatbot-types';
+import { AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate } from '@pika/shared/types/chatbot/chatbot-types';
 
 // Retry only on inaccurate responses
-autoRepromptThreshold: VerifyResponseClassification.Inaccurate; // 'F'
+autoRepromptThreshold: Inaccurate; // 'F'
 
 // Retry on responses with unstated assumptions or worse
-autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions; // 'C' (recommended)
+autoRepromptThreshold: AccurateWithUnstatedAssumptions; // 'C' (recommended)
 
 // Retry on responses with any assumptions or worse
-autoRepromptThreshold: VerifyResponseClassification.AccurateWithStatedAssumptions; // 'B'
+autoRepromptThreshold: AccurateWithStatedAssumptions; // 'B'
 
 // Note: Grade 'A' (Accurate) cannot be used as a threshold since it's the highest quality
 ```
@@ -103,7 +103,7 @@ const myChatApp: ChatApp = {
         verifyResponse: {
             featureId: 'verifyResponse',
             enabled: true, // Can only disable if site level is enabled
-            autoRepromptThreshold: VerifyResponseClassification.Inaccurate, // More lenient than site level
+            autoRepromptThreshold: Inaccurate, // More lenient than site level
             userTypes: ['internal-user'] // More restrictive than site level
         }
     }
@@ -268,7 +268,7 @@ export const pikaConfig: PikaConfig = {
     siteFeatures: {
         verifyResponse: {
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions, // 'C'
+            autoRepromptThreshold: AccurateWithUnstatedAssumptions, // 'C'
             userTypes: ['internal-user'] // Only internal users get verified responses
         },
         traces: {

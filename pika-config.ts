@@ -1,4 +1,3 @@
-import { VerifyResponseClassification } from './packages/shared/src/types/chatbot/chatbot-types';
 import type { PikaConfig } from './packages/shared/src/types/pika-types';
 
 export const pikaConfig: PikaConfig = {
@@ -56,7 +55,7 @@ export const pikaConfig: PikaConfig = {
         },
         verifyResponse: {
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions // This is letter C
+            autoRepromptThreshold: 'C' // Accurate with unstated assumptions
         }
     }
 };

@@ -277,7 +277,7 @@ export const pikaConfig: PikaConfig = {
     siteFeatures: {
         verifyResponse: {
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions, // 'C'
+            autoRepromptThreshold: 'c', // Accurate with unstated assumptions
             userTypes: ['internal-user', 'external-user']
         }
     }

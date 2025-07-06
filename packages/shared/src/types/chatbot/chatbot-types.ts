@@ -1338,25 +1338,41 @@ export interface AccessRules {
 export type ApplyRulesAs = 'and' | 'or';
 
 /**
- * The classification of the response from the LLM. Used with the Verify Response feature.
- *
- * DO NOT CHANGE THE ORDER OF THESE.  The order is used to determine the severity of the classification.
+ * The classifications of the response from the LLM. Used with the Verify Response feature.
  */
-export enum VerifyResponseClassification {
-    /** The response is factually accurate */
-    Accurate = 'A',
-    /** The response is accurate but contains stated assumptions */
-    AccurateWithStatedAssumptions = 'B',
-    /** The response is accurate but contains unstated assumptions */
-    AccurateWithUnstatedAssumptions = 'C',
-    /** The response is inaccurate or contains made up information */
-    Inaccurate = 'F'
-}
+export const Accurate = 'A';
+
+/**
+ * The response is accurate but contains stated assumptions
+ */
+export const AccurateWithStatedAssumptions = 'B';
+
+/**
+ * The response is accurate but contains unstated assumptions
+ */
+export const AccurateWithUnstatedAssumptions = 'C';
+
+/**
+ * The response is inaccurate or contains made up information
+ */
+export const Inaccurate = 'F';
+
+/**
+ * Do not change the order of these.  The order is used to determine the severity of the classification.
+ */
+export const VerifyResponseClassifications = [Accurate, AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate] as const;
+
+/**
+ * The classification of the response from the LLM. Used with the Verify Response feature.
+ */
+export type VerifyResponseClassification = (typeof VerifyResponseClassifications)[number];
+
+/**
+ * Do not change the order of these.  The order is used to determine the severity of the classification.
+ */
+export const RetryableVerifyResponseClassifications = [AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate] as const;
 
 /**
  * The classifications that can be retried by the agent.
  */
-export type RetryableVerifyResponseClassification =
-    | VerifyResponseClassification.AccurateWithStatedAssumptions
-    | VerifyResponseClassification.AccurateWithUnstatedAssumptions
-    | VerifyResponseClassification.Inaccurate;
+export type RetryableVerifyResponseClassification = (typeof RetryableVerifyResponseClassifications)[number];

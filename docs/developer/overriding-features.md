@@ -92,7 +92,7 @@ features: {
 siteFeatures: {
     verifyResponse: {
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions,
+        autoRepromptThreshold: 'c', // Accurate with unstated assumptions
         userTypes: ['internal-user', 'external-user']
     }
 }
@@ -102,7 +102,7 @@ features: {
     verifyResponse: {
         featureId: 'verifyResponse',
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.Inaccurate, // More lenient
+        autoRepromptThreshold: 'F', // More lenient (inaccurate with possibly made up content)
         userTypes: ['internal-user'] // More restrictive
     }
 }
@@ -185,7 +185,7 @@ Some features allow parameter customization:
 siteFeatures: {
     verifyResponse: {
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions
+        autoRepromptThreshold: 'C' // Accurate with unstated assumptions
     }
 }
 
@@ -194,7 +194,7 @@ features: {
     verifyResponse: {
         featureId: 'verifyResponse',
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.AccurateWithStatedAssumptions
+        autoRepromptThreshold: 'B' // Accurate with stated assumptions
     }
 }
 ```
@@ -309,7 +309,7 @@ siteFeatures: {
     },
     verifyResponse: {
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions,
+        autoRepromptThreshold: 'C', // Accurate with unstated assumptions
         userTypes: ['internal-user', 'external-user']
     }
 }
@@ -325,7 +325,7 @@ features: {
     verifyResponse: {
         featureId: 'verifyResponse',
         enabled: true,
-        autoRepromptThreshold: VerifyResponseClassification.Inaccurate, // Less strict for this app
+        autoRepromptThreshold: 'F', // Less strict for this app
         userTypes: ['external-user'] // Customer-facing app
     }
 }
@@ -336,7 +336,7 @@ features: {
         featureId: 'verifyResponse',
         enabled: true,
         // Same threshold as site level - unnecessary override
-        autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions
+        autoRepromptThreshold: 'C'
     }
 }
 ```
@@ -354,7 +354,7 @@ const criticalSystemApp: ChatApp = {
             featureId: 'verifyResponse',
             enabled: true,
             // More aggressive verification for critical systems
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithStatedAssumptions,
+            autoRepromptThreshold: 'B',
             userTypes: ['internal-user'] // Internal support only
         },
         traces: {
@@ -418,7 +418,7 @@ const legalApp: ChatApp = {
         verifyResponse: {
             featureId: 'verifyResponse',
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithStatedAssumptions,
+            autoRepromptThreshold: 'B',
             userTypes: ['internal-user'],
             userRoles: ['legal-team']
         }
@@ -476,7 +476,7 @@ export const pikaConfig: PikaConfig = {
         },
         verifyResponse: {
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions,
+            autoRepromptThreshold: 'C',
             userTypes: ['internal-user', 'external-user']
         },
         chatDisclaimerNotice: {
@@ -506,7 +506,7 @@ const specializedApp: ChatApp = {
         verifyResponse: {
             featureId: 'verifyResponse',
             enabled: true,
-            autoRepromptThreshold: VerifyResponseClassification.AccurateWithStatedAssumptions,
+            autoRepromptThreshold: 'B',
             userTypes: ['internal-user']
         },
         chatDisclaimerNotice: {

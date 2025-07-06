@@ -8,14 +8,18 @@ import {
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
-    ChatAppOverridableFeaturesForConverseFn,
-    RetryableVerifyResponseClassification,
-    VerifyResponseClassification,
+    Accurate,
+    AccurateWithStatedAssumptions,
+    AccurateWithUnstatedAssumptions,
     type AgentAndTools,
+    type ChatAppOverridableFeaturesForConverseFn,
     type ChatMessageForCreate,
     type ChatMessageUsage,
     type ChatSession,
-    type SimpleAuthenticatedUser
+    Inaccurate,
+    type SimpleAuthenticatedUser,
+    type VerifyResponseClassification,
+    VerifyResponseClassifications
 } from '@pika/shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
@@ -306,13 +310,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 }
 
 const verificationReprompts: Record<VerifyResponseClassification, string | null> = {
-    [VerifyResponseClassification.Accurate]: null,
-    [VerifyResponseClassification.AccurateWithStatedAssumptions]: 'The previous response had assumptions that were stated.  Specify the assumptions you made.',
-    [VerifyResponseClassification.AccurateWithUnstatedAssumptions]: 'The previous response had assumptions that were not specified.  Specify the assumptions you made.',
-    [VerifyResponseClassification.Inaccurate]: 'The previous response is not factually correct.  Fix it with factually correct information.'
+    [Accurate]: null,
+    [AccurateWithStatedAssumptions]: 'The previous response had assumptions that were stated.  Specify the assumptions you made.',
+    [AccurateWithUnstatedAssumptions]: 'The previous response had assumptions that were not specified.  Specify the assumptions you made.',
+    [Inaccurate]: 'The previous response is not factually correct.  Fix it with factually correct information.'
 };
 
-async function invokeAgentToVerifyAnswer(cmdInput1: InvokeInlineAgentCommandInput) {
+async function invokeAgentToVerifyAnswer(
+    cmdInput1: InvokeInlineAgentCommandInput
+): Promise<{ message: string; usage: ChatMessageUsage; error?: any; classification: VerifyResponseClassification }> {
     let cmdInput = cloneDeep(cmdInput1);
 
     // Use the verification model
@@ -355,12 +361,12 @@ Response with ONLY the classification Letter inside an <answer></answer> tag.  E
         'VERIFICATION:'
     );
 
-    let stringClass = invokeResponse.message.replace(/<\/? *answer>/g, '');
-    let r = Object.values(VerifyResponseClassification).find((e) => e == stringClass);
+    let classificationLetter = invokeResponse.message.replace(/<\/? *answer>/g, '');
+    let classification = VerifyResponseClassifications.find((e) => e == classificationLetter);
 
     return {
         ...invokeResponse,
-        classification: r ?? VerifyResponseClassification.Accurate
+        classification: classification ?? Accurate
     };
 }
 
