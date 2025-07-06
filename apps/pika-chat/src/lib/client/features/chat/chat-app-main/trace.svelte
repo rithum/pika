@@ -297,7 +297,7 @@
 
                         <!-- Right column: Content -->
                         <div
-                            class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px] max-w-none"
+                            class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px] max-w-[42rem]"
                         >
                             {#if trace.type === 'toolInvocation'}
                                 {@render toolInvocationTrace(trace)}
