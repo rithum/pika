@@ -15,6 +15,7 @@
 
     let { message, chatAppState, files = [], isStreaming }: Props = $props();
     const appState = getContext<AppState>('appState');
+    const traceEnabled = $derived(chatAppState.features.traces.enabled);
 
     // LOGGING: Track message changes
     $effect(() => {
@@ -95,7 +96,9 @@
         segmentCount: message.segments.length,
     })} -->
 
-    <Trace {message} {appState} />
+    {#if traceEnabled}
+        <Trace {message} />
+    {/if}
 
     <!-- Render each processed segment -->
     {#each message.segments as segment (segment.id)}

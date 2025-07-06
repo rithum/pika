@@ -2,9 +2,9 @@ import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { appConfig } from './config';
-import type { ConverseRequest, RecordOrUndef, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppOverridableFeatures, ConverseRequest, RecordOrUndef, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
-import { handler } from "../../../../../services/pika/src/lambda/converse";
+import { handler } from '../../../../../services/pika/src/lambda/converse';
 import { PassThrough } from 'stream';
 
 interface ConverseFunctionResponse {
@@ -44,9 +44,9 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         headers: {
             Host: url.hostname,
             'Content-Type': 'application/json',
-            'x-chat-auth': xChatAuthToken,
+            'x-chat-auth': xChatAuthToken
         } as Record<string, string>,
-        body: JSON.stringify(request),
+        body: JSON.stringify(request)
     };
 
     // Create a SignatureV4 signer instance for Lambda service
@@ -54,7 +54,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         credentials: defaultProvider(),
         region: region,
         service: 'lambda', // Lambda Function URLs use 'lambda' service for signing
-        sha256: Sha256,
+        sha256: Sha256
     });
 
     // Sign the request
@@ -70,7 +70,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         if (appConfig.isLocal) {
             let name = appConfig.pikaServiceProjNameKebabCase;
             let stage = appConfig.stage;
-            process.env.AWS_REGION = process.env.AWS_REGION ?? "us-east-1";
+            process.env.AWS_REGION = process.env.AWS_REGION ?? 'us-east-1';
             process.env.STAGE = stage;
             process.env.CHAT_APP_TABLE = `chat-app-${name}-${stage}`;
 
@@ -86,13 +86,14 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             let r1: any, r2: any;
             let firstBytePromise: Promise<void> & {
                 finished: boolean;
-                resolve: () => void, reject(e: Error): void
+                resolve: () => void;
+                reject(e: Error): void;
             } = new Promise(function (resolve, reject) {
                 r1 = resolve;
                 r2 = reject;
             }).finally(function () {
                 firstBytePromise.finished = true;
-            }) as any
+            }) as any;
             firstBytePromise.resolve = r1;
             firstBytePromise.reject = r2;
             let passThrough: PassThrough & { set: (key: string, value: string) => void } = Object.assign(new PassThrough(), {
@@ -104,42 +105,43 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
                 }
             });
             response = new Response(passThrough as any);
-            handler({
-                body: request,
-                headers: signedRequest.headers,
+            handler(
+                {
+                    body: request,
+                    headers: signedRequest.headers,
 
-                requestContext: {
-                    authorizer: {
-                        iam: await defaultProvider()()
+                    requestContext: {
+                        authorizer: {
+                            iam: await defaultProvider()()
+                        }
                     }
-                }
-            } as any, { responseStream: passThrough } as any)!.then(() => {
-                passThrough.end();
-            }).catch((e: any) => {
-                passThrough.emit("error", e);
-            });
+                } as any,
+                { responseStream: passThrough } as any
+            )!
+                .then(() => {
+                    passThrough.end();
+                })
+                .catch((e: any) => {
+                    passThrough.emit('error', e);
+                });
             await firstBytePromise;
         } else {
             response = await fetch(functionUrl, {
                 method: signedRequest.method,
                 headers: signedRequest.headers,
-                body: signedRequest.body,
+                body: signedRequest.body
             });
         }
     } catch (error) {
         console.error('Failed to invoke converse function URL:', error);
-        throw new Error(
-            `Network error or failed to fetch from Lambda Function URL: ${error instanceof Error ? error.message : String(error)}`
-        );
+        throw new Error(`Network error or failed to fetch from Lambda Function URL: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Check if the response was successful
     if (!response.ok) {
         const errorText = await response.text();
         console.error(`Lambda Function URL request failed with status ${response.status}:`, errorText);
-        throw new Error(
-            `Lambda Function URL request failed with status ${response.status}: ${response.statusText}. Response: ${errorText}`
-        );
+        throw new Error(`Lambda Function URL request failed with status ${response.status}: ${response.statusText}. Response: ${errorText}`);
     }
 
     return {
@@ -147,6 +149,6 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
         headers: response.headers,
         ok: response.ok,
         status: response.status,
-        statusText: response.statusText,
+        statusText: response.statusText
     };
 }

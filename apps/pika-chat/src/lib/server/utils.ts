@@ -1,6 +1,18 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type { AuthenticatedUser, ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    ChatApp,
+    ChatUser,
+    ChatAppOverridableFeatures,
+    AccessRules,
+    RecordOrUndef,
+    VerifyResponseFeature,
+    ApplyRulesAs,
+    TracesFeature,
+    VerifyResponseFeatureForChatApp,
+    ChatDisclaimerNoticeFeatureForChatApp
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {
@@ -29,20 +41,20 @@ export function addSecurityHeaders(response: Response): Response {
     response.headers.append(
         'Permissions-Policy',
         'geolocation=(self), ' +
-        'microphone=(self), ' +
-        'camera=(self), ' +
-        'midi=(self), ' +
-        'fullscreen=(self), ' +
-        'accelerometer=(self), ' +
-        'gyroscope=(self), ' +
-        'magnetometer=(self), ' +
-        'publickey-credentials-get=(self), ' +
-        'sync-xhr=(self), ' +
-        'usb=(self), ' +
-        'serial=(self), ' +
-        'xr-spatial-tracking=(self), ' +
-        'payment=(self), ' +
-        'picture-in-picture=(self)'
+            'microphone=(self), ' +
+            'camera=(self), ' +
+            'midi=(self), ' +
+            'fullscreen=(self), ' +
+            'accelerometer=(self), ' +
+            'gyroscope=(self), ' +
+            'magnetometer=(self), ' +
+            'publickey-credentials-get=(self), ' +
+            'sync-xhr=(self), ' +
+            'usb=(self), ' +
+            'serial=(self), ' +
+            'xr-spatial-tracking=(self), ' +
+            'payment=(self), ' +
+            'picture-in-picture=(self)'
     );
     return response;
 }
@@ -80,7 +92,6 @@ export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: Au
     // TODO: We should merge everything except the protected pieces of the authenticatedUser
     // Merge features, and user name
     Object.assign(authenticatedUser, { features: existingChatUser.features, firstName: existingChatUser.firstName, lastName: existingChatUser.lastName });
-
 }
 
 /**
@@ -93,9 +104,9 @@ export function isUserAllowedToUseUserDataOverrides(user: AuthenticatedUser<Reco
     let result = siteFeatures?.userDataOverrides?.enabled ?? false;
     if (result) {
         // If they didn't specify whom to turn this feature on for, we default it to be only for internal users
-        const userTypesAllowed = siteFeatures?.userDataOverrides?.userTypesAllowed ?? ['internal-user'];
+        const userTypes = siteFeatures?.userDataOverrides?.userTypes ?? ['internal-user'];
         // If there is no user type on the logged in user, we assume they are an external user
-        if (!userTypesAllowed.includes(user.userType ?? 'external-user')) {
+        if (!userTypes.includes(user.userType ?? 'external-user')) {
             result = false;
         }
     }
@@ -185,4 +196,135 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
     }
 
     return false;
+}
+
+/**
+ * Compute what features the user is and isn't allowed to use for this chat app.  Note that most of these are features that are defined
+ * at the site level (<root>/pika-config.ts) and then may be overridden by the chat app.
+ */
+export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
+    const result: ChatAppOverridableFeatures = {
+        verifyResponse: {
+            enabled: false
+        },
+        traces: {
+            enabled: false,
+            detailedTraces: false
+        },
+        // We don't use access rules to determine if the chat disclaimer notice is shown.  If there, it's shown.
+        chatDisclaimerNotice: siteFeatures?.chatDisclaimerNotice?.notice ?? (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice
+    };
+
+    const siteVerifyRespRule = siteFeatures?.verifyResponse || { enabled: false };
+    const appVerifyRespRule = chatApp.features?.verifyResponse as VerifyResponseFeatureForChatApp | undefined;
+
+    const resolvedRules = resolveFeatureRules(siteVerifyRespRule, appVerifyRespRule);
+    result.verifyResponse.enabled = checkUserAccessToFeature(user, resolvedRules);
+    result.verifyResponse.autoRepromptThreshold = appVerifyRespRule?.autoRepromptThreshold ?? siteVerifyRespRule.autoRepromptThreshold;
+
+    const siteTracesRule = siteFeatures?.traces || { enabled: false };
+    const appTracesRule = chatApp.features?.traces as TracesFeature | undefined;
+
+    const resolvedTracesRules = resolveFeatureRules(siteTracesRule, appTracesRule);
+    result.traces.enabled = checkUserAccessToFeature(user, resolvedTracesRules);
+
+    const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
+    const appDetailedTracesRule = (chatApp.features?.traces as TracesFeature)?.detailedTraces || { enabled: false };
+
+    const resolvedDetailedTracesRules = resolveFeatureRules(siteDetailedTracesRule, appDetailedTracesRule);
+    result.traces.detailedTraces = checkUserAccessToFeature(user, resolvedDetailedTracesRules);
+
+    return result;
+}
+
+/**
+ * Generic function to resolve feature rules between site-level and app-level configurations.
+ *
+ * **Rule Resolution Logic:**
+ * - If the app provides its own rules (userTypes or userRoles), they override the site-level rules
+ * - Otherwise, the site-level rules are used
+ *
+ * **Enabled Property Handling:**
+ * - Site level controls whether the feature can be used at all
+ * - If site level is disabled, the feature is off regardless of app settings
+ * - If site level is enabled, the app can only turn it off (enabled: false)
+ * - If site level is enabled and app doesn't specify enabled, site level enabled value is used
+ *
+ * @param siteFeature - The site-level feature configuration
+ * @param appFeature - The app-level feature configuration (optional)
+ * @returns The resolved feature rules to use
+ */
+export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: AccessRules): AccessRules {
+    // Site level controls whether feature can be used at all
+    if (!siteFeature.enabled) {
+        return {
+            enabled: false,
+            userTypes: siteFeature.userTypes,
+            userRoles: siteFeature.userRoles,
+            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
+        };
+    }
+
+    // Check if app provides its own rules
+    if (appFeature && ((appFeature.userTypes && appFeature.userTypes.length > 0) || appFeature.userRoles)) {
+        // Use app level rules, but app can only turn off the feature
+        return {
+            enabled: appFeature.enabled !== false, // Only allow app to turn it off
+            userTypes: appFeature.userTypes,
+            userRoles: appFeature.userRoles,
+            applyRulesAs: appFeature.applyRulesAs ?? 'and'
+        };
+    } else {
+        // Use site level rules
+        return {
+            enabled: siteFeature.enabled,
+            userTypes: siteFeature.userTypes,
+            userRoles: siteFeature.userRoles,
+            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
+        };
+    }
+}
+
+/**
+ * Generic function to check if a user has access to a feature based on user types and roles.
+ * This implements the same logic used in get for checking user access rules.
+ *
+ * **Access Control Logic:**
+ * - If the feature is disabled (`enabled: false`), no access regardless of other rules
+ * - If no userTypes or userRoles are specified, feature is enabled for all users
+ * - If multiple userTypes are provided, a user need only have one of them to have access (OR logic)
+ * - If multiple userRoles are provided, a user need only have one of them to have access (OR logic)
+ * - If both userTypes and userRoles are provided, the `applyRulesAs` setting determines how they're combined:
+ *   - `'and'` (default): User must match a userType AND have a userRole
+ *   - `'or'`: User must match a userType OR have a userRole
+ *
+ * @param user - The authenticated user to check access for
+ * @param feature - The feature configuration with user access rules
+ * @returns Whether the user has access to the feature
+ */
+export function checkUserAccessToFeature(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, feature: AccessRules): boolean {
+    const { enabled, userTypes, userRoles, applyRulesAs = 'and' } = feature;
+
+    // If the feature is disabled, no access regardless of other rules
+    if (!enabled) {
+        return false;
+    }
+
+    // If no rules are specified, feature is enabled for all users
+    if (!userTypes && !userRoles) {
+        return true;
+    }
+
+    // Check user type access
+    const userTypeMatches = userTypes ? userTypes.includes(user.userType ?? 'external-user') : true;
+
+    // Check user role access
+    const userRoleMatches = userRoles ? (user.roles ?? []).some((role) => userRoles.includes(role as any)) : true;
+
+    // Apply the rules based on the logic specified
+    if (applyRulesAs === 'and') {
+        return userTypeMatches && userRoleMatches;
+    } else {
+        return userTypeMatches || userRoleMatches;
+    }
 }

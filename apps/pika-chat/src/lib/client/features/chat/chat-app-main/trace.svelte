@@ -1,13 +1,19 @@
 <script lang="ts">
-    import type { AppState } from '$client/app/app.state.svelte';
-    import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
     import { ChevronRight, CircleCheck } from '$icons/lucide';
     import TextWaveShimmer from '$lib/components/ui-pika/text-wave-shimmer/text-wave-shimmer.svelte';
+    import { Button } from '$lib/components/ui/button';
+    import { Copy } from '$lib/icons/ci';
+    import { Expand, Shrink } from '$lib/icons/lucide';
+    import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+    import hljs from 'highlight.js';
+    import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
+    import { getContext } from 'svelte';
+    import { toast } from 'svelte-sonner';
+    import { ChatAppState } from '../chat-app.state.svelte';
 
     interface Props {
         message: ChatMessageForRendering;
-        appState: AppState;
     }
 
     const md = new MarkdownIt({
@@ -15,113 +21,24 @@
         linkify: true,
         typographer: true,
         breaks: true,
+        highlight: function (str: string, lang: string): string {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return (
+                        '<pre class="hljs"><code>' +
+                        hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+                        '</code></pre>'
+                    );
+                } catch (__) {}
+            }
+            return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+        },
     });
 
-    // const mockTraces: ChatMessageForRendering['traces'] = [
-    //     {
-    //         orchestrationTrace: {
-    //             modelInvocationOutput: {
-    //                 metadata: {
-    //                     clientRequestId: '02382387-6c69-44e9-b03d-f2a7f4c12531',
-    //                     endTime: '2025-06-16T20:46:56.472223941Z' as unknown as Date,
-    //                     startTime: '2025-06-16T20:46:52.307705519Z' as unknown as Date,
-    //                     totalTimeMs: 4165,
-    //                     usage: {
-    //                         inputTokens: 5136,
-    //                         outputTokens: 108,
-    //                     },
-    //                 },
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-0',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             rationale: {
-    //                 text: "I'll need to:\n1. Get the current date first to calculate the 30-day range\n2. Get order statistics for meaningful insights\n3. Get returns and invoice data for a complete picture\n4. Structure the data in a clear, actionable format",
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-0',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             modelInvocationOutput: {
-    //                 metadata: {
-    //                     clientRequestId: '73d417fa-30e6-4534-a438-790f64675b5a',
-    //                     endTime: '2025-06-16T20:47:02.955683834Z' as unknown as Date,
-    //                     startTime: '2025-06-16T20:46:57.767022899Z' as unknown as Date,
-    //                     totalTimeMs: 5188,
-    //                     usage: {
-    //                         inputTokens: 5269,
-    //                         outputTokens: 119,
-    //                     },
-    //                 },
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-1',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             rationale: {
-    //                 text: "Now I'll get the order statistics for the past 30 days using this date range. I'll use daily intervals for the trend analysis.",
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-1',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             modelInvocationOutput: {
-    //                 metadata: {
-    //                     clientRequestId: '66c69700-efee-4838-b017-e6bb0dfd45c6',
-    //                     endTime: '2025-06-16T20:47:32.082139646Z' as unknown as Date,
-    //                     startTime: '2025-06-16T20:47:27.278739063Z' as unknown as Date,
-    //                     totalTimeMs: 4804,
-    //                     usage: {
-    //                         inputTokens: 12966,
-    //                         outputTokens: 105,
-    //                     },
-    //                 },
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-2',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             rationale: {
-    //                 text: 'Let me analyze the returns data for the same period to get a complete picture.',
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-2',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             modelInvocationOutput: {
-    //                 metadata: {
-    //                     clientRequestId: '512b5e26-82d5-4f87-a912-56b8108ff1bb',
-    //                     endTime: '2025-06-16T20:47:44.918223111Z' as unknown as Date,
-    //                     startTime: '2025-06-16T20:47:32.210752982Z' as unknown as Date,
-    //                     totalTimeMs: 12708,
-    //                     usage: {
-    //                         inputTokens: 15358,
-    //                         outputTokens: 625,
-    //                     },
-    //                 },
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-3',
-    //             },
-    //         },
-    //     },
-    //     {
-    //         orchestrationTrace: {
-    //             rationale: {
-    //                 text: 'Let me compile this data into a clear performance overview for the last 30 days.',
-    //                 traceId: '83dd27a0-4d30-43e9-bf64-1fa6ea6bb210-3',
-    //             },
-    //         },
-    //     },
-    // ];
+    let { message }: Props = $props();
 
-    let { message, appState }: Props = $props();
-
+    const chatAppState = getContext<ChatAppState>('chatAppState');
+    const detailedTrace = $derived(chatAppState.features.traces.detailedTraces);
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {
@@ -133,7 +50,10 @@
         );
     });
 
-    function renderMarkdown(text: string | object, lang?: string) {
+    /**
+     * @returns [markdown, rawText]
+     */
+    function renderMarkdown(text: string | object, lang?: string): [string, string] {
         let textString: string;
 
         if (lang === 'try-json') {
@@ -156,32 +76,32 @@
             textString = text;
         }
 
-        return md.render(lang != null ? '```' + lang + '\n' + textString + '\n```\n' : textString);
+        return [md.render(lang != null ? '```' + lang + '\n' + textString + '\n```\n' : textString), textString];
     }
 
-    let detailedTrace = appState.identity?.user?.features?.trace?.trace == 'detailed';
-    message.traces?.forEach((trace) => {
-        if (detailedTrace && trace.orchestrationTrace?.observation?.actionGroupInvocationOutput?.text) {
-            trace.collapsed = trace.orchestrationTrace?.observation.actionGroupInvocationOutput.text.length > 1000;
-            trace.collapsable = trace.collapsed;
-        }
-    });
     let filteredTraces = $derived.by(() => {
         const traces = message.traces;
         return (traces || [])
             .map((val) => {
                 let md;
                 let title;
+                let isCode = false;
+                let rawText = '';
                 if (val.orchestrationTrace?.rationale?.text) {
-                    md = renderMarkdown(val.orchestrationTrace?.rationale?.text);
+                    [md, rawText] = renderMarkdown(val.orchestrationTrace?.rationale?.text);
                 } else if (val.failureTrace?.failureReason) {
-                    md = renderMarkdown(val.failureTrace.failureReason, 'plaintext');
+                    [md, rawText] = renderMarkdown(val.failureTrace.failureReason, 'plaintext');
                 } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
                     title = 'Parameters:';
-                    md = renderMarkdown(val.orchestrationTrace?.invocationInput.actionGroupInvocationInput, 'json');
+                    isCode = true;
+                    [md, rawText] = renderMarkdown(
+                        val.orchestrationTrace?.invocationInput.actionGroupInvocationInput,
+                        'json'
+                    );
                 } else if (detailedTrace && val.orchestrationTrace?.observation?.actionGroupInvocationOutput?.text) {
                     title = 'Response:';
-                    md = renderMarkdown(
+                    isCode = true;
+                    [md, rawText] = renderMarkdown(
                         val.orchestrationTrace?.observation.actionGroupInvocationOutput.text,
                         'try-json'
                     );
@@ -190,17 +110,166 @@
                     ? {
                           title,
                           markdown: md,
+                          rawText,
                           ref: val,
+                          isCode,
+                          expanded: false,
                       }
                     : null;
             })
             .filter((a) => !!a);
     });
+
+    type GroupedTrace =
+        | {
+              type: 'toolInvocation';
+              title: string;
+              parameters?: { markdown: string; rawText: string };
+              response?: { markdown: string; rawText: string };
+              expanded: boolean;
+          }
+        | {
+              type: 'text';
+              title?: string;
+              markdown: string;
+              rawText: string;
+              expanded: boolean;
+          }
+        | {
+              type: 'verification';
+              grade: string;
+              expanded: boolean;
+          };
+
+    function extractFunctionName(parametersRawText: string): string | null {
+        try {
+            // Try to parse as JSON first
+            const parsed = JSON.parse(parametersRawText);
+            if (parsed && typeof parsed === 'object' && 'function' in parsed && typeof parsed.function === 'string') {
+                return parsed.function;
+            }
+        } catch (e) {
+            // If JSON parsing fails, try to extract function name with regex
+            // Look for "function": "functionName" pattern
+            const functionMatch = parametersRawText.match(/"function"\s*:\s*"([^"]+)"/);
+            if (functionMatch && functionMatch[1]) {
+                return functionMatch[1];
+            }
+        }
+        return null;
+    }
+
+    let groupedTraces = $derived.by(() => {
+        const traces = message.traces || [];
+        const grouped: GroupedTrace[] = [];
+        const toolInvocations = new Map<string, GroupedTrace & { type: 'toolInvocation' }>();
+        const verificationTraces: GroupedTrace[] = [];
+
+        // First pass: collect all traces and group tool invocations
+        traces.forEach((val, index) => {
+            if (val.orchestrationTrace?.rationale?.text) {
+                const rationaleText = val.orchestrationTrace.rationale.text;
+
+                // Check if this is a verification trace
+                const verificationMatch = rationaleText.match(/^Verified Response:\s+([A-F])$/);
+                if (verificationMatch) {
+                    verificationTraces.push({
+                        type: 'verification',
+                        grade: verificationMatch[1],
+                        expanded: false,
+                    });
+                } else {
+                    const [md, rawText] = renderMarkdown(rationaleText);
+                    grouped.push({
+                        type: 'text',
+                        markdown: md,
+                        rawText,
+                        expanded: false,
+                    });
+                }
+            } else if (val.failureTrace?.failureReason) {
+                const [md, rawText] = renderMarkdown(val.failureTrace.failureReason, 'plaintext');
+                grouped.push({
+                    type: 'text',
+                    markdown: md,
+                    rawText,
+                    expanded: false,
+                });
+            } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
+                // Parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.invocationInput.actionGroupInvocationInput,
+                    'json'
+                );
+
+                // Use index as a key to group related parameters and responses
+                const key = `tool_${index}`;
+                let toolInvocation = toolInvocations.get(key);
+
+                if (!toolInvocation) {
+                    const functionName = extractFunctionName(rawText);
+                    toolInvocation = {
+                        type: 'toolInvocation',
+                        title: functionName ? `Invoking tool: ${functionName}` : 'Invoking tool...',
+                        expanded: false,
+                    };
+                    toolInvocations.set(key, toolInvocation);
+                }
+
+                toolInvocation.parameters = { markdown: md, rawText };
+
+                // Update title if we can extract function name
+                const functionName = extractFunctionName(rawText);
+                if (functionName) {
+                    toolInvocation.title = `Invoking tool: ${functionName}`;
+                }
+            } else if (detailedTrace && val.orchestrationTrace?.observation?.actionGroupInvocationOutput?.text) {
+                // Response trace - try to match with a previous parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.observation.actionGroupInvocationOutput.text,
+                    'try-json'
+                );
+
+                // Look for a tool invocation that doesn't have a response yet
+                let matchedToolInvocation = null;
+                for (const [key, toolInv] of toolInvocations) {
+                    if (!toolInv.response) {
+                        matchedToolInvocation = toolInv;
+                        break;
+                    }
+                }
+
+                if (matchedToolInvocation) {
+                    matchedToolInvocation.response = { markdown: md, rawText };
+                } else {
+                    // Create a new tool invocation for orphaned response
+                    const key = `tool_response_${index}`;
+                    const toolInvocation: GroupedTrace & { type: 'toolInvocation' } = {
+                        type: 'toolInvocation',
+                        title: 'Tool response',
+                        response: { markdown: md, rawText },
+                        expanded: false,
+                    };
+                    toolInvocations.set(key, toolInvocation);
+                }
+            }
+        });
+
+        // Add tool invocations to the grouped array
+        toolInvocations.forEach((toolInvocation) => {
+            grouped.push(toolInvocation);
+        });
+
+        // Add verification traces at the end
+        grouped.push(...verificationTraces);
+
+        return grouped;
+    });
 </script>
 
-{#if filteredTraces.length > 0 || isStreaming}
+{#if groupedTraces.length > 0 || isStreaming}
     <div class="border border-gray-200 rounded-lg bg-gray-25 p-4 my-4">
-        {#if filteredTraces.length > 0}
+        {#if groupedTraces.length > 0}
             <!-- Clickable header -->
             <button
                 class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors w-full text-left"
@@ -216,8 +285,8 @@
         <!-- Expandable content -->
         {#if expanded}
             <div class="mt-4">
-                {#each filteredTraces as trace, index}
-                    <div class="flex gap-2 {index < filteredTraces.length ? 'pb-2' : ''}">
+                {#each groupedTraces as trace, index}
+                    <div class="flex gap-2 {index < groupedTraces.length ? 'pb-2' : ''}">
                         <!-- Left column: Icon and vertical line -->
                         <div class="flex flex-col items-center w-6 relative left-[-4px] top-[3px]">
                             <div class="flex-shrink-0">
@@ -226,25 +295,16 @@
                             <div class="w-px bg-gray-300 mt-2 flex-1 min-h-3"></div>
                         </div>
 
-                        <!-- Right column: Text content -->
-                        <div class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px]">
-                            {#if trace.ref.collapsable}
-                                <button
-                                    onclick={() => (trace.ref.collapsed = !trace.ref.collapsed)}
-                                    class="thinking-step-btn"
-                                >
-                                    {#if trace.ref.collapsed}
-                                        Expand
-                                    {:else}
-                                        Collapse
-                                    {/if}
-                                </button>
-                            {/if}
-                            {#if !trace.ref.collapsed}
-                                {#if trace.title}
-                                    <div>{trace.title}</div>
-                                {/if}
-                                {@html trace.markdown}
+                        <!-- Right column: Content -->
+                        <div
+                            class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px] max-w-none"
+                        >
+                            {#if trace.type === 'toolInvocation'}
+                                {@render toolInvocationTrace(trace)}
+                            {:else if trace.type === 'verification'}
+                                {@render verificationTrace(trace)}
+                            {:else}
+                                {@render textTrace(trace)}
                             {/if}
                         </div>
                     </div>
@@ -265,6 +325,159 @@
         {/if}
     </div>
 {/if}
+
+{#snippet textTrace(trace: GroupedTrace & { type: 'text' })}
+    {#if trace.title}
+        <div>{trace.title}</div>
+    {/if}
+    {@html trace.markdown}
+{/snippet}
+
+{#snippet verificationTrace(trace: GroupedTrace & { type: 'verification' })}
+    <div class="border border-slate-200 rounded-lg p-4 mt-2 {trace.expanded ? 'pb-4' : 'pb-2'}">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-slate-700">Response Verification</span>
+                </div>
+                <div
+                    class={`px-2 py-1 rounded text-sm font-medium ${
+                        trace.grade === 'A'
+                            ? 'bg-green-100 text-green-800'
+                            : trace.grade === 'B'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : trace.grade === 'C'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-red-100 text-red-800'
+                    }`}
+                >
+                    Grade {trace.grade}
+                </div>
+            </div>
+            <button
+                class="text-slate-500 hover:text-slate-700 transition-colors"
+                onclick={() => {
+                    trace.expanded = !trace.expanded;
+                    groupedTraces = [...groupedTraces];
+                }}
+            >
+                <ChevronRight class="w-4 h-4 transition-transform duration-200 {trace.expanded ? 'rotate-90' : ''}" />
+            </button>
+        </div>
+
+        <div class="text-sm text-gray-400 mb-2">
+            {#if trace.grade === 'A'}
+                This response is factually accurate
+            {:else if trace.grade === 'B'}
+                This response is accurate but contains stated assumptions
+            {:else if trace.grade === 'C'}
+                This response is accurate but contains unstated assumptions
+            {:else}
+                This response contains inaccurate information
+            {/if}
+        </div>
+
+        {#if trace.expanded}
+            <div class="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-600">
+                <div class="font-medium mb-2">Verification Scale:</div>
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">A</span>
+                        <span>Factually accurate</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">B</span>
+                        <span>Accurate with stated assumptions</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">C</span>
+                        <span>Accurate with unstated assumptions</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">F</span>
+                        <span>Inaccurate or contains made up information</span>
+                    </div>
+                </div>
+            </div>
+        {/if}
+    </div>
+{/snippet}
+
+{#snippet toolInvocationTrace(trace: GroupedTrace & { type: 'toolInvocation' })}
+    <div class="font-medium text-gray-700 mb-3">{trace.title}</div>
+
+    {#if trace.parameters}
+        {@render codeSection('Request Parameters', trace.parameters, trace, 'parameters')}
+    {/if}
+
+    {#if trace.response}
+        {@render codeSection('Response', trace.response, trace, 'response')}
+    {/if}
+{/snippet}
+
+{#snippet codeSection(
+    title: string,
+    content: { markdown: string; rawText: string },
+    trace: GroupedTrace & { type: 'toolInvocation' },
+    section: 'parameters' | 'response'
+)}
+    <div class="mb-4">
+        <div
+            class="text-sm font-medium text-gray-600 mb-2 flex justify-between relative mt-[-30px] top-[33px] items-center"
+        >
+            <div>{title}</div>
+            <div class="buttons flex">
+                <Button
+                    onclick={() => {
+                        navigator.clipboard.writeText(content.rawText);
+                        toast.info('Copied to clipboard', { duration: 1500 });
+                    }}
+                    variant="ghost"
+                    size="icon"
+                >
+                    <Copy class="w-4 h-4" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onclick={() => {
+                        trace.expanded = !trace.expanded;
+                        groupedTraces = [...groupedTraces];
+                    }}
+                >
+                    {#if trace.expanded}
+                        <Shrink class="w-4 h-4" />
+                    {:else}
+                        <Expand class="w-4 h-4" />
+                    {/if}
+                </Button>
+            </div>
+        </div>
+        <div
+            class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${trace.expanded ? '' : 'max-h-64'}`}
+        >
+            {@html content.markdown}
+            {#if trace.expanded}
+                <div class="buttons flex relative mt-[-20px]">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onclick={() => {
+                            trace.expanded = !trace.expanded;
+                            groupedTraces = [...groupedTraces];
+                        }}
+                    >
+                        {#if trace.expanded}
+                            <Shrink class="w-4 h-4" />
+                        {:else}
+                            <Expand class="w-4 h-4" />
+                        {/if}
+                    </Button>
+                </div>
+            {/if}
+        </div>
+    </div>
+{/snippet}
 
 <style>
     .thinking-step-btn {

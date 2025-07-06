@@ -274,7 +274,23 @@ const adminChatApp: ChatApp = {
     // No userTypesAllowed restriction, but features will check for pika:content-admin role
     agentId: 'debug-agent',
     mode: 'fullpage',
-    enabled: true
+    enabled: true,
+    features: {
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userRoles: ['pika:content-admin'],
+            detailedTraces: {
+                enabled: true,
+                userRoles: ['pika:content-admin']
+            }
+        },
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            userRoles: ['pika:content-admin']
+        }
+    }
     // ... other properties
 };
 ```

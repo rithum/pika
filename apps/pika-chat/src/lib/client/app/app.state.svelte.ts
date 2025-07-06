@@ -2,7 +2,7 @@ import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
 import type { FetchZ, HotKey } from './types';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-import type { ChatApp, ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatApp, ChatUser, ChatAppOverridableFeatures } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
@@ -53,7 +53,13 @@ export class AppState {
         this.#identity = new IdentityState(user);
     }
 
-    addChatApp(chatApp: ChatApp, componentRegistry: ComponentRegistry, userDataOverrideSettings: UserDataOverrideSettings, userIsContentAdmin: boolean): ChatAppState {
+    addChatApp(
+        chatApp: ChatApp,
+        componentRegistry: ComponentRegistry,
+        userDataOverrideSettings: UserDataOverrideSettings,
+        userIsContentAdmin: boolean,
+        features: ChatAppOverridableFeatures
+    ): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
         }
@@ -62,7 +68,7 @@ export class AppState {
         if (chatAppState) {
             chatAppState.chatApp = chatApp;
         } else {
-            this.#chatApps[chatApp.chatAppId] = new ChatAppState(this.fetchz, chatApp, this.#page, this, componentRegistry, userDataOverrideSettings, userIsContentAdmin);
+            this.#chatApps[chatApp.chatAppId] = new ChatAppState(this.fetchz, chatApp, this.#page, this, componentRegistry, userDataOverrideSettings, userIsContentAdmin, features);
         }
         return this.#chatApps[chatApp.chatAppId];
     }

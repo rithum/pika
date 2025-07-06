@@ -1,8 +1,9 @@
-import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
-import type { ConverseRequest, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import { redirect, type RequestHandler } from '@sveltejs/kit';
+import { getErrorResponse, getOverridableFeatures, isUserContentAdmin } from '$lib/server/utils';
+import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { appConfig } from '$lib/server/config';
+import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
@@ -55,6 +56,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket)
             }));
         }
+
+        let chatApp: ChatApp | undefined;
+        try {
+            const matchingChatApps = await getMatchingChatApps(locals.user, undefined, params.chatAppId);
+            if (matchingChatApps && matchingChatApps.length === 1) {
+                chatApp = matchingChatApps[0];
+            } else {
+                throw error(404, 'Chat app not found');
+            }
+        } catch (e) {
+            if (e instanceof Error && e.message.includes('404')) {
+                throw error(404, 'Chat app not found');
+            }
+            throw e;
+        }
+
+        // Don't trust the features passed in the request and don't send traces and chatDisclaimerNotice to the converse function
+        const { chatDisclaimerNotice, traces, ...featuresForConverse } = getOverridableFeatures(chatApp, locals.user);
+        params.features = featuresForConverse;
+        console.log('featuresForConverse', featuresForConverse);
 
         // Invoke the Lambda Function URL
         const lambdaResponse = await invokeConverseFunctionUrl<typeof user.customData>(params, simpleUser);

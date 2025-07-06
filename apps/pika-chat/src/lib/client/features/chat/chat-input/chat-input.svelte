@@ -167,7 +167,8 @@
         />
     {/if}
 </div>
-<div class="text-xs pl-6 pr-6 mt-2 text-gray-400" style="font-size: 0.7rem;">
-    This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please
-    contact customer support. The company isn't liable for problems caused by relying solely on this chat.
-</div>
+{#if chat.features.chatDisclaimerNotice}
+    <div class="text-xs pl-6 pr-6 mt-2 text-gray-400" style="font-size: 0.7rem;">
+        {chat.features.chatDisclaimerNotice}
+    </div>
+{/if}

@@ -18,11 +18,7 @@ export async function load(
     if (siteFeatures && siteFeatures.homePage) {
         const feature = siteFeatures.homePage;
         homePageTitle = feature.homePageTitle;
-        if (
-            feature.linksToChatApps &&
-            feature.linksToChatApps.userChatAppRules &&
-            feature.linksToChatApps.userChatAppRules.length > 0
-        ) {
+        if (feature.linksToChatApps && feature.linksToChatApps.userChatAppRules && feature.linksToChatApps.userChatAppRules.length > 0) {
             // They mean to turn on the feature, so we need to get the matching chat apps
             const matchingChatApps = await getMatchingChatApps(user, feature.linksToChatApps.userChatAppRules);
             result = matchingChatApps.map((app) => ({
@@ -30,7 +26,8 @@ export async function load(
                 title: app.title,
                 description: app.description,
                 agentId: app.agentId,
-                userTypesAllowed: app.userTypesAllowed,
+                userTypesAllowed: app.userTypes,
+                userRolesAllowed: app.userRoles
             }));
         }
     }

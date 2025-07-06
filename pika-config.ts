@@ -1,3 +1,4 @@
+import { VerifyResponseClassification } from '@pika/shared/types/chatbot/chatbot-types';
 import type { PikaConfig } from './packages/shared/src/types/pika-types';
 
 export const pikaConfig: PikaConfig = {
@@ -42,6 +43,20 @@ export const pikaConfig: PikaConfig = {
         },
         contentAdmin: {
             enabled: true
+        },
+        traces: {
+            enabled: true,
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user']
+            }
+        },
+        chatDisclaimerNotice: {
+            notice: "This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company isn't liable for problems caused by relying solely on this chat."
+        },
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions // This is letter C
         }
     }
 };

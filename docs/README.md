@@ -46,6 +46,18 @@ These documents provide the **how** - practical guides for installing, configuri
 - [Local Development](./developer/local-development.md) - Running Pika locally
 - [AWS Deployment](./developer/aws-deployment.md) - Deploying to AWS
 - [Sync System](./developer/sync-system.md) - Managing framework updates
+
+**Feature Guides:**
+
+- [Traces Feature](./developer/traces-feature.md) - AI reasoning and tool invocation visibility
+- [Verify Response Feature](./developer/verify-response-feature.md) - Automatic response accuracy verification
+- [Chat Disclaimer Notice Feature](./developer/chat-disclaimer-notice-feature.md) - User education and legal protection
+- [Overriding Features](./developer/overriding-features.md) - Customizing features per chat app
+- [Content Admin Feature](./developer/content-admin.md) - Administrative access to user chat data
+- [User Data Override Feature](./developer/overriding-user-data.md) - User data customization for different contexts
+
+**Reference:**
+
 - [Troubleshooting](./developer/troubleshooting.md) - Common issues and solutions
 
 ## 🎯 Quick Navigation
@@ -61,6 +73,7 @@ These documents provide the **how** - practical guides for installing, configuri
 1. **Install Pika**: Follow [Installation Guide](./developer/installation.md)
 2. **Create your first app**: Use [Getting Started](./developer/getting-started.md)
 3. **Customize for your needs**: Read [Customization Guide](./developer/customization.md)
+4. **Enable advanced features**: Configure [Traces](./developer/traces-feature.md), [Response Verification](./developer/verify-response-feature.md), and [Feature Overrides](./developer/overriding-features.md)
 
 ### For Production Deployment
 

@@ -1,7 +1,7 @@
-import { DynamoDBRecord } from 'aws-lambda';
+import type { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
 import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToCamelCase, convertToSnakeCase, SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 
 export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')

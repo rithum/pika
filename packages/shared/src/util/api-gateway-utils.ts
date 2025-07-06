@@ -3,15 +3,13 @@
  * This module provides type-safe wrappers and helpers for handling
  * API Gateway events and responses in AWS Lambda functions.
  */
-import {
+import type {
     APIGatewayEventRequestContextV2,
     APIGatewayProxyEventV2WithRequestContext,
     APIGatewayProxyHandlerV2,
     APIGatewayProxyResultV2,
     APIGatewayProxyStructuredResultV2,
-    Context,
-    APIGatewayProxyEvent,
-    LambdaFunctionURLEvent
+    Context
 } from 'aws-lambda';
 
 /**

@@ -306,6 +306,54 @@ export interface SimpleAuthenticatedUser<T extends RecordOrUndef = undefined> {
 }
 
 /**
+ * These are features that are turned on at the site level in the <root>/pika-config.ts file and that may then
+ * be overridden by individual chat apps.
+ *
+ * This is a short hand to store the computation that went into determining if a given user is allowed
+ * to use the various features of pika.  It is not persisted to the database or in cookies.  We use it
+ */
+export interface ChatAppOverridableFeatures {
+    /**
+     *
+     * If true then the verify response feature is enabled.
+     *
+     * With this feature enabled, Pika will attempt to identify the veracity of the response from the LLM to a
+     * user message.  @see <root>/docs/developer/verify-response-feature.md
+     *
+     * The logic for turning this on or off is a merging of the site level setting and the chat app level setting.
+     */
+    verifyResponse: {
+        /** If false, we don't verify responses at all. */
+        enabled: boolean;
+        /** If not defined, we don't auto-reprompt the user's question. */
+        autoRepromptThreshold?: VerifyResponseClassification;
+    };
+
+    /**
+     * If enabled, then the traces feature is enabled. If enabled, then the front end will show the traces from
+     * the LLM in the chat app except for the detailed traces for the given user.  The detailed traces are only
+     * shown to the user if the detailedTraces feature is also enabled for the given user.
+     *
+     * The logic for turning this on or off is a merging of the site level setting and the chat app level setting.
+     *
+     * @see <root>/docs/developer/traces-feature.md
+     */
+    traces: {
+        enabled: boolean;
+        detailedTraces: boolean;
+    };
+
+    /**
+     * The disclaimer notice to show to the user.  This is used to inform the user that the chat is not
+     * a substitute for human customer support and that the company is not liable for problems caused by
+     * relying solely on the chat.
+     */
+    chatDisclaimerNotice: string | undefined;
+}
+
+export type ChatAppOverridableFeaturesForConverseFn = Omit<ChatAppOverridableFeatures, 'chatDisclaimerNotice' | 'traces'>;
+
+/**
  * By default, content rules exclude anything not explicitly included.
  */
 export interface UserChatAppRule {
@@ -405,6 +453,11 @@ export interface BaseRequestData {
 
 export interface ConverseRequest extends BaseRequestData {
     message: string;
+
+    /**
+     * The features that are enabled for the user making the request for the chat app this request is tied to.
+     */
+    features: ChatAppOverridableFeaturesForConverseFn;
 
     files?: ChatMessageFile[];
 
@@ -778,7 +831,10 @@ export interface UpdateChatAppRequest {
 
 export type ChatAppMode = 'fullpage' | 'embedded';
 
-export interface ChatApp {
+/**
+ * This extends AccessRules so you can enable/disable the chat app for certain users.
+ */
+export interface ChatApp extends AccessRules {
     /**
      * Unique ID for the chat. Only - and _ allowed.  Will
      * be used in URL to access the chatbot so keep that in mind
@@ -815,16 +871,8 @@ export interface ChatApp {
      */
     agentId: string;
 
-    /**
-     * The user types that are allowed to access this chat app.  If not provided, then all user types are allowed.
-     */
-    userTypesAllowed?: UserType[];
-
     /** Any feature not explicitly defined and turned on is turned off by default. */
     features?: Partial<Record<FeatureIdType, ChatAppFeature>>;
-
-    /** Whether the chat app is enabled or not.  If false, then the chat app will not be accessible. */
-    enabled: boolean;
 
     /** ISO 8601 formatted timestamp of when the session was created */
     createDate: string;
@@ -864,7 +912,7 @@ export interface ChatAppLite {
     /**
      * The user types that are allowed to access this chat app.  If not provided, then all user types are allowed.
      */
-    userTypesAllowed?: UserType[];
+    userTypes?: UserType[];
 }
 
 export interface KnowledgeBase {
@@ -878,7 +926,7 @@ export interface KnowledgeBase {
     description: string;
 }
 
-export type UpdateableChatAppFields = Extract<keyof ChatApp, 'mode' | 'dontCacheThis' | 'title' | 'agentId' | 'features' | 'enabled'>;
+export type UpdateableChatAppFields = Extract<keyof ChatApp, 'mode' | 'dontCacheThis' | 'title' | 'agentId' | 'features' | 'enabled' | 'userTypes' | 'userRoles'>;
 
 export type ChatAppForCreate = Omit<ChatApp, 'createDate' | 'lastUpdate'>;
 
@@ -906,7 +954,13 @@ export interface ChatAppDataRequest {
     userId: string;
 }
 
-export type ChatAppFeature = FileUploadFeature | SuggestionsFeature | PromptInputFieldLabelFeature | UiCustomizationFeature;
+export type ChatAppFeature =
+    | FileUploadFeature
+    | SuggestionsFeature
+    | PromptInputFieldLabelFeature
+    | UiCustomizationFeature
+    | VerifyResponseFeatureForChatApp
+    | TracesFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -920,8 +974,11 @@ export interface Feature {
     enabled: boolean;
 }
 
-export const FeatureIdList = ['fileUpload', 'promptInputFieldLabel', 'suggestions', 'uiCustomization'] as const;
+export const FeatureIdList = ['fileUpload', 'promptInputFieldLabel', 'suggestions', 'uiCustomization', 'verifyResponse', 'traces', 'chatDisclaimerNotice'] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
+
+export const EndToEndFeatureIdList = ['verifyResponse', 'traces'] as const;
+export type EndToEndFeatureIdType = (typeof EndToEndFeatureIdList)[number];
 
 /**
  * Whether a feature is enabled by default or not.
@@ -930,15 +987,99 @@ export const DEFAULT_FEATURE_ENABLED_VALUE: Record<FeatureIdType, boolean> = {
     fileUpload: false,
     promptInputFieldLabel: true,
     suggestions: false,
-    uiCustomization: false
+    uiCustomization: false,
+    verifyResponse: false,
+    traces: false,
+    chatDisclaimerNotice: false
 };
 
 export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     fileUpload: 'File Upload',
     promptInputFieldLabel: 'Prompt Input Field Label',
     suggestions: 'Suggestions',
-    uiCustomization: 'UI Customization'
+    uiCustomization: 'UI Customization',
+    verifyResponse: 'Verify Response',
+    traces: 'Traces',
+    chatDisclaimerNotice: 'Chat Disclaimer Notice'
 };
+
+/**
+ * If a notice is provided, Pika will display a disclaimer notice to the user.
+ *
+ * This feature must be enabled at the site level and then individual chat apps can choose to override
+ * the notice text.
+ */
+export interface ChatDisclaimerNoticeFeature {
+    /** The notice text to display to the user.  If not provided, no notice is displayed. */
+    notice: string;
+}
+
+export interface ChatDisclaimerNoticeFeatureForChatApp extends ChatDisclaimerNoticeFeature, Feature {
+    featureId: 'chatDisclaimerNotice';
+}
+
+/**
+ * When turned on, Pika will attempt to identify the veracity of the response from the LLM to a user message.
+ *
+ * This feature must be enabled at the site level and then individual chat apps can choose to turn it off
+ * if they do not want it on.  So, to function you must go to pika-config.ts and enable the feature.
+ *
+ * Further, individual chat apps can choose to override which users are allowed to use the feature.
+ *
+ * Note that enabling this will have no effect if the feature is not enabled at the site level first (@see pika-config.ts)
+ * You can only choose to disable the feature at the chat app level if it is enabled at the site level.
+ *
+ * @see <root>/docs/developer/verify-response-feature.md
+ */
+export interface VerifyResponseFeature extends AccessRules {
+    /**
+     * The threshold for which response classifications will trigger an auto-reprompt to the LLM to correct the answer.
+     *
+     * If not defined, we will not automatically reprompt the user's question to the LLM to correct the answer.
+     *
+     * The classificationsa are currenly A, B, C and F with F being terrible and A being really really good.
+     *
+     * So, if you set this to F then the Pika will only automatically send the user's question back to the LLM to correct the answer
+     * if the response verification is F.  If you set it to B then it would do so on B, C and F.
+     *
+     * Note you cannot set this to A since it is not retryable.
+     *
+     * Recommended default: 'C'
+     */
+    autoRepromptThreshold?: RetryableVerifyResponseClassification;
+}
+
+export interface VerifyResponseFeatureForChatApp extends VerifyResponseFeature, Feature {
+    featureId: 'verifyResponse';
+}
+
+/**
+ * When turned on, Pika will show the traces from the LLM in the chat app.  There are three primary types of traces:
+ * - Orchestration traces: these show the fundamental reasoning process of the LLM
+ * - Failure traces: these show the reason the LLM failed to answer the user's question
+ * - Parameter traces: these show the actual parameters passed from the LLM to the tools it invoked
+ *
+ * By default, when you turn on the traces feature, detailed traces (meaning the parameter traces) are not shown
+ * because they show a lot of detail about how the LLM is working. You must explicitly turn on the detailed traces
+ * feature to show them.
+ *
+ * Individual chat apps can choose to override which users are allowed to use the feature.  This is done
+ * by setting the detailedTraces property to an AccessRules object.  @see <root>/docs/developer/traces-feature.md
+ *
+ * Note that enabling this will have no effect if the feature is not enabled at the site level first (@see pika-config.ts)
+ * You can only choose to disable the feature at the chat app level if it is enabled at the site level.
+ */
+export interface TracesFeature extends AccessRules {
+    /**
+     * If not provided, then the detailed traces are not shown.  If provided, then the detailed traces are shown
+     * to the user if the user is allowed to use the detailed traces feature.
+     */
+    detailedTraces?: AccessRules;
+}
+
+export interface TracesFeatureForChatApp extends TracesFeature, Feature {
+    featureId: 'traces';
+}
 
 /**
  * Whether to support UI customization in the chat app.  If true, then the chat app will support UI customization.
@@ -1164,3 +1305,58 @@ export interface ContentAdminData {
     /** The outer key is the chatAppId and the inner key is the user data override data. */
     data: Record<string, ChatUserLite>;
 }
+
+/**
+ * A base interface for features that can be turned on/off for certain users.
+ */
+export interface AccessRules {
+    /** Whether the feature is turned on at all.  If false, then the feature is turned off for all users regardless of the userTypes and userRoles settings. */
+    enabled: boolean;
+
+    /**
+     * The user types that are allowed to use the feature.  If neither this nor userRole are provided,
+     * then the feature is turned on for all users.
+     */
+    userTypes?: UserType[];
+
+    /**
+     * The user roles that are allowed to use the feature.  If neither this nor userTypes are provided,
+     * then the feature is turned on for all users.
+     */
+    userRoles?: PikaUserRole[];
+
+    /**
+     * The logic to apply the userTypes and userRoles settings.  If not provided, defaults to `and`
+     * meaning that the user must be in the userTypes array and have the userRoles to use the feature.
+     */
+    applyRulesAs?: ApplyRulesAs;
+}
+
+/**
+ * For rules that apply to multiple settings, this is the logic to apply the settings.
+ */
+export type ApplyRulesAs = 'and' | 'or';
+
+/**
+ * The classification of the response from the LLM. Used with the Verify Response feature.
+ *
+ * DO NOT CHANGE THE ORDER OF THESE.  The order is used to determine the severity of the classification.
+ */
+export enum VerifyResponseClassification {
+    /** The response is factually accurate */
+    Accurate = 'A',
+    /** The response is accurate but contains stated assumptions */
+    AccurateWithStatedAssumptions = 'B',
+    /** The response is accurate but contains unstated assumptions */
+    AccurateWithUnstatedAssumptions = 'C',
+    /** The response is inaccurate or contains made up information */
+    Inaccurate = 'F'
+}
+
+/**
+ * The classifications that can be retried by the agent.
+ */
+export type RetryableVerifyResponseClassification =
+    | VerifyResponseClassification.AccurateWithStatedAssumptions
+    | VerifyResponseClassification.AccurateWithUnstatedAssumptions
+    | VerifyResponseClassification.Inaccurate;

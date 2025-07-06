@@ -1,6 +1,7 @@
-import {
+import { type ConversationHistory, ConversationRole } from '@aws-sdk/client-bedrock-agent-runtime';
+import type {
     AgentAndTools,
-    AgentDefinition,
+    ChatAppOverridableFeaturesForConverseFn,
     ChatMessage,
     ChatMessageFile,
     ChatMessageForCreate,
@@ -10,19 +11,18 @@ import {
     RecordOrUndef,
     SimpleAuthenticatedUser
 } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertFunctionUrlEventToStandardApiGatewayEvent, LambdaFunctionUrlProxyEventPika } from '@pika/shared/util/api-gateway-utils';
-import { ConversationHistory, ConversationRole } from '@aws-sdk/client-bedrock-agent-runtime';
-import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
-import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
-import { UnauthorizedError } from '../../lib/unauthorized-error';
-import { EnhancedResponseStream } from './EnhancedResponseStream';
-import { enhancedStreamifyResponse } from './custom-stream';
-import { getValueFromParameterStore } from '../../lib/ssm';
-import { extractFromJwtString } from '@pika/shared/util/jwt';
-import { LRUCache } from 'lru-cache';
-import { getAgentAndTools } from '../../lib/chat-admin-apis';
+import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { extractFromJwtString } from '@pika/shared/util/jwt';
 import { redactData } from '@pika/shared/util/server-client-utils';
+import { LRUCache } from 'lru-cache';
+import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
+import { getAgentAndTools } from '../../lib/chat-admin-apis';
+import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
+import { getValueFromParameterStore } from '../../lib/ssm';
+import { UnauthorizedError } from '../../lib/unauthorized-error';
+import type { EnhancedResponseStream } from './EnhancedResponseStream';
+import { enhancedStreamifyResponse } from './custom-stream';
 
 const SESSION_TIMEOUT_MS = 1000 * 60 * 10; // 10 minutes
 const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way through the session
@@ -69,6 +69,13 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         jwtSecret = await getValueFromParameterStore(`/stack/${process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE}/${process.env.STAGE}/jwt-secret`);
         console.log('JWT secret fetched:', !!jwtSecret);
     }
+
+    // Set defaults for features just in case the client doesn't send them or sends incomplete data
+    const features: ChatAppOverridableFeaturesForConverseFn = fnUrlEvent.body.features ?? {
+        verifyResponse: {
+            enabled: false
+        }
+    };
 
     try {
         if (!jwtSecret) {
@@ -119,7 +126,8 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
             companyId: converseRequest.companyId,
             companyType: converseRequest.companyType,
             agentId: converseRequest.agentId,
-            chatAppId: converseRequest.chatAppId
+            chatAppId: converseRequest.chatAppId,
+            features: features
         });
 
         if (!converseRequest.message) {
@@ -178,7 +186,7 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
 
         console.log('Starting conversation...');
-        await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, converseRequest.files);
+        await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, converseRequest.files);
         console.log('Conversation completed successfully');
     } catch (e) {
         console.error('=== CONVERSE HANDLER ERROR ===');
@@ -240,6 +248,7 @@ async function converse(
     message: string,
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
+    features: ChatAppOverridableFeaturesForConverseFn,
     files?: ChatMessageFile[]
 ) {
     console.log('=== CONVERSE FUNCTION START ===');
@@ -334,6 +343,7 @@ async function converse(
         questionFromUser,
         responseStream,
         agentAndTools,
+        features,
         conversationHistory
     );
     console.log('Agent response received:', {

@@ -9,28 +9,28 @@
     const { data }: { data: PageData } = $props();
 
     const internalApps = $derived(
-        data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('internal-user'))
+        data.chatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('internal-user'))
     );
     const externalApps = $derived(
-        data.chatApps.filter((app) => (app.userTypesAllowed ?? ['internal-user']).includes('external-user'))
+        data.chatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('external-user'))
     );
 
     // New derived values for cleaner organization
     const bothApps = $derived(
         data.chatApps.filter((app) => {
-            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            const userTypes = app.userTypes ?? ['internal-user'];
             return userTypes.includes('internal-user') && userTypes.includes('external-user');
         })
     );
     const internalOnlyApps = $derived(
         data.chatApps.filter((app) => {
-            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            const userTypes = app.userTypes ?? ['internal-user'];
             return userTypes.includes('internal-user') && !userTypes.includes('external-user');
         })
     );
     const externalOnlyApps = $derived(
         data.chatApps.filter((app) => {
-            const userTypes = app.userTypesAllowed ?? ['internal-user'];
+            const userTypes = app.userTypes ?? ['internal-user'];
             return !userTypes.includes('internal-user') && userTypes.includes('external-user');
         })
     );

@@ -804,6 +804,8 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
         // Handle optional fields that can be updated or removed
         handleOptionalFieldUpdate(request.chatApp.dontCacheThis, existingChatApp.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
         handleObjectFieldUpdate(request.chatApp.features, existingChatApp.features, 'features', fieldsToUpdate, fieldsToRemove, true);
+        handleArrayFieldUpdate(request.chatApp.userTypes, existingChatApp.userTypes, 'userTypes', fieldsToUpdate, fieldsToRemove, true);
+        handleArrayFieldUpdate(request.chatApp.userRoles, existingChatApp.userRoles, 'userRoles', fieldsToUpdate, fieldsToRemove, true);
 
         if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
             return existingChatApp;

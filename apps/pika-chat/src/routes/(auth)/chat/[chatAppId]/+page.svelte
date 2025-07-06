@@ -14,7 +14,8 @@
         chatApp,
         ComponentRegistry.create(),
         data.userDataOverrideSettings,
-        data.userIsContentAdmin
+        data.userIsContentAdmin,
+        data.features
     );
 
     setContext('chatAppState', chatAppState);

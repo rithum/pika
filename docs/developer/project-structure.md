@@ -33,6 +33,10 @@ The core chat interface that can render any chat application in your platform.
 - Custom markdown component support
 - File upload/download capabilities
 - Responsive design
+- AI transparency with traces feature
+- Response quality verification
+- Customizable disclaimer notices
+- Feature override system for chat app customization
 
 **Structure:**
 

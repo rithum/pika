@@ -122,3 +122,4 @@ catalog:
   '@opensearch-project/opensearch': ^3.5.1
   '@elastic/elasticsearch': ^9.0.2
   '@types/elasticsearch': ^5.0.43
+  'highlight.js': ^11.11.1

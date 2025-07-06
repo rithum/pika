@@ -17,6 +17,7 @@ import {
     type ContentAdminRequest,
     type ContentAdminResponse,
     type ConverseRequest,
+    type ChatAppOverridableFeatures,
     type GetInitialDialogDataResponse,
     type GetValuesForAutoCompleteResponse,
     type GetValuesForContentAdminAutoCompleteResponse,
@@ -183,6 +184,7 @@ export class ChatAppState {
     valuesForAutoCompleteForUserOverrideDialog = $state<Record<string, unknown[] | undefined>>({});
     initialDataForUserOverrideDialog = $state<unknown | undefined>(undefined);
     valuesForAutoCompleteForContentAdminDialog = $state<ChatUserLite[] | undefined>(undefined);
+    #features = $state<ChatAppOverridableFeatures>() as ChatAppOverridableFeatures;
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -225,6 +227,10 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get features() {
+        return this.#features;
+    }
 
     get userIsContentAdmin() {
         return this.#userIsContentAdmin;
@@ -411,7 +417,8 @@ export class ChatAppState {
         appState: AppState,
         componentRegistry: ComponentRegistry,
         userDataOverrideSettings: UserDataOverrideSettings,
-        userIsContentAdmin: boolean
+        userIsContentAdmin: boolean,
+        features: ChatAppOverridableFeatures
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -423,6 +430,7 @@ export class ChatAppState {
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
         this.#userDataOverrideSettings = userDataOverrideSettings;
         this.#userIsContentAdmin = userIsContentAdmin;
+        this.#features = features;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;
@@ -697,6 +705,7 @@ export class ChatAppState {
                 sessionId: wasInterimSession ? undefined : sessionId,
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
+                features: {} as ChatAppOverridableFeatures, // This will be set server side
                 ...(files && { files })
             };
             // Send the message to the server and stream the response

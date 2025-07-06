@@ -1,25 +1,33 @@
 import {
-    AgentActionGroup,
+    type AgentActionGroup,
     BedrockAgentRuntimeClient,
-    ConversationHistory,
+    type ConversationHistory,
     InvokeInlineAgentCommand,
-    InvokeInlineAgentCommandInput,
-    Trace
+    type InvokeInlineAgentCommandInput,
+    type Trace
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { AgentAndTools, ChatMessageForCreate, ChatMessageUsage, ChatSession, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
-import { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
+import {
+    ChatAppOverridableFeaturesForConverseFn,
+    RetryableVerifyResponseClassification,
+    VerifyResponseClassification,
+    type AgentAndTools,
+    type ChatMessageForCreate,
+    type ChatMessageUsage,
+    type ChatSession,
+    type SimpleAuthenticatedUser
+} from '@pika/shared/types/chatbot/chatbot-types';
+import cloneDeep from 'lodash.clonedeep';
+import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
-import cloneDeep from 'lodash.clonedeep';
 // import { Trace } from './bedrock-types';
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
 const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
-const DEFAULT_VERIFICATION_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"//'amazon.nova-micro-v1:0';
+const DEFAULT_VERIFICATION_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'amazon.nova-micro-v1:0';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
@@ -33,7 +41,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => { };
+                let set = (key: any, value: any) => {};
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -68,15 +76,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-            content: {
-                traceId?: string;
-                input?: unknown;
-                text: string;
-                type?: string;
-                name?: string;
-            }[];
-            traceId: string;
-        }
+              content: {
+                  traceId?: string;
+                  input?: unknown;
+                  text: string;
+                  type?: string;
+                  name?: string;
+              }[];
+              traceId: string;
+          }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -106,7 +114,6 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
             console.error(label, 'No completion found in response');
             throw new Error('No completion found in response');
         }
-
 
         hooks.onStart();
 
@@ -187,15 +194,17 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
                     if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
                         let content = trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!;
-                        if (typeof content === "string" && content.match(/^{.*}$/)) {
+                        if (typeof content === 'string' && content.match(/^{.*}$/)) {
                             lastModelInvocationOutputTraceContent = JSON.parse(content);
                         } else {
                             lastModelInvocationOutputTraceContent = {
-                                content: [{
-                                    text: content,
-                                }],
-                                traceId: ""
-                            }
+                                content: [
+                                    {
+                                        text: content
+                                    }
+                                ],
+                                traceId: ''
+                            };
                         }
                         //TODO: check type when done
                         if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
@@ -228,50 +237,41 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
             responseLength: responseMsg.length,
             tracesCount: traces.length
         });
-
     } catch (e) {
-
         // If there is a hard error when trying to invoke a tool the event with the invocation details doesn't get emitted
         // but we have the raw model output so we can parse recreate what the invocation event would be
         if (lastModelInvocationOutputTraceContent && Array.isArray(lastModelInvocationOutputTraceContent.content)) {
             try {
                 let len = lastModelInvocationOutputTraceContent.content.length;
-                if (!traces[0]?.orchestrationTrace?.invocationInput && lastModelInvocationOutputTraceContent.content[len - 1]?.type == "tool_use") {
+                if (!traces[0]?.orchestrationTrace?.invocationInput && lastModelInvocationOutputTraceContent.content[len - 1]?.type == 'tool_use') {
                     let lastRawTrace = lastModelInvocationOutputTraceContent.content[len - 1];
-                    let [action_group_name, action_group_function] = lastRawTrace?.name?.split("__") ?? [];
+                    let [action_group_name, action_group_function] = lastRawTrace?.name?.split('__') ?? [];
                     let t: Trace = {
                         orchestrationTrace: {
                             invocationInput: {
                                 actionGroupInvocationInput: {
-                                    executionType: "LAMBDA",
+                                    executionType: 'LAMBDA',
                                     parameters: Object.entries(lastModelInvocationOutputTraceContent.content[len - 1]?.input ?? {}).map(([key, value]) => {
                                         let valueType = typeof value;
                                         return {
                                             name: key,
 
                                             // this is not perfect but close
-                                            type: Array.isArray(value)
-                                                ? "array"
-                                                : valueType == "boolean"
-                                                    ? "boolean"
-                                                    : valueType === "number"
-                                                        ? "number"
-                                                        : "string",
+                                            type: Array.isArray(value) ? 'array' : valueType == 'boolean' ? 'boolean' : valueType === 'number' ? 'number' : 'string',
 
                                             value: value
-                                        }
+                                        };
                                     }),
                                     actionGroupName: action_group_name,
                                     function: action_group_function
                                 },
-                                invocationType: "ACTION_GROUP",
+                                invocationType: 'ACTION_GROUP',
                                 traceId: lastRawTrace.traceId
                             }
                         }
-                    }
+                    };
                     traces.push(t);
                     hooks.onTrace(t);
-
                 }
             } catch (e) {
                 // Don't do anything if parsing the raw response fails
@@ -283,7 +283,6 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
         error = e;
         hooks.onError(error);
     }
-
 
     console.log(label, 'Calculating usage costs...');
     // Make sure we get a pricing model, default to the default model
@@ -302,28 +301,18 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
         message: responseMsg,
         traces,
         usage,
-        executionDuration: Date.now() - startingTime,
-    }
-}
-
-
-
-enum VerifyResponseClassification {
-    Accurate = "A",
-    AccurateWithStatedAssumptions = "B",
-    AccurateWithUnstatedAssumptions = "C",
-    Inaccurate = "F"
+        executionDuration: Date.now() - startingTime
+    };
 }
 
 const verificationReprompts: Record<VerifyResponseClassification, string | null> = {
     [VerifyResponseClassification.Accurate]: null,
-    [VerifyResponseClassification.AccurateWithStatedAssumptions]: null,
-    [VerifyResponseClassification.AccurateWithUnstatedAssumptions]: "The previous response had assumptions that were not specified.  Specify the assumptions you made.",
-    [VerifyResponseClassification.Inaccurate]: "The previous response is not factually correct.  Fix it with factually correct information"
+    [VerifyResponseClassification.AccurateWithStatedAssumptions]: 'The previous response had assumptions that were stated.  Specify the assumptions you made.',
+    [VerifyResponseClassification.AccurateWithUnstatedAssumptions]: 'The previous response had assumptions that were not specified.  Specify the assumptions you made.',
+    [VerifyResponseClassification.Inaccurate]: 'The previous response is not factually correct.  Fix it with factually correct information.'
 };
 
 async function invokeAgentToVerifyAnswer(cmdInput1: InvokeInlineAgentCommandInput) {
-
     let cmdInput = cloneDeep(cmdInput1);
 
     // Use the verification model
@@ -335,7 +324,6 @@ async function invokeAgentToVerifyAnswer(cmdInput1: InvokeInlineAgentCommandInpu
     delete cmdInput.actionGroups;
     delete cmdInput.knowledgeBases;
 
-
     cmdInput.instruction = `You are a classification agent.  Classifications are:
 - A: Factually accurate
 - B: Accurate but containing assumptions that are specified in the response
@@ -343,29 +331,32 @@ async function invokeAgentToVerifyAnswer(cmdInput1: InvokeInlineAgentCommandInpu
 - F: Inaccurate or containing made up information
 
 Response with ONLY the classification Letter inside an <answer></answer> tag.  Example: <answer>A</answer>`;
-    cmdInput.inputText = "Classify your previous response";
+    cmdInput.inputText = 'Classify your previous response';
 
+    let invokeResponse = await invokeAgent(
+        cmdInput,
+        {
+            onStart() {
+                // Nothing
+            },
+            onChunk(chunk) {
+                // Nothing
+            },
+            onTrace(trace) {
+                // Nothing
+            },
+            onEnd() {
+                // Nothing
+            },
+            onError(error) {
+                // Nothing
+            }
+        },
+        'VERIFICATION:'
+    );
 
-    let invokeResponse = await invokeAgent(cmdInput, {
-        onStart() {
-            // Nothing
-        },
-        onChunk(chunk) {
-            // Nothing
-        },
-        onTrace(trace) {
-            // Nothing
-        },
-        onEnd() {
-            // Nothing
-        },
-        onError(error) {
-            // Nothing
-        },
-    }, "VERIFICATION:");
-
-    let stringClass = invokeResponse.message.replace(/<\/? *answer>/g, "");
-    let r = Object.values(VerifyResponseClassification).find(e => e == stringClass);
+    let stringClass = invokeResponse.message.replace(/<\/? *answer>/g, '');
+    let r = Object.values(VerifyResponseClassification).find((e) => e == stringClass);
 
     return {
         ...invokeResponse,
@@ -392,6 +383,7 @@ export async function invokeAgentToGetAnswer(
     questionFromUser: string,
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
+    features: ChatAppOverridableFeaturesForConverseFn,
     conversationHistory?: ConversationHistory
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
@@ -403,7 +395,8 @@ export async function invokeAgentToGetAnswer(
         hasConversationHistory: !!conversationHistory,
         conversationHistoryLength: conversationHistory?.messages?.length,
         agentId: agentAndTools.agent.agentId,
-        chatAppId: chatSession.chatAppId
+        chatAppId: chatSession.chatAppId,
+        features
     });
 
     const actionGroups: AgentActionGroup[] = [];
@@ -529,51 +522,67 @@ export async function invokeAgentToGetAnswer(
         }
     };
     try {
-        let mainResponse = await invokeAgent(cmdInput, hooks, "MAIN:");
-        addUsage(mainResponse.usage);
-        if (mainResponse.error) {
-            throw mainResponse.error;
-        }
-
-        let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
-        addUsage(verifyResponse.usage);
-        if (verifyResponse.error) {
-            console.log("Error during Verification.  Proceeding w/o verification", verifyResponse.error);
-        }
-
-        hooks.onTrace({
-            orchestrationTrace: {
-                rationale: {
-                    text: `Verified Response: ${verifyResponse.classification}`
-                }
+        if (features.verifyResponse.enabled) {
+            console.log('Verifying response...');
+            let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
+            addUsage(mainResponse.usage);
+            if (mainResponse.error) {
+                throw mainResponse.error;
             }
-        });
 
-        let reprompt = verificationReprompts[verifyResponse.classification];
-        if (reprompt) {
+            let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
+            addUsage(verifyResponse.usage);
+            if (verifyResponse.error) {
+                console.log('Error during Verification.  Proceeding w/o verification', verifyResponse.error);
+            }
 
             hooks.onTrace({
                 orchestrationTrace: {
                     rationale: {
-                        text: "Correcting response."
+                        text: `Verified Response: ${verifyResponse.classification}`
                     }
                 }
             });
-            hooks.onChunk("\n\n### Corrections\n", 100)
-            console.log("Classification requires reprompt:", verifyResponse.classification, reprompt);
-            // Delete history as it was already saturated with the main prompt
-            delete cmdInput.inlineSessionState?.conversationHistory;
 
-            cmdInput.inputText = reprompt;
-            let correctionResponse = await invokeAgent(cmdInput, {
-                ...hooks,
-                onStart() {
-                    // Nothing
-                },
-            }, "CORRECTION:")
-            addUsage(correctionResponse.usage);
-            if (correctionResponse.error) {
-                throw correctionResponse.error;
+            if (features.verifyResponse.autoRepromptThreshold) {
+                console.log('Reprompting response feature is enabled for threshold:', features.verifyResponse.autoRepromptThreshold);
+                let reprompt = verificationReprompts[verifyResponse.classification];
+
+                // Only reprompt if threshold is at or below the classification severity
+                const shouldReprompt = reprompt && verifyResponse.classification >= features.verifyResponse.autoRepromptThreshold;
+
+                if (shouldReprompt) {
+                    console.log(
+                        `Reprompting response since classification is at or below threshold: ${verifyResponse.classification} >= ${features.verifyResponse.autoRepromptThreshold}`
+                    );
+                    hooks.onTrace({
+                        orchestrationTrace: {
+                            rationale: {
+                                text: 'Correcting response.'
+                            }
+                        }
+                    });
+                    hooks.onChunk('\n\n### Corrections\n', 100);
+                    console.log('Classification requires reprompt:', verifyResponse.classification, reprompt);
+                    // Delete history as it was already saturated with the main prompt
+                    delete cmdInput.inlineSessionState?.conversationHistory;
+
+                    cmdInput.inputText = reprompt;
+                    let correctionResponse = await invokeAgent(
+                        cmdInput,
+                        {
+                            ...hooks,
+                            onStart() {
+                                // Nothing
+                            }
+                        },
+                        'CORRECTION:'
+                    );
+                    addUsage(correctionResponse.usage);
+                    if (correctionResponse.error) {
+                        throw correctionResponse.error;
+                    }
+                }
             }
         }
     } catch (e) {

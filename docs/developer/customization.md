@@ -239,6 +239,77 @@ export const pikaConfig: PikaConfig = {
 
 **Security Note:** Only assign the `pika:content-admin` role to trusted users who need debugging access to other users' chat data.
 
+#### Traces Configuration
+
+Configure the traces feature to show AI reasoning and tool invocation details:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['pika:content-admin']
+            }
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`enabled`** (required): Whether to enable the traces feature
+- **`userTypes`** (optional): User types that can see traces
+- **`userRoles`** (optional): User roles that can see traces
+- **`detailedTraces`** (optional): Additional access rules for detailed parameter traces
+
+#### Verify Response Configuration
+
+Configure the verify response feature to automatically check AI response accuracy:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: VerifyResponseClassification.AccurateWithUnstatedAssumptions, // 'C'
+            userTypes: ['internal-user', 'external-user']
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`enabled`** (required): Whether to enable response verification
+- **`autoRepromptThreshold`** (optional): Grade threshold for automatic retries (B, C, or F)
+- **`userTypes`** (optional): User types that can use verified responses
+- **`userRoles`** (optional): User roles that can use verified responses
+
+#### Chat Disclaimer Notice Configuration
+
+Configure disclaimer notices to inform users about AI limitations:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        chatDisclaimerNotice: {
+            notice: "This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company isn't liable for problems caused by relying solely on this chat."
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`notice`** (required): The disclaimer text to display to users
+
 ## Customization Areas
 
 ### 1. Custom Message Tag Renderers
@@ -364,6 +435,46 @@ export const pikaConfig: PikaConfig = {
 **Configuration:** Enable in `pika-config.ts` siteFeatures and assign `pika:content-admin` role to authorized users.
 
 **Documentation:** See [Content Admin Guide](./content-admin.md) for complete setup and usage instructions.
+
+### Traces Feature
+
+**Purpose:** Provide visibility into AI reasoning processes, tool invocations, and execution details for debugging and transparency.
+
+**Use Case:** Developers understanding agent behavior, support teams debugging issues, and users gaining insight into AI decision-making.
+
+**Configuration:** Enable in `pika-config.ts` siteFeatures with access control for different user types and roles.
+
+**Documentation:** See [Traces Feature Guide](./traces-feature.md) for complete configuration and usage instructions.
+
+### Verify Response Feature
+
+**Purpose:** Automatically evaluate AI response accuracy and quality, with optional auto-reprompting for improved responses.
+
+**Use Case:** Ensuring high-quality AI responses in critical applications, meeting accuracy requirements, and building user trust.
+
+**Configuration:** Enable in `pika-config.ts` siteFeatures with configurable quality thresholds and access rules.
+
+**Documentation:** See [Verify Response Feature Guide](./verify-response-feature.md) for complete setup and configuration instructions.
+
+### Chat Disclaimer Notice Feature
+
+**Purpose:** Display disclaimer messages to users about AI limitations and appropriate usage expectations.
+
+**Use Case:** Legal protection, user education, regulatory compliance, and setting appropriate expectations for AI interactions.
+
+**Configuration:** Configure in `pika-config.ts` siteFeatures with customizable disclaimer text per site or chat app.
+
+**Documentation:** See [Chat Disclaimer Notice Feature Guide](./chat-disclaimer-notice-feature.md) for configuration examples and best practices.
+
+### Feature Override System
+
+**Purpose:** Allow individual chat apps to customize site-level feature configurations for specialized behavior.
+
+**Use Case:** Different feature requirements for customer-facing vs. internal chat apps, specialized compliance needs, or app-specific user experience requirements.
+
+**Configuration:** Configure in individual chat app definitions to override site-level settings.
+
+**Documentation:** See [Overriding Features Guide](./overriding-features.md) for complete override system documentation.
 
 ## Configuration Files
 

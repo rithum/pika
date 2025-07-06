@@ -1,4 +1,12 @@
-import type { UserChatAppRule } from './chatbot/chatbot-types';
+import type {
+    AccessRules,
+    VerifyResponseFeature,
+    TracesFeature,
+    UserChatAppRule,
+    UserType,
+    VerifyResponseClassification,
+    ChatDisclaimerNoticeFeature
+} from './chatbot/chatbot-types';
 
 export interface PikaConfig {
     pika: PikaStack;
@@ -9,10 +17,27 @@ export interface PikaConfig {
     siteFeatures?: SiteFeatures;
 }
 
+/**
+ * Features that are turned on/configured site-wide.  They are configured in the <root>/pika-config.ts file.
+ */
 export interface SiteFeatures {
+    /** Configure whether chat apps are shown on the home page. */
     homePage?: HomePageSiteFeature;
+
+    /** Configure whether users can override their user data. */
     userDataOverrides?: UserDataOverridesSiteFeature;
+
+    /** Configure whether a content admin can view chat sessions and messages. */
     contentAdmin?: ContentAdminSiteFeature;
+
+    /** Configure whether traces are shown in the chat app as "reasoning traces". */
+    traces?: TracesFeature;
+
+    /** Configure whether a disclaimer notice is shown in the chat app. */
+    chatDisclaimerNotice?: ChatDisclaimerNoticeFeature;
+
+    /** Configure whether the response from the LLM is verified and auto-reprompted if needed. */
+    verifyResponse?: VerifyResponseFeature;
 }
 
 /**
@@ -41,7 +66,7 @@ export interface UserDataOverridesSiteFeature {
      * The user types that are allowed to use the user overrides feature.  If not provided, defaults to `['internal-user']`
      * meaning that if the feature is enabled, only internal users will be able to use it.
      */
-    userTypesAllowed?: string[];
+    userTypes?: UserType[];
 
     /**
      * The title of the menu item that will be displayed to authorized users that when clicked will
@@ -99,7 +124,7 @@ export interface UserDataOverridesSiteFeature {
 }
 
 /** Used in front end to pass settings from server to client. */
-export type UserDataOverrideSettings = Omit<UserDataOverridesSiteFeature, 'userTypesAllowed' | 'promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing'> & {
+export type UserDataOverrideSettings = Omit<UserDataOverridesSiteFeature, 'userTypes' | 'promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing'> & {
     userNeedsToProvideDataOverrides: boolean;
 };
 

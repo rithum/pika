@@ -82,6 +82,10 @@ When you create a Pika application, you receive a complete, production-ready cha
 - **Custom Message Tags** - Render XML tags from LLM responses with custom UI components
 - **AWS CDK Integration** - Infrastructure as Code for easy deployment
 - **Sync System** - Keep your customizations while receiving framework updates
+- **AI Transparency** - Traces feature shows AI reasoning and tool invocations
+- **Quality Assurance** - Verify response feature automatically checks AI response accuracy
+- **User Education** - Chat disclaimer notices inform users about AI limitations
+- **Feature Overrides** - Customize features per chat app for specialized behavior
 
 ## 🚨 CRITICAL: Security and Authentication
 

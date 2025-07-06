@@ -19,7 +19,7 @@ import type {
     ChatUserLite,
     RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
-import { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
+import type { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import { getTitleFromBedrockIfNeeded } from './bedrock-agent';
 import {

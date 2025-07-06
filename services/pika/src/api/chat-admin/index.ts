@@ -450,7 +450,7 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         } else {
             chatApps = await getChatApps();
         }
-        response.chatApps = getMatchingChatApps(user.userType ?? 'external-user', userChatAppRules, chatApps);
+        response.chatApps = getMatchingChatApps(user.userType ?? 'external-user', user.roles, userChatAppRules, chatApps);
     }
 
     return response;
