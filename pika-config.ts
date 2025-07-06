@@ -1,4 +1,4 @@
-import { VerifyResponseClassification } from '@pika/shared/types/chatbot/chatbot-types';
+import { VerifyResponseClassification } from './packages/shared/src/types/chatbot/chatbot-types';
 import type { PikaConfig } from './packages/shared/src/types/pika-types';
 
 export const pikaConfig: PikaConfig = {
