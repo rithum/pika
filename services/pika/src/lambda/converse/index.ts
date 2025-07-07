@@ -70,13 +70,6 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         console.log('JWT secret fetched:', !!jwtSecret);
     }
 
-    // Set defaults for features just in case the client doesn't send them or sends incomplete data
-    const features: ChatAppOverridableFeaturesForConverseFn = fnUrlEvent.body.features ?? {
-        verifyResponse: {
-            enabled: false
-        }
-    };
-
     try {
         if (!jwtSecret) {
             console.error('JWT secret not found in SSM');
@@ -108,6 +101,13 @@ export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFuncti
         console.log('Converting function URL event to standard API Gateway event...');
         const event = convertFunctionUrlEventToStandardApiGatewayEvent<ConverseRequest>(fnUrlEvent);
         console.log('Event converted successfully');
+
+        // Set defaults for features just in case the client doesn't send them or sends incomplete data
+        const features: ChatAppOverridableFeaturesForConverseFn = event.body.features ?? {
+            verifyResponse: {
+                enabled: false
+            }
+        };
 
         //TODO: check for chatbot_enabled feature flag set for this companyId and if not set, return a 404
         const chatbotEnabled = true;

@@ -528,14 +528,15 @@ export async function invokeAgentToGetAnswer(
         }
     };
     try {
+        console.log('Invoking main agent...');
+        let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
+        addUsage(mainResponse.usage);
+        if (mainResponse.error) {
+            throw mainResponse.error;
+        }
+
         if (features.verifyResponse.enabled) {
             console.log('Verifying response...');
-            let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
-            addUsage(mainResponse.usage);
-            if (mainResponse.error) {
-                throw mainResponse.error;
-            }
-
             let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
             addUsage(verifyResponse.usage);
             if (verifyResponse.error) {
