@@ -141,6 +141,12 @@ export interface ChatMessage {
 
     /** Expiration date of the message in Unix seconds */
     exp_date_unix_seconds?: number;
+
+    /** Verification Classifications */
+    verifications?: {
+        main: VerifyResponseClassification;
+        correction?: VerifyResponseClassification;
+    }
 }
 
 export interface ChatMessageForRendering extends ChatMessage {
@@ -1238,7 +1244,7 @@ export interface ViewContentForUserResponse extends ContentAdminCommandResponseB
     data: ChatUserLite | undefined;
 }
 
-export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase {}
+export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase { }
 
 export interface GetViewingContentForUserResponse extends ContentAdminCommandResponseBase {
     data: ChatUserLite[] | undefined;
@@ -1291,7 +1297,7 @@ export interface SaveUserOverrideDataResponse extends UserOverrideDataCommandRes
     data: RecordOrUndef;
 }
 
-export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase {}
+export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase { }
 
 /**
  * This is the type used to persist the user data override data to a cookie if provided.
