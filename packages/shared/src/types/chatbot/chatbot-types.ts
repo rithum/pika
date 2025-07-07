@@ -1364,9 +1364,14 @@ export const AccurateWithUnstatedAssumptions = 'C';
 export const Inaccurate = 'F';
 
 /**
+ * The response was not classified
+ */
+export const Unclassified = 'U';
+
+/**
  * Do not change the order of these.  The order is used to determine the severity of the classification.
  */
-export const VerifyResponseClassifications = [Accurate, AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate] as const;
+export const VerifyResponseClassifications = [Accurate, AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate, Unclassified] as const;
 
 /**
  * The classification of the response from the LLM. Used with the Verify Response feature.

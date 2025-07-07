@@ -18,6 +18,7 @@ import {
     type ChatSession,
     Inaccurate,
     type SimpleAuthenticatedUser,
+    Unclassified,
     type VerifyResponseClassification,
     VerifyResponseClassifications
 } from '@pika/shared/types/chatbot/chatbot-types';
@@ -531,7 +532,7 @@ export async function invokeAgentToGetAnswer(
         main: VerifyResponseClassification;
         correction?: VerifyResponseClassification;
     } = {
-        main: "U" as any
+        main: Unclassified
     };
     try {
 
