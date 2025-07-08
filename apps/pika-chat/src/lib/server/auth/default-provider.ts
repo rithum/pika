@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, AuthenticateResult } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
 export interface MockAuthData extends Record<string, string | undefined> {
@@ -54,5 +54,12 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
         };
 
         return { authenticatedUser: user };
+    }
+
+    async getCustomDataUiRepresentation(user: AuthenticatedUser<MockAuthData, MockCustomData>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined> {
+        return {
+            title: 'Account ID',
+            value: user.overrideData?.[chatAppId ?? '']?.accountId ?? user.customData?.accountId ?? '123'
+        };
     }
 }

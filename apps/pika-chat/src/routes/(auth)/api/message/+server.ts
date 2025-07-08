@@ -73,7 +73,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         // Don't trust the features passed in the request and don't send traces and chatDisclaimerNotice to the converse function
-        const { chatDisclaimerNotice, traces, ...featuresForConverse } = getOverridableFeatures(chatApp, locals.user);
+        const { chatDisclaimerNotice, traces, logout, ...featuresForConverse } = getOverridableFeatures(chatApp, locals.user);
         params.features = featuresForConverse;
         console.log('featuresForConverse', featuresForConverse);
 

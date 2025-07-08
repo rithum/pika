@@ -1,10 +1,10 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
-import type { ChatApp, ChatAppMode, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { siteFeatures } from '$lib/server/custom-site-features';
+import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
+import type { ChatApp, ChatAppMode, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
+import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
-import { siteFeatures } from '$lib/server/custom-site-features';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
     const { chatAppId } = params;
@@ -24,6 +24,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
     if (!chatAppId) {
         throw error(400, 'Chat app ID is required');
     }
+
+    const authProvider = locals.authProvider;
 
     try {
         const matchingChatApps = await getMatchingChatApps(locals.user, undefined, chatAppId);
@@ -63,11 +65,20 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
             !isViewingContentForAnotherUser && doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
     };
     const features = getOverridableFeatures(chatApp, locals.user);
+    let customDataUiRepresentation: CustomDataUiRepresentation | undefined;
+
+    if (authProvider.getCustomDataUiRepresentation) {
+        customDataUiRepresentation = await authProvider.getCustomDataUiRepresentation(locals.user, chatApp.chatAppId);
+        if (customDataUiRepresentation && (!customDataUiRepresentation.title || !customDataUiRepresentation.value)) {
+            customDataUiRepresentation = undefined;
+        }
+    }
 
     return {
         chatApp,
         userDataOverrideSettings,
         userIsContentAdmin,
-        features
+        features,
+        customDataUiRepresentation
     };
 };

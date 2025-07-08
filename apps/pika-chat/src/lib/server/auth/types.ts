@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, AuthenticateResult, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
  * Custom exception for authentication failures
@@ -87,4 +87,33 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @returns The object to add to the locals object in a key named 'customData'
      */
     async addValueToLocalsForRoute?(pathName: string, event: RequestEvent, user: AuthenticatedUser<T, U> | undefined): Promise<Record<string, unknown> | undefined>;
+
+    /**
+     * Logout the user.  This is called when the user clicks the logout menu item.  This menu item is only available if you have
+     * turned on the logout feature in pika-config.ts for the given user type/role.  Pika will handle deleting its own cookies after
+     * calling this method, if you provide it.
+     *
+     * @param event - The request event
+     * @param user - The authenticated user (if there is one)
+     * @returns If a string it is assumed to be a redirect path and we will redirect to that path. For example, if you want to redirect to /logout to do client side logout.
+     *          If undefined, we will redirect to the login page.
+     */
+    async logout?(event: RequestEvent, user: AuthenticatedUser<T, U>): Promise<string | undefined>;
+
+    /**
+     * Get the UI representation of the custom data.  This is used to display the custom data in the UI.
+     *
+     * If you don't want this to appear in the UI, return undefined.
+     *
+     * Remember that the whole point of this is to show additional information about the account/company/entity
+     * the user is logged in as.  There are two places you could pull from, you could pull from
+     * user.customData (which may or may not be set) or you could pull from user.overrideData (which is set
+     * if the user has overridden the data).  You should pull from user.overrideData if it is set and
+     * user.customData if it is not set.
+     *
+     * @param user - The authenticated user (if there is one)
+     * @param chatAppId - The chat app ID (if there is one), useful to know which override data to use if needed
+     * @returns The UI representation of the custom data
+     */
+    async getCustomDataUiRepresentation?(user: AuthenticatedUser<T, U>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined>;
 }

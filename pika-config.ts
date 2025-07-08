@@ -56,6 +56,10 @@ export const pikaConfig: PikaConfig = {
         verifyResponse: {
             enabled: true,
             autoRepromptThreshold: 'C' // Accurate with unstated assumptions
+        },
+        logout: {
+            enabled: true,
+            userTypes: ['internal-user']
         }
     }
 };

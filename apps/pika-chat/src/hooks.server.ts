@@ -54,6 +54,12 @@ export const handle: Handle = async ({ event, resolve }) => {
         return addSecurityHeaders(await resolve(event));
     }
 
+    if (pathName === '/logout') {
+        await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
+        // Allow access to logout page without authentication
+        return addSecurityHeaders(await resolve(event));
+    }
+
     if (pathName === '/auth/client-auth') {
         await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
         // Allow access to client auth page without authentication
@@ -157,9 +163,22 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
 
     // Set user and config in locals for server-side use
-    event.locals = { user, appConfig };
+    event.locals = { user, appConfig, authProvider };
 
     await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
+
+    // If this is the logout now path, then we need to call the logout method on the auth provider and clear the cookies
+    if (pathName === '/logout-now') {
+        clearAllCookies(event);
+        let redirectTo = '/login';
+        if (authProvider.logout) {
+            let path: string | undefined = await authProvider.logout(event, user);
+            if (path) {
+                redirectTo = path;
+            }
+        }
+        return redirect(302, redirectTo);
+    }
 
     // Process the request to whatever route they were going to with security headers
     return addSecurityHeaders(await resolve(event));

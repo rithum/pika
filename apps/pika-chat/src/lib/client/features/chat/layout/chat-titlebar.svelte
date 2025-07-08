@@ -5,6 +5,8 @@
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
     import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+    import * as Dialog from '$lib/components/ui/dialog';
+    import { Label } from 'bits-ui';
 
     const chat = getContext<ChatAppState>('chatAppState');
     const fullPage = $derived(chat.chatApp.mode === 'fullpage');
@@ -15,6 +17,7 @@
         const userNeedsToProvideDataOverrides = settings.userNeedsToProvideDataOverrides;
         return enabled && userNeedsToProvideDataOverrides;
     });
+    let showLogoutDialog = $state(false);
 
     // const appSideBarHotKey: HotKey = createHotKey({
     //     key: 'b',
@@ -99,68 +102,7 @@
     <div class="ml-auto">
         {#if !fullPage}
             {@render newChatButton()}
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger>
-                    <div class="relative">
-                        <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
-                            ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
-                        >
-                        {#if userNeedsToProvideDataOverrides}
-                            <div
-                                class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
-                            >
-                                !
-                            </div>
-                        {/if}
-                    </div>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                    <DropdownMenu.Group>
-                        {#if chat.userDataOverrideSettings.enabled}
-                            <DropdownMenu.Item
-                                onclick={() => {
-                                    chat.userDataOverrideDialogOpen = true;
-                                }}
-                            >
-                                {#if userNeedsToProvideDataOverrides}
-                                    <span
-                                        class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
-                                    >
-                                        !
-                                    </span>
-                                {/if}
-                                Override User Data</DropdownMenu.Item
-                            >
-                        {/if}
-                        {#if chat.userIsContentAdmin}
-                            <DropdownMenu.Item
-                                onclick={() => {
-                                    chat.contentAdminDialogOpen = true;
-                                }}
-                            >
-                                View Content for User
-                            </DropdownMenu.Item>
-                        {/if}
-                        {#if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
-                            <DropdownMenu.Separator />
-                        {/if}
-                        {#if panelWidthState !== 'fullscreen'}
-                            <DropdownMenu.Item
-                                onclick={() => {
-                                    chat.appSidebarOpen = !chat.appSidebarOpen;
-                                }}>Show History</DropdownMenu.Item
-                            >
-                            <DropdownMenu.Separator />
-                        {/if}
-
-                        <DropdownMenu.Item
-                            onclick={() => {
-                                panelWidthState = panelWidthState === 'normal' ? 'fullscreen' : 'normal';
-                            }}>{panelWidthState === 'normal' ? 'Full Width' : 'Normal Width'}</DropdownMenu.Item
-                        >
-                    </DropdownMenu.Group>
-                </DropdownMenu.Content>
-            </DropdownMenu.Root>
+            {@render settingsDropdown(true)}
             <Button
                 variant="ghost"
                 size="icon"
@@ -170,55 +112,100 @@
                 }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
             >
         {:else if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger>
-                    <div class="relative">
-                        <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
-                            ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
-                        >
-                        {#if userNeedsToProvideDataOverrides}
-                            <div
-                                class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
-                            >
-                                !
-                            </div>
-                        {/if}
-                    </div>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content>
-                    <DropdownMenu.Group>
-                        {#if chat.userDataOverrideSettings.enabled}
-                            <DropdownMenu.Item
-                                onclick={() => {
-                                    chat.userDataOverrideDialogOpen = true;
-                                }}
-                            >
-                                {#if userNeedsToProvideDataOverrides}
-                                    <span
-                                        class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
-                                    >
-                                        !
-                                    </span>
-                                {/if}
-                                Override User Data
-                            </DropdownMenu.Item>
-                        {/if}
-                        {#if chat.userIsContentAdmin}
-                            <DropdownMenu.Item
-                                onclick={() => {
-                                    chat.contentAdminDialogOpen = true;
-                                }}
-                            >
-                                View Content for User
-                            </DropdownMenu.Item>
-                        {/if}
-                    </DropdownMenu.Group>
-                </DropdownMenu.Content>
-            </DropdownMenu.Root>
+            {@render settingsDropdown(false)}
         {/if}
         {#if chat.pageHeaderRight}{@render chat.pageHeaderRight()}{/if}
     </div>
 </div>
+
+{#snippet settingsDropdown(showHistoryAndPanelWidth: boolean)}
+    <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+            <div class="relative">
+                <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                    ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                >
+                {#if userNeedsToProvideDataOverrides}
+                    <div
+                        class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                    >
+                        !
+                    </div>
+                {/if}
+            </div>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content>
+            {#if chat.user.userType === 'internal-user' && chat.customDataUiRepresentation}
+                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
+                    <div class="text-sm text-gray-500">{chat.customDataUiRepresentation.title}</div>
+                    <div class="font-semibold">{chat.customDataUiRepresentation.value}</div>
+                </div>
+                <DropdownMenu.Separator />
+            {/if}
+            {#if chat.user.userType === 'internal-user'}
+                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
+                    <div class="text-sm text-gray-500">User ID</div>
+                    <div class="font-semibold">{chat.user.userId}</div>
+                </div>
+                <DropdownMenu.Separator />
+            {/if}
+            <DropdownMenu.Group>
+                {#if chat.userDataOverrideSettings.enabled}
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            chat.userDataOverrideDialogOpen = true;
+                        }}
+                    >
+                        {#if userNeedsToProvideDataOverrides}
+                            <span
+                                class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                            >
+                                !
+                            </span>
+                        {/if}
+                        Override User Data</DropdownMenu.Item
+                    >
+                {/if}
+                {#if chat.userIsContentAdmin}
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            chat.contentAdminDialogOpen = true;
+                        }}
+                    >
+                        View Content for User
+                    </DropdownMenu.Item>
+                {/if}
+                {#if showHistoryAndPanelWidth}
+                    {#if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
+                        <DropdownMenu.Separator />
+                    {/if}
+                    {#if panelWidthState !== 'fullscreen'}
+                        <DropdownMenu.Item
+                            onclick={() => {
+                                chat.appSidebarOpen = !chat.appSidebarOpen;
+                            }}>Show History</DropdownMenu.Item
+                        >
+                        <DropdownMenu.Separator />
+                    {/if}
+
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            panelWidthState = panelWidthState === 'normal' ? 'fullscreen' : 'normal';
+                        }}>{panelWidthState === 'normal' ? 'Full Width' : 'Normal Width'}</DropdownMenu.Item
+                    >
+                {/if}
+                {#if chat.features.logout.enabled}
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            showLogoutDialog = true;
+                        }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
+                    >
+                {/if}
+            </DropdownMenu.Group>
+        </DropdownMenu.Content>
+    </DropdownMenu.Root>
+{/snippet}
 
 {#snippet newChatButton()}
     <TooltipPlus tooltip="New Chat">
@@ -233,3 +220,32 @@
         >
     </TooltipPlus>
 {/snippet}
+
+<Dialog.Root
+    bind:open={showLogoutDialog}
+    onOpenChange={() => {
+        if (!showLogoutDialog) {
+            showLogoutDialog = false;
+        }
+    }}
+>
+    <Dialog.Content>
+        <Dialog.Title>{chat.features.logout.dialogTitle}</Dialog.Title>
+
+        {chat.features.logout.dialogDescription}
+        <Dialog.Footer>
+            <Button
+                variant="default"
+                onclick={() => {
+                    window.location.href = '/logout-now';
+                }}>{chat.features.logout.dialogTitle}</Button
+            >
+            <Button
+                variant="outline"
+                onclick={() => {
+                    showLogoutDialog = false;
+                }}>Cancel</Button
+            >
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>

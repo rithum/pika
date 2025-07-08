@@ -1,12 +1,4 @@
-import type {
-    AccessRules,
-    VerifyResponseFeature,
-    TracesFeature,
-    UserChatAppRule,
-    UserType,
-    VerifyResponseClassification,
-    ChatDisclaimerNoticeFeature
-} from './chatbot/chatbot-types';
+import type { ChatDisclaimerNoticeFeature, LogoutFeature, TracesFeature, UserChatAppRule, UserType, VerifyResponseFeature } from './chatbot/chatbot-types';
 
 export interface PikaConfig {
     pika: PikaStack;
@@ -38,6 +30,9 @@ export interface SiteFeatures {
 
     /** Configure whether the response from the LLM is verified and auto-reprompted if needed. */
     verifyResponse?: VerifyResponseFeature;
+
+    /** Configure whether the user can logout of the chat app. */
+    logout?: LogoutFeature;
 }
 
 /**

@@ -11,7 +11,8 @@ import type {
     ApplyRulesAs,
     TracesFeature,
     VerifyResponseFeatureForChatApp,
-    ChatDisclaimerNoticeFeatureForChatApp
+    ChatDisclaimerNoticeFeatureForChatApp,
+    LogoutFeatureForChatApp
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
@@ -212,7 +213,13 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             detailedTraces: false
         },
         // We don't use access rules to determine if the chat disclaimer notice is shown.  If there, it's shown.
-        chatDisclaimerNotice: siteFeatures?.chatDisclaimerNotice?.notice ?? (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice
+        chatDisclaimerNotice: siteFeatures?.chatDisclaimerNotice?.notice ?? (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice,
+        logout: {
+            enabled: false,
+            menuItemTitle: 'Logout',
+            dialogTitle: 'Logout',
+            dialogDescription: 'Are you sure you want to logout?'
+        }
     };
 
     const siteVerifyRespRule = siteFeatures?.verifyResponse || { enabled: false };
@@ -233,6 +240,14 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
 
     const resolvedDetailedTracesRules = resolveFeatureRules(siteDetailedTracesRule, appDetailedTracesRule);
     result.traces.detailedTraces = checkUserAccessToFeature(user, resolvedDetailedTracesRules);
+
+    const siteLogoutRule = siteFeatures?.logout || { enabled: false };
+    const appLogoutRule = chatApp.features?.logout as LogoutFeatureForChatApp | undefined;
+    const resolvedLogoutRules = resolveFeatureRules(siteLogoutRule, appLogoutRule);
+    result.logout.enabled = checkUserAccessToFeature(user, resolvedLogoutRules);
+    result.logout.menuItemTitle = appLogoutRule?.menuItemTitle ?? siteLogoutRule.menuItemTitle ?? result.logout.menuItemTitle;
+    result.logout.dialogTitle = appLogoutRule?.dialogTitle ?? siteLogoutRule.dialogTitle ?? result.logout.dialogTitle;
+    result.logout.dialogDescription = appLogoutRule?.dialogDescription ?? siteLogoutRule.dialogDescription ?? result.logout.dialogDescription;
 
     return result;
 }

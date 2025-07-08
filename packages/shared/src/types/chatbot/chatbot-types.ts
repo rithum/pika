@@ -146,7 +146,7 @@ export interface ChatMessage {
     verifications?: {
         main: VerifyResponseClassification;
         correction?: VerifyResponseClassification;
-    }
+    };
 }
 
 export interface ChatMessageForRendering extends ChatMessage {
@@ -355,9 +355,21 @@ export interface ChatAppOverridableFeatures {
      * relying solely on the chat.
      */
     chatDisclaimerNotice: string | undefined;
+
+    /**
+     * If true, then the logout feature is enabled.  If enabled, then the user will see a logout menu item
+     * in the chat app.  If the user clicks the logout menu item, then the user will be logged out and
+     * redirected.
+     */
+    logout: {
+        enabled: boolean;
+        menuItemTitle: string;
+        dialogTitle: string;
+        dialogDescription: string;
+    };
 }
 
-export type ChatAppOverridableFeaturesForConverseFn = Omit<ChatAppOverridableFeatures, 'chatDisclaimerNotice' | 'traces'>;
+export type ChatAppOverridableFeaturesForConverseFn = Omit<ChatAppOverridableFeatures, 'chatDisclaimerNotice' | 'traces' | 'logout'>;
 
 /**
  * By default, content rules exclude anything not explicitly included.
@@ -980,7 +992,7 @@ export interface Feature {
     enabled: boolean;
 }
 
-export const FeatureIdList = ['fileUpload', 'promptInputFieldLabel', 'suggestions', 'uiCustomization', 'verifyResponse', 'traces', 'chatDisclaimerNotice'] as const;
+export const FeatureIdList = ['fileUpload', 'promptInputFieldLabel', 'suggestions', 'uiCustomization', 'verifyResponse', 'traces', 'chatDisclaimerNotice', 'logout'] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
 export const EndToEndFeatureIdList = ['verifyResponse', 'traces'] as const;
@@ -996,7 +1008,8 @@ export const DEFAULT_FEATURE_ENABLED_VALUE: Record<FeatureIdType, boolean> = {
     uiCustomization: false,
     verifyResponse: false,
     traces: false,
-    chatDisclaimerNotice: false
+    chatDisclaimerNotice: false,
+    logout: false
 };
 
 export const FEATURE_NAMES: Record<FeatureIdType, string> = {
@@ -1006,8 +1019,39 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     uiCustomization: 'UI Customization',
     verifyResponse: 'Verify Response',
     traces: 'Traces',
-    chatDisclaimerNotice: 'Chat Disclaimer Notice'
+    chatDisclaimerNotice: 'Chat Disclaimer Notice',
+    logout: 'Logout'
 };
+
+/**
+ * Why make this a feature?  Some enterprises that allow their internal users to act on behalf of other
+ * users and accounts for the purpose of debugging and troubleshooting.  So, if the user is logged in as
+ * one account, they can click a menu item to logout and then log in as another account.  The base case
+ * for external users is to likely not have this feature as they are piggy backing on auth from
+ * another enterprise site or system.
+ */
+export interface LogoutFeature extends AccessRules {
+    /**
+     * The title of the menu item that will be displayed to authorized users that when clicked will
+     * log them out of the chat app.  Defaults to "Logout".
+     */
+    menuItemTitle?: string;
+
+    /**
+     * The title of the dialog that will be displayed when the user clicks the menu item.  Defaults to "Logout".
+     */
+    dialogTitle?: string;
+
+    /**
+     * The description that appears benath the title in the dialog window. Defaults to
+     * "Are you sure you want to logout?"
+     */
+    dialogDescription?: string;
+}
+
+export interface LogoutFeatureForChatApp extends LogoutFeature, Feature {
+    featureId: 'logout';
+}
 
 /**
  * If a notice is provided, Pika will display a disclaimer notice to the user.
@@ -1244,7 +1288,7 @@ export interface ViewContentForUserResponse extends ContentAdminCommandResponseB
     data: ChatUserLite | undefined;
 }
 
-export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase { }
+export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase {}
 
 export interface GetViewingContentForUserResponse extends ContentAdminCommandResponseBase {
     data: ChatUserLite[] | undefined;
@@ -1297,7 +1341,7 @@ export interface SaveUserOverrideDataResponse extends UserOverrideDataCommandRes
     data: RecordOrUndef;
 }
 
-export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase { }
+export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase {}
 
 /**
  * This is the type used to persist the user data override data to a cookie if provided.
@@ -1400,4 +1444,11 @@ export interface AuthenticateResult<T extends RecordOrUndef = undefined, U exten
     authenticatedUser?: AuthenticatedUser<T, U>;
     /** If present, we need to redirect to the URL specified. */
     redirectTo?: Response;
+}
+
+export interface CustomDataUiRepresentation {
+    /** The name you want to show in the UI to represent this custom data: e.g. "Account Name" */
+    title: string;
+    /** The value you want to show in the UI to represent this custom data: e.g. "Acme, Inc." */
+    value: string;
 }

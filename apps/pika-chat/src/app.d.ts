@@ -12,6 +12,7 @@ declare global {
             user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>;
             appConfig: AppConfig;
             customData?: Record<string, unknown> | undefined;
+            authProvider: AuthProvider<RecordOrUndef, RecordOrUndef>;
         }
         // interface PageData {
         //     session?: Session | null;

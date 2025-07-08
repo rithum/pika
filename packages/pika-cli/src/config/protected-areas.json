@@ -36,7 +36,8 @@
         "CODEOWNERS",
         "CONTRIBUTING.md",
         "apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts",
-        "apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte"
+        "apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte",
+        "apps/pika-chat/src/routes/(noauth)/logout/+page.svelte"
     ],
     "version": "1.0.1",
     "lastUpdated": "2025-06-19T12:00:00.000Z"

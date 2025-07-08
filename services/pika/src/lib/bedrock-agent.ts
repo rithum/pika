@@ -46,7 +46,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => { };
+                let set = (key: any, value: any) => {};
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -81,15 +81,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-            content: {
-                traceId?: string;
-                input?: unknown;
-                text: string;
-                type?: string;
-                name?: string;
-            }[];
-            traceId: string;
-        }
+              content: {
+                  traceId?: string;
+                  input?: unknown;
+                  text: string;
+                  type?: string;
+                  name?: string;
+              }[];
+              traceId: string;
+          }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -312,6 +312,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
 const verificationReprompts: Record<VerifyResponseClassification, string | null> = {
     [Accurate]: null,
+    [Unclassified]: null,
     [AccurateWithStatedAssumptions]: 'The previous response had assumptions that were stated.  Specify the assumptions you made.',
     [AccurateWithUnstatedAssumptions]: 'The previous response had assumptions that were not specified.  Specify the assumptions you made.',
     [Inaccurate]: 'The previous response is not factually correct.  Fix it with factually correct information.'
@@ -535,7 +536,6 @@ export async function invokeAgentToGetAnswer(
         main: Unclassified
     };
     try {
-
         console.log('Verifying response...');
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
         addUsage(mainResponse.usage);

@@ -23,7 +23,8 @@ import {
     type GetValuesForContentAdminAutoCompleteResponse,
     type SaveUserOverrideDataResponse,
     type UserOverrideDataCommandRequest,
-    type UserOverrideDataCommandResponse
+    type UserOverrideDataCommandResponse,
+    type CustomDataUiRepresentation
 } from '@pika/shared/types/chatbot/chatbot-types';
 import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
@@ -185,6 +186,7 @@ export class ChatAppState {
     initialDataForUserOverrideDialog = $state<unknown | undefined>(undefined);
     valuesForAutoCompleteForContentAdminDialog = $state<ChatUserLite[] | undefined>(undefined);
     #features = $state<ChatAppOverridableFeatures>() as ChatAppOverridableFeatures;
+    #customDataUiRepresentation = $state<CustomDataUiRepresentation | undefined>(undefined);
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -227,6 +229,10 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get customDataUiRepresentation() {
+        return this.#customDataUiRepresentation;
+    }
 
     get features() {
         return this.#features;
@@ -418,7 +424,8 @@ export class ChatAppState {
         componentRegistry: ComponentRegistry,
         userDataOverrideSettings: UserDataOverrideSettings,
         userIsContentAdmin: boolean,
-        features: ChatAppOverridableFeatures
+        features: ChatAppOverridableFeatures,
+        customDataUiRepresentation: CustomDataUiRepresentation | undefined
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -431,6 +438,7 @@ export class ChatAppState {
         this.#userDataOverrideSettings = userDataOverrideSettings;
         this.#userIsContentAdmin = userIsContentAdmin;
         this.#features = features;
+        this.#customDataUiRepresentation = customDataUiRepresentation;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;
