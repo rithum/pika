@@ -132,6 +132,13 @@
               expanded: boolean;
           }
         | {
+              type: 'knowledgeBaseInvocation';
+              title: string;
+              parameters?: { markdown: string; rawText: string };
+              response?: { markdown: string; rawText: string };
+              expanded: boolean;
+          }
+        | {
               type: 'text';
               title?: string;
               markdown: string;
@@ -166,7 +173,10 @@
     let groupedTraces = $derived.by(() => {
         const traces = message.traces || [];
         const grouped: GroupedTrace[] = [];
-        const toolInvocations = new Map<string, GroupedTrace & { type: 'toolInvocation' }>();
+        const toolInvocations = new Map<
+            string,
+            GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' }
+        >();
         const verificationTraces: GroupedTrace[] = [];
 
         // First pass: collect all traces and group tool invocations
@@ -277,6 +287,77 @@
                         toolInvocations.set(key, toolInvocation);
                     }
                 }
+            } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.text) {
+                // Parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.text,
+                    'plaintext'
+                );
+
+                // Use index as a key to group related parameters and responses
+                const key = `kb_${index}`;
+                let kbInvocation = dontGroupTraces ? null : toolInvocations.get(key);
+
+                if (!kbInvocation) {
+                    const kbId = val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.knowledgeBaseId;
+                    kbInvocation = {
+                        type: 'knowledgeBaseInvocation',
+                        title: kbId ? `Invoking Knowledge Base: ${kbId}` : 'Invoking Knowledge Base...',
+                        expanded: false,
+                    };
+                    if (dontGroupTraces) {
+                        grouped.push(kbInvocation);
+                    } else {
+                        toolInvocations.set(key, kbInvocation);
+                    }
+                }
+
+                kbInvocation.parameters = { markdown: md, rawText };
+            } else if (
+                detailedTrace &&
+                val.orchestrationTrace?.observation?.knowledgeBaseLookupOutput?.retrievedReferences
+            ) {
+                // Response trace - try to match with a previous parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.observation?.knowledgeBaseLookupOutput?.retrievedReferences,
+                    'try-json'
+                );
+
+                // Look for a tool invocation that doesn't have a response yet
+                let matchedKbInvocation = null;
+
+                if (dontGroupTraces) {
+                    matchedKbInvocation = grouped[grouped.length - 1];
+                    if (matchedKbInvocation.type != 'knowledgeBaseInvocation') {
+                        matchedKbInvocation = null;
+                    }
+                } else {
+                    for (const [key, toolInv] of toolInvocations) {
+                        if (!toolInv.response) {
+                            matchedKbInvocation = toolInv;
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedKbInvocation) {
+                    matchedKbInvocation.response = { markdown: md, rawText };
+                } else {
+                    // Create a new tool invocation for orphaned response
+                    const key = `kb_response_${index}`;
+                    const toolInvocation: GroupedTrace & { type: 'knowledgeBaseInvocation' } = {
+                        type: 'knowledgeBaseInvocation',
+                        title: 'Knowledge Base response',
+                        response: { markdown: md, rawText },
+                        expanded: false,
+                    };
+
+                    if (dontGroupTraces) {
+                        grouped.push(toolInvocation);
+                    } else {
+                        toolInvocations.set(key, toolInvocation);
+                    }
+                }
             }
         });
 
@@ -324,7 +405,7 @@
                         <div
                             class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px] max-w-[42rem]"
                         >
-                            {#if trace.type === 'toolInvocation'}
+                            {#if trace.type === 'toolInvocation' || trace.type === 'knowledgeBaseInvocation'}
                                 {@render toolInvocationTrace(trace)}
                             {:else if trace.type === 'verification'}
                                 {@render verificationTrace(trace)}
@@ -436,7 +517,7 @@
     </div>
 {/snippet}
 
-{#snippet toolInvocationTrace(trace: GroupedTrace & { type: 'toolInvocation' })}
+{#snippet toolInvocationTrace(trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' })}
     <div class="font-medium text-gray-700 mb-3">{trace.title}</div>
 
     {#if trace.parameters}
@@ -451,7 +532,7 @@
 {#snippet codeSection(
     title: string,
     content: { markdown: string; rawText: string },
-    trace: GroupedTrace & { type: 'toolInvocation' },
+    trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' },
     section: 'parameters' | 'response'
 )}
     <div class="mb-4">

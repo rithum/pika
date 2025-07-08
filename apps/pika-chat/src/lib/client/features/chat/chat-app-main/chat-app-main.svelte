@@ -34,9 +34,10 @@
     let previousSession = $state<any>(undefined);
 
     $effect(() => {
-        const height = inputRegionHeight;
-        if (resizeHeightEl) {
-            resizeHeightEl.style.bottom = `${height}px`;
+        let height = document.getElementById('cam-input-region-container')?.getBoundingClientRect()?.height;
+        if (resizeHeightEl && height) {
+            resizeHeightEl.style.paddingBottom = `${height}px`;
+            resizeHeightEl.style.scrollPaddingBottom = `${height}px`;
         }
     });
 
@@ -213,7 +214,7 @@
 
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
         <!-- Scrollable area that spans full width with right-aligned scrollbar -->
-        <div class="absolute inset-0 bottom-[80px] overflow-y-auto" bind:this={resizeHeightEl}>
+        <div class="inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto" bind:this={resizeHeightEl}>
             <!-- Centered content container -->
             <div class="w-full max-w-[768px] mx-auto" bind:this={scrollToDiv}>
                 <div class="pb-4 px-4 pt-10">
@@ -277,7 +278,7 @@
         </div>
 
         <!-- Fixed input at bottom, also centered -->
-        <div class="absolute bottom-0 left-0 right-0 bg-background pt-2 mb-6 px-4">
+        <div class="absolute bottom-0 left-0 right-0 bg-background pt-2 mb-0 pb-6 mx-4" id="cam-input-region-container">
             <div class="w-full max-w-[768px] mx-auto">
                 <ChatInput bind:inputRegionHeight />
             </div>
