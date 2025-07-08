@@ -1376,3 +1376,17 @@ export const RetryableVerifyResponseClassifications = [AccurateWithStatedAssumpt
  * The classifications that can be retried by the agent.
  */
 export type RetryableVerifyResponseClassification = (typeof RetryableVerifyResponseClassifications)[number];
+
+/**
+ * The result of the authentication process.
+ *
+ * If both authenticatedUser and redirectTo are present, we set cookie to indiate logged in and redirect to the URL specified.
+ * If only authenticatedUser is present, we are authenticated and can continue with the request whatever the URL currently is.
+ * If neither are present, we are not authenticated and we willredirect to the login page.
+ */
+export interface AuthenticateResult<T extends RecordOrUndef = undefined, U extends RecordOrUndef = undefined> {
+    /** If present, we are authenticated and can continue with the request. */
+    authenticatedUser?: AuthenticatedUser<T, U>;
+    /** If present, we need to redirect to the URL specified. */
+    redirectTo?: Response;
+}

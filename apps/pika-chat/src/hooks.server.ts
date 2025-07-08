@@ -71,35 +71,42 @@ export const handle: Handle = async ({ event, resolve }) => {
             // Attempt authentication
             const authResult = await authProvider.authenticate(event);
 
-            if (authResult instanceof Response) {
+            if (authResult.authenticatedUser) {
+                // User authenticated successfully
+                user = authResult.authenticatedUser;
+
+                // Handle chat user creation/retrieval
+                let chatUser = await getChatUser(user.userId);
+
+                if (!chatUser) {
+                    // Clone and get rid of the auth data which should not be stored in the chat database
+                    const newChatUser = { ...user } as any;
+                    delete newChatUser.authData;
+                    chatUser = await createChatUser(newChatUser);
+                } else {
+                    // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
+                    mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
+                }
+
+                // Serialize the user to cookies (handles large data automatically)
+                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+            }
+
+            if (authResult.redirectTo) {
                 // Handle redirects, OAuth flows, etc.
-                return authResult;
+                return authResult.redirectTo;
             }
 
-            // User authenticated successfully
-            user = authResult;
-
-            // Handle chat user creation/retrieval
-            let chatUser = await getChatUser(user.userId);
-
-            if (!chatUser) {
-                // Clone and get rid of the auth data which should not be stored in the chat database
-                const newChatUser = { ...user } as any;
-                delete newChatUser.authData;
-                chatUser = await createChatUser(newChatUser);
-            } else {
-                // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
-                mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
+            if (!user) {
+                // No user - we are not authenticated and need to redirect to the login page
+                return redirect(302, '/login');
             }
-
-            // Serialize the user to cookies (handles large data automatically)
-            serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
         } catch (error) {
             if (error instanceof NotAuthenticatedError) {
                 // Clear any invalid cookies
                 clearAllCookies(event);
                 // Redirect to login
-                throw redirect(302, '/login');
+                return redirect(302, '/login');
             }
             // Re-throw other errors
             throw error;
@@ -124,7 +131,7 @@ export const handle: Handle = async ({ event, resolve }) => {
             if (error instanceof ForceUserToReauthenticateError) {
                 // Clear cookies and redirect to login
                 clearAllCookies(event);
-                throw redirect(302, '/login');
+                return redirect(302, '/login');
             }
             // Re-throw other errors
             throw error;

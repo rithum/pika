@@ -431,7 +431,7 @@ interface MyCustomData {
 // Properly typed provider
 export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomData> {
     // Methods are automatically typed with your specific types
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<MyAuthData, MyCustomData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<MyAuthData, MyCustomData>> {
         // Implementation
     }
 }
@@ -519,7 +519,7 @@ import { redirect } from '@sveltejs/kit';
 import type { YourCustomAuthData, YourCustomUserData } from './types';
 
 export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, YourCustomUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<YourCustomAuthData, YourCustomUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<YourCustomAuthData, YourCustomUserData>> {
         // Check if this is an OAuth callback
         if (event.url.pathname.startsWith('/oauth/callback')) {
             return this.handleOAuthCallback(event);
@@ -534,13 +534,14 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         const authToken = this.extractAuthToken(event);
         if (!authToken) {
             // No token found - redirect to login
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
             // Validate token and get user data
             const userData = await this.getUserFromAuthProvider(authToken);
-            return this.createAuthenticatedUser(userData, authToken);
+            const user = this.createAuthenticatedUser(userData, authToken);
+            return { authenticatedUser: user };
         } catch (error) {
             // Token invalid or expired - throw NotAuthenticatedError
             throw new NotAuthenticatedError('Invalid or expired token');
@@ -675,7 +676,7 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         };
     }
 
-    private async startOAuthFlow(event: RequestEvent): Promise<Response> {
+    private async startOAuthFlow(event: RequestEvent): Promise<AuthenticateResult<YourCustomAuthData, YourCustomUserData>> {
         // Redirect to your auth provider's login page
         const authUrl = new URL('https://your-auth-provider.com/oauth/authorize');
         authUrl.searchParams.set('client_id', 'your-client-id');
@@ -683,13 +684,13 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         authUrl.searchParams.set('response_type', 'code');
         authUrl.searchParams.set('scope', 'openid profile email');
 
-        return redirect(302, authUrl.toString());
+        return { redirectTo: redirect(302, authUrl.toString()) };
     }
 
-    private async handleOAuthCallback(event: RequestEvent): Promise<Response> {
+    private async handleOAuthCallback(event: RequestEvent): Promise<AuthenticateResult<YourCustomAuthData, YourCustomUserData>> {
         const code = event.url.searchParams.get('code');
         if (!code) {
-            return redirect(302, '/login?error=no_code');
+            return { redirectTo: redirect(302, '/login?error=no_code') };
         }
 
         // Exchange code for tokens
@@ -710,7 +711,7 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         });
 
         // Redirect to main app
-        return redirect(302, '/');
+        return { redirectTo: redirect(302, '/') };
     }
 
     private async exchangeCodeForTokens(code: string, redirectUri: string): Promise<any> {
@@ -829,14 +830,15 @@ interface OAuthClientUserData {
 }
 
 export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAuthData, OAuthClientUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<OAuthClientAuthData, OAuthClientUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<OAuthClientAuthData, OAuthClientUserData>> {
         // Check if this is a callback from client-side auth
         const authCode = event.url.searchParams.get('auth_code');
         if (authCode) {
             // Exchange code for tokens and create user
             const tokens = await this.exchangeCodeForTokens(authCode);
             const userData = await this.getUserFromProvider(tokens.access_token);
-            return this.createAuthenticatedUser(userData, tokens);
+            const user = this.createAuthenticatedUser(userData, tokens);
+            return { authenticatedUser: user };
         }
 
         // Check for existing token
@@ -844,7 +846,8 @@ export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAut
         if (token) {
             try {
                 const userData = await this.getUserFromProvider(token);
-                return this.createAuthenticatedUser(userData, { access_token: token });
+                const user = this.createAuthenticatedUser(userData, { access_token: token });
+                return { authenticatedUser: user };
             } catch (error) {
                 // Token invalid, clear it and redirect to client auth
                 event.cookies.delete('oauth-token');
@@ -852,7 +855,7 @@ export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAut
         }
 
         // No valid token found - redirect to client-side auth
-        return redirect(302, '/auth/client-auth');
+        return { redirectTo: redirect(302, '/auth/client-auth') };
     }
 
     async addValueToLocalsForRoute(
@@ -1048,17 +1051,17 @@ interface GoogleUserData {
 }
 
 export default class GoogleAuthProvider extends AuthProvider<GoogleAuthData, GoogleUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<GoogleAuthData, GoogleUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<GoogleAuthData, GoogleUserData>> {
         const token = event.cookies.get('google-token');
         if (!token) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         const userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { Authorization: `Bearer ${token}` }
         }).then((r) => r.json());
 
-        return {
+        const user = {
             userId: userInfo.id,
             firstName: userInfo.given_name,
             lastName: userInfo.family_name,
@@ -1080,9 +1083,11 @@ export default class GoogleAuthProvider extends AuthProvider<GoogleAuthData, Goo
                 history: { type: 'history', history: true }
             }
         };
+
+        return { authenticatedUser: user };
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<GoogleAuthData, GoogleUserData>): Promise<AuthenticatedUser<GoogleAuthData, GoogleUserData> | undefined> {
+    async validateUser(event: RequestEvent, user: AuthenticatedUser<GoogleAuthData, GoogleUserData>): Promise<AuthenticateResult<GoogleAuthData, GoogleUserData> | undefined> {
         const token = user.authData.accessToken;
 
         try {
@@ -1133,18 +1138,20 @@ interface SAMLUserData {
 }
 
 export default class SAMLAuthProvider extends AuthProvider<SAMLAuthData, SAMLUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<SAMLAuthData, SAMLUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<SAMLAuthData, SAMLUserData>> {
         const samlResponse = event.url.searchParams.get('SAMLResponse');
         if (samlResponse) {
             const userData = await this.validateSAMLResponse(samlResponse);
-            return this.createUserFromSAML(userData);
+            const user = this.createUserFromSAML(userData);
+            return { authenticatedUser: user };
         }
 
         // Check for existing session
         const sessionId = event.cookies.get('saml-session');
         if (sessionId) {
             const userData = await this.getUserFromSession(sessionId);
-            return this.createUserFromSAML(userData);
+            const user = this.createUserFromSAML(userData);
+            return { authenticatedUser: user };
         }
 
         throw new NotAuthenticatedError('No valid SAML session');
@@ -1203,16 +1210,17 @@ interface JWTUserData {
 }
 
 export default class JWTAuthProvider extends AuthProvider<JWTAuthData, JWTUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<JWTAuthData, JWTUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<JWTAuthData, JWTUserData>> {
         const token = event.cookies.get('jwt-token');
         if (!token) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             const userData = await this.getUserFromDatabase(decoded.userId);
-            return this.createUserFromDatabase(userData, token);
+            const user = this.createUserFromDatabase(userData, token);
+            return { authenticatedUser: user };
         } catch (error) {
             // Token invalid or expired
             event.cookies.delete('jwt-token');
@@ -1289,13 +1297,13 @@ interface MultiTenantUserData {
 }
 
 export default class MultiTenantAuthProvider extends AuthProvider<MultiTenantAuthData, MultiTenantUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<MultiTenantAuthData, MultiTenantUserData>> {
         // Check for organization context in URL or headers
         const orgId = event.url.searchParams.get('org') || event.request.headers.get('x-organization-id') || event.cookies.get('current-org');
 
         const token = event.cookies.get('auth-token');
         if (!token) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
@@ -1310,7 +1318,8 @@ export default class MultiTenantAuthProvider extends AuthProvider<MultiTenantAut
                 throw new NotAuthenticatedError('Access denied to organization');
             }
 
-            return this.createMultiTenantUser(userData, targetOrgId);
+            const user = this.createMultiTenantUser(userData, targetOrgId);
+            return { authenticatedUser: user };
         } catch (error) {
             throw new NotAuthenticatedError('Multi-tenant authentication failed');
         }
@@ -1382,7 +1391,7 @@ interface ServiceUserData {
 }
 
 export default class APIKeyAuthProvider extends AuthProvider<APIKeyAuthData, ServiceUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<APIKeyAuthData, ServiceUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<APIKeyAuthData, ServiceUserData>> {
         const apiKey = event.request.headers.get('x-api-key') || event.cookies.get('api-key');
 
         if (!apiKey) {
@@ -1391,7 +1400,8 @@ export default class APIKeyAuthProvider extends AuthProvider<APIKeyAuthData, Ser
 
         try {
             const serviceData = await this.validateAPIKey(apiKey);
-            return this.createServiceUser(serviceData, apiKey);
+            const user = this.createServiceUser(serviceData, apiKey);
+            return { authenticatedUser: user };
         } catch (error) {
             throw new NotAuthenticatedError('Invalid API key');
         }
@@ -1449,11 +1459,11 @@ interface SessionUserData {
 }
 
 export default class SessionAuthProvider extends AuthProvider<SessionAuthData, SessionUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<SessionAuthData, SessionUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<SessionAuthData, SessionUserData>> {
         const sessionId = event.cookies.get('session-id');
 
         if (!sessionId) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
@@ -1468,7 +1478,8 @@ export default class SessionAuthProvider extends AuthProvider<SessionAuthData, S
                 throw new NotAuthenticatedError('Session expired');
             }
 
-            return this.createUserFromSession(sessionData);
+            const user = this.createUserFromSession(sessionData);
+            return { authenticatedUser: user };
         } catch (error) {
             event.cookies.delete('session-id');
             throw new NotAuthenticatedError('Invalid session');
@@ -1520,7 +1531,7 @@ interface OAuth2PKCEUserData {
 }
 
 export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData, OAuth2PKCEUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<OAuth2PKCEAuthData, OAuth2PKCEUserData>> {
         const code = event.url.searchParams.get('code');
         const state = event.url.searchParams.get('state');
         const codeVerifier = event.cookies.get('code_verifier');
@@ -1535,7 +1546,8 @@ export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData,
         if (accessToken) {
             try {
                 const userData = await this.getUserWithToken(accessToken);
-                return this.createUserFromOAuth(userData, accessToken);
+                const user = this.createUserFromOAuth(userData, accessToken);
+                return { authenticatedUser: user };
             } catch (error) {
                 // Token invalid, clear cookies and redirect to login
                 event.cookies.delete('access_token');
@@ -1582,7 +1594,7 @@ export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData,
         }
     }
 
-    private async startOAuthFlow(event: RequestEvent): Promise<Response> {
+    private async startOAuthFlow(event: RequestEvent): Promise<AuthenticateResult<OAuth2PKCEAuthData, OAuth2PKCEUserData>> {
         const codeVerifier = this.generateCodeVerifier();
         const codeChallenge = await this.generateCodeChallenge(codeVerifier);
         const state = this.generateState();
@@ -1600,7 +1612,7 @@ export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData,
         authUrl.searchParams.set('code_challenge_method', 'S256');
         authUrl.searchParams.set('state', state);
 
-        return redirect(302, authUrl.toString());
+        return { redirectTo: redirect(302, authUrl.toString()) };
     }
 }
 ```
@@ -1624,15 +1636,16 @@ interface RBACUserData {
 }
 
 export default class RBACAuthProvider extends AuthProvider<RBACAuthData, RBACUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<RBACAuthData, RBACUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<RBACAuthData, RBACUserData>> {
         const token = event.cookies.get('auth-token');
         if (!token) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
             const userData = await this.getUserWithRoles(token);
-            return this.createRBACUser(userData, token);
+            const user = this.createRBACUser(userData, token);
+            return { authenticatedUser: user };
         } catch (error) {
             throw new NotAuthenticatedError('RBAC authentication failed');
         }
@@ -1699,12 +1712,12 @@ interface TwoFactorUserData {
 }
 
 export default class TwoFactorAuthProvider extends AuthProvider<TwoFactorAuthData, TwoFactorUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<TwoFactorAuthData, TwoFactorUserData>> {
         const token = event.cookies.get('auth-token');
         const twoFactorToken = event.cookies.get('2fa-token');
 
         if (!token) {
-            return redirect(302, '/login');
+            return { redirectTo: redirect(302, '/login') };
         }
 
         try {
@@ -1713,7 +1726,7 @@ export default class TwoFactorAuthProvider extends AuthProvider<TwoFactorAuthDat
             // Check if user has 2FA enabled
             if (userData.twoFactorEnabled && !twoFactorToken) {
                 // User needs to complete 2FA
-                return redirect(302, '/2fa/verify');
+                return { redirectTo: redirect(302, '/2fa/verify') };
             }
 
             // Validate 2FA if required
@@ -1721,11 +1734,12 @@ export default class TwoFactorAuthProvider extends AuthProvider<TwoFactorAuthDat
                 const isValid2FA = await this.validateTwoFactorToken(userData.id, twoFactorToken);
                 if (!isValid2FA) {
                     event.cookies.delete('2fa-token');
-                    return redirect(302, '/2fa/verify');
+                    return { redirectTo: redirect(302, '/2fa/verify') };
                 }
             }
 
-            return this.createTwoFactorUser(userData, token, twoFactorToken);
+            const user = this.createTwoFactorUser(userData, token, twoFactorToken);
+            return { authenticatedUser: user };
         } catch (error) {
             throw new NotAuthenticatedError('Two-factor authentication failed');
         }
@@ -1764,7 +1778,7 @@ interface WebhookUserData {
 }
 
 export default class WebhookAuthProvider extends AuthProvider<WebhookAuthData, WebhookUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticatedUser<WebhookAuthData, WebhookUserData> | Response> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<WebhookAuthData, WebhookUserData>> {
         // Verify webhook signature
         const signature = event.request.headers.get('x-webhook-signature');
         const payload = await event.request.text();
@@ -1777,7 +1791,8 @@ export default class WebhookAuthProvider extends AuthProvider<WebhookAuthData, W
 
         // Extract user information from webhook payload
         const userData = await this.processWebhookData(webhookData);
-        return this.createWebhookUser(userData);
+        const user = this.createWebhookUser(userData);
+        return { authenticatedUser: user };
     }
 
     async validateUser(event: RequestEvent, user: AuthenticatedUser<WebhookAuthData, WebhookUserData>): Promise<AuthenticatedUser<WebhookAuthData, WebhookUserData> | undefined> {

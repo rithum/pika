@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult } from '@pika/shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
 export interface MockAuthData extends Record<string, string | undefined> {
@@ -26,7 +26,7 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
         super(stage);
     }
 
-    async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<MockAuthData, MockCustomData>> {
+    async authenticate(_event: RequestEvent): Promise<AuthenticateResult<MockAuthData, MockCustomData>> {
         // Create a mock user (existing MockAuthData)
         const user: AuthenticatedUser<MockAuthData, MockCustomData> = {
             userId: '123',
@@ -53,6 +53,6 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
             roles: ['pika:content-admin']
         };
 
-        return user;
+        return { authenticatedUser: user };
     }
 }

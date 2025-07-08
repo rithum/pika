@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
  * Custom exception for authentication failures
@@ -52,9 +52,10 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * tools but NOT the agent itself.
      *
      * @param event - The request event
-     * @returns The authenticated user or a response to redirect to
+     * @returns The authenticated user or a response to redirect to or both (to indicate logged in and redirect to the URL specified).
+     *          If neither are present, we are not authenticated and we will redirect to the login page.
      */
-    abstract authenticate(event: RequestEvent): Promise<AuthenticatedUser<T, U> | Response>;
+    abstract authenticate(event: RequestEvent): Promise<AuthenticateResult<T, U>>;
 
     /**
      * Validate/refresh the user's authentication (when user cookie exists)
