@@ -10,7 +10,9 @@ import {
     ChatUserAddOrUpdateResponse,
     ChatUserResponse,
     ChatUserSearchResponse,
-    ConverseRequest
+    ConverseRequest,
+    PikaUserRoles,
+    UserType
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
@@ -203,6 +205,17 @@ async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequest
     }
 
     const messages = await getChatMessages(user.userId, sessionId);
+
+    // TODO: Only return internal trace details if the user is an internal user.
+    // if (user.userType != 'internal-user') {
+    //     messages.forEach(m => {
+    //         m.traces = m.traces?.filter(t => {
+    //             return !t.orchestrationTrace?.invocationInput &&
+    //                 !t.orchestrationTrace?.observation?.actionGroupInvocationOutput &&
+    //                 !t.orchestrationTrace?.observation?.knowledgeBaseLookupOutput
+    //         });
+    //     })
+    // }
     return {
         success: true,
         messages

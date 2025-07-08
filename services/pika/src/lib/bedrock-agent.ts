@@ -46,7 +46,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => {};
+                let set = (key: any, value: any) => { };
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -81,15 +81,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-              content: {
-                  traceId?: string;
-                  input?: unknown;
-                  text: string;
-                  type?: string;
-                  name?: string;
-              }[];
-              traceId: string;
-          }
+            content: {
+                traceId?: string;
+                input?: unknown;
+                text: string;
+                type?: string;
+                name?: string;
+            }[];
+            traceId: string;
+        }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -178,9 +178,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
                 //TODO: check type when done
                 if (
+                    // Tool & KB Invocations
                     trace.orchestrationTrace?.invocationInput ||
                     trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+                    trace.orchestrationTrace?.observation?.knowledgeBaseLookupOutput ||
+
+                    // Usage
                     trace.orchestrationTrace?.modelInvocationOutput ||
+
+                    // Thinking & Errors
                     trace.orchestrationTrace?.rationale ||
                     trace.failureTrace
                 ) {
