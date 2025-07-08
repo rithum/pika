@@ -41,7 +41,7 @@
     const detailedTrace = $derived(chatAppState.features.traces.detailedTraces);
 
     // TODO: Pull this from the correct user setting
-    const dontGroupTraces = true; //$derived(chatAppState.features.traceDontGroup?.value);
+    const dontGroupTraces = $derived(chatAppState.features.traceDontGroup?.value);
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {
