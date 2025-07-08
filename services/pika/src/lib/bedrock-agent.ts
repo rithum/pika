@@ -18,6 +18,7 @@ import {
     type ChatSession,
     Inaccurate,
     type SimpleAuthenticatedUser,
+    Unclassified,
     type VerifyResponseClassification,
     VerifyResponseClassifications
 } from '@pika/shared/types/chatbot/chatbot-types';
@@ -45,7 +46,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => {};
+                let set = (key: any, value: any) => { };
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -80,15 +81,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-              content: {
-                  traceId?: string;
-                  input?: unknown;
-                  text: string;
-                  type?: string;
-                  name?: string;
-              }[];
-              traceId: string;
-          }
+            content: {
+                traceId?: string;
+                input?: unknown;
+                text: string;
+                type?: string;
+                name?: string;
+            }[];
+            traceId: string;
+        }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -527,8 +528,15 @@ export async function invokeAgentToGetAnswer(
             throw error;
         }
     };
+    let verifications: {
+        main: VerifyResponseClassification;
+        correction?: VerifyResponseClassification;
+    } = {
+        main: Unclassified
+    };
     try {
-        console.log('Invoking main agent...');
+
+        console.log('Verifying response...');
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
         addUsage(mainResponse.usage);
         if (mainResponse.error) {
@@ -536,13 +544,12 @@ export async function invokeAgentToGetAnswer(
         }
 
         if (features.verifyResponse.enabled) {
-            console.log('Verifying response...');
             let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
             addUsage(verifyResponse.usage);
             if (verifyResponse.error) {
                 console.log('Error during Verification.  Proceeding w/o verification', verifyResponse.error);
             }
-
+            verifications.main = verifyResponse.classification;
             hooks.onTrace({
                 orchestrationTrace: {
                     rationale: {
@@ -589,6 +596,19 @@ export async function invokeAgentToGetAnswer(
                     if (correctionResponse.error) {
                         throw correctionResponse.error;
                     }
+                    let correctionVerifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
+                    addUsage(correctionVerifyResponse.usage);
+                    if (correctionVerifyResponse.error) {
+                        console.log('Error during Correction Verification.  Proceeding w/o verification', correctionVerifyResponse.error);
+                    }
+                    verifications.correction = correctionVerifyResponse.classification;
+                    hooks.onTrace({
+                        orchestrationTrace: {
+                            rationale: {
+                                text: `Correction Verified Response: ${correctionVerifyResponse.classification}`
+                            }
+                        }
+                    });
                 }
             }
         }
@@ -612,6 +632,7 @@ export async function invokeAgentToGetAnswer(
         //TODO: need to figure out what the actual type is for the trace and whether to use my own type or the one from the SDK
         traces: convertDatesToStrings(traces) as Trace[],
         usage,
+        verifications,
         ...(error ? { additionalData: sanitizeAndStringifyError(error) } : {})
     };
 

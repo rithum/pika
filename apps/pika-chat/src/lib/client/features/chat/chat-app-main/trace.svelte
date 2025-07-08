@@ -39,6 +39,9 @@
 
     const chatAppState = getContext<ChatAppState>('chatAppState');
     const detailedTrace = $derived(chatAppState.features.traces.detailedTraces);
+
+    // TODO: Pull this from the correct user setting
+    const dontGroupTraces = $derived(chatAppState.features.traceDontGroup?.value);
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {
@@ -137,6 +140,7 @@
           }
         | {
               type: 'verification';
+              title?: string;
               grade: string;
               expanded: boolean;
           };
@@ -171,11 +175,15 @@
                 const rationaleText = val.orchestrationTrace.rationale.text;
 
                 // Check if this is a verification trace
-                const verificationMatch = rationaleText.match(/^Verified Response:\s+([A-F])$/);
+                const verificationMatch = rationaleText.match(/^(.*?Verified Response):\s+([A-Z])$/);
                 if (verificationMatch) {
-                    verificationTraces.push({
+                    let a = dontGroupTraces ? grouped : verificationTraces;
+                    a.push({
                         type: 'verification',
-                        grade: verificationMatch[1],
+                        title: verificationMatch[1].match(/correction/i)
+                            ? 'Correction Verification'
+                            : 'Response Verification',
+                        grade: verificationMatch[2],
                         expanded: false,
                     });
                 } else {
@@ -204,7 +212,7 @@
 
                 // Use index as a key to group related parameters and responses
                 const key = `tool_${index}`;
-                let toolInvocation = toolInvocations.get(key);
+                let toolInvocation = dontGroupTraces ? null : toolInvocations.get(key);
 
                 if (!toolInvocation) {
                     const functionName = extractFunctionName(rawText);
@@ -213,7 +221,11 @@
                         title: functionName ? `Invoking tool: ${functionName}` : 'Invoking tool...',
                         expanded: false,
                     };
-                    toolInvocations.set(key, toolInvocation);
+                    if (dontGroupTraces) {
+                        grouped.push(toolInvocation);
+                    } else {
+                        toolInvocations.set(key, toolInvocation);
+                    }
                 }
 
                 toolInvocation.parameters = { markdown: md, rawText };
@@ -232,10 +244,18 @@
 
                 // Look for a tool invocation that doesn't have a response yet
                 let matchedToolInvocation = null;
-                for (const [key, toolInv] of toolInvocations) {
-                    if (!toolInv.response) {
-                        matchedToolInvocation = toolInv;
-                        break;
+
+                if (dontGroupTraces) {
+                    matchedToolInvocation = grouped[grouped.length - 1];
+                    if (matchedToolInvocation.type != 'toolInvocation') {
+                        matchedToolInvocation = null;
+                    }
+                } else {
+                    for (const [key, toolInv] of toolInvocations) {
+                        if (!toolInv.response) {
+                            matchedToolInvocation = toolInv;
+                            break;
+                        }
                     }
                 }
 
@@ -250,7 +270,12 @@
                         response: { markdown: md, rawText },
                         expanded: false,
                     };
-                    toolInvocations.set(key, toolInvocation);
+
+                    if (dontGroupTraces) {
+                        grouped.push(toolInvocation);
+                    } else {
+                        toolInvocations.set(key, toolInvocation);
+                    }
                 }
             }
         });
@@ -338,7 +363,7 @@
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-3">
                 <div class="flex items-center gap-2">
-                    <span class="font-medium text-slate-700">Response Verification</span>
+                    <span class="font-medium text-slate-700">{trace.title ?? 'Response Verification'}</span>
                 </div>
                 <div
                     class={`px-2 py-1 rounded text-sm font-medium ${
@@ -348,7 +373,9 @@
                               ? 'bg-yellow-100 text-yellow-800'
                               : trace.grade === 'C'
                                 ? 'bg-orange-100 text-orange-800'
-                                : 'bg-red-100 text-red-800'
+                                : trace.grade === 'F'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
                     }`}
                 >
                     Grade {trace.grade}
@@ -372,6 +399,8 @@
                 This response is accurate but contains stated assumptions
             {:else if trace.grade === 'C'}
                 This response is accurate but contains unstated assumptions
+            {:else if trace.grade === 'U'}
+                This response was not verified
             {:else}
                 This response contains inaccurate information
             {/if}
@@ -396,6 +425,10 @@
                     <div class="flex items-center gap-2">
                         <span class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">F</span>
                         <span>Inaccurate or contains made up information</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">U</span>
+                        <span>Response was not verified</span>
                     </div>
                 </div>
             </div>
