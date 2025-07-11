@@ -580,6 +580,13 @@ export class PikaConstruct extends Construct {
         return chatUserTable;
     }
 
+    /**
+     * This table stores two kinds of records, chat app records (ChatApp type)
+     * and the overrides for a chat app (ChatAppOverride type).  If a chat app's ID is
+     * `weather` then its optional override record would be stored in this table
+     * with the chat app id `weather:override`.  Of course, we rip off the
+     * `:override` part to get the chatAppId.
+     */
     private createChatAppTable(): dynamodb.Table {
         const chatAppTable = new dynamodb.Table(this, 'ChatAppTable', {
             partitionKey: {
@@ -1179,6 +1186,10 @@ export class PikaConstruct extends Construct {
         const chatAppById = chatApp.addResource('{chatAppId}');
         chatAppById.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
         chatAppById.addMethod('PUT', new apigateway.LambdaIntegration(chatAdminApiFn));
+
+        const chatAppOverride = chatAppById.addResource('override');
+        chatAppOverride.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
+        chatAppOverride.addMethod('DELETE', new apigateway.LambdaIntegration(chatAdminApiFn));
 
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {

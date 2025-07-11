@@ -9,7 +9,7 @@
     import { Label } from 'bits-ui';
 
     const chat = getContext<ChatAppState>('chatAppState');
-    const fullPage = $derived(chat.chatApp.mode === 'fullpage');
+    const standalone = $derived(chat.mode === 'standalone');
     let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
     let userNeedsToProvideDataOverrides = $derived.by(() => {
         const settings = chat.userDataOverrideSettings;
@@ -62,7 +62,7 @@
 
 <div class="flex items-center p-4 border-b border-gray-100 sticky top-0 bg-background pl-3 pb-3">
     {#if !chat.appSidebarOpen}
-        {#if fullPage}
+        {#if standalone}
             <TooltipPlus tooltip={chat.appSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}>
                 <Button
                     variant="ghost"
@@ -100,7 +100,7 @@
     </TooltipPlus> -->
     <div class="font-semibold">{chat.pageTitle ?? ''}</div>
     <div class="ml-auto">
-        {#if !fullPage}
+        {#if !standalone}
             {@render newChatButton()}
             {@render settingsDropdown(true)}
             <Button

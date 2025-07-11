@@ -2,18 +2,16 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
 import type { ChatApp, ChatAppMode, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
-import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
+import type { UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import type { LayoutServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, url, locals }) => {
+export const load: LayoutServerLoad = async ({ params, url, locals }) => {
     const { chatAppId } = params;
     const modeParam = url.searchParams.get('mode') || undefined;
     let chatApp: ChatApp | undefined;
 
-    //TODO: what are we going to do with mode param.  We should probably just remove it.
-    // let mode: ChatAppMode | undefined;
-    if (modeParam && modeParam !== 'fullpage' && modeParam !== 'embedded') {
+    if (modeParam && modeParam !== 'standalone' && modeParam !== 'embedded') {
         throw error(400, 'Invalid mode');
     }
 
@@ -26,9 +24,14 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
     }
 
     const authProvider = locals.authProvider;
+    let customDataFieldPathToMatchUsersEntity: string | undefined;
+
+    if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
+        customDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+    }
 
     try {
-        const matchingChatApps = await getMatchingChatApps(locals.user, undefined, chatAppId);
+        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {
@@ -47,11 +50,6 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
     if (!chatApp.enabled) {
         throw error(404, 'Chat app is not enabled');
-    }
-
-    // Allow them to override the mode if they want to
-    if (modeParam) {
-        chatApp.mode = modeParam as ChatAppMode;
     }
 
     // Note you don't get to set user override data if you are viewing content for another user.
@@ -79,6 +77,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
         userDataOverrideSettings,
         userIsContentAdmin,
         features,
-        customDataUiRepresentation
+        customDataUiRepresentation,
+        mode: (modeParam ?? 'standalone') as ChatAppMode
     };
 };

@@ -1,4 +1,4 @@
-import type { PikaConfig } from './packages/shared/src/types/pika-types';
+import type { PikaConfig } from './packages/shared/src/types/chatbot/chatbot-types';
 
 export const pikaConfig: PikaConfig = {
     pika: {
@@ -58,8 +58,10 @@ export const pikaConfig: PikaConfig = {
             autoRepromptThreshold: 'C' // Accurate with unstated assumptions
         },
         logout: {
-            enabled: true,
-            userTypes: ['internal-user']
+            enabled: true
+        },
+        siteAdmin: {
+            websiteEnabled: true
         }
     }
 };

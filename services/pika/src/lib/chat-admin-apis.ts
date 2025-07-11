@@ -28,8 +28,15 @@ import type {
     ChatAppForCreate,
     ChatAppDataRequest,
     ChatAppForIdempotentCreateOrUpdate,
-    UpdateableChatAppFields
+    UpdateableChatAppFields,
+    ChatAppOverride,
+    CreateOrUpdateChatAppOverrideRequest,
+    DeleteChatAppOverrideRequest,
+    ChatAppOverrideForCreateOrUpdate,
+    ChatAppOverrideDdb,
+    UpdateableChatAppOverrideFields
 } from '@pika/shared/types/chatbot/chatbot-types';
+import { PikaUserRoles, UserTypes } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import {
     createAgent,
@@ -49,7 +56,10 @@ import {
     getChatAppById,
     createChatApp,
     updateChatApp,
-    deleteChatApp
+    deleteChatApp,
+    createChatAppOverrideDdb,
+    updateChatAppOverrideToDdb,
+    deleteChatAppOverrideDdb
 } from './chat-admin-ddb';
 import {
     agentsAreSame,
@@ -61,6 +71,7 @@ import {
     handleObjectFieldUpdate,
     validateEntitiesExist,
     arraysHaveSameElements,
+    arraysAreSame,
     recordsHaveSameElements,
     createEntityWithMetadata,
     calculateTTL
@@ -729,6 +740,11 @@ export async function createChatAppDefinition(request: CreateChatAppRequest): Pr
 
     const now = new Date().toISOString();
 
+    // You don't get to create the override this way, if there remove it
+    if (request.chatApp.override) {
+        delete request.chatApp.override;
+    }
+
     const chatApp: ChatApp = {
         ...request.chatApp,
         createDate: now,
@@ -741,6 +757,97 @@ export async function createChatAppDefinition(request: CreateChatAppRequest): Pr
     return chatApp;
 }
 
+export async function deleteChatAppOverride(chatAppId: string): Promise<void> {
+    await deleteChatAppOverrideDdb(`${chatAppId}:override`);
+}
+
+export async function createOrUpdateChatAppOverride(request: CreateOrUpdateChatAppOverrideRequest, chatAppId: string): Promise<ChatAppOverride> {
+    const existingChatApp = await getChatApp(chatAppId);
+    if (!existingChatApp) {
+        throw new Error(`Chat App ${chatAppId} not found`);
+    }
+
+    const errors = validateChatAppOverride(request.override);
+    if (errors.length > 0) {
+        console.error('createOrUpdateChatAppOverride - Validation errors:', errors);
+        throw new HttpStatusError(errors.join(', '), 400);
+    }
+
+    if (existingChatApp.override) {
+        // We are doing an update, just update the override record
+        return await updateChatAppOverride(existingChatApp.override, chatAppId, request.userId, request.override);
+    } else {
+        // We are doing a create, create the override record
+        return await createChatAppOverride(chatAppId, request.userId, request.override);
+    }
+}
+
+/**
+ * Do not call this until you are sure the chat app exists and has no override
+ */
+async function createChatAppOverride(chatAppId: string, userId: string, override: ChatAppOverrideForCreateOrUpdate): Promise<ChatAppOverride> {
+    const now = new Date().toISOString();
+    const chatAppOverride: ChatAppOverrideDdb = {
+        ...override,
+        createDate: now,
+        lastUpdate: now,
+        createdByUserId: userId,
+        updatedByUserId: userId,
+        chatAppId: `${chatAppId}:override`
+    };
+
+    await createChatAppOverrideDdb(chatAppOverride);
+
+    return chatAppOverride;
+}
+
+async function updateChatAppOverride(existingOverride: ChatAppOverride, chatAppId: string, userId: string, override: ChatAppOverrideForCreateOrUpdate): Promise<ChatAppOverride> {
+    const chatAppIdWithOverride = `${chatAppId}:override`;
+    const fieldsToUpdate = {} as Record<UpdateableChatAppOverrideFields, any>;
+    const fieldsToRemove: UpdateableChatAppOverrideFields[] = [];
+
+    handleRequiredFieldUpdate(override.enabled, existingOverride.enabled, 'enabled', fieldsToUpdate);
+    handleArrayFieldUpdate(override.userTypes, existingOverride.userTypes, 'userTypes', fieldsToUpdate, fieldsToRemove, true);
+    handleArrayFieldUpdate(override.userRoles, existingOverride.userRoles, 'userRoles', fieldsToUpdate, fieldsToRemove, true);
+    handleOptionalFieldUpdate(override.applyRulesAs, existingOverride.applyRulesAs, 'applyRulesAs', fieldsToUpdate, fieldsToRemove);
+
+    handleOptionalFieldUpdate(override.title, existingOverride.title, 'title', fieldsToUpdate, fieldsToRemove);
+    handleOptionalFieldUpdate(override.description, existingOverride.description, 'description', fieldsToUpdate, fieldsToRemove);
+    handleObjectFieldUpdate(override.features, existingOverride.features, 'features', fieldsToUpdate, fieldsToRemove, true);
+    handleOptionalFieldUpdate(override.dontCacheThis, existingOverride.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
+
+    handleArrayFieldUpdate(
+        override.exclusiveExternalAccessControl,
+        existingOverride.exclusiveExternalAccessControl,
+        'exclusiveExternalAccessControl',
+        fieldsToUpdate,
+        fieldsToRemove,
+        true
+    );
+    handleArrayFieldUpdate(
+        override.exclusiveInternalAccessControl,
+        existingOverride.exclusiveInternalAccessControl,
+        'exclusiveInternalAccessControl',
+        fieldsToUpdate,
+        fieldsToRemove,
+        true
+    );
+    handleArrayFieldUpdate(
+        override.exclusiveUserIdAccessControl,
+        existingOverride.exclusiveUserIdAccessControl,
+        'exclusiveUserIdAccessControl',
+        fieldsToUpdate,
+        fieldsToRemove,
+        true
+    );
+
+    if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
+        return existingOverride;
+    } else {
+        return await updateChatAppOverrideToDdb(chatAppId, chatAppIdWithOverride, userId, fieldsToUpdate, fieldsToRemove);
+    }
+}
+
 /**
  * Update an existing chat app
  * PUT /api/chat-admin/chat-app/{chatAppId}
@@ -749,6 +856,11 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
     const existingChatApp = await getChatApp(request.chatApp.chatAppId!);
     if (!existingChatApp) {
         throw new Error(`Chat App ${request.chatApp.chatAppId} not found`);
+    }
+
+    // You don't get to create the override this way, if there remove it
+    if (request.chatApp.override) {
+        delete request.chatApp.override;
     }
 
     const now = new Date().toISOString();
@@ -798,7 +910,6 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
         // Handle required fields that can only be updated
         handleRequiredFieldUpdate(request.chatApp.title, existingChatApp.title, 'title', fieldsToUpdate);
         handleRequiredFieldUpdate(request.chatApp.agentId, existingChatApp.agentId, 'agentId', fieldsToUpdate);
-        handleRequiredFieldUpdate(request.chatApp.mode, existingChatApp.mode, 'mode', fieldsToUpdate);
         handleRequiredFieldUpdate(request.chatApp.enabled, existingChatApp.enabled, 'enabled', fieldsToUpdate);
 
         // Handle optional fields that can be updated or removed
@@ -837,16 +948,105 @@ export function validateChatAppDefinition(chatApp: Partial<ChatApp>): string[] {
         errors.push('Agent ID is required and cannot be empty');
     }
 
-    if (!chatApp.mode || !['fullpage', 'embedded'].includes(chatApp.mode)) {
-        errors.push('Mode must be either "fullpage" or "embedded"');
-    }
-
     if (chatApp.enabled === undefined) {
         errors.push('Enabled field is required');
     }
 
+    if (chatApp.modesSupported && !Array.isArray(chatApp.modesSupported)) {
+        errors.push('ModesSupported must be an array of strings');
+    } else if (chatApp.modesSupported && chatApp.modesSupported.length > 0) {
+        for (const mode of chatApp.modesSupported) {
+            if (!['standalone', 'embedded'].includes(mode)) {
+                errors.push(`Invalid mode: ${mode}. Valid values are: standalone, embedded`);
+            }
+        }
+    }
+
     if (chatApp.features && (typeof chatApp.features !== 'object' || Array.isArray(chatApp.features))) {
         errors.push('Features must be a Record object with feature IDs as keys');
+    }
+
+    return errors;
+}
+
+/**
+ * Validate ChatAppOverride fields
+ */
+export function validateChatAppOverride(override: Partial<ChatAppOverride>): string[] {
+    const errors: string[] = [];
+
+    // enabled is required
+    if (override.enabled === undefined) {
+        errors.push('Enabled field is required');
+    } else if (typeof override.enabled !== 'boolean') {
+        errors.push('Enabled field must be a boolean');
+    }
+
+    // userTypes validation (optional)
+    if (override.userTypes !== undefined) {
+        if (!Array.isArray(override.userTypes)) {
+            errors.push('userTypes must be an array');
+        } else {
+            const invalidUserTypes = override.userTypes.filter((userType) => !UserTypes.includes(userType as any));
+            if (invalidUserTypes.length > 0) {
+                errors.push(`Invalid userTypes: ${invalidUserTypes.join(', ')}. Valid values are: ${UserTypes.join(', ')}`);
+            }
+        }
+    }
+
+    // userRoles validation (optional)
+    if (override.userRoles !== undefined) {
+        if (!Array.isArray(override.userRoles)) {
+            errors.push('userRoles must be an array');
+        } else {
+            const invalidUserRoles = override.userRoles.filter((role) => !PikaUserRoles.includes(role as any));
+            if (invalidUserRoles.length > 0) {
+                errors.push(`Invalid userRoles: ${invalidUserRoles.join(', ')}. Valid values are: ${PikaUserRoles.join(', ')}`);
+            }
+        }
+    }
+
+    // applyRulesAs validation (optional)
+    if (override.applyRulesAs !== undefined) {
+        if (!['and', 'or'].includes(override.applyRulesAs)) {
+            errors.push('applyRulesAs must be either "and" or "or"');
+        }
+    }
+
+    // exclusiveExternalAccessControl validation (optional)
+    if (override.exclusiveExternalAccessControl !== undefined) {
+        if (!Array.isArray(override.exclusiveExternalAccessControl)) {
+            errors.push('exclusiveExternalAccessControl must be an array');
+        } else {
+            const invalidEntries = override.exclusiveExternalAccessControl.filter((entry) => typeof entry !== 'string');
+            if (invalidEntries.length > 0) {
+                errors.push('exclusiveExternalAccessControl must be an array of strings');
+            }
+        }
+    }
+
+    // exclusiveInternalAccessControl validation (optional)
+    if (override.exclusiveInternalAccessControl !== undefined) {
+        if (!Array.isArray(override.exclusiveInternalAccessControl)) {
+            errors.push('exclusiveInternalAccessControl must be an array');
+        } else {
+            const invalidEntries = override.exclusiveInternalAccessControl.filter((entry) => typeof entry !== 'string');
+            if (invalidEntries.length > 0) {
+                errors.push('exclusiveInternalAccessControl must be an array of strings');
+            }
+        }
+    }
+
+    // exclusiveUserIdAccessControl validation (optional)
+    if (override.exclusiveUserIdAccessControl !== undefined) {
+        if (!Array.isArray(override.exclusiveUserIdAccessControl)) {
+            errors.push('exclusiveUserIdAccessControl must be an array');
+        } else {
+            const invalidEntries = override.exclusiveUserIdAccessControl.filter((entry) => typeof entry !== 'string');
+            if (invalidEntries.length > 0) {
+                errors.push('exclusiveUserIdAccessControl must be an array of strings');
+            }
+        }
     }
 
     return errors;
@@ -861,6 +1061,11 @@ export function validateChatAppDefinition(chatApp: Partial<ChatApp>): string[] {
  */
 export async function createOrUpdateChatAppIdempotently(chatAppData: ChatAppDataRequest): Promise<ChatApp> {
     console.log('createOrUpdateChatAppIdempotently - Starting with chatAppId:', chatAppData.chatApp.chatAppId);
+
+    // You don't get to create the override this way, if there remove it
+    if (chatAppData.chatApp.override) {
+        delete chatAppData.chatApp.override;
+    }
 
     try {
         const errors = validateChatAppDataRequest(chatAppData);
@@ -920,11 +1125,16 @@ async function updateChatAppData(chatAppData: ChatAppDataRequest, existingChatAp
 
     // Handle required fields that can only be updated
     handleRequiredFieldUpdate(chatAppData.chatApp.title, existingChatApp.title, 'title', fieldsToUpdate);
+    handleRequiredFieldUpdate(chatAppData.chatApp.description, existingChatApp.description, 'description', fieldsToUpdate);
     handleRequiredFieldUpdate(chatAppData.chatApp.agentId, existingChatApp.agentId, 'agentId', fieldsToUpdate);
-    handleRequiredFieldUpdate(chatAppData.chatApp.mode, existingChatApp.mode, 'mode', fieldsToUpdate);
     handleRequiredFieldUpdate(chatAppData.chatApp.enabled, existingChatApp.enabled, 'enabled', fieldsToUpdate);
+    handleArrayFieldUpdate(chatAppData.chatApp.modesSupported, existingChatApp.modesSupported, 'modesSupported', fieldsToUpdate, fieldsToRemove, true);
 
-    // Handle optional fields that can be updated or removed
+    // Handle optional array fields from AccessRules
+    handleArrayFieldUpdate(chatAppData.chatApp.userTypes, existingChatApp.userTypes, 'userTypes', fieldsToUpdate, fieldsToRemove, true);
+    handleArrayFieldUpdate(chatAppData.chatApp.userRoles, existingChatApp.userRoles, 'userRoles', fieldsToUpdate, fieldsToRemove, true);
+
+    // Handle other optional fields that can be updated or removed
     handleOptionalFieldUpdate(chatAppData.chatApp.dontCacheThis, existingChatApp.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
     handleObjectFieldUpdate(chatAppData.chatApp.features, existingChatApp.features, 'features', fieldsToUpdate, fieldsToRemove, true);
 
@@ -939,16 +1149,21 @@ async function updateChatAppData(chatAppData: ChatAppDataRequest, existingChatAp
 }
 
 /**
- * Helper function to compare if two chat apps are the same
+ * Helper function to compare if two chat apps are the same for updatable fields only
  */
 function chatAppsAreSame(chatApp1: ChatAppForIdempotentCreateOrUpdate, chatApp2: ChatApp): boolean {
-    // Compare required fields
+    // Compare required updatable fields
     if (chatApp1.title !== chatApp2.title) return false;
+    if (chatApp1.description !== chatApp2.description) return false;
     if (chatApp1.agentId !== chatApp2.agentId) return false;
-    if (chatApp1.mode !== chatApp2.mode) return false;
     if (chatApp1.enabled !== chatApp2.enabled) return false;
 
-    // Compare optional fields
+    // Compare optional updatable array fields
+    if (!arraysAreSame(chatApp1.modesSupported, chatApp2.modesSupported)) return false;
+    if (!arraysAreSame(chatApp1.userTypes, chatApp2.userTypes)) return false;
+    if (!arraysAreSame(chatApp1.userRoles, chatApp2.userRoles)) return false;
+
+    // Compare other optional updatable fields
     if (chatApp1.dontCacheThis !== chatApp2.dontCacheThis) return false;
 
     // Compare features record

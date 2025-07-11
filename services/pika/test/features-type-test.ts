@@ -69,7 +69,6 @@ describe('Features Type Change Verification', () => {
     test('should work with ChatApp interface using Partial<Record> features', () => {
         const chatApp: ChatApp = {
             chatAppId: 'test-app',
-            mode: 'fullpage',
             title: 'Test App',
             description: 'Test App Description',
             agentId: 'test-agent',

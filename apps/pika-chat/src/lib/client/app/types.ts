@@ -1,3 +1,5 @@
+import type { Component } from 'svelte';
+
 /**
  * State files need to be passed the actual fetch that is tricked out by svelte so it works client/server.
  * This is the type of the fetch function that is passed to state files.
@@ -8,6 +10,8 @@ export interface NavSubItem {
     title: string;
     url: string;
     isActive?: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pageComponent?: Component<any>;
 }
 
 export interface NavItem {
@@ -18,6 +22,8 @@ export interface NavItem {
     icon?: any;
     isActive?: boolean;
     items?: NavSubItem[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pageComponent?: Component<any>;
 }
 
 export interface User {

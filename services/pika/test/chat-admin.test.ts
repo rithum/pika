@@ -163,7 +163,7 @@ describe('Chat Admin API Integration Tests', () => {
 
     const mockChatAppDefinition = {
         chatAppId: `test-chat-app-${Date.now()}`,
-        mode: 'fullpage' as const,
+        mode: 'standalone' as const,
         dontCacheThis: true,
         test: true,
         title: 'Test Chat App',
@@ -197,7 +197,7 @@ describe('Chat Admin API Integration Tests', () => {
                 featureName: 'UI Customization',
                 enabled: true,
                 defaultEnabledValue: false,
-                showChatHistoryInFullPageMode: true,
+                showChatHistoryInStandaloneMode: true,
                 showUserRegionInLeftNav: false
             } as UiCustomizationFeature
         } as Record<FeatureIdType, ChatAppFeature>,
@@ -365,7 +365,6 @@ describe('Chat Admin API Integration Tests', () => {
             expect(response.data.chatApp).toBeDefined();
             expect(response.data.chatApp.chatAppId).toBe(mockChatAppDefinition.chatAppId);
             expect(response.data.chatApp.title).toBe(mockChatAppDefinition.title);
-            expect(response.data.chatApp.mode).toBe(mockChatAppDefinition.mode);
             expect(response.data.chatApp.enabled).toBe(true);
 
             createdChatAppId = response.data.chatApp.chatAppId;
@@ -402,7 +401,6 @@ describe('Chat Admin API Integration Tests', () => {
                     test: true,
                     title: 'Updated Test Chat App',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
-                    mode: 'embedded' as const,
                     enabled: false,
                     features: {
                         fileUpload: {
@@ -423,7 +421,6 @@ describe('Chat Admin API Integration Tests', () => {
             expect(response.data.success).toBe(true);
             expect(response.data.chatApp).toBeDefined();
             expect(response.data.chatApp.title).toBe('Updated Test Chat App');
-            expect(response.data.chatApp.mode).toBe('embedded');
             expect(response.data.chatApp.enabled).toBe(false);
 
             console.log('✓ PUT /api/chat-admin/chat-app/{chatAppId} - Update Chat App');
@@ -441,7 +438,6 @@ describe('Chat Admin API Integration Tests', () => {
             const chatAppDataRequest: ChatAppDataRequest = {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
-                    mode: 'fullpage' as const,
                     dontCacheThis: true,
                     test: true,
                     title: 'Idempotent Test Chat App',
@@ -486,7 +482,6 @@ describe('Chat Admin API Integration Tests', () => {
             const chatAppDataRequest: ChatAppDataRequest = {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
-                    mode: 'fullpage' as const,
                     dontCacheThis: true,
                     test: true,
                     title: 'Idempotent Test Chat App',
@@ -528,7 +523,6 @@ describe('Chat Admin API Integration Tests', () => {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
                     test: true,
-                    mode: 'embedded' as const,
                     dontCacheThis: false,
                     title: 'UPDATED Idempotent Test Chat App',
                     description: 'UPDATED Idempotent Test Chat App Description',
@@ -546,7 +540,7 @@ describe('Chat Admin API Integration Tests', () => {
                             featureName: 'UI Customization',
                             enabled: true, // Added new feature
                             defaultEnabledValue: false,
-                            showChatHistoryInFullPageMode: false,
+                            showChatHistoryInStandaloneMode: false,
                             showUserRegionInLeftNav: true
                         } as UiCustomizationFeature
                     } as Record<FeatureIdType, ChatAppFeature>,
@@ -562,7 +556,6 @@ describe('Chat Admin API Integration Tests', () => {
             expect(response.data.chatApp).toBeDefined();
             expect(response.data.chatApp.chatAppId).toBe(idempotentChatAppId);
             expect(response.data.chatApp.title).toBe('UPDATED Idempotent Test Chat App');
-            expect(response.data.chatApp.mode).toBe('embedded');
             expect(response.data.chatApp.enabled).toBe(false);
             expect(response.data.chatApp.dontCacheThis).toBe(false);
 
@@ -573,7 +566,6 @@ describe('Chat Admin API Integration Tests', () => {
             const invalidChatAppDataRequest: ChatAppDataRequest = {
                 chatApp: {
                     chatAppId: `invalid-chat-app-${Date.now()}`,
-                    mode: 'fullpage' as const,
                     test: true,
                     title: '', // Invalid: empty title
                     description: 'Invalid Test Chat App Description',

@@ -59,7 +59,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         let chatApp: ChatApp | undefined;
         try {
-            const matchingChatApps = await getMatchingChatApps(locals.user, undefined, params.chatAppId);
+            const authProvider = locals.authProvider;
+            let getCustomDataFieldPathToMatchUsersEntity: string | undefined;
+
+            if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
+                getCustomDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+            }
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, getCustomDataFieldPathToMatchUsersEntity);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {

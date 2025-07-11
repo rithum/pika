@@ -222,6 +222,28 @@ export function arraysHaveSameElements<T>(array1: T[], array2: T[]): boolean {
 }
 
 /**
+ * Utility function to check if two arrays are the same, handling undefined values
+ *
+ * @param array1 First array to compare (can be undefined)
+ * @param array2 Second array to compare (can be undefined)
+ * @returns true if both arrays are undefined or both contain the same elements
+ */
+export function arraysAreSame<T>(array1: T[] | undefined, array2: T[] | undefined): boolean {
+    // Both undefined/null - they're the same
+    if (!array1 && !array2) {
+        return true;
+    }
+
+    // One is undefined/null and the other isn't - they're different
+    if (!array1 || !array2) {
+        return false;
+    }
+
+    // Both are defined - use existing comparison logic
+    return arraysHaveSameElements(array1, array2);
+}
+
+/**
  * Utility function to check if two Records have the same elements (key-value pairs)
  *
  * @param record1 First record to compare (can be undefined)

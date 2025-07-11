@@ -251,7 +251,7 @@ const employeeChatApp: ChatApp = {
     title: 'Employee IT Support',
     userTypesAllowed: ['internal-user'], // Only employees can access
     agentId: 'internal-support-agent',
-    mode: 'fullpage',
+    mode: 'standalone',
     enabled: true
     // ... other properties
 };
@@ -273,7 +273,7 @@ const adminChatApp: ChatApp = {
     title: 'Admin Debug Chat',
     // No userTypesAllowed restriction, but features will check for pika:content-admin role
     agentId: 'debug-agent',
-    mode: 'fullpage',
+    mode: 'standalone',
     enabled: true,
     features: {
         traces: {
@@ -443,6 +443,192 @@ export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomDat
 - **IntelliSense support**: IDEs provide accurate autocomplete for your specific auth data fields
 - **Refactoring safety**: Changes to your auth data types are caught at compile time
 - **Clear contracts**: The generic system makes it explicit what data is available where
+
+## Entity-Based Access Control Integration
+
+### Overview
+
+Your authentication provider can specify which custom data field should be used for entity-based access control to chat apps. This enables sophisticated access control where specific accounts, companies, or organizations can be granted or denied access to individual chat apps.
+
+### The `getCustomDataFieldPathToMatchUsersEntity` Method
+
+This optional method tells the framework which field in the user's `customData` should be used to match against entity access control lists defined in chat app overrides.
+
+```typescript
+/**
+ * Specify which custom data field to use for entity-based access control.
+ * This enables fine-grained access control where specific entities (accounts, companies, etc.)
+ * can be granted access to individual chat apps via ChatAppOverride settings.
+ *
+ * @returns The path to the custom data field to match against entities.
+ *          For example, 'accountId' would match against customData.accountId.
+ *          Supports dot notation for nested fields like 'company.accountId'.
+ */
+async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
+    return 'accountId'; // or 'company.id', 'organization.externalId', etc.
+}
+```
+
+### How Entity Matching Works
+
+1. **Authentication Provider Setup**: Your provider specifies the field path (e.g., `'accountId'`)
+2. **Chat App Override Configuration**: Admins can configure exclusive access lists for chat apps
+3. **Access Check**: Framework extracts the entity value from user's `customData` and checks against allowed entities
+4. **Access Granted/Denied**: User gains access only if their entity is in the allowed list
+
+### Implementation Examples
+
+**Simple Entity Matching:**
+
+```typescript
+// User's customData: { accountId: 'acct_123', email: 'user@company.com' }
+async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
+    return 'accountId'; // Will match against 'acct_123'
+}
+
+// Chat app override allows: ['acct_123', 'acct_456']
+// Result: User granted access because 'acct_123' is in the allowed list
+```
+
+**Nested Field Matching:**
+
+```typescript
+// User's customData: { company: { id: 'comp_789', name: 'Acme Corp' }, role: 'admin' }
+async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
+    return 'company.id'; // Will match against 'comp_789'
+}
+
+// Chat app override allows: ['comp_789', 'comp_101']
+// Result: User granted access because 'comp_789' is in the allowed list
+```
+
+**Dynamic Entity Selection:**
+
+```typescript
+async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
+    return 'companyId';
+}
+```
+
+### Access Control Precedence
+
+When chat app overrides are configured, the system follows this precedence:
+
+1. **Disabled Chat App**: If override sets `enabled: false`, no access regardless of other rules
+2. **Exclusive User ID Control**: If `exclusiveUserIdAccessControl` is set, only those specific user IDs have access
+3. **Exclusive Entity Control**:
+    - For internal users: Check `exclusiveInternalAccessControl` against user's entity
+    - For external users: Check `exclusiveExternalAccessControl` against user's entity
+4. **General Access Rules**: Fall back to standard `userTypes`/`userRoles` checking
+
+### Complete Implementation Example
+
+```typescript
+interface CompanyAuthData {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+}
+
+interface CompanyCustomData {
+    email: string;
+    companyId: string;
+    accountId: string;
+    department: string;
+}
+
+export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, CompanyCustomData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<CompanyAuthData, CompanyCustomData>> {
+        // Your authentication logic here
+        const token = this.extractToken(event);
+        const userData = await this.getUserData(token);
+
+        return {
+            authenticatedUser: {
+                userId: userData.id,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                userType: userData.isEmployee ? 'internal-user' : 'external-user',
+                customData: {
+                    email: userData.email,
+                    companyId: userData.companyId,
+                    accountId: userData.accountId, // This will be used for entity matching
+                    department: userData.department
+                },
+                authData: {
+                    accessToken: token,
+                    refreshToken: userData.refreshToken,
+                    expiresAt: userData.expiresAt
+                },
+                features: {
+                    instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
+                    history: { type: 'history', history: true }
+                }
+            }
+        };
+    }
+
+    // Specify that accountId should be used for entity-based access control
+    async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
+        return 'accountId';
+    }
+
+    // Optional: Display the current account context to users
+    async getCustomDataUiRepresentation(user: AuthenticatedUser<CompanyAuthData, CompanyCustomData>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined> {
+        const accountId = user.customData?.accountId;
+        if (!accountId) return undefined;
+
+        // Fetch account details for display
+        const accountDetails = await this.getAccountDetails(accountId);
+
+        return {
+            title: 'Current Account',
+            value: `${accountDetails.name} (${accountId})`
+        };
+    }
+}
+```
+
+### Use Cases for Entity-Based Access Control
+
+**Multi-Tenant SaaS Application:**
+
+```typescript
+// Different customers can only access their own support chat
+// customData: { customerId: 'customer_123' }
+// Chat app override: exclusiveExternalAccessControl: ['customer_123', 'customer_456']
+```
+
+**Partner Portal:**
+
+```typescript
+// Different partners have access to different tools
+// customData: { partnerId: 'partner_gold' }
+// Chat app override: exclusiveExternalAccessControl: ['partner_gold', 'partner_platinum']
+```
+
+**Department-Specific Internal Tools:**
+
+```typescript
+// Internal users from specific departments
+// customData: { department: 'engineering', companyId: 'acme_corp' }
+// Chat app override: exclusiveInternalAccessControl: ['engineering', 'product']
+```
+
+**Account-Based External Access:**
+
+```typescript
+// External users representing specific accounts
+// customData: { accountId: 'enterprise_client_1' }
+// Chat app override: exclusiveExternalAccessControl: ['enterprise_client_1', 'enterprise_client_2']
+```
+
+### Security Considerations
+
+- **Data Validation**: Always validate that the custom data field exists and contains expected values
+- **Field Accessibility**: Ensure the specified field path is always populated for users who need entity-based access
+- **Logging**: Log entity matching decisions for audit trails
+- **Fallback Behavior**: Consider what happens when entity data is missing or invalid
 
 ## Complete Working Example
 

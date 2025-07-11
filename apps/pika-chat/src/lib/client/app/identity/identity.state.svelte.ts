@@ -3,6 +3,7 @@ import type { ChatUser, ChatUserLite, RecordOrUndef } from '@pika/shared/types/c
 export class IdentityState {
     #user = $state<ChatUser<RecordOrUndef>>() as ChatUser<RecordOrUndef>;
     #isInternalUser = $derived(this.#user && this.#user.userType === 'internal-user');
+    #isSiteAdmin = $derived(this.#user && this.#user.roles?.includes('pika:site-admin'));
     fullName = $derived.by(() => {
         return this.#user.firstName && this.#user.lastName ? `${this.#user.firstName} ${this.#user.lastName}` : 'YOU';
     });
@@ -17,6 +18,10 @@ export class IdentityState {
 
     get user() {
         return this.#user;
+    }
+
+    get isSiteAdmin() {
+        return this.#isSiteAdmin;
     }
 
     get isInternalUser() {

@@ -16,7 +16,7 @@
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
-    const fullScreen = $derived(chat.chatApp.mode === 'fullpage');
+    const fullScreen = $derived(chat.mode === 'standalone');
 
     // File drag/drop state
     let isDraggingFile = $state(false);

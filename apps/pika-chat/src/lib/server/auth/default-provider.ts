@@ -50,7 +50,7 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
                     history: true
                 }
             },
-            roles: ['pika:content-admin']
+            roles: ['pika:content-admin', 'pika:site-admin']
         };
 
         return { authenticatedUser: user };
@@ -61,5 +61,18 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
             title: 'Account ID',
             value: user.overrideData?.[chatAppId ?? '']?.accountId ?? user.customData?.accountId ?? '123'
         };
+    }
+
+    /**
+     * This is a mock implementation of the getCustomDataFieldPathToMatchUsersEntity method.
+     *
+     * Many users are associated with an account or company "entity".  This method returns the path to the custom data field that is used to match against the entity.
+     *
+     * Note the path is relative to the customData field of the user object.
+     *
+     * @returns The path to the custom data field to match against the entity.
+     */
+    async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
+        return 'accountId';
     }
 }

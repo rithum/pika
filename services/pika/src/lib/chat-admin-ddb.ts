@@ -1,12 +1,17 @@
 import type {
     AgentDefinition,
     ChatApp,
+    ChatAppOverrideDdb,
+    ChatAppOverride,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
-    UpdateableToolDefinitionFields
+    UpdateableToolDefinitionFields,
+    UpdateableChatAppOverrideFields,
+    ChatAppOverrideForCreateOrUpdate
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
@@ -448,21 +453,75 @@ export async function getAllChatApps(): Promise<ChatApp[]> {
         lastEvaluatedKey = result.LastEvaluatedKey;
     } while (lastEvaluatedKey);
 
-    return allItems.map((item) => convertToCamelCase<ChatApp>(item as SnakeCase<ChatApp>));
+    // Separate main ChatApp records from override records
+    const mainChatApps: any[] = [];
+    const overrides = new Map<string, any>();
+
+    for (const item of allItems) {
+        const chatAppId = item.chat_app_id;
+        if (chatAppId.endsWith(':override')) {
+            // This is an override record
+            const mainChatAppId = chatAppId.replace(':override', '');
+            overrides.set(mainChatAppId, item);
+        } else {
+            // This is a main ChatApp record
+            mainChatApps.push(item);
+        }
+    }
+
+    // Convert and combine records
+    return mainChatApps.map((item) => {
+        const chatApp = convertToCamelCase<ChatApp>(item as SnakeCase<ChatApp>);
+
+        // Add override if present
+        const override = overrides.get(chatApp.chatAppId);
+        if (override) {
+            chatApp.override = convertToCamelCase<ChatAppOverride>(override as SnakeCase<ChatAppOverride>);
+        }
+
+        return chatApp;
+    });
 }
 
 /**
  * Get chat app definition by ID
  */
 export async function getChatAppById(chatAppId: string): Promise<ChatApp | undefined> {
-    const result = await ddbDocClient.get({
-        TableName: getChatAppTable(),
-        Key: {
-            chat_app_id: chatAppId
+    const chatAppIdWithOverride = `${chatAppId}:override`;
+    const result = await ddbDocClient.batchGet({
+        RequestItems: {
+            [getChatAppTable()]: {
+                Keys: [{ chat_app_id: chatAppId }, { chat_app_id: chatAppIdWithOverride }]
+            }
         }
     });
 
-    return result.Item ? convertToCamelCase<ChatApp>(result.Item as SnakeCase<ChatApp>) : undefined;
+    const items = result.Responses?.[getChatAppTable()] || [];
+
+    let chatApp: ChatApp | undefined;
+    let override: ChatAppOverride | undefined;
+
+    for (const item of items) {
+        if (item.chat_app_id === chatAppId) {
+            // This is the main ChatApp record
+            chatApp = convertToCamelCase<ChatApp>(item as SnakeCase<ChatApp>);
+        } else if (item.chat_app_id === chatAppIdWithOverride) {
+            // This is the override record
+            override = convertToCamelCase<ChatAppOverride>(item as SnakeCase<ChatAppOverride>);
+        }
+    }
+
+    // If main ChatApp record not found, return undefined
+    if (!chatApp) {
+        return undefined;
+    }
+
+    // Add override if present
+    if (override) {
+        chatApp.override = override;
+    }
+
+    return chatApp;
 }
 
 /**
@@ -480,6 +539,81 @@ export async function createChatApp(chatApp: ChatApp): Promise<ChatApp> {
     });
 
     return chatApp;
+}
+
+/**
+ * Create a new chat app override
+ */
+export async function createChatAppOverrideDdb(override: ChatAppOverrideDdb): Promise<ChatAppOverride> {
+    await ddbDocClient.put({
+        TableName: getChatAppTable(),
+        Item: convertToSnakeCase<ChatAppOverrideDdb>(override),
+        ConditionExpression: 'attribute_not_exists(chat_app_id)' // Prevent overwriting existing override
+    });
+
+    return override;
+}
+
+/**
+ * Update an existing chat app override
+ */
+export async function updateChatAppOverrideToDdb(
+    chatAppId: string,
+    chatAppIdWithOverride: string,
+    userId: string,
+    fieldsToUpdate: Record<UpdateableChatAppOverrideFields, any>,
+    fieldsToRemove: UpdateableChatAppOverrideFields[]
+): Promise<ChatAppOverride> {
+    // Build update expression and attribute values dynamically based on provided fields
+    const setExpressions: string[] = [];
+    const removeExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
+
+    setExpressions.push('#lastUpdate = :lastUpdate');
+    expressionAttributeNames['#lastUpdate'] = 'last_update';
+    expressionAttributeValues[':lastUpdate'] = new Date().toISOString();
+
+    setExpressions.push('#updatedByUserId = :updatedByUserId');
+    expressionAttributeNames['#updatedByUserId'] = 'updated_by_user_id';
+    expressionAttributeValues[':updatedByUserId'] = userId;
+
+    for (const [field, value] of Object.entries(fieldsToUpdate)) {
+        setExpressions.push(`#${field} = :${field}`);
+        expressionAttributeNames[`#${field}`] = convertStringToSnakeCase(field);
+        expressionAttributeValues[`:${field}`] = value;
+    }
+
+    for (const field of fieldsToRemove) {
+        removeExpressions.push(`#${field}_remove`);
+        expressionAttributeNames[`#${field}_remove`] = convertStringToSnakeCase(field);
+    }
+
+    // Build the complete UpdateExpression
+    let updateExpression = '';
+    if (setExpressions.length > 0) {
+        updateExpression = `SET ${setExpressions.join(', ')}`;
+    }
+    if (removeExpressions.length > 0) {
+        updateExpression += updateExpression ? ` REMOVE ${removeExpressions.join(', ')}` : `REMOVE ${removeExpressions.join(', ')}`;
+    }
+
+    await ddbDocClient.update({
+        TableName: getChatAppTable(),
+        Key: { chat_app_id: chatAppIdWithOverride },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ConditionExpression: 'attribute_exists(chat_app_id)' // Ensure override exists
+    });
+
+    // Get the updated override by fetching the main ChatApp (which will include the override)
+    const updatedChatApp = await getChatAppById(chatAppId);
+    if (!updatedChatApp?.override) {
+        throw new Error(`Chat app override not found after update: ${chatAppId}`);
+    }
+
+    return updatedChatApp.override;
 }
 
 /**
@@ -543,11 +677,37 @@ export async function updateChatApp(
  * Delete a chat app definition by ID
  */
 export async function deleteChatApp(chatAppId: string): Promise<void> {
+    const chatAppIdWithOverride = `${chatAppId}:override`;
+
+    // Delete the main chat app record (with condition to ensure it exists)
     await ddbDocClient.delete({
         TableName: getChatAppTable(),
         Key: {
             chat_app_id: chatAppId
         },
         ConditionExpression: 'attribute_exists(chat_app_id)' // Ensure chat app exists before deletion
+    });
+
+    // Delete the override record if it exists (no condition, so won't error if not found)
+    await ddbDocClient.delete({
+        TableName: getChatAppTable(),
+        Key: {
+            chat_app_id: chatAppIdWithOverride
+        }
+        // No ConditionExpression - won't error if the override record doesn't exist
+    });
+}
+
+/**
+ * Delete a chat app override by ID
+ */
+export async function deleteChatAppOverrideDdb(chatAppIdWithOverride: string): Promise<void> {
+    // Delete the override record if it exists (no condition, so won't error if not found)
+    await ddbDocClient.delete({
+        TableName: getChatAppTable(),
+        Key: {
+            chat_app_id: chatAppIdWithOverride
+        }
+        // No ConditionExpression - won't error if the override record doesn't exist
     });
 }

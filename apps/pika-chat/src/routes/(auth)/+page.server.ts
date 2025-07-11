@@ -11,6 +11,13 @@ export async function load(
         throw redirect(302, '/auth/login');
     }
 
+    const authProvider = event.locals.authProvider;
+    let customDataFieldPathToMatchUsersEntity: string | undefined;
+
+    if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
+        customDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+    }
+
     let result: ChatAppLite[] = [];
     let homePageTitle: string | undefined;
     let welcomeMessage: string | undefined;
@@ -20,7 +27,7 @@ export async function load(
         homePageTitle = feature.homePageTitle;
         if (feature.linksToChatApps && feature.linksToChatApps.userChatAppRules && feature.linksToChatApps.userChatAppRules.length > 0) {
             // They mean to turn on the feature, so we need to get the matching chat apps
-            const matchingChatApps = await getMatchingChatApps(user, feature.linksToChatApps.userChatAppRules);
+            const matchingChatApps = await getMatchingChatApps(user, true, feature.linksToChatApps.userChatAppRules, undefined, customDataFieldPathToMatchUsersEntity);
             result = matchingChatApps.map((app) => ({
                 chatAppId: app.chatAppId,
                 title: app.title,

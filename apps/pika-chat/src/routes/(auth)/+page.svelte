@@ -4,6 +4,9 @@
     import { getContext } from 'svelte';
     import type { PageData } from './$types';
     import type { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
+    import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
+    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+    import { goto } from '$app/navigation';
 
     const appState = getContext<AppState>('appState');
     const { data }: { data: PageData } = $props();
@@ -49,8 +52,30 @@
     <div class="bg-gray-50 min-h-screen">
         <!-- Page Header -->
         <div class="bg-white border-b border-gray-200">
-            <div class="container mx-auto px-6 py-8 max-w-7xl">
+            <div class="container mx-auto px-6 py-8 max-w-7xl flex justify-between items-center">
                 <h1 class="text-4xl font-bold text-gray-900">{pageTitle}</h1>
+                {#if appState.identity.isSiteAdmin}
+                    <DropdownMenu.Root>
+                        <DropdownMenu.Trigger>
+                            <div class="relative">
+                                <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                                    ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                                >
+                            </div>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content>
+                            <DropdownMenu.Group>
+                                <DropdownMenu.Item
+                                    onclick={() => {
+                                        goto('/admin');
+                                    }}
+                                >
+                                    Site Administration
+                                </DropdownMenu.Item>
+                            </DropdownMenu.Group>
+                        </DropdownMenu.Content>
+                    </DropdownMenu.Root>
+                {/if}
             </div>
         </div>
 

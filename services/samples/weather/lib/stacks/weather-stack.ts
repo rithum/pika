@@ -160,11 +160,11 @@ export class WeatherStack extends cdk.Stack {
             userId: `cloudformation/${this.stackName}`,
             chatApp: {
                 chatAppId: 'weather',
-                mode: 'fullpage',
+                modesSupported: ['standalone', 'embedded'],
                 dontCacheThis: true,
                 title: 'Weather Chat',
                 description: 'A chat app that can be used to answer questions about the weather, used for testing the framework.',
-                userTypesAllowed: ['internal-user'],
+                userTypes: ['internal-user'],
                 agentId: `${props.projNameKebabCase}-agent-${this.stage}`,
                 features: {
                     fileUpload: {

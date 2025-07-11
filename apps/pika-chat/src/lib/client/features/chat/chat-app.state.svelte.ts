@@ -26,7 +26,14 @@ import {
     type UserOverrideDataCommandResponse,
     type CustomDataUiRepresentation
 } from '@pika/shared/types/chatbot/chatbot-types';
-import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
+import type {
+    ChatAppMode,
+    GetInitialDataResponse,
+    SiteAdminCommand,
+    SiteAdminRequest,
+    SiteAdminResponse,
+    UserDataOverrideSettings
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
@@ -71,6 +78,7 @@ interface PersistedInputState {
  */
 export class ChatAppState {
     #chatApp = $state<ChatApp>() as ChatApp;
+    #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
     #chatSessions = $state<ChatSession[]>([]);
     #sortedChatSessions = $derived.by(() => {
@@ -153,7 +161,7 @@ export class ChatAppState {
         const promptInputFieldLabelFeature = getFeature(this.chatApp, 'promptInputFieldLabel');
 
         if (promptInputFieldLabelFeature) {
-            result = this.chatApp.mode !== 'fullpage' || promptInputFieldLabelFeature.enabled === false;
+            result = this.mode !== 'standalone' || promptInputFieldLabelFeature.enabled === false;
         }
 
         return result;
@@ -229,6 +237,10 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get mode() {
+        return this.#mode;
+    }
 
     get customDataUiRepresentation() {
         return this.#customDataUiRepresentation;
@@ -425,7 +437,8 @@ export class ChatAppState {
         userDataOverrideSettings: UserDataOverrideSettings,
         userIsContentAdmin: boolean,
         features: ChatAppOverridableFeatures,
-        customDataUiRepresentation: CustomDataUiRepresentation | undefined
+        customDataUiRepresentation: CustomDataUiRepresentation | undefined,
+        mode: ChatAppMode
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -439,6 +452,7 @@ export class ChatAppState {
         this.#userIsContentAdmin = userIsContentAdmin;
         this.#features = features;
         this.#customDataUiRepresentation = customDataUiRepresentation;
+        this.#mode = mode;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;

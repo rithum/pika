@@ -116,4 +116,19 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @returns The UI representation of the custom data
      */
     async getCustomDataUiRepresentation?(user: AuthenticatedUser<T, U>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined>;
+
+    /**
+     * Lets say you want to control which external accounts or companies (the users associated with the account or company) that can access a chat app.
+     * There's a feature that allows you to specify a list of entities that are allowed to access the chat app.
+     * Pika needs to be able to match the user's custom data against this list to determine if the user has access to the chat app.
+     *
+     * You specify the path (dot separated) to the attribute to match against and all of the data must come from the customData field of the
+     * user object.  For example, if you want to match against the user's accountId, you would specify 'accountId' which would
+     * have to exist in the customData field of the user object.
+     *
+     * @param user - The authenticated user (if there is one)
+     * @param chatAppId - The chat app ID (if there is one), useful to know which override data to use if needed
+     * @returns The path to the custom data field to match against the entity.  For example, if you want to match against the user's customData.accountId, you would specify 'accountId'.
+     */
+    async getCustomDataFieldPathToMatchUsersEntity?(): Promise<string | undefined>;
 }

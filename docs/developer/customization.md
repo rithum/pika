@@ -85,11 +85,6 @@ export const pikaConfig: PikaConfig = {
                     {
                         userTypes: ['internal-user'],
                         chatAppUserTypes: ['internal-user', 'external-user']
-                    },
-                    // Admin users can see all chat apps
-                    {
-                        userTypes: ['admin'],
-                        chatAppUserTypes: ['internal-user', 'external-user', 'admin']
                     }
                 ]
             }
@@ -137,31 +132,7 @@ siteFeatures: {
     }
 }
 
-// Scenario 2: Role-based access with custom messaging
-siteFeatures: {
-    homePage: {
-        homePageTitle: "Corporate AI Assistant",
-        welcomeMessage: "Select the appropriate assistant for your role below, or ask any general question to get started.",
-        linksToChatApps: {
-            userChatAppRules: [
-                {
-                    userTypes: ['customer', 'guest'],
-                    chatAppUserTypes: ['public']
-                },
-                {
-                    userTypes: ['employee'],
-                    chatAppUserTypes: ['public', 'internal']
-                },
-                {
-                    userTypes: ['manager', 'admin'],
-                    chatAppUserTypes: ['public', 'internal', 'admin']
-                }
-            ]
-        }
-    }
-}
-
-// Scenario 3: Just custom title and message without chat app links
+// Scenario 2: Just custom title and message without chat app links
 siteFeatures: {
     homePage: {
         homePageTitle: "AI Assistant",
@@ -309,6 +280,146 @@ export const pikaConfig: PikaConfig = {
 **Key Configuration Options:**
 
 - **`notice`** (required): The disclaimer text to display to users
+
+#### Site Admin Configuration
+
+Configure the site admin feature to provide a web interface for managing chat app access control:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        siteAdmin: {
+            websiteEnabled: true
+        }
+    }
+};
+```
+
+**Key Configuration Options:**
+
+- **`websiteEnabled`** (required): Whether to enable the site admin web interface
+
+**Additional Setup Required:**
+
+- Users must have the `pika:site-admin` role assigned in their user record
+- Role assignment can be done manually in DynamoDB or automatically through your authentication provider
+- The site admin interface provides tools for managing chat app overrides and access control
+
+**What the Site Admin Feature Provides:**
+
+- **Chat App Override Management**: Create and modify access control overrides for individual chat apps
+- **Entity-Based Access Control**: Configure which accounts, companies, or organizations can access specific chat apps
+- **User ID Access Control**: Grant access to specific individual users
+- **Home Page Visibility Control**: Configure which chat apps appear on the home page for different user types
+- **Access Rule Management**: Fine-tune user type and role-based access rules per chat app
+
+**Security Note:** Only assign the `pika:site-admin` role to trusted administrators who need to manage chat app access control settings.
+
+**Documentation:** See [Site Admin Feature Guide](./site-admin-feature.md) for complete setup and usage instructions.
+
+#### Chat App Override System
+
+**Purpose:** Provide fine-grained access control for individual chat apps through administrative overrides that can restrict access based on user IDs, entities, or enhanced access rules.
+
+**Configuration:** Managed through the Site Admin interface or APIs by users with `pika:site-admin` role.
+
+**Key Features:**
+
+- **Entity-Based Access Control**: Restrict access to specific accounts, companies, or organizations
+- **User ID Access Control**: Grant access to specific individual users by user ID
+- **Enhanced Access Rules**: Override default user type and role restrictions per chat app
+- **Home Page Visibility**: Control which chat apps appear on the home page for different users
+- **Access Precedence**: Sophisticated precedence rules for combining different access control methods
+
+**Access Control Precedence:**
+
+The system follows this order when determining chat app access:
+
+1. **Disabled Override**: If `enabled: false` is set in the override, no access regardless of other rules
+2. **Exclusive User ID Control**: If `exclusiveUserIdAccessControl` is configured, only those specific user IDs have access
+3. **Exclusive Entity Control**: Based on user type:
+    - Internal users: Check against `exclusiveInternalAccessControl` list
+    - External users: Check against `exclusiveExternalAccessControl` list
+4. **General Access Rules**: Fall back to `userTypes`/`userRoles` checking
+
+**Entity-Based Access Control Example:**
+
+```typescript
+// Example: Restrict a chat app to specific customer accounts
+const customerSupportOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['account_enterprise_1', 'account_enterprise_2', 'account_premium_gold'],
+    exclusiveInternalAccessControl: ['support_department', 'customer_success']
+};
+
+// Users need:
+// - For external users: customData.accountId must be in the external list
+// - For internal users: customData entity field must be in the internal list
+// - Entity field is determined by AuthProvider.getCustomDataFieldPathToMatchUsersEntity()
+```
+
+**User ID Access Control Example:**
+
+```typescript
+// Example: Beta testing chat app restricted to specific users
+const betaTestOverride = {
+    enabled: true,
+    exclusiveUserIdAccessControl: ['user_beta_tester_1', 'user_beta_tester_2', 'user_product_manager_1']
+};
+
+// Only these specific user IDs can access the chat app
+```
+
+**Home Page Visibility Control:**
+
+```typescript
+// Example: Hide internal tools from home page for external users
+const internalToolOverride = {
+    enabled: true,
+    userTypes: ['internal-user'], // Only internal users can access
+    homePageFilterRules: [
+        {
+            userTypes: ['internal-user'],
+            chatAppUserTypes: ['internal-user'] // Only show to internal users on home page
+        }
+    ]
+};
+```
+
+**Integration with Authentication:**
+
+The override system works seamlessly with your authentication provider:
+
+- **Entity Field Mapping**: Uses `AuthProvider.getCustomDataFieldPathToMatchUsersEntity()` to determine which custom data field contains the entity identifier
+- **Nested Field Support**: Supports dot notation for nested fields (e.g., `'company.accountId'`)
+- **Type Safety**: Validates entity values against configured access control lists
+
+**Management:**
+
+- **Site Admin Interface**: Visual interface for users with `pika:site-admin` role
+- **API Access**: REST APIs for programmatic management of overrides
+- **Database Storage**: Overrides stored separately from chat app definitions for scalability
+
+**Use Cases:**
+
+- **Multi-Tenant SaaS**: Different customers access only their specific chat apps
+- **Partner Portals**: Different partner tiers get access to different functionality
+- **Department Restrictions**: Internal tools restricted to specific departments
+- **Beta Testing**: New features rolled out to specific user groups
+- **Compliance**: Regulatory requirements for data access segregation
+
+**Documentation:** See [Entity-Based Access Control](./authentication.md#entity-based-access-control-integration) for authentication provider setup and [Chat App Override APIs](./api-reference.md) for programmatic management.
+
+#### Feature Override System
+
+**Purpose:** Allow individual chat apps to customize site-level feature configurations for specialized behavior.
+
+**Use Case:** Different feature requirements for customer-facing vs. internal chat apps, specialized compliance needs, or app-specific user experience requirements.
+
+**Configuration:** Configure in individual chat app definitions to override site-level settings.
+
+**Documentation:** See [Overriding Features Guide](./overriding-features.md) for complete override system documentation.
 
 ## Customization Areas
 
@@ -465,16 +576,6 @@ export const pikaConfig: PikaConfig = {
 **Configuration:** Configure in `pika-config.ts` siteFeatures with customizable disclaimer text per site or chat app.
 
 **Documentation:** See [Chat Disclaimer Notice Feature Guide](./chat-disclaimer-notice-feature.md) for configuration examples and best practices.
-
-### Feature Override System
-
-**Purpose:** Allow individual chat apps to customize site-level feature configurations for specialized behavior.
-
-**Use Case:** Different feature requirements for customer-facing vs. internal chat apps, specialized compliance needs, or app-specific user experience requirements.
-
-**Configuration:** Configure in individual chat app definitions to override site-level settings.
-
-**Documentation:** See [Overriding Features Guide](./overriding-features.md) for complete override system documentation.
 
 ## Configuration Files
 

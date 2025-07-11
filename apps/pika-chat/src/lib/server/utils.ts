@@ -129,6 +129,14 @@ export function isUserContentAdmin(user: AuthenticatedUser<RecordOrUndef, Record
     return result;
 }
 
+export function isUserSiteAdmin(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    let result = siteFeatures?.siteAdmin?.websiteEnabled ?? false;
+    if (result) {
+        result = user.roles?.includes('pika:site-admin') ?? false;
+    }
+    return result;
+}
+
 /**
  * Determines whether a user needs to provide data overrides before accessing a chat app.
  *
@@ -202,6 +210,8 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
 /**
  * Compute what features the user is and isn't allowed to use for this chat app.  Note that most of these are features that are defined
  * at the site level (<root>/pika-config.ts) and then may be overridden by the chat app.
+ *
+ * Note that we always return siteAdmin: { websiteEnabled: false } because we only check that for real when they try to access the admin page itself.
  */
 export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
     const result: ChatAppOverridableFeatures = {
@@ -219,6 +229,9 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             menuItemTitle: 'Logout',
             dialogTitle: 'Logout',
             dialogDescription: 'Are you sure you want to logout?'
+        },
+        siteAdmin: {
+            websiteEnabled: false
         }
     };
 

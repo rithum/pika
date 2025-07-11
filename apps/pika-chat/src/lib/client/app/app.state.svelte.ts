@@ -2,17 +2,19 @@ import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
 import type { FetchZ, HotKey } from './types';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-import type { ChatApp, ChatUser, ChatAppOverridableFeatures, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatApp, ChatUser, ChatAppOverridableFeatures, CustomDataUiRepresentation, SiteFeatures, ChatAppMode } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
-import type { UserDataOverrideSettings } from '@pika/shared/types/pika-types';
+import type { UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import { SiteAdminState } from '../features/site-admin/site-admin.state.svelte';
 
 export class AppState {
     #settings: AppSettingsState | undefined;
     #chatApps: Record<string, ChatAppState> = {};
     #identity: IdentityState;
+    #siteAdmin: SiteAdminState | undefined;
 
     #page: Page | undefined;
     #isMobile: IsMobile;
@@ -59,7 +61,8 @@ export class AppState {
         userDataOverrideSettings: UserDataOverrideSettings,
         userIsContentAdmin: boolean,
         features: ChatAppOverridableFeatures,
-        customDataUiRepresentation: CustomDataUiRepresentation | undefined
+        customDataUiRepresentation: CustomDataUiRepresentation | undefined,
+        mode: ChatAppMode
     ): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
@@ -78,14 +81,27 @@ export class AppState {
                 userDataOverrideSettings,
                 userIsContentAdmin,
                 features,
-                customDataUiRepresentation
+                customDataUiRepresentation,
+                mode
             );
         }
         return this.#chatApps[chatApp.chatAppId];
     }
 
+    addSiteAdminState(chatApps: ChatApp[], siteFeatures: SiteFeatures, page: Page): SiteAdminState {
+        this.#siteAdmin = new SiteAdminState(this.fetchz, this, chatApps, siteFeatures, page);
+        return this.#siteAdmin;
+    }
+
     getChatApp(chatAppId: string): ChatAppState | undefined {
         return this.#chatApps[chatAppId];
+    }
+
+    get siteAdmin() {
+        if (!this.#siteAdmin) {
+            throw new Error('Site admin state is not set in app state');
+        }
+        return this.#siteAdmin;
     }
 
     get identity() {

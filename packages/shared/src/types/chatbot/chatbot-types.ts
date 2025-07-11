@@ -223,7 +223,13 @@ export type UserType = (typeof UserTypes)[number];
 type PikaRoleType<T, B> = T & { __pika: B };
 
 // Define known Pika roles
-export const PikaUserRoles = ['pika:content-admin'] as const;
+export const PikaUserRoles = [
+    // A content admin may choose any user in the system and view his chat sessions and messages
+    'pika:content-admin',
+
+    // A site admin may modify access settings for chat apps and assign roles to users
+    'pika:site-admin'
+] as const;
 export type PikaUserRole = PikaRoleType<(typeof PikaUserRoles)[number], 'PikaUserRole'>;
 
 // User-defined roles can be any string, but PikaUserRole is special
@@ -367,6 +373,13 @@ export interface ChatAppOverridableFeatures {
         dialogTitle: string;
         dialogDescription: string;
     };
+
+    /**
+     * If websiteEnabled is true, users with pika:site-admin role will be able to access the site admin features.
+     */
+    siteAdmin: {
+        websiteEnabled: boolean;
+    };
 }
 
 export type ChatAppOverridableFeaturesForConverseFn = Omit<ChatAppOverridableFeatures, 'chatDisclaimerNotice' | 'traces' | 'logout'>;
@@ -390,22 +403,6 @@ export interface UserChatAppRule {
      * create two ChatAppContentRule objects, one for internal users and one for external users.
      */
     chatAppUserTypes?: UserType[];
-
-    /** The user roles allowed to access the content this rule is applied to.  Use `*` for all roles. */
-    userRoles?: PikaUserRole[];
-
-    /**
-     * The chat apps to include on the home page with these user roles.
-     *
-     * If not provided, then the user roles allowed in the chat app will be used.
-     */
-    chatAppUserRoles?: PikaUserRole[];
-
-    /** Explicitly included chat apps.  Use `*` for all chat apps.*/
-    chatAppIdsToInclude?: string[];
-
-    /** Explicitly excluded chat apps.  `*` will not be allowed since all chat apps are excluded by default. */
-    chatAppIdsToExclude?: string[];
 }
 
 /** Array of available feature types in the system */
@@ -815,10 +812,30 @@ export interface CreateToolRequest {
 export interface GetChatAppsByRulesRequest {
     /** We use this to lookup the user and their userType. */
     userId: string;
-    /** The rules to validate against. */
-    userChatAppRules: UserChatAppRule[];
+
+    /** If this request is to figure out which chat apps to show on the home page, then this will be present. */
+    homePageFilterRules?: UserChatAppRule[];
+
     /** If provided, then we will only return this one chat app and then only if the user is allowed to access it. */
     chatAppId?: string;
+
+    /**
+     * If true, then we will return the list of apps that the user is allowed to see on the home page.
+     * Note that this could be different than the list of apps that the user is allowed to access
+     * if they don't want to show a given app on the home page.
+     */
+    chatAppsForHomePage?: boolean;
+
+    /**
+     * We sometimes need to know if a user's associated "entity" (account or company) is allowed to access a chat app.
+     * This is the path to the custom data field that is used to match against the entity.  Of course,
+     * your AuthProvider will need to implement this method to return the path to the custom data field and this
+     * assumes that your users actually have a customData field and are associated with an entity like an account or company.
+     * that you might want to match against.
+     *
+     * For example, if a user is associated with an account and has `customData.accountId` then this might be 'accountId'.
+     */
+    customDataFieldPathToMatchUsersEntity?: string;
 }
 
 export interface GetChatAppsByRulesResponse {
@@ -847,7 +864,23 @@ export interface UpdateChatAppRequest {
     userId: string;
 }
 
-export type ChatAppMode = 'fullpage' | 'embedded';
+export interface CreateOrUpdateChatAppOverrideRequest {
+    override: ChatAppOverrideForCreateOrUpdate;
+    userId: string;
+}
+
+export interface CreateOrUpdateChatAppOverrideResponse {
+    success: boolean;
+    chatAppOverride: ChatAppOverride;
+}
+
+export interface DeleteChatAppOverrideResponse {
+    success: boolean;
+}
+
+export interface DeleteChatAppOverrideRequest {}
+
+export type ChatAppMode = 'standalone' | 'embedded';
 
 /**
  * This extends AccessRules so you can enable/disable the chat app for certain users.
@@ -860,10 +893,12 @@ export interface ChatApp extends AccessRules {
     chatAppId: string;
 
     /**
-     * Use fullpage for a full page chat app.  Use embedded for a chat app that is embedded in another web page,
-     * appearing as a floating window on top.
+     * The modes that this chat app supports.  If not provided, then all modes are supported.
+     * `standalone` means that the chat app can be displayed standalone in a website
+     * not embedded in another website as an iframe.  `embedded` means that the chat app
+     * is embedded in another website as an iframe.
      */
-    mode: ChatAppMode;
+    modesSupported?: ChatAppMode[];
 
     /**
      * Set to true when actively developing so changes are reflected immediately.
@@ -873,7 +908,7 @@ export interface ChatApp extends AccessRules {
 
     /**
      * The title of the chat app, a human readable name.  This is the title that will be displayed in the title bar of the chat app when
-     * in fullpage mode.
+     * in standalone mode.
      */
     title: string;
 
@@ -888,6 +923,24 @@ export interface ChatApp extends AccessRules {
      * Must be the agentId of an agent that exists in the agent definition table.
      */
     agentId: string;
+
+    /**
+     * Optional way to override the original access control settings provided when the
+     * chat app was deployed.  This is not stored on the actual chat app record in the
+     * chat-app table.  If not provided, falls back to the access control settings set
+     * by the chat app when it was deployed.
+     *
+     * This ChatAppOverride data is stored in a separate record in the chat-app table
+     * where the chatAppId is `${chatAppId}:override`.  It is stored
+     * separately so the list of included entities can grow quite large if needed.
+     *
+     * When you retrieve a ChatApp using the APIs, this will be populated for you if
+     * an override record exists.
+     *
+     * This is useful so we can modify access control settings without having to redeploy the
+     * chat app itself.
+     */
+    override?: ChatAppOverride;
 
     /** Any feature not explicitly defined and turned on is turned off by default. */
     features?: Partial<Record<FeatureIdType, ChatAppFeature>>;
@@ -911,7 +964,7 @@ export interface ChatAppLite {
 
     /**
      * The title of the chat app, a human readable name.  This is the title that will be displayed in the title bar of the chat app when
-     * in fullpage mode.
+     * in standalone mode.
      */
     title: string;
 
@@ -944,7 +997,10 @@ export interface KnowledgeBase {
     description: string;
 }
 
-export type UpdateableChatAppFields = Extract<keyof ChatApp, 'mode' | 'dontCacheThis' | 'title' | 'agentId' | 'features' | 'enabled' | 'userTypes' | 'userRoles'>;
+export type UpdateableChatAppFields = Extract<
+    keyof ChatApp,
+    'dontCacheThis' | 'title' | 'description' | 'agentId' | 'features' | 'enabled' | 'userTypes' | 'userRoles' | 'modesSupported'
+>;
 
 export type ChatAppForCreate = Omit<ChatApp, 'createDate' | 'lastUpdate'>;
 
@@ -1022,6 +1078,10 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     chatDisclaimerNotice: 'Chat Disclaimer Notice',
     logout: 'Logout'
 };
+
+export interface SiteAdminFeature {
+    websiteEnabled: boolean;
+}
 
 /**
  * Why make this a feature?  Some enterprises that allow their internal users to act on behalf of other
@@ -1138,7 +1198,7 @@ export interface UiCustomizationFeature extends Feature {
     featureId: 'uiCustomization';
 
     /** Whether to show the chat history as left nav in full page mode.  Defaults to true. */
-    showChatHistoryInFullPageMode?: boolean;
+    showChatHistoryInStandaloneMode?: boolean;
 
     /** Whether to show the user region in the left nav in full page mode.  Defaults to true. */
     showUserRegionInLeftNav?: boolean;
@@ -1248,6 +1308,57 @@ export interface TextMessageSegment extends MessageSegmentBase {
 }
 
 export type MessageSegment = TagMessageSegment | TextMessageSegment;
+
+export type SiteAdminRequest = GetInitialDataRequest | RefreshChatAppRequest | CreateOrUpdateChatAppOverrideRequest | DeleteChatAppOverrideRequest;
+
+export const SiteAdminCommand = ['getInitialData', 'refreshChatApp', 'createOrUpdateChatAppOverride', 'deleteChatAppOverride'] as const;
+export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
+
+export interface SiteAdminCommandRequestBase {
+    command: SiteAdminCommand;
+}
+
+export interface GetInitialDataRequest extends SiteAdminCommandRequestBase {
+    command: 'getInitialData';
+}
+
+export interface RefreshChatAppRequest extends SiteAdminCommandRequestBase {
+    command: 'refreshChatApp';
+    chatAppId: string;
+}
+
+export interface CreateOrUpdateChatAppOverrideRequest extends SiteAdminCommandRequestBase {
+    command: 'createOrUpdateChatAppOverride';
+    chatAppId: string;
+    override: ChatAppOverrideForCreateOrUpdate;
+}
+
+export interface DeleteChatAppOverrideRequest extends SiteAdminCommandRequestBase {
+    command: 'deleteChatAppOverride';
+    chatAppId: string;
+}
+
+export type SiteAdminResponse = GetInitialDataResponse | RefreshChatAppResponse | CreateOrUpdateChatAppOverrideResponse | DeleteChatAppOverrideResponse;
+
+export interface SiteAdminCommandResponseBase {
+    success: boolean;
+    error?: string;
+}
+
+export interface GetInitialDataResponse extends SiteAdminCommandResponseBase {
+    chatApps: ChatApp[];
+    siteFeatures: SiteFeatures;
+}
+
+export interface RefreshChatAppResponse extends SiteAdminCommandResponseBase {
+    chatApp: ChatApp;
+}
+
+export interface CreateOrUpdateChatAppOverrideResponse extends SiteAdminCommandResponseBase {
+    chatAppOverride: ChatAppOverride;
+}
+
+export interface DeleteChatAppOverrideResponse extends SiteAdminCommandResponseBase {}
 
 export type ContentAdminRequest = ViewContentForUserRequest | StopViewingContentForUserRequest | GetValuesForContentAdminAutoCompleteRequest;
 export type ContentAdminResponse = ViewContentForUserResponse | StopViewingContentForUserResponse | GetValuesForContentAdminAutoCompleteResponse;
@@ -1451,4 +1562,330 @@ export interface CustomDataUiRepresentation {
     title: string;
     /** The value you want to show in the UI to represent this custom data: e.g. "Acme, Inc." */
     value: string;
+}
+
+/**
+ * This is the type that is stored in the chat-app table with a chatAppId of `${chatAppId}:override`.
+ */
+export interface ChatAppOverrideDdb extends ChatAppOverride {
+    chatAppId: string;
+}
+
+/**
+ * If present, this overrides all access settings on chatApp: userTypes, userRoles, applyRulesAs.
+ *
+ * It also allows you to override whether the chat app is shown on the home page.
+ *
+ * Each ChatApp itself controls whether it is accessible to internal or external users.  That may be overridden
+ * here (stored in dynamodb table).  If userType has a value, it is used over whatever was provided in the ChatApp itself.
+ *
+ * These are stored in the chat-app table with a chatAppId of `${chatAppId}:override`.
+ *
+ * The order of precedence for these rules is:
+ *
+ * 1. enabled: If present, overrides the chatApp.enabled setting. If not enabled, no one can access the chat app.
+ * 2. exclusiveUserIdAccessControl: If provided, only allow these userIds to access the chat app, whether internal or external, doesn't matter.  All other access rules are ignored.
+ * 3. exlusive user typeaccess control
+ *     exclusiveInternalAccessControl: If provided, only allow these entities to access the chat app for internal users.
+ *     exclusiveExternalAccessControl: If provided, only allow these entities to access the chat app for external users.
+ * 4. userTypes/userRoles/applyRulesAs: If provided, only allow these user types to access the chat app (internal-user and/or external-user), otherwise falls back to chatApp.userTypes.
+ *
+ * If none of these are provided, then the chat app's access settings saved when the chat app
+ * was deployed will be used to determine access: userTypes, userRoles, applyRulesAs.
+ */
+export interface ChatAppOverride extends AccessRules {
+    /**
+     * Each forked instance of pika can provide their own custom data on a User object using the AuthProvider
+     * they implement.  Each user can thus have custom data associated with him.  It is common for example for
+     * a user to have an accountId or companyId associated with him by the AuthProvider and stored in the custom data.
+     *
+     * Let's say you want to control which external accounts or companies (the users associated with the account or company) that can access a chat app.
+     * You would populate this list then with whatever is needed to identify the entities that are allowed to access the chat app.
+     *
+     * If you have even a single entry in this list, then the chat app will only be accessible to external users associated with those entities.
+     *
+     * The AuthProvider has a method that we will call to do the comparison of data from the user object and this list of entities.
+     */
+    exclusiveExternalAccessControl?: string[];
+
+    /**
+     * Each forked instance of pika can provide their own custom data on a User object using the AuthProvider
+     * they implement.  Each user can thus have custom data associated with him.  It is common for example for
+     * a user to have an accountId or companyId associated with him by the AuthProvider and stored in the custom data.
+     *
+     * Let's say you want to control which external accounts or companies (the users associated with the account or company) that can access a chat app.
+     * You would populate this list then with whatever is needed to identify the entities that are allowed to access the chat app.
+     *
+     * If you have even a single entry in this list, then the chat app will only be accessible to internal users associated with those entities.
+     *
+     * The AuthProvider has a method that we will call to do the comparison of data from the user object and this list of entities.
+     */
+    exclusiveInternalAccessControl?: string[];
+
+    /**
+     * If provided, only allow these userIds to access the chat app, whether internal or external, doesn't matter.
+     */
+    exclusiveUserIdAccessControl?: string[];
+
+    /**
+     * If provided, this will govern whether the chat app is shown on the home page.  This overrides the config in the siteFeatures.homePage.linksToChatApps.userChatAppRules.
+     * If not provided, we will fall back to the config in the siteFeatures.homePage.linksToChatApps.userChatAppRules..
+     */
+    homePageFilterRules?: UserChatAppRule[];
+
+    /** Overrides the title of the chat app (human readable) */
+    title?: string;
+
+    /** Overrides the description */
+    description?: string;
+
+    /** Any feature not explicitly defined and turned on is turned off by default. */
+    features?: Partial<Record<FeatureIdType, ChatAppFeature>>;
+
+    /** If true, this app isn't cached in various server-side layers. */
+    dontCacheThis?: boolean;
+
+    /** ISO 8601 formatted timestamp of when the session was created */
+    createDate?: string;
+
+    /** ISO 8601 formatted timestamp of the last session update */
+    lastUpdate?: string;
+
+    /** The user who created this override */
+    createdByUserId?: string;
+
+    /** The user who last updated this override */
+    updatedByUserId?: string;
+}
+
+export type ChatAppOverrideForCreateOrUpdate = Omit<ChatAppOverride, 'createDate' | 'lastUpdate' | 'createdByUserId' | 'updatedByUserId'>;
+
+export type UpdateableChatAppOverrideFields = Extract<
+    keyof ChatAppOverride,
+    | 'enabled'
+    | 'userTypes'
+    | 'userRoles'
+    | 'applyRulesAs'
+    | 'exclusiveExternalAccessControl'
+    | 'exclusiveInternalAccessControl'
+    | 'exclusiveUserIdAccessControl'
+    | 'showOnHomePage'
+    | 'title'
+    | 'description'
+    | 'features'
+    | 'dontCacheThis'
+>;
+
+export interface PikaConfig {
+    pika: PikaStack;
+    pikaChat: BaseStackConfig;
+    weather?: BaseStackConfig;
+
+    /** Features that are turned on/configured site-wide. */
+    siteFeatures?: SiteFeatures;
+}
+
+/**
+ * Features that are turned on/configured site-wide.  They are configured in the <root>/pika-config.ts file.
+ */
+export interface SiteFeatures {
+    /** Configure whether chat apps are shown on the home page. */
+    homePage?: HomePageSiteFeature;
+
+    /** Configure whether users can override their user data. */
+    userDataOverrides?: UserDataOverridesSiteFeature;
+
+    /** Configure whether a content admin can view chat sessions and messages. */
+    contentAdmin?: ContentAdminSiteFeature;
+
+    /** Configure whether traces are shown in the chat app as "reasoning traces". */
+    traces?: TracesFeature;
+
+    /** Configure whether a disclaimer notice is shown in the chat app. */
+    chatDisclaimerNotice?: ChatDisclaimerNoticeFeature;
+
+    /** Configure whether the response from the LLM is verified and auto-reprompted if needed. */
+    verifyResponse?: VerifyResponseFeature;
+
+    /** Configure whether the user can logout of the chat app. */
+    logout?: LogoutFeature;
+
+    /** Configure whether the site admin website feature is enabled. */
+    siteAdmin?: SiteAdminFeature;
+}
+
+/**
+ * A content admin is a user that can use the UI to select any user of the system and view their chat
+ * sessions and messages in each for the purpose of debugging and troubleshooting.  By default,
+ * this feature is turned off.  To turn it on, you must set the `enabled` property to `true`.
+ *
+ * Further, you will have to go into the DynamoDB table named `chat-users-${your-stack-name}` and
+ * add the `pika:content-admin` role to the user.
+ */
+export interface ContentAdminSiteFeature {
+    enabled: boolean;
+}
+
+/**
+ * When turned on, the front end will allow users to override user values set by the auth provider
+ * in `ChatUser.customData`.  For example, perhaps an internal user needs the ability to choose an account
+ * to act as.  This feature then allows them to set the accountId perhaps on `ChatUser.customData.accountId`.
+ * using a UI component that you the developer will provide.  @see <root>/docs/developer/user-overrides
+ */
+export interface UserDataOverridesSiteFeature {
+    /** Whether to enable the user overrides feature. */
+    enabled: boolean;
+
+    /**
+     * The user types that are allowed to use the user overrides feature.  If not provided, defaults to `['internal-user']`
+     * meaning that if the feature is enabled, only internal users will be able to use it.
+     */
+    userTypes?: UserType[];
+
+    /**
+     * The title of the menu item that will be displayed to authorized users that when clicked will
+     * open the dialog allowing them to override user data.  Defaults to "Override User Data".
+     */
+    menuItemTitle?: string;
+
+    /**
+     * The title of the dialog that will be displayed when the user clicks the menu item.  Defaults to "Override User Data".
+     */
+    dialogTitle?: string;
+
+    /**
+     * The description that appears benath the title in the dialog window. Defaults to
+     * "Override user data values to use with this chat app.  This override will persist until you
+     * login again or clear the override."
+     */
+    dialogDescription?: string;
+
+    /**
+     * The description that appears benath the title in the dialog window when the user needs to provide data overrides.
+     * Defaults to the same as dialogDescription.  Use this to say something like, "You need to provide data overrides to use this chat app."
+     */
+    dialogDescriptionWhenUserNeedsToProvideDataOverrides?: string;
+
+    /**
+     * Whether to prompt the user if their user object's customData object is missing any of the custom user
+     * data attributes that are required for the chat app.  If any of these attributes is missing and the user
+     * is allowed to use the user data overrides feature, the user will be prompted to enter the missing attributes
+     * when they open the chat app.  If not provided, defaults to false.
+     *
+     * So, when they open a chat app and they are allowed to use the user data overrides feature, and
+     * any of these attributes are missing on the users's customData attribute provided by the auth provider
+     * then the user will be prompted to enter the missing attributes and will not be able to use the chat app
+     * until they have provided the data overrides that presumably will be used to fill in the missing attributes.
+     *
+     * Note, you can use dot notation to specify nested attributes.  For example, if you want to prompt the user
+     * if the user object's customData object is missing the attribute "address.street", you can specify
+     * "address.street" in the array.  The root of the attibute path is the user.customData object itself.
+     *
+     * So, if your customData object was this and you needed to prompt the user if the companyName or companyId
+     * attributes were missing, you would specify "companyName" or "companyId" in the array.
+     *
+     * ```ts
+     * export interface MyCustomUserData {
+     *     companyName: string;
+     *     companyId: string;
+     * }
+     * ```
+     *
+     * The prompt will be shown if the data is missing each time they come to chat app and if they dismiss the prompt,
+     * the prompt will be shown if they try to submit a message to the agent instead of sending the message.
+     */
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing?: string[];
+}
+
+/** Used in front end to pass settings from server to client. */
+export type UserDataOverrideSettings = Omit<UserDataOverridesSiteFeature, 'userTypes' | 'promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing'> & {
+    userNeedsToProvideDataOverrides: boolean;
+};
+
+export interface HomePageSiteFeature {
+    /**
+     * The title of the home page.  If not provided, the default title will be used.  This is used
+     * to describe the home page to the user and in navigation.
+     */
+    homePageTitle?: string;
+
+    /**
+     * The welcome message to display on the home page.  If not provided, the default welcome message will be used.
+     * This is used to describe the home page to the user and in navigation.
+     */
+    welcomeMessage?: string;
+
+    //TODO: add icon support
+
+    /**
+     * Whether to have the chat app home page show links to registered chat apps. If none of the
+     * userChatAppRules match the user, then the user will not see any links to chat apps on the home page.
+     */
+    linksToChatApps?: HomePageLinksToChatAppsSiteFeature;
+}
+
+/**
+ * Whether to have the chat app home page show links to registered chat apps. If none of the
+ * userChatAppRules match the user, then the user will not see any links to chat apps on the home page.
+ *
+ * This is a site-wide feature and is not associated with a specific chat app.  You define this config
+ * in the chat app config in <root>/pik-config.json
+ */
+export interface HomePageLinksToChatAppsSiteFeature {
+    /**
+     * Which users are able to get links to which chat apps on the home page.  You must have at least one rule to enable this feature.
+     *
+     * ```ts
+     * {
+     *     siteFeatures: {
+     *         homePageLinksToChatApps: {
+     *             userChatAppRules: [
+     *                 // External users can only see links to external chat apps
+     *                 {
+     *                     userTypes: ['external-user'],
+     *                     chatAppUserTypes: ['external-user']
+     *                 },
+     *                 // Internal users can see links to internal and external chat apps
+     *                 {
+     *                     userTypes: ['internal-user'],
+     *                     chatAppUserTypes: ['internal-user', 'external-user']
+     *                 }
+     *             ]
+     *         }
+     *     }
+     * }
+     * ```
+     */
+    userChatAppRules: UserChatAppRule[];
+}
+
+export interface BaseStackConfig {
+    projNameL: string; // All lowercase no stage name e.g. pika
+    projNameKebabCase: string; // Kebab case no stage name e.g. pika
+    projNameTitleCase: string; // Title case no stage name e.g. Pika
+    projNameCamel: string; // Camel case no stage name e.g. pika
+    projNameHuman: string; // Human readable no stage name e.g. Pika
+}
+
+export interface PikaStack extends BaseStackConfig {
+    viteConfig?: {
+        server?: ViteServerConfig;
+        preview?: VitePreviewConfig;
+    };
+}
+
+export interface ViteServerConfig {
+    host?: string;
+    port?: number;
+    strictPort?: boolean;
+    https?: {
+        key: string; // Path to key file
+        cert: string; // Path to cert file
+    };
+}
+
+export interface VitePreviewConfig {
+    host?: string;
+    port?: number;
+    strictPort?: boolean;
 }

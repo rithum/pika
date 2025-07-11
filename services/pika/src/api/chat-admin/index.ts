@@ -4,11 +4,16 @@ import {
     AgentDefinition,
     BaseRequestData,
     ChatApp,
+    ChatAppOverride,
     ChatAppDataRequest,
     ChatAppDataResponse,
     CreateAgentRequest,
     CreateChatAppRequest,
+    CreateOrUpdateChatAppOverrideRequest,
+    CreateOrUpdateChatAppOverrideResponse,
     CreateToolRequest,
+    DeleteChatAppOverrideRequest,
+    DeleteChatAppOverrideResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
     SearchToolsRequest,
@@ -16,19 +21,19 @@ import {
     UpdateAgentRequest,
     UpdateChatAppRequest,
     UpdateToolRequest,
-    UserChatAppRule,
-    UserType
+    UserChatAppRule
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
-import { getUser } from '../../lib/chat-apis';
 import {
     createAgentDefinition,
     createChatAppDefinition,
     createOrUpdateAgentIdempotently,
+    createOrUpdateChatAppOverride,
     createOrUpdateChatAppIdempotently,
     createToolDefinition,
+    deleteChatAppOverride,
     getAgent,
     getAgents,
     getChatApp,
@@ -44,6 +49,7 @@ import {
     validateToolDefinition
 } from '../../lib/chat-admin-apis';
 import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
+import { getUser } from '../../lib/chat-apis';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 
 type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>) => Promise<U>;
@@ -96,6 +102,12 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/chat-app-by-rules': {
         handler: handleGetChatAppByRules
+    },
+    'POST:/api/chat-admin/chat-app/{chatAppId}/override': {
+        handler: handleCreateOrUpdateChatAppOverride
+    },
+    'DELETE:/api/chat-admin/chat-app/{chatAppId}/override': {
+        handler: handleDeleteChatAppOverride
     }
 };
 
@@ -117,6 +129,8 @@ export async function handlerFn(
         | CreateChatAppRequest
         | UpdateChatAppRequest
         | GetChatAppsByRulesRequest
+        | CreateOrUpdateChatAppOverrideRequest
+        | DeleteChatAppOverrideRequest
         | BaseRequestData
         | void
     >
@@ -415,6 +429,10 @@ async function handleGetAllChatApps(_event: APIGatewayProxyEventPika<void>): Pro
 
 /**
  * POST:/api/chat-admin/chat-app-by-rules
+ *
+ * This API returns getting chat apps that a user is allowed to access.  Further, there is an optional
+ * homePageFilterRules whichi if present meansfilter in the request that may be applied as the final filter specifically to designate what is and isn't to show
+ * on the home page.  Note this filter may be overridden by the chat app overrides.
  */
 async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAppsByRulesRequest>): Promise<GetChatAppsByRulesResponse> {
     const requestBody = event.body;
@@ -431,27 +449,27 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         chatApps: []
     };
 
-    const userChatAppRules: UserChatAppRule[] = requestBody.userChatAppRules || [];
+    const homePageFilterRules: UserChatAppRule[] = requestBody.homePageFilterRules ?? [];
+    const chatAppsForHomePage = requestBody.chatAppsForHomePage ?? false;
+    const customDataFieldPathToMatchUsersEntity = requestBody.customDataFieldPathToMatchUsersEntity;
 
-    if (userChatAppRules.length > 0) {
-        const user = await getUser(requestBody.userId);
-        if (!user) {
-            throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
-        }
-
-        let chatApps: ChatApp[] = [];
-        if (requestBody.chatAppId) {
-            const chatApp = await getChatApp(requestBody.chatAppId);
-            if (!chatApp) {
-                console.log(`Chat App ${requestBody.chatAppId} not found, returning empty list`);
-                return response;
-            }
-            chatApps.push(chatApp);
-        } else {
-            chatApps = await getChatApps();
-        }
-        response.chatApps = getMatchingChatApps(user.userType ?? 'external-user', user.roles, userChatAppRules, chatApps);
+    const user = await getUser(requestBody.userId);
+    if (!user) {
+        throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
     }
+
+    let chatApps: ChatApp[] = [];
+    if (requestBody.chatAppId) {
+        const chatApp = await getChatApp(requestBody.chatAppId);
+        if (!chatApp) {
+            console.log(`Chat App ${requestBody.chatAppId} not found, returning empty list`);
+            return response;
+        }
+        chatApps.push(chatApp);
+    } else {
+        chatApps = await getChatApps();
+    }
+    response.chatApps = getMatchingChatApps(user, chatAppsForHomePage, homePageFilterRules, chatApps, customDataFieldPathToMatchUsersEntity);
 
     return response;
 }
@@ -528,6 +546,42 @@ async function handleUpdateChatApp(event: APIGatewayProxyEventPika<UpdateChatApp
     return {
         success: true,
         chatApp
+    };
+}
+
+/*
+ * POST:/api/chat-admin/chat-app/{chatAppId}/override
+ */
+async function handleCreateOrUpdateChatAppOverride(event: APIGatewayProxyEventPika<CreateOrUpdateChatAppOverrideRequest>): Promise<CreateOrUpdateChatAppOverrideResponse> {
+    const chatAppId = event.pathParameters?.chatAppId;
+    if (!chatAppId) {
+        throw new Error('Chat App ID is required');
+    }
+
+    const updateChatAppOverrideRequest = event.body;
+    if (!updateChatAppOverrideRequest) {
+        throw new Error('Request body is required');
+    }
+
+    const chatAppOverride = await createOrUpdateChatAppOverride(updateChatAppOverrideRequest, chatAppId);
+    return {
+        success: true,
+        chatAppOverride
+    };
+}
+
+/*
+ * DELETE:/api/chat-admin/chat-app/{chatAppId}/override
+ */
+async function handleDeleteChatAppOverride(event: APIGatewayProxyEventPika<DeleteChatAppOverrideRequest>): Promise<DeleteChatAppOverrideResponse> {
+    const chatAppId = event.pathParameters?.chatAppId;
+    if (!chatAppId) {
+        throw new Error('Chat App ID is required');
+    }
+
+    await deleteChatAppOverride(chatAppId);
+    return {
+        success: true
     };
 }
 
