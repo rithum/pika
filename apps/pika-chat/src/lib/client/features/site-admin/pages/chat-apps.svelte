@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import AccessControl from '../components/access-control.svelte';
     import List from '$lib/components/ui-pika/list/list.svelte';
     import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
     import { Badge } from '$lib/components/ui/badge';
@@ -9,7 +10,7 @@
     import { Label } from '$lib/components/ui/label';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import { Separator } from '$lib/components/ui/separator';
-    import { Plus, RotateCcw, Save, Trash2 } from '$lib/icons/lucide';
+    import { ChevronDown, Plus, RotateCcw, Save, Trash2 } from '$icons/lucide';
     import type {
         ApplyRulesAs,
         ChatApp,
@@ -23,6 +24,7 @@
     } from '@pika/shared/types/chatbot/chatbot-types';
     import { DEFAULT_FEATURE_ENABLED_VALUE, FEATURE_NAMES } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
+    import { slide } from 'svelte/transition';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -51,6 +53,15 @@
     let homePageFilterRules = $state<UserChatAppRule[]>([]);
     let dontCacheThis = $state(false);
     let features = $state<Partial<Record<FeatureIdType, ChatAppFeature>>>({});
+
+    // Section collapse state
+    let expandedSections = $state({
+        basic: true,
+        access: true,
+        features: true,
+        exclusive: true,
+        homepage: true,
+    });
 
     const chatApps = $derived(siteAdmin.chatApps);
     const siteFeatures = $derived(siteAdmin.siteFeatures);
@@ -292,6 +303,31 @@
         return featureId in selectedChatApp.override.features;
     }
 
+    // Section collapse functions
+    function toggleSection(sectionKey: keyof typeof expandedSections) {
+        expandedSections[sectionKey] = !expandedSections[sectionKey];
+    }
+
+    function expandAllSections() {
+        expandedSections = {
+            basic: true,
+            access: true,
+            features: true,
+            exclusive: true,
+            homepage: true,
+        };
+    }
+
+    function collapseAllSections() {
+        expandedSections = {
+            basic: false,
+            access: false,
+            features: false,
+            exclusive: false,
+            homepage: false,
+        };
+    }
+
     siteAdmin.setPageHeaderRight(pageHeaderRight);
 </script>
 
@@ -304,7 +340,7 @@
                     <button
                         class="w-full p-3 text-left rounded-lg hover:bg-muted/50 transition-colors {selectedChatApp?.chatAppId ===
                         chatApp.chatAppId
-                            ? 'bg-muted ring-2 ring-ring'
+                            ? 'bg-muted'
                             : ''}"
                         onclick={() => selectChatApp(chatApp)}
                     >
@@ -334,7 +370,7 @@
             <div class="p-6 border-b">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-bold">
+                        <h1 class="text-xl font-bold">
                             {selectedChatApp.title}
                             <span class="text-sm font-normal text-muted-foreground">({selectedChatApp.chatAppId})</span>
                         </h1>
@@ -361,527 +397,389 @@
                 <div class="p-6 space-y-8">
                     <!-- Basic Settings -->
                     <section>
-                        <h2 class="text-lg font-semibold mb-4">Basic Settings</h2>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <div class="flex flex-col mr-6">
-                                        <div>
-                                            <span class="text-sm font-medium">Chat App Status:</span>
-                                            <span class="font-medium {enabled ? 'text-blue-600' : 'text-red-600'}">
-                                                {enabled ? 'Enabled' : 'Disabled'}
-                                            </span>
+                        <button
+                            class="flex items-center gap-2 w-full text-left mb-4 hover:text-primary transition-colors"
+                            onclick={() => toggleSection('basic')}
+                        >
+                            <ChevronDown
+                                class="w-5 h-5 transition-transform {expandedSections.basic ? '' : '-rotate-90'}"
+                            />
+                            <h2 class="text-lg font-semibold">Basic Settings</h2>
+                        </button>
+                        {#if expandedSections.basic}
+                            <div class="space-y-4" transition:slide={{ duration: 200 }}>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex flex-col mr-6">
+                                            <div>
+                                                <span class="text-sm font-medium">Chat App Status:</span>
+                                                <span class="font-medium {enabled ? 'text-blue-600' : 'text-red-600'}">
+                                                    {enabled ? 'Enabled' : 'Disabled'}
+                                                </span>
+                                            </div>
+                                            {#if isOverridden('enabled')}
+                                                <span class="text-xs text-muted-foreground">
+                                                    (Original: {getOriginalValue('enabled') ? 'Enabled' : 'Disabled'})
+                                                </span>
+                                            {/if}
                                         </div>
-                                        {#if isOverridden('enabled')}
-                                            <span class="text-xs text-muted-foreground">
-                                                (Original: {getOriginalValue('enabled') ? 'Enabled' : 'Disabled'})
-                                            </span>
-                                        {/if}
+                                        <Button
+                                            variant={enabled ? 'destructive' : 'default'}
+                                            size="sm"
+                                            disabled={!isOverrideMode}
+                                            onclick={() => isOverrideMode && (enabled = !enabled)}
+                                            class={isOverridden('enabled') ? 'border-orange-500' : ''}
+                                        >
+                                            {enabled ? 'Disable Chat App' : 'Enable Chat App'}
+                                        </Button>
                                     </div>
-                                    <Button
-                                        variant={enabled ? 'destructive' : 'default'}
-                                        size="sm"
+                                </div>
+
+                                <div>
+                                    <Label for="title">Title</Label>
+                                    <Input
+                                        id="title"
+                                        bind:value={title}
+                                        placeholder="Chat app title"
                                         disabled={!isOverrideMode}
-                                        onclick={() => isOverrideMode && (enabled = !enabled)}
-                                        class={isOverridden('enabled') ? 'border-orange-500' : ''}
-                                    >
-                                        {enabled ? 'Disable Chat App' : 'Enable Chat App'}
-                                    </Button>
+                                    />
+                                    {#if isOverridden('title')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Original: {getOriginalValue('title')}
+                                        </p>
+                                    {/if}
+                                </div>
+
+                                <div>
+                                    <Label for="description">Description</Label>
+                                    <textarea
+                                        id="description"
+                                        bind:value={description}
+                                        placeholder="Chat app description"
+                                        disabled={!isOverrideMode}
+                                        class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        rows="3"
+                                    ></textarea>
+                                    {#if isOverridden('description')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Original: {getOriginalValue('description')}
+                                        </p>
+                                    {/if}
+                                </div>
+
+                                <div class="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="dontCacheThis"
+                                        bind:checked={dontCacheThis}
+                                        disabled={!isOverrideMode}
+                                        class={isOverridden('dontCacheThis') ? 'border-orange-500' : ''}
+                                    />
+                                    <Label for="dontCacheThis">Don't Cache (for development)</Label>
+                                    {#if isOverridden('dontCacheThis')}
+                                        <span class="text-xs text-muted-foreground">
+                                            (Original: {getOriginalValue('dontCacheThis') ? 'Not caching' : 'Caching'})
+                                        </span>
+                                    {/if}
+                                </div>
+
+                                <div class="text-sm">
+                                    <span class="text-muted-foreground">Agent ID:</span>
+                                    <span class="ml-2">{selectedChatApp.agentId}</span>
                                 </div>
                             </div>
-
-                            <div>
-                                <Label for="title">Title</Label>
-                                <Input
-                                    id="title"
-                                    bind:value={title}
-                                    placeholder="Chat app title"
-                                    disabled={!isOverrideMode}
-                                />
-                                {#if isOverridden('title')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Original: {getOriginalValue('title')}
-                                    </p>
-                                {/if}
-                            </div>
-
-                            <div>
-                                <Label for="description">Description</Label>
-                                <textarea
-                                    id="description"
-                                    bind:value={description}
-                                    placeholder="Chat app description"
-                                    disabled={!isOverrideMode}
-                                    class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                    rows="3"
-                                ></textarea>
-                                {#if isOverridden('description')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Original: {getOriginalValue('description')}
-                                    </p>
-                                {/if}
-                            </div>
-
-                            <div class="flex items-center space-x-2">
-                                <Checkbox
-                                    id="dontCacheThis"
-                                    bind:checked={dontCacheThis}
-                                    disabled={!isOverrideMode}
-                                    class={isOverridden('dontCacheThis') ? 'border-orange-500' : ''}
-                                />
-                                <Label for="dontCacheThis">Don't Cache (for development)</Label>
-                                {#if isOverridden('dontCacheThis')}
-                                    <span class="text-xs text-muted-foreground">
-                                        (Original: {getOriginalValue('dontCacheThis') ? 'Not caching' : 'Caching'})
-                                    </span>
-                                {/if}
-                            </div>
-
-                            <div class="text-sm">
-                                <span class="text-muted-foreground">Agent ID:</span>
-                                <span class="ml-2">{selectedChatApp.agentId}</span>
-                            </div>
-                        </div>
+                        {/if}
                     </section>
 
                     <Separator />
 
-                    <!-- Access Control -->
                     <section>
-                        <h2 class="text-lg font-semibold mb-4">Access Control</h2>
-                        <div class="flex gap-4">
-                            <div class="space-y-6">
-                                <div>
-                                    <div class="text-sm font-medium mb-2">User Types Allowed Access</div>
-                                    <div class="flex items-center gap-4">
-                                        <div class="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="internal-user"
-                                                bind:checked={
-                                                    () => userTypes.includes('internal-user'),
-                                                    () => {
-                                                        if (!isOverrideMode) return;
-                                                        if (userTypes.includes('internal-user')) {
-                                                            // Unchecking internal-user
-                                                            if (!userTypes.includes('external-user')) {
-                                                                // Can't uncheck if external-user is not checked
-                                                                return;
-                                                            }
-                                                            userTypes = userTypes.filter((t) => t !== 'internal-user');
-                                                        } else {
-                                                            // Checking internal-user
-                                                            userTypes = [...userTypes, 'internal-user'];
-                                                        }
-                                                    }
-                                                }
-                                                disabled={!isOverrideMode ||
-                                                    (userTypes.length === 1 && userTypes.includes('internal-user'))}
-                                            />
-                                            <Label for="internal-user">Internal Users</Label>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="external-user"
-                                                bind:checked={
-                                                    () => userTypes.includes('external-user'),
-                                                    () => {
-                                                        if (!isOverrideMode) return;
-                                                        if (userTypes.includes('external-user')) {
-                                                            // Unchecking external-user
-                                                            if (!userTypes.includes('internal-user')) {
-                                                                // Can't uncheck if internal-user is not checked
-                                                                return;
-                                                            }
-                                                            userTypes = userTypes.filter((t) => t !== 'external-user');
-                                                        } else {
-                                                            // Checking external-user
-                                                            userTypes = [...userTypes, 'external-user'];
-                                                        }
-                                                    }
-                                                }
-                                                disabled={!isOverrideMode ||
-                                                    (userTypes.length === 1 && userTypes.includes('external-user'))}
-                                            />
-                                            <Label for="external-user">External Users</Label>
-                                        </div>
-                                    </div>
-                                    {#if isOverridden('userTypes')}
-                                        <p class="text-xs text-muted-foreground mt-1">
-                                            Original: {getOriginalValue('userTypes')?.join(', ') || 'All users'}
-                                        </p>
-                                    {/if}
-                                </div>
-
-                                <div>
-                                    <span class="text-sm font-medium">User Roles Allowed Access</span>
-                                    <List
-                                        classes="w-[300px] h-[200px] mt-2"
-                                        items={userRoles}
-                                        mapping={{
-                                            value: (item) => item as string,
-                                            label: (item) => item as string,
-                                        }}
-                                        allowSelection={true}
-                                        multiSelect={true}
-                                        emptyMessage="No user roles assigned"
-                                        addRemove={{
-                                            addItem: (item) => {
-                                                userRoles = [...userRoles, item as UserRole];
-                                            },
-                                            removeItem: (item) => {
-                                                userRoles = userRoles.filter((r) => r !== (item as UserRole));
-                                            },
-                                            predefinedOptions: {
-                                                items: ['pika:content-admin', 'pika:site-admin'] as UserRole[],
-                                                optionTypeName: 'role',
-                                                optionTypeNamePlural: 'roles',
-                                                mapping: {
-                                                    value: (item) => item as string,
-                                                    label: (item) => {
-                                                        // Convert role values to readable labels
-                                                        const roleLabels: Record<string, string> = {
-                                                            'pika:content-admin': 'Content Admin',
-                                                            'pika:site-admin': 'Site Admin',
-                                                        };
-                                                        return roleLabels[item as string] || (item as string);
-                                                    },
-                                                },
-                                            },
-                                            addValueInputPlaceholder: 'Choose or provide a role...',
-                                            allowArbitraryValues: {
-                                                convertValueToType: (value: string) => value as UserRole,
-                                                popupInputPlaceholder: 'Choose or enter a new role...',
-                                            },
-                                        }}
-                                    />
-                                    {#if isOverridden('userRoles')}
-                                        <p class="text-xs text-muted-foreground mt-1">
-                                            Original: {getOriginalValue('userRoles')?.join(', ') || 'All roles'}
-                                        </p>
-                                    {/if}
-                                </div>
-
-                                <div>
-                                    <Label for="applyRulesAs">Apply Rules As</Label>
-                                    <SimpleDropdown
-                                        bind:value={applyRulesAs}
-                                        widthClasses="w-[300px]"
-                                        mapping={{
-                                            value: (item) => item as string,
-                                            label: (item) => {
-                                                if (item === 'and') {
-                                                    return 'AND (User type and role required)';
-                                                } else {
-                                                    return 'OR (User type or role required)';
-                                                }
-                                            },
-                                        }}
-                                        options={['and', 'or']}
-                                        disabled={!isOverrideMode}
-                                    />
-
-                                    {#if isOverridden('applyRulesAs')}
-                                        <p class="text-xs text-muted-foreground mt-1">
-                                            Original: {getOriginalValue('applyRulesAs')}
-                                        </p>
-                                    {/if}
-                                </div>
+                        <button
+                            class="flex items-center gap-2 w-full text-left mb-4 hover:text-primary transition-colors"
+                            onclick={() => toggleSection('access')}
+                        >
+                            <ChevronDown
+                                class="w-5 h-5 transition-transform {expandedSections.access ? '' : '-rotate-90'}"
+                            />
+                            <h2 class="text-lg font-semibold">Access Control</h2>
+                        </button>
+                        {#if expandedSections.access}
+                            <div transition:slide={{ duration: 200 }}>
+                                <AccessControl
+                                    bind:userTypes
+                                    bind:userRoles
+                                    bind:applyRulesAs
+                                    bind:enabled
+                                    {isOverrideMode}
+                                    {isOverridden}
+                                    {getOriginalValue}
+                                    entityNameCapitalized="Chat app"
+                                    sectionTitle=""
+                                />
                             </div>
-                            <div class="max-w-[300px] space-y-3">
-                                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <h3 class="text-sm font-medium text-blue-900 mb-2">Who Can Access</h3>
-                                    <div class="text-sm text-blue-800">
-                                        {#if !enabled}
-                                            <p class="text-red-600 font-medium">Chat app is disabled</p>
-                                        {:else if userTypes.length === 0 && userRoles.length === 0}
-                                            <p class="text-red-600 font-medium">
-                                                No access - No user types or roles selected
-                                            </p>
-                                        {:else if userTypes.length === 0}
-                                            <p>
-                                                Users with any of these roles: <span class="font-medium"
-                                                    >{userRoles.join(', ')}</span
-                                                >
-                                            </p>
-                                        {:else if userRoles.length === 0}
-                                            <p>
-                                                <span class="font-medium"
-                                                    >any {userTypes.map((t) => t.replace('-', ' ')).join(' or ')}</span
-                                                > (any role)
-                                            </p>
-                                        {:else if applyRulesAs === 'and'}
-                                            <p>
-                                                any <span class="font-medium"
-                                                    >{userTypes.map((t) => t.replace('-', ' ')).join(' or ')}</span
-                                                >
-                                                who has {userRoles.length === 1 ? 'the' : 'any one of these roles:'}
-                                                <span class="font-medium">
-                                                    {userRoles.length === 1
-                                                        ? userRoles[0] + ' role'
-                                                        : userRoles.join(', ')}
-                                                </span>
-                                            </p>
-                                        {:else}
-                                            <p>
-                                                any <span class="font-medium"
-                                                    >{userTypes.map((t) => t.replace('-', ' ')).join(' or ')}</span
-                                                >, OR any user who has {userRoles.length === 1
-                                                    ? 'the'
-                                                    : 'any one of these roles:'}
-                                                <span class="font-medium">
-                                                    {userRoles.length === 1
-                                                        ? userRoles[0] + ' role'
-                                                        : userRoles.join(', ')}
-                                                </span>
-                                            </p>
-                                        {/if}
+                        {/if}
+                    </section>
 
-                                        {#if enabled && (userTypes.length > 0 || userRoles.length > 0)}
-                                            <div class="mt-2 pt-2 border-t border-blue-200">
-                                                <p class="text-xs text-blue-600">
-                                                    Access rule: <span class="font-medium"
-                                                        >{applyRulesAs.toUpperCase()}</span
-                                                    >
-                                                    {#if applyRulesAs === 'and'}
-                                                        (user must meet both user type AND role criteria)
-                                                    {:else}
-                                                        (user can meet either user type OR role criteria)
-                                                    {/if}
-                                                </p>
-                                            </div>
-                                        {/if}
-                                    </div>
+                    {#if exclusiveExternalAccessControl.length > 0 || exclusiveInternalAccessControl.length > 0 || exclusiveUserIdAccessControl.length > 0}
+                        <div class="mt-4">
+                            <div class="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                <h3 class="text-sm font-medium text-orange-900 mb-2">Additional Restrictions</h3>
+                                <div class="text-sm text-orange-800 space-y-1">
+                                    {#if exclusiveExternalAccessControl.length > 0}
+                                        <p>
+                                            • Only specific external entities ({exclusiveExternalAccessControl.length})
+                                        </p>
+                                    {/if}
+                                    {#if exclusiveInternalAccessControl.length > 0}
+                                        <p>
+                                            • Only specific internal entities ({exclusiveInternalAccessControl.length})
+                                        </p>
+                                    {/if}
+                                    {#if exclusiveUserIdAccessControl.length > 0}
+                                        <p>• Only specific user IDs ({exclusiveUserIdAccessControl.length})</p>
+                                    {/if}
                                 </div>
-
-                                {#if exclusiveExternalAccessControl.length > 0 || exclusiveInternalAccessControl.length > 0 || exclusiveUserIdAccessControl.length > 0}
-                                    <div class="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                        <h3 class="text-sm font-medium text-orange-900 mb-2">
-                                            Additional Restrictions
-                                        </h3>
-                                        <div class="text-sm text-orange-800 space-y-1">
-                                            {#if exclusiveExternalAccessControl.length > 0}
-                                                <p>
-                                                    • Only specific external entities ({exclusiveExternalAccessControl.length})
-                                                </p>
-                                            {/if}
-                                            {#if exclusiveInternalAccessControl.length > 0}
-                                                <p>
-                                                    • Only specific internal entities ({exclusiveInternalAccessControl.length})
-                                                </p>
-                                            {/if}
-                                            {#if exclusiveUserIdAccessControl.length > 0}
-                                                <p>• Only specific user IDs ({exclusiveUserIdAccessControl.length})</p>
-                                            {/if}
-                                        </div>
-                                    </div>
-                                {/if}
                             </div>
                         </div>
-                    </section>
+                    {/if}
 
                     <Separator />
 
                     <!-- Features -->
                     <section>
-                        <h2 class="text-lg font-semibold mb-4">Features</h2>
-                        <div class="space-y-4">
-                            <p class="text-sm text-muted-foreground">
-                                Configure which features are enabled for this chat app. Only features that differ from
-                                the original settings are saved.
-                            </p>
+                        <button
+                            class="flex items-center gap-2 w-full text-left mb-4 hover:text-primary transition-colors"
+                            onclick={() => toggleSection('features')}
+                        >
+                            <ChevronDown
+                                class="w-5 h-5 transition-transform {expandedSections.features ? '' : '-rotate-90'}"
+                            />
+                            <h2 class="text-lg font-semibold">Features</h2>
+                        </button>
+                        {#if expandedSections.features}
+                            <div class="space-y-4" transition:slide={{ duration: 200 }}>
+                                <p class="text-sm text-muted-foreground">
+                                    Configure which features are enabled for this chat app. Only features that differ
+                                    from the original settings are saved.
+                                </p>
 
-                            <div class="grid grid-cols-1 gap-4">
-                                {#each Object.entries(FEATURE_NAMES) as [featureId, featureName]}
-                                    {@const typedFeatureId = featureId as FeatureIdType}
-                                    <div class="flex items-center justify-between p-3 border rounded-lg">
-                                        <div class="flex items-center space-x-3">
-                                            <Checkbox
-                                                id="feature-{featureId}"
-                                                checked={isFeatureEnabled(typedFeatureId)}
-                                                disabled={!isOverrideMode}
-                                                onchange={() => isOverrideMode && toggleFeature(typedFeatureId)}
-                                                class={isFeatureOverridden(typedFeatureId) ? 'border-orange-500' : ''}
-                                            />
-                                            <div>
-                                                <Label for="feature-{featureId}" class="font-medium"
-                                                    >{featureName}</Label
-                                                >
-                                                {#if isFeatureOverridden(typedFeatureId)}
-                                                    <p class="text-xs text-muted-foreground">
-                                                        Original: {getOriginalValue('features')?.[typedFeatureId]
-                                                            ?.enabled
-                                                            ? 'Enabled'
-                                                            : 'Disabled'}
-                                                    </p>
-                                                {/if}
+                                <div class="grid grid-cols-1 gap-4">
+                                    {#each Object.entries(FEATURE_NAMES) as [featureId, featureName]}
+                                        {@const typedFeatureId = featureId as FeatureIdType}
+                                        <div class="flex items-center justify-between p-3 border rounded-lg">
+                                            <div class="flex items-center space-x-3">
+                                                <Checkbox
+                                                    id="feature-{featureId}"
+                                                    checked={isFeatureEnabled(typedFeatureId)}
+                                                    disabled={!isOverrideMode}
+                                                    onchange={() => isOverrideMode && toggleFeature(typedFeatureId)}
+                                                    class={isFeatureOverridden(typedFeatureId)
+                                                        ? 'border-orange-500'
+                                                        : ''}
+                                                />
+                                                <div>
+                                                    <Label for="feature-{featureId}" class="font-medium"
+                                                        >{featureName}</Label
+                                                    >
+                                                    {#if isFeatureOverridden(typedFeatureId)}
+                                                        <p class="text-xs text-muted-foreground">
+                                                            Original: {getOriginalValue('features')?.[typedFeatureId]
+                                                                ?.enabled
+                                                                ? 'Enabled'
+                                                                : 'Disabled'}
+                                                        </p>
+                                                    {/if}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {#if isFeatureOverridden(typedFeatureId)}
-                                            <Badge variant="destructive" class="text-xs">Overridden</Badge>
-                                        {:else}
-                                            <Badge variant="secondary" class="text-xs">Default</Badge>
-                                        {/if}
-                                    </div>
-                                {/each}
+                                            {#if isFeatureOverridden(typedFeatureId)}
+                                                <Badge variant="destructive" class="text-xs">Overridden</Badge>
+                                            {:else}
+                                                <Badge variant="secondary" class="text-xs">Default</Badge>
+                                            {/if}
+                                        </div>
+                                    {/each}
+                                </div>
                             </div>
-                        </div>
+                        {/if}
                     </section>
 
                     <Separator />
 
                     <!-- Exclusive Access Control -->
                     <section>
-                        <h2 class="text-lg font-semibold mb-4">Exclusive Access Control</h2>
-                        <div class="space-y-6">
-                            <div>
-                                <div class="flex items-center justify-between mb-2">
-                                    <Label>External Entity Access</Label>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={!isOverrideMode}
-                                        onclick={handleAddExternalEntity}
-                                    >
-                                        <Plus class="w-4 h-4 mr-1" />
-                                        Add Entity
-                                    </Button>
-                                </div>
-                                <div class="space-y-2">
-                                    {#each exclusiveExternalAccessControl as entity, index}
-                                        <div class="flex items-center justify-between p-2 border rounded">
-                                            <span class="text-sm">{entity}</span>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={!isOverrideMode}
-                                                onclick={() => removeExternalEntity(index)}
-                                            >
-                                                <Trash2 class="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    {/each}
-                                    {#if exclusiveExternalAccessControl.length === 0}
-                                        <p class="text-sm text-muted-foreground">
-                                            No exclusive external entities configured
+                        <button
+                            class="flex items-center gap-2 w-full text-left mb-4 hover:text-primary transition-colors"
+                            onclick={() => toggleSection('exclusive')}
+                        >
+                            <ChevronDown
+                                class="w-5 h-5 transition-transform {expandedSections.exclusive ? '' : '-rotate-90'}"
+                            />
+                            <h2 class="text-lg font-semibold">Exclusive Access Control</h2>
+                        </button>
+                        {#if expandedSections.exclusive}
+                            <div class="space-y-6" transition:slide={{ duration: 200 }}>
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <Label>External Entity Access</Label>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={!isOverrideMode}
+                                            onclick={handleAddExternalEntity}
+                                        >
+                                            <Plus class="w-4 h-4 mr-1" />
+                                            Add Entity
+                                        </Button>
+                                    </div>
+                                    <div class="space-y-2">
+                                        {#each exclusiveExternalAccessControl as entity, index}
+                                            <div class="flex items-center justify-between p-2 border rounded">
+                                                <span class="text-sm">{entity}</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={!isOverrideMode}
+                                                    onclick={() => removeExternalEntity(index)}
+                                                >
+                                                    <Trash2 class="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        {/each}
+                                        {#if exclusiveExternalAccessControl.length === 0}
+                                            <p class="text-sm text-muted-foreground">
+                                                No exclusive external entities configured
+                                            </p>
+                                        {/if}
+                                    </div>
+                                    {#if isOverridden('exclusiveExternalAccessControl')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Original: {getOriginalValue('exclusiveExternalAccessControl')?.length || 0} entities
                                         </p>
                                     {/if}
                                 </div>
-                                {#if isOverridden('exclusiveExternalAccessControl')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Original: {getOriginalValue('exclusiveExternalAccessControl')?.length || 0} entities
-                                    </p>
-                                {/if}
-                            </div>
 
-                            <div>
-                                <div class="flex items-center justify-between mb-2">
-                                    <Label>Internal Entity Access</Label>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={!isOverrideMode}
-                                        onclick={handleAddInternalEntity}
-                                    >
-                                        <Plus class="w-4 h-4 mr-1" />
-                                        Add Entity
-                                    </Button>
-                                </div>
-                                <div class="space-y-2">
-                                    {#each exclusiveInternalAccessControl as entity, index}
-                                        <div class="flex items-center justify-between p-2 border rounded">
-                                            <span class="text-sm">{entity}</span>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={!isOverrideMode}
-                                                onclick={() => removeInternalEntity(index)}
-                                            >
-                                                <Trash2 class="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    {/each}
-                                    {#if exclusiveInternalAccessControl.length === 0}
-                                        <p class="text-sm text-muted-foreground">
-                                            No exclusive internal entities configured
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <Label>Internal Entity Access</Label>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={!isOverrideMode}
+                                            onclick={handleAddInternalEntity}
+                                        >
+                                            <Plus class="w-4 h-4 mr-1" />
+                                            Add Entity
+                                        </Button>
+                                    </div>
+                                    <div class="space-y-2">
+                                        {#each exclusiveInternalAccessControl as entity, index}
+                                            <div class="flex items-center justify-between p-2 border rounded">
+                                                <span class="text-sm">{entity}</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={!isOverrideMode}
+                                                    onclick={() => removeInternalEntity(index)}
+                                                >
+                                                    <Trash2 class="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        {/each}
+                                        {#if exclusiveInternalAccessControl.length === 0}
+                                            <p class="text-sm text-muted-foreground">
+                                                No exclusive internal entities configured
+                                            </p>
+                                        {/if}
+                                    </div>
+                                    {#if isOverridden('exclusiveInternalAccessControl')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Original: {getOriginalValue('exclusiveInternalAccessControl')?.length || 0} entities
                                         </p>
                                     {/if}
                                 </div>
-                                {#if isOverridden('exclusiveInternalAccessControl')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Original: {getOriginalValue('exclusiveInternalAccessControl')?.length || 0} entities
-                                    </p>
-                                {/if}
-                            </div>
 
-                            <div>
-                                <Label>User ID Access</Label>
-                                <div class="mt-2 space-y-2">
-                                    {#each exclusiveUserIdAccessControl as userId, index}
-                                        <div class="flex items-center justify-between p-2 border rounded">
-                                            <span class="text-sm">{userId}</span>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={!isOverrideMode}
-                                                onclick={() => removeUserId(index)}
-                                            >
-                                                <Trash2 class="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    {/each}
-                                    {#if exclusiveUserIdAccessControl.length === 0}
-                                        <p class="text-sm text-muted-foreground">No exclusive user IDs configured</p>
+                                <div>
+                                    <Label>User ID Access</Label>
+                                    <div class="mt-2 space-y-2">
+                                        {#each exclusiveUserIdAccessControl as userId, index}
+                                            <div class="flex items-center justify-between p-2 border rounded">
+                                                <span class="text-sm">{userId}</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={!isOverrideMode}
+                                                    onclick={() => removeUserId(index)}
+                                                >
+                                                    <Trash2 class="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        {/each}
+                                        {#if exclusiveUserIdAccessControl.length === 0}
+                                            <p class="text-sm text-muted-foreground">
+                                                No exclusive user IDs configured
+                                            </p>
+                                        {/if}
+                                    </div>
+                                    {#if isOverridden('exclusiveUserIdAccessControl')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Original: {getOriginalValue('exclusiveUserIdAccessControl')?.length || 0} user
+                                            IDs
+                                        </p>
                                     {/if}
                                 </div>
-                                {#if isOverridden('exclusiveUserIdAccessControl')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Original: {getOriginalValue('exclusiveUserIdAccessControl')?.length || 0} user IDs
-                                    </p>
-                                {/if}
                             </div>
-                        </div>
+                        {/if}
                     </section>
 
                     <Separator />
 
                     <!-- Home Page Settings -->
                     <section>
-                        <h2 class="text-lg font-semibold mb-4">Home Page Settings</h2>
-                        <div class="space-y-4">
-                            <div class="p-4 border rounded bg-muted/20">
-                                <p class="text-sm text-muted-foreground">
-                                    Home page visibility is controlled by the filter rules below.
-                                    {#if homePageFilterRules.length > 0}
-                                        Custom rules are configured (will show on home page).
-                                    {:else}
-                                        Using site default rules.
-                                    {/if}
-                                </p>
-                            </div>
-
-                            <div>
-                                <Label>Home Page Filter Rules</Label>
-                                <div class="mt-2 p-4 border rounded bg-muted/20">
+                        <button
+                            class="flex items-center gap-2 w-full text-left mb-4 hover:text-primary transition-colors"
+                            onclick={() => toggleSection('homepage')}
+                        >
+                            <ChevronDown
+                                class="w-5 h-5 transition-transform {expandedSections.homepage ? '' : '-rotate-90'}"
+                            />
+                            <h2 class="text-lg font-semibold">Home Page Settings</h2>
+                        </button>
+                        {#if expandedSections.homepage}
+                            <div class="space-y-4" transition:slide={{ duration: 200 }}>
+                                <div class="p-4 border rounded bg-muted/20">
                                     <p class="text-sm text-muted-foreground">
+                                        Home page visibility is controlled by the filter rules below.
                                         {#if homePageFilterRules.length > 0}
-                                            {homePageFilterRules.length} rule(s) configured
+                                            Custom rules are configured (will show on home page).
                                         {:else}
-                                            No custom home page filter rules (using site defaults)
+                                            Using site default rules.
                                         {/if}
                                     </p>
-                                    <Button size="sm" variant="outline" class="mt-2" disabled={!isOverrideMode}>
-                                        <Plus class="w-4 h-4 mr-1" />
-                                        Configure Rules
-                                    </Button>
                                 </div>
-                                {#if isOverridden('homePageFilterRules')}
-                                    <p class="text-xs text-muted-foreground mt-1">
-                                        Site Default: {getOriginalValue('homePageFilterRules')?.length || 0} rule(s)
-                                    </p>
-                                {/if}
+
+                                <div>
+                                    <Label>Home Page Filter Rules</Label>
+                                    <div class="mt-2 p-4 border rounded bg-muted/20">
+                                        <p class="text-sm text-muted-foreground">
+                                            {#if homePageFilterRules.length > 0}
+                                                {homePageFilterRules.length} rule(s) configured
+                                            {:else}
+                                                No custom home page filter rules (using site defaults)
+                                            {/if}
+                                        </p>
+                                        <Button size="sm" variant="outline" class="mt-2" disabled={!isOverrideMode}>
+                                            <Plus class="w-4 h-4 mr-1" />
+                                            Configure Rules
+                                        </Button>
+                                    </div>
+                                    {#if isOverridden('homePageFilterRules')}
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Site Default: {getOriginalValue('homePageFilterRules')?.length || 0} rule(s)
+                                        </p>
+                                    {/if}
+                                </div>
                             </div>
-                        </div>
+                        {/if}
                     </section>
                 </div>
             </ScrollArea>
@@ -899,16 +797,26 @@
 </div>
 
 {#snippet pageHeaderRightSnippet()}
-    {#if selectedChatApp && isOverrideMode}
+    {#if selectedChatApp}
         <div class="flex items-center gap-2">
-            <Button variant="outline" size="sm" onclick={handleReset} disabled={!isDirty}>
-                <RotateCcw class="w-4 h-4 mr-1" />
-                Reset
-            </Button>
-            <Button variant="default" size="sm" onclick={handleSave} disabled={!isDirty}>
-                <Save class="w-4 h-4 mr-1" />
-                Save Changes
-            </Button>
+            <!-- Section collapse controls -->
+            <div class="flex items-center gap-1 mr-2">
+                <Button variant="ghost" size="sm" onclick={expandAllSections}>Expand All</Button>
+                <Button variant="ghost" size="sm" onclick={collapseAllSections}>Collapse All</Button>
+            </div>
+
+            <!-- Save/Reset controls (only in override mode) -->
+            {#if isOverrideMode}
+                <Separator orientation="vertical" class="h-6" />
+                <Button variant="outline" size="sm" onclick={handleReset} disabled={!isDirty}>
+                    <RotateCcw class="w-4 h-4 mr-1" />
+                    Reset
+                </Button>
+                <Button variant="default" size="sm" onclick={handleSave} disabled={!isDirty}>
+                    <Save class="w-4 h-4 mr-1" />
+                    Save Changes
+                </Button>
+            {/if}
         </div>
     {/if}
 {/snippet}
