@@ -21,7 +21,7 @@
     import { DEFAULT_FEATURE_ENABLED_VALUE, FEATURE_NAMES } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
     import BasicSettings from '../components/chat-apps/basic-settings.svelte';
-    import ChatAppAccessControl from '../components/chat-apps/chat-app-access-control.svelte';
+    import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
     import LeftNav from '../components/chat-apps/left-nav.svelte';
     import Titlebar from '../components/chat-apps/titlebar.svelte';
     import ConfigSection from '../components/config-section.svelte';
@@ -243,28 +243,6 @@
         resetFormData();
     }
 
-    function handleAddExternalEntity() {
-        // TODO: Open dialog to select external entities
-        console.log('Add external entity dialog');
-    }
-
-    function handleAddInternalEntity() {
-        // TODO: Open dialog to select internal entities
-        console.log('Add internal entity dialog');
-    }
-
-    function removeExternalEntity(index: number) {
-        exclusiveExternalAccessControl = exclusiveExternalAccessControl.filter((_, i) => i !== index);
-    }
-
-    function removeInternalEntity(index: number) {
-        exclusiveInternalAccessControl = exclusiveInternalAccessControl.filter((_, i) => i !== index);
-    }
-
-    function removeUserId(index: number) {
-        exclusiveUserIdAccessControl = exclusiveUserIdAccessControl.filter((_, i) => i !== index);
-    }
-
     function toggleUserRole(userRole: UserRole) {
         if (userRoles.includes(userRole)) {
             userRoles = userRoles.filter((r) => r !== userRole);
@@ -362,7 +340,7 @@
 
                     <Separator />
 
-                    <ChatAppAccessControl
+                    <AccessControl
                         bind:userTypes
                         bind:userRoles
                         bind:applyRulesAs
@@ -375,11 +353,6 @@
                         {isOverridden}
                         {getOriginalValue}
                         onToggleAccessSection={() => toggleSection('access')}
-                        onAddExternalEntity={handleAddExternalEntity}
-                        onAddInternalEntity={handleAddInternalEntity}
-                        onRemoveExternalEntity={removeExternalEntity}
-                        onRemoveInternalEntity={removeInternalEntity}
-                        onRemoveUserId={removeUserId}
                         chatAppId={selectedChatApp.chatAppId}
                     />
 

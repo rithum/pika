@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-    import { Label } from '$lib/components/ui/label/index.js';
     import List from '$lib/components/ui-pika/list/list.svelte';
     import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
+    import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+    import { Label } from '$lib/components/ui/label/index.js';
     import type { ApplyRulesAs, UserRole } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

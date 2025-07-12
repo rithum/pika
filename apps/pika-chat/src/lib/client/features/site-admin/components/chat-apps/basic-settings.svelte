@@ -1,10 +1,10 @@
 <script lang="ts">
-    import ConfigSection from '../config-section.svelte';
     import { Button } from '$lib/components/ui/button';
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { Input } from '$lib/components/ui/input';
     import { Label } from '$lib/components/ui/label';
     import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+    import ConfigSection from '../config-section.svelte';
 
     interface Props {
         selectedChatApp: ChatApp | null;
