@@ -24,7 +24,7 @@ import {
     type SaveUserOverrideDataResponse,
     type UserOverrideDataCommandRequest,
     type UserOverrideDataCommandResponse,
-    type CustomDataUiRepresentation
+    type CustomDataUiRepresentation,
 } from '@pika/shared/types/chatbot/chatbot-types';
 import type {
     ChatAppMode,
@@ -32,7 +32,7 @@ import type {
     SiteAdminCommand,
     SiteAdminRequest,
     SiteAdminResponse,
-    UserDataOverrideSettings
+    UserDataOverrideSettings,
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, getFeature, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
@@ -49,7 +49,7 @@ const MAX_FILES = 5;
 
 //TODO: get from feature, it's already there just use it
 const SUPPORTED_FILE_TYPES: Record<string, string> = {
-    'text/csv': 'csv (Comma Separated Values)'
+    'text/csv': 'csv (Comma Separated Values)',
     // 'application/pdf': 'pdf (Portable Document Format)',
     // 'text/plain': 'txt (Plain Text)',
 };
@@ -116,21 +116,26 @@ export class ChatAppState {
     #contentAdminDialogOpen = $state<boolean>(false);
     #userDataOverrideSettings = $state<UserDataOverrideSettings>() as UserDataOverrideSettings;
     #userDataOverrideDialogOpen = $state(false);
-    #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
+    #isViewingContentForAnotherUser = $derived(
+        this.#appState.identity.user.viewingContentFor &&
+            !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]
+    );
 
     // You may not have overridden data if you are viewing content for another user.
-    #userNeedsToProvideDataOverrides = $derived(!this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides);
+    #userNeedsToProvideDataOverrides = $derived(
+        !this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides
+    );
 
     userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean> = $state({
         getInitialDialogData: false,
         getValuesForAutoComplete: false,
         saveUserOverrideData: false,
-        clearUserOverrideData: false
+        clearUserOverrideData: false,
     });
     contentAdminOperationInProgress: Record<ContentAdminCommand, boolean> = $state({
         viewContentForUser: false,
         stopViewingContentForUser: false,
-        getValuesForAutoComplete: false
+        getValuesForAutoComplete: false,
     });
     #appSidebarState: SidebarState | undefined;
     #appSidebarOpen = $derived.by(() => {
@@ -355,7 +360,9 @@ export class ChatAppState {
     }
 
     get chatInput() {
-        return this.#isViewingContentForAnotherUser ? 'You may not send messages while viewing content for another user.' : this.#chatInput;
+        return this.#isViewingContentForAnotherUser
+            ? 'You may not send messages while viewing content for another user.'
+            : this.#chatInput;
     }
 
     set chatInput(msg: string) {
@@ -515,13 +522,15 @@ export class ChatAppState {
                         size: upload.size,
                         lastModified: upload.lastModified,
                         type: upload.type,
-                        status: upload.status
+                        status: upload.status,
                     }) as UploadInstance
             );
 
         const hasFileStillOnTheObject = completedUploads.some((upload) => !!upload.file);
         if (hasFileStillOnTheObject) {
-            throw new Error('Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.');
+            throw new Error(
+                'Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.'
+            );
         }
 
         if (text === '' && completedUploads.length === 0) {
@@ -529,7 +538,7 @@ export class ChatAppState {
         } else {
             this.#inprogressInputs[sessionId] = {
                 text,
-                uploads: completedUploads
+                uploads: completedUploads,
             };
         }
 
@@ -547,7 +556,9 @@ export class ChatAppState {
         } else {
             // Make a new interim session if we don't have an interim sessionId/message in progress in local storage
             // otherwise use the interim sessionId from local storage
-            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) => key.startsWith('interim-'));
+            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) =>
+                key.startsWith('interim-')
+            );
             this.#currentSession = {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
                 userId: this.#user.userId,
@@ -564,10 +575,10 @@ export class ChatAppState {
                     agentId: this.#chatApp.agentId,
                     userId: this.#user.userId,
                     chatAppId: this.#chatApp.chatAppId,
-                    currentDate: new Date().toISOString()
+                    currentDate: new Date().toISOString(),
                 },
                 createDate: new Date().toISOString(),
-                lastUpdate: new Date().toISOString()
+                lastUpdate: new Date().toISOString(),
             };
             this.#curSessionMessages = [];
         }
@@ -637,7 +648,9 @@ export class ChatAppState {
             if (resp.ok) {
                 const msgResult = (await resp.json()) as ChatMessagesResponse;
                 if (msgResult.success) {
-                    this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
+                    this.#curSessionMessages = msgResult.messages.map((msg) =>
+                        this.#processMessageIntoSegments({ ...msg, segments: [] }, false)
+                    );
                 } else {
                     console.error('Error refreshing messages for current session', msgResult.error);
                 }
@@ -680,9 +693,9 @@ export class ChatAppState {
                     locationType: 's3',
                     size: file.size,
                     lastModified: file.lastModified,
-                    type: file.type
-                }))
-            })
+                    type: file.type,
+                })),
+            }),
         };
         this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...userMessage, segments: [] }, false));
 
@@ -696,7 +709,7 @@ export class ChatAppState {
             segments: [],
             isStreaming: true,
             source: 'assistant',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         };
         this.#curSessionMessages.push(interimMessage);
 
@@ -715,7 +728,7 @@ export class ChatAppState {
                       locationType: 's3',
                       size: file.size,
                       lastModified: file.lastModified,
-                      type: file.type
+                      type: file.type,
                   }));
 
         const wasInterimSession = this.#isInterimSession;
@@ -728,15 +741,15 @@ export class ChatAppState {
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
                 features: {} as ChatAppOverridableFeatures, // This will be set server side
-                ...(files && { files })
+                ...(files && { files }),
             };
             // Send the message to the server and stream the response
             const response = await this.fetchz('/api/message', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(converseRequest)
+                body: JSON.stringify(converseRequest),
             });
 
             if (!response.ok) {
@@ -778,7 +791,7 @@ export class ChatAppState {
                 const oldMessages = this.#curSessionMessages;
                 this.#curSessionMessages = this.#curSessionMessages.map((msg) => ({
                     ...msg,
-                    sessionId: newSessionId
+                    sessionId: newSessionId,
                 }));
 
                 // console.log('[CHAT-APP-STATE] After session ID update:', {
@@ -877,9 +890,9 @@ export class ChatAppState {
             const response = await this.fetchz('/api/user-data-override', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             if (!response.ok) {
@@ -906,7 +919,10 @@ export class ChatAppState {
                     delete this.valuesForAutoCompleteForUserOverrideDialog[request.componentName];
                 }
             } else if (request.command === 'saveUserOverrideData') {
-                this.#appState.identity.updateUserOverrideData(this.#chatApp.chatAppId, (json as SaveUserOverrideDataResponse).data);
+                this.#appState.identity.updateUserOverrideData(
+                    this.#chatApp.chatAppId,
+                    (json as SaveUserOverrideDataResponse).data
+                );
             } else if (request.command === 'clearUserOverrideData') {
                 this.#appState.identity.clearUserOverrideData(this.#chatApp.chatAppId);
             }
@@ -924,9 +940,9 @@ export class ChatAppState {
             const response = await this.fetchz('/api/content-admin', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             if (!response.ok) {
@@ -943,7 +959,8 @@ export class ChatAppState {
                 if (!this.valuesForAutoCompleteForContentAdminDialog) {
                     this.valuesForAutoCompleteForContentAdminDialog = [];
                 }
-                this.valuesForAutoCompleteForContentAdminDialog = (json as GetValuesForContentAdminAutoCompleteResponse).data ?? undefined;
+                this.valuesForAutoCompleteForContentAdminDialog =
+                    (json as GetValuesForContentAdminAutoCompleteResponse).data ?? undefined;
             } else if (request.command === 'viewContentForUser') {
                 this.#appState.identity.updateViewingContentFor(this.#chatApp.chatAppId, request.user);
             } else if (request.command === 'stopViewingContentForUser') {
@@ -1055,7 +1072,9 @@ export class ChatAppState {
 
         // Throw an error if any of the files are not one of the supported file types
         if (files.some((file) => !Object.keys(SUPPORTED_FILE_TYPES).includes(file.type))) {
-            throw new ChatFileValidationError('Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', '));
+            throw new ChatFileValidationError(
+                'Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', ')
+            );
         }
 
         // Create upload instances for the new files
@@ -1099,7 +1118,7 @@ export class ChatAppState {
             messageId: `user-mock-${uuidv7()}`,
             message: 'What is the weather like in New York?',
             source: 'user',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         };
 
         // Add the user message to current session messages
@@ -1115,11 +1134,13 @@ export class ChatAppState {
                 messageId: assistantMessageId,
                 message: '',
                 source: 'assistant',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             };
 
             // Add the assistant message to current session messages
-            this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...assistantMessage, segments: [] }, true));
+            this.#curSessionMessages.push(
+                this.#processMessageIntoSegments({ ...assistantMessage, segments: [] }, true)
+            );
 
             // Define the mock weather response content to stream
             const mockResponse =

@@ -1,80 +1,28 @@
-import type {
-    AuthenticatedUser,
-    ChatApp,
-    RecordOrUndef,
-    UserOverrideData,
-} from '@pika/shared/types/chatbot/chatbot-types';
-/**
- * Get the initial data for the user data override dialog.  This is the data that will be displayed in the dialog when the user
- * clicks the user data override button.  Lets say you want to have a company picker in the user data override dialog.  You would
- * return the list of companies from your database here and then in your custom UI component you would display a picker.
- *
- * Note that any existing override data is on the user object passed in on the `overrideData` field (key is chatAppId, value is
- * the override data for that chat app).
- *
- * @param user The currently logged in user
- * @param chatApp The chat app that the user is overriding the user for
- * @returns The initial data for the user data override dialog to render your custom UI component, if any
- */
-export async function getInitialDataForUserDataOverrideDialog(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    chatApp: ChatApp
-): Promise<unknown | undefined> {
-    /*
-        Replace everything in this function with your own implementation.  It's here as a working example.
-        You may use fetch to reach out to an API. If you are going to call a resource in AWS, be sure you add permissions 
-        to the ECS webapp task role so the webapp has permissions to call the resource.  Do it 
-        in apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts in the addStackResoucesBeforeWeCreateThePikaChatConstruct method.
-
-        Here's an example that adds the ability to invoke an API Gateway API by its api ID:
-
-            this.stack.webapp.taskRole.addToPolicy(new iam.PolicyStatement({
-                actions: ['execute-api:Invoke'],
-                resources: ['arn:aws:execute-api:us-east-1:111111111111:api-id/stage/GET/']
-        }));
-
-    */
-
-    let account: Account | undefined;
-    if (user.overrideData && user.overrideData[chatApp.chatAppId]) {
-        const overrideData = user.overrideData[chatApp.chatAppId];
-        if (overrideData) {
-            account = {
-                accountId: overrideData.accountId!,
-                details: {
-                    accountName: overrideData.accountName!,
-                    accountType: overrideData.accountType as 'standard' | 'premium',
-                },
-            };
-        }
-    }
-
-    return account;
-}
+import type { AuthenticatedUser, ChatApp, RecordOrUndef, SimpleOption, UserOverrideData } from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
- * Get the values for an auto complete input component.  Perhaps you have a company picker auto complete input in
- * the user data override dialog and you want to let the internal user select a company from a list of companies.
+ * Get the values for an auto complete input component in the admin UI.  This is used if you have turned on
+ * the siteAdmin feature and within it the supportUserEntityAccessControl feature in the site features (@see pika-config.ts).
+ *
+ * When you turn that on, the admin UI will show a new section in the chat app configuration called "Entity Access Control" that
+ * can be set for internal and external users separately.  The admin user can then search for entities whose users are
+ * to be given exclusive access to the chat app, meaning that only users associated with those entities will be able to
+ * access the chat app.
+ *
  * This would let you do a query using the `valueProvidedByUser` to get the values for the auto complete input.
  *
- * You can have multiple auto complete inputs in the same dialog, so you will need to pass the component name to
- * this method so you can return the correct values for the correct auto complete input.
- *
- * Note that any existing override data is on the user object passed in on the `overrideData` field (key is chatAppId, value is
- * the override data for that chat app).
- *
- * @param componentName The component to get the values for (this allows you to have multiple pickers in the same dialog)
+ * @param type The type of user to get the values for: "internal-user" or "external-user"
  * @param valueProvidedByUser The value provided by the user (the value typed by the user in the picker to query on)
  * @param user The logged in user
- * @param chatApp The chat app that the user is overriding the user for
+ * @param chatAppId The chat app whose entity access control is being configured
  * @returns
  */
-export async function getValuesForAutoComplete(
-    _componentName: string,
+export async function getValuesForEntityAutoComplete(
+    _type: 'internal-user' | 'external-user',
     valueProvidedByUser: string,
     _user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    _chatApp: ChatApp
-): Promise<unknown[] | undefined> {
+    _chatAppId: string
+): Promise<SimpleOption[] | undefined> {
     /*
         Replace everything in this function with your own implementation.  You may use fetch to reach out to an API.
         If you are going to call a resource in AWS, be sure you add permissions to the ECS webapp task role so the
@@ -97,60 +45,20 @@ export async function getValuesForAutoComplete(
             .slice(0, 20)
             .map((company) => ({
                 value: company.accountId,
-                label: company.details.accountName,
+                label: company.details.accountName
             }));
     }
 
     const searchValue = valueProvidedByUser.toLowerCase().trim();
 
     return mockAccounts
-        .filter(
-            (account) =>
-                account.accountId.toLowerCase().startsWith(searchValue) ||
-                account.details.accountName.toLowerCase().startsWith(searchValue)
-        )
+        .filter((account) => account.accountId.toLowerCase().startsWith(searchValue) || account.details.accountName.toLowerCase().startsWith(searchValue))
         .sort((a, b) => a.details.accountName.localeCompare(b.details.accountName))
+        .map((account) => ({
+            value: account.accountId,
+            label: account.details.accountName
+        }))
         .slice(0, 20);
-}
-
-/**
- * Set the override data into the chat user before we use it when calling the chat API or when invoking the agent.
- * Note, we don't save the override data in the database, we only use it when calling the chat API or when invoking the agent, storing
- * it in a cookie. Remember that we send the user object all over the place, so if it gets too big, it could cause a problem.
- * All of your custom user data should be stored in `AuthenticatedUser.customData` and should not be more than 1 kilobyte in size.
- *
- * Note that any existing override data is on the user object passed in on the `overrideData` field (key is chatAppId, value is
- * the override data for that chat app).
- *
- * @param user The user we are acting on behalf of.
- * @param chatApp The chat app that the user is overriding the user for
- * @param overrideData The override data posted from the user data override dialog from your custom UI component.
- *                     You will have to turn this into a bag of string keys and string values or undefined to return and use as the override data.
- * @returns The complete bag of ChatUser.customData that we will use when calling the chat API or when invoking the agent. If you
- *          pass undefined then we remove any override data associated with this user and chat app.
- */
-export async function userOverrideDataPostedFromDialog(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    chatApp: ChatApp,
-    overrideData: unknown | undefined
-): Promise<RecordOrUndef> {
-    /*
-        Replace everything in this function with your own implementation.  Your job is to take the data posted from the user data override dialog
-        that you chose to send and turn it into a bag of string keys and string values or undefined to return and use as the override data.
-    */
-
-    let result: RecordOrUndef;
-    const account = overrideData ? (overrideData as Account) : undefined;
-    if (account) {
-        // Must return Record<string, string | undefined>
-        result = {
-            accountId: account.accountId,
-            accountName: account.details.accountName,
-            accountType: account.details.accountType,
-        };
-    }
-
-    return result;
 }
 
 interface Account {
@@ -262,5 +170,5 @@ const mockAccounts: Account[] = [
     { accountId: 'acct-097', details: { accountName: 'Champion Systems', accountType: 'standard' } },
     { accountId: 'acct-098', details: { accountName: 'Victor Ventures', accountType: 'premium' } },
     { accountId: 'acct-099', details: { accountName: 'Conqueror Ltd', accountType: 'standard' } },
-    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } },
+    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } }
 ];

@@ -2,7 +2,14 @@ import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
 import type { FetchZ, HotKey } from './types';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-import type { ChatApp, ChatUser, ChatAppOverridableFeatures, CustomDataUiRepresentation, SiteFeatures, ChatAppMode } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    ChatApp,
+    ChatUser,
+    ChatAppOverridableFeatures,
+    CustomDataUiRepresentation,
+    SiteFeatures,
+    ChatAppMode,
+} from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';

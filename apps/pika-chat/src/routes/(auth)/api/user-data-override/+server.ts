@@ -4,7 +4,11 @@ import { isUserContentAdmin } from '$lib/server/utils';
 import { serializeUserOverrideDataToCookies } from '$lib/server/cookies';
 import type { UserOverrideDataCommandRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
-import { getInitialDataForUserDataOverrideDialog, getValuesForAutoComplete, userOverrideDataPostedFromDialog } from './custom-user-data';
+import {
+    getInitialDataForUserDataOverrideDialog,
+    getValuesForAutoComplete,
+    userOverrideDataPostedFromDialog,
+} from './custom-user-data';
 import { isUserAllowedToUseUserDataOverrides } from '$lib/server/utils';
 
 export const POST: RequestHandler = async (event) => {
@@ -23,7 +27,10 @@ export const POST: RequestHandler = async (event) => {
         if (!isUserContentAdmin(locals.user)) {
             throw new Response('Forbidden', { status: 403 });
         }
-        return new Response('You have selected view content for another user and you are not allowed to take action as that user.', { status: 403 });
+        return new Response(
+            'You have selected view content for another user and you are not allowed to take action as that user.',
+            { status: 403 }
+        );
     }
 
     const overrideReq: UserOverrideDataCommandRequest = await request.json();
@@ -41,13 +48,18 @@ export const POST: RequestHandler = async (event) => {
         const initialData = await getInitialDataForUserDataOverrideDialog(user, chatApp);
         return json({
             success: true,
-            data: initialData
+            data: initialData,
         });
     } else if (overrideReq.command === 'getValuesForAutoComplete') {
-        const valuesForAutoComplete = await getValuesForAutoComplete(overrideReq.componentName, overrideReq.valueProvidedByUser, user, chatApp);
+        const valuesForAutoComplete = await getValuesForAutoComplete(
+            overrideReq.componentName,
+            overrideReq.valueProvidedByUser,
+            user,
+            chatApp
+        );
         return json({
             success: true,
-            data: valuesForAutoComplete
+            data: valuesForAutoComplete,
         });
     } else if (overrideReq.command === 'saveUserOverrideData') {
         const savedData = await userOverrideDataPostedFromDialog(user, chatApp, overrideReq.data);
@@ -59,20 +71,30 @@ export const POST: RequestHandler = async (event) => {
         user.overrideData[chatApp.chatAppId] = savedData;
         locals.user = user;
 
-        serializeUserOverrideDataToCookies(event, { data: user.overrideData }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        serializeUserOverrideDataToCookies(
+            event,
+            { data: user.overrideData },
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
 
         return json({
             success: true,
-            data: savedData
+            data: savedData,
         });
     } else if (overrideReq.command === 'clearUserOverrideData') {
         if (user.overrideData) {
             delete user.overrideData[chatApp.chatAppId];
         }
         locals.user = user;
-        serializeUserOverrideDataToCookies(event, { data: user.overrideData ?? {} }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        serializeUserOverrideDataToCookies(
+            event,
+            { data: user.overrideData ?? {} },
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
         return json({
-            success: true
+            success: true,
         });
     } else {
         return new Response('Invalid command', { status: 400 });

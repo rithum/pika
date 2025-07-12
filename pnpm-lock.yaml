@@ -150,9 +150,6 @@ catalogs:
     aws-lambda:
       specifier: ^1.0.7
       version: 1.0.7
-    bits-ui:
-      specifier: ^1.4.8
-      version: 1.4.8
     camelcase-keys:
       specifier: ^9.1.3
       version: 9.1.3
@@ -429,6 +426,9 @@ importers:
       '@internationalized/date':
         specifier: 'catalog:'
         version: 3.8.0
+      '@lucide/svelte':
+        specifier: ^0.482.0
+        version: 0.482.0(svelte@5.30.2)
       '@opensearch-project/opensearch':
         specifier: 'catalog:'
         version: 3.5.1
@@ -493,7 +493,7 @@ importers:
         specifier: 'catalog:'
         version: 2.195.0(constructs@10.4.2)
       bits-ui:
-        specifier: 'catalog:'
+        specifier: ^1.4.8
         version: 1.4.8(svelte@5.30.2)
       chart.js:
         specifier: 'catalog:'
@@ -2026,6 +2026,11 @@ packages:
 
   '@kurkle/color@0.3.4':
     resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
+
+  '@lucide/svelte@0.482.0':
+    resolution: {integrity: sha512-n2ycHU9cNcleRDwwpEHBJ6pYzVhHIaL3a+9dQa8kns9hB2g05bY+v2p2KP8v0pZwtNhYTHk/F2o2uZ1bVtQGhw==}
+    peerDependencies:
+      svelte: ^5
 
   '@mapbox/node-pre-gyp@2.0.0':
     resolution: {integrity: sha512-llMXd39jtP0HpQLVI37Bf1m2ADlEb35GYSh1SDSLsBhR+5iCxiNGlT31yqbNtVHygHAtMy6dWFERpU2JgufhPg==}
@@ -7886,6 +7891,10 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.0
 
   '@kurkle/color@0.3.4': {}
+
+  '@lucide/svelte@0.482.0(svelte@5.30.2)':
+    dependencies:
+      svelte: 5.30.2
 
   '@mapbox/node-pre-gyp@2.0.0(encoding@0.1.13)':
     dependencies:

@@ -46,7 +46,7 @@ export async function siteFeaturesVitePlugin(): Promise<Plugin> {
 
                     ctx.server.ws.send({
                         type: 'full-reload',
-                        path: '*'
+                        path: '*',
                     });
                 } catch (error) {
                     console.error('Failed to update site features:', error);
@@ -55,7 +55,7 @@ export async function siteFeaturesVitePlugin(): Promise<Plugin> {
                 // Prevent the default HMR behavior
                 return [];
             }
-        }
+        },
     };
 }
 
@@ -80,7 +80,9 @@ async function updateSiteFeaturesTsFileFromPikaConfig() {
     let pikaConfigPath: string | undefined = findPathToPikaConfig();
 
     if (!pikaConfigPath) {
-        throw new Error(`${pikaConfigFileName} file not found and it is expected to be in the root directory of the project, see <root>/docs/developer/customization.md`);
+        throw new Error(
+            `${pikaConfigFileName} file not found and it is expected to be in the root directory of the project, see <root>/docs/developer/customization.md`
+        );
     }
 
     // If the pikaConfigPath isn't a file, throw an error
@@ -97,11 +99,13 @@ async function updateSiteFeaturesTsFileFromPikaConfig() {
         // Clear the module cache to ensure we get the latest version
         const jiti = createJiti(import.meta.url, {
             cache: false,
-            requireCache: false
+            requireCache: false,
         });
         const pikaConfig = (await jiti.import(pikaConfigPath)) as { pikaConfig: PikaConfig };
         if (!pikaConfig.pikaConfig) {
-            throw new Error(`${pikaConfigFileName} file ${pikaConfigPath} does not have an exported pikaConfig constant`);
+            throw new Error(
+                `${pikaConfigFileName} file ${pikaConfigPath} does not have an exported pikaConfig constant`
+            );
         }
 
         siteFeatures = pikaConfig.pikaConfig.siteFeatures;
@@ -113,7 +117,9 @@ async function updateSiteFeaturesTsFileFromPikaConfig() {
 
     // Make sure that the path exists or throw an error
     if (!existsSync(chatWebAppServerPath)) {
-        throw new Error(`Chat web app server path ${chatWebAppServerPath} does not exist, trying to find apps/pika-chat/src/lib/server in the same directory as pika-config.ts`);
+        throw new Error(
+            `Chat web app server path ${chatWebAppServerPath} does not exist, trying to find apps/pika-chat/src/lib/server in the same directory as pika-config.ts`
+        );
     }
 
     const customSiteFeaturesPath = path.join(chatWebAppServerPath, customSiteFeaturesFileName);
@@ -137,7 +143,7 @@ export const siteFeatures: SiteFeatures | undefined = ${readableSerialized};
         useTabs: false,
         singleQuote: true,
         trailingComma: 'es5',
-        printWidth: 100
+        printWidth: 100,
     });
 
     // Write the site-features.ts file

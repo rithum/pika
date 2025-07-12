@@ -1081,6 +1081,23 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
 
 export interface SiteAdminFeature {
     websiteEnabled: boolean;
+
+    /** Ignored if websiteEnabled is false. */
+    supportUserEntityAccessControl?: {
+        /**
+         * If you turn this on then we expect that you will provide
+         */
+        enabled: boolean;
+
+        /** The placeholder text for the search input: e.g. "Search for an account...". Defaults to "Search for an entity..." */
+        searchPlaceholderText?: string;
+
+        /** The display name for a single entity: e.g. "Account". Defaults to "Entity" */
+        entityDisplayNameSingular?: string;
+
+        /** The display name for a plural of entities: e.g. "Accounts". Defaults to "Entities" */
+        entityDisplayNamePlural?: string;
+    };
 }
 
 /**
@@ -1309,13 +1326,25 @@ export interface TextMessageSegment extends MessageSegmentBase {
 
 export type MessageSegment = TagMessageSegment | TextMessageSegment;
 
-export type SiteAdminRequest = GetInitialDataRequest | RefreshChatAppRequest | CreateOrUpdateChatAppOverrideRequest | DeleteChatAppOverrideRequest;
+export type SiteAdminRequest =
+    | GetInitialDataRequest
+    | RefreshChatAppRequest
+    | CreateOrUpdateChatAppOverrideRequest
+    | DeleteChatAppOverrideRequest
+    | GetValuesForEntityAutoCompleteRequest;
 
-export const SiteAdminCommand = ['getInitialData', 'refreshChatApp', 'createOrUpdateChatAppOverride', 'deleteChatAppOverride'] as const;
+export const SiteAdminCommand = ['getInitialData', 'refreshChatApp', 'createOrUpdateChatAppOverride', 'deleteChatAppOverride', 'getValuesForEntityAutoComplete'] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
 export interface SiteAdminCommandRequestBase {
     command: SiteAdminCommand;
+}
+
+export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandRequestBase {
+    command: 'getValuesForEntityAutoComplete';
+    type: 'internal-user' | 'external-user';
+    valueProvidedByUser: string;
+    chatAppId: string;
 }
 
 export interface GetInitialDataRequest extends SiteAdminCommandRequestBase {
@@ -1338,11 +1367,20 @@ export interface DeleteChatAppOverrideRequest extends SiteAdminCommandRequestBas
     chatAppId: string;
 }
 
-export type SiteAdminResponse = GetInitialDataResponse | RefreshChatAppResponse | CreateOrUpdateChatAppOverrideResponse | DeleteChatAppOverrideResponse;
+export type SiteAdminResponse =
+    | GetInitialDataResponse
+    | RefreshChatAppResponse
+    | CreateOrUpdateChatAppOverrideResponse
+    | DeleteChatAppOverrideResponse
+    | GetValuesForEntityAutoCompleteResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
     error?: string;
+}
+
+export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
+    data: SimpleOption[] | undefined;
 }
 
 export interface GetInitialDataResponse extends SiteAdminCommandResponseBase {
@@ -1888,4 +1926,10 @@ export interface VitePreviewConfig {
     host?: string;
     port?: number;
     strictPort?: boolean;
+}
+
+export interface SimpleOption {
+    value: string;
+    label?: string;
+    secondaryLabel?: string;
 }

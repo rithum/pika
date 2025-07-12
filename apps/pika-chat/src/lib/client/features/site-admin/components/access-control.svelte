@@ -37,7 +37,7 @@
 
 <section>
     <h2 class="text-lg font-semibold mb-4">{sectionTitle}</h2>
-    <div class="flex gap-4">
+    <div class="flex gap-4 justify-between">
         <div class="space-y-6">
             <div>
                 <div class="text-sm font-medium mb-2">{userTypesLabel}</div>

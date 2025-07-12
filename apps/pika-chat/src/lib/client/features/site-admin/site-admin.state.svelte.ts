@@ -5,7 +5,9 @@ import type {
     ChatAppMode,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
+    GetValuesForEntityAutoCompleteResponse,
     RefreshChatAppResponse,
+    SimpleOption,
     SiteAdminCommand,
     SiteAdminRequest,
     SiteAdminResponse,
@@ -24,12 +26,15 @@ export class SiteAdminState {
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
+    valuesForInternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
+    valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
 
     siteAdminOperationInProgress: Record<SiteAdminCommand, boolean> = $state({
         getInitialData: false,
         refreshChatApp: false,
         createOrUpdateChatAppOverride: false,
-        deleteChatAppOverride: false
+        deleteChatAppOverride: false,
+        getValuesForEntityAutoComplete: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -139,6 +144,13 @@ export class SiteAdminState {
             } else if ('success' in json && json.success === false) {
                 //TODO: throw a toast
                 throw new Error(json.error);
+            } else if (request.command === 'getValuesForEntityAutoComplete') {
+                const values = (json as GetValuesForEntityAutoCompleteResponse).data ?? undefined;
+                if (request.type === 'internal-user') {
+                    this.valuesForInternalEntityAutoComplete = values;
+                } else if (request.type === 'external-user') {
+                    this.valuesForExternalEntityAutoComplete = values;
+                }
             } else if (request.command === 'refreshChatApp') {
                 const response = json as RefreshChatAppResponse;
                 // Replace the chat app in the list with the new one if it's there

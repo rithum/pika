@@ -67,15 +67,15 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                 connectionTimeout: 2000,
                 requestTimeout: 5000,
                 httpsAgent: new https.Agent({
-                    ciphers: 'ALL'
-                })
-            })
+                    ciphers: 'ALL',
+                }),
+            }),
         });
         this.ddbDocClient = DynamoDBDocument.from(ddbClient, {
             marshallOptions: {
                 convertEmptyValues: true,
-                removeUndefinedValues: true
-            }
+                removeUndefinedValues: true,
+            },
         });
     }
 
@@ -102,7 +102,8 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
 
         // Add additional headers that might be needed for authentication
         headers['Accept'] = 'application/json, text/plain, */*';
-        headers['User-Agent'] = event.request.headers.get('user-agent') || 'Mozilla/5.0 (compatible; Custom-Auth-Provider)';
+        headers['User-Agent'] =
+            event.request.headers.get('user-agent') || 'Mozilla/5.0 (compatible; Custom-Auth-Provider)';
         headers['Referer'] = event.url.origin;
 
         const urls = [adminTokenUrl, tokenUrl];
@@ -113,13 +114,15 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
             const url = urls[i];
             const isAdminAttempt = i === 0;
 
-            console.log(`[Custom Auth Provider] Attempt ${i + 1}/${urls.length}: ${isAdminAttempt ? 'Admin' : 'Regular'} auth at ${url}`);
+            console.log(
+                `[Custom Auth Provider] Attempt ${i + 1}/${urls.length}: ${isAdminAttempt ? 'Admin' : 'Regular'} auth at ${url}`
+            );
 
             try {
                 const response = await fetch(url, {
                     method: 'GET',
                     headers,
-                    credentials: 'include'
+                    credentials: 'include',
                 });
                 lastResponse = response;
 
@@ -135,7 +138,9 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                 }
 
                 if (!response.ok) {
-                    console.warn(`[Custom Auth Provider] Request failed with status ${response.status}, trying next URL`);
+                    console.warn(
+                        `[Custom Auth Provider] Request failed with status ${response.status}, trying next URL`
+                    );
                     continue; // Try next URL
                 }
 
@@ -148,7 +153,10 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                 try {
                     data = JSON.parse(responseText) as AuthResponse;
                 } catch (parseError) {
-                    console.error(`[Custom Auth Provider] Failed to parse response as JSON, not authenticated:`, parseError);
+                    console.error(
+                        `[Custom Auth Provider] Failed to parse response as JSON, not authenticated:`,
+                        parseError
+                    );
                     continue; // Try next URL
                 }
 
@@ -181,29 +189,36 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                     continue; // Try next URL
                 }
 
-                console.log(`[Custom Auth Provider] Received auth data - User ID: ${successData.user_id}, Token length: ${successData.access_token?.length || 0}`);
+                console.log(
+                    `[Custom Auth Provider] Received auth data - User ID: ${successData.user_id}, Token length: ${successData.access_token?.length || 0}`
+                );
 
                 const externalUser = await this.getExternalUserById(successData.user_id);
 
                 if (!externalUser) {
-                    console.error(`[Custom Auth Provider] User not found in external system for user_id: ${successData.user_id}`);
+                    console.error(
+                        `[Custom Auth Provider] User not found in external system for user_id: ${successData.user_id}`
+                    );
                     throw new Error('User not found in external system');
                 }
 
                 console.log(`[Custom Auth Provider] Found external user:`, {
                     id: externalUser.id,
                     email: externalUser.email,
-                    roles: externalUser.roles
+                    roles: externalUser.roles,
                 });
 
                 const authenticatedUser = this.createAuthenticatedUser(externalUser, successData);
                 console.log(`[Custom Auth Provider] Successfully created authenticated user:`, {
-                    userId: authenticatedUser.userId
+                    userId: authenticatedUser.userId,
                 });
 
                 return { authenticatedUser };
             } catch (e) {
-                console.error(`[Custom Auth Provider] Authentication attempt ${i + 1} failed:`, e instanceof Error ? e.message : e);
+                console.error(
+                    `[Custom Auth Provider] Authentication attempt ${i + 1} failed:`,
+                    e instanceof Error ? e.message : e
+                );
                 lastErr = e as Error;
                 continue; // Try next URL
             }
@@ -231,12 +246,17 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
         return redirect(302, loginRedirectUrl);
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<CustomAuthData, CustomUserData>): Promise<AuthenticatedUser<CustomAuthData, CustomUserData> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<CustomAuthData, CustomUserData>
+    ): Promise<AuthenticatedUser<CustomAuthData, CustomUserData> | undefined> {
         if (!user.authData) {
             throw new Error('User authData is missing in validateUser');
         }
 
-        console.log(`[Custom Auth Provider] Validating user session for user: ${user.userId}, userId: ${user.authData.userId}`);
+        console.log(
+            `[Custom Auth Provider] Validating user session for user: ${user.userId}, userId: ${user.authData.userId}`
+        );
 
         // Time-based validation - only validate every 5 minutes
         const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -245,11 +265,15 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
 
         // Skip validation if we validated recently
         if (now - lastValidated < VALIDATION_INTERVAL) {
-            console.log(`[Custom Auth Provider] Skipping validation - last validated ${Math.round((now - lastValidated) / 1000)} seconds ago`);
+            console.log(
+                `[Custom Auth Provider] Skipping validation - last validated ${Math.round((now - lastValidated) / 1000)} seconds ago`
+            );
             return undefined; // Session is still considered valid
         }
 
-        console.log(`[Custom Auth Provider] Performing validation - last validated ${Math.round((now - lastValidated) / 1000)} seconds ago`);
+        console.log(
+            `[Custom Auth Provider] Performing validation - last validated ${Math.round((now - lastValidated) / 1000)} seconds ago`
+        );
 
         // Proceed with actual validation since enough time has passed
         try {
@@ -273,7 +297,8 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
 
             // Add additional headers that might be needed for authentication
             headers['Accept'] = 'application/json, text/plain, */*';
-            headers['User-Agent'] = event.request.headers.get('user-agent') || 'Mozilla/5.0 (compatible; Custom-Auth-Provider)';
+            headers['User-Agent'] =
+                event.request.headers.get('user-agent') || 'Mozilla/5.0 (compatible; Custom-Auth-Provider)';
             headers['Referer'] = event.url.origin;
 
             // Try to validate the current session
@@ -286,28 +311,37 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                 const url = urls[i];
                 const isAdminAttempt = i === 0;
 
-                console.log(`[Custom Auth Provider] Validation attempt ${i + 1}/${urls.length}: ${isAdminAttempt ? 'Admin' : 'Regular'} at ${url}`);
+                console.log(
+                    `[Custom Auth Provider] Validation attempt ${i + 1}/${urls.length}: ${isAdminAttempt ? 'Admin' : 'Regular'} at ${url}`
+                );
 
                 try {
                     const response = await fetch(url, {
                         method: 'GET',
                         headers,
-                        credentials: 'include'
+                        credentials: 'include',
                     });
 
-                    console.log(`[Custom Auth Provider] Validation response status: ${response.status} ${response.statusText}`);
+                    console.log(
+                        `[Custom Auth Provider] Validation response status: ${response.status} ${response.statusText}`
+                    );
 
                     if (response.ok) {
                         // Log the raw response content before parsing JSON
                         const responseText = await response.text();
-                        console.log(`[Custom Auth Provider] Validation response content length: ${responseText.length}`);
+                        console.log(
+                            `[Custom Auth Provider] Validation response content length: ${responseText.length}`
+                        );
 
                         // Try to parse as JSON
                         let data: AuthResponse;
                         try {
                             data = JSON.parse(responseText) as AuthResponse;
                         } catch (parseError) {
-                            console.error(`[Custom Auth Provider] Failed to parse validation response as JSON:`, parseError);
+                            console.error(
+                                `[Custom Auth Provider] Failed to parse validation response as JSON:`,
+                                parseError
+                            );
                             continue; // Try next URL
                         }
 
@@ -327,7 +361,9 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                             isValid = true;
                             break;
                         } else {
-                            console.warn(`[Custom Auth Provider] User ID mismatch - Expected: ${user.authData.userId}, Got: ${authData.user_id}`);
+                            console.warn(
+                                `[Custom Auth Provider] User ID mismatch - Expected: ${user.authData.userId}, Got: ${authData.user_id}`
+                            );
                         }
                     } else {
                         console.warn(`[Custom Auth Provider] Validation request failed with status ${response.status}`);
@@ -351,7 +387,7 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
                 updatedUser.authData = {
                     accessToken: updatedUser.authData.accessToken,
                     userId: updatedUser.authData.userId,
-                    lastValidated: new Date(now).toISOString()
+                    lastValidated: new Date(now).toISOString(),
                 };
             }
 
@@ -376,8 +412,8 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
             const user = await this.ddbDocClient.get({
                 TableName: userTableName,
                 Key: {
-                    user_id: userId
-                }
+                    user_id: userId,
+                },
             });
 
             if (!user.Item) {
@@ -414,16 +450,21 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
         */
     }
 
-    private createAuthenticatedUser(externalUser: ExternalUser, authData: AuthSuccessResponse): AuthenticatedUser<CustomAuthData, CustomUserData> {
+    private createAuthenticatedUser(
+        externalUser: ExternalUser,
+        authData: AuthSuccessResponse
+    ): AuthenticatedUser<CustomAuthData, CustomUserData> {
         console.log(`[Custom Auth Provider] Creating authenticated user from external data:`, {
             id: externalUser.id,
             email: externalUser.email,
-            roles: externalUser.roles
+            roles: externalUser.roles,
         });
 
         // Determine if user is internal employee
         const internalUser = externalUser.is_admin || externalUser.roles?.includes('admin') || false;
-        console.log(`[Custom Auth Provider] User admin status: ${internalUser}, roles: ${externalUser.roles?.join(', ') || 'none'}`);
+        console.log(
+            `[Custom Auth Provider] User admin status: ${internalUser}, roles: ${externalUser.roles?.join(', ') || 'none'}`
+        );
 
         // Determine account type based on your business logic
         let organizationId = externalUser.permissions?.organization_ids?.[0] || '';
@@ -436,7 +477,9 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
             accountType = 'basic';
         }
 
-        console.log(`[Custom Auth Provider] Account determination - Organization ID: ${organizationId}, Account Type: ${accountType}`);
+        console.log(
+            `[Custom Auth Provider] Account determination - Organization ID: ${organizationId}, Account Type: ${accountType}`
+        );
 
         const authenticatedUser: AuthenticatedUser<CustomAuthData, CustomUserData> = {
             userId: externalUser.id,
@@ -447,23 +490,23 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
             authData: {
                 accessToken: authData.access_token,
                 userId: authData.user_id,
-                lastValidated: new Date().toISOString()
+                lastValidated: new Date().toISOString(),
             },
             customData: {
                 email: externalUser.email,
                 organizationId,
-                accountType
+                accountType,
             },
             features: {
                 instruction: {
                     type: 'instruction' as const,
-                    instruction: 'You are a helpful assistant.' // TODO: Customize for your domain
+                    instruction: 'You are a helpful assistant.', // TODO: Customize for your domain
                 },
                 history: {
                     type: 'history' as const,
-                    history: true
-                }
-            }
+                    history: true,
+                },
+            },
         };
 
         console.log(`[Custom Auth Provider] Created authenticated user:`, {
@@ -471,7 +514,7 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
             firstName: authenticatedUser.firstName,
             lastName: authenticatedUser.lastName,
             userType: authenticatedUser.userType,
-            roles: authenticatedUser.roles
+            roles: authenticatedUser.roles,
         });
 
         return authenticatedUser;

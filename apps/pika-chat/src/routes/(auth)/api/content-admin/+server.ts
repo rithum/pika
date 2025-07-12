@@ -36,15 +36,20 @@ export const POST: RequestHandler = async (event) => {
         user.viewingContentFor = viewingContentFor;
         locals.user = user;
 
-        serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        serializeContentAdminDataToCookies(
+            event,
+            { data: user.viewingContentFor },
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
         return json({
-            success: true
+            success: true,
         });
     } else if (contentAdminReq.command === 'getValuesForAutoComplete') {
         const users = await searchForUser(user.userId, contentAdminReq.valueProvidedByUser);
         return json({
             success: true,
-            data: users
+            data: users,
         });
     } else if (contentAdminReq.command === 'stopViewingContentForUser') {
         let viewingContentFor = user.viewingContentFor ?? {};
@@ -53,9 +58,14 @@ export const POST: RequestHandler = async (event) => {
         user.viewingContentFor = viewingContentFor;
         locals.user = user;
 
-        serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        serializeContentAdminDataToCookies(
+            event,
+            { data: user.viewingContentFor },
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
         return json({
-            success: true
+            success: true,
         });
     } else {
         return new Response('Invalid command', { status: 400 });

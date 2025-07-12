@@ -20,10 +20,12 @@
         optionTypeNamePlural,
         onValueChanged,
         widthClasses = 'w-[200px]',
+        popupWidthClasses = '',
         loading = false,
         showValueInListEntries = false,
         disabled = false,
         allowArbitraryValues,
+        dontShowSearchInput = false,
     }: {
         value: T | undefined;
         mapping: SimpleDropdownMapping<T>;
@@ -38,6 +40,8 @@
         loading?: boolean;
         showValueInListEntries?: boolean;
         disabled?: boolean;
+        dontShowSearchInput?: boolean;
+        popupWidthClasses?: string;
         allowArbitraryValues?: {
             convertValueToType: (arbitraryValue: string) => T;
         };
@@ -142,15 +146,17 @@
             </Button>
         {/snippet}
     </Popover.Trigger>
-    <Popover.Content class="p-0">
+    <Popover.Content class={cn('p-0', popupWidthClasses)}>
         <Command.Root shouldFilter={false} class="">
-            <Command.Input
-                bind:value={searchValue}
-                oninput={handleInputChange}
-                onkeydown={handleKeyDown}
-                placeholder={searchPlaceholder ?? `Search ${plurarFormOfOptionTypeName}...`}
-                class="h-9"
-            />
+            {#if !dontShowSearchInput}
+                <Command.Input
+                    bind:value={searchValue}
+                    oninput={handleInputChange}
+                    onkeydown={handleKeyDown}
+                    placeholder={searchPlaceholder ?? `Search ${plurarFormOfOptionTypeName}...`}
+                    class="h-9"
+                />
+            {/if}
             <Command.List>
                 {#if loading}
                     <Command.Loading>
@@ -207,7 +213,7 @@
                                     {#if getSecondaryLabel(option) || showValueInListEntries}
                                         <div class="flex items-center gap-2 mt-0.5">
                                             {#if getSecondaryLabel(option)}
-                                                <span class="text-xs text-muted-foreground truncate flex-shrink-0">
+                                                <span class="text-xs text-muted-foreground">
                                                     {getSecondaryLabel(option)}
                                                 </span>
                                             {/if}

@@ -9,7 +9,9 @@ export class IdentityState {
     });
 
     initials = $derived.by(() => {
-        return this.#user.firstName && this.#user.lastName ? `${this.#user.firstName.charAt(0)}${this.#user.lastName.charAt(0)}` : 'U';
+        return this.#user.firstName && this.#user.lastName
+            ? `${this.#user.firstName.charAt(0)}${this.#user.lastName.charAt(0)}`
+            : 'U';
     });
 
     constructor(user: ChatUser) {

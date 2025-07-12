@@ -3,6 +3,7 @@ import { siteFeatures } from '$lib/server/custom-site-features';
 import { isUserSiteAdmin } from '$lib/server/utils';
 import type { SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
+import { getValuesForEntityAutoComplete } from './custom-data';
 
 export const POST: RequestHandler = async (event) => {
     const { locals, request } = event;
@@ -25,6 +26,25 @@ export const POST: RequestHandler = async (event) => {
             success: true,
             chatApps,
             siteFeatures
+        });
+    } else if (siteAdminReq.command === 'getValuesForEntityAutoComplete') {
+        if (!('chatAppId' in siteAdminReq)) {
+            return new Response('chatAppId is required', { status: 400 });
+        }
+
+        if (!('type' in siteAdminReq)) {
+            return new Response('type is required', { status: 400 });
+        }
+
+        if (!('valueProvidedByUser' in siteAdminReq)) {
+            return new Response('valueProvidedByUser is required', { status: 400 });
+        }
+
+        const valuesForAutoComplete = await getValuesForEntityAutoComplete(siteAdminReq.type, siteAdminReq.valueProvidedByUser, user, siteAdminReq.chatAppId);
+
+        return json({
+            success: true,
+            data: valuesForAutoComplete
         });
     } else if (siteAdminReq.command === 'refreshChatApp') {
         const chatAppId = siteAdminReq.chatAppId;

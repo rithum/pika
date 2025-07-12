@@ -7,9 +7,14 @@ import {
     deserializeAuthenticatedUserFromCookies,
     deserializeContentAdminDataFromCookies,
     deserializeUserOverrideDataFromCookies,
-    serializeAuthenticatedUserToCookies
+    serializeAuthenticatedUserToCookies,
 } from '$lib/server/cookies';
-import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
+import {
+    addSecurityHeaders,
+    isUserAllowedToUseUserDataOverrides,
+    isUserContentAdmin,
+    mergeAuthenticatedUserWithExistingChatUser,
+} from '$lib/server/utils';
 import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 
@@ -39,8 +44,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         return new Response('OK', {
             status: 200,
             headers: {
-                'Content-Type': 'text/plain'
-            }
+                'Content-Type': 'text/plain',
+            },
         });
     }
 
@@ -95,7 +100,12 @@ export const handle: Handle = async ({ event, resolve }) => {
                 }
 
                 // Serialize the user to cookies (handles large data automatically)
-                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+                serializeAuthenticatedUserToCookies(
+                    event,
+                    user,
+                    appConfig.masterCookieKey,
+                    appConfig.masterCookieInitVector
+                );
             }
 
             if (authResult.redirectTo) {
@@ -130,7 +140,12 @@ export const handle: Handle = async ({ event, resolve }) => {
                 user = validationResult;
 
                 // Update the user cookies with the refreshed data
-                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+                serializeAuthenticatedUserToCookies(
+                    event,
+                    user,
+                    appConfig.masterCookieKey,
+                    appConfig.masterCookieInitVector
+                );
             }
             // If validationResult is undefined, no action needed
         } catch (error) {
@@ -147,7 +162,11 @@ export const handle: Handle = async ({ event, resolve }) => {
     // If the user is allowed to use the user data overrides feature, we need to deserialize the user override data from cookies
     // and merge it with the user object.
     if (isUserAllowedToUseUserDataOverrides(user)) {
-        const userOverrideData = deserializeUserOverrideDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        const userOverrideData = deserializeUserOverrideDataFromCookies(
+            event,
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
         if (userOverrideData) {
             user.overrideData = userOverrideData.data;
         }
@@ -156,7 +175,11 @@ export const handle: Handle = async ({ event, resolve }) => {
     // If the user is allowed to use the content admin feature, we need to deserialize the content admin data from cookies
     // and merge it with the user object.
     if (isUserContentAdmin(user)) {
-        const contentAdminData = deserializeContentAdminDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        const contentAdminData = deserializeContentAdminDataFromCookies(
+            event,
+            appConfig.masterCookieKey,
+            appConfig.masterCookieInitVector
+        );
         if (contentAdminData) {
             user.viewingContentFor = contentAdminData.data;
         }

@@ -7,6 +7,7 @@
     import { SvelteSet } from 'svelte/reactivity';
     import type { ListMapping } from './list-types';
     import { cn } from '$lib/utils';
+    import Combobox from '../combobox/combobox.svelte';
 
     interface Props {
         // Additional CSS classes. Can override default height of h-[250px]
@@ -31,6 +32,32 @@
                 convertValueToType: (arbitraryValue: string) => T;
                 // The placeholder text for the input field in the popup allowing a user to filter the list or add an arbitrary value.
                 popupInputPlaceholder?: string;
+            };
+            // If provided, an autocomplete combobox that will search as the user types to the server will be provided.
+            // If this is provided then allowArbitraryValues will be ignored.
+            search?: {
+                // The function that will be called when the user types in the search input field, calling the server presumably.
+                onSearchValueChanged: ((value: string) => Promise<void>) | undefined;
+                // The minimum number of characters that the user must type before the search is triggered.  Defaults to 1.
+                minCharactersForSearch?: number | undefined;
+                // If true, the value of the item will be shown in the list entries.  Defaults to false.
+                showValueInListEntries?: boolean;
+                // The placeholder text for the search input field in the popup.
+                popupInputPlaceholder?: string;
+                // Indicates that the search is in progress back to the server.  Defaults to false.
+                loading?: boolean | undefined;
+                // This is the name of the type of data in the dropdown that a user will understand
+                optionTypeName?: string;
+                optionTypeNamePlural?: string;
+
+                // This is the mapping of the returned search options.  If not provided, the mapping of the list will be used.
+                mapping?: ListMapping<T>;
+
+                // Additional CSS classes for the search input field in the popup.
+                widthClasses?: string;
+
+                // The options that will be shown in the search dropdown.  If not provided, the options will be fetched from the server.
+                options: T[] | undefined;
             };
             // Allows for pre-defined items that a user may select from to add to the list if not already present,
             // changing from an input field to a dropdown list with an input field.
@@ -72,6 +99,15 @@
     });
     const getPredefinedValue = (item: T) => predefinedMapping?.value(item) ?? '';
 
+    const searchMapping = $derived.by(() => {
+        const customMapping = addRemove?.search?.mapping;
+        if (customMapping) {
+            return customMapping;
+        }
+        return mapping;
+    });
+    const getSearchValue = (item: T) => searchMapping?.value(item) ?? '';
+
     let selectedValues = $state(new SvelteSet<string>());
     let addValueInput = $state('');
     let selectedDropdownItem = $state<T | undefined>(undefined);
@@ -106,6 +142,12 @@
         return predefinedItems.filter((item) => !currentItemValues.has(getPredefinedValue(item)));
     });
 
+    const availableSearchOptions = $derived.by(() => {
+        if (!addRemove?.search?.options) return [];
+        const currentItemValues = new Set(items.map((item) => getValue(item)));
+        return addRemove.search.options.filter((item) => !currentItemValues.has(getSearchValue(item)));
+    });
+
     function handleAddFromDropdown() {
         if (selectedDropdownItem && addRemove?.addItem) {
             addRemove.addItem(selectedDropdownItem);
@@ -129,8 +171,43 @@
     <div class={cn('h-[250px] flex flex-col', classes)}>
         {#if addRemove}
             <div class="flex items-center gap-2 mb-2 min-w-0">
-                {#if addRemove.predefinedOptions && predefinedItems.length > 0 && predefinedMapping}
-                    <!-- Use SimpleDropdown when predefinedOptions is available -->
+                {#if addRemove.search}
+                    <div class="flex-1 min-w-0">
+                        <Combobox
+                            bind:value={selectedDropdownItem}
+                            mapping={searchMapping}
+                            options={availableSearchOptions}
+                            onSearchValueChanged={addRemove.search.onSearchValueChanged}
+                            loading={addRemove.search.loading}
+                            optionTypeName="account"
+                            optionTypeNamePlural="accounts"
+                            widthClasses="w-full"
+                            showValueInListEntries={true}
+                            minCharactersForSearch={1}
+                            {disabled}
+                        />
+                    </div>
+                    <div class="flex items-center flex-shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="w-6 h-7"
+                            disabled={disabled || !selectedDropdownItem}
+                            onclick={handleAddFromDropdown}
+                        >
+                            <Plus />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="w-6 h-7"
+                            disabled={disabled || selectedValues.size === 0}
+                            onclick={handleRemoveSelectedItems}
+                        >
+                            <Minus />
+                        </Button>
+                    </div>
+                {:else if addRemove.predefinedOptions && predefinedItems.length > 0 && predefinedMapping}
                     <div class="flex-1 min-w-0">
                         <SimpleDropdown
                             bind:value={selectedDropdownItem}

@@ -4,6 +4,8 @@
  */
 import { type RequestEvent } from '@sveltejs/kit';
 
-export async function load(event: RequestEvent<Record<string, string>>): Promise<{ customData: Record<string, unknown> | undefined }> {
+export async function load(
+    event: RequestEvent<Record<string, string>>
+): Promise<{ customData: Record<string, unknown> | undefined }> {
     return { customData: event.locals.customData };
 }

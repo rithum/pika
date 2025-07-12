@@ -32,7 +32,10 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
         return json({ success: true, sessions });
     } catch (e) {
         console.error(e);
-        return getErrorResponse(500, `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
+        return getErrorResponse(
+            500,
+            `Failed to get chat sessions: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
+        );
     }
 
     // try {

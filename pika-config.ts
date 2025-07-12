@@ -61,7 +61,13 @@ export const pikaConfig: PikaConfig = {
             enabled: true
         },
         siteAdmin: {
-            websiteEnabled: true
+            websiteEnabled: true,
+            supportUserEntityAccessControl: {
+                enabled: true,
+                searchPlaceholderText: 'Search for an account...',
+                entityDisplayNameSingular: 'Account',
+                entityDisplayNamePlural: 'Accounts'
+            }
         }
     }
 };

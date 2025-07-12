@@ -1,5 +1,10 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    AuthenticateResult,
+    CustomDataUiRepresentation,
+    RecordOrUndef,
+} from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
  * Custom exception for authentication failures
@@ -86,7 +91,11 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @param user - The authenticated user (if there is one)
      * @returns The object to add to the locals object in a key named 'customData'
      */
-    async addValueToLocalsForRoute?(pathName: string, event: RequestEvent, user: AuthenticatedUser<T, U> | undefined): Promise<Record<string, unknown> | undefined>;
+    async addValueToLocalsForRoute?(
+        pathName: string,
+        event: RequestEvent,
+        user: AuthenticatedUser<T, U> | undefined
+    ): Promise<Record<string, unknown> | undefined>;
 
     /**
      * Logout the user.  This is called when the user clicks the logout menu item.  This menu item is only available if you have
@@ -115,7 +124,10 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @param chatAppId - The chat app ID (if there is one), useful to know which override data to use if needed
      * @returns The UI representation of the custom data
      */
-    async getCustomDataUiRepresentation?(user: AuthenticatedUser<T, U>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined>;
+    async getCustomDataUiRepresentation?(
+        user: AuthenticatedUser<T, U>,
+        chatAppId?: string
+    ): Promise<CustomDataUiRepresentation | undefined>;
 
     /**
      * Lets say you want to control which external accounts or companies (the users associated with the account or company) that can access a chat app.

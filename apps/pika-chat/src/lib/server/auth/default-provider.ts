@@ -1,5 +1,9 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    AuthenticateResult,
+    CustomDataUiRepresentation,
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
 export interface MockAuthData extends Record<string, string | undefined> {
@@ -34,7 +38,7 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
             lastName: 'User',
             userType: 'internal-user', // Assign as internal user for development
             authData: {
-                mockAccessToken: 'aaa-bbb-ccc'
+                mockAccessToken: 'aaa-bbb-ccc',
             },
             customData: {
                 // accountId: '123',
@@ -43,23 +47,26 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
             features: {
                 instruction: {
                     type: 'instruction',
-                    instruction: 'You are a helpful assistant that can answer questions.'
+                    instruction: 'You are a helpful assistant that can answer questions.',
                 },
                 history: {
                     type: 'history',
-                    history: true
-                }
+                    history: true,
+                },
             },
-            roles: ['pika:content-admin', 'pika:site-admin']
+            roles: ['pika:content-admin', 'pika:site-admin'],
         };
 
         return { authenticatedUser: user };
     }
 
-    async getCustomDataUiRepresentation(user: AuthenticatedUser<MockAuthData, MockCustomData>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined> {
+    async getCustomDataUiRepresentation(
+        user: AuthenticatedUser<MockAuthData, MockCustomData>,
+        chatAppId?: string
+    ): Promise<CustomDataUiRepresentation | undefined> {
         return {
             title: 'Account ID',
-            value: user.overrideData?.[chatAppId ?? '']?.accountId ?? user.customData?.accountId ?? '123'
+            value: user.overrideData?.[chatAppId ?? '']?.accountId ?? user.customData?.accountId ?? '123',
         };
     }
 
