@@ -67,6 +67,9 @@ export const pikaConfig: PikaConfig = {
                 searchPlaceholderText: 'Search for an account...',
                 entityDisplayNameSingular: 'Account',
                 entityDisplayNamePlural: 'Accounts'
+            },
+            supportSpecificUserAccessControl: {
+                enabled: true
             }
         }
     }

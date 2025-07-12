@@ -3,9 +3,11 @@ import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
 import type {
     ChatAppMode,
+    ChatUserLite,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
     GetValuesForEntityAutoCompleteResponse,
+    GetValuesForUserAutoCompleteResponse,
     RefreshChatAppResponse,
     SimpleOption,
     SiteAdminCommand,
@@ -28,13 +30,15 @@ export class SiteAdminState {
     #mode: ChatAppMode = $state('standalone');
     valuesForInternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
+    valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
 
     siteAdminOperationInProgress: Record<SiteAdminCommand, boolean> = $state({
         getInitialData: false,
         refreshChatApp: false,
         createOrUpdateChatAppOverride: false,
         deleteChatAppOverride: false,
-        getValuesForEntityAutoComplete: false
+        getValuesForEntityAutoComplete: false,
+        getValuesForUserAutoComplete: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -151,6 +155,8 @@ export class SiteAdminState {
                 } else if (request.type === 'external-user') {
                     this.valuesForExternalEntityAutoComplete = values;
                 }
+            } else if (request.command === 'getValuesForUserAutoComplete') {
+                this.valuesForAutoCompleteForUserAccessControl = (json as GetValuesForUserAutoCompleteResponse).data ?? undefined;
             } else if (request.command === 'refreshChatApp') {
                 const response = json as RefreshChatAppResponse;
                 // Replace the chat app in the list with the new one if it's there

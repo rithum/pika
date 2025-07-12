@@ -1098,6 +1098,15 @@ export interface SiteAdminFeature {
         /** The display name for a plural of entities: e.g. "Accounts". Defaults to "Entities" */
         entityDisplayNamePlural?: string;
     };
+
+    /**
+     * Ignored if websiteEnabled is false.
+     *
+     * If turned on then you may restrict access to a chat app for only specified users.
+     */
+    supportSpecificUserAccessControl?: {
+        enabled: boolean;
+    };
 }
 
 /**
@@ -1331,9 +1340,17 @@ export type SiteAdminRequest =
     | RefreshChatAppRequest
     | CreateOrUpdateChatAppOverrideRequest
     | DeleteChatAppOverrideRequest
-    | GetValuesForEntityAutoCompleteRequest;
+    | GetValuesForEntityAutoCompleteRequest
+    | GetValuesForUserAutoCompleteRequest;
 
-export const SiteAdminCommand = ['getInitialData', 'refreshChatApp', 'createOrUpdateChatAppOverride', 'deleteChatAppOverride', 'getValuesForEntityAutoComplete'] as const;
+export const SiteAdminCommand = [
+    'getInitialData',
+    'refreshChatApp',
+    'createOrUpdateChatAppOverride',
+    'deleteChatAppOverride',
+    'getValuesForEntityAutoComplete',
+    'getValuesForUserAutoComplete'
+] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
 export interface SiteAdminCommandRequestBase {
@@ -1345,6 +1362,11 @@ export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandR
     type: 'internal-user' | 'external-user';
     valueProvidedByUser: string;
     chatAppId: string;
+}
+
+export interface GetValuesForUserAutoCompleteRequest extends SiteAdminCommandRequestBase {
+    command: 'getValuesForUserAutoComplete';
+    valueProvidedByUser: string;
 }
 
 export interface GetInitialDataRequest extends SiteAdminCommandRequestBase {
@@ -1372,7 +1394,8 @@ export type SiteAdminResponse =
     | RefreshChatAppResponse
     | CreateOrUpdateChatAppOverrideResponse
     | DeleteChatAppOverrideResponse
-    | GetValuesForEntityAutoCompleteResponse;
+    | GetValuesForEntityAutoCompleteResponse
+    | GetValuesForUserAutoCompleteResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
@@ -1381,6 +1404,10 @@ export interface SiteAdminCommandResponseBase {
 
 export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
+}
+
+export interface GetValuesForUserAutoCompleteResponse extends SiteAdminCommandResponseBase {
+    data: ChatUserLite[] | undefined;
 }
 
 export interface GetInitialDataResponse extends SiteAdminCommandResponseBase {

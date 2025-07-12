@@ -1,9 +1,10 @@
 import { createOrUpdateChatAppOverride, deleteChatAppOverride, getAllChatApps, getChatApp } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { isUserSiteAdmin } from '$lib/server/utils';
+import { isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
 import type { SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getValuesForEntityAutoComplete } from './custom-data';
+import { searchForUser } from '$lib/server/chat-apis';
 
 export const POST: RequestHandler = async (event) => {
     const { locals, request } = event;
@@ -28,6 +29,10 @@ export const POST: RequestHandler = async (event) => {
             siteFeatures
         });
     } else if (siteAdminReq.command === 'getValuesForEntityAutoComplete') {
+        if (!isUserAllowedToUseEntityAccessControl(user)) {
+            return new Response('User is not allowed to use entity access control', { status: 403 });
+        }
+
         if (!('chatAppId' in siteAdminReq)) {
             return new Response('chatAppId is required', { status: 400 });
         }
@@ -45,6 +50,16 @@ export const POST: RequestHandler = async (event) => {
         return json({
             success: true,
             data: valuesForAutoComplete
+        });
+    } else if (siteAdminReq.command === 'getValuesForUserAutoComplete') {
+        if (!isUserAllowedToUseSpecificUserAccessControl(user)) {
+            return new Response('User is not allowed to use specific user access control', { status: 403 });
+        }
+
+        const users = await searchForUser(user.userId, siteAdminReq.valueProvidedByUser);
+        return json({
+            success: true,
+            data: users
         });
     } else if (siteAdminReq.command === 'refreshChatApp') {
         const chatAppId = siteAdminReq.chatAppId;

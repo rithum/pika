@@ -12,21 +12,21 @@ import type {
     TracesFeature,
     VerifyResponseFeatureForChatApp,
     ChatDisclaimerNoticeFeatureForChatApp,
-    LogoutFeatureForChatApp,
+    LogoutFeatureForChatApp
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
         success: false,
-        error,
+        error
     };
     return json(err, { status });
 }
 
 export function getSuccessResponse(): Response {
     const success: SuccessResponse = {
-        success: true,
+        success: true
     };
     return json(success);
 }
@@ -74,10 +74,7 @@ export function concatUrlWithPath(baseUrl: string, path: string): string {
  * @param existingChatUser - The existing chat user object
  * @returns The merged authenticated user object
  */
-export function mergeAuthenticatedUserWithExistingChatUser(
-    authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    existingChatUser: ChatUser<RecordOrUndef>
-): void {
+export function mergeAuthenticatedUserWithExistingChatUser(authenticatedUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, existingChatUser: ChatUser<RecordOrUndef>): void {
     if (existingChatUser.roles && existingChatUser.roles.length > 0) {
         const pikaRoles = existingChatUser.roles.filter((role) => role.startsWith('pika:'));
         if (pikaRoles.length > 0) {
@@ -98,7 +95,7 @@ export function mergeAuthenticatedUserWithExistingChatUser(
     Object.assign(authenticatedUser, {
         features: existingChatUser.features,
         firstName: existingChatUser.firstName,
-        lastName: existingChatUser.lastName,
+        lastName: existingChatUser.lastName
     });
 }
 
@@ -144,6 +141,22 @@ export function isUserSiteAdmin(user: AuthenticatedUser<RecordOrUndef, RecordOrU
     return result;
 }
 
+export function isUserAllowedToUseSpecificUserAccessControl(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    let result = siteFeatures?.siteAdmin?.supportSpecificUserAccessControl?.enabled ?? false;
+    if (result) {
+        result = user.roles?.includes('pika:site-admin') ?? false;
+    }
+    return result;
+}
+
+export function isUserAllowedToUseEntityAccessControl(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    let result = siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled ?? false;
+    if (result) {
+        result = user.roles?.includes('pika:site-admin') ?? false;
+    }
+    return result;
+}
+
 /**
  * Determines whether a user needs to provide data overrides before accessing a chat app.
  *
@@ -171,11 +184,7 @@ export function isUserSiteAdmin(user: AuthenticatedUser<RecordOrUndef, RecordOrU
  * // Returns true because 'address.city' is missing
  * ```
  */
-export function doesUserNeedToProvideDataOverrides(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    overrideDataForThisChatApp: RecordOrUndef,
-    chatAppId: string
-): boolean {
+export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, overrideDataForThisChatApp: RecordOrUndef, chatAppId: string): boolean {
     // First check if the user is even allowed to use the user data overrides feature
     if (!isUserAllowedToUseUserDataOverrides(user)) {
         return false;
@@ -224,31 +233,26 @@ export function doesUserNeedToProvideDataOverrides(
  *
  * Note that we always return siteAdmin: { websiteEnabled: false } because we only check that for real when they try to access the admin page itself.
  */
-export function getOverridableFeatures(
-    chatApp: ChatApp,
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
-): ChatAppOverridableFeatures {
+export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
     const result: ChatAppOverridableFeatures = {
         verifyResponse: {
-            enabled: false,
+            enabled: false
         },
         traces: {
             enabled: false,
-            detailedTraces: false,
+            detailedTraces: false
         },
         // We don't use access rules to determine if the chat disclaimer notice is shown.  If there, it's shown.
-        chatDisclaimerNotice:
-            siteFeatures?.chatDisclaimerNotice?.notice ??
-            (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice,
+        chatDisclaimerNotice: siteFeatures?.chatDisclaimerNotice?.notice ?? (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice,
         logout: {
             enabled: false,
             menuItemTitle: 'Logout',
             dialogTitle: 'Logout',
-            dialogDescription: 'Are you sure you want to logout?',
+            dialogDescription: 'Are you sure you want to logout?'
         },
         siteAdmin: {
-            websiteEnabled: false,
-        },
+            websiteEnabled: false
+        }
     };
 
     const siteVerifyRespRule = siteFeatures?.verifyResponse || { enabled: false };
@@ -256,8 +260,7 @@ export function getOverridableFeatures(
 
     const resolvedRules = resolveFeatureRules(siteVerifyRespRule, appVerifyRespRule);
     result.verifyResponse.enabled = checkUserAccessToFeature(user, resolvedRules);
-    result.verifyResponse.autoRepromptThreshold =
-        appVerifyRespRule?.autoRepromptThreshold ?? siteVerifyRespRule.autoRepromptThreshold;
+    result.verifyResponse.autoRepromptThreshold = appVerifyRespRule?.autoRepromptThreshold ?? siteVerifyRespRule.autoRepromptThreshold;
 
     const siteTracesRule = siteFeatures?.traces || { enabled: false };
     const appTracesRule = chatApp.features?.traces as TracesFeature | undefined;
@@ -275,11 +278,9 @@ export function getOverridableFeatures(
     const appLogoutRule = chatApp.features?.logout as LogoutFeatureForChatApp | undefined;
     const resolvedLogoutRules = resolveFeatureRules(siteLogoutRule, appLogoutRule);
     result.logout.enabled = checkUserAccessToFeature(user, resolvedLogoutRules);
-    result.logout.menuItemTitle =
-        appLogoutRule?.menuItemTitle ?? siteLogoutRule.menuItemTitle ?? result.logout.menuItemTitle;
+    result.logout.menuItemTitle = appLogoutRule?.menuItemTitle ?? siteLogoutRule.menuItemTitle ?? result.logout.menuItemTitle;
     result.logout.dialogTitle = appLogoutRule?.dialogTitle ?? siteLogoutRule.dialogTitle ?? result.logout.dialogTitle;
-    result.logout.dialogDescription =
-        appLogoutRule?.dialogDescription ?? siteLogoutRule.dialogDescription ?? result.logout.dialogDescription;
+    result.logout.dialogDescription = appLogoutRule?.dialogDescription ?? siteLogoutRule.dialogDescription ?? result.logout.dialogDescription;
 
     return result;
 }
@@ -308,7 +309,7 @@ export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: Acces
             enabled: false,
             userTypes: siteFeature.userTypes,
             userRoles: siteFeature.userRoles,
-            applyRulesAs: siteFeature.applyRulesAs ?? 'and',
+            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
         };
     }
 
@@ -319,7 +320,7 @@ export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: Acces
             enabled: appFeature.enabled !== false, // Only allow app to turn it off
             userTypes: appFeature.userTypes,
             userRoles: appFeature.userRoles,
-            applyRulesAs: appFeature.applyRulesAs ?? 'and',
+            applyRulesAs: appFeature.applyRulesAs ?? 'and'
         };
     } else {
         // Use site level rules
@@ -327,7 +328,7 @@ export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: Acces
             enabled: siteFeature.enabled,
             userTypes: siteFeature.userTypes,
             userRoles: siteFeature.userRoles,
-            applyRulesAs: siteFeature.applyRulesAs ?? 'and',
+            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
         };
     }
 }
@@ -349,10 +350,7 @@ export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: Acces
  * @param feature - The feature configuration with user access rules
  * @returns Whether the user has access to the feature
  */
-export function checkUserAccessToFeature(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    feature: AccessRules
-): boolean {
+export function checkUserAccessToFeature(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, feature: AccessRules): boolean {
     const { enabled, userTypes, userRoles, applyRulesAs = 'and' } = feature;
 
     // If the feature is disabled, no access regardless of other rules

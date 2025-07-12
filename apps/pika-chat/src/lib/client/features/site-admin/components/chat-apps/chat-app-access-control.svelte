@@ -12,6 +12,7 @@
     import {
         SiteAdminCommand,
         type ApplyRulesAs,
+        type ChatUserLite,
         type SimpleOption,
         type UserRole,
         type UserType,
@@ -70,6 +71,41 @@
     // User's intended access mode (state, not derived)
     let accessMode = $state<AccessMode>('general');
 
+    let entityDisplaySingularLower = $derived.by(() => {
+        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular;
+        if (val) {
+            return val.charAt(0).toLowerCase() + val.slice(1);
+        } else {
+            return 'entity';
+        }
+    });
+    let entityDisplaySingularUpper = $derived.by(() => {
+        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular;
+        if (val) {
+            return val.charAt(0).toUpperCase() + val.slice(1);
+        } else {
+            return 'Entity';
+        }
+    });
+
+    let entityDisplayPluralLower = $derived.by(() => {
+        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural;
+        if (val) {
+            return val.charAt(0).toLowerCase() + val.slice(1);
+        } else {
+            return 'entities';
+        }
+    });
+
+    let entityDisplayPluralUpper = $derived.by(() => {
+        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural;
+        if (val) {
+            return val.charAt(0).toUpperCase() + val.slice(1);
+        } else {
+            return 'Entities';
+        }
+    });
+
     // Initialize access mode based on existing data (only once)
     let initialized = $state(false);
     $effect(() => {
@@ -103,15 +139,19 @@
         if (accessMode === 'exclusive-entity') {
             if (exclusiveExternalAccessControl.length === 0 && exclusiveInternalAccessControl.length === 0) {
                 errors.push(
-                    'At least one entity must be specified for either internal or external users in exclusive entity mode.'
+                    `At least one ${entityDisplaySingularLower} must be specified for either internal or external users in exclusive ${entityDisplaySingularLower} mode.`
                 );
             } else {
                 if (exclusiveEntityOn.includes('internal-user') && exclusiveInternalAccessControl.length === 0) {
-                    errors.push('Provide at least one entity for internal users or turn off exclusive internal users.');
+                    errors.push(
+                        `Provide at least one ${entityDisplaySingularLower} for internal users or turn off exclusive internal users.`
+                    );
                 }
 
                 if (exclusiveEntityOn.includes('external-user') && exclusiveExternalAccessControl.length === 0) {
-                    errors.push('Provide at least one entity for external users or turn off exclusive external users.');
+                    errors.push(
+                        `Provide at least one ${entityDisplaySingularLower} for external users or turn off exclusive external users.`
+                    );
                 }
             }
         } else if (accessMode === 'exclusive-user') {
@@ -170,6 +210,7 @@
     let exclusiveEntityOn = $state<UserType[]>([]);
 
     let loadingEntities = $derived(siteAdmin.siteAdminOperationInProgress['getValuesForEntityAutoComplete']);
+    let loadingUsers = $derived(siteAdmin.siteAdminOperationInProgress['getValuesForUserAutoComplete']);
 
     let exclusiveInternalAccessControlOptions = $derived.by(() => {
         let result =
@@ -248,7 +289,7 @@
                     if (item === 'general') {
                         return 'General Access Control';
                     } else if (item === 'exclusive-entity') {
-                        return 'Exclusive Entity Access';
+                        return `Exclusive ${entityDisplaySingularUpper} Access`;
                     } else if (item === 'exclusive-user') {
                         return 'Exclusive User Access';
                     }
@@ -258,7 +299,7 @@
                     if (item === 'general') {
                         return 'This grants access based on user types and roles. Exclusive settings are not active.';
                     } else if (item === 'exclusive-entity') {
-                        return `Grants access to users exclusively from specified ${siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural ?? 'entities'}. You can mix exclusive ${siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular ?? 'entity'} access for one user type with general access control for the other user type.`;
+                        return `Grants access to users exclusively from specified ${entityDisplayPluralLower}. You can mix exclusive ${entityDisplaySingularLower} access for one user type with general access control for the other user type.`;
                     } else if (item === 'exclusive-user') {
                         return 'Only the specified users will be granted access. All other access settings are ignored.';
                     }
@@ -307,7 +348,7 @@
                             {@render exclusiveEntityAccessControl(
                                 'internal-user',
                                 'internal-users-entity',
-                                'Exclusive Internal User Entities',
+                                `Exclusive Internal User ${entityDisplayPluralUpper}`,
                                 exclusiveInternalAccessControl,
                                 exclusiveInternalAccessControlOptions,
                                 (newArray: string[]) => (exclusiveInternalAccessControl = newArray)
@@ -316,7 +357,7 @@
                             {@render exclusiveEntityAccessControl(
                                 'external-user',
                                 'external-users-entity',
-                                'Exclusive External User Entities',
+                                `Exclusive External User ${entityDisplayPluralUpper}`,
                                 exclusiveExternalAccessControl,
                                 exclusiveExternalAccessControlOptions,
                                 (newArray: string[]) => (exclusiveExternalAccessControl = newArray)
@@ -324,7 +365,7 @@
                         </div>
 
                         <div class="max-w-[300px] space-y-3">
-                            {@render exclusiveUserAccessWhoCanAccess()}
+                            {@render exclusiveEntityAccessWhoCanAccess()}
                         </div>
                     {/if}
                 </div>
@@ -335,56 +376,76 @@
                 {/if}
             </div>
         {:else if accessMode === 'exclusive-user'}
-            <div class="space-y-4">
-                <div>
-                    <Label class="text-sm font-medium">Allowed User IDs</Label>
-                    <div class="flex gap-2 mt-2">
-                        <Input
-                            bind:value={newUserId}
-                            placeholder="Enter user ID..."
-                            disabled={!isOverrideMode}
-                            onkeydown={handleUserIdKeydown}
-                            class="flex-1"
-                        />
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!isOverrideMode || !newUserId.trim()}
-                            onclick={addUserId}
-                        >
-                            <Plus class="w-4 h-4 mr-1" />
-                            Add User
-                        </Button>
+            <div class="space-y-6">
+                {#if !siteAdmin.siteFeatures?.siteAdmin?.supportSpecificUserAccessControl?.enabled}
+                    <div class="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                        <p class="text-sm text-yellow-800">
+                            Support for specific user access control is not enabled. Please enable it in the
+                            pika-config.ts file and redeploy the site, making sure to follow the instructions on how to
+                            setup the feature to work.
+                        </p>
                     </div>
-                </div>
+                {:else}
+                    <div class="flex gap-10">
+                        <div class="flex-1 space-y-4">
+                            <Label class="text-sm font-medium">Users</Label>
+                            <List
+                                classes="w-[300px] h-[200px]"
+                                items={exclusiveUserIdAccessControl as unknown as ChatUserLite[]}
+                                mapping={{
+                                    value: (item) => (typeof item === 'string' ? item : item.userId),
+                                    label: (item) =>
+                                        typeof item === 'string'
+                                            ? item
+                                            : item.firstName && item.lastName
+                                              ? `${item.firstName} ${item.lastName}`
+                                              : item.userId,
+                                }}
+                                allowSelection={true}
+                                multiSelect={true}
+                                emptyMessage="No users specified"
+                                addRemove={{
+                                    addItem: (item) => {
+                                        const value = typeof item === 'string' ? item : item.userId;
+                                        if (!exclusiveUserIdAccessControl.includes(value)) {
+                                            const newArray = [...exclusiveUserIdAccessControl, value];
+                                            exclusiveUserIdAccessControl = newArray;
+                                        }
+                                    },
+                                    removeItem: (item) => {
+                                        const value = typeof item === 'string' ? item : item.userId;
+                                        const newArray = exclusiveUserIdAccessControl.filter((r) => r !== value);
+                                        exclusiveUserIdAccessControl = newArray;
+                                    },
+                                    search: {
+                                        onSearchValueChanged: async (value) => {
+                                            await siteAdmin.sendSiteAdminCommand({
+                                                command: 'getValuesForUserAutoComplete',
+                                                valueProvidedByUser: value,
+                                            });
+                                        },
+                                        options: siteAdmin.valuesForAutoCompleteForUserAccessControl ?? [],
+                                        minCharactersForSearch: 3,
+                                        showValueInListEntries: true,
+                                        popupInputPlaceholder: 'Search for a user...',
+                                        optionTypeName: 'user',
+                                        optionTypeNamePlural: 'users',
+                                        loading: loadingUsers,
+                                    },
+                                }}
+                            />
 
-                <div class="space-y-2">
-                    {#each exclusiveUserIdAccessControl as userId, index}
-                        <div class="flex items-center justify-between p-2 border rounded">
-                            <span class="text-sm font-mono">{userId}</span>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={!isOverrideMode}
-                                onclick={() => onRemoveUserId(index)}
-                            >
-                                <Trash2 class="w-4 h-4" />
-                            </Button>
+                            {#if isOverridden('exclusiveUserIdAccessControl')}
+                                <p class="text-xs text-muted-foreground">
+                                    Original: {getOriginalValue('exclusiveUserIdAccessControl')?.length || 0} user IDs
+                                </p>
+                            {/if}
                         </div>
-                    {/each}
-                    {#if exclusiveUserIdAccessControl.length === 0}
-                        <div class="p-3 bg-red-50 border border-red-200 rounded">
-                            <p class="text-sm text-red-800">
-                                No user IDs configured. No one will have access to this chat app.
-                            </p>
-                        </div>
-                    {/if}
-                </div>
 
-                {#if isOverridden('exclusiveUserIdAccessControl')}
-                    <p class="text-xs text-muted-foreground">
-                        Original: {getOriginalValue('exclusiveUserIdAccessControl')?.length || 0} user IDs
-                    </p>
+                        <div class="max-w-[300px] space-y-3">
+                            {@render exclusiveUserAccessWhoCanAccess()}
+                        </div>
+                    </div>
                 {/if}
             </div>
         {/if}
@@ -422,16 +483,18 @@
             <Label for={checkboxId} class="font-medium">{label}</Label>
             <PopupHelp popoverClasses="w-[400px]">
                 <p>
-                    Only {userType === 'internal-user' ? 'internal' : 'external'} users associated with the specified entities
-                    will be granted access. You must specify at least one entity or unselect this option. Either this or
-                    the "Exclusive {userType === 'internal-user' ? 'External' : 'Internal'} Entities" option must be selected.
+                    Only {userType === 'internal-user' ? 'internal' : 'external'} users associated with the specified
+                    {entityDisplayPluralLower} will be granted access. You must specify at least one {entityDisplaySingularLower}
+                    or unselect this option. Either this or the "Exclusive {userType === 'internal-user'
+                        ? 'External'
+                        : 'Internal'}
+                    {entityDisplayPluralUpper}" option must be selected.
                 </p>
             </PopupHelp>
         </div>
         {#if exclusiveEntityOn.includes(userType)}
-            <Label class="text-sm font-medium">Entities</Label>
             <List
-                classes="w-[300px] h-[120px]"
+                classes="w-[300px] h-[200px]"
                 items={accessControlArray as unknown as SimpleOption[]}
                 mapping={{
                     value: (item) => (typeof item === 'string' ? item : item.value),
@@ -439,8 +502,7 @@
                 }}
                 allowSelection={true}
                 multiSelect={true}
-                emptyMessage="No {siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl
-                    ?.entityDisplayNamePlural ?? 'Entities'} specified"
+                emptyMessage={`No ${entityDisplayPluralLower} specified`}
                 addRemove={{
                     addItem: (item) => {
                         const value = typeof item === 'string' ? item : item.value;
@@ -466,12 +528,9 @@
                         options: autoCompleteOptions,
                         minCharactersForSearch: 1,
                         showValueInListEntries: true,
-                        popupInputPlaceholder: `${siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.searchPlaceholderText ?? 'Search for an entity'}...`,
-                        optionTypeName:
-                            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl
-                                ?.entityDisplayNameSingular,
-                        optionTypeNamePlural:
-                            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural,
+                        popupInputPlaceholder: `${siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.searchPlaceholderText ?? `Search for an ${entityDisplaySingularLower}`}...`,
+                        optionTypeName: entityDisplaySingularUpper,
+                        optionTypeNamePlural: entityDisplayPluralUpper,
                         loading: loadingEntities,
                     },
                 }}
@@ -486,23 +545,45 @@
         <div class="text-sm text-blue-800">
             {#if !enabled}
                 <p class="text-red-600 font-medium">Chat app is disabled</p>
+            {:else if exclusiveUserIdAccessControl.length === 0}
+                <p class="text-red-600 font-medium">No access - No users specified</p>
+            {:else}
+                <ul class="space-y-1 list-disc list-inside">
+                    Only these users will be granted access:
+                    {#each exclusiveUserIdAccessControl as userId, index}
+                        <span class="font-medium">{userId}</span>
+                        {#if index < exclusiveUserIdAccessControl.length - 1}
+                            <span class="text-muted-foreground">, </span>
+                        {/if}
+                    {/each}
+                </ul>
+            {/if}
+        </div>
+    </div>
+{/snippet}
+
+{#snippet exclusiveEntityAccessWhoCanAccess()}
+    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <h3 class="text-sm font-medium text-blue-900 mb-2">Who Can Access</h3>
+        <div class="text-sm text-blue-800">
+            {#if !enabled}
+                <p class="text-red-600 font-medium">Chat app is disabled</p>
             {:else if !exclusiveEntityOn.includes('internal-user') && !exclusiveEntityOn.includes('external-user')}
-                <p class="text-red-600 font-medium">No access - No user types enabled for exclusive entity access</p>
+                <p class="text-red-600 font-medium">
+                    No access - No user types enabled for exclusive {entityDisplaySingularLower} access
+                </p>
             {:else}
                 <ul class="space-y-1 list-disc list-inside">
                     {#if exclusiveEntityOn.includes('internal-user')}
                         {#if exclusiveInternalAccessControl.length > 0}
                             <li>
-                                <span class="font-medium">Internal users</span> from these
-                                {siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl
-                                    ?.entityDisplayNamePlural ?? 'entities'}:
+                                <span class="font-medium">Internal users</span> from these {entityDisplayPluralLower}:
                                 <span class="font-medium">{exclusiveInternalAccessControl.join(', ')}</span>
                             </li>
                         {:else}
                             <li class="text-red-600">
-                                <span class="font-medium">Internal users</span> (no {siteAdmin.siteFeatures?.siteAdmin
-                                    ?.supportUserEntityAccessControl?.entityDisplayNamePlural ?? 'entities'} specified -
-                                incomplete configuration)
+                                <span class="font-medium">Internal users</span> (no {entityDisplayPluralLower} specified
+                                - incomplete configuration)
                             </li>
                         {/if}
                     {/if}
@@ -511,15 +592,13 @@
                         {#if exclusiveExternalAccessControl.length > 0}
                             <li>
                                 <span class="font-medium">External users</span> from these
-                                {siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl
-                                    ?.entityDisplayNamePlural ?? 'entities'}:
+                                {entityDisplayPluralLower}:
                                 <span class="font-medium">{exclusiveExternalAccessControl.join(', ')}</span>
                             </li>
                         {:else}
                             <li class="text-red-600">
-                                <span class="font-medium">External users</span> (no {siteAdmin.siteFeatures?.siteAdmin
-                                    ?.supportUserEntityAccessControl?.entityDisplayNamePlural ?? 'entities'} specified -
-                                incomplete configuration)
+                                <span class="font-medium">External users</span> (no {entityDisplayPluralLower} specified
+                                - incomplete configuration)
                             </li>
                         {/if}
                     {/if}
@@ -564,7 +643,8 @@
     <div class="border border-gray-200 rounded-lg p-4 mt-6">
         <h3 class="text-sm font-medium mb-4">Access for {nonExclusiveUserTypeLabel}</h3>
         <p class="text-xs text-muted-foreground mb-4">
-            Configure access for {nonExclusiveUserTypeDescription} who are not governed by exclusive entity restrictions.
+            Configure access for {nonExclusiveUserTypeDescription} who are not governed by exclusive {entityDisplaySingularLower}
+            restrictions.
         </p>
 
         <div class="space-y-4">
@@ -620,7 +700,7 @@
                     </div>
 
                     <List
-                        classes="w-[300px] h-[120px]"
+                        classes="w-[300px] h-[200px]"
                         items={userRoles}
                         mapping={{
                             value: (item) => item as string,
