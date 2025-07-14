@@ -1,6 +1,15 @@
-import { createOrUpdateChatAppOverride, deleteChatAppOverride, getAllChatApps, getChatApp } from '$lib/server/chat-admin-apis';
+import {
+    createOrUpdateChatAppOverride,
+    deleteChatAppOverride,
+    getAllChatApps,
+    getChatApp,
+} from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
+import {
+    isUserAllowedToUseEntityAccessControl,
+    isUserAllowedToUseSpecificUserAccessControl,
+    isUserSiteAdmin,
+} from '$lib/server/utils';
 import type { SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getValuesForEntityAutoComplete } from './custom-data';
@@ -26,7 +35,7 @@ export const POST: RequestHandler = async (event) => {
         return json({
             success: true,
             chatApps,
-            siteFeatures
+            siteFeatures,
         });
     } else if (siteAdminReq.command === 'getValuesForEntityAutoComplete') {
         if (!isUserAllowedToUseEntityAccessControl(user)) {
@@ -45,11 +54,16 @@ export const POST: RequestHandler = async (event) => {
             return new Response('valueProvidedByUser is required', { status: 400 });
         }
 
-        const valuesForAutoComplete = await getValuesForEntityAutoComplete(siteAdminReq.type, siteAdminReq.valueProvidedByUser, user, siteAdminReq.chatAppId);
+        const valuesForAutoComplete = await getValuesForEntityAutoComplete(
+            siteAdminReq.type,
+            siteAdminReq.valueProvidedByUser,
+            user,
+            siteAdminReq.chatAppId
+        );
 
         return json({
             success: true,
-            data: valuesForAutoComplete
+            data: valuesForAutoComplete,
         });
     } else if (siteAdminReq.command === 'getValuesForUserAutoComplete') {
         if (!isUserAllowedToUseSpecificUserAccessControl(user)) {
@@ -59,7 +73,7 @@ export const POST: RequestHandler = async (event) => {
         const users = await searchForUser(user.userId, siteAdminReq.valueProvidedByUser);
         return json({
             success: true,
-            data: users
+            data: users,
         });
     } else if (siteAdminReq.command === 'refreshChatApp') {
         const chatAppId = siteAdminReq.chatAppId;
@@ -74,7 +88,7 @@ export const POST: RequestHandler = async (event) => {
 
         return json({
             success: true,
-            chatApp
+            chatApp,
         });
     } else if (siteAdminReq.command === 'createOrUpdateChatAppOverride') {
         if (!('chatAppId' in siteAdminReq)) {
@@ -85,11 +99,15 @@ export const POST: RequestHandler = async (event) => {
             return new Response('override is required', { status: 400 });
         }
 
-        const chatAppOverride = await createOrUpdateChatAppOverride(user.userId, siteAdminReq.chatAppId, siteAdminReq.override);
+        const chatAppOverride = await createOrUpdateChatAppOverride(
+            user.userId,
+            siteAdminReq.chatAppId,
+            siteAdminReq.override
+        );
 
         return json({
             success: true,
-            chatAppOverride
+            chatAppOverride,
         });
     } else if (siteAdminReq.command === 'deleteChatAppOverride') {
         if (!('chatAppId' in siteAdminReq)) {
@@ -98,7 +116,7 @@ export const POST: RequestHandler = async (event) => {
 
         const users = await deleteChatAppOverride(user.userId, siteAdminReq.chatAppId);
         return json({
-            success: true
+            success: true,
         });
     } else {
         return new Response('Invalid command', { status: 400 });

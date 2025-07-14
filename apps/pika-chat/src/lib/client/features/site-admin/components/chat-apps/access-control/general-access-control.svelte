@@ -18,6 +18,7 @@
         userTypesLabel?: string;
         userRolesLabel?: string;
         entityNameCapitalized?: string; // "Chat app", "Feature", etc.
+        dontShowSectionTitle?: boolean;
     }
 
     let {
@@ -28,7 +29,7 @@
         isOverrideMode,
         isOverridden,
         getOriginalValue,
-        sectionTitle = 'Access Control',
+        sectionTitle,
         userTypesLabel = 'User Types Allowed Access',
         userRolesLabel = 'User Roles Allowed Access',
         entityNameCapitalized = 'Chat app',
@@ -36,7 +37,9 @@
 </script>
 
 <section>
-    <h2 class="text-lg font-semibold mb-4">{sectionTitle}</h2>
+    {#if sectionTitle && sectionTitle.trim().length > 0}
+        <h2 class="text-lg font-semibold mb-4">{sectionTitle}</h2>
+    {/if}
     <div class="flex gap-4 justify-between">
         <div class="space-y-6">
             <div>
@@ -95,7 +98,7 @@
                 </div>
                 {#if isOverridden('userTypes')}
                     <p class="text-xs text-muted-foreground mt-1">
-                        Original: {getOriginalValue('userTypes')?.join(', ') || 'All users'}
+                        Original: {getOriginalValue('userTypes')?.join(', ') || 'None specified'}
                     </p>
                 {/if}
             </div>
@@ -144,7 +147,7 @@
                 />
                 {#if isOverridden('userRoles')}
                     <p class="text-xs text-muted-foreground mt-1">
-                        Original: {getOriginalValue('userRoles')?.join(', ') || 'All roles'}
+                        Original: {getOriginalValue('userRoles')?.join(', ') || 'None specified'}
                     </p>
                 {/if}
             </div>
@@ -170,7 +173,7 @@
 
                 {#if isOverridden('applyRulesAs')}
                     <p class="text-xs text-muted-foreground mt-1">
-                        Original: {getOriginalValue('applyRulesAs')}
+                        Original: {getOriginalValue('applyRulesAs') || 'None specified'}
                     </p>
                 {/if}
             </div>

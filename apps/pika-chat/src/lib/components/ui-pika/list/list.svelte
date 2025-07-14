@@ -27,6 +27,8 @@
         // You implement the logic for adding and removing items from your underlying list.
         addRemove?: {
             addItem?: (item: T) => void;
+            // If true, the user can press enter to add an item to the list.  Defaults to false.
+            triggerAddOnEnter?: boolean;
             removeItem?: (item: T) => void;
             allowArbitraryValues?: {
                 convertValueToType: (arbitraryValue: string) => T;
@@ -249,15 +251,31 @@
                         type="text"
                         placeholder={addRemove.addValueInputPlaceholder}
                         {disabled}
+                        onkeydown={(e) => {
+                            if (
+                                e.key === 'Enter' &&
+                                addRemove.triggerAddOnEnter &&
+                                addRemove.allowArbitraryValues &&
+                                addRemove.addItem &&
+                                addValueInput.trim().length > 0
+                            ) {
+                                addRemove.addItem(addRemove.allowArbitraryValues.convertValueToType(addValueInput));
+                                addValueInput = ''; // Clear input after adding
+                            }
+                        }}
                     />
                     <div class="flex items-center">
                         <Button
                             variant="ghost"
                             size="icon"
                             class="w-6 h-7"
-                            {disabled}
+                            disabled={disabled || addValueInput.trim().length === 0}
                             onclick={() => {
-                                if (addRemove.allowArbitraryValues && addRemove.addItem) {
+                                if (
+                                    addRemove.allowArbitraryValues &&
+                                    addRemove.addItem &&
+                                    addValueInput.trim().length > 0
+                                ) {
                                     addRemove.addItem(addRemove.allowArbitraryValues.convertValueToType(addValueInput));
                                     addValueInput = ''; // Clear input after adding
                                 }
@@ -267,7 +285,7 @@
                             variant="ghost"
                             size="icon"
                             class="w-6 h-7"
-                            {disabled}
+                            disabled={disabled || addValueInput.trim().length === 0}
                             onclick={() => {
                                 if (addRemove.allowArbitraryValues && addRemove.removeItem) {
                                     addRemove.removeItem(

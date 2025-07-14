@@ -1,9 +1,7 @@
 <script lang="ts">
     import { Plus, RotateCcw, Save } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Badge } from '$lib/components/ui/badge';
     import { Button } from '$lib/components/ui/button';
-    import { Checkbox } from '$lib/components/ui/checkbox';
     import { Label } from '$lib/components/ui/label';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import { Separator } from '$lib/components/ui/separator';
@@ -18,10 +16,10 @@
         UserRole,
         UserType,
     } from '@pika/shared/types/chatbot/chatbot-types';
-    import { DEFAULT_FEATURE_ENABLED_VALUE, FEATURE_NAMES } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
-    import BasicSettings from '../components/chat-apps/basic-settings.svelte';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
+    import BasicSettings from '../components/chat-apps/basic-settings.svelte';
+    import Features from '../components/chat-apps/features/features.svelte';
     import LeftNav from '../components/chat-apps/left-nav.svelte';
     import Titlebar from '../components/chat-apps/titlebar.svelte';
     import ConfigSection from '../components/config-section.svelte';
@@ -39,6 +37,7 @@
     let selectedChatApp = $state<ChatApp | null>(null);
     let editedOverride = $state<Partial<ChatAppOverride>>({});
     let isDirty = $state(false);
+    let selectedChatAppValid = $state(true);
 
     // Reactive values for the forms
     let title = $state('');
@@ -82,6 +81,12 @@
             resetFormData();
         }
     });
+
+    function setValid(valid: boolean) {
+        if (selectedChatApp) {
+            selectedChatAppValid = valid;
+        }
+    }
 
     // Watch for form changes to set dirty flag
     $effect(() => {
@@ -243,43 +248,6 @@
         resetFormData();
     }
 
-    function toggleUserRole(userRole: UserRole) {
-        if (userRoles.includes(userRole)) {
-            userRoles = userRoles.filter((r) => r !== userRole);
-        } else {
-            userRoles = [...userRoles, userRole];
-        }
-    }
-
-    function toggleFeature(featureId: FeatureIdType) {
-        if (!isOverrideMode) return;
-
-        const currentFeatures = { ...features };
-
-        if (currentFeatures[featureId]) {
-            // Feature is currently enabled, remove it (this will fall back to original/default)
-            delete currentFeatures[featureId];
-        } else {
-            // Feature is not enabled, enable it with default configuration
-            currentFeatures[featureId] = {
-                featureId,
-                enabled: true,
-            } as ChatAppFeature;
-        }
-
-        features = currentFeatures;
-    }
-
-    function isFeatureEnabled(featureId: FeatureIdType): boolean {
-        const effectiveFeatures = getEffectiveValue('features') || {};
-        return effectiveFeatures[featureId]?.enabled ?? DEFAULT_FEATURE_ENABLED_VALUE[featureId];
-    }
-
-    function isFeatureOverridden(featureId: FeatureIdType): boolean {
-        if (!selectedChatApp?.override?.features) return false;
-        return featureId in selectedChatApp.override.features;
-    }
-
     // Section collapse functions
     function toggleSection(sectionKey: keyof typeof expandedSections) {
         expandedSections[sectionKey] = !expandedSections[sectionKey];
@@ -358,55 +326,17 @@
 
                     <Separator />
 
-                    <!-- Features -->
-                    <ConfigSection
-                        title="Features"
-                        expanded={expandedSections.features}
-                        onToggle={() => toggleSection('features')}
-                    >
-                        <div class="space-y-4">
-                            <p class="text-sm text-muted-foreground">
-                                Configure which features are enabled for this chat app. Only features that differ from
-                                the original settings are saved.
-                            </p>
-
-                            <div class="grid grid-cols-1 gap-4">
-                                {#each Object.entries(FEATURE_NAMES) as [featureId, featureName]}
-                                    {@const typedFeatureId = featureId as FeatureIdType}
-                                    <div class="flex items-center justify-between p-3 border rounded-lg">
-                                        <div class="flex items-center space-x-3">
-                                            <Checkbox
-                                                id="feature-{featureId}"
-                                                checked={isFeatureEnabled(typedFeatureId)}
-                                                disabled={!isOverrideMode}
-                                                onchange={() => isOverrideMode && toggleFeature(typedFeatureId)}
-                                                class={isFeatureOverridden(typedFeatureId) ? 'border-orange-500' : ''}
-                                            />
-                                            <div>
-                                                <Label for="feature-{featureId}" class="font-medium"
-                                                    >{featureName}</Label
-                                                >
-                                                {#if isFeatureOverridden(typedFeatureId)}
-                                                    <p class="text-xs text-muted-foreground">
-                                                        Original: {getOriginalValue('features')?.[typedFeatureId]
-                                                            ?.enabled
-                                                            ? 'Enabled'
-                                                            : 'Disabled'}
-                                                    </p>
-                                                {/if}
-                                            </div>
-                                        </div>
-
-                                        {#if isFeatureOverridden(typedFeatureId)}
-                                            <Badge variant="destructive" class="text-xs">Overridden</Badge>
-                                        {:else}
-                                            <Badge variant="secondary" class="text-xs">Default</Badge>
-                                        {/if}
-                                    </div>
-                                {/each}
-                            </div>
-                        </div>
-                    </ConfigSection>
+                    <Features
+                        bind:features
+                        bind:enabled
+                        {isOverrideMode}
+                        featuresExpanded={expandedSections.features}
+                        {isOverridden}
+                        originalFeatures={getOriginalValue('features') || {}}
+                        onToggleFeaturesSection={() => toggleSection('features')}
+                        chatAppId={selectedChatApp.chatAppId}
+                        {setValid}
+                    />
 
                     <Separator />
 

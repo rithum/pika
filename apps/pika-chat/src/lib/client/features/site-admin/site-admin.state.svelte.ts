@@ -13,7 +13,7 @@ import type {
     SiteAdminCommand,
     SiteAdminRequest,
     SiteAdminResponse,
-    SiteFeatures
+    SiteFeatures,
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { type ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
@@ -38,7 +38,7 @@ export class SiteAdminState {
         createOrUpdateChatAppOverride: false,
         deleteChatAppOverride: false,
         getValuesForEntityAutoComplete: false,
-        getValuesForUserAutoComplete: false
+        getValuesForUserAutoComplete: false,
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -132,9 +132,9 @@ export class SiteAdminState {
             const response = await this.fetchz('/api/site-admin', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             if (!response.ok) {
@@ -156,7 +156,8 @@ export class SiteAdminState {
                     this.valuesForExternalEntityAutoComplete = values;
                 }
             } else if (request.command === 'getValuesForUserAutoComplete') {
-                this.valuesForAutoCompleteForUserAccessControl = (json as GetValuesForUserAutoCompleteResponse).data ?? undefined;
+                this.valuesForAutoCompleteForUserAccessControl =
+                    (json as GetValuesForUserAutoCompleteResponse).data ?? undefined;
             } else if (request.command === 'refreshChatApp') {
                 const response = json as RefreshChatAppResponse;
                 // Replace the chat app in the list with the new one if it's there
@@ -173,7 +174,9 @@ export class SiteAdminState {
                     this.#chatApps[idx].override = response.chatAppOverride;
                 } else {
                     // Didn't find the chat app to add/update the override for, so throw an error, shouldn't happen
-                    throw new Error(`Chat app ${request.chatAppId} not found when creating or updating chat app override`);
+                    throw new Error(
+                        `Chat app ${request.chatAppId} not found when creating or updating chat app override`
+                    );
                 }
             } else if (request.command === 'deleteChatAppOverride') {
                 const response = json as DeleteChatAppOverrideResponse;

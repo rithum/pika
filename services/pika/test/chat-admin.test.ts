@@ -189,7 +189,6 @@ describe('Chat Admin API Integration Tests', () => {
                 featureName: 'Prompt Input Field Label',
                 enabled: true,
                 defaultEnabledValue: true,
-                hidePromptInputFieldLabel: false,
                 promptInputFieldLabel: 'Ask me anything...'
             } as PromptInputFieldLabelFeature,
             uiCustomization: {

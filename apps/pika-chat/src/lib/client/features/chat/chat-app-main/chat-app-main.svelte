@@ -288,8 +288,8 @@
         <div class="flex-grow flex flex-col" style="padding-top: {fullScreen ? '20vh' : '2vh'}">
             <div class="w-full max-w-[768px] mx-auto">
                 <div class="flex flex-col px-4">
-                    {#if !chat.hidePromptInputFieldLabel}
-                        <div class="text-3xl text-center mb-4">{chat.promptInputFieldLabel}</div>
+                    {#if chat.features.promptInputFieldLabel.label}
+                        <div class="text-3xl text-center mb-4">{chat.features.promptInputFieldLabel.label}</div>
                     {/if}
                     {#if chat.suggestions.length > 0}
                         <div class="pb-1">

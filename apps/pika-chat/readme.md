@@ -24,7 +24,7 @@ cdk.Tags.of(weatherLambda).add('agent-tool', 'true');
 // Allow bedrock agents to invoke
 weatherLambda.addPermission('allowAgentInvokeFn', {
     action: 'lambda:invokeFunction',
-    principal: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+    principal: new iam.ServicePrincipal('bedrock.amazonaws.com')
 });
 ```
 
@@ -42,7 +42,7 @@ const agentData: AgentDataRequest = {
     userId: `cloudformation/${this.stackName}`,
     agent: {
         agentId: `weather-agent-${this.stage}`,
-        basePrompt: "Your agent's system prompt here...",
+        basePrompt: "Your agent's system prompt here..."
     },
     tools: [
         {
@@ -53,9 +53,9 @@ const agentData: AgentDataRequest = {
             executionType: 'lambda',
             lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED',
             functionSchema: weatherFunctions, // Bedrock function schema
-            supportedAgentFrameworks: ['bedrock'],
-        },
-    ],
+            supportedAgentFrameworks: ['bedrock']
+        }
+    ]
 };
 ```
 
@@ -83,14 +83,14 @@ const chatAppData: ChatAppDataRequest = {
         enabled: true,
         features: {
             // Configure available features here
-        },
-    },
+        }
+    }
 };
 ```
 
 ## Chat App Features
 
-All features are **disabled by default** except `promptInputFieldLabel`.
+All features are **disabled by default**.
 
 ### File Upload
 
@@ -105,11 +105,7 @@ fileUpload: {
 **S3 Bucket Access Required:**
 
 ```typescript
-const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(
-    this,
-    'UploadBucketNameParam',
-    `/stack/chatbot/${this.stage}/s3/upload_bucket_name`
-);
+const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(this, 'UploadBucketNameParam', `/stack/chatbot/${this.stage}/s3/upload_bucket_name`);
 ```
 
 ### Suggestions
@@ -130,9 +126,8 @@ suggestions: {
 ```typescript
 promptInputFieldLabel: {
   featureId: 'promptInputFieldLabel',
-  enabled: true,          // Default: true
+  enabled: true,          // Default: false
   promptInputFieldLabel: 'Ready to chat',  // Default text
-  hidePromptInputFieldLabel: false         // Default: false
 }
 ```
 
@@ -157,10 +152,7 @@ Use the deployed custom resource lambdas to create agents and chat apps.
 
 ```typescript
 // Agent creation
-const customResourceArn = ssm.StringParameter.valueForStringParameter(
-    this,
-    `/stack/chatbot/${this.stage}/lambda/agent_custom_resource_arn`
-);
+const customResourceArn = ssm.StringParameter.valueForStringParameter(this, `/stack/chatbot/${this.stage}/lambda/agent_custom_resource_arn`);
 
 // REQUIRED: Compress and encode the agent data
 const agentDataCompressed = gzipAndBase64EncodeString(JSON.stringify(agentData));
@@ -172,18 +164,15 @@ const customResource = new cdk.CustomResource(this, 'WeatherAgentCustomResource'
         AgentData: agentDataCompressed, // Must be gzipped + base64 encoded
         ToolIdToLambdaArnMap: {
             [`weather-tool-${this.stage}`]: cdk.Lazy.string({
-                produce: () => weatherLambda.functionArn,
-            }),
+                produce: () => weatherLambda.functionArn
+            })
         },
-        Timestamp: String(Date.now()), // Forces updates
-    },
+        Timestamp: String(Date.now()) // Forces updates
+    }
 });
 
 // Chat app creation
-const chatAppCustomResourceArn = ssm.StringParameter.valueForStringParameter(
-    this,
-    `/stack/chatbot/${this.stage}/lambda/chat_app_custom_resource_arn`
-);
+const chatAppCustomResourceArn = ssm.StringParameter.valueForStringParameter(this, `/stack/chatbot/${this.stage}/lambda/chat_app_custom_resource_arn`);
 
 // REQUIRED: Compress and encode the chat app data
 const chatAppDataCompressed = gzipAndBase64EncodeString(JSON.stringify(chatAppData));
@@ -193,8 +182,8 @@ const chatAppCustomResource = new cdk.CustomResource(this, 'WeatherChatAppCustom
     properties: {
         Stage: this.stage,
         ChatAppData: chatAppDataCompressed, // Must be gzipped + base64 encoded
-        Timestamp: String(Date.now()),
-    },
+        Timestamp: String(Date.now())
+    }
 });
 ```
 

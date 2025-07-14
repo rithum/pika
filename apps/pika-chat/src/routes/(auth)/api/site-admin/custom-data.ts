@@ -1,4 +1,10 @@
-import type { AuthenticatedUser, ChatApp, RecordOrUndef, SimpleOption, UserOverrideData } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    ChatApp,
+    RecordOrUndef,
+    SimpleOption,
+    UserOverrideData,
+} from '@pika/shared/types/chatbot/chatbot-types';
 
 /**
  * Get the values for an auto complete input component in the admin UI.  This is used if you have turned on
@@ -45,18 +51,22 @@ export async function getValuesForEntityAutoComplete(
             .slice(0, 20)
             .map((company) => ({
                 value: company.accountId,
-                label: company.details.accountName
+                label: company.details.accountName,
             }));
     }
 
     const searchValue = valueProvidedByUser.toLowerCase().trim();
 
     return mockAccounts
-        .filter((account) => account.accountId.toLowerCase().startsWith(searchValue) || account.details.accountName.toLowerCase().startsWith(searchValue))
+        .filter(
+            (account) =>
+                account.accountId.toLowerCase().startsWith(searchValue) ||
+                account.details.accountName.toLowerCase().startsWith(searchValue)
+        )
         .sort((a, b) => a.details.accountName.localeCompare(b.details.accountName))
         .map((account) => ({
             value: account.accountId,
-            label: account.details.accountName
+            label: account.details.accountName,
         }))
         .slice(0, 20);
 }
@@ -170,5 +180,5 @@ const mockAccounts: Account[] = [
     { accountId: 'acct-097', details: { accountName: 'Champion Systems', accountType: 'standard' } },
     { accountId: 'acct-098', details: { accountName: 'Victor Ventures', accountType: 'premium' } },
     { accountId: 'acct-099', details: { accountName: 'Conqueror Ltd', accountType: 'standard' } },
-    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } }
+    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } },
 ];

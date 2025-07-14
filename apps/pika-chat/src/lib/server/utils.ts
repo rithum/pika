@@ -228,10 +228,148 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
 }
 
 /**
+ * Validates if a feature override is valid and returns its status.
+ *
+ * @param appFeature - The app-level feature configuration
+ * @param featureName - The name of the feature for error logging
+ * @returns The status of the override: 'enabled', 'disabled', 'invalid', or 'none'
+ */
+function isFeatureOverrideValid(appFeature: any, featureName: string): 'enabled' | 'disabled' | 'invalid' | 'none' {
+    if (!appFeature) return 'none';
+
+    // Empty object is invalid
+    if (Object.keys(appFeature).length === 0) {
+        console.error(`Invalid empty feature override for ${featureName}. Falling back to site level.`);
+        return 'invalid';
+    }
+
+    // Must have enabled property to be valid (except for simple features)
+    if (!('enabled' in appFeature)) {
+        console.error(`Invalid feature override for ${featureName}: missing 'enabled' property. Falling back to site level.`);
+        return 'invalid';
+    }
+
+    return appFeature.enabled ? 'enabled' : 'disabled';
+}
+
+/**
+ * Validates if a simple feature override (no access rules) is valid.
+ *
+ * @param appFeature - The app-level feature configuration
+ * @param featureName - The name of the feature for error logging
+ * @returns Whether the override is valid
+ */
+function isSimpleFeatureOverrideValid(appFeature: any, featureName: string): boolean {
+    if (!appFeature) return false;
+
+    // Empty object is invalid
+    if (Object.keys(appFeature).length === 0) {
+        console.error(`Invalid empty feature override for ${featureName}. Falling back to site level.`);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Generic handler for features with access rules (enabled property + user access control).
+ *
+ * @param featureName - Name of the feature for logging
+ * @param appFeature - App-level feature configuration
+ * @param siteFeature - Site-level feature configuration
+ * @param defaults - Default values for the feature
+ * @param user - The authenticated user
+ * @param propertyExtractor - Function to extract properties from feature config
+ * @returns The resolved feature configuration
+ */
+function handleAccessRuleFeature<T>(
+    featureName: string,
+    appFeature: any,
+    siteFeature: any,
+    defaults: T,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    propertyExtractor: (feature: any, enabled: boolean) => T
+): T {
+    const overrideStatus = isFeatureOverrideValid(appFeature, featureName);
+
+    if (overrideStatus === 'enabled' && appFeature) {
+        // Site-level gating: if site is disabled, app can't enable it
+        const siteRule = siteFeature || { enabled: false };
+        if (siteRule.enabled) {
+            const enabled = checkUserAccessToFeature(user, appFeature as AccessRules);
+            return propertyExtractor(appFeature, enabled);
+        }
+        return propertyExtractor(defaults, false);
+    } else if (overrideStatus === 'disabled') {
+        return propertyExtractor(defaults, false);
+    } else {
+        // Use site level or defaults
+        const siteRule = siteFeature || { enabled: false };
+        const enabled = checkUserAccessToFeature(user, siteRule);
+        return propertyExtractor(siteRule, enabled);
+    }
+}
+
+/**
+ * Generic handler for simple features (no access rules).
+ *
+ * @param featureName - Name of the feature for logging
+ * @param appFeature - App-level feature configuration
+ * @param siteFeature - Site-level feature configuration
+ * @param defaults - Default values for the feature
+ * @param propertyExtractor - Function to extract properties from feature config
+ * @returns The resolved feature configuration
+ */
+function handleSimpleFeature<T>(featureName: string, appFeature: any, siteFeature: any, defaults: T, propertyExtractor: (feature: any) => T): T {
+    if (isSimpleFeatureOverrideValid(appFeature, featureName) && appFeature) {
+        return propertyExtractor(appFeature);
+    } else {
+        // Use site level or defaults
+        const siteRule = siteFeature || defaults;
+        return propertyExtractor(siteRule);
+    }
+}
+
+/**
+ * Generic handler for features with enabled flag but no user access control.
+ * If enabled, the feature is on for all users. If disabled, it's off for all users.
+ *
+ * @param featureName - Name of the feature for logging
+ * @param appFeature - App-level feature configuration
+ * @param siteFeature - Site-level feature configuration
+ * @param defaults - Default values for the feature
+ * @param propertyExtractor - Function to extract properties from feature config
+ * @returns The resolved feature configuration
+ */
+function handleEnabledOnlyFeature<T>(featureName: string, appFeature: any, siteFeature: any, defaults: T, propertyExtractor: (feature: any, enabled: boolean) => T): T {
+    const overrideStatus = isFeatureOverrideValid(appFeature, featureName);
+
+    if (overrideStatus === 'enabled' && appFeature) {
+        // Site-level gating: if site is disabled, app can't enable it
+        const siteRule = siteFeature || { enabled: false };
+        if (siteRule.enabled) {
+            return propertyExtractor(appFeature, true);
+        }
+        return propertyExtractor({}, false); // Pass empty object when disabled
+    } else if (overrideStatus === 'disabled') {
+        return propertyExtractor({}, false); // Pass empty object when disabled
+    } else {
+        // Use site level or defaults
+        const siteRule = siteFeature || { enabled: true }; // Default enabled for this feature
+        return propertyExtractor(siteRule, siteRule.enabled);
+    }
+}
+
+/**
  * Compute what features the user is and isn't allowed to use for this chat app.  Note that most of these are features that are defined
  * at the site level (<root>/pika-config.ts) and then may be overridden by the chat app.
  *
  * Note that we always return siteAdmin: { websiteEnabled: false } because we only check that for real when they try to access the admin page itself.
+ *
+ * If the chat app has overidden a feature that has `enabled: true` then it must set all the other desired attributes for that feature.
+ * If the chat app has overidden a feature that has `enabled: false` then any other settings are ignored.
+ *
+ * Remember that if a site level feature is not enabled, then the chat app can't enable it.
  */
 export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
     const result: ChatAppOverridableFeatures = {
@@ -242,8 +380,23 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             enabled: false,
             detailedTraces: false
         },
-        // We don't use access rules to determine if the chat disclaimer notice is shown.  If there, it's shown.
-        chatDisclaimerNotice: siteFeatures?.chatDisclaimerNotice?.notice ?? (chatApp.features?.chatDisclaimerNotice as ChatDisclaimerNoticeFeatureForChatApp | undefined)?.notice,
+        fileUpload: {
+            mimeTypesAllowed: []
+        },
+        suggestions: {
+            suggestions: [],
+            randomize: false,
+            randomizeAfter: 0,
+            maxToShow: 5
+        },
+        promptInputFieldLabel: {
+            label: undefined
+        },
+        uiCustomization: {
+            showUserRegionInLeftNav: false,
+            showChatHistoryInStandaloneMode: false
+        },
+        chatDisclaimerNotice: undefined,
         logout: {
             enabled: false,
             menuItemTitle: 'Logout',
@@ -255,82 +408,96 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         }
     };
 
-    const siteVerifyRespRule = siteFeatures?.verifyResponse || { enabled: false };
-    const appVerifyRespRule = chatApp.features?.verifyResponse as VerifyResponseFeatureForChatApp | undefined;
+    // Handle verifyResponse feature
+    result.verifyResponse = handleAccessRuleFeature(
+        'verifyResponse',
+        chatApp.features?.verifyResponse,
+        siteFeatures?.verifyResponse,
+        result.verifyResponse,
+        user,
+        (feature, enabled) => ({
+            enabled,
+            autoRepromptThreshold: feature.autoRepromptThreshold
+        })
+    );
 
-    const resolvedRules = resolveFeatureRules(siteVerifyRespRule, appVerifyRespRule);
-    result.verifyResponse.enabled = checkUserAccessToFeature(user, resolvedRules);
-    result.verifyResponse.autoRepromptThreshold = appVerifyRespRule?.autoRepromptThreshold ?? siteVerifyRespRule.autoRepromptThreshold;
+    // Handle traces feature (has sub-feature for detailedTraces)
+    result.traces = handleAccessRuleFeature('traces', chatApp.features?.traces, siteFeatures?.traces, result.traces, user, (feature, enabled) => {
+        let detailedTraces = false;
+        if (enabled && feature.detailedTraces) {
+            // Check site-level gating for detailedTraces
+            const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
+            if (siteDetailedTracesRule.enabled) {
+                detailedTraces = checkUserAccessToFeature(user, feature.detailedTraces as AccessRules);
+            }
+        } else if (enabled) {
+            // No app override for detailedTraces, use site level
+            const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
+            detailedTraces = checkUserAccessToFeature(user, siteDetailedTracesRule);
+        }
+        return {
+            enabled,
+            detailedTraces
+        };
+    });
 
-    const siteTracesRule = siteFeatures?.traces || { enabled: false };
-    const appTracesRule = chatApp.features?.traces as TracesFeature | undefined;
+    // Handle logout feature
+    result.logout = handleAccessRuleFeature('logout', chatApp.features?.logout, siteFeatures?.logout, result.logout, user, (feature, enabled) => ({
+        enabled,
+        menuItemTitle: feature.menuItemTitle ?? 'Logout',
+        dialogTitle: feature.dialogTitle ?? 'Logout',
+        dialogDescription: feature.dialogDescription ?? 'Are you sure you want to logout?'
+    }));
 
-    const resolvedTracesRules = resolveFeatureRules(siteTracesRule, appTracesRule);
-    result.traces.enabled = checkUserAccessToFeature(user, resolvedTracesRules);
+    // Handle fileUpload feature
+    result.fileUpload = handleSimpleFeature('fileUpload', chatApp.features?.fileUpload, (siteFeatures as any)?.fileUpload, result.fileUpload, (feature) => ({
+        mimeTypesAllowed: feature.mimeTypesAllowed || []
+    }));
 
-    const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
-    const appDetailedTracesRule = (chatApp.features?.traces as TracesFeature)?.detailedTraces || { enabled: false };
+    // Handle suggestions feature
+    result.suggestions = handleSimpleFeature('suggestions', chatApp.features?.suggestions, (siteFeatures as any)?.suggestions, result.suggestions, (feature) => ({
+        suggestions: feature.suggestions || [],
+        randomize: feature.randomize ?? false,
+        randomizeAfter: feature.randomizeAfter ?? 0,
+        maxToShow: feature.maxToShow ?? 5
+    }));
 
-    const resolvedDetailedTracesRules = resolveFeatureRules(siteDetailedTracesRule, appDetailedTracesRule);
-    result.traces.detailedTraces = checkUserAccessToFeature(user, resolvedDetailedTracesRules);
+    // Handle promptInputFieldLabel feature
+    result.promptInputFieldLabel = handleEnabledOnlyFeature(
+        'promptInputFieldLabel',
+        chatApp.features?.promptInputFieldLabel,
+        (siteFeatures as any)?.promptInputFieldLabel,
+        { label: 'Ready to chat' }, // Default return shape
+        (feature, enabled) => ({
+            label: enabled ? (feature.promptInputFieldLabel ?? 'Ready to chat') : undefined
+        })
+    );
 
-    const siteLogoutRule = siteFeatures?.logout || { enabled: false };
-    const appLogoutRule = chatApp.features?.logout as LogoutFeatureForChatApp | undefined;
-    const resolvedLogoutRules = resolveFeatureRules(siteLogoutRule, appLogoutRule);
-    result.logout.enabled = checkUserAccessToFeature(user, resolvedLogoutRules);
-    result.logout.menuItemTitle = appLogoutRule?.menuItemTitle ?? siteLogoutRule.menuItemTitle ?? result.logout.menuItemTitle;
-    result.logout.dialogTitle = appLogoutRule?.dialogTitle ?? siteLogoutRule.dialogTitle ?? result.logout.dialogTitle;
-    result.logout.dialogDescription = appLogoutRule?.dialogDescription ?? siteLogoutRule.dialogDescription ?? result.logout.dialogDescription;
+    // Handle uiCustomization feature
+    result.uiCustomization = handleSimpleFeature(
+        'uiCustomization',
+        chatApp.features?.uiCustomization,
+        (siteFeatures as any)?.uiCustomization,
+        result.uiCustomization,
+        (feature) => ({
+            showUserRegionInLeftNav: feature.showUserRegionInLeftNav ?? false,
+            showChatHistoryInStandaloneMode: feature.showChatHistoryInStandaloneMode ?? false
+        })
+    );
+
+    // Handle chatDisclaimerNotice feature
+    const disclaimerResult = handleEnabledOnlyFeature(
+        'chatDisclaimerNotice',
+        chatApp.features?.chatDisclaimerNotice,
+        siteFeatures?.chatDisclaimerNotice,
+        { notice: undefined },
+        (feature, enabled) => ({
+            notice: enabled ? feature.notice : undefined
+        })
+    );
+    result.chatDisclaimerNotice = disclaimerResult.notice;
 
     return result;
-}
-
-/**
- * Generic function to resolve feature rules between site-level and app-level configurations.
- *
- * **Rule Resolution Logic:**
- * - If the app provides its own rules (userTypes or userRoles), they override the site-level rules
- * - Otherwise, the site-level rules are used
- *
- * **Enabled Property Handling:**
- * - Site level controls whether the feature can be used at all
- * - If site level is disabled, the feature is off regardless of app settings
- * - If site level is enabled, the app can only turn it off (enabled: false)
- * - If site level is enabled and app doesn't specify enabled, site level enabled value is used
- *
- * @param siteFeature - The site-level feature configuration
- * @param appFeature - The app-level feature configuration (optional)
- * @returns The resolved feature rules to use
- */
-export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: AccessRules): AccessRules {
-    // Site level controls whether feature can be used at all
-    if (!siteFeature.enabled) {
-        return {
-            enabled: false,
-            userTypes: siteFeature.userTypes,
-            userRoles: siteFeature.userRoles,
-            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
-        };
-    }
-
-    // Check if app provides its own rules
-    if (appFeature && ((appFeature.userTypes && appFeature.userTypes.length > 0) || appFeature.userRoles)) {
-        // Use app level rules, but app can only turn off the feature
-        return {
-            enabled: appFeature.enabled !== false, // Only allow app to turn it off
-            userTypes: appFeature.userTypes,
-            userRoles: appFeature.userRoles,
-            applyRulesAs: appFeature.applyRulesAs ?? 'and'
-        };
-    } else {
-        // Use site level rules
-        return {
-            enabled: siteFeature.enabled,
-            userTypes: siteFeature.userTypes,
-            userRoles: siteFeature.userRoles,
-            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
-        };
-    }
 }
 
 /**

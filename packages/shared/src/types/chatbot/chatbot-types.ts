@@ -380,9 +380,35 @@ export interface ChatAppOverridableFeatures {
     siteAdmin: {
         websiteEnabled: boolean;
     };
+
+    /** If no mime types, then the feature is diabled. */
+    fileUpload: {
+        mimeTypesAllowed: string[];
+    };
+
+    /** If no suggestions, then the feature is diabled. */
+    suggestions: {
+        suggestions: string[];
+        randomize: boolean;
+        randomizeAfter: number;
+        maxToShow: number;
+    };
+
+    /** If no label, then the feature is diabled. */
+    promptInputFieldLabel: {
+        label: string | undefined;
+    };
+
+    uiCustomization: {
+        showUserRegionInLeftNav: boolean;
+        showChatHistoryInStandaloneMode: boolean;
+    };
 }
 
-export type ChatAppOverridableFeaturesForConverseFn = Omit<ChatAppOverridableFeatures, 'chatDisclaimerNotice' | 'traces' | 'logout'>;
+export type ChatAppOverridableFeaturesForConverseFn = Omit<
+    ChatAppOverridableFeatures,
+    'chatDisclaimerNotice' | 'traces' | 'logout' | 'suggestions' | 'promptInputFieldLabel' | 'uiCustomization'
+>;
 
 /**
  * By default, content rules exclude anything not explicitly included.
@@ -1034,7 +1060,9 @@ export type ChatAppFeature =
     | PromptInputFieldLabelFeature
     | UiCustomizationFeature
     | VerifyResponseFeatureForChatApp
-    | TracesFeatureForChatApp;
+    | TracesFeatureForChatApp
+    | ChatDisclaimerNoticeFeatureForChatApp
+    | LogoutFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1053,20 +1081,6 @@ export type FeatureIdType = (typeof FeatureIdList)[number];
 
 export const EndToEndFeatureIdList = ['verifyResponse', 'traces'] as const;
 export type EndToEndFeatureIdType = (typeof EndToEndFeatureIdList)[number];
-
-/**
- * Whether a feature is enabled by default or not.
- */
-export const DEFAULT_FEATURE_ENABLED_VALUE: Record<FeatureIdType, boolean> = {
-    fileUpload: false,
-    promptInputFieldLabel: true,
-    suggestions: false,
-    uiCustomization: false,
-    verifyResponse: false,
-    traces: false,
-    chatDisclaimerNotice: false,
-    logout: false
-};
 
 export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     fileUpload: 'File Upload',
@@ -1146,8 +1160,10 @@ export interface LogoutFeatureForChatApp extends LogoutFeature, Feature {
  * the notice text.
  */
 export interface ChatDisclaimerNoticeFeature {
+    enabled: boolean;
+
     /** The notice text to display to the user.  If not provided, no notice is displayed. */
-    notice: string;
+    notice?: string;
 }
 
 export interface ChatDisclaimerNoticeFeatureForChatApp extends ChatDisclaimerNoticeFeature, Feature {
@@ -1281,9 +1297,6 @@ export interface FileUploadFeature extends Feature {
  */
 export interface PromptInputFieldLabelFeature extends Feature {
     featureId: 'promptInputFieldLabel';
-
-    /** Whether to hide the label above the prompt input field.  Defaults to false. */
-    hidePromptInputFieldLabel?: boolean;
 
     /** Defaults to "Ready to chat".  The label to show above the prompt input field. */
     promptInputFieldLabel?: string;
@@ -1549,7 +1562,7 @@ export interface AccessRules {
      * The user roles that are allowed to use the feature.  If neither this nor userTypes are provided,
      * then the feature is turned on for all users.
      */
-    userRoles?: PikaUserRole[];
+    userRoles?: UserRole[];
 
     /**
      * The logic to apply the userTypes and userRoles settings.  If not provided, defaults to `and`
@@ -1607,6 +1620,46 @@ export const RetryableVerifyResponseClassifications = [AccurateWithStatedAssumpt
  * The classifications that can be retried by the agent.
  */
 export type RetryableVerifyResponseClassification = (typeof RetryableVerifyResponseClassifications)[number];
+
+export interface VerifyResponseClassificationDescription {
+    classification: VerifyResponseClassification;
+    label: string;
+    description: string;
+}
+
+export type VerifyResponseRetryableClassificationDescription = VerifyResponseClassificationDescription & {
+    classification: RetryableVerifyResponseClassification;
+};
+
+export const VerifyResponseClassificationDescriptions: Record<VerifyResponseClassification, VerifyResponseClassificationDescription> = {
+    [Accurate]: { classification: Accurate as VerifyResponseClassification, label: 'Accurate', description: 'The response is completely accurate.' },
+    [AccurateWithStatedAssumptions]: {
+        classification: AccurateWithStatedAssumptions,
+        label: 'Accurate with stated assumptions',
+        description: 'The response is accurate but contains clearly stated assumptions'
+    },
+    [AccurateWithUnstatedAssumptions]: {
+        classification: AccurateWithUnstatedAssumptions,
+        label: 'Accurate with unstated assumptions',
+        description: 'The response is accurate but contains assumptions that are not explicitly stated'
+    },
+    [Inaccurate]: { classification: Inaccurate, label: 'Inaccurate', description: 'The response is inaccurate or contains made up information' },
+    [Unclassified]: { classification: Unclassified, label: 'Unclassified', description: 'The response was not given a classification' }
+};
+
+export const VerifyResponseRetryableClassificationDescriptions: Record<RetryableVerifyResponseClassification, VerifyResponseRetryableClassificationDescription> = {
+    [AccurateWithStatedAssumptions]: {
+        classification: AccurateWithStatedAssumptions,
+        label: 'Accurate with stated assumptions',
+        description: 'The response is accurate but contains clearly stated assumptions'
+    },
+    [AccurateWithUnstatedAssumptions]: {
+        classification: AccurateWithUnstatedAssumptions,
+        label: 'Accurate with unstated assumptions',
+        description: 'The response is accurate but contains assumptions that are not explicitly stated'
+    },
+    [Inaccurate]: { classification: Inaccurate, label: 'Inaccurate', description: 'The response is inaccurate or contains made up information' }
+};
 
 /**
  * The result of the authentication process.

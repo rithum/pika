@@ -75,15 +75,15 @@ export function convertStringToSnakeCase(str: string): string {
     return Object.keys(converted)[0];
 }
 
-/**
- * This lets us get a feature from a chat app and make sure it is the correct type.
- */
-export function getFeature<T extends FeatureIdType>(chatApp: ChatApp, featureId: T): Extract<ChatAppFeature, { featureId: T }> | undefined {
-    const feature = chatApp.features?.[featureId];
+// /**
+//  * This lets us get a feature from a chat app and make sure it is the correct type.
+//  */
+// export function getFeature<T extends FeatureIdType>(chatApp: ChatApp, featureId: T): Extract<ChatAppFeature, { featureId: T }> | undefined {
+//     const feature = chatApp.features?.[featureId];
 
-    if (feature && feature.featureId === featureId) {
-        return feature as Extract<ChatAppFeature, { featureId: T }>;
-    }
+//     if (feature && feature.featureId === featureId) {
+//         return feature as Extract<ChatAppFeature, { featureId: T }>;
+//     }
 
-    return undefined;
-}
+//     return undefined;
+// }

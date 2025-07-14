@@ -1,5 +1,5 @@
 <script lang="ts" generics="T">
-    import { Check, ChevronsUpDown } from '$icons/lucide';
+    import { Check, ChevronsUpDown, X } from '$icons/lucide';
     import { tick } from 'svelte';
     import * as Command from '$lib/components/ui/command';
     import * as Popover from '$lib/components/ui/popover';
@@ -26,6 +26,7 @@
         disabled = false,
         allowArbitraryValues,
         dontShowSearchInput = false,
+        allowClear = false,
     }: {
         value: T | undefined;
         mapping: SimpleDropdownMapping<T>;
@@ -42,6 +43,7 @@
         disabled?: boolean;
         dontShowSearchInput?: boolean;
         popupWidthClasses?: string;
+        allowClear?: boolean;
         allowArbitraryValues?: {
             convertValueToType: (arbitraryValue: string) => T;
         };
@@ -126,114 +128,130 @@
             closeAndFocusTrigger();
         }
     }
+
+    // Handle clear button click
+    function handleClear(e: Event) {
+        e.stopPropagation();
+        value = undefined;
+        if (onValueChanged) onValueChanged(undefined as T);
+    }
 </script>
 
-<Popover.Root bind:open>
-    <Popover.Trigger bind:ref={triggerRef}>
-        {#snippet child({ props })}
-            <Button
-                variant="outline"
-                class={`flex items-center justify-between ${widthClasses}`}
-                {...props}
-                role="combobox"
-                aria-expanded={open}
-                {disabled}
-            >
-                <span class={cn('flex-1 text-left truncate', !value && 'text-muted-foreground')}
-                    >{labelToDisplayInButton}</span
+<div class="flex items-center">
+    <Popover.Root bind:open>
+        <Popover.Trigger bind:ref={triggerRef}>
+            {#snippet child({ props })}
+                <Button
+                    variant="outline"
+                    class={`flex items-center justify-between ${widthClasses}`}
+                    {...props}
+                    role="combobox"
+                    aria-expanded={open}
+                    {disabled}
                 >
-                <ChevronsUpDown class="ml-2 shrink-0 opacity-50" />
-            </Button>
-        {/snippet}
-    </Popover.Trigger>
-    <Popover.Content class={cn('p-0', popupWidthClasses)}>
-        <Command.Root shouldFilter={false} class="">
-            {#if !dontShowSearchInput}
-                <Command.Input
-                    bind:value={searchValue}
-                    oninput={handleInputChange}
-                    onkeydown={handleKeyDown}
-                    placeholder={searchPlaceholder ?? `Search ${plurarFormOfOptionTypeName}...`}
-                    class="h-9"
-                />
-            {/if}
-            <Command.List>
-                {#if loading}
-                    <Command.Loading>
-                        <div class="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                            <div class="flex items-center gap-2">
-                                <div
-                                    class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
-                                ></div>
-                                Loading {plurarFormOfOptionTypeName}...
-                            </div>
-                        </div>
-                    </Command.Loading>
-                {:else}
-                    <Command.Empty>
-                        {#if allowArbitraryValues && searchValue.trim()}
-                            Press Enter to use "{searchValue}"
-                        {:else}
-                            No {optionTypeName} found.
+                    <span class="flex-1 flex items-center">
+                        <span class={cn('text-left truncate', !value && 'text-muted-foreground')}
+                            >{labelToDisplayInButton}</span
+                        >
+                        {#if showValueInListEntries && value}
+                            <span class="text-xs text-muted-foreground/70 font-mono truncate ml-1">
+                                ({getValue(value)})
+                            </span>
                         {/if}
-                    </Command.Empty>
-                {/if}
-                <Command.Group value={plurarFormOfOptionTypeName}>
-                    {#key visibleOptions}
-                        {#each visibleOptions as option (getValue(option))}
-                            <Command.Item
-                                value={getValue(option)}
-                                onSelect={() => {
-                                    const optionValue = getValue(option);
-                                    // Check if this is a different selection
-                                    if (!value || getValue(value) !== optionValue) {
-                                        value = option;
-                                        if (onValueChanged) onValueChanged(value);
-                                    }
-                                    closeAndFocusTrigger();
-                                }}
-                                class={cn(
-                                    'flex items-start gap-2 px-2 py-2',
-                                    (getSecondaryLabel(option) || showValueInListEntries) && 'py-2.5 min-h-[3rem]'
-                                )}
-                            >
-                                <Check
-                                    class={cn(
-                                        'mt-1 flex-shrink-0',
-                                        (!value || getValue(value) !== getValue(option)) && 'text-transparent'
-                                    )}
-                                />
-                                <div class="flex-1 min-w-0">
-                                    <!-- Primary label -->
-                                    <div class="font-medium text-sm leading-tight truncate">
-                                        {getLabel(option)}
-                                    </div>
+                    </span>
 
-                                    <!-- Secondary and tertiary info in a row -->
-                                    {#if getSecondaryLabel(option) || showValueInListEntries}
-                                        <div class="flex items-center gap-2 mt-0.5">
-                                            {#if getSecondaryLabel(option)}
-                                                <span class="text-xs text-muted-foreground">
-                                                    {getSecondaryLabel(option)}
-                                                </span>
-                                            {/if}
+                    <ChevronsUpDown class="ml-2 shrink-0 opacity-50" />
+                </Button>
+            {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class={cn('p-0', popupWidthClasses)}>
+            <Command.Root shouldFilter={false} class="">
+                {#if !dontShowSearchInput}
+                    <Command.Input
+                        bind:value={searchValue}
+                        oninput={handleInputChange}
+                        onkeydown={handleKeyDown}
+                        placeholder={searchPlaceholder ?? `Search ${plurarFormOfOptionTypeName}...`}
+                        class="h-9"
+                    />
+                {/if}
+                <Command.List>
+                    {#if loading}
+                        <Command.Loading>
+                            <div class="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                                <div class="flex items-center gap-2">
+                                    <div
+                                        class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+                                    ></div>
+                                    Loading {plurarFormOfOptionTypeName}...
+                                </div>
+                            </div>
+                        </Command.Loading>
+                    {:else}
+                        <Command.Empty>
+                            {#if allowArbitraryValues && searchValue.trim()}
+                                Press Enter to use "{searchValue}"
+                            {:else}
+                                No {optionTypeName} found.
+                            {/if}
+                        </Command.Empty>
+                    {/if}
+                    <Command.Group value={plurarFormOfOptionTypeName}>
+                        {#key visibleOptions}
+                            {#each visibleOptions as option (getValue(option))}
+                                <Command.Item
+                                    value={getValue(option)}
+                                    onSelect={() => {
+                                        const optionValue = getValue(option);
+                                        // Check if this is a different selection
+                                        if (!value || getValue(value) !== optionValue) {
+                                            value = option;
+                                            if (onValueChanged) onValueChanged(value);
+                                        }
+                                        closeAndFocusTrigger();
+                                    }}
+                                    class={cn(
+                                        'flex items-start gap-2 px-2 py-2',
+                                        (getSecondaryLabel(option) || showValueInListEntries) && 'py-2.5 min-h-[3rem]'
+                                    )}
+                                >
+                                    <Check
+                                        class={cn(
+                                            'mt-1 flex-shrink-0',
+                                            (!value || getValue(value) !== getValue(option)) && 'text-transparent'
+                                        )}
+                                    />
+                                    <div class="flex-1 min-w-0">
+                                        <!-- Primary label -->
+                                        <div class="font-medium text-sm leading-tight truncate">
+                                            {getLabel(option)}
                                             {#if showValueInListEntries}
-                                                <!-- Separator dot if we have both secondary label and value -->
-                                                {#if getSecondaryLabel(option)}
-                                                    <span class="text-xs text-muted-foreground/50">•</span>
-                                                {/if}
-                                                <span class="text-xs text-muted-foreground/70 font-mono truncate">
-                                                    {getValue(option)}
+                                                <span class="text-xs text-muted-foreground/70 font-mono truncate ml-1">
+                                                    ({getValue(option)})
                                                 </span>
                                             {/if}
                                         </div>
-                                    {/if}
-                                </div>
-                            </Command.Item>
-                        {/each}
-                    {/key}
-                </Command.Group>
-            </Command.List>
-        </Command.Root>
-    </Popover.Content>
-</Popover.Root>
+
+                                        <!-- Secondary and tertiary info in a row -->
+                                        {#if getSecondaryLabel(option)}
+                                            <div class="flex items-center gap-2 mt-0.5">
+                                                {#if getSecondaryLabel(option)}
+                                                    <span class="text-xs text-muted-foreground">
+                                                        {getSecondaryLabel(option)}
+                                                    </span>
+                                                {/if}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                </Command.Item>
+                            {/each}
+                        {/key}
+                    </Command.Group>
+                </Command.List>
+            </Command.Root>
+        </Popover.Content>
+    </Popover.Root>
+    {#if allowClear && value}
+        <X class="ml-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100 cursor-pointer" onclick={handleClear} />
+    {/if}
+</div>

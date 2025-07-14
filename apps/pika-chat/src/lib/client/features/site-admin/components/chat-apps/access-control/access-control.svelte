@@ -247,7 +247,7 @@
                 {isOverrideMode}
                 {isOverridden}
                 {getOriginalValue}
-                sectionTitle=""
+                sectionTitle="Access Control"
             />
         {:else if accessMode === 'exclusive-entity'}
             <ExclusiveEntityAccessControl
