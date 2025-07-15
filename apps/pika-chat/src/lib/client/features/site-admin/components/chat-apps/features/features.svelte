@@ -10,6 +10,7 @@
     import { ChevronDown, Expand, Shrink } from '$icons/lucide';
 
     import type {
+        ChatApp,
         ChatAppFeature,
         ChatDisclaimerNoticeFeatureForChatApp,
         FeatureIdType,
@@ -34,26 +35,24 @@
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import Button from '$lib/components/ui/button/button.svelte';
+    import { assert } from '$lib/utils';
+    import deepEqual from 'deep-equal';
 
     interface Props {
-        features: Partial<Record<FeatureIdType, ChatAppFeature>>;
-        enabled: boolean;
+        chatApp: ChatApp;
+        chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
         featuresExpanded: boolean;
-        isOverridden: (field: string) => boolean;
-        originalFeatures: Partial<Record<FeatureIdType, ChatAppFeature>>;
         onToggleFeaturesSection: () => void;
         chatAppId: string;
         setValid: (valid: boolean) => void;
     }
 
     let {
-        features = $bindable(),
-        enabled = $bindable(),
+        chatApp = $bindable(),
+        chatAppOriginal,
         isOverrideMode,
         featuresExpanded,
-        isOverridden,
-        originalFeatures,
         onToggleFeaturesSection,
         chatAppId,
         setValid,
@@ -62,6 +61,8 @@
     const appState = getContext<AppState>('appState');
 
     const featureValid = $state<Partial<Record<FeatureIdType, boolean>>>({});
+
+    const app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
     // Track which features have errors
     const featuresHaveErrors = $derived(Object.entries(featureValid).some(([, valid]) => valid === false));
@@ -91,65 +92,29 @@
         });
     }
 
-    function isFeatureEnabled(featureId: FeatureIdType): boolean {
-        // Check current features first, then fall back to original, then default
-        const currentFeatures = features || {};
-        const origFeatures = originalFeatures || {};
-        return currentFeatures[featureId]?.enabled ?? origFeatures[featureId]?.enabled ?? false;
-    }
-
-    function isFeatureOverridden(featureId: FeatureIdType): boolean {
-        // A feature is overridden if it exists in the current features object
-        const currentFeatures = features || {};
-        return currentFeatures[featureId] !== undefined;
-    }
-
-    function getOriginalFeature(featureId: FeatureIdType): ChatAppFeature | undefined {
-        const origFeatures = originalFeatures || {};
-        return origFeatures[featureId];
-    }
-
-    // function toggleFeature(featureId: FeatureIdType) {
-    //     if (!isOverrideMode) return;
-
-    //     const currentFeatures = { ...(features || {}) };
-
-    //     if (currentFeatures[featureId]) {
-    //         // Feature is currently overridden, remove the override
-    //         delete currentFeatures[featureId];
-    //     } else {
-    //         // Feature is not overridden, create an override
-    //         const originalFeature = originalFeatures?.[featureId];
-    //         const defaultEnabled = DEFAULT_FEATURE_ENABLED_VALUE[featureId];
-
-    //         // Create a basic feature object with just the enabled flag toggled
-    //         currentFeatures[featureId] = {
-    //             featureId,
-    //             enabled: !isFeatureEnabled(featureId), // Toggle from current state
-    //             ...originalFeature, // Preserve any existing configuration
-    //         } as ChatAppFeature;
-    //     }
-
-    //     features = currentFeatures;
-    // }
-
     function setFeatureEnabled(featureId: FeatureIdType, enabled: boolean) {
-        if (!isOverrideMode) return;
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(chatApp.override, 'chatApp.override must be defined');
 
-        console.log('setFeatureEnabled', featureId, enabled);
-        if (features[featureId]?.enabled === enabled) return;
+        if (!chatApp.override.features) {
+            chatApp.override.features = {};
+        }
 
-        const originalFeature = originalFeatures?.[featureId];
+        // If already set to this value, do nothing
+        if (chatApp.override.features[featureId]?.enabled === enabled) return;
+
+        const originalFeature = chatAppOriginal.override?.features?.[featureId];
         const originalEnabled = originalFeature?.enabled ?? false;
 
+        //TODO: not sure this logic is correct
         // If setting to match original, remove from override entirely
         if (enabled === originalEnabled) {
-            delete features[featureId];
+            delete chatApp.override.features[featureId];
             return;
         }
 
         // Otherwise, create/update the override
-        features[featureId] = {
+        chatApp.override.features[featureId] = {
             featureId,
             enabled,
             ...originalFeature,
@@ -167,24 +132,28 @@
     function cleanupFeaturesAfterReset() {
         if (!isOverrideMode) return;
 
-        const currentFeatures = { ...features };
-        let hasChanges = false;
+        if (!chatApp.override) {
+            return;
+        }
+
+        const currentFeatures = chatApp.override.features ?? {};
+        // let hasChanges = false;
 
         // Remove any features that match the original
         Object.keys(currentFeatures).forEach((featureId) => {
             const typedFeatureId = featureId as FeatureIdType;
             const currentFeature = currentFeatures[typedFeatureId];
-            const originalFeature = originalFeatures?.[typedFeatureId];
+            const originalFeature = chatAppOriginal.override?.features?.[typedFeatureId];
 
-            if (JSON.stringify(currentFeature) === JSON.stringify(originalFeature)) {
+            if (deepEqual(originalFeature, currentFeature)) {
                 delete currentFeatures[typedFeatureId];
-                hasChanges = true;
+                // hasChanges = true;
             }
         });
 
-        if (hasChanges) {
-            features = currentFeatures;
-        }
+        // if (hasChanges) {
+        //     chatApp.override.features = currentFeatures;
+        // }
     }
 
     // Clean up features after they're updated from parent reset
@@ -229,9 +198,9 @@
         <div class="space-y-4">
             {#each Object.entries(FEATURE_NAMES) as [featureId, featureName]}
                 {@const typedFeatureId = featureId as FeatureIdType}
-                {@const featureEnabled = isFeatureEnabled(typedFeatureId)}
-                {@const featureOverridden = isFeatureOverridden(typedFeatureId)}
-                {@const originalFeature = getOriginalFeature(typedFeatureId)}
+                {@const featureEnabled = app.override?.features?.[typedFeatureId]?.enabled ?? false}
+                {@const featureOverridden = app.override?.features?.[typedFeatureId] !== undefined}
+                {@const originalFeature = chatAppOriginal.override?.features?.[typedFeatureId]}
 
                 <div class="border rounded-lg">
                     <!-- Feature Header -->
@@ -306,7 +275,22 @@
                         <div class="p-4">
                             {#if typedFeatureId === 'fileUpload'}
                                 <FileUploadFeatureRenderer
-                                    bind:overriddenFeature={features[typedFeatureId] as FileUploadFeature | undefined}
+                                    bind:overriddenFeature={
+                                        () => app.override?.features?.[typedFeatureId] as FileUploadFeature | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
+                                    }
                                     originalFeature={originalFeature as FileUploadFeature}
                                     {isOverrideMode}
                                     isOverridden={featureOverridden}
@@ -315,7 +299,23 @@
                             {:else if typedFeatureId === 'promptInputFieldLabel'}
                                 <PromptInputFieldLabelFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as PromptInputFieldLabelFeature | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | PromptInputFieldLabelFeature
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as PromptInputFieldLabelFeature}
                                     {isOverrideMode}
@@ -324,7 +324,23 @@
                                 />
                             {:else if typedFeatureId === 'suggestions'}
                                 <SuggestionsFeatureRenderer
-                                    bind:overriddenFeature={features[typedFeatureId] as SuggestionsFeature | undefined}
+                                    bind:overriddenFeature={
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as SuggestionsFeature | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
+                                    }
                                     originalFeature={originalFeature as SuggestionsFeature}
                                     {isOverrideMode}
                                     isOverridden={featureOverridden}
@@ -333,7 +349,23 @@
                             {:else if typedFeatureId === 'uiCustomization'}
                                 <UiCustomizationFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as UiCustomizationFeature | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | UiCustomizationFeature
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as UiCustomizationFeature}
                                     {isOverrideMode}
@@ -343,7 +375,24 @@
                             {:else if typedFeatureId === 'verifyResponse'}
                                 <VerifyResponseFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as VerifyResponseFeatureForChatApp | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | VerifyResponseFeatureForChatApp
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as VerifyResponseFeatureForChatApp}
                                     {isOverrideMode}
@@ -353,7 +402,23 @@
                             {:else if typedFeatureId === 'traces'}
                                 <TracesFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as TracesFeatureForChatApp | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | TracesFeatureForChatApp
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as TracesFeatureForChatApp}
                                     {isOverrideMode}
@@ -364,7 +429,22 @@
                             {:else if typedFeatureId === 'chatDisclaimerNotice'}
                                 <ChatDisclaimerNoticeFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as ChatDisclaimerNoticeFeatureForChatApp | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | ChatDisclaimerNoticeFeatureForChatApp
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as ChatDisclaimerNoticeFeatureForChatApp}
                                     {isOverrideMode}
@@ -374,7 +454,22 @@
                             {:else if typedFeatureId === 'logout'}
                                 <LogoutFeatureRenderer
                                     bind:overriddenFeature={
-                                        features[typedFeatureId] as LogoutFeatureForChatApp | undefined
+                                        () =>
+                                            app.override?.features?.[typedFeatureId] as
+                                                | LogoutFeatureForChatApp
+                                                | undefined,
+                                        (feat) => {
+                                            assert(isOverrideMode, 'isOverrideMode must be true');
+                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                            if (!chatApp.override.features) {
+                                                chatApp.override.features = {};
+                                            }
+                                            if (feat) {
+                                                chatApp.override.features[typedFeatureId] = feat;
+                                            } else {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                        }
                                     }
                                     originalFeature={originalFeature as LogoutFeatureForChatApp}
                                     {isOverrideMode}

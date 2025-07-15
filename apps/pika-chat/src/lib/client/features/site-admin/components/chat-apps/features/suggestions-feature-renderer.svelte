@@ -178,7 +178,7 @@
                         min="1"
                         max="20"
                         bind:value={() => (featureToShow?.maxToShow || 5) as any, updateMaxToShow}
-                        disabled={!isOverrideMode}
+                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
                         class="w-20"
                     />
                 </div>
@@ -187,7 +187,7 @@
                     <Checkbox
                         id="randomize"
                         bind:checked={() => featureToShow?.randomize || false, updateRandomize}
-                        disabled={!isOverrideMode}
+                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
                     />
                     <Label for="randomize">Randomize suggestions</Label>
                     <PopupHelp popoverClasses="w-60">
@@ -216,7 +216,7 @@
                             type="number"
                             min="0"
                             bind:value={() => (featureToShow?.randomizeAfter || 0) as any, updateRandomizeAfter}
-                            disabled={!isOverrideMode}
+                            disabled={!isOverrideMode || !overriddenFeature?.enabled}
                             class="w-20"
                         />
                     </div>

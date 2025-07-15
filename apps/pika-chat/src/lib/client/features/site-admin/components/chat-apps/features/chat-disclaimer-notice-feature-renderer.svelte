@@ -62,7 +62,7 @@
                         }
                     }
                     placeholder="Enter your disclaimer notice..."
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
                     rows={4}
                     class="mt-1"
                 />

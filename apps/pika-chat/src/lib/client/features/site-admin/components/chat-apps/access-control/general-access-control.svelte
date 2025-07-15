@@ -7,8 +7,8 @@
     import type { AccessRules, UserRole } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {
-        rulesObj: AccessRules;
-        rulesObjOriginal: AccessRules;
+        rulesObj: AccessRules | undefined;
+        rulesObjOriginal: AccessRules | undefined;
         isOverrideMode: boolean;
         // Configurable text props
         sectionTitle?: string;
@@ -63,10 +63,15 @@
                                         // Checking internal-user
                                         rulesObj.userTypes = [...rulesObj.userTypes, 'internal-user'];
                                     }
+
+                                    if (!rulesObj.applyRulesAs) {
+                                        rulesObj.applyRulesAs = 'and';
+                                    }
                                 }
                             }
                             disabled={!isOverrideMode ||
                                 !rulesObjToShow ||
+                                !rulesObjToShow.enabled ||
                                 ((rulesObjToShow.userTypes ?? []).length === 1 &&
                                     (rulesObjToShow.userTypes ?? []).includes('internal-user'))}
                         />
@@ -85,6 +90,10 @@
                                         rulesObj.userTypes = [];
                                     }
 
+                                    if (!rulesObj.applyRulesAs) {
+                                        rulesObj.applyRulesAs = 'and';
+                                    }
+
                                     if (rulesObj.userTypes.includes('external-user')) {
                                         // Unchecking external-user
                                         if (!rulesObj.userTypes.includes('internal-user')) {
@@ -99,6 +108,8 @@
                                 }
                             }
                             disabled={!isOverrideMode ||
+                                !rulesObjToShow ||
+                                !rulesObjToShow.enabled ||
                                 ((rulesObjToShow?.userTypes ?? []).length === 1 &&
                                     (rulesObjToShow?.userTypes ?? []).includes('external-user'))}
                         />
@@ -123,7 +134,7 @@
                     }}
                     allowSelection={true}
                     multiSelect={true}
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || !rulesObj?.enabled}
                     emptyMessage="No user roles assigned"
                     addRemove={{
                         addItem: (item) => {
@@ -200,7 +211,7 @@
                         },
                     }}
                     options={['and', 'or']}
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || !rulesObj?.enabled}
                 />
 
                 {#if isOverrideMode}

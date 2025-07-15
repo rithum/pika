@@ -14,14 +14,6 @@
 
     let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
 
-    let enabled = $derived.by(() => {
-        if (isOverridden) {
-            return overriddenFeature?.enabled ?? false;
-        } else {
-            return originalFeature?.enabled ?? false;
-        }
-    });
-
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
     const defaultLabel = 'Ready to chat';
@@ -57,7 +49,7 @@
             id="label-text"
             bind:value={() => featureToShow?.promptInputFieldLabel || '', updateLabel}
             placeholder={defaultLabel}
-            disabled={!isOverrideMode || !enabled}
+            disabled={!isOverrideMode || !overriddenFeature?.enabled}
         />
     </div>
 

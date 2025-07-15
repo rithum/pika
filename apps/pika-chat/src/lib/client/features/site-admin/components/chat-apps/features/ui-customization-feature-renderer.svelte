@@ -55,7 +55,7 @@
                 <Checkbox
                     id="show-chat-history"
                     bind:checked={() => featureToShow?.showChatHistoryInStandaloneMode ?? true, updateShowChatHistory}
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
                 />
                 <Label for="show-chat-history">Show chat history in standalone mode</Label>
                 <PopupHelp popoverClasses="w-60">
@@ -67,12 +67,10 @@
                 </PopupHelp>
             </div>
             <!-- User Region Option -->
+            <!-- TODO: put back in if we keep the feature
+                  bind:checked={() => featureToShow?.showUserRegionInLeftNav ?? true, updateShowUserRegion}-->
             <div class="flex items-center space-x-2">
-                <Checkbox
-                    id="show-user-region"
-                    bind:checked={() => featureToShow?.showUserRegionInLeftNav ?? true, updateShowUserRegion}
-                    disabled={true}
-                />
+                <Checkbox id="show-user-region" checked={false} disabled={true} />
                 <Label for="show-user-region">Show user region in left navigation</Label>
                 <PopupHelp popoverClasses="w-60">
                     <div class="text-xs text-muted-foreground">

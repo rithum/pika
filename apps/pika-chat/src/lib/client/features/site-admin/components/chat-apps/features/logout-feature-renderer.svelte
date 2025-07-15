@@ -26,7 +26,10 @@
             overriddenFeature = {
                 featureId: 'logout',
                 enabled: originalFeature?.enabled ?? false,
-                userTypes: originalFeature?.enabled ? ['internal-user'] : undefined,
+                userTypes:
+                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
+                        ? originalFeature.userTypes
+                        : ['internal-user'],
                 userRoles: [],
                 applyRulesAs: 'and',
                 menuItemTitle: 'Logout',
@@ -56,35 +59,9 @@
             <!-- Access Control -->
             <div class="border rounded-lg p-4">
                 <GeneralAccessControl
-                    enabled={!!featureToShow?.enabled}
-                    bind:userTypes={
-                        () => featureToShow?.userTypes || [],
-                        (value) => {
-                            featureToShow!.userTypes = value;
-                        }
-                    }
-                    bind:userRoles={
-                        () => featureToShow?.userRoles || [],
-                        (value) => {
-                            if (value && value.length > 0) {
-                                featureToShow!.userRoles = value;
-                            } else {
-                                featureToShow!.userRoles = undefined;
-                            }
-                        }
-                    }
-                    bind:applyRulesAs={
-                        () => featureToShow?.applyRulesAs || 'and',
-                        (value) => {
-                            featureToShow!.applyRulesAs = value;
-                        }
-                    }
+                    bind:rulesObj={overriddenFeature}
+                    rulesObjOriginal={originalFeature}
                     {isOverrideMode}
-                    isOverridden={() => isOverridden}
-                    getOriginalValue={(field) => {
-                        if (field === 'enabled') return originalFeature?.enabled;
-                        return undefined;
-                    }}
                     userTypesLabel="User Types Who Can Use this Feature"
                     userRolesLabel="User Roles Who Can Use this Feature"
                     entityNameCapitalized="Logout Feature"
@@ -106,7 +83,7 @@
                             }
                         }
                         placeholder="Logout"
-                        disabled={!isOverrideMode}
+                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
                         class="mt-1"
                     />
                 </div>
@@ -142,7 +119,7 @@
                             }
                         }
                         placeholder="Are you sure you want to logout?"
-                        disabled={!isOverrideMode}
+                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
                         rows={2}
                         class="mt-1"
                     />

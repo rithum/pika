@@ -203,17 +203,15 @@
 
                     <Separator />
 
-                    <!-- <Features
-                        bind:features
-                        bind:enabled
+                    <Features
+                        bind:chatApp={selectedChatAppForEditing}
+                        chatAppOriginal={selectedChatApp}
                         {isOverrideMode}
                         featuresExpanded={expandedSections.features}
-                        {isOverridden}
-                        originalFeatures={getOriginalValue('features') || {}}
                         onToggleFeaturesSection={() => toggleSection('features')}
                         chatAppId={selectedChatApp.chatAppId}
                         {setValid}
-                    /> -->
+                    />
 
                     <Separator />
 

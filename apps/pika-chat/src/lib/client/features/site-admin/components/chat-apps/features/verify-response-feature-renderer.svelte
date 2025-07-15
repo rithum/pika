@@ -30,8 +30,6 @@
     $effect(() => {
         if (isOverrideMode) {
             ensureFeature();
-        } else {
-            overriddenFeature = undefined;
         }
     });
 
@@ -45,7 +43,10 @@
                 featureId: 'verifyResponse',
                 enabled: originalFeature?.enabled ?? false,
                 autoRepromptThreshold: undefined,
-                userTypes: originalFeature?.enabled ? ['internal-user'] : undefined,
+                userTypes:
+                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
+                        ? originalFeature.userTypes
+                        : ['internal-user'],
                 userRoles: [],
                 applyRulesAs: 'and',
                 ...originalFeature,
@@ -99,6 +100,7 @@
                             }
                         }
                     }
+                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
                     inputPlaceholder="Select threshold..."
                     widthClasses="w-[320px]"
                     mapping={{
@@ -117,35 +119,9 @@
             <!-- Access Control -->
             <div>
                 <GeneralAccessControl
-                    enabled={!!featureToShow?.enabled}
-                    bind:userTypes={
-                        () => featureToShow?.userTypes || [],
-                        (value) => {
-                            featureToShow!.userTypes = value;
-                        }
-                    }
-                    bind:userRoles={
-                        () => featureToShow?.userRoles || [],
-                        (value) => {
-                            if (value && value.length > 0) {
-                                featureToShow!.userRoles = value;
-                            } else {
-                                featureToShow!.userRoles = undefined;
-                            }
-                        }
-                    }
-                    bind:applyRulesAs={
-                        () => featureToShow?.applyRulesAs || 'and',
-                        (value) => {
-                            featureToShow!.applyRulesAs = value;
-                        }
-                    }
+                    bind:rulesObj={overriddenFeature}
+                    rulesObjOriginal={originalFeature}
                     {isOverrideMode}
-                    isOverridden={() => isOverridden}
-                    getOriginalValue={(field) => {
-                        if (field === 'enabled') return originalFeature?.enabled;
-                        return undefined;
-                    }}
                     userTypesLabel="User Types Who Can Use this Feature"
                     userRolesLabel="User Roles Who Can Use this Feature"
                     entityNameCapitalized="Verify Response"

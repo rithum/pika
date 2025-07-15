@@ -4,6 +4,7 @@
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
+    import { assert } from '$lib/utils';
 
     interface Props {
         overriddenFeature: TracesFeatureForChatApp | undefined;
@@ -41,8 +42,6 @@
         return [];
     });
 
-    $inspect('isOverrideMode', isOverrideMode);
-
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
     // Keep state variables for GeneralAccessControl compatibility
@@ -63,11 +62,13 @@
         }
 
         if (!overriddenFeature) {
-            console.log('creating overridden feature');
             overriddenFeature = {
                 featureId: 'traces',
                 enabled: originalFeature?.enabled ?? false,
-                userTypes: originalFeature?.enabled ? ['internal-user'] : undefined,
+                userTypes:
+                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
+                        ? originalFeature.userTypes
+                        : ['internal-user'],
                 userRoles: [],
                 applyRulesAs: 'and',
                 detailedTraces: undefined,
@@ -112,40 +113,9 @@
                     </PopupHelp>
                 </div>
                 <GeneralAccessControl
-                    bind:enabled={
-                        () => !!featureToShow?.enabled,
-                        (value) => {
-                            const f = ensureFeature();
-                            f.enabled = !!value;
-                        }
-                    }
-                    bind:userTypes={
-                        () => featureToShow?.userTypes || [],
-                        (value) => {
-                            const f = ensureFeature();
-                            f.userTypes = value;
-                        }
-                    }
-                    bind:userRoles={
-                        () => featureToShow?.userRoles || [],
-                        (value) => {
-                            const f = ensureFeature();
-                            f.userRoles = value;
-                        }
-                    }
-                    bind:applyRulesAs={
-                        () => featureToShow?.applyRulesAs || 'and',
-                        (value) => {
-                            const f = ensureFeature();
-                            f.applyRulesAs = value;
-                        }
-                    }
+                    bind:rulesObj={overriddenFeature}
+                    rulesObjOriginal={originalFeature}
                     {isOverrideMode}
-                    isOverridden={() => isOverridden}
-                    getOriginalValue={(field) => {
-                        if (field === 'enabled') return originalFeature?.enabled;
-                        return undefined;
-                    }}
                     userTypesLabel="User Types Who Can Use this Feature"
                     userRolesLabel="User Roles Who Can Use this Feature"
                     entityNameCapitalized="Basic Traces"
@@ -166,7 +136,7 @@
                 <div class="flex items-center gap-2 mb-6">
                     <Checkbox
                         id="enable-detailed-traces-checkbox"
-                        disabled={!isOverrideMode || !featureToShow?.enabled}
+                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
                         bind:checked={
                             () => !!featureToShow?.detailedTraces?.enabled,
                             (value) => {
@@ -188,35 +158,23 @@
                 </div>
                 {#if featureToShow?.detailedTraces?.enabled}
                     <GeneralAccessControl
-                        enabled={!!featureToShow?.detailedTraces?.enabled}
-                        bind:userTypes={
-                            () => featureToShow?.detailedTraces?.userTypes || [],
+                        bind:rulesObj={
+                            () => featureToShow?.detailedTraces,
                             (value) => {
-                                featureToShow!.detailedTraces!.userTypes = value;
-                            }
-                        }
-                        bind:userRoles={
-                            () => featureToShow?.detailedTraces?.userRoles || [],
-                            (value) => {
-                                if (value && value.length > 0) {
-                                    featureToShow!.detailedTraces!.userRoles = value;
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                assert(overriddenFeature, 'overriddenFeature must be defined');
+                                if (value) {
+                                    overriddenFeature.detailedTraces = value;
+                                    if (!overriddenFeature.detailedTraces.userTypes) {
+                                        overriddenFeature.detailedTraces.userTypes = ['internal-user'];
+                                    }
                                 } else {
-                                    featureToShow!.detailedTraces!.userRoles = undefined;
+                                    overriddenFeature.detailedTraces = undefined;
                                 }
                             }
                         }
-                        bind:applyRulesAs={
-                            () => featureToShow?.detailedTraces?.applyRulesAs || 'and',
-                            (value) => {
-                                featureToShow!.detailedTraces!.applyRulesAs = value;
-                            }
-                        }
+                        rulesObjOriginal={originalFeature?.detailedTraces}
                         {isOverrideMode}
-                        isOverridden={() => isOverridden}
-                        getOriginalValue={(field) => {
-                            if (field === 'enabled') return originalFeature?.detailedTraces?.enabled;
-                            return undefined;
-                        }}
                         userTypesLabel="User Types Who Can Use this Feature"
                         userRolesLabel="User Roles Who Can Use this Feature"
                         entityNameCapitalized="Detailed Traces"
