@@ -5,7 +5,7 @@
 
     interface Props {
         chatApps: ChatApp[];
-        selectedChatApp: ChatApp | null;
+        selectedChatApp: ChatApp | undefined;
         onSelectChatApp: (chatApp: ChatApp) => void;
     }
 

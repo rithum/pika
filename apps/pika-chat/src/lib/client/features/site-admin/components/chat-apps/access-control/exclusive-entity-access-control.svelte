@@ -4,8 +4,9 @@
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { Label } from '$lib/components/ui/label';
+    import { assert } from '$lib/utils';
     import {
-        type ApplyRulesAs,
+        type ChatApp,
         type SimpleOption,
         type UserRole,
         type UserType,
@@ -13,30 +14,18 @@
     import { getContext } from 'svelte';
 
     interface Props {
-        userTypes: UserType[];
-        userRoles: UserRole[];
-        applyRulesAs: ApplyRulesAs;
-        enabled: boolean;
-        exclusiveExternalAccessControl: string[];
-        exclusiveInternalAccessControl: string[];
+        chatApp: ChatApp;
+        chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
-        isOverridden: (field: string) => boolean;
-        getOriginalValue: (field: string) => any;
         chatAppId: string;
         exclusiveEntityOn: UserType[];
         validationErrors: string[];
     }
 
     let {
-        userTypes = $bindable(),
-        userRoles = $bindable(),
-        applyRulesAs = $bindable(),
-        enabled = $bindable(),
-        exclusiveExternalAccessControl = $bindable(),
-        exclusiveInternalAccessControl = $bindable(),
+        chatApp = $bindable(),
+        chatAppOriginal,
         isOverrideMode,
-        isOverridden,
-        getOriginalValue,
         chatAppId,
         exclusiveEntityOn = $bindable(),
         validationErrors,
@@ -44,6 +33,7 @@
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
+    let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
     let entityDisplaySingularLower = $derived.by(() => {
         let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular;
@@ -111,18 +101,18 @@
                     'internal-user',
                     'internal-users-entity',
                     `Exclusive Internal User ${entityDisplayPluralUpper}`,
-                    exclusiveInternalAccessControl,
-                    exclusiveInternalAccessControlOptions,
-                    (newArray: string[]) => (exclusiveInternalAccessControl = newArray)
+                    chatApp,
+                    chatAppOriginal,
+                    exclusiveInternalAccessControlOptions
                 )}
 
                 {@render exclusiveEntityAccessControl(
                     'external-user',
                     'external-users-entity',
                     `Exclusive External User ${entityDisplayPluralUpper}`,
-                    exclusiveExternalAccessControl,
-                    exclusiveExternalAccessControlOptions,
-                    (newArray: string[]) => (exclusiveExternalAccessControl = newArray)
+                    chatApp,
+                    chatAppOriginal,
+                    exclusiveExternalAccessControlOptions
                 )}
             </div>
 
@@ -142,10 +132,19 @@
     userType: UserType,
     checkboxId: string,
     label: string,
-    accessControlArray: string[],
-    autoCompleteOptions: any[],
-    onUpdateAccessControl: (newArray: string[]) => void
+    chatApp: ChatApp,
+    chatAppOriginal: ChatApp,
+    autoCompleteOptions: any[]
 )}
+    {@const accessControlArray =
+        userType === 'internal-user'
+            ? isOverrideMode
+                ? (chatApp.override?.exclusiveInternalAccessControl ?? [])
+                : (chatAppOriginal.override?.exclusiveInternalAccessControl ?? [])
+            : isOverrideMode
+              ? (chatApp.override?.exclusiveExternalAccessControl ?? [])
+              : (chatAppOriginal.override?.exclusiveExternalAccessControl ?? [])}
+
     <div>
         <div class="flex items-center space-x-2 mb-3">
             <Checkbox
@@ -160,7 +159,14 @@
                         }
 
                         if (!value) {
-                            onUpdateAccessControl([]);
+                            assert(isOverrideMode, 'isOverrideMode must be true');
+                            assert(chatApp.override, 'chatApp.override must be defined');
+
+                            if (userType === 'internal-user') {
+                                chatApp.override.exclusiveInternalAccessControl = [];
+                            } else {
+                                chatApp.override.exclusiveExternalAccessControl = [];
+                            }
                         }
                     }
                 }
@@ -191,16 +197,42 @@
                 emptyMessage={`No ${entityDisplayPluralLower} specified`}
                 addRemove={{
                     addItem: (item) => {
+                        assert(isOverrideMode, 'isOverrideMode must be true');
+                        assert(chatApp.override, 'chatApp.override must be defined');
+
                         const value = typeof item === 'string' ? item : item.value;
-                        if (!accessControlArray.includes(value)) {
-                            const newArray = [...accessControlArray, value];
-                            onUpdateAccessControl(newArray);
+
+                        if (userType === 'internal-user') {
+                            if (!chatApp.override.exclusiveInternalAccessControl) {
+                                chatApp.override.exclusiveInternalAccessControl = [];
+                            }
+                            chatApp.override.exclusiveInternalAccessControl.push(value);
+                        } else {
+                            if (!chatApp.override.exclusiveExternalAccessControl) {
+                                chatApp.override.exclusiveExternalAccessControl = [];
+                            }
+                            chatApp.override.exclusiveExternalAccessControl.push(value);
                         }
                     },
                     removeItem: (item) => {
+                        assert(isOverrideMode, 'isOverrideMode must be true');
+                        assert(chatApp.override, 'chatApp.override must be defined');
+
                         const value = typeof item === 'string' ? item : item.value;
-                        const newArray = accessControlArray.filter((r) => r !== value);
-                        onUpdateAccessControl(newArray);
+
+                        if (userType === 'internal-user') {
+                            if (!chatApp.override.exclusiveInternalAccessControl) {
+                                return;
+                            }
+                            chatApp.override.exclusiveInternalAccessControl =
+                                chatApp.override.exclusiveInternalAccessControl.filter((r) => r !== value);
+                        } else {
+                            if (!chatApp.override.exclusiveExternalAccessControl) {
+                                return;
+                            }
+                            chatApp.override.exclusiveExternalAccessControl =
+                                chatApp.override.exclusiveExternalAccessControl.filter((r) => r !== value);
+                        }
                     },
                     search: {
                         onSearchValueChanged: async (value) => {
@@ -229,7 +261,7 @@
     <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 class="text-sm font-medium text-blue-900 mb-2">Who Can Access</h3>
         <div class="text-sm text-blue-800">
-            {#if !enabled}
+            {#if !app.enabled}
                 <p class="text-red-600 font-medium">Chat app is disabled</p>
             {:else if !exclusiveEntityOn.includes('internal-user') && !exclusiveEntityOn.includes('external-user')}
                 <p class="text-red-600 font-medium">
@@ -238,10 +270,12 @@
             {:else}
                 <ul class="space-y-1 list-disc list-inside">
                     {#if exclusiveEntityOn.includes('internal-user')}
-                        {#if exclusiveInternalAccessControl.length > 0}
+                        {#if (app.override?.exclusiveInternalAccessControl ?? []).length > 0}
                             <li>
                                 <span class="font-medium">Internal users</span> from these {entityDisplayPluralLower}:
-                                <span class="font-medium">{exclusiveInternalAccessControl.join(', ')}</span>
+                                <span class="font-medium"
+                                    >{(app.override?.exclusiveInternalAccessControl ?? []).join(', ')}</span
+                                >
                             </li>
                         {:else}
                             <li class="text-red-600">
@@ -252,11 +286,13 @@
                     {/if}
 
                     {#if exclusiveEntityOn.includes('external-user')}
-                        {#if exclusiveExternalAccessControl.length > 0}
+                        {#if (app.override?.exclusiveExternalAccessControl ?? []).length > 0}
                             <li>
                                 <span class="font-medium">External users</span> from these
                                 {entityDisplayPluralLower}:
-                                <span class="font-medium">{exclusiveExternalAccessControl.join(', ')}</span>
+                                <span class="font-medium"
+                                    >{(app.override?.exclusiveExternalAccessControl ?? []).join(', ')}</span
+                                >
                             </li>
                         {:else}
                             <li class="text-red-600">
@@ -274,12 +310,12 @@
                         {@const nonExclusiveUserTypeLabel =
                             nonExclusiveUserType === 'internal-user' ? 'Internal users' : 'External users'}
 
-                        {#if userTypes.includes(nonExclusiveUserType)}
+                        {#if (app.override?.userTypes ?? []).includes(nonExclusiveUserType)}
                             <li>
-                                {#if userRoles.length > 0}
+                                {#if (app.override?.userRoles ?? []).length > 0}
                                     <span class="font-medium">{nonExclusiveUserTypeLabel}</span> with one of these
                                     roles:
-                                    <span class="font-medium">{userRoles.join(', ')}</span>
+                                    <span class="font-medium">{(app.override?.userRoles ?? []).join(', ')}</span>
                                 {:else}
                                     <span class="font-medium">All {nonExclusiveUserTypeLabel.toLowerCase()}</span>
                                 {/if}
@@ -316,19 +352,26 @@
                 <Checkbox
                     id={`general-${nonExclusiveUserType}`}
                     bind:checked={
-                        () => userTypes.includes(nonExclusiveUserType),
+                        () => (app.override?.userTypes ?? []).includes(nonExclusiveUserType),
                         (checked) => {
-                            if (!isOverrideMode) return;
+                            assert(isOverrideMode, 'isOverrideMode must be true');
+                            assert(chatApp.override, 'chatApp.override must be defined');
+
                             if (checked) {
-                                if (!userTypes.includes(nonExclusiveUserType)) {
-                                    userTypes = [...userTypes, nonExclusiveUserType];
+                                if (!(chatApp.override?.userTypes ?? []).includes(nonExclusiveUserType)) {
+                                    chatApp.override.userTypes = [
+                                        ...(chatApp.override?.userTypes ?? []),
+                                        nonExclusiveUserType,
+                                    ];
                                     // Set applyRulesAs to 'and' automatically since user type is now enabled
-                                    applyRulesAs = 'and';
+                                    chatApp.override.applyRulesAs = 'and';
                                 }
                             } else {
-                                userTypes = userTypes.filter((t) => t !== nonExclusiveUserType);
+                                chatApp.override.userTypes = (chatApp.override?.userTypes ?? []).filter(
+                                    (t) => t !== nonExclusiveUserType
+                                );
                                 // Clear any roles when unchecking the user type
-                                userRoles = [];
+                                chatApp.override.userRoles = [];
                             }
                         }
                     }
@@ -339,14 +382,14 @@
                 </Label>
             </div>
 
-            {#if isOverridden('userTypes')}
+            {#if isOverrideMode}
                 <p class="text-xs text-muted-foreground">
-                    Original: {getOriginalValue('userTypes')?.join(', ') || 'No user types'}
+                    Original: {(chatAppOriginal.override?.userTypes ?? []).join(', ') || 'No user types'}
                 </p>
             {/if}
 
             <!-- User Roles Section -->
-            {#if userTypes.includes(nonExclusiveUserType)}
+            {#if (app.override?.userTypes ?? []).includes(nonExclusiveUserType)}
                 <div class="ml-6 space-y-3">
                     <div class="flex items-center space-x-2">
                         <Label class="text-sm font-medium">User Roles (Optional)</Label>
@@ -364,7 +407,7 @@
 
                     <List
                         classes="w-[300px] h-[200px]"
-                        items={userRoles}
+                        items={app.override?.userRoles ?? []}
                         mapping={{
                             value: (item) => item as string,
                             label: (item) => item as string,
@@ -374,12 +417,24 @@
                         emptyMessage="No user roles assigned - any role allowed"
                         addRemove={{
                             addItem: (item) => {
-                                if (!isOverrideMode) return;
-                                userRoles = [...userRoles, item as UserRole];
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                assert(chatApp.override, 'chatApp.override must be defined');
+
+                                if (!chatApp.override.userRoles) {
+                                    chatApp.override.userRoles = [];
+                                }
+                                chatApp.override.userRoles.push(item as UserRole);
                             },
                             removeItem: (item) => {
-                                if (!isOverrideMode) return;
-                                userRoles = userRoles.filter((r) => r !== (item as UserRole));
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                assert(chatApp.override, 'chatApp.override must be defined');
+
+                                if (!chatApp.override.userRoles) {
+                                    return;
+                                }
+                                chatApp.override.userRoles = (chatApp.override.userRoles ?? []).filter(
+                                    (r) => r !== (item as UserRole)
+                                );
                             },
                             predefinedOptions: {
                                 items: ['pika:content-admin', 'pika:site-admin'] as UserRole[],
@@ -404,9 +459,9 @@
                         }}
                     />
 
-                    {#if isOverridden('userRoles')}
+                    {#if isOverrideMode}
                         <p class="text-xs text-muted-foreground">
-                            Original: {getOriginalValue('userRoles')?.join(', ') || 'No roles specified'}
+                            Original: {(chatAppOriginal.override?.userRoles ?? []).join(', ') || 'No roles specified'}
                         </p>
                     {/if}
                 </div>

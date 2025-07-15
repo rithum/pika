@@ -7,32 +7,16 @@
     import ConfigSection from '../config-section.svelte';
 
     interface Props {
-        selectedChatApp: ChatApp | null;
-        title: string;
-        description: string;
-        enabled: boolean;
-        dontCacheThis: boolean;
+        chatApp: ChatApp;
+        chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
         expanded: boolean;
-        isOverridden: (field: string) => boolean;
-        getOriginalValue: (field: string) => any;
         onToggleSection: () => void;
-        onEnabledChange: (newEnabled: boolean) => void;
     }
 
-    let {
-        selectedChatApp,
-        title = $bindable(),
-        description = $bindable(),
-        enabled = $bindable(),
-        dontCacheThis = $bindable(),
-        isOverrideMode,
-        expanded,
-        isOverridden,
-        getOriginalValue,
-        onToggleSection,
-        onEnabledChange,
-    }: Props = $props();
+    let { chatApp = $bindable(), chatAppOriginal, isOverrideMode, expanded, onToggleSection }: Props = $props();
+
+    let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 </script>
 
 <ConfigSection title="Basic Settings" {expanded} onToggle={onToggleSection}>
@@ -42,34 +26,34 @@
                 <div class="flex flex-col mr-6">
                     <div>
                         <span class="text-sm font-medium">Chat App Status:</span>
-                        <span class="font-medium {enabled ? 'text-blue-600' : 'text-red-600'}">
-                            {enabled ? 'Enabled' : 'Disabled'}
+                        <span class="font-medium {app.enabled ? 'text-blue-600' : 'text-red-600'}">
+                            {app.enabled ? 'Enabled' : 'Disabled'}
                         </span>
                     </div>
-                    {#if isOverridden('enabled')}
+                    {#if isOverrideMode}
                         <span class="text-xs text-muted-foreground">
-                            (Original: {getOriginalValue('enabled') ? 'Enabled' : 'Disabled'})
+                            (Original: {chatAppOriginal.enabled ? 'Enabled' : 'Disabled'})
                         </span>
                     {/if}
                 </div>
                 <Button
-                    variant={enabled ? 'destructive' : 'default'}
+                    variant={app.enabled ? 'destructive' : 'default'}
                     size="sm"
                     disabled={!isOverrideMode}
-                    onclick={() => isOverrideMode && onEnabledChange(!enabled)}
-                    class={isOverridden('enabled') ? 'border-orange-500' : ''}
+                    onclick={() => isOverrideMode && (app.enabled = !app.enabled)}
+                    class={isOverrideMode && app.enabled ? 'border-orange-500' : ''}
                 >
-                    {enabled ? 'Disable Chat App' : 'Enable Chat App'}
+                    {app.enabled ? 'Disable Chat App' : 'Enable Chat App'}
                 </Button>
             </div>
         </div>
 
         <div>
             <Label for="title">Title</Label>
-            <Input id="title" bind:value={title} placeholder="Chat app title" disabled={!isOverrideMode} />
-            {#if isOverridden('title')}
+            <Input id="title" bind:value={app.title} placeholder="Chat app title" disabled={!isOverrideMode} />
+            {#if isOverrideMode}
                 <p class="text-xs text-muted-foreground mt-1">
-                    Original: {getOriginalValue('title')}
+                    Original: {chatAppOriginal.title ?? 'Not set'}
                 </p>
             {/if}
         </div>
@@ -78,15 +62,15 @@
             <Label for="description">Description</Label>
             <textarea
                 id="description"
-                bind:value={description}
+                bind:value={app.description}
                 placeholder="Chat app description"
                 disabled={!isOverrideMode}
                 class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 rows="3"
             ></textarea>
-            {#if isOverridden('description')}
+            {#if isOverrideMode}
                 <p class="text-xs text-muted-foreground mt-1">
-                    Original: {getOriginalValue('description')}
+                    Original: {chatAppOriginal.description ?? 'Not set'}
                 </p>
             {/if}
         </div>
@@ -94,21 +78,21 @@
         <div class="flex items-center space-x-2">
             <Checkbox
                 id="dontCacheThis"
-                bind:checked={dontCacheThis}
+                bind:checked={() => app.dontCacheThis ?? false, (value) => (app.dontCacheThis = value)}
                 disabled={!isOverrideMode}
-                class={isOverridden('dontCacheThis') ? 'border-orange-500' : ''}
+                class={isOverrideMode && app.dontCacheThis ? 'border-orange-500' : ''}
             />
             <Label for="dontCacheThis">Don't Cache (for development)</Label>
-            {#if isOverridden('dontCacheThis')}
+            {#if isOverrideMode}
                 <span class="text-xs text-muted-foreground">
-                    (Original: {getOriginalValue('dontCacheThis') ? 'Not caching' : 'Caching'})
+                    (Original: {chatAppOriginal.dontCacheThis ? 'Not Caching' : 'Caching'})
                 </span>
             {/if}
         </div>
 
         <div class="text-sm">
             <span class="text-muted-foreground">Agent ID:</span>
-            <span class="ml-2">{selectedChatApp?.agentId}</span>
+            <span class="ml-2">{chatApp?.agentId}</span>
         </div>
     </div>
 </ConfigSection>

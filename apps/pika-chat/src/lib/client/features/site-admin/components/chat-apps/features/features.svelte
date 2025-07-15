@@ -63,6 +63,9 @@
 
     const featureValid = $state<Partial<Record<FeatureIdType, boolean>>>({});
 
+    // Track which features have errors
+    const featuresHaveErrors = $derived(Object.entries(featureValid).some(([, valid]) => valid === false));
+
     function setFeatureValid(featureId: FeatureIdType, valid: boolean) {
         featureValid[featureId] = valid;
 
@@ -136,27 +139,68 @@
         console.log('setFeatureEnabled', featureId, enabled);
         if (features[featureId]?.enabled === enabled) return;
 
-        if (!enabled) {
-            delete features[featureId];
-        } else {
-            features[featureId] = {
-                featureId,
-                enabled,
-                ...originalFeatures?.[featureId],
-            } as ChatAppFeature;
+        const originalFeature = originalFeatures?.[featureId];
+        const originalEnabled = originalFeature?.enabled ?? false;
 
-            if (!expandedFeatures[featureId]) {
-                expandedFeatures[featureId] = true;
-            }
+        // If setting to match original, remove from override entirely
+        if (enabled === originalEnabled) {
+            delete features[featureId];
+            return;
+        }
+
+        // Otherwise, create/update the override
+        features[featureId] = {
+            featureId,
+            enabled,
+            ...originalFeature,
+        } as ChatAppFeature;
+
+        if (enabled && !expandedFeatures[featureId]) {
+            expandedFeatures[featureId] = true;
         }
     }
 
     function toggleFeatureExpanded(featureId: FeatureIdType) {
         expandedFeatures[featureId] = !expandedFeatures[featureId];
     }
+
+    function cleanupFeaturesAfterReset() {
+        if (!isOverrideMode) return;
+
+        const currentFeatures = { ...features };
+        let hasChanges = false;
+
+        // Remove any features that match the original
+        Object.keys(currentFeatures).forEach((featureId) => {
+            const typedFeatureId = featureId as FeatureIdType;
+            const currentFeature = currentFeatures[typedFeatureId];
+            const originalFeature = originalFeatures?.[typedFeatureId];
+
+            if (JSON.stringify(currentFeature) === JSON.stringify(originalFeature)) {
+                delete currentFeatures[typedFeatureId];
+                hasChanges = true;
+            }
+        });
+
+        if (hasChanges) {
+            features = currentFeatures;
+        }
+    }
+
+    // Clean up features after they're updated from parent reset
+    $effect(() => {
+        if (isOverrideMode) {
+            cleanupFeaturesAfterReset();
+        }
+    });
 </script>
 
-<ConfigSection title="Features" expanded={featuresExpanded} onToggle={onToggleFeaturesSection}>
+<ConfigSection
+    title="Features"
+    expanded={featuresExpanded}
+    onToggle={onToggleFeaturesSection}
+    hasErrors={featuresHaveErrors}
+>
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <p class="text-sm text-muted-foreground">Configure which features are enabled for this chat app.</p>
@@ -234,8 +278,14 @@
                         </div>
 
                         <div class="flex items-center space-x-2">
+                            {#if featureValid[typedFeatureId] === false}
+                                <Badge variant="destructive" class="text-xs">Error</Badge>
+                            {/if}
+
                             {#if featureOverridden}
-                                <Badge variant="destructive" class="text-xs">Overridden</Badge>
+                                <Badge variant="outline" class="text-xs border-orange-300 text-orange-700 bg-orange-50"
+                                    >Overridden</Badge
+                                >
                             {/if}
 
                             <Badge variant={featureEnabled ? 'default' : 'secondary'} class="text-xs">

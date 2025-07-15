@@ -16,6 +16,7 @@
         UserRole,
         UserType,
     } from '@pika/shared/types/chatbot/chatbot-types';
+    import deepEqual from 'deep-equal';
     import { getContext, type Snippet } from 'svelte';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
     import BasicSettings from '../components/chat-apps/basic-settings.svelte';
@@ -23,6 +24,8 @@
     import LeftNav from '../components/chat-apps/left-nav.svelte';
     import Titlebar from '../components/chat-apps/titlebar.svelte';
     import ConfigSection from '../components/config-section.svelte';
+    import ValidationErrorBanner from '../components/validation-error-banner.svelte';
+    import { assert } from '$lib/utils';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -34,24 +37,16 @@
     let { pageHeaderRight = $bindable() }: Props = $props();
 
     // Local state
-    let selectedChatApp = $state<ChatApp | null>(null);
+    let selectedChatApp = $state<ChatApp | undefined>(undefined);
     let editedOverride = $state<Partial<ChatAppOverride>>({});
-    let isDirty = $state(false);
     let selectedChatAppValid = $state(true);
+    let selectedChatAppForEditing = $state<ChatApp | undefined>(undefined);
 
-    // Reactive values for the forms
-    let title = $state('');
-    let description = $state('');
-    let enabled = $state(true);
-    let userTypes = $state<UserType[]>(['internal-user']); // Always include internal-user by default
-    let userRoles = $state<UserRole[]>([]);
-    let applyRulesAs = $state<ApplyRulesAs>('and');
-    let exclusiveExternalAccessControl = $state<string[]>([]);
-    let exclusiveInternalAccessControl = $state<string[]>([]);
-    let exclusiveUserIdAccessControl = $state<string[]>([]);
-    let homePageFilterRules = $state<UserChatAppRule[]>([]);
-    let dontCacheThis = $state(false);
-    let features = $state<Partial<Record<FeatureIdType, ChatAppFeature>>>({});
+    let isDirty = $derived.by(() => {
+        const original = selectedChatApp;
+        const forEditing = selectedChatAppForEditing;
+        return forEditing && original && !deepEqual(original, forEditing);
+    });
 
     // Section collapse state
     let expandedSections = $state({
@@ -67,6 +62,8 @@
     // Determine if we're in override mode
     const isOverrideMode = $derived(!!selectedChatApp?.override);
 
+    let selectedAppToShow = $derived(isOverrideMode ? selectedChatAppForEditing : selectedChatApp);
+
     // Helper function to ensure userTypes is never empty (defaults to internal-user)
     function ensureNonEmptyUserTypes(types: UserType[]): UserType[] {
         if (types.length === 0) {
@@ -78,7 +75,9 @@
     // Watch for selected chat app changes
     $effect(() => {
         if (selectedChatApp) {
-            resetFormData();
+            selectedChatAppForEditing = JSON.parse(JSON.stringify(selectedChatApp));
+        } else {
+            selectedChatAppForEditing = undefined;
         }
     });
 
@@ -88,164 +87,50 @@
         }
     }
 
-    // Watch for form changes to set dirty flag
-    $effect(() => {
-        if (selectedChatApp && isOverrideMode) {
-            const hasChanges =
-                title !== getEffectiveValue('title') ||
-                description !== getEffectiveValue('description') ||
-                enabled !== getEffectiveValue('enabled') ||
-                dontCacheThis !== getEffectiveValue('dontCacheThis') ||
-                JSON.stringify(userTypes) !== JSON.stringify(getEffectiveValue('userTypes')) ||
-                JSON.stringify(userRoles) !== JSON.stringify(getEffectiveValue('userRoles')) ||
-                applyRulesAs !== getEffectiveValue('applyRulesAs') ||
-                JSON.stringify(exclusiveExternalAccessControl) !==
-                    JSON.stringify(getEffectiveValue('exclusiveExternalAccessControl')) ||
-                JSON.stringify(exclusiveInternalAccessControl) !==
-                    JSON.stringify(getEffectiveValue('exclusiveInternalAccessControl')) ||
-                JSON.stringify(exclusiveUserIdAccessControl) !==
-                    JSON.stringify(getEffectiveValue('exclusiveUserIdAccessControl')) ||
-                JSON.stringify(homePageFilterRules) !== JSON.stringify(getEffectiveValue('homePageFilterRules')) ||
-                JSON.stringify(features) !== JSON.stringify(getEffectiveValue('features'));
-
-            isDirty = hasChanges;
-        } else {
-            isDirty = false;
-        }
-    });
-
     function resetFormData() {
         if (!selectedChatApp) return;
-
-        title = getEffectiveValue('title');
-        description = getEffectiveValue('description');
-        enabled = getEffectiveValue('enabled');
-        dontCacheThis = getEffectiveValue('dontCacheThis');
-        userTypes = ensureNonEmptyUserTypes([...(getEffectiveValue('userTypes') || [])]);
-        userRoles = [...(getEffectiveValue('userRoles') || [])];
-        applyRulesAs = getEffectiveValue('applyRulesAs') || 'and';
-        exclusiveExternalAccessControl = [...(getEffectiveValue('exclusiveExternalAccessControl') || [])];
-        exclusiveInternalAccessControl = [...(getEffectiveValue('exclusiveInternalAccessControl') || [])];
-        exclusiveUserIdAccessControl = [...(getEffectiveValue('exclusiveUserIdAccessControl') || [])];
-        homePageFilterRules = [...(getEffectiveValue('homePageFilterRules') || [])];
-        features = { ...(getEffectiveValue('features') || {}) };
-
-        isDirty = false;
-    }
-
-    function getEffectiveValue(field: string): any {
-        if (!selectedChatApp) return undefined;
-
-        // Special handling for homePageFilterRules - comes from siteFeatures if not overridden
-        if (field === 'homePageFilterRules') {
-            return (
-                selectedChatApp.override?.homePageFilterRules ||
-                siteFeatures?.homePage?.linksToChatApps?.userChatAppRules ||
-                []
-            );
-        }
-
-        // Special handling for userTypes - ensure it's never empty
-        if (field === 'userTypes') {
-            const types = (selectedChatApp.override?.userTypes ?? selectedChatApp.userTypes) as UserType[];
-            return ensureNonEmptyUserTypes(types || []);
-        }
-
-        // For other fields, use override value if exists, otherwise original value
-        return selectedChatApp.override?.[field as keyof ChatAppOverride] ?? selectedChatApp[field as keyof ChatApp];
-    }
-
-    function getOriginalValue(field: string): any {
-        if (!selectedChatApp) return undefined;
-
-        if (field === 'homePageFilterRules') {
-            return siteFeatures?.homePage?.linksToChatApps?.userChatAppRules || [];
-        }
-
-        return selectedChatApp[field as keyof ChatApp];
-    }
-
-    function isOverridden(field: string): boolean {
-        if (!selectedChatApp?.override) return false;
-
-        return selectedChatApp.override[field as keyof ChatAppOverride] !== undefined;
-    }
-
-    function selectChatApp(chatApp: ChatApp) {
-        selectedChatApp = chatApp;
+        selectedChatAppForEditing = JSON.parse(JSON.stringify(selectedChatApp));
     }
 
     function setInitialOverride() {
-        if (!selectedChatApp) return;
+        if (!selectedChatApp || !selectedChatAppForEditing) return;
+
+        const clonedChatApp = JSON.parse(JSON.stringify(selectedChatAppForEditing));
+
+        // Clone the linksToChatApps.userChatAppRules
+        let homePageFilterRules: UserChatAppRule[] | undefined;
+        if (siteFeatures?.homePage?.linksToChatApps?.userChatAppRules) {
+            homePageFilterRules = JSON.parse(JSON.stringify(siteFeatures.homePage.linksToChatApps.userChatAppRules));
+        }
 
         // Create override with all current values (from the original chat app)
         const initialOverride: ChatAppOverrideForCreateOrUpdate = {
-            enabled: selectedChatApp.enabled,
-            userTypes: ensureNonEmptyUserTypes(selectedChatApp.userTypes || []),
-            userRoles: selectedChatApp.userRoles,
-            applyRulesAs: selectedChatApp.applyRulesAs,
-            title: selectedChatApp.title,
-            description: selectedChatApp.description,
-            dontCacheThis: selectedChatApp.dontCacheThis,
-            features: selectedChatApp.features,
+            enabled: clonedChatApp.enabled,
+            userTypes: ensureNonEmptyUserTypes(clonedChatApp.userTypes || []),
+            userRoles: clonedChatApp.userRoles,
+            applyRulesAs: clonedChatApp.applyRulesAs,
+            title: clonedChatApp.title,
+            description: clonedChatApp.description,
+            dontCacheThis: clonedChatApp.dontCacheThis,
+            features: clonedChatApp.features,
             exclusiveExternalAccessControl: undefined, // These are override-only fields
             exclusiveInternalAccessControl: undefined,
             exclusiveUserIdAccessControl: undefined,
-            homePageFilterRules: siteFeatures?.homePage?.linksToChatApps?.userChatAppRules,
+            homePageFilterRules,
         };
 
-        // For now, simulate the override being created by updating the local state
-        // This will be replaced with actual API call
         selectedChatApp.override = initialOverride;
-
-        // Reset form data to pick up the new override
-        resetFormData();
     }
 
     function removeOverride() {
-        if (!selectedChatApp) return;
-
-        // TODO: Remove the override from the backend
-        console.log('Removing override for chat app:', selectedChatApp.chatAppId);
-
-        // For now, simulate the override being removed
-        selectedChatApp.override = undefined;
-
-        // Reset form data to show original values
-        resetFormData();
+        if (!selectedChatApp || !selectedChatAppForEditing) return;
+        selectedChatAppForEditing.override = undefined;
     }
 
     async function handleSave() {
         if (!selectedChatApp || !isDirty || !isOverrideMode) return;
 
         // TODO: Implement save functionality
-        console.log('Saving chat app override:', {
-            chatAppId: selectedChatApp.chatAppId,
-            override: {
-                enabled,
-                title: title !== getOriginalValue('title') ? title : undefined,
-                description: description !== getOriginalValue('description') ? description : undefined,
-                dontCacheThis: dontCacheThis !== getOriginalValue('dontCacheThis') ? dontCacheThis : undefined,
-                features: Object.keys(features).length > 0 ? features : undefined,
-                userTypes: userTypes.length > 0 ? ensureNonEmptyUserTypes(userTypes) : undefined,
-                userRoles: userRoles.length > 0 ? userRoles : undefined,
-                applyRulesAs,
-                exclusiveExternalAccessControl:
-                    exclusiveExternalAccessControl.length > 0 ? exclusiveExternalAccessControl : undefined,
-                exclusiveInternalAccessControl:
-                    exclusiveInternalAccessControl.length > 0 ? exclusiveInternalAccessControl : undefined,
-                exclusiveUserIdAccessControl:
-                    exclusiveUserIdAccessControl.length > 0 ? exclusiveUserIdAccessControl : undefined,
-                homePageFilterRules: homePageFilterRules.length > 0 ? homePageFilterRules : undefined,
-            },
-        });
-
-        // Reset dirty flag after save
-        isDirty = false;
-    }
-
-    function handleReset() {
-        resetFormData();
     }
 
     // Section collapse functions
@@ -272,18 +157,20 @@
     }
 
     $effect(() => {
-        siteAdmin.setPageHeaderRight(pageHeaderRightSnippet);
+        setTimeout(() => {
+            siteAdmin.setPageHeaderRight(pageHeaderRightSnippet);
+        }, 1);
     });
 </script>
 
 <div class="flex h-full">
-    <LeftNav {chatApps} {selectedChatApp} onSelectChatApp={selectChatApp} />
+    <LeftNav {chatApps} {selectedChatApp} onSelectChatApp={(chatApp) => (selectedChatApp = chatApp)} />
 
     <!-- Right Panel - Configuration -->
     <div class="flex-1 flex flex-col">
-        {#if selectedChatApp}
+        {#if selectedAppToShow && selectedChatAppForEditing && selectedChatApp}
             <Titlebar
-                {selectedChatApp}
+                selectedChatApp={selectedAppToShow}
                 {isOverrideMode}
                 onSetInitialOverride={setInitialOverride}
                 onRemoveOverride={removeOverride}
@@ -291,42 +178,32 @@
 
             <ScrollArea class="flex-1">
                 <div class="p-6 space-y-8 pt-8">
+                    <!-- Validation Error Banner -->
+                    <ValidationErrorBanner visible={!selectedChatAppValid} />
+
                     <!-- Basic Settings -->
                     <BasicSettings
-                        {selectedChatApp}
-                        bind:title
-                        bind:description
-                        bind:enabled
-                        bind:dontCacheThis
+                        bind:chatApp={selectedChatAppForEditing}
+                        chatAppOriginal={selectedChatApp}
                         {isOverrideMode}
                         expanded={expandedSections.basic}
-                        {isOverridden}
-                        {getOriginalValue}
                         onToggleSection={() => toggleSection('basic')}
-                        onEnabledChange={(newEnabled) => (enabled = newEnabled)}
                     />
 
                     <Separator />
 
                     <AccessControl
-                        bind:userTypes
-                        bind:userRoles
-                        bind:applyRulesAs
-                        bind:enabled
-                        bind:exclusiveExternalAccessControl
-                        bind:exclusiveInternalAccessControl
-                        bind:exclusiveUserIdAccessControl
+                        bind:chatApp={selectedChatAppForEditing}
+                        chatAppOriginal={selectedChatApp}
                         {isOverrideMode}
                         accessExpanded={expandedSections.access}
-                        {isOverridden}
-                        {getOriginalValue}
                         onToggleAccessSection={() => toggleSection('access')}
                         chatAppId={selectedChatApp.chatAppId}
                     />
 
                     <Separator />
 
-                    <Features
+                    <!-- <Features
                         bind:features
                         bind:enabled
                         {isOverrideMode}
@@ -336,12 +213,12 @@
                         onToggleFeaturesSection={() => toggleSection('features')}
                         chatAppId={selectedChatApp.chatAppId}
                         {setValid}
-                    />
+                    /> -->
 
                     <Separator />
 
                     <!-- Home Page Settings -->
-                    <ConfigSection
+                    <!-- <ConfigSection
                         title="Home Page Settings"
                         expanded={expandedSections.homepage}
                         onToggle={() => toggleSection('homepage')}
@@ -380,7 +257,7 @@
                                 {/if}
                             </div>
                         </div>
-                    </ConfigSection>
+                    </ConfigSection> -->
                 </div>
             </ScrollArea>
         {:else}
@@ -408,11 +285,11 @@
             <!-- Save/Reset controls (only in override mode) -->
             {#if isOverrideMode}
                 <Separator orientation="vertical" class="h-6" />
-                <Button variant="outline" size="sm" onclick={handleReset} disabled={!isDirty}>
+                <Button variant="outline" size="sm" onclick={() => resetFormData()} disabled={!isDirty}>
                     <RotateCcw class="w-4 h-4 mr-1" />
                     Reset
                 </Button>
-                <Button variant="default" size="sm" onclick={handleSave} disabled={!isDirty}>
+                <Button variant="default" size="sm" onclick={handleSave} disabled={!isDirty || !selectedChatAppValid}>
                     <Save class="w-4 h-4 mr-1" />
                     Save Changes
                 </Button>

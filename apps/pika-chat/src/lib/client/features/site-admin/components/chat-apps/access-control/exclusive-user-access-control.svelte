@@ -2,29 +2,23 @@
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import List from '$lib/components/ui-pika/list/list.svelte';
     import { Label } from '$lib/components/ui/label';
-    import type { ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
+    import { assert } from '$lib/utils';
+    import type { ChatApp, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     interface Props {
-        enabled: boolean;
-        exclusiveUserIdAccessControl: string[];
+        chatApp: ChatApp;
+        chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
-        isOverridden: (field: string) => boolean;
-        getOriginalValue: (field: string) => any;
         validationErrors: string[];
     }
 
-    let {
-        enabled = $bindable(),
-        exclusiveUserIdAccessControl = $bindable(),
-        isOverrideMode,
-        isOverridden,
-        getOriginalValue,
-        validationErrors,
-    }: Props = $props();
+    let { chatApp = $bindable(), chatAppOriginal, isOverrideMode, validationErrors }: Props = $props();
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
+
+    let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
     let loadingUsers = $derived(siteAdmin.siteAdminOperationInProgress['getValuesForUserAutoComplete']);
 </script>
@@ -43,7 +37,7 @@
                 <Label class="text-sm font-medium">Users</Label>
                 <List
                     classes="w-[300px] h-[200px]"
-                    items={exclusiveUserIdAccessControl as unknown as ChatUserLite[]}
+                    items={(app.override?.exclusiveUserIdAccessControl ?? []) as unknown as ChatUserLite[]}
                     mapping={{
                         value: (item) => (typeof item === 'string' ? item : item.userId),
                         label: (item) =>
@@ -58,16 +52,31 @@
                     emptyMessage="No users specified"
                     addRemove={{
                         addItem: (item) => {
+                            assert(isOverrideMode, 'isOverrideMode must be true');
+                            assert(chatApp.override, 'chatApp.override must be defined');
+
+                            if (!chatApp.override.exclusiveUserIdAccessControl) {
+                                chatApp.override.exclusiveUserIdAccessControl = [];
+                            }
+
                             const value = typeof item === 'string' ? item : item.userId;
-                            if (!exclusiveUserIdAccessControl.includes(value)) {
-                                const newArray = [...exclusiveUserIdAccessControl, value];
-                                exclusiveUserIdAccessControl = newArray;
+                            if (!chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
+                                chatApp.override.exclusiveUserIdAccessControl.push(value);
                             }
                         },
                         removeItem: (item) => {
+                            assert(isOverrideMode, 'isOverrideMode must be true');
+                            assert(chatApp.override, 'chatApp.override must be defined');
+
+                            if (!chatApp.override.exclusiveUserIdAccessControl) {
+                                return;
+                            }
+
                             const value = typeof item === 'string' ? item : item.userId;
-                            const newArray = exclusiveUserIdAccessControl.filter((r) => r !== value);
-                            exclusiveUserIdAccessControl = newArray;
+                            if (chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
+                                chatApp.override.exclusiveUserIdAccessControl =
+                                    chatApp.override.exclusiveUserIdAccessControl.filter((r) => r !== value);
+                            }
                         },
                         search: {
                             onSearchValueChanged: async (value) => {
@@ -87,9 +96,9 @@
                     }}
                 />
 
-                {#if isOverridden('exclusiveUserIdAccessControl')}
+                {#if isOverrideMode}
                     <p class="text-xs text-muted-foreground">
-                        Original: {getOriginalValue('exclusiveUserIdAccessControl')?.length || 0} user IDs
+                        Original: {(chatAppOriginal.override?.exclusiveUserIdAccessControl ?? []).length} user IDs
                     </p>
                 {/if}
             </div>
@@ -105,16 +114,16 @@
     <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 class="text-sm font-medium text-blue-900 mb-2">Who Can Access</h3>
         <div class="text-sm text-blue-800">
-            {#if !enabled}
+            {#if !app.enabled}
                 <p class="text-red-600 font-medium">Chat app is disabled</p>
-            {:else if exclusiveUserIdAccessControl.length === 0}
+            {:else if (app.override?.exclusiveUserIdAccessControl ?? []).length === 0}
                 <p class="text-red-600 font-medium">No access - No users specified</p>
             {:else}
                 <ul class="space-y-1 list-disc list-inside">
                     Only these users will be granted access:
-                    {#each exclusiveUserIdAccessControl as userId, index}
+                    {#each app.override?.exclusiveUserIdAccessControl ?? [] as userId, index}
                         <span class="font-medium">{userId}</span>
-                        {#if index < exclusiveUserIdAccessControl.length - 1}
+                        {#if index < (app.override?.exclusiveUserIdAccessControl ?? []).length - 1}
                             <span class="text-muted-foreground">, </span>
                         {/if}
                     {/each}

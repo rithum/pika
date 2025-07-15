@@ -123,3 +123,5 @@ catalog:
   '@elastic/elasticsearch': ^9.0.2
   '@types/elasticsearch': ^5.0.43
   'highlight.js': ^11.11.1
+  'deep-equal': ^2.2.3
+  '@types/deep-equal': ^1.0.4
