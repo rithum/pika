@@ -137,6 +137,7 @@
                     allowSelection={true}
                     multiSelect={true}
                     emptyMessage={`No suggestions added.`}
+                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
                     addRemove={isOverrideMode
                         ? {
                               addValueInputPlaceholder: 'Enter a suggestion...',

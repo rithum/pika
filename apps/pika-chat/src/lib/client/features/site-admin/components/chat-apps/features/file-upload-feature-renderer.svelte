@@ -1,8 +1,6 @@
 <script lang="ts">
-    import { Plus, X } from '$icons/lucide';
-    import { Badge } from '$lib/components/ui/badge';
+    import List from '$lib/components/ui-pika/list/list.svelte';
     import { Button } from '$lib/components/ui/button';
-    import { Input } from '$lib/components/ui/input';
     import { Label } from '$lib/components/ui/label';
     import type { FileUploadFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
@@ -30,8 +28,6 @@
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
-    let newMimeType = $state('');
-
     // Common MIME type presets
     const commonMimeTypes = [
         { value: 'text/csv', label: 'CSV Files' },
@@ -44,15 +40,15 @@
     ];
 
     $effect(() => {
-        setValid(validErrors.length === 0);
+        if (isOverrideMode) {
+            ensureFeature();
+        } else {
+            overriddenFeature = undefined;
+        }
     });
 
-    let enabled = $derived.by(() => {
-        if (isOverridden) {
-            return overriddenFeature?.enabled ?? false;
-        } else {
-            return originalFeature?.enabled ?? false;
-        }
+    $effect(() => {
+        setValid(validErrors.length === 0);
     });
 
     function ensureFeature(): FileUploadFeature {
@@ -64,7 +60,7 @@
             overriddenFeature = {
                 featureId: 'fileUpload',
                 enabled: originalFeature?.enabled ?? false,
-                mimeTypesAllowed: [],
+                mimeTypesAllowed: originalFeature?.enabled ? (originalFeature?.mimeTypesAllowed ?? []) : [],
                 ...originalFeature,
             } as FileUploadFeature;
         } else if (overriddenFeature.enabled && !overriddenFeature.mimeTypesAllowed) {
@@ -74,59 +70,11 @@
         return overriddenFeature;
     }
 
-    // Initialize MIME types from feature
-    // $effect(() => {
-    //     if (feature) {
-    //         mimeTypes = [...(feature.mimeTypesAllowed || [])];
-    //     } else {
-    //         mimeTypes = [];
-    //     }
-    // });
-
-    // Update feature when MIME types change
-    // $effect(() => {
-    //     if (isOverrideMode && feature) {
-    //         const updatedFeature: FileUploadFeature = {
-    //             ...feature,
-    //             mimeTypesAllowed: mimeTypes,
-    //         };
-    //         onFeatureChange(updatedFeature);
-    //     }
-    // });
-
-    function addMimeType() {
-        const f = ensureFeature();
-
-        if (!f.mimeTypesAllowed) {
-            f.mimeTypesAllowed = [];
-        }
-
-        const newMimeTypeTrimmed = newMimeType.trim();
-
-        if (newMimeTypeTrimmed && !f.mimeTypesAllowed.includes(newMimeTypeTrimmed)) {
-            f.mimeTypesAllowed.push(newMimeTypeTrimmed);
-            newMimeType = '';
-        }
-    }
-
-    function removeMimeType(index: number) {
-        const f = ensureFeature();
-
-        f.mimeTypesAllowed = f.mimeTypesAllowed.filter((_, i) => i !== index);
-    }
-
     function addPresetMimeType(preset: string) {
         const f = ensureFeature();
 
         if (!f.mimeTypesAllowed.includes(preset)) {
             f.mimeTypesAllowed.push(preset);
-        }
-    }
-
-    function handleKeyPress(event: KeyboardEvent) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            addMimeType();
         }
     }
 </script>
@@ -142,65 +90,59 @@
         {/if}
 
         <!-- Current MIME types -->
-        <Label>Allowed MIME Types</Label>
-        {#if (featureToShow?.mimeTypesAllowed ?? []).length > 0}
-            <div class="flex flex-wrap gap-2 mb-4 mt-4">
-                {#each featureToShow?.mimeTypesAllowed ?? [] as mimeType, index}
-                    <Badge variant="secondary" class="flex items-center gap-1">
-                        {mimeType}
-                        {#if isOverrideMode}
-                            <button
-                                onclick={() => removeMimeType(index)}
-                                disabled={!isOverrideMode || !enabled}
-                                class="text-muted-foreground hover:text-destructive"
-                            >
-                                <X class="w-3 h-3" />
-                            </button>
-                        {/if}
-                    </Badge>
+        <div>
+            <Label>Allowed MIME Types</Label>
+            <List
+                classes="w-[300px] h-[200px]"
+                items={featureToShow?.mimeTypesAllowed || []}
+                mapping={{
+                    value: (item) => item,
+                    label: (item) => item,
+                }}
+                allowSelection={true}
+                multiSelect={true}
+                emptyMessage={`No MIME types configured.`}
+                disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                addRemove={isOverrideMode
+                    ? {
+                          addValueInputPlaceholder: 'Enter MIME type (e.g., text/csv)...',
+                          triggerAddOnEnter: true,
+                          addItem: (item) => {
+                              const feature = ensureFeature();
+                              if (!feature.mimeTypesAllowed.includes(item)) {
+                                  feature.mimeTypesAllowed.push(item);
+                              }
+                          },
+                          removeItem: (item) => {
+                              const feature = ensureFeature();
+                              feature.mimeTypesAllowed = feature.mimeTypesAllowed.filter((r) => r !== item);
+                          },
+                          allowArbitraryValues: {
+                              convertValueToType: (value) => value,
+                          },
+                      }
+                    : undefined}
+            />
+        </div>
+
+        <!-- Common presets -->
+        <div>
+            <Label class="text-sm">Common Types</Label>
+            <div class="flex flex-wrap gap-2 mt-1">
+                {#each commonMimeTypes as preset}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={() => addPresetMimeType(preset.value)}
+                        disabled={featureToShow?.mimeTypesAllowed?.includes(preset.value) ||
+                            !isOverrideMode ||
+                            !overriddenFeature?.enabled}
+                    >
+                        {preset.label}
+                    </Button>
                 {/each}
             </div>
-        {/if}
-
-        <!-- {#if (featureToShow?.mimeTypesAllowed ?? []).length === 0}
-            <div class="p-3 border border-yellow-200 bg-yellow-50 rounded text-sm text-yellow-800">
-                No MIME types configured. File uploads will be disabled.
-            </div>
-        {/if} -->
-
-        {#if isOverrideMode}
-            <!-- Add new MIME type -->
-            <div class="flex gap-2 mb-3 w-[300px]">
-                <Input
-                    bind:value={newMimeType}
-                    placeholder="Enter MIME type (e.g., text/csv)"
-                    onkeypress={handleKeyPress}
-                    disabled={!isOverrideMode || !enabled}
-                />
-                <Button onclick={addMimeType} disabled={!newMimeType.trim() || !isOverrideMode || !enabled}>
-                    <Plus class="w-4 h-4" />
-                </Button>
-            </div>
-
-            <!-- Common presets -->
-            <div>
-                <Label class="text-sm">Common Types</Label>
-                <div class="flex flex-wrap gap-2 mt-1">
-                    {#each commonMimeTypes as preset}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onclick={() => addPresetMimeType(preset.value)}
-                            disabled={featureToShow?.mimeTypesAllowed?.includes(preset.value) ||
-                                !isOverrideMode ||
-                                !enabled}
-                        >
-                            {preset.label}
-                        </Button>
-                    {/each}
-                </div>
-            </div>
-        {/if}
+        </div>
     </div>
 
     {#if isOverridden && originalFeature}

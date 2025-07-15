@@ -285,15 +285,8 @@
                             variant="ghost"
                             size="icon"
                             class="w-6 h-7"
-                            disabled={disabled || addValueInput.trim().length === 0}
-                            onclick={() => {
-                                if (addRemove.allowArbitraryValues && addRemove.removeItem) {
-                                    addRemove.removeItem(
-                                        addRemove.allowArbitraryValues.convertValueToType(addValueInput)
-                                    );
-                                    addValueInput = ''; // Clear input after removing
-                                }
-                            }}><Minus /></Button
+                            disabled={disabled || selectedValues.size === 0}
+                            onclick={handleRemoveSelectedItems}><Minus /></Button
                         >
                     </div>
                 {/if}
