@@ -1,9 +1,9 @@
 <script lang="ts">
     import { page } from '$app/state';
     import type { AppState } from '$client/app/app.state.svelte';
-    import { setContext, type Snippet } from 'svelte';
     import AppSettings from '$client/app/settings/app-settings.svelte';
     import { Toaster } from '$lib/components/ui/sonner';
+    import { setContext, type Snippet } from 'svelte';
 
     interface Props {
         data: {

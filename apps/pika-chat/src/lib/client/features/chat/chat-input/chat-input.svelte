@@ -1,12 +1,11 @@
 <script lang="ts">
-    import { AppState } from '$client/app/app.state.svelte';
     import { Button } from '$lib/components/ui/button';
     import { ArrowUp, Plus } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
+    import { ChatAppState } from '../chat-app.state.svelte';
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import ChatFileAttachment from './chat-file-attachment.svelte';
-    import { ChatAppState } from '../chat-app.state.svelte';
 
     interface Props {
         // Allows external components to get the height of the input region, we don't

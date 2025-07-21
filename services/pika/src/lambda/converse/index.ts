@@ -8,6 +8,7 @@ import type {
     ChatSession,
     ChatUser,
     ConverseRequest,
+    ConverseRequestWithCommand,
     RecordOrUndef,
     SimpleAuthenticatedUser
 } from '@pika/shared/types/chatbot/chatbot-types';
@@ -47,168 +48,211 @@ const lruCache = new LRUCache({
  * It is decorated with the enhancedStreamifyResponse decorator which is a wrapper around the lambda-stream library.
  * This allows us to know when the stream has been written to and to handle errors properly.
  */
-export const handler = enhancedStreamifyResponse(async (fnUrlEvent: LambdaFunctionUrlProxyEventPika<ConverseRequest>, responseStream: EnhancedResponseStream, context) => {
-    console.log('=== CONVERSE HANDLER START ===');
-    console.log('Event:', JSON.stringify(fnUrlEvent, null, 2));
-    console.log('Context:', {
-        awsRequestId: context?.awsRequestId,
-        functionName: context?.functionName,
-        remainingTime: context?.getRemainingTimeInMillis ? context.getRemainingTimeInMillis() : undefined
-    });
-
-    if (!process.env.STAGE) {
-        throw new Error('STAGE is not set in the environment variables');
-    }
-
-    if (!process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE) {
-        throw new Error('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE is not set in the environment variables');
-    }
-
-    if (!jwtSecret) {
-        console.log('JWT secret not cached, fetching from SSM...');
-        jwtSecret = await getValueFromParameterStore(`/stack/${process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE}/${process.env.STAGE}/jwt-secret`);
-        console.log('JWT secret fetched:', !!jwtSecret);
-    }
-
-    try {
-        if (!jwtSecret) {
-            console.error('JWT secret not found in SSM');
-            throw new Error('JWT secret not found in SSM');
-        }
-
-        const authHeader = fnUrlEvent.headers['x-chat-auth'];
-        console.log('Auth header present:', !!authHeader);
-        if (!authHeader) {
-            throw new UnauthorizedError('Authorization header not found in HTTP header');
-        }
-
-        console.log('Validating JWT token...');
-        const [simpleUser, error] = extractFromJwtString<RecordOrUndef>(authHeader, jwtSecret);
-        console.log('JWT validation result:', {
-            userFromHeader: typeof simpleUser === 'number' ? simpleUser : redactData(simpleUser, 'authData'),
-            error
-        });
-        if (typeof simpleUser === 'number') {
-            throw new UnauthorizedError(error ?? 'Unauthorized');
-        }
-
-        const uploadS3Bucket = process.env.UPLOAD_S3_BUCKET;
-        if (!uploadS3Bucket) {
-            throw new Error('UPLOAD_S3_BUCKET is not set');
-        }
-
-        // Easier to convert the event to a standard API Gateway event and not have to handle the different event types.
-        console.log('Converting function URL event to standard API Gateway event...');
-        const event = convertFunctionUrlEventToStandardApiGatewayEvent<ConverseRequest>(fnUrlEvent);
-        console.log('Event converted successfully');
-
-        // Set defaults for features just in case the client doesn't send them or sends incomplete data
-        const features: ChatAppOverridableFeaturesForConverseFn = event.body.features ?? {
-            verifyResponse: {
-                enabled: false
-            }
-        };
-
-        //TODO: check for chatbot_enabled feature flag set for this companyId and if not set, return a 404
-        const chatbotEnabled = true;
-        if (!chatbotEnabled) {
-            // TODO: Implement proper formatResponse or use responseStream
-            throw new UnauthorizedError('Chatbot is not enabled for this company');
-        }
-
-        // event.body was already parsed by the convertFunctionUrlEventToStandardApiGatewayEvent function
-        let converseRequest: ConverseRequest = event.body;
-        console.log('Converse request:', {
-            hasMessage: !!converseRequest.message,
-            messageLength: converseRequest.message?.length,
-            userId: converseRequest.userId,
-            sessionId: converseRequest.sessionId,
-            companyId: converseRequest.companyId,
-            companyType: converseRequest.companyType,
-            agentId: converseRequest.agentId,
-            chatAppId: converseRequest.chatAppId,
-            features: features
-        });
-
-        if (!converseRequest.message) {
-            throw new Error('message is required');
-        }
-
-        if (simpleUser.userId !== converseRequest.userId) {
-            console.error('User ID mismatch:', { jwtUserId: simpleUser.userId, requestUserId: converseRequest.userId });
-            throw new UnauthorizedError('User ID mismatch');
-        }
-
-        // Make sure the CHAT_ADMIN_API_ARN is set in the environment variables
-        const chatAdminApiId = process.env.CHAT_ADMIN_API_ID;
-        if (!chatAdminApiId) {
-            throw new Error('CHAT_ADMIN_API_ID is not set');
-        }
-
-        // Any files passed in on the message must be in the s3 bucket set aside for uploading/sharing files or we error out.
-        // This is necessary since bedrock and downstream tools are only known to have access to that bucket.
-        if (converseRequest.files && converseRequest.files.length > 0) {
-            for (const file of converseRequest.files) {
-                if (file.locationType === 's3' && file.s3Bucket !== uploadS3Bucket) {
-                    throw new Error(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${uploadS3Bucket}`);
-                }
-            }
-        }
-
-        console.log('Fetching user data...');
-        const user = await getUser(converseRequest.userId);
-        console.log('User fetched:', { userId: user?.userId });
-        if (!user) {
-            throw new UnauthorizedError('User not found');
-        }
-
-        if (!converseRequest.agentId) {
-            console.error('Missing agentId in request');
-            throw new HttpStatusError('agentId is required', 400);
-        }
-
-        if (!converseRequest.chatAppId) {
-            console.error('Missing chatAppId in request');
-            throw new HttpStatusError('chatAppId is required', 400);
-        }
-
-        console.log('Ensuring chat session...');
-        const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId);
-        console.log('Chat session ensured:', {
-            sessionId: chatSession.sessionId,
-            isNewSession,
-            lastUpdate: chatSession.lastUpdate
-        });
-
-        const agentAndTools = await getAgentAndToolsFromDbOrCache(converseRequest.agentId);
-        console.log('Agent and tools fetched:', agentAndTools);
-
-        agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
-
-        console.log('Starting conversation...');
-        await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, converseRequest.files);
-        console.log('Conversation completed successfully');
-    } catch (e) {
-        console.error('=== CONVERSE HANDLER ERROR ===');
-        console.error('Unexpected error:', {
-            message: e instanceof Error ? e.message : String(e),
-            stack: e instanceof Error ? e.stack : undefined,
-            name: e instanceof Error ? e.name : undefined,
-            requestId: context?.awsRequestId,
+export const handler = enhancedStreamifyResponse(
+    async (fnUrlEvent: LambdaFunctionUrlProxyEventPika<ConverseRequest | ConverseRequestWithCommand>, responseStream: EnhancedResponseStream, context) => {
+        console.log('=== CONVERSE HANDLER START ===');
+        console.log('Event:', JSON.stringify(fnUrlEvent, null, 2));
+        console.log('Context:', {
+            awsRequestId: context?.awsRequestId,
             functionName: context?.functionName,
             remainingTime: context?.getRemainingTimeInMillis ? context.getRemainingTimeInMillis() : undefined
         });
-        if (!responseStream.hasWritten) {
-            console.log('Response stream has not been written to, handling error...');
-            responseStream.handleError(e);
-        } else {
-            console.log('Response stream already written to, cannot handle error');
+
+        if (!process.env.STAGE) {
+            throw new Error('STAGE is not set in the environment variables');
         }
-    } finally {
-        console.log('=== CONVERSE HANDLER END ===');
-        responseStream.end();
+
+        if (!process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE) {
+            throw new Error('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE is not set in the environment variables');
+        }
+
+        if (!jwtSecret) {
+            console.log('JWT secret not cached, fetching from SSM...');
+            jwtSecret = await getValueFromParameterStore(`/stack/${process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE}/${process.env.STAGE}/jwt-secret`);
+            console.log('JWT secret fetched:', !!jwtSecret);
+        }
+
+        try {
+            if (!jwtSecret) {
+                console.error('JWT secret not found in SSM');
+                throw new Error('JWT secret not found in SSM');
+            }
+
+            const authHeader = fnUrlEvent.headers['x-chat-auth'];
+            console.log('Auth header present:', !!authHeader);
+            if (!authHeader) {
+                throw new UnauthorizedError('Authorization header not found in HTTP header');
+            }
+
+            console.log('Validating JWT token...');
+            const [simpleUser, error] = extractFromJwtString<RecordOrUndef>(authHeader, jwtSecret);
+            console.log('JWT validation result:', {
+                userFromHeader: typeof simpleUser === 'number' ? simpleUser : redactData(simpleUser, 'authData'),
+                error
+            });
+            if (typeof simpleUser === 'number') {
+                throw new UnauthorizedError(error ?? 'Unauthorized');
+            }
+
+            const uploadS3Bucket = process.env.UPLOAD_S3_BUCKET;
+            if (!uploadS3Bucket) {
+                throw new Error('UPLOAD_S3_BUCKET is not set');
+            }
+
+            // Easier to convert the event to a standard API Gateway event and not have to handle the different event types.
+            console.log('Converting function URL event to standard API Gateway event...');
+            const event = convertFunctionUrlEventToStandardApiGatewayEvent<ConverseRequest | ConverseRequestWithCommand>(fnUrlEvent);
+            console.log('Event converted successfully');
+
+            // Handle commands first, before conversation logic
+            if ('command' in event.body) {
+                if (event.body.command === 'clearChatAppCache') {
+                    console.log('Processing clearChatAppCache command');
+                    await handleClearCacheCommand(event.body as ConverseRequestWithCommand, responseStream);
+                    return;
+                } else {
+                    throw new Error(`Unknown command: ${event.body.command}`);
+                }
+            }
+
+            // Cast to ConverseRequest since we know it's not a command at this point
+            const requestBody = event.body as ConverseRequest;
+
+            // Set defaults for features just in case the client doesn't send them or sends incomplete data
+            const features: ChatAppOverridableFeaturesForConverseFn = requestBody.features ?? {
+                verifyResponse: {
+                    enabled: false
+                }
+            };
+
+            //TODO: check for chatbot_enabled feature flag set for this companyId and if not set, return a 404
+            const chatbotEnabled = true;
+            if (!chatbotEnabled) {
+                // TODO: Implement proper formatResponse or use responseStream
+                throw new UnauthorizedError('Chatbot is not enabled for this company');
+            }
+
+            // event.body was already parsed by the convertFunctionUrlEventToStandardApiGatewayEvent function
+            let converseRequest: ConverseRequest = requestBody;
+            console.log('Converse request:', {
+                hasMessage: !!converseRequest.message,
+                messageLength: converseRequest.message?.length,
+                userId: converseRequest.userId,
+                sessionId: converseRequest.sessionId,
+                companyId: converseRequest.companyId,
+                companyType: converseRequest.companyType,
+                agentId: converseRequest.agentId,
+                chatAppId: converseRequest.chatAppId,
+                features: features
+            });
+
+            if (!converseRequest.message) {
+                throw new Error('message is required');
+            }
+
+            if (simpleUser.userId !== converseRequest.userId) {
+                console.error('User ID mismatch:', { jwtUserId: simpleUser.userId, requestUserId: converseRequest.userId });
+                throw new UnauthorizedError('User ID mismatch');
+            }
+
+            // Make sure the CHAT_ADMIN_API_ARN is set in the environment variables
+            const chatAdminApiId = process.env.CHAT_ADMIN_API_ID;
+            if (!chatAdminApiId) {
+                throw new Error('CHAT_ADMIN_API_ID is not set');
+            }
+
+            // Any files passed in on the message must be in the s3 bucket set aside for uploading/sharing files or we error out.
+            // This is necessary since bedrock and downstream tools are only known to have access to that bucket.
+            if (converseRequest.files && converseRequest.files.length > 0) {
+                for (const file of converseRequest.files) {
+                    if (file.locationType === 's3' && file.s3Bucket !== uploadS3Bucket) {
+                        throw new Error(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${uploadS3Bucket}`);
+                    }
+                }
+            }
+
+            console.log('Fetching user data...');
+            const user = await getUser(converseRequest.userId);
+            console.log('User fetched:', { userId: user?.userId });
+            if (!user) {
+                throw new UnauthorizedError('User not found');
+            }
+
+            if (!converseRequest.agentId) {
+                console.error('Missing agentId in request');
+                throw new HttpStatusError('agentId is required', 400);
+            }
+
+            if (!converseRequest.chatAppId) {
+                console.error('Missing chatAppId in request');
+                throw new HttpStatusError('chatAppId is required', 400);
+            }
+
+            console.log('Ensuring chat session...');
+            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId);
+            console.log('Chat session ensured:', {
+                sessionId: chatSession.sessionId,
+                isNewSession,
+                lastUpdate: chatSession.lastUpdate
+            });
+
+            const agentAndTools = await getAgentAndToolsFromDbOrCache(converseRequest.agentId);
+            console.log('Agent and tools fetched:', agentAndTools);
+
+            agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
+
+            console.log('Starting conversation...');
+            await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, converseRequest.files);
+            console.log('Conversation completed successfully');
+        } catch (e) {
+            console.error('=== CONVERSE HANDLER ERROR ===');
+            console.error('Unexpected error:', {
+                message: e instanceof Error ? e.message : String(e),
+                stack: e instanceof Error ? e.stack : undefined,
+                name: e instanceof Error ? e.name : undefined,
+                requestId: context?.awsRequestId,
+                functionName: context?.functionName,
+                remainingTime: context?.getRemainingTimeInMillis ? context.getRemainingTimeInMillis() : undefined
+            });
+            if (!responseStream.hasWritten) {
+                console.log('Response stream has not been written to, handling error...');
+                responseStream.handleError(e);
+            } else {
+                console.log('Response stream already written to, cannot handle error');
+            }
+        } finally {
+            console.log('=== CONVERSE HANDLER END ===');
+            responseStream.end();
+        }
     }
-});
+);
+
+async function handleClearCacheCommand(request: ConverseRequestWithCommand, responseStream: EnhancedResponseStream) {
+    console.log('Clearing chat app cache:', request.chatAppId);
+
+    if (request.chatAppId && request.agentId) {
+        // Clear specific chat app from cache
+        let deleted = lruCache.delete(request.chatAppId);
+        console.log(`Cache entry for chatAppId ${request.chatAppId} deleted:`, deleted);
+
+        // Clear specific agent from cache
+        deleted = lruCache.delete(request.agentId);
+        console.log(`Cache entry for agentId ${request.agentId} deleted:`, deleted);
+    } else {
+        // Clear all cache entries
+        lruCache.clear();
+        console.log('All cache entries cleared');
+    }
+
+    // Stream back a simple success response
+    const response = {
+        success: true,
+        message: request.chatAppId ? `Cache cleared for chat app: ${request.chatAppId}` : 'All cache entries cleared'
+    };
+
+    responseStream.write(JSON.stringify(response));
+    responseStream.end();
+}
 
 async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndTools> {
     let result = lruCache.get(agentId) as AgentAndTools | undefined;

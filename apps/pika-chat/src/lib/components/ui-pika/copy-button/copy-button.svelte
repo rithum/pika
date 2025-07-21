@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Copy, Check } from '$icons/lucide';
+    import { Check, Copy } from '$icons/lucide';
     import { Button } from '$lib/components/ui/button';
     import { tick, type Snippet } from 'svelte';
 

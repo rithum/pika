@@ -3,10 +3,10 @@
 </script>
 
 <script lang="ts" generics="TData">
-    import { ChevronRight, ChevronLeft, ChevronsRight, ChevronsLeft } from '$icons/lucide';
-    import type { Table } from '@tanstack/table-core';
-    import * as Select from '$lib/components/ui/select';
+    import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from '$icons/lucide';
     import { Button } from '$lib/components/ui/button';
+    import * as Select from '$lib/components/ui/select';
+    import type { Table } from '@tanstack/table-core';
 
     let { table }: { table: Table<TData> } = $props();
 </script>

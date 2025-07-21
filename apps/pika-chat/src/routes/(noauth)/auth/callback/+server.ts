@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ url }) => {
         code: searchParams.get('code'),
         state: searchParams.get('state'),
         scope: searchParams.get('scope'),
-        allParams: Object.fromEntries(searchParams.entries()),
+        allParams: Object.fromEntries(searchParams.entries())
     });
 
     // Build the Auth.js callback URL with the provider suffix

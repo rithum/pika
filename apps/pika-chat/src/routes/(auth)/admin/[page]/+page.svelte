@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getContext, type Component, type Snippet } from 'svelte';
+    import { getContext, type Snippet } from 'svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;

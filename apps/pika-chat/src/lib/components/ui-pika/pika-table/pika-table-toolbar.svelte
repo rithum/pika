@@ -4,8 +4,8 @@
 </script>
 
 <script lang="ts" generics="TData">
-    import { X } from '$icons/lucide';
     import { PikaTableFacetedFilter, PikaTableViewOptions } from '$comps/ui-pika/pika-table';
+    import { X } from '$icons/lucide';
     import Button from '$lib/components/ui/button/button.svelte';
     import { Input } from '$lib/components/ui/input/index.js';
     import type { Table } from '@tanstack/table-core';

@@ -39,7 +39,7 @@ The system uses a four-tier grading system:
 
 ### 1. Enable at Site Level
 
-In your `pika-config.ts`, enable the verify response feature:
+In your `pika-config.ts`, enable the verify response feature and configure access control:
 
 ```typescript
 export const pikaConfig: PikaConfig = {
@@ -60,15 +60,17 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
+**⚠️ Important:** Setting `enabled: true` alone is not sufficient. You must also specify `userTypes` or `userRoles` to grant access to users. Without access control configuration, the feature will be disabled for all users due to Pika's secure-by-default system.
+
 ### 2. Configuration Options
 
-| Property                | Type                         | Description                                                 |
-| ----------------------- | ---------------------------- | ----------------------------------------------------------- |
-| `enabled`               | boolean                      | **Required.** Whether to enable the verify response feature |
-| `autoRepromptThreshold` | VerifyResponseClassification | Grade threshold for auto-reprompting (B, C, or F)           |
-| `userTypes`             | string[]                     | User types that can use this feature                        |
-| `userRoles`             | PikaUserRole[]               | User roles that can use this feature                        |
-| `applyRulesAs`          | 'and' \| 'or'                | How to combine userTypes and userRoles (default: 'and')     |
+| Property                | Type                         | Description                                                                                                                |
+| ----------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`               | boolean                      | **Required.** Whether to enable the verify response feature (also requires `userTypes` or `userRoles` for users to access) |
+| `autoRepromptThreshold` | VerifyResponseClassification | Grade threshold for auto-reprompting (B, C, or F)                                                                          |
+| `userTypes`             | string[]                     | User types that can use this feature                                                                                       |
+| `userRoles`             | PikaUserRole[]               | User roles that can use this feature                                                                                       |
+| `applyRulesAs`          | 'and' \| 'or'                | How to combine userTypes and userRoles (default: 'and')                                                                    |
 
 ### 3. Auto-Reprompt Thresholds
 
@@ -105,6 +107,7 @@ const myChatApp: ChatApp = {
             enabled: true, // Can only disable if site level is enabled
             autoRepromptThreshold: Inaccurate, // More lenient than site level
             userTypes: ['internal-user'] // More restrictive than site level
+            // Complete override - must include all properties from site level
         }
     }
 };
@@ -114,6 +117,8 @@ const myChatApp: ChatApp = {
 
 - **Site level controls availability**: If verification is disabled at the site level, chat apps cannot enable it
 - **Chat apps can only restrict**: Chat apps can make access more restrictive but not more permissive
+- **Complete override required**: Chat apps must provide ALL feature settings when overriding
+- **No merging**: Overrides completely replace site-level settings, they do NOT merge
 - **Independent thresholds**: Chat apps can set different auto-reprompt thresholds
 
 ## User Experience

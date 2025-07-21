@@ -1,19 +1,6 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type {
-    AuthenticatedUser,
-    ChatApp,
-    ChatUser,
-    ChatAppOverridableFeatures,
-    AccessRules,
-    RecordOrUndef,
-    VerifyResponseFeature,
-    ApplyRulesAs,
-    TracesFeature,
-    VerifyResponseFeatureForChatApp,
-    ChatDisclaimerNoticeFeatureForChatApp,
-    LogoutFeatureForChatApp
-} from '@pika/shared/types/chatbot/chatbot-types';
+import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {
@@ -361,15 +348,20 @@ function handleEnabledOnlyFeature<T>(featureName: string, appFeature: any, siteF
 }
 
 /**
- * Compute what features the user is and isn't allowed to use for this chat app.  Note that most of these are features that are defined
- * at the site level (<root>/pika-config.ts) and then may be overridden by the chat app.
+ * Compute what features the user is and isn't allowed to use for this chat app.
+ *
+ * Feature hierarchy (in order of precedence):
+ * 1. Site level (<root>/pika-config.ts) - Controls ultimate availability
+ * 2. Chat app level (chatApp.features) - Can override site settings
+ * 3. Admin override level (chatApp.override.features) - Can override chat app settings
  *
  * Note that we always return siteAdmin: { websiteEnabled: false } because we only check that for real when they try to access the admin page itself.
  *
- * If the chat app has overidden a feature that has `enabled: true` then it must set all the other desired attributes for that feature.
- * If the chat app has overidden a feature that has `enabled: false` then any other settings are ignored.
- *
- * Remember that if a site level feature is not enabled, then the chat app can't enable it.
+ * Override rules:
+ * - Site level controls whether a feature can be used at all
+ * - Chat apps can override site level (but only to restrict)
+ * - Admins can override chat app level completely (but cannot enable features disabled at site level)
+ * - When overriding, complete feature configuration must be provided (no merging)
  */
 export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
     const result: ChatAppOverridableFeatures = {
@@ -409,9 +401,11 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     };
 
     // Handle verifyResponse feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveVerifyResponseFeature = chatApp.override?.features?.verifyResponse || chatApp.features?.verifyResponse;
     result.verifyResponse = handleAccessRuleFeature(
         'verifyResponse',
-        chatApp.features?.verifyResponse,
+        effectiveVerifyResponseFeature,
         siteFeatures?.verifyResponse,
         result.verifyResponse,
         user,
@@ -422,7 +416,9 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     );
 
     // Handle traces feature (has sub-feature for detailedTraces)
-    result.traces = handleAccessRuleFeature('traces', chatApp.features?.traces, siteFeatures?.traces, result.traces, user, (feature, enabled) => {
+    // Admin override takes precedence over chat app configuration
+    const effectiveTracesFeature = chatApp.override?.features?.traces || chatApp.features?.traces;
+    result.traces = handleAccessRuleFeature('traces', effectiveTracesFeature, siteFeatures?.traces, result.traces, user, (feature, enabled) => {
         let detailedTraces = false;
         if (enabled && feature.detailedTraces) {
             // Check site-level gating for detailedTraces
@@ -431,7 +427,7 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
                 detailedTraces = checkUserAccessToFeature(user, feature.detailedTraces as AccessRules);
             }
         } else if (enabled) {
-            // No app override for detailedTraces, use site level
+            // No app/admin override for detailedTraces, use site level
             const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
             detailedTraces = checkUserAccessToFeature(user, siteDetailedTracesRule);
         }
@@ -442,7 +438,9 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     });
 
     // Handle logout feature
-    result.logout = handleAccessRuleFeature('logout', chatApp.features?.logout, siteFeatures?.logout, result.logout, user, (feature, enabled) => ({
+    // Admin override takes precedence over chat app configuration
+    const effectiveLogoutFeature = chatApp.override?.features?.logout || chatApp.features?.logout;
+    result.logout = handleAccessRuleFeature('logout', effectiveLogoutFeature, siteFeatures?.logout, result.logout, user, (feature, enabled) => ({
         enabled,
         menuItemTitle: feature.menuItemTitle ?? 'Logout',
         dialogTitle: feature.dialogTitle ?? 'Logout',
@@ -450,12 +448,16 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     }));
 
     // Handle fileUpload feature
-    result.fileUpload = handleSimpleFeature('fileUpload', chatApp.features?.fileUpload, (siteFeatures as any)?.fileUpload, result.fileUpload, (feature) => ({
+    // Admin override takes precedence over chat app configuration
+    const effectiveFileUploadFeature = chatApp.override?.features?.fileUpload || chatApp.features?.fileUpload;
+    result.fileUpload = handleSimpleFeature('fileUpload', effectiveFileUploadFeature, siteFeatures?.fileUpload, result.fileUpload, (feature) => ({
         mimeTypesAllowed: feature.mimeTypesAllowed || []
     }));
 
     // Handle suggestions feature
-    result.suggestions = handleSimpleFeature('suggestions', chatApp.features?.suggestions, (siteFeatures as any)?.suggestions, result.suggestions, (feature) => ({
+    // Admin override takes precedence over chat app configuration
+    const effectiveSuggestionsFeature = chatApp.override?.features?.suggestions || chatApp.features?.suggestions;
+    result.suggestions = handleSimpleFeature('suggestions', effectiveSuggestionsFeature, siteFeatures?.suggestions, result.suggestions, (feature) => ({
         suggestions: feature.suggestions || [],
         randomize: feature.randomize ?? false,
         randomizeAfter: feature.randomizeAfter ?? 0,
@@ -463,10 +465,12 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     }));
 
     // Handle promptInputFieldLabel feature
+    // Admin override takes precedence over chat app configuration
+    const effectivePromptInputFieldLabelFeature = chatApp.override?.features?.promptInputFieldLabel || chatApp.features?.promptInputFieldLabel;
     result.promptInputFieldLabel = handleEnabledOnlyFeature(
         'promptInputFieldLabel',
-        chatApp.features?.promptInputFieldLabel,
-        (siteFeatures as any)?.promptInputFieldLabel,
+        effectivePromptInputFieldLabelFeature,
+        siteFeatures?.promptInputFieldLabel,
         { label: 'Ready to chat' }, // Default return shape
         (feature, enabled) => ({
             label: enabled ? (feature.promptInputFieldLabel ?? 'Ready to chat') : undefined
@@ -474,21 +478,19 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
     );
 
     // Handle uiCustomization feature
-    result.uiCustomization = handleSimpleFeature(
-        'uiCustomization',
-        chatApp.features?.uiCustomization,
-        (siteFeatures as any)?.uiCustomization,
-        result.uiCustomization,
-        (feature) => ({
-            showUserRegionInLeftNav: feature.showUserRegionInLeftNav ?? false,
-            showChatHistoryInStandaloneMode: feature.showChatHistoryInStandaloneMode ?? false
-        })
-    );
+    // Admin override takes precedence over chat app configuration
+    const effectiveUiCustomizationFeature = chatApp.override?.features?.uiCustomization || chatApp.features?.uiCustomization;
+    result.uiCustomization = handleSimpleFeature('uiCustomization', effectiveUiCustomizationFeature, siteFeatures?.uiCustomization, result.uiCustomization, (feature) => ({
+        showUserRegionInLeftNav: feature.showUserRegionInLeftNav ?? false,
+        showChatHistoryInStandaloneMode: feature.showChatHistoryInStandaloneMode ?? false
+    }));
 
     // Handle chatDisclaimerNotice feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveChatDisclaimerNoticeFeature = chatApp.override?.features?.chatDisclaimerNotice || chatApp.features?.chatDisclaimerNotice;
     const disclaimerResult = handleEnabledOnlyFeature(
         'chatDisclaimerNotice',
-        chatApp.features?.chatDisclaimerNotice,
+        effectiveChatDisclaimerNoticeFeature,
         siteFeatures?.chatDisclaimerNotice,
         { notice: undefined },
         (feature, enabled) => ({
@@ -506,7 +508,7 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
  *
  * **Access Control Logic:**
  * - If the feature is disabled (`enabled: false`), no access regardless of other rules
- * - If no userTypes or userRoles are specified, feature is enabled for all users
+ * - If no userTypes or userRoles are specified, no access is granted (secure by default)
  * - If multiple userTypes are provided, a user need only have one of them to have access (OR logic)
  * - If multiple userRoles are provided, a user need only have one of them to have access (OR logic)
  * - If both userTypes and userRoles are provided, the `applyRulesAs` setting determines how they're combined:
@@ -518,16 +520,27 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
  * @returns Whether the user has access to the feature
  */
 export function checkUserAccessToFeature(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, feature: AccessRules): boolean {
-    const { enabled, userTypes, userRoles, applyRulesAs = 'and' } = feature;
+    let { enabled, userTypes, userRoles, applyRulesAs = 'and' } = feature;
+
+    // Normalize empty arrays to undefined for more intuitive access control
+    // If userTypes is set but userRoles is empty array, treat userRoles as undefined
+    if (userTypes && userTypes.length > 0 && userRoles && userRoles.length === 0) {
+        userRoles = undefined;
+    }
+
+    // If userRoles is populated but userTypes is undefined/empty, treat userTypes as undefined
+    if (userRoles && userRoles.length > 0 && (!userTypes || userTypes.length === 0)) {
+        userTypes = undefined;
+    }
 
     // If the feature is disabled, no access regardless of other rules
     if (!enabled) {
         return false;
     }
 
-    // If no rules are specified, feature is enabled for all users
+    // If no rules are specified, no access is granted (secure by default)
     if (!userTypes && !userRoles) {
-        return true;
+        return false;
     }
 
     // Check user type access

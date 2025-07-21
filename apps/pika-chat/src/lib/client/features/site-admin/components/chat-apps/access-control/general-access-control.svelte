@@ -15,6 +15,8 @@
         userTypesLabel?: string;
         userRolesLabel?: string;
         entityNameCapitalized?: string; // "Chat app", "Feature", etc.
+        featureEnabled?: boolean;
+        disabled?: boolean;
     }
 
     let {
@@ -25,6 +27,8 @@
         userTypesLabel = 'User Types Allowed Access',
         userRolesLabel = 'User Roles Allowed Access',
         entityNameCapitalized = 'Chat app',
+        featureEnabled = true,
+        disabled = false,
     }: Props = $props();
 
     let rulesObjToShow = $derived(isOverrideMode ? rulesObj : rulesObjOriginal);
@@ -69,11 +73,13 @@
                                     }
                                 }
                             }
-                            disabled={!isOverrideMode ||
+                            disabled={!featureEnabled ||
+                                !isOverrideMode ||
                                 !rulesObjToShow ||
                                 !rulesObjToShow.enabled ||
                                 ((rulesObjToShow.userTypes ?? []).length === 1 &&
-                                    (rulesObjToShow.userTypes ?? []).includes('internal-user'))}
+                                    (rulesObjToShow.userTypes ?? []).includes('internal-user')) ||
+                                disabled}
                         />
                         <Label for="internal-user">Internal Users</Label>
                     </div>
@@ -107,11 +113,13 @@
                                     }
                                 }
                             }
-                            disabled={!isOverrideMode ||
+                            disabled={!featureEnabled ||
+                                !isOverrideMode ||
                                 !rulesObjToShow ||
                                 !rulesObjToShow.enabled ||
                                 ((rulesObjToShow?.userTypes ?? []).length === 1 &&
-                                    (rulesObjToShow?.userTypes ?? []).includes('external-user'))}
+                                    (rulesObjToShow?.userTypes ?? []).includes('external-user')) ||
+                                disabled}
                         />
                         <Label for="external-user">External Users</Label>
                     </div>
@@ -134,7 +142,7 @@
                     }}
                     allowSelection={true}
                     multiSelect={true}
-                    disabled={!isOverrideMode || !rulesObj?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !rulesObj?.enabled || disabled}
                     emptyMessage="No user roles assigned"
                     addRemove={{
                         addItem: (item) => {
@@ -211,7 +219,7 @@
                         },
                     }}
                     options={['and', 'or']}
-                    disabled={!isOverrideMode || !rulesObj?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !rulesObj?.enabled || disabled}
                 />
 
                 {#if isOverrideMode}

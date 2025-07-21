@@ -148,10 +148,122 @@ siteFeatures: {
 - If `welcomeMessage` is not provided, a default welcome message will be used
 - For chat app links feature:
     - You must have at least one rule to enable showing chat app links
+
+#### Chat App Features Configuration
+
+**Important:** All chat app features must be enabled at the site level before individual chat apps can use them. This provides consistent governance and control across your entire deployment.
+
+**Security Note:** Pika uses a **secure-by-default** access control system. Setting `enabled: true` alone does NOT activate a feature for users. You must also specify `userTypes` or `userRoles` to grant access. Features without explicit access control configuration will appear as "disabled" to all users, even when `enabled: true`.
+
+**Configuration Example:**
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... project names configuration
+    siteFeatures: {
+        // ... home page configuration
+
+        // Show AI reasoning traces to users
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user'], // Only show to internal users
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['pika:content-admin'] // Only admins see detailed traces
+            }
+        },
+
+        // Verify and improve AI response quality
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'C', // Automatically improve responses graded C or lower
+            userTypes: ['internal-user', 'external-user'] // REQUIRED: Must specify access
+        },
+
+        // Display disclaimer notices to users
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
+            notice: 'This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support.'
+        },
+
+        // Enable logout functionality
+        logout: {
+            featureId: 'logout',
+            enabled: true,
+            userTypes: ['internal-user', 'external-user'] // REQUIRED: Must specify access
+        },
+
+        // Enable file upload capabilities
+        fileUpload: {
+            featureId: 'fileUpload',
+            enabled: true,
+            mimeTypesAllowed: ['image/*', 'application/pdf', 'text/plain', '.docx', '.xlsx']
+        },
+
+        // Enable chat suggestions
+        suggestions: {
+            featureId: 'suggestions',
+            enabled: true,
+            suggestions: [], // Empty means chat apps define their own
+            maxToShow: 5,
+            randomize: false,
+            randomizeAfter: 0
+        },
+
+        // Enable input field labels
+        promptInputFieldLabel: {
+            featureId: 'promptInputFieldLabel',
+            enabled: true,
+            promptInputFieldLabel: 'Ready to chat'
+        },
+
+        // Enable UI customizations
+        uiCustomization: {
+            featureId: 'uiCustomization',
+            enabled: true,
+            showUserRegionInLeftNav: false,
+            showChatHistoryInStandaloneMode: true
+        }
+    }
+};
+```
+
+**Feature Overview:**
+
+| Feature                 | Purpose                                | Can Chat Apps Override?          |
+| ----------------------- | -------------------------------------- | -------------------------------- |
+| `traces`                | Show AI reasoning and tool invocations | ✅ Access rules                  |
+| `verifyResponse`        | Verify and improve AI response quality | ✅ Quality thresholds and access |
+| `chatDisclaimerNotice`  | Display disclaimer text to users       | ✅ Custom disclaimer text        |
+| `logout`                | Enable logout functionality            | ✅ Custom text and access rules  |
+| `fileUpload`            | Allow file uploads to chat             | ✅ Restrict file types           |
+| `suggestions`           | Show suggested prompts to users        | ✅ Custom suggestions            |
+| `promptInputFieldLabel` | Label above chat input field           | ✅ Custom label text             |
+| `uiCustomization`       | UI display customizations              | ✅ Display settings              |
+
+**Key Principles:**
+
+- **Site-Level Enablement**: Features disabled here cannot be enabled by chat apps or admin overrides
+- **Chat App Restrictions**: Chat apps can only make features more restrictive than site level and override feature settings
+- **Admin Override Power**: Admin overrides can completely replace chat app settings (but not enable site-disabled features)
+- **Feature Hierarchy**: Site → Chat App → Admin Override → User access control flow
+- **Override Documentation**: See [Overriding Features Guide](./overriding-features.md) for complete details
+
+**Access Control:**
+
+- **User Types**: `internal-user` (employees) vs `external-user` (customers)
+- **User Roles**: Fine-grained permissions like `pika:content-admin`, `pika:site-admin`
+- **Access Rules**: Use `userTypes`, `userRoles`, and `applyRulesAs` for precise control
     - User types and chat app user types are defined by your authentication system and chat app configurations
     - Rules are evaluated in order, and a user can match multiple rules (all matching chat app types will be shown)
     - If no rules match the user, they won't see any chat app links on the home page
 - This is a site-wide feature - it affects the entire home page experience across your Pika installation
+
+**📖 Complete Access Control Guide:** For detailed information about chat app access rules, precedence order, override systems, and troubleshooting, see the [Chat App Access Control Guide](./chat-app-access-control.md).
 
 #### User Data Override Configuration
 
@@ -418,6 +530,8 @@ The override system works seamlessly with your authentication provider:
 **Use Case:** Different feature requirements for customer-facing vs. internal chat apps, specialized compliance needs, or app-specific user experience requirements.
 
 **Configuration:** Configure in individual chat app definitions to override site-level settings.
+
+**Critical Override Requirement:** When overriding a feature (either at chat app level or admin level), **ALL configuration settings** for that feature must be provided. Overrides completely replace lower-level settings - they do NOT merge.
 
 **Documentation:** See [Overriding Features Guide](./overriding-features.md) for complete override system documentation.
 

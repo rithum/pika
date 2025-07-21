@@ -1,6 +1,6 @@
 <script lang="ts">
-    import * as Sidebar from '$comps/ui/sidebar/index.js';
     import { Slideout, SlideoutContent, SlideoutProvider } from '$comps/ui-pika/slideout';
+    import * as Sidebar from '$comps/ui/sidebar/index.js';
     import { type Snippet } from 'svelte';
     import ChatSidebar from './chat-sidebar.svelte';
     import ChatTitlebar from './chat-titlebar.svelte';

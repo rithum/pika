@@ -142,7 +142,7 @@ const adminChatApp: ChatApp = {
 **📖 Next Steps for Production:**
 
 1. Read the [Authentication Guide](./authentication.md) to implement your auth provider
-2. Review [Chat App Security](#) to configure proper access controls
+2. Review [Chat App Access Control](./chat-app-access-control.md) to configure proper access controls
 3. Test your setup in a staging environment before going live
 
 ## 🏗️ Project Structure

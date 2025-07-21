@@ -11,9 +11,16 @@
         chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
         validationErrors: string[];
+        disabled: boolean;
     }
 
-    let { chatApp = $bindable(), chatAppOriginal, isOverrideMode, validationErrors }: Props = $props();
+    let {
+        chatApp = $bindable(),
+        chatAppOriginal,
+        isOverrideMode,
+        validationErrors,
+        disabled = false,
+    }: Props = $props();
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -49,6 +56,7 @@
                     }}
                     allowSelection={true}
                     multiSelect={true}
+                    disabled={!isOverrideMode || disabled}
                     emptyMessage="No users specified"
                     addRemove={{
                         addItem: (item) => {

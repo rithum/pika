@@ -1,9 +1,4 @@
-import type {
-    AuthenticatedUser,
-    ContentAdminData,
-    RecordOrUndef,
-    UserOverrideData,
-} from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from '@pika/shared/types/chatbot/chatbot-types';
 import { type RequestEvent } from '@sveltejs/kit';
 import crypto from 'crypto';
 
@@ -21,7 +16,7 @@ type CookieType = (typeof cookieTypes)[number];
 const cookieTypeToCookieNamePrefix: Record<CookieType, string> = {
     AUTH_USER: AUTH_USER_COOKIE_NAME_PREFIX,
     USER_OVERRIDE_DATA: USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX,
-    CONTENT_ADMIN: CONTENT_ADMIN_COOKIE_NAME_PREFIX,
+    CONTENT_ADMIN: CONTENT_ADMIN_COOKIE_NAME_PREFIX
 };
 
 export function serializeAuthenticatedUserToCookies(
@@ -30,30 +25,14 @@ export function serializeAuthenticatedUserToCookies(
     masterCookieKey: string,
     masterCookieInitVector: string
 ): void {
-    serializeToCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>(
-        'AUTH_USER',
-        event,
-        user,
-        masterCookieKey,
-        masterCookieInitVector
-    );
+    serializeToCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>('AUTH_USER', event, user, masterCookieKey, masterCookieInitVector);
 }
 
-export function serializeUserOverrideDataToCookies(
-    event: RequestEvent,
-    data: UserOverrideData,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): void {
+export function serializeUserOverrideDataToCookies(event: RequestEvent, data: UserOverrideData, masterCookieKey: string, masterCookieInitVector: string): void {
     serializeToCookies<UserOverrideData>('USER_OVERRIDE_DATA', event, data, masterCookieKey, masterCookieInitVector);
 }
 
-export function serializeContentAdminDataToCookies(
-    event: RequestEvent,
-    data: ContentAdminData,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): void {
+export function serializeContentAdminDataToCookies(event: RequestEvent, data: ContentAdminData, masterCookieKey: string, masterCookieInitVector: string): void {
     serializeToCookies<ContentAdminData>('CONTENT_ADMIN', event, data, masterCookieKey, masterCookieInitVector);
 }
 
@@ -62,32 +41,14 @@ export function deserializeAuthenticatedUserFromCookies(
     masterCookieKey: string,
     masterCookieInitVector: string
 ): AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined {
-    return deserializeFromCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>(
-        'AUTH_USER',
-        event,
-        masterCookieKey,
-        masterCookieInitVector
-    );
+    return deserializeFromCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>('AUTH_USER', event, masterCookieKey, masterCookieInitVector);
 }
 
-export function deserializeUserOverrideDataFromCookies(
-    event: RequestEvent,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): UserOverrideData | undefined {
-    return deserializeFromCookies<UserOverrideData>(
-        'USER_OVERRIDE_DATA',
-        event,
-        masterCookieKey,
-        masterCookieInitVector
-    );
+export function deserializeUserOverrideDataFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): UserOverrideData | undefined {
+    return deserializeFromCookies<UserOverrideData>('USER_OVERRIDE_DATA', event, masterCookieKey, masterCookieInitVector);
 }
 
-export function deserializeContentAdminDataFromCookies(
-    event: RequestEvent,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): ContentAdminData | undefined {
+export function deserializeContentAdminDataFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): ContentAdminData | undefined {
     return deserializeFromCookies<ContentAdminData>('CONTENT_ADMIN', event, masterCookieKey, masterCookieInitVector);
 }
 
@@ -113,13 +74,7 @@ export function clearAllCookies(event: RequestEvent): void {
  * Serializes cookie data to one or more cookies
  * If the serialized data exceeds 4KB, it will be split across multiple cookies
  */
-export function serializeToCookies<T>(
-    cookieType: CookieType,
-    event: RequestEvent,
-    data: T,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): void {
+export function serializeToCookies<T>(cookieType: CookieType, event: RequestEvent, data: T, masterCookieKey: string, masterCookieInitVector: string): void {
     const dataJson = JSON.stringify(data);
     const encryptedData = encryptCookieString(dataJson, masterCookieKey, masterCookieInitVector);
     const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
@@ -131,7 +86,7 @@ export function serializeToCookies<T>(
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
     } else {
         // Multi-cookie approach - split the encrypted data
@@ -141,14 +96,14 @@ export function serializeToCookies<T>(
         const metadata = {
             totalParts: chunks.length,
             totalSize: encryptedData.length,
-            timestamp: Date.now(),
+            timestamp: Date.now()
         };
 
         event.cookies.set(cookieNamePrefix, JSON.stringify(metadata), {
             path: '/',
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'lax'
         });
 
         // Set each chunk as a separate cookie
@@ -158,7 +113,7 @@ export function serializeToCookies<T>(
                 path: '/',
                 httpOnly: true,
                 secure: true,
-                sameSite: 'lax',
+                sameSite: 'lax'
             });
         });
     }
@@ -168,12 +123,7 @@ export function serializeToCookies<T>(
  * Deserializes cookie data from cookies
  * Handles both single-cookie and multi-cookie scenarios (multiple cookies for large data)
  */
-export function deserializeFromCookies<T>(
-    cookieType: CookieType,
-    event: RequestEvent,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): T | undefined {
+export function deserializeFromCookies<T>(cookieType: CookieType, event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): T | undefined {
     const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
     const mainCookie = event.cookies.get(cookieNamePrefix);
 
@@ -276,11 +226,7 @@ function deserializeFromMultipleCookies<T>(
  * @returns The encrypted string (ciphertext) as a hexadecimal string.
  * @throws Error if encryption fails or if the IV is not configured.
  */
-export function encryptCookieString(
-    plainTextCookieString: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function encryptCookieString(plainTextCookieString: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');
@@ -310,11 +256,7 @@ export function encryptCookieString(
  * @returns The decrypted plaintext string.
  * @throws Error if decryption fails or if the IV is not configured.
  */
-export function decryptCookieString(
-    encryptedCookieStringHex: string,
-    masterKeyHex: string,
-    masterCookieInitVector: string
-): string {
+export function decryptCookieString(encryptedCookieStringHex: string, masterKeyHex: string, masterCookieInitVector: string): string {
     try {
         const key = Buffer.from(masterKeyHex, 'hex');
         const iv = Buffer.from(masterCookieInitVector, 'hex');

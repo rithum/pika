@@ -1,10 +1,10 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import type { ChatMessageForRendering, ChatMessageFile } from '@pika/shared/types/chatbot/chatbot-types';
-    import type { ChatAppState } from '../chat-app.state.svelte';
+    import type { ChatMessageFile, ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
-    import type { ProcessedTextSegment, ProcessedTagSegment, MetadataTagSegment } from './segment-types';
     import Trace from '../chat-app-main/trace.svelte';
+    import type { ChatAppState } from '../chat-app.state.svelte';
+    import type { MetadataTagSegment, ProcessedTagSegment, ProcessedTextSegment } from './segment-types';
 
     interface Props {
         message: ChatMessageForRendering;

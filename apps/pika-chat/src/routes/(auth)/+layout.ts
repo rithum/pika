@@ -9,6 +9,6 @@ export async function load({ fetch, data }: LoadEvent) {
 
     const appState = new AppState(fetch, data as ChatUser);
     return {
-        appState,
+        appState
     };
 }

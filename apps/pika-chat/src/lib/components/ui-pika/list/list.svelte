@@ -1,13 +1,13 @@
 <script lang="ts" generics="T">
     import * as Command from '$comps/ui/command/index.js';
+    import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
     import Button from '$lib/components/ui/button/button.svelte';
     import { Input } from '$lib/components/ui/input';
-    import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
     import { Minus, Plus } from '$lib/icons/lucide';
-    import { SvelteSet } from 'svelte/reactivity';
-    import type { ListMapping } from './list-types';
     import { cn } from '$lib/utils';
+    import { SvelteSet } from 'svelte/reactivity';
     import Combobox from '../combobox/combobox.svelte';
+    import type { ListMapping } from './list-types';
 
     interface Props {
         // Additional CSS classes. Can override default height of h-[250px]

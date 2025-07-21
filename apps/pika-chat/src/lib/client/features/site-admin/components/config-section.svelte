@@ -1,7 +1,7 @@
 <script lang="ts">
     import { ChevronDown, TriangleAlert } from '$icons/lucide';
-    import { slide } from 'svelte/transition';
     import type { Snippet } from 'svelte';
+    import { slide } from 'svelte/transition';
 
     interface Props {
         title: string;

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import { Button } from '$lib/components/ui/button';
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { Input } from '$lib/components/ui/input';
@@ -12,9 +13,17 @@
         isOverrideMode: boolean;
         expanded: boolean;
         onToggleSection: () => void;
+        disabled: boolean;
     }
 
-    let { chatApp = $bindable(), chatAppOriginal, isOverrideMode, expanded, onToggleSection }: Props = $props();
+    let {
+        chatApp = $bindable(),
+        chatAppOriginal,
+        isOverrideMode,
+        expanded,
+        onToggleSection,
+        disabled,
+    }: Props = $props();
 
     let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 </script>
@@ -39,18 +48,35 @@
                 <Button
                     variant={app.enabled ? 'destructive' : 'default'}
                     size="sm"
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || disabled}
                     onclick={() => isOverrideMode && (app.enabled = !app.enabled)}
                     class={isOverrideMode && app.enabled ? 'border-orange-500' : ''}
                 >
                     {app.enabled ? 'Disable Chat App' : 'Enable Chat App'}
                 </Button>
+                <PopupHelp popoverClasses="w-60">
+                    <div class="text-xs text-muted-foreground flex flex-col gap-3">
+                        <span>
+                            A disabled chat app will not be available to any users and all other access rules will be
+                            ignored.
+                        </span>
+                        <span>
+                            Clicking this button will not immediately {app.enabled ? 'disable' : 'enable'} the chat app.
+                            It will only be {app.enabled ? 'disabled' : 'enabled'} after you click "Save" above.
+                        </span>
+                    </div>
+                </PopupHelp>
             </div>
         </div>
 
         <div>
             <Label for="title">Title</Label>
-            <Input id="title" bind:value={app.title} placeholder="Chat app title" disabled={!isOverrideMode} />
+            <Input
+                id="title"
+                bind:value={app.title}
+                placeholder="Chat app title"
+                disabled={!isOverrideMode || disabled}
+            />
             {#if isOverrideMode}
                 <p class="text-xs text-muted-foreground mt-1">
                     Original: {chatAppOriginal.title ?? 'Not set'}
@@ -64,7 +90,7 @@
                 id="description"
                 bind:value={app.description}
                 placeholder="Chat app description"
-                disabled={!isOverrideMode}
+                disabled={!isOverrideMode || disabled}
                 class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 rows="3"
             ></textarea>
@@ -79,7 +105,7 @@
             <Checkbox
                 id="dontCacheThis"
                 bind:checked={() => app.dontCacheThis ?? false, (value) => (app.dontCacheThis = value)}
-                disabled={!isOverrideMode}
+                disabled={!isOverrideMode || disabled}
                 class={isOverrideMode && app.dontCacheThis ? 'border-orange-500' : ''}
             />
             <Label for="dontCacheThis">Don't Cache (for development)</Label>

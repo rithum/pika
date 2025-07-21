@@ -40,6 +40,8 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
+**Note:** Unlike other features, the content admin feature does not use `userTypes` configuration. Access is controlled entirely through the `pika:content-admin` role assignment.
+
 ### 2. Grant Admin Role
 
 Content admin users must have the `pika:content-admin` role assigned. This is done differently depending on your authentication provider:

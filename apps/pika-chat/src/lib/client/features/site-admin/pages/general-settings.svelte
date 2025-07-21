@@ -1,10 +1,10 @@
 <script lang="ts">
-    import { getContext, type Snippet } from 'svelte';
+    import { CircleCheck, Eye, House, LogOut, Settings2, Shield, TriangleAlert, UserCog } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$lib/components/ui/button';
     import { Badge } from '$lib/components/ui/badge';
+    import { Button } from '$lib/components/ui/button';
     import { Separator } from '$lib/components/ui/separator';
-    import { Settings2, House, Users, Shield, Eye, TriangleAlert, CircleCheck, LogOut, UserCog } from '$icons/lucide';
+    import { getContext, type Snippet } from 'svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;

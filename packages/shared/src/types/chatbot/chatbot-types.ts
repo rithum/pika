@@ -407,7 +407,7 @@ export interface ChatAppOverridableFeatures {
 
 export type ChatAppOverridableFeaturesForConverseFn = Omit<
     ChatAppOverridableFeatures,
-    'chatDisclaimerNotice' | 'traces' | 'logout' | 'suggestions' | 'promptInputFieldLabel' | 'uiCustomization'
+    'chatDisclaimerNotice' | 'traces' | 'logout' | 'suggestions' | 'promptInputFieldLabel' | 'uiCustomization' | 'fileUpload'
 >;
 
 /**
@@ -490,6 +490,13 @@ export interface BaseRequestData {
     companyId?: string;
     companyType?: CompanyType;
     timezone?: string;
+}
+
+export interface ConverseRequestWithCommand {
+    command: 'clearChatAppCache';
+    chatAppId?: string;
+    agentId?: string;
+    userId: string;
 }
 
 export interface ConverseRequest extends BaseRequestData {
@@ -1054,11 +1061,14 @@ export interface ChatAppDataRequest {
     userId: string;
 }
 
+/**
+ * These are the features that are available to be overridden by the chat app.
+ */
 export type ChatAppFeature =
-    | FileUploadFeature
-    | SuggestionsFeature
-    | PromptInputFieldLabelFeature
-    | UiCustomizationFeature
+    | FileUploadFeatureForChatApp
+    | SuggestionsFeatureForChatApp
+    | PromptInputFieldLabelFeatureForChatApp
+    | UiCustomizationFeatureForChatApp
     | VerifyResponseFeatureForChatApp
     | TracesFeatureForChatApp
     | ChatDisclaimerNoticeFeatureForChatApp
@@ -1237,13 +1247,15 @@ export interface TracesFeatureForChatApp extends TracesFeature, Feature {
  * Whether to support UI customization in the chat app.  If true, then the chat app will support UI customization.
  */
 export interface UiCustomizationFeature extends Feature {
-    featureId: 'uiCustomization';
-
     /** Whether to show the chat history as left nav in full page mode.  Defaults to true. */
     showChatHistoryInStandaloneMode?: boolean;
 
     /** Whether to show the user region in the left nav in full page mode.  Defaults to true. */
     showUserRegionInLeftNav?: boolean;
+}
+
+export interface UiCustomizationFeatureForChatApp extends UiCustomizationFeature, Feature {
+    featureId: 'uiCustomization';
 }
 
 /**
@@ -1253,8 +1265,6 @@ export interface UiCustomizationFeature extends Feature {
  * Default is false.
  */
 export interface SuggestionsFeature extends Feature {
-    featureId: 'suggestions';
-
     /**
      * A list of suggestions that will be displayed to the user relevant to the chat app.
      * Will be stored gzipped hex encoded in db.  Gzipped compressed value may not be more than 100kb.
@@ -1278,14 +1288,20 @@ export interface SuggestionsFeature extends Feature {
     randomizeAfter?: number;
 }
 
+export interface SuggestionsFeatureForChatApp extends SuggestionsFeature, Feature {
+    featureId: 'suggestions';
+}
+
 /**
  * Whether the chat app supports uploading files and attaching them to the chat.
  */
 export interface FileUploadFeature extends Feature {
-    featureId: 'fileUpload';
-
     /** If you put `*` can upload any file.  Example: ['text/csv'].  This must have a value or it is an error. */
     mimeTypesAllowed: string[];
+}
+
+export interface FileUploadFeatureForChatApp extends FileUploadFeature, Feature {
+    featureId: 'fileUpload';
 }
 
 /**
@@ -1296,10 +1312,12 @@ export interface FileUploadFeature extends Feature {
  * This feature is on by default.
  */
 export interface PromptInputFieldLabelFeature extends Feature {
-    featureId: 'promptInputFieldLabel';
-
     /** Defaults to "Ready to chat".  The label to show above the prompt input field. */
     promptInputFieldLabel?: string;
+}
+
+export interface PromptInputFieldLabelFeatureForChatApp extends PromptInputFieldLabelFeature, Feature {
+    featureId: 'promptInputFieldLabel';
 }
 
 export type SegmentType = 'text' | 'tag';
@@ -1354,7 +1372,8 @@ export type SiteAdminRequest =
     | CreateOrUpdateChatAppOverrideRequest
     | DeleteChatAppOverrideRequest
     | GetValuesForEntityAutoCompleteRequest
-    | GetValuesForUserAutoCompleteRequest;
+    | GetValuesForUserAutoCompleteRequest
+    | ClearChatAppCacheRequest;
 
 export const SiteAdminCommand = [
     'getInitialData',
@@ -1362,7 +1381,8 @@ export const SiteAdminCommand = [
     'createOrUpdateChatAppOverride',
     'deleteChatAppOverride',
     'getValuesForEntityAutoComplete',
-    'getValuesForUserAutoComplete'
+    'getValuesForUserAutoComplete',
+    'clearChatAppCache'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
@@ -1402,18 +1422,27 @@ export interface DeleteChatAppOverrideRequest extends SiteAdminCommandRequestBas
     chatAppId: string;
 }
 
+export interface ClearChatAppCacheRequest extends SiteAdminCommandRequestBase {
+    command: 'clearChatAppCache';
+    chatAppId?: string;
+    agentId?: string;
+}
+
 export type SiteAdminResponse =
     | GetInitialDataResponse
     | RefreshChatAppResponse
     | CreateOrUpdateChatAppOverrideResponse
     | DeleteChatAppOverrideResponse
     | GetValuesForEntityAutoCompleteResponse
-    | GetValuesForUserAutoCompleteResponse;
+    | GetValuesForUserAutoCompleteResponse
+    | ClearChatAppCacheResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
     error?: string;
 }
+
+export interface ClearChatAppCacheResponse extends SiteAdminCommandResponseBase {}
 
 export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
@@ -1553,14 +1582,14 @@ export interface AccessRules {
     enabled: boolean;
 
     /**
-     * The user types that are allowed to use the feature.  If neither this nor userRole are provided,
-     * then the feature is turned on for all users.
+     * The user types that are allowed to use the feature.  If neither this nor userRoles are provided,
+     * then no access is granted (secure by default).
      */
     userTypes?: UserType[];
 
     /**
      * The user roles that are allowed to use the feature.  If neither this nor userTypes are provided,
-     * then the feature is turned on for all users.
+     * then no access is granted (secure by default).
      */
     userRoles?: UserRole[];
 
@@ -1830,6 +1859,18 @@ export interface SiteFeatures {
 
     /** Configure whether the site admin website feature is enabled. */
     siteAdmin?: SiteAdminFeature;
+
+    /** Configure whether the file upload feature is enabled. */
+    fileUpload?: FileUploadFeature;
+
+    /** Configure whether the suggestions feature is enabled. */
+    suggestions?: SuggestionsFeature;
+
+    /** Configure whether the prompt input field label feature is enabled. */
+    promptInputFieldLabel?: PromptInputFieldLabelFeature;
+
+    /** Configure whether the UI customization feature is enabled. */
+    uiCustomization?: UiCustomizationFeature;
 }
 
 /**
@@ -2012,4 +2053,11 @@ export interface SimpleOption {
     value: string;
     label?: string;
     secondaryLabel?: string;
+}
+
+export interface FeatureError {
+    desc: string;
+
+    /** THis is set to true when the parent features component already checks for and handles this kind of error. */
+    parentShouldIgnore?: boolean;
 }

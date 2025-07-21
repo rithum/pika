@@ -3,8 +3,8 @@
 </script>
 
 <script lang="ts" generics="TData">
-    import { Ellipsis } from '$icons/lucide';
     import type { AppState } from '$client/app/app.state.svelte';
+    import { Ellipsis } from '$icons/lucide';
     import Button from '$lib/components/ui/button/button.svelte';
     import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
     import type { Row } from '@tanstack/table-core';

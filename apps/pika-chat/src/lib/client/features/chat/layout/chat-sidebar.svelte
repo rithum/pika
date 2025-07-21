@@ -1,6 +1,6 @@
 <script lang="ts">
-    import * as Sidebar from '$comps/ui/sidebar';
     import TooltipPlus from '$comps/ui-pika/tooltip-plus/tooltip-plus.svelte';
+    import * as Sidebar from '$comps/ui/sidebar';
     import ChatNav from '../nav/chat-nav.svelte';
 
     import Button from '$comps/ui/button/button.svelte';
@@ -9,7 +9,6 @@
     import { SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import ChatNavUser from '../nav/chat-nav-user.svelte';
 
     // We have to get the sidebar state from the context because it is not available
     // consistently since the sidebar component is riddled with bugs around the open state

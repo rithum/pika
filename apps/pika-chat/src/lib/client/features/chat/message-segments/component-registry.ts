@@ -1,7 +1,7 @@
 import type { Component } from 'svelte';
+import { customMetadataHandlers, customRenderers } from './custom-components/index';
+import { defaultMetadataHandlers, defaultRenderers } from './default-components/index';
 import type { MetadataTagHandler } from './segment-types';
-import { defaultRenderers, defaultMetadataHandlers } from './default-components/index';
-import { customRenderers, customMetadataHandlers } from './custom-components/index';
 
 /**
  * This maintains a mapping of tag types to components for rendering.

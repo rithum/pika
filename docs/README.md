@@ -49,6 +49,7 @@ These documents provide the **how** - practical guides for installing, configuri
 
 **Feature Guides:**
 
+- [Chat App Access Control](./developer/chat-app-access-control.md) - Complete guide to securing chat apps and understanding access rules
 - [Traces Feature](./developer/traces-feature.md) - AI reasoning and tool invocation visibility
 - [Verify Response Feature](./developer/verify-response-feature.md) - Automatic response accuracy verification
 - [Chat Disclaimer Notice Feature](./developer/chat-disclaimer-notice-feature.md) - User education and legal protection
@@ -78,8 +79,13 @@ These documents provide the **how** - practical guides for installing, configuri
 ### For Production Deployment
 
 1. **Set up authentication**: Follow [Authentication Setup](./developer/authentication.md)
-2. **Deploy to AWS**: Use [AWS Deployment](./developer/aws-deployment.md)
-3. **Understand sync**: Read [Sync System](./developer/sync-system.md)
+2. **Configure access control**: Review [Chat App Access Control](./developer/chat-app-access-control.md)
+3. **Deploy to AWS**: Use [AWS Deployment](./developer/aws-deployment.md)
+4. **Understand sync**: Read [Sync System](./developer/sync-system.md)
+
+### Key Security Concept
+
+**Important:** Pika uses a **secure-by-default** system. Setting `enabled: true` for features does NOT make them accessible to users. You must also specify `userTypes` or `userRoles` to grant access. Without explicit access control, features will appear "disabled" even when enabled.
 
 ## 📖 Additional Resources
 

@@ -4,13 +4,15 @@
 </script>
 
 <script lang="ts" generics="TData, TValue">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import { createSvelteTable } from '$lib/components/ui/data-table/data-table.svelte';
+    import FlexRender from '$lib/components/ui/data-table/flex-render.svelte';
+    import * as Table from '$lib/components/ui/table';
     import {
         type ColumnDef,
         type ColumnFiltersState,
-        type PaginationState,
         type RowSelectionState,
         type SortingState,
-        type VisibilityState,
         getCoreRowModel,
         getFacetedRowModel,
         getFacetedUniqueValues,
@@ -18,14 +20,10 @@
         getPaginationRowModel,
         getSortedRowModel,
     } from '@tanstack/table-core';
-    import TableToolbar from './pika-table-toolbar.svelte';
+    import { getContext } from 'svelte';
     import TablePagination from './pika-table-pagination.svelte';
-    import { createSvelteTable } from '$lib/components/ui/data-table/data-table.svelte';
-    import FlexRender from '$lib/components/ui/data-table/flex-render.svelte';
-    import * as Table from '$lib/components/ui/table';
+    import TableToolbar from './pika-table-toolbar.svelte';
     import type { FacetedFilters, GlobalFilterProps } from './types';
-    import { getContext, untrack } from 'svelte';
-    import type { AppState } from '$client/app/app.state.svelte';
 
     let {
         columns,

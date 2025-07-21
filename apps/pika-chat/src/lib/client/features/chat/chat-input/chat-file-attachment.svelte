@@ -1,9 +1,5 @@
 <script lang="ts">
-    import { ArrowUp, Plus, X, LoaderCircle, File } from '$lib/icons/lucide';
-    import * as Sidebar from '$comps/ui/sidebar/index.js';
-    import type { AppState } from '$client/app/app.state.svelte';
-    import { getContext, type Snippet } from 'svelte';
-    import { Slideout, SlideoutContent, SlideoutPanel, SlideoutProvider } from '$comps/ui-pika/slideout';
+    import { File, X } from '$lib/icons/lucide';
     import type { UploadInstance } from '../../upload/upload-instance.svelte';
 
     interface Props {

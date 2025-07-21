@@ -1,17 +1,17 @@
 <script lang="ts">
-    import ChatInput from '../chat-input/chat-input.svelte';
-    import ChatFileDisplay from '../chat-input/chat-file-display.svelte';
-    import { getContext } from 'svelte';
     import { AppState } from '$client/app/app.state.svelte';
-    import { toast } from 'svelte-sonner';
-    import { ChatFileValidationError } from '../lib/ChatFileValidationError';
-    import { ChatAppState } from '../chat-app.state.svelte';
     import ExpandableContainer from '$comps/ui-pika/expandable-container/expandable-container.svelte';
-    import Prompt from '../message-segments/default-components/prompt.svelte';
-    import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
-    import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
-    import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
+    import { getContext } from 'svelte';
+    import { toast } from 'svelte-sonner';
     import { formatDateTime } from '../../../../utils';
+    import { ChatAppState } from '../chat-app.state.svelte';
+    import ChatFileDisplay from '../chat-input/chat-file-display.svelte';
+    import ChatInput from '../chat-input/chat-input.svelte';
+    import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
+    import { ChatFileValidationError } from '../lib/ChatFileValidationError';
+    import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
+    import Prompt from '../message-segments/default-components/prompt.svelte';
+    import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');

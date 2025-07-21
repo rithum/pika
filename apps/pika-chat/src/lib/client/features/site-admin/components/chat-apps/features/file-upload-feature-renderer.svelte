@@ -5,14 +5,24 @@
     import type { FileUploadFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {
+        featureEnabled: boolean;
         overriddenFeature: FileUploadFeature | undefined;
         originalFeature: FileUploadFeature | undefined;
         isOverrideMode: boolean;
         isOverridden: boolean;
         setValid: (valid: boolean) => void;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, setValid }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        setValid,
+        featureEnabled,
+        disabled,
+    }: Props = $props();
     let validErrors = $derived.by(() => {
         const mode = isOverrideMode;
         const ovFeature = overriddenFeature;
@@ -102,7 +112,7 @@
                 allowSelection={true}
                 multiSelect={true}
                 emptyMessage={`No MIME types configured.`}
-                disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                 addRemove={isOverrideMode
                     ? {
                           addValueInputPlaceholder: 'Enter MIME type (e.g., text/csv)...',
@@ -134,9 +144,11 @@
                         variant="outline"
                         size="sm"
                         onclick={() => addPresetMimeType(preset.value)}
-                        disabled={featureToShow?.mimeTypesAllowed?.includes(preset.value) ||
+                        disabled={!featureEnabled ||
+                            featureToShow?.mimeTypesAllowed?.includes(preset.value) ||
                             !isOverrideMode ||
-                            !overriddenFeature?.enabled}
+                            !overriddenFeature?.enabled ||
+                            disabled}
                     >
                         {preset.label}
                     </Button>

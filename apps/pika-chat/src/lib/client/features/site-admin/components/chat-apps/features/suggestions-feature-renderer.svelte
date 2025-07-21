@@ -1,13 +1,11 @@
 <script lang="ts">
+    import List from '$lib/components/ui-pika/list/list.svelte';
+    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
+    import { Checkbox } from '$lib/components/ui/checkbox';
     import { Input } from '$lib/components/ui/input';
     import { Label } from '$lib/components/ui/label';
-    import { Button } from '$lib/components/ui/button';
-    import { Badge } from '$lib/components/ui/badge';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import { Plus, X } from '$icons/lucide';
+    import { assert } from '$lib/utils';
     import type { SuggestionsFeature } from '@pika/shared/types/chatbot/chatbot-types';
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
-    import List from '$lib/components/ui-pika/list/list.svelte';
 
     interface Props {
         overriddenFeature: SuggestionsFeature | undefined;
@@ -15,9 +13,19 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        disabled,
+    }: Props = $props();
 
     let validErrors = $derived.by(() => {
         const mode = isOverrideMode;
@@ -33,8 +41,6 @@
     });
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
-
-    let newSuggestion = $state('');
 
     function ensureFeature(): SuggestionsFeature {
         if (!isOverrideMode) {
@@ -69,47 +75,35 @@
         return overriddenFeature;
     }
 
-    function addSuggestion() {
-        if (!newSuggestion.trim()) return;
-
-        const feature = ensureFeature();
-        if (!feature.suggestions.includes(newSuggestion.trim())) {
-            feature.suggestions.push(newSuggestion.trim());
-            newSuggestion = '';
+    $effect(() => {
+        if (isOverrideMode) {
+            ensureFeature();
+        } else {
+            overriddenFeature = undefined;
         }
-    }
-
-    function removeSuggestion(index: number) {
-        const feature = ensureFeature();
-        feature.suggestions.splice(index, 1);
-    }
-
-    function handleKeyPress(event: KeyboardEvent) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            addSuggestion();
-        }
-    }
+    });
 
     function updateMaxToShow(value: string) {
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(overriddenFeature, 'overriddenFeature must be defined');
         const num = parseInt(value);
         if (!isNaN(num) && num > 0) {
-            const feature = ensureFeature();
-            feature.maxToShow = num;
+            overriddenFeature.maxToShow = num;
         }
     }
 
     function updateRandomize(value: boolean) {
-        if (!isOverrideMode) return;
-        const feature = ensureFeature();
-        feature.randomize = value;
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(overriddenFeature, 'overriddenFeature must be defined');
+        overriddenFeature.randomize = value;
     }
 
     function updateRandomizeAfter(value: string) {
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(overriddenFeature, 'overriddenFeature must be defined');
         const num = parseInt(value);
         if (!isNaN(num) && num >= 0) {
-            const feature = ensureFeature();
-            feature.randomizeAfter = num;
+            overriddenFeature.randomizeAfter = num;
         }
     }
 </script>
@@ -137,7 +131,7 @@
                     allowSelection={true}
                     multiSelect={true}
                     emptyMessage={`No suggestions added.`}
-                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                     addRemove={isOverrideMode
                         ? {
                               addValueInputPlaceholder: 'Enter a suggestion...',
@@ -178,7 +172,7 @@
                         min="1"
                         max="20"
                         bind:value={() => (featureToShow?.maxToShow || 5) as any, updateMaxToShow}
-                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                         class="w-20"
                     />
                 </div>
@@ -187,7 +181,7 @@
                     <Checkbox
                         id="randomize"
                         bind:checked={() => featureToShow?.randomize || false, updateRandomize}
-                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                     />
                     <Label for="randomize">Randomize suggestions</Label>
                     <PopupHelp popoverClasses="w-60">
@@ -216,7 +210,7 @@
                             type="number"
                             min="0"
                             bind:value={() => (featureToShow?.randomizeAfter || 0) as any, updateRandomizeAfter}
-                            disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                            disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                             class="w-20"
                         />
                     </div>

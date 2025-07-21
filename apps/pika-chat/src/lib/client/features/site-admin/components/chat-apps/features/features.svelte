@@ -1,13 +1,14 @@
 <script lang="ts">
+    import { ChevronDown, Expand, Shrink } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { PikaBadge } from '$lib/components/ui-pika/pika-badge';
+    import { Badge } from '$lib/components/ui/badge';
+    import { Checkbox } from '$lib/components/ui/checkbox';
+    import { Label } from '$lib/components/ui/label';
+    import { Separator } from '$lib/components/ui/separator';
     import { FEATURE_NAMES, VerifyResponseClassificationDescriptions } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';
-    import { Badge } from '$lib/components/ui/badge';
-    import { Label } from '$lib/components/ui/label';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import { Separator } from '$lib/components/ui/separator';
-    import { ChevronDown, Expand, Shrink } from '$icons/lucide';
 
     import type {
         ChatApp,
@@ -15,28 +16,29 @@
         ChatDisclaimerNoticeFeatureForChatApp,
         FeatureIdType,
         FileUploadFeature,
+        FileUploadFeatureForChatApp,
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
+        PromptInputFieldLabelFeatureForChatApp,
         SuggestionsFeature,
+        SuggestionsFeatureForChatApp,
         TracesFeatureForChatApp,
         UiCustomizationFeature,
-        VerifyResponseFeature,
+        UiCustomizationFeatureForChatApp,
         VerifyResponseFeatureForChatApp,
     } from '@pika/shared/types/chatbot/chatbot-types';
-
     // Import individual feature components
-    import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
-    import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
-    import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
-    import UiCustomizationFeatureRenderer from './ui-customization-feature-renderer.svelte';
-    import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
-    import TracesFeatureRenderer from './traces-feature-renderer.svelte';
-    import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
-    import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import Button from '$lib/components/ui/button/button.svelte';
     import { assert } from '$lib/utils';
-    import deepEqual from 'deep-equal';
+    import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
+    import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
+    import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
+    import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
+    import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
+    import TracesFeatureRenderer from './traces-feature-renderer.svelte';
+    import UiCustomizationFeatureRenderer from './ui-customization-feature-renderer.svelte';
+    import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -46,6 +48,7 @@
         onToggleFeaturesSection: () => void;
         chatAppId: string;
         setValid: (valid: boolean) => void;
+        disabled: boolean;
     }
 
     let {
@@ -56,22 +59,138 @@
         onToggleFeaturesSection,
         chatAppId,
         setValid,
+        disabled,
     }: Props = $props();
 
     const appState = getContext<AppState>('appState');
 
     const featureValid = $state<Partial<Record<FeatureIdType, boolean>>>({});
 
+    // Phase 2: Site-level feature status tracking
+    const siteFeatureStatus = $derived.by(() => {
+        const status: Record<FeatureIdType, 'enabled' | 'disabled' | 'not-configured'> = {} as Record<
+            FeatureIdType,
+            'enabled' | 'disabled' | 'not-configured'
+        >;
+
+        Object.keys(FEATURE_NAMES).forEach((featureId) => {
+            const typedFeatureId = featureId as FeatureIdType;
+            const siteFeature = appState.siteAdmin.siteFeatures?.[typedFeatureId];
+
+            if (!siteFeature) {
+                status[typedFeatureId] = 'not-configured';
+            } else if ('enabled' in siteFeature && siteFeature.enabled === false) {
+                status[typedFeatureId] = 'disabled';
+            } else {
+                status[typedFeatureId] = 'enabled';
+            }
+        });
+
+        return status;
+    });
+
+    // Phase 2: Invalid chat app configuration detection
+    const invalidChatAppFeatures = $derived.by(() => {
+        const invalid: Record<FeatureIdType, boolean> = {} as Record<FeatureIdType, boolean>;
+
+        Object.keys(FEATURE_NAMES).forEach((featureId) => {
+            const typedFeatureId = featureId as FeatureIdType;
+            const chatAppFeature = chatAppOriginal.features?.[typedFeatureId];
+            const siteStatus = siteFeatureStatus[typedFeatureId];
+
+            // Chat app has feature enabled but site doesn't allow it
+            invalid[typedFeatureId] = !!(
+                chatAppFeature?.enabled &&
+                (siteStatus === 'disabled' || siteStatus === 'not-configured')
+            );
+        });
+
+        return invalid;
+    });
+
+    const enabledButNoUsersHaveAccess = $derived.by(() => {
+        const result: Record<FeatureIdType, boolean> = {} as Record<FeatureIdType, boolean>;
+        const accessControlFeatures = ['verifyResponse', 'traces', 'logout'] as FeatureIdType[];
+
+        Object.keys(FEATURE_NAMES).forEach((featureId) => {
+            const typedFeatureId = featureId as FeatureIdType;
+            const hasAccessControl = accessControlFeatures.includes(typedFeatureId);
+
+            if (!hasAccessControl) {
+                result[typedFeatureId] = false;
+                return;
+            }
+
+            const siteStatus = siteFeatureStatus[typedFeatureId];
+            const canBeEnabled = siteStatus === 'enabled';
+            const app = isOverrideMode ? chatApp : chatAppOriginal;
+            const featureEnabled =
+                canBeEnabled &&
+                (app.override?.features?.[typedFeatureId]?.enabled ??
+                    chatAppOriginal.features?.[typedFeatureId]?.enabled ??
+                    true);
+
+            const featureOverridden = app.override?.features?.[typedFeatureId] !== undefined;
+            const originalFeature =
+                chatAppOriginal.features?.[typedFeatureId] ?? appState.siteAdmin.siteFeatures?.[typedFeatureId];
+            const effectiveFeature = featureOverridden ? app.override?.features?.[typedFeatureId] : originalFeature;
+
+            // Check if feature is enabled but no users have access (secure by default)
+            result[typedFeatureId] = !!(
+                hasAccessControl &&
+                featureEnabled &&
+                effectiveFeature &&
+                // Check if BOTH userTypes and userRoles are missing or empty (secure by default)
+                (!('userTypes' in effectiveFeature) ||
+                    !effectiveFeature.userTypes ||
+                    effectiveFeature.userTypes.length === 0) &&
+                (!('userRoles' in effectiveFeature) ||
+                    !effectiveFeature.userRoles ||
+                    effectiveFeature.userRoles.length === 0)
+            );
+        });
+
+        return result;
+    });
+
     const app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
     // Track which features have errors
-    const featuresHaveErrors = $derived(Object.entries(featureValid).some(([, valid]) => valid === false));
+    const featuresHaveErrors = $derived(
+        Object.entries(featureValid).some(([, valid]) => valid === false) ||
+            Object.entries(enabledButNoUsersHaveAccess).some(([, enabled]) => enabled === true) ||
+            Object.entries(invalidChatAppFeatures).some(([, invalid]) => invalid === true)
+    );
 
     function setFeatureValid(featureId: FeatureIdType, valid: boolean) {
         featureValid[featureId] = valid;
-
-        setValid(Object.values(featureValid).every((valid) => valid));
     }
+
+    // Effect to compute overall validation state and notify parent
+    $effect(() => {
+        const allFeatureIds = Object.keys(FEATURE_NAMES) as FeatureIdType[];
+
+        const hasErrors = allFeatureIds.some((featureId) => {
+            // Check for explicit feature validation errors
+            if (featureValid[featureId] === false) {
+                return true;
+            }
+
+            // Check for invalid chat app configurations
+            if (invalidChatAppFeatures[featureId] === true) {
+                return true;
+            }
+
+            // Check for enabled features with no user access
+            if (enabledButNoUsersHaveAccess[featureId] === true) {
+                return true;
+            }
+
+            return false;
+        });
+
+        setValid(!hasErrors);
+    });
 
     // Expanded state for individual features
     let expandedFeatures = $state<Record<FeatureIdType, boolean>>({
@@ -96,28 +215,32 @@
         assert(isOverrideMode, 'isOverrideMode must be true');
         assert(chatApp.override, 'chatApp.override must be defined');
 
+        // Phase 2: Check if site allows this feature
+        const siteStatus = siteFeatureStatus[featureId];
+
+        if (enabled && siteStatus !== 'enabled') {
+            // Don't allow enabling features not enabled at site level
+            console.warn(`Cannot enable feature ${featureId}: not enabled at site level (status: ${siteStatus})`);
+            return;
+        }
+
         if (!chatApp.override.features) {
             chatApp.override.features = {};
         }
 
         // If already set to this value, do nothing
-        if (chatApp.override.features[featureId]?.enabled === enabled) return;
-
-        const originalFeature = chatAppOriginal.override?.features?.[featureId];
-        const originalEnabled = originalFeature?.enabled ?? false;
-
-        //TODO: not sure this logic is correct
-        // If setting to match original, remove from override entirely
-        if (enabled === originalEnabled) {
-            delete chatApp.override.features[featureId];
+        if (chatApp.override.features[featureId]?.enabled === enabled) {
             return;
         }
 
-        // Otherwise, create/update the override
+        const originalFeature = chatAppOriginal.override?.features?.[featureId];
+
+        // In override mode, always create the override with the specified value
+        // The admin explicitly wants to set this feature to the chosen state
         chatApp.override.features[featureId] = {
             featureId,
-            enabled,
             ...originalFeature,
+            enabled,
         } as ChatAppFeature;
 
         if (enabled && !expandedFeatures[featureId]) {
@@ -129,39 +252,39 @@
         expandedFeatures[featureId] = !expandedFeatures[featureId];
     }
 
-    function cleanupFeaturesAfterReset() {
-        if (!isOverrideMode) return;
+    // function cleanupFeaturesAfterReset() {
+    //     if (!isOverrideMode) return;
 
-        if (!chatApp.override) {
-            return;
-        }
+    //     if (!chatApp.override) {
+    //         return;
+    //     }
 
-        const currentFeatures = chatApp.override.features ?? {};
-        // let hasChanges = false;
+    //     const currentFeatures = chatApp.override.features ?? {};
+    //     // let hasChanges = false;
 
-        // Remove any features that match the original
-        Object.keys(currentFeatures).forEach((featureId) => {
-            const typedFeatureId = featureId as FeatureIdType;
-            const currentFeature = currentFeatures[typedFeatureId];
-            const originalFeature = chatAppOriginal.override?.features?.[typedFeatureId];
+    //     // Remove any features that match the original
+    //     Object.keys(currentFeatures).forEach((featureId) => {
+    //         const typedFeatureId = featureId as FeatureIdType;
+    //         const currentFeature = currentFeatures[typedFeatureId];
+    //         const originalFeature = chatAppOriginal.override?.features?.[typedFeatureId];
 
-            if (deepEqual(originalFeature, currentFeature)) {
-                delete currentFeatures[typedFeatureId];
-                // hasChanges = true;
-            }
-        });
+    //         if (deepEqual(originalFeature, currentFeature)) {
+    //             delete currentFeatures[typedFeatureId];
+    //             // hasChanges = true;
+    //         }
+    //     });
 
-        // if (hasChanges) {
-        //     chatApp.override.features = currentFeatures;
-        // }
-    }
+    //     // if (hasChanges) {
+    //     //     chatApp.override.features = currentFeatures;
+    //     // }
+    // }
 
     // Clean up features after they're updated from parent reset
-    $effect(() => {
-        if (isOverrideMode) {
-            cleanupFeaturesAfterReset();
-        }
-    });
+    // $effect(() => {
+    //     if (isOverrideMode) {
+    //         cleanupFeaturesAfterReset();
+    //     }
+    // });
 </script>
 
 <ConfigSection
@@ -172,7 +295,33 @@
 >
     <div class="space-y-6">
         <div class="flex items-center justify-between">
-            <p class="text-sm text-muted-foreground">Configure which features are enabled for this chat app.</p>
+            <div class="flex items-center gap-1">
+                <p class="text-sm text-muted-foreground">Configure which features are enabled for this chat app.</p>
+                <PopupHelp popoverClasses="max-w-[500px] text-xs text-muted-foreground">
+                    <div class="space-y-3">
+                        <p>There are 3 levels of configuration for features:</p>
+                        <ul class="list-disc list-inside ml-2">
+                            <li>Site: Enabled/Disabled in pika-config.ts</li>
+                            <li>Chat App: Disabled/configured in chat app configuration</li>
+                            <li>Admin: Disabled/configured in admin override</li>
+                        </ul>
+                        <p>
+                            A feature must be enabled at the site level to be available to chat apps and admins to
+                            configure. A feature enabled at the site level may be disabled by either the chat app or
+                            admin.
+                        </p>
+                        <p>
+                            Chat App configuration is defined when a Chat App is deployed by the engineer that defined
+                            it. The chat app configuration takes precedence over the site configuration.
+                        </p>
+                        <p>
+                            The admin override takes precedence over the site and chat app configuration. This is useful
+                            when an admin wants to change a feature for a chat app, e.g. to make it available to only
+                            certain external users.
+                        </p>
+                    </div>
+                </PopupHelp>
+            </div>
             <div class="flex items-center">
                 <Button
                     variant="ghost"
@@ -198,9 +347,18 @@
         <div class="space-y-4">
             {#each Object.entries(FEATURE_NAMES) as [featureId, featureName]}
                 {@const typedFeatureId = featureId as FeatureIdType}
-                {@const featureEnabled = app.override?.features?.[typedFeatureId]?.enabled ?? false}
+                {@const siteStatus = siteFeatureStatus[typedFeatureId]}
+                {@const isInvalidChatAppConfig = invalidChatAppFeatures[typedFeatureId]}
+                {@const canBeEnabled = siteStatus === 'enabled'}
+                {@const featureEnabled =
+                    canBeEnabled &&
+                    (app.override?.features?.[typedFeatureId]?.enabled ??
+                        chatAppOriginal.features?.[typedFeatureId]?.enabled ??
+                        true)}
                 {@const featureOverridden = app.override?.features?.[typedFeatureId] !== undefined}
-                {@const originalFeature = chatAppOriginal.override?.features?.[typedFeatureId]}
+                {@const originalFeature =
+                    chatAppOriginal.features?.[typedFeatureId] ?? appState.siteAdmin.siteFeatures?.[typedFeatureId]}
+                {@const noUsersHaveAccess = enabledButNoUsersHaveAccess[typedFeatureId]}
 
                 <div class="border rounded-lg">
                     <!-- Feature Header -->
@@ -226,17 +384,12 @@
                                         () => featureEnabled,
                                         (featureEnabled) => setFeatureEnabled(typedFeatureId, featureEnabled)
                                     }
-                                    disabled={!isOverrideMode}
+                                    disabled={!isOverrideMode || !canBeEnabled || disabled}
                                     class={featureOverridden ? 'border-orange-500' : ''}
                                     onclick={(e) => e.stopPropagation()}
                                 />
                                 <div>
                                     <Label for="feature-{featureId}" class="font-medium">{featureName}</Label>
-                                    {#if featureOverridden}
-                                        <p class="text-xs text-muted-foreground">
-                                            Original: {originalFeature?.enabled ? 'Enabled' : 'Disabled'}
-                                        </p>
-                                    {/if}
                                 </div>
                             </div>
                             <PopupHelp popoverClasses="max-w-[500px]">
@@ -251,15 +404,54 @@
                                 <Badge variant="destructive" class="text-xs">Error</Badge>
                             {/if}
 
-                            {#if featureOverridden}
-                                <Badge variant="outline" class="text-xs border-orange-300 text-orange-700 bg-orange-50"
-                                    >Overridden</Badge
+                            {#if noUsersHaveAccess}
+                                <PikaBadge
+                                    variant="destructive"
+                                    class="text-xs"
+                                    help="ENABLED but no users have access\nThis feature is enabled but has no userTypes or userRoles specified. Due to Pika's secure-by-default design, this means no users can actually access this feature.\n\nTo fix this:\n• Add at least one userType (e.g., 'internal-user', 'external-user')\n• OR add at least one userRole\n• OR disable the feature if not needed\n\nWithout access control configuration, the feature is effectively disabled even though it appears enabled."
                                 >
+                                    No Users Have Access
+                                </PikaBadge>
                             {/if}
 
-                            <Badge variant={featureEnabled ? 'default' : 'secondary'} class="text-xs">
-                                {featureEnabled ? 'Enabled' : 'Disabled'}
-                            </Badge>
+                            <!-- Status badge with complete hierarchy explanation -->
+                            {#if isInvalidChatAppConfig}
+                                <PikaBadge
+                                    variant="destructive"
+                                    class="text-xs"
+                                    help={siteStatus === 'not-configured'
+                                        ? "INVALID CONFIG: Chat app enabled but site not configured\n\nHierarchy:\n• Site: Not configured (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: None\n\nThe chat app has this feature enabled, but it's not configured at the site level.\nAdd this feature to your site configuration or disable it in the chat app."
+                                        : "INVALID CONFIG: Chat app enabled but site disabled\n\nHierarchy:\n• Site: Disabled (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: None\n\nThe chat app has this feature enabled, but it's disabled at the site level.\nEither enable the feature at the site level or disable it in the chat app configuration."}
+                                >
+                                    Invalid Config: Disabled
+                                </PikaBadge>
+                            {:else if siteStatus === 'not-configured'}
+                                <PikaBadge
+                                    variant="secondary"
+                                    class="text-xs"
+                                    help="This feature is not configured at the site level in pika-config.ts and is therefore disabled by default.\nAdd this feature to your site configuration to turn on the feature and make it available to chat apps and admins to configure."
+                                >
+                                    Site: Not Configured
+                                </PikaBadge>
+                            {:else}
+                                <PikaBadge
+                                    variant={'secondary'}
+                                    class="text-xs"
+                                    help={featureEnabled
+                                        ? featureOverridden
+                                            ? `ENABLED by admin override\n\nHierarchy:\n• Site: ${siteStatus === 'enabled' ? 'Enabled' : 'Disabled'} (pika-config.ts)\n• Chat App: ${originalFeature === undefined ? 'Not configured' : originalFeature.enabled ? 'Enabled' : 'Disabled'}\n• Admin Override: Enabled (takes precedence)\n\nUsers with appropriate permissions can access this feature.`
+                                            : originalFeature?.enabled === true
+                                              ? `ENABLED by chat app configuration\n\nHierarchy:\n• Site: ${siteStatus === 'enabled' ? 'Enabled' : 'Disabled'} (pika-config.ts)\n• Chat App: Enabled (takes precedence)\n• Admin Override: None\n\nUsers with appropriate permissions can access this feature.`
+                                              : `ENABLED by site default\n\nHierarchy:\n• Site: Enabled (pika-config.ts)\n• Chat App: Not configured\n• Admin Override: None\n\nFeature is enabled by default since site allows it and no restrictions are applied.`
+                                        : featureOverridden
+                                          ? `DISABLED by admin override\n\nHierarchy:\n• Site: ${siteStatus === 'enabled' ? 'Enabled' : 'Disabled'} (pika-config.ts)\n• Chat App: ${originalFeature === undefined ? 'Not configured' : originalFeature.enabled ? 'Enabled' : 'Disabled'}\n• Admin Override: Disabled (takes precedence)\n\nUsers cannot access this feature due to admin override.`
+                                          : originalFeature?.enabled === false
+                                            ? `DISABLED by chat app configuration\n\nHierarchy:\n• Site: Enabled (pika-config.ts)\n• Chat App: Disabled (takes precedence)\n• Admin Override: None\n\nUsers cannot access this feature due to chat app configuration.`
+                                            : `DISABLED by site level\n\nHierarchy:\n• Site: Disabled (pika-config.ts)\n• Chat App: Not applicable\n• Admin Override: Not applicable\n\nFeature is disabled at the site level and cannot be enabled by chat apps or admins.`}
+                                >
+                                    {featureEnabled ? 'Enabled' : 'Disabled'}
+                                </PikaBadge>
+                            {/if}
 
                             <ChevronDown
                                 class="w-4 h-4 transition-transform {expandedFeatures[typedFeatureId]
@@ -270,215 +462,272 @@
                     </div>
 
                     <!-- Feature Configuration (when expanded) -->
-                    {#if expandedFeatures[typedFeatureId]}
-                        <Separator />
-                        <div class="p-4">
-                            {#if typedFeatureId === 'fileUpload'}
-                                <FileUploadFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () => app.override?.features?.[typedFeatureId] as FileUploadFeature | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
+                    <Separator />
+                    <div class="p-4" class:hidden={!expandedFeatures[typedFeatureId]}>
+                        {#if typedFeatureId === 'fileUpload'}
+                            <FileUploadFeatureRenderer
+                                {featureEnabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | FileUploadFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
                                             }
+                                            return;
+                                        }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
                                         }
-                                    }
-                                    originalFeature={originalFeature as FileUploadFeature}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
-                                />
-                            {:else if typedFeatureId === 'promptInputFieldLabel'}
-                                <PromptInputFieldLabelFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | PromptInputFieldLabelFeature
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
-                                            }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as PromptInputFieldLabelFeature}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {:else if typedFeatureId === 'suggestions'}
-                                <SuggestionsFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as SuggestionsFeature | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
+                                }
+                                originalFeature={originalFeature as FileUploadFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {disabled}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
+                        {:else if typedFeatureId === 'promptInputFieldLabel'}
+                            <PromptInputFieldLabelFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | PromptInputFieldLabelFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
                                             }
+                                            return;
+                                        }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
                                         }
-                                    }
-                                    originalFeature={originalFeature as SuggestionsFeature}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {:else if typedFeatureId === 'uiCustomization'}
-                                <UiCustomizationFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | UiCustomizationFeature
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
-                                            }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as UiCustomizationFeature}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {:else if typedFeatureId === 'verifyResponse'}
-                                <VerifyResponseFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | VerifyResponseFeatureForChatApp
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
+                                }
+                                originalFeature={originalFeature as PromptInputFieldLabelFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'suggestions'}
+                            <SuggestionsFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | SuggestionsFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
 
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
-                                            }
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as VerifyResponseFeatureForChatApp}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {:else if typedFeatureId === 'traces'}
-                                <TracesFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | TracesFeatureForChatApp
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
+                                }
+                                originalFeature={originalFeature as SuggestionsFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'uiCustomization'}
+                            <UiCustomizationFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | UiCustomizationFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
                                             }
+                                            return;
+                                        }
 
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
-                                                delete chatApp.override.features[typedFeatureId];
-                                            }
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as TracesFeatureForChatApp}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                    setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
-                                />
-                            {:else if typedFeatureId === 'chatDisclaimerNotice'}
-                                <ChatDisclaimerNoticeFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | ChatDisclaimerNoticeFeatureForChatApp
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
-                                            }
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
+                                }
+                                originalFeature={originalFeature as UiCustomizationFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'verifyResponse'}
+                            <VerifyResponseFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | VerifyResponseFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
                                                 delete chatApp.override.features[typedFeatureId];
                                             }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as ChatDisclaimerNoticeFeatureForChatApp}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {:else if typedFeatureId === 'logout'}
-                                <LogoutFeatureRenderer
-                                    bind:overriddenFeature={
-                                        () =>
-                                            app.override?.features?.[typedFeatureId] as
-                                                | LogoutFeatureForChatApp
-                                                | undefined,
-                                        (feat) => {
-                                            assert(isOverrideMode, 'isOverrideMode must be true');
-                                            assert(chatApp.override, 'chatApp.override must be defined');
-                                            if (!chatApp.override.features) {
-                                                chatApp.override.features = {};
-                                            }
-                                            if (feat) {
-                                                chatApp.override.features[typedFeatureId] = feat;
-                                            } else {
+                                }
+                                originalFeature={originalFeature as VerifyResponseFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
+                        {:else if typedFeatureId === 'traces'}
+                            <TracesFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as TracesFeatureForChatApp | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
                                                 delete chatApp.override.features[typedFeatureId];
                                             }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
                                         }
                                     }
-                                    originalFeature={originalFeature as LogoutFeatureForChatApp}
-                                    {isOverrideMode}
-                                    isOverridden={featureOverridden}
-                                    {chatAppId}
-                                />
-                            {/if}
-                        </div>
-                    {/if}
+                                }
+                                originalFeature={originalFeature as TracesFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
+                        {:else if typedFeatureId === 'chatDisclaimerNotice'}
+                            <ChatDisclaimerNoticeFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | ChatDisclaimerNoticeFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as ChatDisclaimerNoticeFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'logout'}
+                            <LogoutFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as LogoutFeatureForChatApp | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as LogoutFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
+                        {/if}
+                    </div>
                 </div>
             {/each}
         </div>

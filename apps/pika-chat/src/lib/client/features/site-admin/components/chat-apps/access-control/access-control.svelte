@@ -17,6 +17,8 @@
         accessExpanded: boolean;
         onToggleAccessSection: () => void;
         chatAppId: string;
+        setValid: (valid: boolean) => void;
+        disabled: boolean;
     }
 
     let {
@@ -26,6 +28,8 @@
         accessExpanded,
         onToggleAccessSection,
         chatAppId,
+        setValid,
+        disabled,
     }: Props = $props();
 
     const appState = getContext<AppState>('appState');
@@ -130,6 +134,13 @@
             if (exclusiveUserIdAccessControl.length === 0) {
                 errors.push('At least one user ID must be specified in exclusive user mode.');
             }
+        } else if (accessMode === 'general') {
+            const obj = (isOverrideMode ? chatApp.override : chatApp) ?? ({} as ChatApp);
+            if ((obj.userTypes ?? []).length === 0 && (obj.userRoles ?? []).length === 0) {
+                errors.push(
+                    'At least one user type or role must be specified in general access mode or no one will be able to access the chat app.'
+                );
+            }
         }
 
         return errors;
@@ -149,22 +160,19 @@
             app.override.exclusiveInternalAccessControl = [];
             app.override.exclusiveUserIdAccessControl = [];
             exclusiveEntityOn = [];
-            app.userTypes = ['internal-user'];
-            app.userRoles = [];
-            app.applyRulesAs = 'and';
         } else if (accessMode === 'exclusive-entity') {
             app.override.exclusiveUserIdAccessControl = [];
-            app.userTypes = ['internal-user'];
-            app.userRoles = [];
-            app.applyRulesAs = 'and';
+            app.userTypes = undefined;
+            app.userRoles = undefined;
+            app.applyRulesAs = undefined;
         } else if (accessMode === 'exclusive-user') {
             app.override.exclusiveExternalAccessControl = [];
             app.override.exclusiveInternalAccessControl = [];
             app.override.exclusiveUserIdAccessControl = [];
             exclusiveEntityOn = [];
-            app.userTypes = ['internal-user'];
-            app.userRoles = [];
-            app.applyRulesAs = 'and';
+            app.userTypes = undefined;
+            app.userRoles = undefined;
+            app.applyRulesAs = undefined;
         }
     });
 
@@ -184,15 +192,24 @@
     });
 
     let exclusiveEntityOn = $state<UserType[]>([]);
+
+    $effect(() => {
+        setValid(validationErrors.length === 0);
+    });
 </script>
 
-<ConfigSection title="Access Control" expanded={accessExpanded} onToggle={onToggleAccessSection}>
+<ConfigSection
+    title="Access Control"
+    expanded={accessExpanded}
+    onToggle={onToggleAccessSection}
+    hasErrors={validationErrors.length > 0}
+>
     <div class="space-y-6">
         <!-- Access Mode Selector -->
         <SimpleDropdown
             bind:value={accessMode}
             widthClasses="w-[300px]"
-            disabled={!isOverrideMode}
+            disabled={!isOverrideMode || disabled}
             mapping={{
                 value: (item) => item as string,
                 label: (item) => {
@@ -233,7 +250,39 @@
         <!-- Mode-specific content -->
         {#if accessMode === 'general'}
             <GeneralAccessControl
-                bind:rulesObj={chatApp}
+                bind:rulesObj={
+                    () => (isOverrideMode ? chatApp.override : chatApp),
+                    (value) => {
+                        chatApp.override = value;
+                        // console.log('here');
+                        // assert(isOverrideMode, 'onRulesObjChange should only be called in override mode');
+                        // assert(chatApp.override, 'chatApp.override should be defined');
+                        // assert(value, 'value should be defined');
+                        // console.log('value', value);
+                        // let enabled: boolean;
+                        // let userTypes: UserType[] | undefined;
+                        // let userRoles: string[] | undefined;
+                        // let applyRulesAs: ApplyRulesAs | undefined;
+                        // if ('enabled' in value) {
+                        //     enabled = value.enabled;
+                        // } else {
+                        //     enabled = true;
+                        // }
+                        // if ('userTypes' in value) {
+                        //     userTypes = value.userTypes;
+                        // }
+                        // if ('userRoles' in value) {
+                        //     userRoles = value.userRoles;
+                        // }
+                        // if ('applyRulesAs' in value) {
+                        //     applyRulesAs = value.applyRulesAs;
+                        // }
+                        // chatApp.override.enabled = enabled;
+                        // chatApp.override.userTypes = userTypes;
+                        // chatApp.override.userRoles = userRoles;
+                        // chatApp.override.applyRulesAs = applyRulesAs;
+                    }
+                }
                 rulesObjOriginal={chatAppOriginal}
                 {isOverrideMode}
                 sectionTitle=""
@@ -246,9 +295,10 @@
                 {isOverrideMode}
                 {chatAppId}
                 {validationErrors}
+                {disabled}
             />
         {:else if accessMode === 'exclusive-user'}
-            <ExclusiveUserAccessControl bind:chatApp {chatAppOriginal} {validationErrors} {isOverrideMode} />
+            <ExclusiveUserAccessControl bind:chatApp {chatAppOriginal} {validationErrors} {isOverrideMode} {disabled} />
         {/if}
     </div>
 </ConfigSection>

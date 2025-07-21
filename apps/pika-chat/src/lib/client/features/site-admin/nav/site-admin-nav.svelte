@@ -1,9 +1,9 @@
 <script lang="ts">
+    import { goto } from '$app/navigation';
     import * as Sidebar from '$comps/ui/sidebar';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { Button } from '$lib/components/ui/button';
     import { getContext } from 'svelte';
-    import { goto } from '$app/navigation';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;

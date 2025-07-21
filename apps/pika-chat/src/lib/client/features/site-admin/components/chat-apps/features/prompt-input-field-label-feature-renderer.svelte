@@ -1,7 +1,6 @@
 <script lang="ts">
     import { Input } from '$lib/components/ui/input';
     import { Label } from '$lib/components/ui/label';
-    import { Checkbox } from '$lib/components/ui/checkbox';
     import type { PromptInputFieldLabelFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {
@@ -10,9 +9,19 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        disabled,
+    }: Props = $props();
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
@@ -40,6 +49,14 @@
         const feature = ensureFeature();
         feature.promptInputFieldLabel = value;
     }
+
+    $effect(() => {
+        if (isOverrideMode) {
+            ensureFeature();
+        } else {
+            overriddenFeature = undefined;
+        }
+    });
 </script>
 
 <div class="space-y-4">
@@ -49,7 +66,7 @@
             id="label-text"
             bind:value={() => featureToShow?.promptInputFieldLabel || '', updateLabel}
             placeholder={defaultLabel}
-            disabled={!isOverrideMode || !overriddenFeature?.enabled}
+            disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
         />
     </div>
 

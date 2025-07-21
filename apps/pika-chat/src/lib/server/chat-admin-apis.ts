@@ -3,17 +3,16 @@ import type {
     ChatApp,
     ChatAppOverride,
     ChatAppOverrideForCreateOrUpdate,
-    ChatUserAddOrUpdateResponse,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
     RecordOrUndef,
-    UserChatAppRule,
+    UserChatAppRule
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
+import { hash } from 'crypto';
 import { LRUCache } from 'lru-cache';
-import { hash } from 'node:crypto';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
 
@@ -24,7 +23,7 @@ const lruCache = new LRUCache({
     ttlAutopurge: true,
     sizeCalculation: (value, key) => {
         return 1;
-    },
+    }
 });
 
 export async function getAllChatApps(): Promise<ChatApp[]> {
@@ -33,14 +32,12 @@ export async function getAllChatApps(): Promise<ChatApp[]> {
         path: `${appConfig.stage}/api/chat-admin/chat-app`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`,
-        },
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        }
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error getting all chat apps from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
+        throw new Error(`Error getting all chat apps from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
     }
 
     return response.body.chatApps;
@@ -52,17 +49,19 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}`,
         method: 'GET',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`,
-        },
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
+        throw new Error(`Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
     }
 
     return response.body.chatApp;
+}
+
+export async function clearChatAppCache(chatAppId: string): Promise<void> {
+    lruCache.delete(`chatApp:${chatAppId}`);
 }
 
 /**
@@ -94,8 +93,19 @@ export async function getMatchingChatApps(
         chatAppsForHomePage,
         homePageFilterRules: homePageFilterRules,
         chatAppId,
-        customDataFieldPathToMatchUsersEntity,
+        customDataFieldPathToMatchUsersEntity
     };
+
+    console.log('🔍 getMatchingChatApps called with:', {
+        userId: user.userId,
+        userType: user.userType,
+        userRoles: user.roles,
+        chatAppsForHomePage,
+        homePageFilterRules,
+        chatAppId,
+        customDataFieldPathToMatchUsersEntity,
+        userCustomData: user.customData
+    });
 
     // Hash the request and see if it is in the cache
     const requestHash = hash('sha256', JSON.stringify(request));
@@ -105,9 +115,15 @@ export async function getMatchingChatApps(
         const allAreCached = chatAppIds.every((chatAppId) => lruCache.has(`chatApp:${chatAppId}`));
         if (allAreCached) {
             const chatApps = (await Promise.all(chatAppIds.map((chatAppId) => getChatApp(chatAppId)))) as ChatApp[];
+            console.log(
+                '✅ getMatchingChatApps returning cached result:',
+                chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
+            );
             return chatApps;
         }
     }
+
+    console.log('🌐 Making API call to chat-admin/chat-app-by-rules with request:', request);
 
     const response = await invokeApi<GetChatAppsByRulesResponse>({
         apiId: appConfig.chatAdminApiId,
@@ -115,15 +131,37 @@ export async function getMatchingChatApps(
         method: 'POST',
         body: request,
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`,
-        },
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    console.log('📡 API response received:', {
+        statusCode: response.statusCode,
+        success: response.body?.success,
+        chatAppsCount: response.body?.chatApps?.length,
+        error: response.body?.error
     });
 
     if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
+        console.error('❌ Error getting matching chat apps:', {
+            statusCode: response.statusCode,
+            error: response.body?.error,
+            userId: user.userId
+        });
+        throw new Error(`Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
     }
+
+    console.log(
+        '📋 Chat apps received from API:',
+        response.body.chatApps.map((app) => ({
+            chatAppId: app.chatAppId,
+            title: app.title,
+            enabled: app.enabled,
+            userTypes: app.userTypes,
+            userRoles: app.userRoles,
+            agentId: app.agentId
+        }))
+    );
 
     if (response.body.chatApps.length > 0) {
         response.body.chatApps.forEach((chatApp) => {
@@ -138,22 +176,22 @@ export async function getMatchingChatApps(
         );
     }
 
+    console.log(
+        '✅ getMatchingChatApps final result:',
+        response.body.chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
+    );
     return response.body.chatApps;
 }
 
-export async function createOrUpdateChatAppOverride(
-    userId: string,
-    chatAppId: string,
-    override: ChatAppOverrideForCreateOrUpdate
-): Promise<ChatAppOverride> {
+export async function createOrUpdateChatAppOverride(userId: string, chatAppId: string, override: ChatAppOverrideForCreateOrUpdate): Promise<ChatAppOverride> {
     const response = await invokeApi<CreateOrUpdateChatAppOverrideResponse>({
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}/override`,
         method: 'POST',
-        body: override,
+        body: { override, userId },
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`,
-        },
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
     });
 
     if (!response.body || !response.body.success) {
@@ -171,8 +209,8 @@ export async function deleteChatAppOverride(userId: string, chatAppId: string): 
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}/override`,
         method: 'DELETE',
         headers: {
-            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`,
-        },
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
     });
 
     if (!response.body || !response.body.success) {

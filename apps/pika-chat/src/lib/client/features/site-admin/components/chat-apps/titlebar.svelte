@@ -1,4 +1,5 @@
 <script lang="ts">
+    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import { Button } from '$lib/components/ui/button';
     import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 
@@ -28,7 +29,14 @@
                 {/if}
             </p>
         </div>
-        <div>
+        <div class="flex items-center gap-1">
+            <PopupHelp popoverClasses="w-60">
+                <div class="text-xs text-muted-foreground flex flex-col gap-3">
+                    <span>A developer defines the initial settings for a chat app when he publishes it.</span>
+                    <span>As an admin, you can override these settings and configure them as you see fit.</span>
+                    <span>These changes don't go into affect unless you click "Save" above.</span>
+                </div>
+            </PopupHelp>
             {#if isOverrideMode}
                 <Button variant="outline" size="sm" onclick={onRemoveOverride}>Remove Override</Button>
             {:else}

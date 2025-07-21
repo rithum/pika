@@ -45,20 +45,24 @@ export const pikaConfig: PikaConfig = {
         },
         traces: {
             enabled: true,
+            userTypes: ['internal-user'],
             detailedTraces: {
                 enabled: true,
                 userTypes: ['internal-user']
             }
         },
         chatDisclaimerNotice: {
+            enabled: true,
             notice: "This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company isn't liable for problems caused by relying solely on this chat."
         },
         verifyResponse: {
             enabled: true,
-            autoRepromptThreshold: 'C' // Accurate with unstated assumptions
+            autoRepromptThreshold: 'C', // Accurate with unstated assumptions
+            userTypes: ['internal-user']
         },
         logout: {
-            enabled: true
+            enabled: true,
+            userTypes: ['internal-user']
         },
         siteAdmin: {
             websiteEnabled: true,
@@ -71,6 +75,30 @@ export const pikaConfig: PikaConfig = {
             supportSpecificUserAccessControl: {
                 enabled: true
             }
+        },
+        fileUpload: {
+            featureId: 'fileUpload',
+            enabled: true,
+            mimeTypesAllowed: ['text/*']
+        },
+        suggestions: {
+            featureId: 'suggestions',
+            enabled: true,
+            suggestions: [], // Must be set by chat apps
+            maxToShow: 5, // Should be overridden by chat apps
+            randomize: false, // Should be overridden by chat apps
+            randomizeAfter: 0 // Should be overridden by chat apps
+        },
+        promptInputFieldLabel: {
+            featureId: 'promptInputFieldLabel',
+            enabled: true,
+            promptInputFieldLabel: 'Ready to chat'
+        },
+        uiCustomization: {
+            featureId: 'uiCustomization',
+            enabled: true,
+            showUserRegionInLeftNav: false,
+            showChatHistoryInStandaloneMode: true
         }
     }
 };

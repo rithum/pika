@@ -109,11 +109,11 @@ const internalChatApp: ChatApp = {
     // ... other properties
 };
 
-// Example: Chat app for all users (default)
+// Example: Chat app for all users (explicit configuration required)
 const publicChatApp: ChatApp = {
     chatAppId: 'customer-support',
-    title: 'Customer Support'
-    // userTypesAllowed not specified = all user types allowed
+    title: 'Customer Support',
+    userTypes: ['internal-user', 'external-user'] // Must explicitly specify access
     // ... other properties
 };
 ```
@@ -294,6 +294,8 @@ const adminChatApp: ChatApp = {
     // ... other properties
 };
 ```
+
+**📖 For comprehensive access control information:** See the [Chat App Access Control Guide](./chat-app-access-control.md) for detailed explanations of all access rules, precedence order, override systems, and troubleshooting.
 
 ## Quick Reference: Security Essentials
 

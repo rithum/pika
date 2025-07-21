@@ -1,4 +1,4 @@
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 
 export async function getLoggedInAccountFromSts(): Promise<[string, string]> {
     const sts = new STSClient({});

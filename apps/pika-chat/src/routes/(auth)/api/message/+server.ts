@@ -1,19 +1,16 @@
+import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
+import { appConfig } from '$lib/server/config';
+import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { getErrorResponse, getOverridableFeatures, isUserContentAdmin } from '$lib/server/utils';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
 import { error, redirect, type RequestHandler } from '@sveltejs/kit';
-import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
-import { appConfig } from '$lib/server/config';
-import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
             throw new Response('Forbidden', { status: 403 });
         }
-        return new Response(
-            'You have selected view content for another user and you are not allowed to take action as that user.',
-            { status: 403 }
-        );
+        return new Response('You have selected view content for another user and you are not allowed to take action as that user.', { status: 403 });
     }
 
     try {
@@ -48,7 +45,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         //TODO: what do we do if an internal user changes the custom data during a chat session?  Do we care?  Will it break anything downstream?
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
             userId: user.userId,
-            customUserData: user.overrideData?.[params.chatAppId] || user.customData,
+            customUserData: user.overrideData?.[params.chatAppId] || user.customData
         };
 
         // Replace the s3Bucket with appConfig.uploadS3Bucket in any files we have
@@ -56,7 +53,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             params.files = params.files?.map((file) => ({
                 ...file,
                 s3Bucket: appConfig.uploadS3Bucket,
-                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket),
+                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket)
             }));
         }
 
@@ -66,16 +63,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             let getCustomDataFieldPathToMatchUsersEntity: string | undefined;
 
             if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
-                getCustomDataFieldPathToMatchUsersEntity =
-                    await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+                getCustomDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
             }
-            const matchingChatApps = await getMatchingChatApps(
-                locals.user,
-                false,
-                undefined,
-                params.chatAppId,
-                getCustomDataFieldPathToMatchUsersEntity
-            );
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, getCustomDataFieldPathToMatchUsersEntity);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {
@@ -89,7 +79,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         // Don't trust the features passed in the request and don't send traces and chatDisclaimerNotice to the converse function
-        const { chatDisclaimerNotice, traces, logout, ...featuresForConverse } = getOverridableFeatures(
+        const { chatDisclaimerNotice, traces, logout, fileUpload, suggestions, promptInputFieldLabel, uiCustomization, ...featuresForConverse } = getOverridableFeatures(
             chatApp,
             locals.user
         );
@@ -110,7 +100,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const responseHeaders: Record<string, string> = {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
+            Connection: 'keep-alive'
         };
 
         if (sessionId) {
@@ -121,13 +111,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         // Since your Lambda streams plain text, we just pass it through
         return new Response(lambdaResponse.body, {
             status: 200,
-            headers: responseHeaders,
+            headers: responseHeaders
         });
     } catch (e) {
         console.error('Error in message handler:', e);
-        return getErrorResponse(
-            500,
-            `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`
-        );
+        return getErrorResponse(500, `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
     }
 };

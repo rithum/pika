@@ -35,6 +35,8 @@ The disclaimer follows a hierarchical configuration:
 
 ### 1. Enable at Site Level
 
+**Important:** The chat disclaimer notice feature must be enabled at the site level before individual chat apps can use it.
+
 In your `pika-config.ts`, configure the chat disclaimer notice:
 
 ```typescript
@@ -42,6 +44,8 @@ export const pikaConfig: PikaConfig = {
     // ... other configuration
     siteFeatures: {
         chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
             notice: "This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company isn't liable for problems caused by relying solely on this chat."
         }
     }
@@ -50,9 +54,11 @@ export const pikaConfig: PikaConfig = {
 
 ### 2. Configuration Options
 
-| Property | Type   | Description                                           |
-| -------- | ------ | ----------------------------------------------------- |
-| `notice` | string | **Required.** The disclaimer text to display to users |
+| Property    | Type    | Description                                           |
+| ----------- | ------- | ----------------------------------------------------- |
+| `featureId` | string  | **Required.** Must be set to `'chatDisclaimerNotice'` |
+| `enabled`   | boolean | **Required.** Whether to enable the feature site-wide |
+| `notice`    | string  | **Required.** The disclaimer text to display to users |
 
 ### 3. Site-Level Configuration Examples
 
@@ -60,21 +66,27 @@ export const pikaConfig: PikaConfig = {
 // Example 1: Customer Support Disclaimer
 siteFeatures: {
     chatDisclaimerNotice: {
-        notice: 'This AI assistant provides general information and support. For urgent issues or definitive answers, please contact our human support team. We are not liable for decisions made based solely on AI responses.';
+        featureId: 'chatDisclaimerNotice',
+        enabled: true,
+        notice: 'This AI assistant provides general information and support. For urgent issues or definitive answers, please contact our human support team. We are not liable for decisions made based solely on AI responses.'
     }
 }
 
 // Example 2: Healthcare Disclaimer
 siteFeatures: {
     chatDisclaimerNotice: {
-        notice: 'This AI assistant provides general health information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers for medical concerns.';
+        featureId: 'chatDisclaimerNotice',
+        enabled: true,
+        notice: 'This AI assistant provides general health information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers for medical concerns.'
     }
 }
 
 // Example 3: Financial Services Disclaimer
 siteFeatures: {
     chatDisclaimerNotice: {
-        notice: 'This AI assistant provides general financial information and should not be considered as personalized financial advice. Consult with qualified financial advisors for investment decisions. We are not liable for financial losses based on AI-generated information.';
+        featureId: 'chatDisclaimerNotice',
+        enabled: true,
+        notice: 'This AI assistant provides general financial information and should not be considered as personalized financial advice. Consult with qualified financial advisors for investment decisions. We are not liable for financial losses based on AI-generated information.'
     }
 }
 ```
@@ -257,6 +269,8 @@ export const pikaConfig: PikaConfig = {
     // ... other configuration
     siteFeatures: {
         chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
             notice: 'This AI-powered chat assistant provides information and support. While we strive for accuracy, responses may not always be complete or current. For urgent matters, critical decisions, or official information, please contact our human support team. We are not liable for decisions made based solely on AI-generated responses.'
         }
     }

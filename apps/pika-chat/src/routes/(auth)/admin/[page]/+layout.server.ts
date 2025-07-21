@@ -1,9 +1,9 @@
 import { getAllChatApps } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { isUserSiteAdmin } from '$lib/server/utils';
-import type { PageServerLoad } from '../$types';
+import type { LayoutServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ url, locals }) => {
+export const load: LayoutServerLoad = async ({ locals }) => {
     if (!locals.user) {
         return new Response('Unauthorized', { status: 401 });
     }
@@ -16,6 +16,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     return {
         chatApps,
-        siteFeatures,
+        siteFeatures
     };
 };

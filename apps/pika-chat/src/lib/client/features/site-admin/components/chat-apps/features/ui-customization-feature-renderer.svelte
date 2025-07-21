@@ -1,8 +1,9 @@
 <script lang="ts">
-    import { Label } from '$lib/components/ui/label';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import type { UiCustomizationFeature } from '@pika/shared/types/chatbot/chatbot-types';
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
+    import { Checkbox } from '$lib/components/ui/checkbox';
+    import { Label } from '$lib/components/ui/label';
+    import { assert } from '$lib/utils';
+    import type { UiCustomizationFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {
         overriddenFeature: UiCustomizationFeature | undefined;
@@ -10,9 +11,19 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        disabled,
+    }: Props = $props();
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
@@ -34,16 +45,18 @@
         return overriddenFeature;
     }
 
-    function updateShowChatHistory(value: boolean) {
-        if (!isOverrideMode) return;
-        const feature = ensureFeature();
-        feature.showChatHistoryInStandaloneMode = value;
-    }
+    $effect(() => {
+        if (isOverrideMode) {
+            ensureFeature();
+        } else {
+            overriddenFeature = undefined;
+        }
+    });
 
-    function updateShowUserRegion(value: boolean) {
-        if (!isOverrideMode) return;
-        const feature = ensureFeature();
-        feature.showUserRegionInLeftNav = value;
+    function updateShowChatHistory(value: boolean) {
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(overriddenFeature, 'overriddenFeature must be defined');
+        overriddenFeature.showChatHistoryInStandaloneMode = value;
     }
 </script>
 
@@ -55,7 +68,7 @@
                 <Checkbox
                     id="show-chat-history"
                     bind:checked={() => featureToShow?.showChatHistoryInStandaloneMode ?? true, updateShowChatHistory}
-                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                 />
                 <Label for="show-chat-history">Show chat history in standalone mode</Label>
                 <PopupHelp popoverClasses="w-60">

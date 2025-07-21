@@ -43,6 +43,8 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
+**Note:** Unlike other features, the site admin feature does not use `userTypes` configuration. Access is controlled entirely through the `pika:site-admin` role assignment.
+
 ### 2. Grant Admin Role
 
 Site admin users must have the `pika:site-admin` role assigned. This is done differently depending on your authentication provider:
@@ -107,6 +109,8 @@ Once configured and the role is assigned:
 3. Navigate to the site admin interface (exact location depends on your UI implementation)
 
 ## Access Control System
+
+**📖 Comprehensive Guide:** For complete details about how all access control rules work together, see the [Chat App Access Control Guide](./chat-app-access-control.md).
 
 ### Access Control Precedence
 

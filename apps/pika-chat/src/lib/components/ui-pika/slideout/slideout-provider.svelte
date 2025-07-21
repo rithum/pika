@@ -2,8 +2,8 @@
     import { cn } from '$lib/utils.js';
     import type { WithElementRef } from 'bits-ui';
     import type { HTMLAttributes } from 'svelte/elements';
+    import { SLIDEOUT_DEFAULT_WIDTH, SLIDEOUT_WIDTH, SLIDEOUT_WIDTH_ICON } from './constants.js';
     import { setSlideout } from './context.svelte.js';
-    import { SLIDEOUT_WIDTH, SLIDEOUT_WIDTH_ICON, SLIDEOUT_DEFAULT_WIDTH } from './constants.js';
 
     interface Props extends WithElementRef<HTMLAttributes<HTMLDivElement>> {
         open?: boolean;

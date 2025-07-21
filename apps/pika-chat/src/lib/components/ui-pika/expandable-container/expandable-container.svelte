@@ -35,7 +35,7 @@ Props:
 -->
 
 <script lang="ts">
-    import { Check, ChevronRight, Minus, Circle, ArrowBigRight } from '$icons/lucide';
+    import { ArrowBigRight, Check, ChevronRight, Circle, Minus } from '$icons/lucide';
     import { Button } from '$lib/components/ui/button';
     import type { Snippet } from 'svelte';
 

@@ -10,16 +10,17 @@ The feature override system provides:
 - **Granular Control**: Individual chat apps can customize feature behavior
 - **Access Control**: Fine-tuned user access rules per chat app
 - **Fallback Logic**: Graceful handling when overrides are not specified
-- **Security First**: Chat apps can only make features more restrictive, not less
+- **Consistent Governance**: All features must be enabled at site level before chat apps can use them
 
 ## How It Works
 
-### 1. Two-Level Architecture
+### 1. Three-Level Architecture
 
-The system operates with two configuration levels:
+The system operates with three configuration levels:
 
-1. **Site Level** (`pika-config.ts`): Global defaults for all chat apps
-2. **Chat App Level**: Individual chat app overrides
+1. **Site Level** (`pika-config.ts`): Global feature enablement and defaults for all chat apps
+2. **Chat App Level**: Individual chat app overrides (can only restrict site-level settings)
+3. **Admin Override Level**: Administrative overrides (can completely replace chat app settings)
 
 ### 2. Resolution Logic
 
@@ -27,39 +28,251 @@ When determining feature availability for a user:
 
 ```typescript
 // Simplified resolution flow
-function resolveFeatureAccess(siteFeature, chatAppFeature, user) {
+function resolveFeatureAccess(siteFeature, chatAppFeature, adminOverrideFeature, user) {
     // 1. If site level is disabled, feature is off for everyone
-    if (!siteFeature.enabled) {
+    if (!siteFeature || !siteFeature.enabled) {
         return false;
     }
 
-    // 2. If chat app has its own rules, use those (but only to restrict)
-    if (chatAppFeature && hasCustomRules(chatAppFeature)) {
-        return checkAccess(user, chatAppFeature);
+    // 2. Admin override takes precedence over chat app configuration
+    const effectiveFeature = adminOverrideFeature || chatAppFeature;
+
+    // 3. If effective feature has its own rules, use those
+    if (effectiveFeature && hasCustomRules(effectiveFeature)) {
+        return checkAccess(user, effectiveFeature);
     }
 
-    // 3. Fall back to site level rules
+    // 4. Fall back to site level rules
     return checkAccess(user, siteFeature);
 }
 ```
 
 ### 3. Override Principles
 
-- **Site Level Controls Availability**: If a feature is disabled at the site level, chat apps cannot enable it
-- **Chat Apps Can Only Restrict**: Chat apps can only disable enabled features, cannot enabled a feature not turned on at site level
-- **Independent Rule Sets**: Chat apps can define their own access rules (userTypes, userRoles)
-- **Graceful Fallback**: Missing overrides fall back to site-level configuration
+- **Site Level Controls Availability**: All features must be enabled at site level first
+- **Chat Apps Can Only Restrict**: Chat apps can disable or add restrictions to enabled features
+- **Admin Overrides Replace Chat App**: Admin overrides completely replace chat app settings (when present)
+- **Cannot Enable Disabled Features**: Neither chat apps nor admin overrides can enable features disabled at site level
+- **Complete Override Required**: When overriding a feature, ALL settings for that feature must be provided
+- **No Merging**: Overrides do NOT merge with lower levels - they completely replace them
+- **Graceful Fallback**: Missing overrides fall back to the next level (Admin → Chat App → Site)
 
-## Supported Features
+## Site-Level Feature Configuration
+
+Before any chat app can use a feature, it must be configured at the site level in `pika-config.ts`:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        // All features must be configured here first
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user']
+            }
+        },
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user', 'external-user']
+        },
+        fileUpload: {
+            featureId: 'fileUpload',
+            enabled: true,
+            mimeTypesAllowed: ['image/*', 'application/pdf', 'text/plain', '.docx']
+        },
+        suggestions: {
+            featureId: 'suggestions',
+            enabled: true,
+            suggestions: [], // Empty means chat apps define their own
+            maxToShow: 5,
+            randomize: false,
+            randomizeAfter: 0
+        },
+        promptInputFieldLabel: {
+            featureId: 'promptInputFieldLabel',
+            enabled: true,
+            promptInputFieldLabel: 'Ready to chat'
+        },
+        uiCustomization: {
+            featureId: 'uiCustomization',
+            enabled: true,
+            showUserRegionInLeftNav: false,
+            showChatHistoryInStandaloneMode: true
+        },
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
+            notice: 'This AI-powered chat is here to help, but it may not always be accurate.'
+        },
+        logout: {
+            featureId: 'logout',
+            enabled: true,
+            userTypes: ['internal-user', 'external-user']
+        }
+    }
+};
+```
+
+## Critical: Complete Override Requirement
+
+**When a chat app overrides a feature, it must provide ALL configuration settings for that feature.**
+
+### No Merging Behavior
+
+Overrides at each level **completely replace** settings from lower levels - they do NOT merge:
+
+```typescript
+// ❌ WRONG: This override will LOSE the autoRepromptThreshold setting
+// Site level
+siteFeatures: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user', 'external-user']
+    }
+}
+
+// Chat app override (INCOMPLETE - will lose autoRepromptThreshold!)
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        userTypes: ['internal-user']  // Missing autoRepromptThreshold!
+    }
+}
+// Result: { enabled: true, userTypes: ['internal-user'], autoRepromptThreshold: undefined }
+```
+
+```typescript
+// ✅ CORRECT: Complete override with all required settings
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C',  // Must explicitly include this
+        userTypes: ['internal-user']  // The restriction we wanted
+    }
+}
+// Result: { enabled: true, userTypes: ['internal-user'], autoRepromptThreshold: 'C' }
+```
+
+```typescript
+// ❌ WRONG: Admin override will LOSE chat app settings
+// Site level
+siteFeatures: {
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user', 'external-user']
+    }
+}
+
+// Chat app level
+features: {
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'B', // More strict
+        userTypes: ['external-user'] // More restrictive
+    }
+}
+
+// Admin override (INCOMPLETE - will lose autoRepromptThreshold!)
+override: {
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            userTypes: ['internal-user', 'external-user'] // Missing autoRepromptThreshold!
+        }
+    }
+}
+// Result: { enabled: true, userTypes: ['internal-user', 'external-user'], autoRepromptThreshold: undefined }
+```
+
+```typescript
+// ✅ CORRECT: Complete admin override
+override: {
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'F', // Admin chooses different threshold
+            userTypes: ['internal-user', 'external-user'] // Admin allows broader access
+        }
+    }
+}
+// Result: { enabled: true, userTypes: ['internal-user', 'external-user'], autoRepromptThreshold: 'F' }
+```
+
+### Why This Design?
+
+- **Predictable**: No surprising merging logic to debug
+- **Explicit**: Chat apps have complete control over their configuration
+- **Safe**: Prevents accidental inheritance of unwanted site-level settings
+
+## Admin Override Capabilities
+
+Administrative users with the `pika:site-admin` role can create overrides that completely replace chat app feature configurations. Admin overrides are managed through the Site Admin interface.
+
+### Admin Override Rules
+
+- **Complete Replacement**: Admin overrides completely replace chat app feature settings
+- **Site-Level Gating**: Admin overrides cannot enable features disabled at the site level
+- **Complete Configuration Required**: When overriding, ALL feature settings must be provided
+- **Take Precedence**: Admin overrides take precedence over chat app settings when present
+
+### Admin Override Example
+
+```typescript
+// Original chat app configuration
+const chatApp: ChatApp = {
+    chatAppId: 'customer-support',
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['external-user']
+        }
+    }
+};
+
+// Admin creates override through Site Admin interface
+// This gets stored as chatApp.override.features.verifyResponse
+const adminOverride = {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'F', // More lenient than chat app
+        userTypes: ['internal-user', 'external-user'] // Broader access than chat app
+        // ✅ Complete override - admin must provide all settings
+    }
+};
+
+// Result: Admin override completely replaces chat app settings
+// Final config: { enabled: true, autoRepromptThreshold: 'F', userTypes: ['internal-user', 'external-user'] }
+```
+
+## Chat App Override Capabilities
 
 The following features support chat app-level overrides:
 
-### 1. Traces Feature
+### Features with Access Control (Can Override User Rules)
+
+#### 1. Traces Feature
 
 ```typescript
 // Site level configuration
 siteFeatures: {
     traces: {
+        featureId: 'traces',
         enabled: true,
         userTypes: ['internal-user'],
         detailedTraces: {
@@ -69,60 +282,190 @@ siteFeatures: {
     }
 }
 
-// Chat app override
+// Chat app override - can add more restrictions (MUST include all settings)
 features: {
     traces: {
         featureId: 'traces',
         enabled: true,
-        userTypes: ['internal-user'],
+        userTypes: ['internal-user'], // Keep from site level
         userRoles: ['developer'], // Additional restriction
         detailedTraces: {
             enabled: true,
-            userTypes: ['internal-user'],
+            userTypes: ['internal-user'], // Keep from site level
             userRoles: ['pika:content-admin'] // More restrictive
         }
+        // ✅ Complete configuration - must define both basic and detailed trace rules
     }
 }
 ```
 
-### 2. Verify Response Feature
+#### 2. Verify Response Feature
 
 ```typescript
 // Site level configuration
 siteFeatures: {
     verifyResponse: {
+        featureId: 'verifyResponse',
         enabled: true,
-        autoRepromptThreshold: 'c', // Accurate with unstated assumptions
+        autoRepromptThreshold: 'C', // Accurate with unstated assumptions
+        userTypes: ['internal-user', 'external-user']
+    }
+}
+
+// Chat app override - can be more restrictive (MUST include all settings)
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'F', // More lenient threshold
+        userTypes: ['internal-user'] // More restrictive access
+        // ✅ Complete configuration - includes all properties from site level
+    }
+}
+```
+
+#### 3. Logout Feature
+
+```typescript
+// Site level configuration
+siteFeatures: {
+    logout: {
+        featureId: 'logout',
+        enabled: true,
         userTypes: ['internal-user', 'external-user']
     }
 }
 
 // Chat app override
 features: {
-    verifyResponse: {
-        featureId: 'verifyResponse',
+    logout: {
+        featureId: 'logout',
         enabled: true,
-        autoRepromptThreshold: 'F', // More lenient (inaccurate with possibly made up content)
-        userTypes: ['internal-user'] // More restrictive
+        userTypes: ['internal-user'], // More restrictive
+        menuItemTitle: 'Sign Out',
+        dialogTitle: 'Confirm Sign Out',
+        dialogDescription: 'Are you sure you want to sign out of this application?'
     }
 }
 ```
 
-### 3. Chat Disclaimer Notice Feature
+### Features with Simple Configuration (Can Override Settings)
+
+#### 4. File Upload Feature
 
 ```typescript
 // Site level configuration
 siteFeatures: {
-    chatDisclaimerNotice: {
-        notice: "Default disclaimer for all chat apps."
+    fileUpload: {
+        featureId: 'fileUpload',
+        enabled: true,
+        mimeTypesAllowed: ['image/*', 'application/pdf', 'text/plain', '.docx']
+    }
+}
+
+// Chat app override - can be more restrictive
+features: {
+    fileUpload: {
+        featureId: 'fileUpload',
+        enabled: true,
+        mimeTypesAllowed: ['image/*'] // More restrictive than site
+    }
+}
+```
+
+#### 5. Suggestions Feature
+
+```typescript
+// Site level configuration
+siteFeatures: {
+    suggestions: {
+        featureId: 'suggestions',
+        enabled: true,
+        suggestions: [], // Empty means chat apps define their own
+        maxToShow: 5,
+        randomize: false,
+        randomizeAfter: 0
+    }
+}
+
+// Chat app override - custom suggestions
+features: {
+    suggestions: {
+        featureId: 'suggestions',
+        enabled: true,
+        suggestions: ['How can I track my order?', 'What are your return policies?'],
+        maxToShow: 3, // More restrictive
+        randomize: true
+    }
+}
+```
+
+#### 6. UI Customization Feature
+
+```typescript
+// Site level configuration
+siteFeatures: {
+    uiCustomization: {
+        featureId: 'uiCustomization',
+        enabled: true,
+        showUserRegionInLeftNav: false,
+        showChatHistoryInStandaloneMode: true
     }
 }
 
 // Chat app override
 features: {
+    uiCustomization: {
+        featureId: 'uiCustomization',
+        enabled: true,
+        showUserRegionInLeftNav: true, // Different from site
+        showChatHistoryInStandaloneMode: false // Different from site
+    }
+}
+```
+
+### Features with Text Configuration
+
+#### 7. Prompt Input Field Label Feature
+
+```typescript
+// Site level configuration
+siteFeatures: {
+    promptInputFieldLabel: {
+        featureId: 'promptInputFieldLabel',
+        enabled: true,
+        promptInputFieldLabel: 'Ready to chat'
+    }
+}
+
+// Chat app override - custom label
+features: {
+    promptInputFieldLabel: {
+        featureId: 'promptInputFieldLabel',
+        enabled: true,
+        promptInputFieldLabel: 'Ask me about our products...'
+    }
+}
+```
+
+#### 8. Chat Disclaimer Notice Feature
+
+```typescript
+// Site level configuration
+siteFeatures: {
     chatDisclaimerNotice: {
         featureId: 'chatDisclaimerNotice',
-        notice: "Custom disclaimer specific to this chat app."
+        enabled: true,
+        notice: "This AI-powered chat is here to help, but it may not always be accurate."
+    }
+}
+
+// Chat app override - custom disclaimer
+features: {
+    chatDisclaimerNotice: {
+        featureId: 'chatDisclaimerNotice',
+        enabled: true,
+        notice: "This customer service chat is powered by AI. For account-specific issues, please contact human support."
     }
 }
 ```
@@ -131,12 +474,13 @@ features: {
 
 ### 1. Access Rules Override
 
-Chat apps can define their own access rules:
+Chat apps can define more restrictive access rules:
 
 ```typescript
 // Site level: Available to all internal users
 siteFeatures: {
     traces: {
+        featureId: 'traces',
         enabled: true,
         userTypes: ['internal-user']
     }
@@ -162,6 +506,7 @@ Chat apps can disable features that are enabled at the site level:
 // Site level: Traces enabled globally
 siteFeatures: {
     traces: {
+        featureId: 'traces',
         enabled: true,
         userTypes: ['internal-user']
     }
@@ -184,6 +529,7 @@ Some features allow parameter customization:
 // Site level: Conservative auto-reprompt threshold
 siteFeatures: {
     verifyResponse: {
+        featureId: 'verifyResponse',
         enabled: true,
         autoRepromptThreshold: 'C' // Accurate with unstated assumptions
     }
@@ -199,97 +545,27 @@ features: {
 }
 ```
 
-## Implementation Details
+## Admin UI Experience
 
-### 1. Feature Resolution Function
+The site admin interface provides clear feedback about feature configuration:
 
-The `resolveFeatureRules` function handles the override logic:
+### Status Indicators
 
-```typescript
-export function resolveFeatureRules(siteFeature: AccessRules, appFeature?: AccessRules): AccessRules {
-    // Site level controls whether feature can be used at all
-    if (!siteFeature.enabled) {
-        return {
-            enabled: false,
-            userTypes: siteFeature.userTypes,
-            userRoles: siteFeature.userRoles,
-            applyRulesAs: siteFeature.applyRulesAs ?? 'and'
-        };
-    }
+- **Site: Enabled** - Feature is available for use
+- **Site: Disabled** - Feature is not available (chat apps cannot enable)
+- **Site: Not Configured** - Feature needs to be configured at site level
 
-    // Check if app provides its own rules
-    if (appFeature && hasCustomRules(appFeature)) {
-        return {
-            enabled: appFeature.enabled !== false,
-            userTypes: appFeature.userTypes,
-            userRoles: appFeature.userRoles,
-            applyRulesAs: appFeature.applyRulesAs ?? 'and'
-        };
-    }
+### Validation Messages
 
-    // Use site level rules
-    return siteFeature;
-}
-```
+- **⚠️ Not configured at site level** - Add to `pika-config.ts`
+- **🚫 Disabled at site level** - Cannot be enabled by chat apps
+- **⚠️ Chat app has this enabled but site level doesn't allow it** - Configuration conflict
 
-### 2. Access Control Logic
+### Smart Controls
 
-The `checkUserAccessToFeature` function evaluates user permissions:
-
-```typescript
-export function checkUserAccessToFeature(user: AuthenticatedUser, feature: AccessRules): boolean {
-    // If disabled, no access
-    if (!feature.enabled) {
-        return false;
-    }
-
-    // If no rules specified, allow all users
-    if (!feature.userTypes && !feature.userRoles) {
-        return true;
-    }
-
-    // Check user type and role access
-    const userTypeMatches = feature.userTypes ? feature.userTypes.includes(user.userType) : true;
-    const userRoleMatches = feature.userRoles ? user.roles?.some((role) => feature.userRoles.includes(role)) : true;
-
-    // Apply combination logic
-    return feature.applyRulesAs === 'or' ? userTypeMatches || userRoleMatches : userTypeMatches && userRoleMatches;
-}
-```
-
-### 3. Feature Processing
-
-Features are processed in the `getOverridableFeatures` function:
-
-```typescript
-export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser): ChatAppOverridableFeatures {
-    const result: ChatAppOverridableFeatures = {
-        verifyResponse: { enabled: false },
-        traces: { enabled: false, detailedTraces: false },
-        chatDisclaimerNotice: undefined
-    };
-
-    // Process verify response feature
-    const siteVerifyRule = siteFeatures?.verifyResponse || { enabled: false };
-    const appVerifyRule = chatApp.features?.verifyResponse;
-    const resolvedVerifyRules = resolveFeatureRules(siteVerifyRule, appVerifyRule);
-
-    result.verifyResponse.enabled = checkUserAccessToFeature(user, resolvedVerifyRules);
-    result.verifyResponse.autoRepromptThreshold = appVerifyRule?.autoRepromptThreshold ?? siteVerifyRule.autoRepromptThreshold;
-
-    // Process traces feature
-    const siteTracesRule = siteFeatures?.traces || { enabled: false };
-    const appTracesRule = chatApp.features?.traces;
-    const resolvedTracesRules = resolveFeatureRules(siteTracesRule, appTracesRule);
-
-    result.traces.enabled = checkUserAccessToFeature(user, resolvedTracesRules);
-
-    // Process disclaimer notice (no access control)
-    result.chatDisclaimerNotice = siteFeatures?.chatDisclaimerNotice?.notice ?? chatApp.features?.chatDisclaimerNotice?.notice;
-
-    return result;
-}
-```
+- **Disabled checkboxes** when features cannot be enabled
+- **Visual warnings** for invalid configurations
+- **Helpful tooltips** explaining restrictions
 
 ## Best Practices
 
@@ -299,6 +575,7 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
 // Define sensible defaults at the site level
 siteFeatures: {
     traces: {
+        featureId: 'traces',
         enabled: true,
         userTypes: ['internal-user'],
         detailedTraces: {
@@ -307,224 +584,137 @@ siteFeatures: {
             userRoles: ['pika:content-admin']
         }
     },
-    verifyResponse: {
+    fileUpload: {
+        featureId: 'fileUpload',
         enabled: true,
-        autoRepromptThreshold: 'C', // Accurate with unstated assumptions
-        userTypes: ['internal-user', 'external-user']
+        mimeTypesAllowed: ['image/*', 'application/pdf'] // Conservative defaults
     }
 }
 ```
 
 ### 2. Use Chat App Overrides Sparingly
 
-Only override when necessary:
+Only override when necessary for specific use cases:
 
 ```typescript
-// Good: Specific need for different behavior
+// Only override when you need different behavior
 features: {
-    verifyResponse: {
-        featureId: 'verifyResponse',
+    fileUpload: {
+        featureId: 'fileUpload',
         enabled: true,
-        autoRepromptThreshold: 'F', // Less strict for this app
-        userTypes: ['external-user'] // Customer-facing app
-    }
-}
-
-// Avoid: Unnecessary overrides that duplicate site settings
-features: {
-    verifyResponse: {
-        featureId: 'verifyResponse',
-        enabled: true,
-        // Same threshold as site level - unnecessary override
-        autoRepromptThreshold: 'C'
+        mimeTypesAllowed: ['image/*'] // Customer service only needs images
+        // ✅ Complete override - must include all required properties
     }
 }
 ```
 
-### 3. Document Override Rationale
+### 3. Always Provide Complete Configurations
+
+When overriding a feature, include ALL properties that the feature supports:
 
 ```typescript
-// In your chat app definition
-const criticalSystemApp: ChatApp = {
-    chatAppId: 'critical-system',
-    title: 'Critical System Support',
-    // ... other properties
-    features: {
-        verifyResponse: {
-            featureId: 'verifyResponse',
-            enabled: true,
-            // More aggressive verification for critical systems
-            autoRepromptThreshold: 'B',
-            userTypes: ['internal-user'] // Internal support only
-        },
-        traces: {
-            featureId: 'traces',
-            enabled: true,
-            // Only senior support can see detailed traces for critical systems
-            userTypes: ['internal-user'],
-            userRoles: ['senior-support', 'pika:content-admin'],
-            applyRulesAs: 'and'
-        }
+// ❌ BAD: Incomplete override loses site-level settings
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        userTypes: ['internal-user'] // Missing autoRepromptThreshold!
     }
-};
+}
+
+// ✅ GOOD: Complete override preserves all necessary settings
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C', // Explicitly include from site level
+        userTypes: ['internal-user'] // The restriction we want
+    }
+}
 ```
 
-## Common Patterns
+### 4. Use Admin Overrides for Temporary Changes
 
-### 1. Customer vs. Internal Chat Apps
+Admin overrides are perfect for:
 
-```typescript
-// Customer-facing chat app
-const customerApp: ChatApp = {
-    // ... other properties
-    features: {
-        traces: {
-            featureId: 'traces',
-            enabled: false // Hide traces from customers
-        },
-        verifyResponse: {
-            featureId: 'verifyResponse',
-            enabled: true,
-            userTypes: ['external-user']
-        }
-    }
-};
+- Emergency access control changes
+- Temporary feature testing
+- Customer-specific configurations
+- Debugging and troubleshooting
 
-// Internal support chat app
-const internalApp: ChatApp = {
-    // ... other properties
-    features: {
-        traces: {
-            featureId: 'traces',
-            enabled: true,
-            userTypes: ['internal-user'],
-            detailedTraces: {
-                enabled: true,
-                userTypes: ['internal-user'],
-                userRoles: ['pika:content-admin']
-            }
-        }
-    }
-};
-```
+### 5. Test Your Configuration
 
-### 2. Specialized App Requirements
-
-```typescript
-// High-accuracy requirement
-const legalApp: ChatApp = {
-    // ... other properties
-    features: {
-        verifyResponse: {
-            featureId: 'verifyResponse',
-            enabled: true,
-            autoRepromptThreshold: 'B',
-            userTypes: ['internal-user'],
-            userRoles: ['legal-team']
-        }
-    }
-};
-
-// Development/testing app
-const devApp: ChatApp = {
-    // ... other properties
-    features: {
-        traces: {
-            featureId: 'traces',
-            enabled: true,
-            userTypes: ['internal-user'],
-            userRoles: ['developer'],
-            detailedTraces: {
-                enabled: true,
-                userTypes: ['internal-user'],
-                userRoles: ['developer']
-            }
-        }
-    }
-};
-```
+- Verify features work as expected after configuration changes
+- Test with different user types and roles
+- Use the admin interface to validate your settings
+- Check that overridden features include all expected properties
+- Test both chat app and admin override scenarios
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Feature not working despite override**: Check that site level is enabled
-2. **Overly restrictive access**: Verify that chat app override isn't too restrictive
-3. **Unexpected behavior**: Ensure override logic follows the "restrict only" principle
+1. **Feature not showing in admin UI**: Check if it's enabled in `pika-config.ts`
+2. **Cannot enable feature**: Verify site-level configuration allows it
+3. **Access denied for users**: Review userTypes and userRoles settings
+4. **Configuration conflicts**: Use admin UI warnings to identify issues
+5. **Feature settings missing after override**: Incomplete override lost lower-level settings
+6. **Chat app settings ignored**: Check if admin override is present and taking precedence
+7. **Admin override not working**: Verify admin has `pika:site-admin` role
 
-### Debug Steps
-
-1. **Check site configuration**: Verify feature is enabled at site level
-2. **Review chat app override**: Ensure override configuration is correct
-3. **Test user permissions**: Verify user has required userType/userRoles
-4. **Use traces**: Enable traces to see feature resolution in action
-
-## Example: Complete Override Setup
+### Quick Fixes
 
 ```typescript
-// pika-config.ts
-export const pikaConfig: PikaConfig = {
-    siteFeatures: {
-        traces: {
-            enabled: true,
-            userTypes: ['internal-user'],
-            detailedTraces: {
-                enabled: true,
-                userTypes: ['internal-user'],
-                userRoles: ['pika:content-admin']
-            }
-        },
-        verifyResponse: {
-            enabled: true,
-            autoRepromptThreshold: 'C',
-            userTypes: ['internal-user', 'external-user']
-        },
-        chatDisclaimerNotice: {
-            notice: 'Default AI disclaimer for all chat applications.'
-        }
+// Problem: Feature disabled everywhere
+siteFeatures: {
+    myFeature: {
+        featureId: 'myFeature',
+        enabled: false // ❌ This disables for all chat apps
     }
-};
+}
 
-// Individual chat app with overrides
-const specializedApp: ChatApp = {
-    chatAppId: 'specialized-support',
-    title: 'Specialized Support Chat',
-    // ... other properties
-    features: {
-        traces: {
-            featureId: 'traces',
-            enabled: true,
-            userTypes: ['internal-user'],
-            userRoles: ['specialized-support'],
-            detailedTraces: {
-                enabled: true,
-                userTypes: ['internal-user'],
-                userRoles: ['specialized-support', 'pika:content-admin'],
-                applyRulesAs: 'or'
-            }
-        },
-        verifyResponse: {
-            featureId: 'verifyResponse',
-            enabled: true,
-            autoRepromptThreshold: 'B',
-            userTypes: ['internal-user']
-        },
-        chatDisclaimerNotice: {
-            featureId: 'chatDisclaimerNotice',
-            enabled: true,
-            notice: 'This specialized support chat provides expert assistance. For urgent issues, contact our emergency support line.'
-        }
+// Solution: Enable at site level
+siteFeatures: {
+    myFeature: {
+        featureId: 'myFeature',
+        enabled: true // ✅ Now chat apps can use it
     }
+}
+
+// Problem: Incomplete override loses settings
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        userTypes: ['internal-user'] // ❌ Missing autoRepromptThreshold
+    }
+}
+
+// Solution: Include all properties in override
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C', // ✅ Explicitly include all settings
+        userTypes: ['internal-user']
+    }
+}
+
+// Problem: Chat app settings being ignored
+// Check if admin override exists and is taking precedence
+chatApp.override?.features?.verifyResponse // ❌ If this exists, it replaces chat app settings
+
+// Solution: Either remove admin override or update it with desired settings
+// Remove admin override to restore chat app settings
+delete chatApp.override.features.verifyResponse;
+
+// OR update admin override with complete configuration
+chatApp.override.features.verifyResponse = {
+    featureId: 'verifyResponse',
+    enabled: true,
+    autoRepromptThreshold: 'C', // ✅ Complete admin override
+    userTypes: ['internal-user']
 };
 ```
 
-## Related Features
-
-- **[Traces Feature](./traces-feature.md)**: Detailed documentation on traces configuration
-- **[Verify Response Feature](./verify-response-feature.md)**: Complete guide to response verification
-- **[Chat Disclaimer Notice Feature](./chat-disclaimer-notice-feature.md)**: Disclaimer configuration details
-- **[Customization Guide](./customization.md)**: General site feature configuration
-
----
-
-**Need more help?** Check the [Troubleshooting Guide](./troubleshooting.md) or review the [Authentication Guide](./authentication.md) for user type and role configuration.
+This system provides a clear hierarchy (Site → Chat App → Admin Override → User) with strong governance and flexibility where needed.

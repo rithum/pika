@@ -1,6 +1,6 @@
-import type { PresignedUrlUploadRequest, PresignedUrlUploadResponse } from '@pika/shared/types/upload-types';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { PresignedUrlUploadRequest, PresignedUrlUploadResponse } from '@pika/shared/types/upload-types';
 import { appConfig } from './config';
 
 const THIRTY_MINUTES_SECONDS = 30 * 60; // 1800 seconds
@@ -9,9 +9,7 @@ let s3Client: S3Client | undefined;
 /**
  * Create a one time use s3 upload url.
  */
-export async function getPresignedUploadResponse(
-    request: PresignedUrlUploadRequest
-): Promise<PresignedUrlUploadResponse> {
+export async function getPresignedUploadResponse(request: PresignedUrlUploadRequest): Promise<PresignedUrlUploadResponse> {
     const { s3Key, fileMimeType, fileSize } = request;
 
     if (!s3Client) {
@@ -25,7 +23,7 @@ export async function getPresignedUploadResponse(
             Key: s3Key,
             ContentLength: fileSize,
             // We will detect when the chat message is written to the database and then set the confirmed tag to true
-            Tagging: 'chat=true&confirmed=false',
+            Tagging: 'chat=true&confirmed=false'
         }),
         { expiresIn: THIRTY_MINUTES_SECONDS }
     );
@@ -34,7 +32,7 @@ export async function getPresignedUploadResponse(
         presignedUrl: url,
         method: 'put',
         headers: {
-            'Content-Type': fileMimeType,
-        },
+            'Content-Type': fileMimeType
+        }
     };
 }

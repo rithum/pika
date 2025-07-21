@@ -1,20 +1,14 @@
 <script lang="ts">
-    import { Plus, RotateCcw, Save } from '$icons/lucide';
+    import { BrushCleaning, Expand, Loader, Shrink } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import PikaAlert from '$lib/components/ui-pika/pika-alert/pika-alert.svelte';
     import { Button } from '$lib/components/ui/button';
-    import { Label } from '$lib/components/ui/label';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import { Separator } from '$lib/components/ui/separator';
     import type {
-        ApplyRulesAs,
         ChatApp,
-        ChatAppFeature,
-        ChatAppOverride,
         ChatAppOverrideForCreateOrUpdate,
-        FeatureIdType,
         UserChatAppRule,
-        UserRole,
-        UserType,
     } from '@pika/shared/types/chatbot/chatbot-types';
     import deepEqual from 'deep-equal';
     import { getContext, type Snippet } from 'svelte';
@@ -23,12 +17,13 @@
     import Features from '../components/chat-apps/features/features.svelte';
     import LeftNav from '../components/chat-apps/left-nav.svelte';
     import Titlebar from '../components/chat-apps/titlebar.svelte';
-    import ConfigSection from '../components/config-section.svelte';
     import ValidationErrorBanner from '../components/validation-error-banner.svelte';
-    import { assert } from '$lib/utils';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
+    let showRemoveOverrideAlertDialog = $state(false);
+    let showResetToSavedVersionAlertDialog = $state(false);
+    let showClearChatAppCacheAlertDialog = $state(false);
 
     interface Props {
         pageHeaderRight: Snippet<[]> | undefined;
@@ -38,14 +33,38 @@
 
     // Local state
     let selectedChatApp = $state<ChatApp | undefined>(undefined);
-    let editedOverride = $state<Partial<ChatAppOverride>>({});
     let selectedChatAppValid = $state(true);
     let selectedChatAppForEditing = $state<ChatApp | undefined>(undefined);
+    let isSaving = $state(false);
+    let isClearingChatAppCache = $derived(siteAdmin.siteAdminOperationInProgress.clearChatAppCache);
 
     let isDirty = $derived.by(() => {
         const original = selectedChatApp;
         const forEditing = selectedChatAppForEditing;
-        return forEditing && original && !deepEqual(original, forEditing);
+
+        if (!forEditing || !original) {
+            return false;
+        }
+
+        // For fair comparison, normalize both objects the same way
+        const normalizedOriginal = original; //normalizeChatApp(original);
+        const dirty = !deepEqual(normalizedOriginal, forEditing);
+
+        // Debug logging for isDirty calculation (simplified)
+        // console.log('isDirty calculation:', {
+        //     chatAppId: original.chatAppId,
+        //     hasOverride: !!original.override,
+        //     isDirty: dirty,
+        // });
+
+        // Log differences if dirty (for ongoing debugging)
+        // if (dirty) {
+        //     console.log('Chat app is dirty - user has made changes');
+        // console.log('original:', JSON.stringify(original, null, 2));
+        // console.log('forEditing:', JSON.stringify(forEditing, null, 2));
+        // }
+
+        return dirty;
     });
 
     // Section collapse state
@@ -60,17 +79,31 @@
     const siteFeatures = $derived(siteAdmin.siteFeatures);
 
     // Determine if we're in override mode
-    const isOverrideMode = $derived(!!selectedChatApp?.override);
+    let isOverrideMode = $derived(!!selectedChatAppForEditing?.override);
 
     let selectedAppToShow = $derived(isOverrideMode ? selectedChatAppForEditing : selectedChatApp);
 
-    // Helper function to ensure userTypes is never empty (defaults to internal-user)
-    function ensureNonEmptyUserTypes(types: UserType[]): UserType[] {
-        if (types.length === 0) {
-            return ['internal-user'];
-        }
-        return types;
-    }
+    // Helper function to normalize chat app for consistent comparison
+    // function normalizeChatApp(chatApp: ChatApp): ChatApp {
+    //     const normalized = JSON.parse(JSON.stringify(chatApp));
+
+    //     // If chat app has an override, ensure it has consistent properties
+    //     // that child components expect to prevent auto-initialization
+    //     if (normalized.override) {
+    //         // Initialize properties that components might auto-add
+    //         if (normalized.userTypes === undefined) {
+    //             normalized.userTypes = normalized.override.userTypes || [];
+    //         }
+    //         if (normalized.userRoles === undefined) {
+    //             normalized.userRoles = normalized.override.userRoles || [];
+    //         }
+    //         if (normalized.applyRulesAs === undefined) {
+    //             normalized.applyRulesAs = normalized.override.applyRulesAs || 'and';
+    //         }
+    //     }
+
+    //     return normalized;
+    // }
 
     // Watch for selected chat app changes
     $effect(() => {
@@ -87,8 +120,14 @@
         }
     }
 
-    function resetFormData() {
+    function resetToSavedVersion(dontPrompt?: boolean) {
         if (!selectedChatApp) return;
+
+        if (!dontPrompt) {
+            showResetToSavedVersionAlertDialog = true;
+            return;
+        }
+
         selectedChatAppForEditing = JSON.parse(JSON.stringify(selectedChatApp));
     }
 
@@ -106,7 +145,7 @@
         // Create override with all current values (from the original chat app)
         const initialOverride: ChatAppOverrideForCreateOrUpdate = {
             enabled: clonedChatApp.enabled,
-            userTypes: ensureNonEmptyUserTypes(clonedChatApp.userTypes || []),
+            userTypes: clonedChatApp.userTypes,
             userRoles: clonedChatApp.userRoles,
             applyRulesAs: clonedChatApp.applyRulesAs,
             title: clonedChatApp.title,
@@ -119,18 +158,73 @@
             homePageFilterRules,
         };
 
-        selectedChatApp.override = initialOverride;
+        selectedChatAppForEditing.override = initialOverride;
     }
 
-    function removeOverride() {
+    function removeOverride(dontPrompt?: boolean) {
         if (!selectedChatApp || !selectedChatAppForEditing) return;
+
+        if (!dontPrompt) {
+            showRemoveOverrideAlertDialog = true;
+            return;
+        }
+
+        selectedChatAppForEditing = JSON.parse(JSON.stringify(selectedChatApp)) as ChatApp;
         selectedChatAppForEditing.override = undefined;
     }
 
-    async function handleSave() {
-        if (!selectedChatApp || !isDirty || !isOverrideMode) return;
+    function clearChatAppCache(dontPrompt?: boolean) {
+        if (!selectedChatApp) return;
 
-        // TODO: Implement save functionality
+        if (!dontPrompt) {
+            showClearChatAppCacheAlertDialog = true;
+            return;
+        }
+
+        if (selectedChatApp) {
+            siteAdmin.sendSiteAdminCommand({
+                command: 'clearChatAppCache',
+                chatAppId: selectedChatApp.chatAppId,
+                agentId: selectedChatApp.agentId,
+            });
+        }
+    }
+
+    async function handleSave() {
+        if (!selectedChatApp || !selectedChatAppForEditing || !isDirty) return;
+
+        // Case 1: Creating or updating an override
+        if (selectedChatAppForEditing.override && isOverrideMode) {
+            isSaving = true;
+            try {
+                await siteAdmin.sendSiteAdminCommand({
+                    command: 'createOrUpdateChatAppOverride',
+                    userId: appState.identity.user.userId,
+                    chatAppId: selectedChatApp.chatAppId,
+                    override: selectedChatAppForEditing.override,
+                });
+            } catch (error) {
+                console.error('Error saving chat app override', error);
+                //TODO: show an error toast
+            } finally {
+                isSaving = false;
+            }
+        }
+        // Case 2: Deleting an override (original had one, but editing version doesn't)
+        else if (selectedChatApp.override && !selectedChatAppForEditing.override) {
+            isSaving = true;
+            try {
+                await siteAdmin.sendSiteAdminCommand({
+                    command: 'deleteChatAppOverride',
+                    chatAppId: selectedChatApp.chatAppId,
+                });
+            } catch (error) {
+                console.error('Error deleting chat app override', error);
+                //TODO: show an error toast
+            } finally {
+                isSaving = false;
+            }
+        }
     }
 
     // Section collapse functions
@@ -173,7 +267,7 @@
                 selectedChatApp={selectedAppToShow}
                 {isOverrideMode}
                 onSetInitialOverride={setInitialOverride}
-                onRemoveOverride={removeOverride}
+                onRemoveOverride={() => removeOverride(false)}
             />
 
             <ScrollArea class="flex-1">
@@ -188,6 +282,7 @@
                         {isOverrideMode}
                         expanded={expandedSections.basic}
                         onToggleSection={() => toggleSection('basic')}
+                        disabled={isSaving}
                     />
 
                     <Separator />
@@ -199,6 +294,8 @@
                         accessExpanded={expandedSections.access}
                         onToggleAccessSection={() => toggleSection('access')}
                         chatAppId={selectedChatApp.chatAppId}
+                        {setValid}
+                        disabled={isSaving}
                     />
 
                     <Separator />
@@ -211,6 +308,7 @@
                         onToggleFeaturesSection={() => toggleSection('features')}
                         chatAppId={selectedChatApp.chatAppId}
                         {setValid}
+                        disabled={isSaving}
                     />
 
                     <Separator />
@@ -273,25 +371,104 @@
 
 {#snippet pageHeaderRightSnippet()}
     {#if selectedChatApp}
-        <div class="flex items-center gap-2">
+        <div class="flex items-center">
             <!-- Section collapse controls -->
             <div class="flex items-center gap-1 mr-2">
-                <Button variant="ghost" size="sm" onclick={expandAllSections}>Expand All</Button>
-                <Button variant="ghost" size="sm" onclick={collapseAllSections}>Collapse All</Button>
+                <Button variant="ghost" size="icon" onclick={expandAllSections}>
+                    <Expand class="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onclick={collapseAllSections}>
+                    <Shrink class="w-4 h-4" />
+                </Button>
             </div>
 
-            <!-- Save/Reset controls (only in override mode) -->
-            {#if isOverrideMode}
-                <Separator orientation="vertical" class="h-6" />
-                <Button variant="outline" size="sm" onclick={() => resetFormData()} disabled={!isDirty}>
-                    <RotateCcw class="w-4 h-4 mr-1" />
+            <Separator orientation="vertical" class="h-6" />
+
+            <Button
+                variant="ghost"
+                size="icon"
+                class="mr-2 ml-2"
+                onclick={() => {
+                    clearChatAppCache();
+                }}
+            >
+                <BrushCleaning class="w-4 h-4" />
+            </Button>
+
+            {#if isClearingChatAppCache}
+                <Loader class="mr-2 w-4 h-4 animate-spin text-muted-foreground" />
+            {/if}
+
+            <Separator orientation="vertical" class="h-6 mr-4" />
+            <div class="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => resetToSavedVersion()}
+                    disabled={!isDirty || !isOverrideMode || isSaving}
+                >
                     Reset
                 </Button>
-                <Button variant="default" size="sm" onclick={handleSave} disabled={!isDirty || !selectedChatAppValid}>
-                    <Save class="w-4 h-4 mr-1" />
-                    Save Changes
+                <Button
+                    variant="default"
+                    size="sm"
+                    onclick={handleSave}
+                    disabled={(() => {
+                        const disabled =
+                            !isDirty ||
+                            !selectedChatAppValid ||
+                            (!isOverrideMode && !selectedChatApp?.override) ||
+                            isSaving;
+
+                        return disabled;
+                    })()}
+                >
+                    Save
                 </Button>
-            {/if}
+
+                {#if isSaving}
+                    <Loader class="w-4 h-4 animate-spin text-muted-foreground" />
+                {/if}
+            </div>
         </div>
     {/if}
 {/snippet}
+
+<PikaAlert
+    title="Remove Override"
+    description="Are you sure you want to remove the override and revert to the original chat app settings? If you have unsaved changes, they will be lost."
+    bind:open={showRemoveOverrideAlertDialog}
+    ok={{
+        label: 'Remove',
+        onClick: () => {
+            removeOverride(true);
+        },
+    }}
+    cancel={{ showCancel: true, label: 'Cancel', onClick: () => (showRemoveOverrideAlertDialog = false) }}
+/>
+
+<PikaAlert
+    title="Reset to Saved Version"
+    description="Are you sure you want to reset to the saved version? If you have unsaved changes, they will be lost."
+    bind:open={showResetToSavedVersionAlertDialog}
+    ok={{
+        label: 'Reset',
+        onClick: () => {
+            resetToSavedVersion(true);
+        },
+    }}
+    cancel={{ showCancel: true, label: 'Cancel', onClick: () => (showResetToSavedVersionAlertDialog = false) }}
+/>
+
+<PikaAlert
+    title="Clear Chat App Cache"
+    description="Clear this chat app from the server cache? "
+    bind:open={showClearChatAppCacheAlertDialog}
+    ok={{
+        label: 'Clear',
+        onClick: () => {
+            clearChatAppCache(true);
+        },
+    }}
+    cancel={{ showCancel: true, label: 'Cancel', onClick: () => (showClearChatAppCacheAlertDialog = false) }}
+/>

@@ -1,6 +1,4 @@
-import type { MetadataTagSegment, ProcessedSegment } from './segment-types';
-import type { ProcessedTextSegment } from './segment-types';
-import type { ProcessedTagSegment } from './segment-types';
+import type { MetadataTagSegment, ProcessedSegment, ProcessedTagSegment, ProcessedTextSegment } from './segment-types';
 
 /** A typegaurd to check if a ProcessedSegment is a ProcessedTextSegment */
 export function isProcessedTextSegment(segment: ProcessedSegment): segment is ProcessedTextSegment {

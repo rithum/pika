@@ -20,6 +20,7 @@
         chatAppId: string;
         exclusiveEntityOn: UserType[];
         validationErrors: string[];
+        disabled?: boolean;
     }
 
     let {
@@ -29,6 +30,7 @@
         chatAppId,
         exclusiveEntityOn = $bindable(),
         validationErrors,
+        disabled = false,
     }: Props = $props();
 
     const appState = getContext<AppState>('appState');
@@ -170,7 +172,7 @@
                         }
                     }
                 }
-                disabled={!isOverrideMode}
+                disabled={!isOverrideMode || disabled}
             />
             <Label for={checkboxId} class="font-medium">{label}</Label>
             <PopupHelp popoverClasses="w-[400px]">
@@ -194,6 +196,7 @@
                 }}
                 allowSelection={true}
                 multiSelect={true}
+                disabled={!isOverrideMode || disabled}
                 emptyMessage={`No ${entityDisplayPluralLower} specified`}
                 addRemove={{
                     addItem: (item) => {
@@ -375,7 +378,7 @@
                             }
                         }
                     }
-                    disabled={!isOverrideMode}
+                    disabled={!isOverrideMode || disabled}
                 />
                 <Label for={`general-${nonExclusiveUserType}`} class="font-medium">
                     Allow {nonExclusiveUserTypeLabel}
@@ -414,6 +417,7 @@
                         }}
                         allowSelection={true}
                         multiSelect={true}
+                        disabled={!isOverrideMode || disabled}
                         emptyMessage="No user roles assigned - any role allowed"
                         addRemove={{
                             addItem: (item) => {

@@ -1,10 +1,10 @@
 <script lang="ts">
-    import { Label } from '$lib/components/ui/label';
-    import type { TracesFeatureForChatApp, UserRole, UserType } from '@pika/shared/types/chatbot/chatbot-types';
-    import GeneralAccessControl from '../access-control/general-access-control.svelte';
     import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
+    import { Label } from '$lib/components/ui/label';
     import { assert } from '$lib/utils';
+    import type { FeatureError, TracesFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+    import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {
         overriddenFeature: TracesFeatureForChatApp | undefined;
@@ -13,6 +13,8 @@
         isOverridden: boolean;
         chatAppId: string;
         setValid: (valid: boolean) => void;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
     let {
@@ -22,6 +24,8 @@
         isOverridden,
         chatAppId,
         setValid,
+        featureEnabled,
+        disabled,
     }: Props = $props();
 
     let validErrors = $derived.by(() => {
@@ -29,17 +33,28 @@
         const ovFeature = overriddenFeature;
         const orFeature = originalFeature;
         const feature = mode ? ovFeature : orFeature;
+        let errors: FeatureError[] = [];
 
-        if (
-            feature &&
-            feature.enabled &&
-            (feature.userRoles ?? []).length == 0 &&
-            (feature.userTypes ?? []).length == 0
-        ) {
-            return ['No users have been granted access to basic traces.  Correct this or disable feature.'];
+        if (feature && feature.enabled) {
+            if ((feature.userRoles ?? []).length == 0 && (feature.userTypes ?? []).length == 0) {
+                errors.push({
+                    desc: 'No users have been granted access to basic traces.  Correct this or disable feature.',
+                    parentShouldIgnore: true,
+                });
+            }
+            if (
+                feature.detailedTraces?.enabled &&
+                (feature.detailedTraces?.userRoles ?? []).length == 0 &&
+                (feature.detailedTraces?.userTypes ?? []).length == 0
+            ) {
+                errors.push({
+                    desc: 'No users have been granted access to detailed traces.  Correct this or disable feature.',
+                    parentShouldIgnore: true,
+                });
+            }
         }
 
-        return [];
+        return errors;
     });
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
@@ -65,17 +80,12 @@
             overriddenFeature = {
                 featureId: 'traces',
                 enabled: originalFeature?.enabled ?? false,
-                userTypes:
-                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
-                        ? originalFeature.userTypes
-                        : ['internal-user'],
-                userRoles: [],
-                applyRulesAs: 'and',
+                userTypes: originalFeature?.userTypes,
+                userRoles: originalFeature?.userRoles,
+                applyRulesAs: originalFeature?.applyRulesAs,
                 detailedTraces: undefined,
                 ...originalFeature,
             } as TracesFeatureForChatApp;
-        } else if (overriddenFeature.enabled && !overriddenFeature.userTypes) {
-            overriddenFeature.userTypes = ['internal-user'];
         }
 
         return overriddenFeature;
@@ -90,7 +100,7 @@
     });
 
     $effect(() => {
-        setValid(validErrors.length === 0);
+        setValid(validErrors.filter((error) => !error.parentShouldIgnore).length === 0);
     });
 </script>
 
@@ -99,7 +109,7 @@
         {#if validErrors.length > 0}
             <div class="p-3 border border-red-200 bg-red-50 rounded text-sm text-red-800 mb-4">
                 {#each validErrors as error}
-                    <div>{error}</div>
+                    <div>{error.desc}</div>
                 {/each}
             </div>
         {/if}
@@ -116,6 +126,7 @@
                     bind:rulesObj={overriddenFeature}
                     rulesObjOriginal={originalFeature}
                     {isOverrideMode}
+                    {disabled}
                     userTypesLabel="User Types Who Can Use this Feature"
                     userRolesLabel="User Roles Who Can Use this Feature"
                     entityNameCapitalized="Basic Traces"
@@ -136,7 +147,7 @@
                 <div class="flex items-center gap-2 mb-6">
                     <Checkbox
                         id="enable-detailed-traces-checkbox"
-                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                         bind:checked={
                             () => !!featureToShow?.detailedTraces?.enabled,
                             (value) => {
@@ -144,9 +155,6 @@
                                 if (value) {
                                     if (!f.detailedTraces) {
                                         f.detailedTraces = { enabled: true };
-                                    }
-                                    if (!f.detailedTraces.userTypes) {
-                                        f.detailedTraces.userTypes = ['internal-user'];
                                     }
                                 } else {
                                     f.detailedTraces = undefined;
@@ -158,6 +166,7 @@
                 </div>
                 {#if featureToShow?.detailedTraces?.enabled}
                     <GeneralAccessControl
+                        {featureEnabled}
                         bind:rulesObj={
                             () => featureToShow?.detailedTraces,
                             (value) => {
@@ -165,9 +174,6 @@
                                 assert(overriddenFeature, 'overriddenFeature must be defined');
                                 if (value) {
                                     overriddenFeature.detailedTraces = value;
-                                    if (!overriddenFeature.detailedTraces.userTypes) {
-                                        overriddenFeature.detailedTraces.userTypes = ['internal-user'];
-                                    }
                                 } else {
                                     overriddenFeature.detailedTraces = undefined;
                                 }
@@ -175,6 +181,7 @@
                         }
                         rulesObjOriginal={originalFeature?.detailedTraces}
                         {isOverrideMode}
+                        {disabled}
                         userTypesLabel="User Types Who Can Use this Feature"
                         userRolesLabel="User Roles Who Can Use this Feature"
                         entityNameCapitalized="Detailed Traces"

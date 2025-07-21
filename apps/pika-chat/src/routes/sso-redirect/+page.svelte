@@ -1,6 +1,6 @@
 <script>
-    import { onMount } from 'svelte';
     import { page } from '$app/stores';
+    import { onMount } from 'svelte';
 
     onMount(() => {
         console.log('SSO redirect page mounted, initiating OAuth...');

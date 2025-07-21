@@ -1,9 +1,9 @@
 <script lang="ts">
-    import * as Tooltip from '$lib/components/ui/tooltip';
-    import { getContext, type Snippet } from 'svelte';
     import { AppState } from '$client/app/app.state.svelte';
     import type { HotKey } from '$client/app/types';
+    import * as Tooltip from '$lib/components/ui/tooltip';
     import { getHotKeyHtmlDisplay } from '$lib/utils';
+    import { getContext, type Snippet } from 'svelte';
 
     interface Props {
         tooltip: string | Snippet<[]>;

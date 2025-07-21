@@ -1,12 +1,12 @@
 <script lang="ts" generics="T">
     import { Check, ChevronsUpDown, X } from '$icons/lucide';
-    import { tick } from 'svelte';
+    import { Button } from '$lib/components/ui/button';
     import * as Command from '$lib/components/ui/command';
     import * as Popover from '$lib/components/ui/popover';
-    import { Button } from '$lib/components/ui/button';
     import { cn } from '$lib/utils';
     import indefinite from 'indefinite';
     import plur from 'plur';
+    import { tick } from 'svelte';
     import type { SimpleDropdownMapping } from './simple-dropdown-types';
 
     let {

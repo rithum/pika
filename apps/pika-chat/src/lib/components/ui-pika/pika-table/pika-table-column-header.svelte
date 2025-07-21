@@ -4,13 +4,13 @@
 </script>
 
 <script lang="ts" generics="TData, TValue">
-    import { EyeOff, ArrowDown, ArrowUp, ChevronsUpDown, ArrowDownUp, EllipsisVertical } from '$icons/lucide';
-    import type { HTMLAttributes } from 'svelte/elements';
+    import { ArrowDown, ArrowDownUp, ArrowUp, EllipsisVertical, EyeOff } from '$icons/lucide';
+    import Button from '$lib/components/ui/button/button.svelte';
+    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+    import { cn } from '$lib/utils';
     import type { Column } from '@tanstack/table-core';
     import type { WithoutChildren } from 'bits-ui';
-    import { cn } from '$lib/utils';
-    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-    import Button from '$lib/components/ui/button/button.svelte';
+    import type { HTMLAttributes } from 'svelte/elements';
 
     type Props = HTMLAttributes<HTMLDivElement> & {
         column: Column<TData, TValue>;

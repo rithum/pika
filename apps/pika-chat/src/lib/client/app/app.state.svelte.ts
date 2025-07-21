@@ -1,21 +1,21 @@
-import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
-import { AppSettingsState } from './settings/app-settings.state.svelte';
-import type { FetchZ, HotKey } from './types';
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import type {
     ChatApp,
-    ChatUser,
+    ChatAppMode,
     ChatAppOverridableFeatures,
+    ChatUser,
     CustomDataUiRepresentation,
     SiteFeatures,
-    ChatAppMode,
+    UserDataOverrideSettings
 } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
-import { IdentityState } from './identity/identity.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
-import type { UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import { SiteAdminState } from '../features/site-admin/site-admin.state.svelte';
+import { IdentityState } from './identity/identity.state.svelte';
+import { AppSettingsState } from './settings/app-settings.state.svelte';
+import type { FetchZ, HotKey } from './types';
 
 export class AppState {
     #settings: AppSettingsState | undefined;

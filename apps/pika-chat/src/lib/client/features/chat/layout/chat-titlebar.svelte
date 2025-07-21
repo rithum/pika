@@ -1,12 +1,11 @@
 <script lang="ts">
     import TooltipPlus from '$comps/ui-pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from '$lib/components/ui/button';
+    import * as Dialog from '$lib/components/ui/dialog';
+    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
     import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-    import * as Dialog from '$lib/components/ui/dialog';
-    import { Label } from 'bits-ui';
 
     const chat = getContext<ChatAppState>('chatAppState');
     const standalone = $derived(chat.mode === 'standalone');

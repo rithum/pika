@@ -5,7 +5,6 @@
     import SiteAdminTitlebar from '$client/features/site-admin/layout/site-admin-titlebar.svelte';
     import { Slideout, SlideoutContent, SlideoutProvider } from '$comps/ui-pika/slideout';
     import * as Sidebar from '$comps/ui/sidebar/index.js';
-    import { Toaster } from '$lib/components/ui/sonner';
     import type { ChatApp, SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
 

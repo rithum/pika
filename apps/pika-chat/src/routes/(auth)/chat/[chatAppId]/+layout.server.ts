@@ -1,13 +1,7 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import {
-    doesUserNeedToProvideDataOverrides,
-    getOverridableFeatures,
-    isUserAllowedToUseUserDataOverrides,
-    isUserContentAdmin,
-} from '$lib/server/utils';
-import type { ChatApp, ChatAppMode, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
-import type { UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
+import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
@@ -36,13 +30,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
     }
 
     try {
-        const matchingChatApps = await getMatchingChatApps(
-            locals.user,
-            false,
-            undefined,
-            chatAppId,
-            customDataFieldPathToMatchUsersEntity
-        );
+        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {
@@ -71,12 +59,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
         ...(isViewingContentForAnotherUser ? {} : userDataOverridesRest),
         enabled: !isViewingContentForAnotherUser && isUserAllowedToUseUserDataOverrides(locals.user),
         userNeedsToProvideDataOverrides:
-            !isViewingContentForAnotherUser &&
-            doesUserNeedToProvideDataOverrides(
-                locals.user,
-                locals.user.overrideData?.[chatApp.chatAppId],
-                chatApp.chatAppId
-            ),
+            !isViewingContentForAnotherUser && doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
     };
     const features = getOverridableFeatures(chatApp, locals.user);
     let customDataUiRepresentation: CustomDataUiRepresentation | undefined;
@@ -94,6 +77,6 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
         userIsContentAdmin,
         features,
         customDataUiRepresentation,
-        mode: (modeParam ?? 'standalone') as ChatAppMode,
+        mode: (modeParam ?? 'standalone') as ChatAppMode
     };
 };

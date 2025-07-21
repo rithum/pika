@@ -1,18 +1,13 @@
-import type { MetadataTagSegment } from '../segment-types';
-import type { ChatAppState } from '../../chat-app.state.svelte';
 import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppState } from '../../chat-app.state.svelte';
+import type { MetadataTagSegment } from '../segment-types';
 
 /**
  * Traces are metadata tags that are used to show all the traces at the top of the chat message.
  * We simply want to add the trace to the chat message's trace array which cause it to be rendered.
  */
-export function traceMetadataHandler(
-    segment: MetadataTagSegment,
-    message: ChatMessageForRendering,
-    _chatAppState: ChatAppState,
-    _appState: AppState
-): void {
+export function traceMetadataHandler(segment: MetadataTagSegment, message: ChatMessageForRendering, _chatAppState: ChatAppState, _appState: AppState): void {
     // Add the trace to the chat message's trace array
     if (segment.streamingStatus === 'completed') {
         if (!message.traces) {

@@ -1,22 +1,22 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
+import { Bot, Settings } from '$icons/lucide';
 import type { Page } from '@sveltejs/kit';
-import { Settings, Bot } from '$icons/lucide';
-import GeneralSettings from '../pages/general-settings.svelte';
 import ChatApps from '../pages/chat-apps.svelte';
+import GeneralSettings from '../pages/general-settings.svelte';
 
 const ITEMS: NavItem[] = [
     {
         title: 'General Settings',
         url: '/admin/general-settings',
         icon: Settings,
-        pageComponent: GeneralSettings,
+        pageComponent: GeneralSettings
     },
     {
         title: 'Chat Apps',
         url: '/admin/chat-apps',
         icon: Bot,
-        pageComponent: ChatApps,
-    },
+        pageComponent: ChatApps
+    }
 ];
 
 export class SiteAdminNavState {
@@ -30,13 +30,11 @@ export class SiteAdminNavState {
 
         return ITEMS.map((item: NavItem) => ({
             ...item,
-            isActive:
-                item.url === pageObj.url.pathname ||
-                (item.items?.some((subItem: NavSubItem) => subItem.url === pageObj.url.pathname) ?? false),
+            isActive: item.url === pageObj.url.pathname || (item.items?.some((subItem: NavSubItem) => subItem.url === pageObj.url.pathname) ?? false),
             items: item.items?.map((subItem: NavSubItem) => ({
                 ...subItem,
-                isActive: subItem.url === pageObj.url.pathname,
-            })),
+                isActive: subItem.url === pageObj.url.pathname
+            }))
         }));
     });
 

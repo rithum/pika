@@ -1,6 +1,6 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
 import { appConfig } from '$lib/server/config';
+import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { json, type RequestHandler } from '@sveltejs/kit';
 
 let s3Client: S3Client | undefined;
@@ -10,10 +10,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         if (!isUserContentAdmin(locals.user)) {
             throw new Response('Forbidden', { status: 403 });
         }
-        return new Response(
-            'You have selected view content for another user and you are not allowed to take action as that user.',
-            { status: 403 }
-        );
+        return new Response('You have selected view content for another user and you are not allowed to take action as that user.', { status: 403 });
     }
 
     try {
@@ -57,7 +54,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             ContentType: fileMimeType,
             ContentLength: parseInt(fileSize),
             // We will detect when the chat message is written to the database and then set the confirmed tag to true
-            Tagging: 'chat=true&confirmed=false',
+            Tagging: 'chat=true&confirmed=false'
         });
 
         await s3Client.send(putCommand);
@@ -70,7 +67,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             message: e instanceof Error ? e.message : 'Unknown error',
             name: e instanceof Error ? e.name : 'Unknown',
             region: appConfig.awsRegion,
-            bucket: appConfig.uploadS3Bucket,
+            bucket: appConfig.uploadS3Bucket
         });
 
         return getErrorResponse(500, `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);

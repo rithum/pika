@@ -31,48 +31,121 @@ export function getMatchingChatApps(
     chatApps: ChatApp[],
     customDataFieldPathToMatchUsersEntity?: string
 ): ChatApp[] {
+    console.log('🔧 getMatchingChatApps (server-side) called with:', {
+        userId: user.userId,
+        userType: user.userType,
+        userRoles: user.roles,
+        chatAppsForHomePage,
+        homePageFilterRulesCount: homePageFilterRules.length,
+        homePageFilterRules,
+        chatAppsCount: chatApps.length,
+        customDataFieldPathToMatchUsersEntity,
+        userCustomData: user.customData
+    });
+
+    console.log(
+        '📋 Input chat apps:',
+        chatApps.map((app) => ({
+            chatAppId: app.chatAppId,
+            title: app.title,
+            enabled: app.enabled,
+            userTypes: app.userTypes,
+            userRoles: app.userRoles,
+            hasOverride: !!app.override,
+            overrideEnabled: app.override?.enabled
+        }))
+    );
+
     // First, make sure we only return chat apps that are enabled.
     let apps = chatApps.filter((chatApp) => {
         const override = chatApp.override;
+        let isEnabled = false;
         if (override) {
             if (override.enabled === false) {
+                console.log(`❌ Chat app ${chatApp.chatAppId} disabled by override`);
                 return false;
             }
+            isEnabled = chatApp.enabled;
+        } else {
+            isEnabled = chatApp.enabled;
         }
-        return chatApp.enabled;
+        console.log(`✅ Chat app ${chatApp.chatAppId} enabled status: ${isEnabled}`);
+        return isEnabled;
     });
+
+    console.log(
+        `🎯 After enabled filter: ${apps.length}/${chatApps.length} apps remaining:`,
+        apps.map((app) => app.chatAppId)
+    );
 
     // Then, we need to check if the user has access to the chat app using the override rules if present or the general access rules.
     apps = apps.filter((chatApp) => {
         const override = chatApp.override;
+        let hasAccess = false;
         if (override) {
-            return checkUserAccessToChatAppUsingOverride(user, override, customDataFieldPathToMatchUsersEntity);
+            console.log(`🔐 Checking access for ${chatApp.chatAppId} using override rules`);
+            hasAccess = checkUserAccessToChatAppUsingOverride(user, override, customDataFieldPathToMatchUsersEntity);
         } else {
-            return checkUserAccessToChatAppUsingGeneralAccessRules(user, chatApp);
+            console.log(`🔐 Checking access for ${chatApp.chatAppId} using general access rules`);
+            hasAccess = checkUserAccessToChatAppUsingGeneralAccessRules(user, chatApp);
         }
+        console.log(`${hasAccess ? '✅' : '❌'} User ${user.userId} ${hasAccess ? 'HAS' : 'DOES NOT HAVE'} access to ${chatApp.chatAppId}`);
+        return hasAccess;
     });
+
+    console.log(
+        `🔑 After access control filter: ${apps.length} apps remaining:`,
+        apps.map((app) => app.chatAppId)
+    );
 
     // Lastly, if we are only supposed to return the chat apps for the home page, then we need to make sure they
     // can show on the home page for this user and that they aren't test apps.
     if (chatAppsForHomePage) {
+        console.log('🏠 Applying home page filters...');
+
         // Filter out any test apps.
+        const beforeTestFilter = apps.length;
         apps = apps.filter((chatApp) => {
-            return !chatApp.test;
+            const isTest = !!chatApp.test;
+            if (isTest) {
+                console.log(`🧪 Filtering out test app: ${chatApp.chatAppId}`);
+            }
+            return !isTest;
         });
+        console.log(`🧪 After test filter: ${apps.length}/${beforeTestFilter} apps remaining`);
 
         // Figure out which chat apps are allowed to show on the home page for this user.
+        const beforeHomePageFilter = apps.length;
         apps = apps.filter((chatApp) => {
             const override = chatApp.override;
-            const userTypes = override?.userTypes || chatApp.userTypes || ['internal-user'];
+            const userTypes = override?.userTypes || chatApp.userTypes || [];
+            let canShowOnHomePage = false;
+
             if (override && override.homePageFilterRules) {
-                return checkUserAccessBasedOnRules(user, userTypes, override.homePageFilterRules);
+                console.log(`🏠 Checking home page access for ${chatApp.chatAppId} using override home page rules:`, override.homePageFilterRules);
+                canShowOnHomePage = checkUserAccessBasedOnRules(user, userTypes, override.homePageFilterRules);
             } else if (homePageFilterRules) {
-                return checkUserAccessBasedOnRules(user, userTypes, homePageFilterRules);
+                console.log(`🏠 Checking home page access for ${chatApp.chatAppId} using provided home page rules:`, homePageFilterRules);
+                canShowOnHomePage = checkUserAccessBasedOnRules(user, userTypes, homePageFilterRules);
             } else {
-                return true;
+                console.log(`🏠 No home page filter rules for ${chatApp.chatAppId}, allowing by default`);
+                canShowOnHomePage = true;
             }
+
+            console.log(`${canShowOnHomePage ? '✅' : '❌'} ${chatApp.chatAppId} ${canShowOnHomePage ? 'CAN' : 'CANNOT'} show on home page for user ${user.userId}`);
+            return canShowOnHomePage;
         });
+        console.log(`🏠 After home page filter: ${apps.length}/${beforeHomePageFilter} apps remaining`);
     }
+
+    console.log('✅ Final getMatchingChatApps result:', {
+        originalCount: chatApps.length,
+        finalCount: apps.length,
+        finalApps: apps.map((app) => ({
+            chatAppId: app.chatAppId,
+            title: app.title
+        }))
+    });
 
     return apps;
 }
@@ -80,21 +153,33 @@ export function getMatchingChatApps(
 function checkUserAccessBasedOnRules(user: ChatUser, userTypes: UserType[], homePageFilterRules: UserChatAppRule[]): boolean {
     const userType = user.userType ?? 'external-user';
 
+    console.log(`🔍 checkUserAccessBasedOnRules for user ${user.userId}:`, {
+        userType,
+        userTypes,
+        homePageFilterRules
+    });
+
     // Check if any rule allows this chat app for the current user type
     let isAllowed = false;
 
     for (const rule of homePageFilterRules) {
+        console.log(`📏 Checking rule:`, rule);
+
         // Check if this rule applies to the current user type
         if (rule.userTypes && !rule.userTypes.includes(userType)) {
+            console.log(`❌ Rule doesn't apply to user type ${userType}, skipping`);
             continue;
         }
 
         // Check if the chat app's allowed user types match the rule's chat app user types
         if (rule.chatAppUserTypes && rule.chatAppUserTypes.length > 0) {
-            isAllowed = userTypes.some((allowedType) => rule.chatAppUserTypes!.includes(allowedType));
+            const matches = userTypes.some((allowedType) => rule.chatAppUserTypes!.includes(allowedType));
+            console.log(`🎯 Checking if chat app user types ${JSON.stringify(userTypes)} match rule chat app user types ${JSON.stringify(rule.chatAppUserTypes)}: ${matches}`);
+            isAllowed = matches;
         }
     }
 
+    console.log(`✅ checkUserAccessBasedOnRules result: ${isAllowed}`);
     return isAllowed;
 }
 
@@ -117,30 +202,52 @@ function checkUserAccessBasedOnRules(user: ChatUser, userTypes: UserType[], home
  * @returns True if the user has access to the chat app, false otherwise
  */
 function checkUserAccessToChatAppUsingOverride(user: ChatUser, override: ChatAppOverride, customDataFieldPathToMatchUsersEntity?: string): boolean {
+    console.log(`🔐 checkUserAccessToChatAppUsingOverride for user ${user.userId}:`, {
+        overrideEnabled: override.enabled,
+        exclusiveUserIdAccessControl: override.exclusiveUserIdAccessControl,
+        exclusiveInternalAccessControl: override.exclusiveInternalAccessControl,
+        exclusiveExternalAccessControl: override.exclusiveExternalAccessControl,
+        userTypes: override.userTypes,
+        userRoles: override.userRoles,
+        applyRulesAs: override.applyRulesAs
+    });
+
     if (override.enabled === false) {
+        console.log(`❌ Override disabled for user ${user.userId}`);
         return false;
     }
 
-    if (override.exclusiveUserIdAccessControl) {
-        return override.exclusiveUserIdAccessControl.includes(user.userId);
+    // Only apply exclusive user ID control if the array exists and has entries
+    if (override.exclusiveUserIdAccessControl && override.exclusiveUserIdAccessControl.length > 0) {
+        const hasAccess = override.exclusiveUserIdAccessControl.includes(user.userId);
+        console.log(`🎯 Exclusive user ID control: ${hasAccess ? 'ALLOWED' : 'DENIED'} for user ${user.userId}`);
+        return hasAccess;
+    } else if (override.exclusiveUserIdAccessControl && override.exclusiveUserIdAccessControl.length === 0) {
+        console.log(`🔄 Exclusive user ID control is empty array, ignoring and falling back to other rules`);
     }
 
     const userType = user.userType ?? 'external-user';
+    console.log(`👤 User type: ${userType}`);
 
     let accessControl = userType === 'internal-user' ? override.exclusiveInternalAccessControl : override.exclusiveExternalAccessControl;
+    // Only apply exclusive entity access control if the array exists and has entries
     if (accessControl && accessControl.length > 0) {
+        console.log(`🏢 Checking exclusive ${userType} access control:`, accessControl);
         if (customDataFieldPathToMatchUsersEntity) {
             const entity = getEntityFromCustomData(user.customData, customDataFieldPathToMatchUsersEntity);
             const matches = !!entity && accessControl.includes(entity);
-            console.log(`[getMatchingChatApps] Entity: ${entity} for user: ${user.userId} matches access control: ${accessControl} ${matches ? 'YES' : 'NO'}`);
+            console.log(`🔍 Entity: ${entity} for user: ${user.userId} matches access control: ${accessControl} ${matches ? 'YES' : 'NO'}`);
             return matches;
         } else {
-            console.log(`[getMatchingChatApps] No custom data field path to match users entity provided, so user doesn't have access to this chat app.`);
+            console.log(`❌ No custom data field path to match users entity provided, so user doesn't have access to this chat app.`);
             return false;
         }
+    } else if (accessControl && accessControl.length === 0) {
+        console.log(`🔄 Exclusive ${userType} access control is empty array, ignoring and falling back to other rules`);
     }
 
     // If we get here, then we are going to use the general access rules to determine if the user has access to the chat app.
+    console.log(`🔄 Falling back to general access rules for user ${user.userId}`);
     return checkUserAccessToChatAppUsingGeneralAccessRules(user, override);
 }
 
@@ -150,7 +257,7 @@ function checkUserAccessToChatAppUsingOverride(user: ChatUser, override: ChatApp
  *
  * **Access Control Logic:**
  * - If the feature is disabled (`enabled: false`), no access regardless of other rules
- * - If no userTypes or userRoles are specified, feature is enabled for all users
+ * - If no userTypes or userRoles are specified, no access is granted (secure by default)
  * - If multiple userTypes are provided, a user need only have one of them to have access (OR logic)
  * - If multiple userRoles are provided, a user need only have one of them to have access (OR logic)
  * - If both userTypes and userRoles are provided, the `applyRulesAs` setting determines how they're combined:
@@ -162,30 +269,62 @@ function checkUserAccessToChatAppUsingOverride(user: ChatUser, override: ChatApp
  * @returns Whether the user has access to the feature
  */
 function checkUserAccessToChatAppUsingGeneralAccessRules(user: ChatUser, rules: AccessRules): boolean {
-    const { enabled, userTypes, userRoles, applyRulesAs = 'and' } = rules;
+    let { enabled, userTypes, userRoles, applyRulesAs = 'and' } = rules;
+
+    // Normalize empty arrays to undefined for more intuitive access control
+    // If userTypes is set but userRoles is empty array, treat userRoles as undefined
+    if (userTypes && userTypes.length > 0 && userRoles && userRoles.length === 0) {
+        userRoles = undefined;
+        console.log(`🔄 Normalizing empty userRoles array to undefined since userTypes is set for user ${user.userId}`);
+    }
+
+    // If userRoles is populated but userTypes is undefined/empty, treat userTypes as undefined
+    if (userRoles && userRoles.length > 0 && (!userTypes || userTypes.length === 0)) {
+        userTypes = undefined;
+        console.log(`🔄 Normalizing empty/undefined userTypes to undefined since userRoles is populated for user ${user.userId}`);
+    }
+
+    console.log(`🔐 checkUserAccessToChatAppUsingGeneralAccessRules for user ${user.userId}:`, {
+        enabled,
+        userTypes,
+        userRoles,
+        applyRulesAs,
+        userActualType: user.userType,
+        userActualRoles: user.roles
+    });
 
     // If the feature is disabled, no access regardless of other rules
     if (!enabled) {
+        console.log(`❌ Rules disabled for user ${user.userId}`);
         return false;
     }
 
-    // If no rules are specified, feature is enabled for all users
+    // If no rules are specified, no access is granted (secure by default)
     if (!userTypes && !userRoles) {
-        return true;
+        console.log(`❌ No access rules specified, denying access by default for user ${user.userId}`);
+        return false;
     }
 
     // Check user type access
     const userTypeMatches = userTypes ? userTypes.includes(user.userType ?? 'external-user') : true;
+    console.log(`👤 User type check: user has type '${user.userType ?? 'external-user'}', allowed types: ${JSON.stringify(userTypes)}, matches: ${userTypeMatches}`);
 
     // Check user role access
     const userRoleMatches = userRoles ? (user.roles ?? []).some((role) => userRoles.includes(role as any)) : true;
+    console.log(`🏷️ User role check: user has roles ${JSON.stringify(user.roles ?? [])}, allowed roles: ${JSON.stringify(userRoles)}, matches: ${userRoleMatches}`);
 
     // Apply the rules based on the logic specified
+    let finalResult = false;
     if (applyRulesAs === 'and') {
-        return userTypeMatches && userRoleMatches;
+        finalResult = userTypeMatches && userRoleMatches;
+        console.log(`🔗 AND logic: ${userTypeMatches} && ${userRoleMatches} = ${finalResult}`);
     } else {
-        return userTypeMatches || userRoleMatches;
+        finalResult = userTypeMatches || userRoleMatches;
+        console.log(`🔗 OR logic: ${userTypeMatches} || ${userRoleMatches} = ${finalResult}`);
     }
+
+    console.log(`✅ Final access result for user ${user.userId}: ${finalResult}`);
+    return finalResult;
 }
 
 /**

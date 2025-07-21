@@ -1,7 +1,6 @@
 <script lang="ts">
     import { Label } from '$lib/components/ui/label';
     import { Textarea } from '$lib/components/ui/textarea';
-    import { Button } from '$lib/components/ui/button';
     import type { ChatDisclaimerNoticeFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {
@@ -10,9 +9,19 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        disabled,
+    }: Props = $props();
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
@@ -62,7 +71,7 @@
                         }
                     }
                     placeholder="Enter your disclaimer notice..."
-                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                     rows={4}
                     class="mt-1"
                 />

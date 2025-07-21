@@ -1,15 +1,13 @@
 <script lang="ts">
+    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
     import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
     import { Label } from '$lib/components/ui/label';
     import {
         VerifyResponseRetryableClassificationDescriptions,
-        type RetryableVerifyResponseClassification,
-        type UserRole,
-        type UserType,
+        type FeatureError,
         type VerifyResponseFeatureForChatApp,
     } from '@pika/shared/types/chatbot/chatbot-types';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
 
     interface Props {
         overriddenFeature: VerifyResponseFeatureForChatApp | undefined;
@@ -17,9 +15,21 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        setValid: (valid: boolean) => void;
+        featureEnabled: boolean;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        setValid,
+        disabled,
+    }: Props = $props();
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
 
@@ -27,9 +37,34 @@
         Object.values(VerifyResponseRetryableClassificationDescriptions)
     );
 
+    let validErrors = $derived.by(() => {
+        const mode = isOverrideMode;
+        const ovFeature = overriddenFeature;
+        const orFeature = originalFeature;
+        const feature = mode ? ovFeature : orFeature;
+
+        if (
+            feature &&
+            feature.enabled &&
+            (feature.userRoles ?? []).length == 0 &&
+            (feature.userTypes ?? []).length == 0
+        ) {
+            return [
+                {
+                    desc: 'No users have been granted access to verify response.  Correct this or disable feature.',
+                    parentShouldIgnore: true,
+                },
+            ] as FeatureError[];
+        }
+
+        return [];
+    });
+
     $effect(() => {
         if (isOverrideMode) {
             ensureFeature();
+        } else {
+            overriddenFeature = undefined;
         }
     });
 
@@ -43,24 +78,30 @@
                 featureId: 'verifyResponse',
                 enabled: originalFeature?.enabled ?? false,
                 autoRepromptThreshold: undefined,
-                userTypes:
-                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
-                        ? originalFeature.userTypes
-                        : ['internal-user'],
-                userRoles: [],
-                applyRulesAs: 'and',
+                userTypes: originalFeature?.userTypes,
+                userRoles: originalFeature?.userRoles,
+                applyRulesAs: originalFeature?.applyRulesAs,
                 ...originalFeature,
             } as VerifyResponseFeatureForChatApp;
-        } else if (overriddenFeature.enabled && !overriddenFeature.userTypes) {
-            overriddenFeature.userTypes = ['internal-user'];
         }
 
         return overriddenFeature;
     }
+
+    $effect(() => {
+        setValid(validErrors.filter((error) => !error.parentShouldIgnore).length === 0);
+    });
 </script>
 
 <div class="space-y-4">
     <div>
+        {#if validErrors.length > 0}
+            <div class="p-3 border border-red-200 bg-red-50 rounded text-sm text-red-800 mb-4">
+                {#each validErrors as error}
+                    <div>{error.desc}</div>
+                {/each}
+            </div>
+        {/if}
         <div class="space-y-5">
             <!-- Auto-reprompt threshold -->
             <div>
@@ -100,7 +141,7 @@
                             }
                         }
                     }
-                    disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                    disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                     inputPlaceholder="Select threshold..."
                     widthClasses="w-[320px]"
                     mapping={{
@@ -119,6 +160,8 @@
             <!-- Access Control -->
             <div>
                 <GeneralAccessControl
+                    {featureEnabled}
+                    {disabled}
                     bind:rulesObj={overriddenFeature}
                     rulesObjOriginal={originalFeature}
                     {isOverrideMode}

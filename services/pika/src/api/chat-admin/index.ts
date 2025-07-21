@@ -444,6 +444,14 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         throw new Error('userId is required');
     }
 
+    console.log('🔍 handleGetChatAppByRules called with request:', {
+        userId: requestBody.userId,
+        chatAppId: requestBody.chatAppId,
+        chatAppsForHomePage: requestBody.chatAppsForHomePage,
+        homePageFilterRules: requestBody.homePageFilterRules,
+        customDataFieldPathToMatchUsersEntity: requestBody.customDataFieldPathToMatchUsersEntity
+    });
+
     let response: GetChatAppsByRulesResponse = {
         success: true,
         chatApps: []
@@ -453,23 +461,80 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
     const chatAppsForHomePage = requestBody.chatAppsForHomePage ?? false;
     const customDataFieldPathToMatchUsersEntity = requestBody.customDataFieldPathToMatchUsersEntity;
 
+    console.log('👤 Looking up user:', requestBody.userId);
     const user = await getUser(requestBody.userId);
     if (!user) {
+        console.error('❌ User not found:', requestBody.userId);
         throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
     }
 
+    console.log('✅ User found:', {
+        userId: user.userId,
+        userType: user.userType,
+        roles: user.roles,
+        customData: user.customData,
+        firstName: user.firstName,
+        lastName: user.lastName
+    });
+
     let chatApps: ChatApp[] = [];
     if (requestBody.chatAppId) {
+        console.log('🎯 Looking for specific chat app:', requestBody.chatAppId);
         const chatApp = await getChatApp(requestBody.chatAppId);
         if (!chatApp) {
-            console.log(`Chat App ${requestBody.chatAppId} not found, returning empty list`);
+            console.log(`❌ Chat App ${requestBody.chatAppId} not found, returning empty list`);
             return response;
         }
+        console.log('✅ Chat app found:', {
+            chatAppId: chatApp.chatAppId,
+            title: chatApp.title,
+            enabled: chatApp.enabled,
+            userTypes: chatApp.userTypes,
+            userRoles: chatApp.userRoles,
+            agentId: chatApp.agentId,
+            hasOverride: !!chatApp.override
+        });
         chatApps.push(chatApp);
     } else {
+        console.log('📋 Getting all chat apps');
         chatApps = await getChatApps();
+        console.log(
+            `✅ Found ${chatApps.length} total chat apps:`,
+            chatApps.map((app) => ({
+                chatAppId: app.chatAppId,
+                title: app.title,
+                enabled: app.enabled,
+                userTypes: app.userTypes,
+                userRoles: app.userRoles,
+                agentId: app.agentId,
+                hasOverride: !!app.override
+            }))
+        );
     }
+
+    console.log('🔧 Calling getMatchingChatApps with parameters:', {
+        userInfo: {
+            userId: user.userId,
+            userType: user.userType,
+            roles: user.roles
+        },
+        chatAppsForHomePage,
+        homePageFilterRules,
+        chatAppsCount: chatApps.length,
+        customDataFieldPathToMatchUsersEntity
+    });
+
     response.chatApps = getMatchingChatApps(user, chatAppsForHomePage, homePageFilterRules, chatApps, customDataFieldPathToMatchUsersEntity);
+
+    console.log('✅ Final filtered result:', {
+        originalCount: chatApps.length,
+        filteredCount: response.chatApps.length,
+        filteredApps: response.chatApps.map((app) => ({
+            chatAppId: app.chatAppId,
+            title: app.title,
+            enabled: app.enabled
+        }))
+    });
 
     return response;
 }

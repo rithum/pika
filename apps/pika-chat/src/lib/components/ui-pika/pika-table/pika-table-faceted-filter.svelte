@@ -12,7 +12,6 @@
     import { Separator } from '$lib/components/ui/separator';
     import { cn } from '$lib/utils';
     import type { Column } from '@tanstack/table-core';
-    import type { Component } from 'svelte';
     import { SvelteSet } from 'svelte/reactivity';
     import type { FacetedFilterData } from './types';
 

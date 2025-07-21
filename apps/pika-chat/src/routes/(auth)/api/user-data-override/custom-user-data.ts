@@ -1,9 +1,4 @@
-import type {
-    AuthenticatedUser,
-    ChatApp,
-    RecordOrUndef,
-    UserOverrideData,
-} from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ChatApp, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 /**
  * Get the initial data for the user data override dialog.  This is the data that will be displayed in the dialog when the user
  * clicks the user data override button.  Lets say you want to have a company picker in the user data override dialog.  You would
@@ -16,10 +11,7 @@ import type {
  * @param chatApp The chat app that the user is overriding the user for
  * @returns The initial data for the user data override dialog to render your custom UI component, if any
  */
-export async function getInitialDataForUserDataOverrideDialog(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    chatApp: ChatApp
-): Promise<unknown | undefined> {
+export async function getInitialDataForUserDataOverrideDialog(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatApp: ChatApp): Promise<unknown | undefined> {
     /*
         Replace everything in this function with your own implementation.  It's here as a working example.
         You may use fetch to reach out to an API. If you are going to call a resource in AWS, be sure you add permissions 
@@ -43,8 +35,8 @@ export async function getInitialDataForUserDataOverrideDialog(
                 accountId: overrideData.accountId!,
                 details: {
                     accountName: overrideData.accountName!,
-                    accountType: overrideData.accountType as 'standard' | 'premium',
-                },
+                    accountType: overrideData.accountType as 'standard' | 'premium'
+                }
             };
         }
     }
@@ -97,18 +89,14 @@ export async function getValuesForAutoComplete(
             .slice(0, 20)
             .map((company) => ({
                 value: company.accountId,
-                label: company.details.accountName,
+                label: company.details.accountName
             }));
     }
 
     const searchValue = valueProvidedByUser.toLowerCase().trim();
 
     return mockAccounts
-        .filter(
-            (account) =>
-                account.accountId.toLowerCase().startsWith(searchValue) ||
-                account.details.accountName.toLowerCase().startsWith(searchValue)
-        )
+        .filter((account) => account.accountId.toLowerCase().startsWith(searchValue) || account.details.accountName.toLowerCase().startsWith(searchValue))
         .sort((a, b) => a.details.accountName.localeCompare(b.details.accountName))
         .slice(0, 20);
 }
@@ -146,7 +134,7 @@ export async function userOverrideDataPostedFromDialog(
         result = {
             accountId: account.accountId,
             accountName: account.details.accountName,
-            accountType: account.details.accountType,
+            accountType: account.details.accountType
         };
     }
 
@@ -262,5 +250,5 @@ const mockAccounts: Account[] = [
     { accountId: 'acct-097', details: { accountName: 'Champion Systems', accountType: 'standard' } },
     { accountId: 'acct-098', details: { accountName: 'Victor Ventures', accountType: 'premium' } },
     { accountId: 'acct-099', details: { accountName: 'Conqueror Ltd', accountType: 'standard' } },
-    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } },
+    { accountId: 'acct-100', details: { accountName: 'Legendary Corp', accountType: 'premium' } }
 ];

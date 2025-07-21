@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import type { ChatAppState } from '../../chat-app.state.svelte';
     import MarkdownIt from 'markdown-it';
+    import type { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTextSegment } from '../segment-types';
 
     interface Props {

@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { Label } from '$lib/components/ui/label';
     import { Input } from '$lib/components/ui/input';
+    import { Label } from '$lib/components/ui/label';
     import { Textarea } from '$lib/components/ui/textarea';
-    import type { LogoutFeatureForChatApp, UserType, UserRole } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { FeatureError, LogoutFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {
@@ -11,11 +11,46 @@
         isOverrideMode: boolean;
         isOverridden: boolean;
         chatAppId: string;
+        featureEnabled: boolean;
+        setValid: (valid: boolean) => void;
+        disabled: boolean;
     }
 
-    let { overriddenFeature = $bindable(), originalFeature, isOverrideMode, isOverridden, chatAppId }: Props = $props();
+    let {
+        overriddenFeature = $bindable(),
+        originalFeature,
+        isOverrideMode,
+        isOverridden,
+        chatAppId,
+        featureEnabled,
+        setValid,
+        disabled,
+    }: Props = $props();
 
     let featureToShow = $derived(isOverrideMode ? overriddenFeature : originalFeature);
+
+    let validErrors = $derived.by(() => {
+        const mode = isOverrideMode;
+        const ovFeature = overriddenFeature;
+        const orFeature = originalFeature;
+        const feature = mode ? ovFeature : orFeature;
+
+        if (
+            feature &&
+            feature.enabled &&
+            (feature.userRoles ?? []).length == 0 &&
+            (feature.userTypes ?? []).length == 0
+        ) {
+            return [
+                {
+                    desc: 'No users have been granted access to logout.  Correct this or disable feature.',
+                    parentShouldIgnore: true,
+                },
+            ] as FeatureError[];
+        }
+
+        return [];
+    });
 
     function ensureFeature(): LogoutFeatureForChatApp {
         if (!isOverrideMode) {
@@ -26,19 +61,14 @@
             overriddenFeature = {
                 featureId: 'logout',
                 enabled: originalFeature?.enabled ?? false,
-                userTypes:
-                    originalFeature?.userTypes && originalFeature.userTypes.length > 0
-                        ? originalFeature.userTypes
-                        : ['internal-user'],
-                userRoles: [],
-                applyRulesAs: 'and',
+                userTypes: originalFeature?.userTypes,
+                userRoles: originalFeature?.userRoles,
+                applyRulesAs: originalFeature?.applyRulesAs,
                 menuItemTitle: 'Logout',
                 dialogTitle: 'Logout',
                 dialogDescription: 'Are you sure you want to logout?',
                 ...originalFeature,
             } as LogoutFeatureForChatApp;
-        } else if (overriddenFeature.enabled && !overriddenFeature.userTypes) {
-            overriddenFeature.userTypes = ['internal-user'];
         }
 
         return overriddenFeature;
@@ -51,10 +81,21 @@
             overriddenFeature = undefined;
         }
     });
+
+    $effect(() => {
+        setValid(validErrors.filter((error) => !error.parentShouldIgnore).length === 0);
+    });
 </script>
 
 <div class="space-y-4">
     <div>
+        {#if validErrors.length > 0}
+            <div class="p-3 border border-red-200 bg-red-50 rounded text-sm text-red-800 mb-4">
+                {#each validErrors as error}
+                    <div>{error.desc}</div>
+                {/each}
+            </div>
+        {/if}
         <div class="space-y-4">
             <!-- Access Control -->
             <div class="border rounded-lg p-4">
@@ -83,7 +124,7 @@
                             }
                         }
                         placeholder="Logout"
-                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                         class="mt-1"
                     />
                 </div>
@@ -101,7 +142,7 @@
                             }
                         }
                         placeholder="Logout"
-                        disabled={!isOverrideMode}
+                        disabled={!featureEnabled || !isOverrideMode || disabled}
                         class="mt-1"
                     />
                 </div>
@@ -119,7 +160,7 @@
                             }
                         }
                         placeholder="Are you sure you want to logout?"
-                        disabled={!isOverrideMode || !overriddenFeature?.enabled}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                         rows={2}
                         class="mt-1"
                     />

@@ -1,6 +1,6 @@
-import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { SignatureV4 } from '@smithy/signature-v4';
 import { appConfig } from './config';
 
 interface ApiGatewayRequestParams {
@@ -47,9 +47,9 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
         protocol: invokeUrl.protocol,
         headers: {
             Host: invokeUrl.hostname, // Host header is crucial for SigV4
-            ...customHeaders, // Include any custom headers provided by the caller
+            ...customHeaders // Include any custom headers provided by the caller
         } as Record<string, string>,
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : undefined
     };
 
     // Add Content-Type for requests with a body, if not already set
@@ -62,7 +62,7 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
         credentials: defaultProvider(), // Uses the default credential provider chain
         region: appConfig.awsRegion,
         service: 'execute-api',
-        sha256: Sha256, // Pass the Sha256 class constructor
+        sha256: Sha256 // Pass the Sha256 class constructor
     });
 
     // 4. Sign the request
@@ -80,14 +80,12 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
         const fetchRequest = new Request(invokeUrl.toString(), {
             method: signedRequest.method,
             headers: signedRequest.headers,
-            body: signedRequest.body,
+            body: signedRequest.body
         });
         response = await fetch(fetchRequest);
     } catch (error) {
         console.error('Fetch request failed:', error);
-        throw new Error(
-            `Network error or failed to fetch from API Gateway: ${error instanceof Error ? error.message + ' ' + error.stack : String(error)}`
-        );
+        throw new Error(`Network error or failed to fetch from API Gateway: ${error instanceof Error ? error.message + ' ' + error.stack : String(error)}`);
     }
 
     // 6. Process the response
@@ -99,12 +97,10 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
         return {
             statusCode: 404,
             body: { error: 'Not Found' } as T,
-            headers: new Headers(),
+            headers: new Headers()
         };
     } else if (response.status >= 400) {
-        throw new Error(
-            `API Gateway request failed with status ${response.status}. Response body: ${responseBodyText}`
-        );
+        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${responseBodyText}`);
     }
 
     try {
@@ -118,15 +114,13 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
 
     if (!response.ok) {
         console.error(`API Gateway request failed with status ${response.status}:`, responseBodyJson);
-        throw new Error(
-            `API Gateway request failed with status ${response.status}. Response body: ${JSON.stringify(responseBodyJson, null, 2)}`
-        );
+        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${JSON.stringify(responseBodyJson, null, 2)}`);
     }
 
     return {
         statusCode: response.status,
         body: responseBodyJson,
-        headers: response.headers,
+        headers: response.headers
     };
 }
 

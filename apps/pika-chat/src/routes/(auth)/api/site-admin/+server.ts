@@ -1,19 +1,11 @@
-import {
-    createOrUpdateChatAppOverride,
-    deleteChatAppOverride,
-    getAllChatApps,
-    getChatApp,
-} from '$lib/server/chat-admin-apis';
+import { clearChatAppCache, createOrUpdateChatAppOverride, deleteChatAppOverride, getAllChatApps, getChatApp } from '$lib/server/chat-admin-apis';
+import { searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import {
-    isUserAllowedToUseEntityAccessControl,
-    isUserAllowedToUseSpecificUserAccessControl,
-    isUserSiteAdmin,
-} from '$lib/server/utils';
-import type { SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
+import { isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
+import type { ConverseRequestWithCommand, SimpleAuthenticatedUser, SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getValuesForEntityAutoComplete } from './custom-data';
-import { searchForUser } from '$lib/server/chat-apis';
 
 export const POST: RequestHandler = async (event) => {
     const { locals, request } = event;
@@ -35,7 +27,7 @@ export const POST: RequestHandler = async (event) => {
         return json({
             success: true,
             chatApps,
-            siteFeatures,
+            siteFeatures
         });
     } else if (siteAdminReq.command === 'getValuesForEntityAutoComplete') {
         if (!isUserAllowedToUseEntityAccessControl(user)) {
@@ -54,16 +46,11 @@ export const POST: RequestHandler = async (event) => {
             return new Response('valueProvidedByUser is required', { status: 400 });
         }
 
-        const valuesForAutoComplete = await getValuesForEntityAutoComplete(
-            siteAdminReq.type,
-            siteAdminReq.valueProvidedByUser,
-            user,
-            siteAdminReq.chatAppId
-        );
+        const valuesForAutoComplete = await getValuesForEntityAutoComplete(siteAdminReq.type, siteAdminReq.valueProvidedByUser, user, siteAdminReq.chatAppId);
 
         return json({
             success: true,
-            data: valuesForAutoComplete,
+            data: valuesForAutoComplete
         });
     } else if (siteAdminReq.command === 'getValuesForUserAutoComplete') {
         if (!isUserAllowedToUseSpecificUserAccessControl(user)) {
@@ -73,7 +60,7 @@ export const POST: RequestHandler = async (event) => {
         const users = await searchForUser(user.userId, siteAdminReq.valueProvidedByUser);
         return json({
             success: true,
-            data: users,
+            data: users
         });
     } else if (siteAdminReq.command === 'refreshChatApp') {
         const chatAppId = siteAdminReq.chatAppId;
@@ -88,7 +75,53 @@ export const POST: RequestHandler = async (event) => {
 
         return json({
             success: true,
-            chatApp,
+            chatApp
+        });
+    } else if (siteAdminReq.command === 'clearChatAppCache') {
+        const chatAppId = siteAdminReq.chatAppId;
+        if (!chatAppId) {
+            return new Response('chatAppId is required', { status: 400 });
+        }
+
+        const agentId = siteAdminReq.agentId;
+        if (!agentId) {
+            return new Response('agentId is required', { status: 400 });
+        }
+
+        await clearChatAppCache(chatAppId);
+
+        try {
+            // Create simpleUser from user
+            const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
+                userId: user.userId,
+                customUserData: user.customData
+            };
+
+            // Create a command request to clear the cache
+            const clearCacheRequest: ConverseRequestWithCommand = {
+                userId: simpleUser.userId,
+                chatAppId: chatAppId,
+                agentId: agentId,
+                command: 'clearChatAppCache'
+            };
+
+            // Invoke the converse function with the command
+            const response = await invokeConverseFunctionUrl(clearCacheRequest, simpleUser);
+
+            // Read the response from the stream
+            const reader = response.body?.getReader();
+            if (reader) {
+                const result = await reader.read();
+                const commandResponse = JSON.parse(new TextDecoder().decode(result.value));
+                console.log('Cache clear command response:', commandResponse);
+            }
+        } catch (error) {
+            console.error('Error clearing chat app cache:', error);
+            return new Response('Failed to clear cache', { status: 500 });
+        }
+
+        return json({
+            success: true
         });
     } else if (siteAdminReq.command === 'createOrUpdateChatAppOverride') {
         if (!('chatAppId' in siteAdminReq)) {
@@ -99,15 +132,11 @@ export const POST: RequestHandler = async (event) => {
             return new Response('override is required', { status: 400 });
         }
 
-        const chatAppOverride = await createOrUpdateChatAppOverride(
-            user.userId,
-            siteAdminReq.chatAppId,
-            siteAdminReq.override
-        );
+        const chatAppOverride = await createOrUpdateChatAppOverride(user.userId, siteAdminReq.chatAppId, siteAdminReq.override);
 
         return json({
             success: true,
-            chatAppOverride,
+            chatAppOverride
         });
     } else if (siteAdminReq.command === 'deleteChatAppOverride') {
         if (!('chatAppId' in siteAdminReq)) {
@@ -116,7 +145,7 @@ export const POST: RequestHandler = async (event) => {
 
         const users = await deleteChatAppOverride(user.userId, siteAdminReq.chatAppId);
         return json({
-            success: true,
+            success: true
         });
     } else {
         return new Response('Invalid command', { status: 400 });

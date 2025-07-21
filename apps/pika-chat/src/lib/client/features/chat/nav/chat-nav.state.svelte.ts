@@ -17,8 +17,8 @@ export class ChatNavState {
             isActive: item.items?.some((subItem: NavSubItem) => subItem.url === pageObj.url.pathname),
             items: item.items?.map((subItem: NavSubItem) => ({
                 ...subItem,
-                isActive: subItem.url === pageObj.url.pathname,
-            })),
+                isActive: subItem.url === pageObj.url.pathname
+            }))
         }));
     });
 
