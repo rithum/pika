@@ -1246,7 +1246,9 @@ export interface TracesFeatureForChatApp extends TracesFeature, Feature {
 /**
  * Whether to support UI customization in the chat app.  If true, then the chat app will support UI customization.
  */
-export interface UiCustomizationFeature extends Feature {
+export interface UiCustomizationFeature {
+    enabled: boolean;
+
     /** Whether to show the chat history as left nav in full page mode.  Defaults to true. */
     showChatHistoryInStandaloneMode?: boolean;
 
@@ -1264,7 +1266,9 @@ export interface UiCustomizationFeatureForChatApp extends UiCustomizationFeature
  *
  * Default is false.
  */
-export interface SuggestionsFeature extends Feature {
+export interface SuggestionsFeature {
+    enabled: boolean;
+
     /**
      * A list of suggestions that will be displayed to the user relevant to the chat app.
      * Will be stored gzipped hex encoded in db.  Gzipped compressed value may not be more than 100kb.
@@ -1295,7 +1299,9 @@ export interface SuggestionsFeatureForChatApp extends SuggestionsFeature, Featur
 /**
  * Whether the chat app supports uploading files and attaching them to the chat.
  */
-export interface FileUploadFeature extends Feature {
+export interface FileUploadFeature {
+    enabled: boolean;
+
     /** If you put `*` can upload any file.  Example: ['text/csv'].  This must have a value or it is an error. */
     mimeTypesAllowed: string[];
 }
@@ -1311,7 +1317,9 @@ export interface FileUploadFeatureForChatApp extends FileUploadFeature, Feature 
  *
  * This feature is on by default.
  */
-export interface PromptInputFieldLabelFeature extends Feature {
+export interface PromptInputFieldLabelFeature {
+    enabled: boolean;
+
     /** Defaults to "Ready to chat".  The label to show above the prompt input field. */
     promptInputFieldLabel?: string;
 }

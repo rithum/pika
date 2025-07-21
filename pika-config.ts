@@ -77,12 +77,10 @@ export const pikaConfig: PikaConfig = {
             }
         },
         fileUpload: {
-            featureId: 'fileUpload',
             enabled: true,
             mimeTypesAllowed: ['text/*']
         },
         suggestions: {
-            featureId: 'suggestions',
             enabled: true,
             suggestions: [], // Must be set by chat apps
             maxToShow: 5, // Should be overridden by chat apps
@@ -90,12 +88,10 @@ export const pikaConfig: PikaConfig = {
             randomizeAfter: 0 // Should be overridden by chat apps
         },
         promptInputFieldLabel: {
-            featureId: 'promptInputFieldLabel',
             enabled: true,
             promptInputFieldLabel: 'Ready to chat'
         },
         uiCustomization: {
-            featureId: 'uiCustomization',
             enabled: true,
             showUserRegionInLeftNav: false,
             showChatHistoryInStandaloneMode: true
