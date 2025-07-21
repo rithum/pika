@@ -65,6 +65,48 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
     return response.body.chatApp;
 }
 
+export async function invoke<T, B = unknown>(method: string, endpoint: string, body?: B): Promise<T | undefined> {
+        let fullEndpoint = `${appConfig.stage}/api/chat-admin/${endpoint}`;
+    const response = await invokeApi({
+            apiId: appConfig.chatAdminApiId,
+        path: fullEndpoint,
+        method: method as any,
+        body,
+        headers: {
+                'x-chat-auth': `Bearer ${convertToJwtString<undefined>({}, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+            throw new Error(`Error invoking "${fullEndpoint}" with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    let allKeys = Object.keys(response.body).filter(k => k != "success");
+    if (allKeys.length <= 1) {
+            return response.body[allKeys[0]];
+    } else {
+            return response.body;
+    }
+}
+
+export async function getAllChatSessions(chatAppId: string): Promise<ChatApp | undefined> {
+        const response = await invokeApi({
+            apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/conversations`,
+        method: 'GET',
+        headers: {
+                'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+            throw new Error(`Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.chatApp;
+}
+
+
 /**
  * We use this to find all the chat apps that a user is allowed to access and also to try to retrieve the one
  * ChatApp that the user is trying to access.  In the first case, we will have a set of rules to match against.

@@ -1,6 +1,7 @@
 import type {
     ChatMessagesResponse,
     ChatSession,
+    ChatSessionResponse,
     ChatSessionsResponse,
     ChatUser,
     ChatUserAddOrUpdateResponse,
@@ -72,6 +73,26 @@ export async function createChatUser<T extends RecordOrUndef = undefined>(user: 
 
     return response.body.user as ChatUser<T>;
 }
+
+export async function getChatSession(userId: string, sessionId: string): Promise<ChatSession> {
+        const response = await invokeApi<ChatSessionResponse>({
+            apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/conversation/${userId}/${sessionId}`,
+        method: 'GET',
+        headers: {
+                'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+            throw new Error(
+                `Error getting session from chat database for userId ${userId} and sessionId ${sessionId} with status code: ${response.statusCode} and error: ${response.body?.error} and body: ${JSON.stringify(response.body)}`
+        );
+    }
+
+    return response.body.session;
+}
+
 
 export async function getChatSessions(userId: string, chatAppId: string): Promise<ChatSession[]> {
     const response = await invokeApi<ChatSessionsResponse>({

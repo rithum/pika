@@ -63,6 +63,12 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
 
     /** Expiration date of the message in Unix seconds */
     exp_date_unix_seconds?: number;
+
+    /** Last Message that has been analyzed by the system */
+    lastAnalyzedMessageId?: string;
+
+    /** Session is fagged for as needing human review  */
+    flagged?: boolean;
 }
 
 /**
@@ -540,6 +546,22 @@ export interface ChatMessageResponse {
     success: boolean;
     message: ChatMessage;
     error?: string;
+}
+
+ 
+export interface ApiResponseBase {
+        success: boolean;
+    error?: string;
+}
+export type ApiResponse<T> = ApiResponseBase & T;
+
+export interface ChatSessionAdminResponse {
+        success: boolean;
+    error?: string;
+    session: ChatSession & {
+        lastAnalyzedMessageId?: string;
+        reports: string[]
+    }
 }
 
 export interface ChatMessagesResponse {

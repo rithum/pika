@@ -109,16 +109,17 @@ export class PikaConstruct extends Construct {
     private createComputeResources(storageResources: any) {
         // Create IAM roles
         const bedrockChatRole = this.createBedrockChatRoleForInlineAgent();
-        const lambdaRole = this.createChatLambdaRole(storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable, bedrockChatRole);
+        const lambdaRole = this.createChatLambdaRole(storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable, bedrockChatRole, storageResources.uploadS3Bucket);
 
         // Create Lambda functions
-        const chatbotApiFn = this.createChatbotApiFunction(lambdaRole, storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable);
+        const chatbotApiFn = this.createChatbotApiFunction(lambdaRole, storageResources.chatMessagesTable, storageResources.chatSessionTable, storageResources.chatUserTable, storageResources.uploadS3Bucket);
 
         const [chatAdminApiFn, chatAdminRestApi] = this.createChatAdminApiFunction(
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
             storageResources.chatAppTable,
-            storageResources.chatUserTable
+            storageResources.chatUserTable,
+            storageResources.chatSessionTable
         );
 
         // Create custom resources
@@ -826,7 +827,7 @@ export class PikaConstruct extends Construct {
         });
     }
 
-    private createChatLambdaRole(chatMessagesTable: dynamodb.Table, chatSessionTable: dynamodb.Table, chatUserTable: dynamodb.Table, bedrockChatRole: iam.Role): iam.Role {
+    private createChatLambdaRole(chatMessagesTable: dynamodb.Table, chatSessionTable: dynamodb.Table, chatUserTable: dynamodb.Table, bedrockChatRole: iam.Role, uploadS3Bucket: s3.Bucket): iam.Role {
         const lambdaRole = new iam.Role(this, 'PikaLambdaRole', {
             roleName: `lambda-role-${this.props.stackName}`,
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -896,7 +897,27 @@ export class PikaConstruct extends Construct {
                                 chatUserTable.tableArn,
                                 `${chatUserTable.tableArn}/index/*`
                             ]
-                        })
+                                                }),
+                        new iam.PolicyStatement({
+                                effect: iam.Effect.ALLOW,
+                            actions: [
+                                    's3:DeleteObject',
+                                's3:GetObjectTagging',
+                                's3:PutObjectTagging',
+                                's3:GetObject',
+                                's3:PutObject',
+                                's3:GetObjectAttributes',
+                                's3:PutObjectTagging',
+                                's3:DeleteObjectTagging',
+                                's3:GetObjectVersion',
+                                's3:DeleteObjectVersion',
+                                's3:ListBucket',
+                                's3:ListBucketVersions',
+                                's3:GetBucketLocation',
+                                's3:GetBucketVersioning'
+                            ],
+                            resources: [uploadS3Bucket.bucketArn, `${uploadS3Bucket.bucketArn}/*`]
+                        }),
                     ]
                 })
             }
@@ -1021,7 +1042,12 @@ export class PikaConstruct extends Construct {
     }
 
     // Lambda function creation methods
-    private createChatbotApiFunction(lambdaRole: iam.Role, chatMessagesTable: dynamodb.Table, chatSessionTable: dynamodb.Table, chatUserTable: dynamodb.Table): lambda.Function {
+    private createChatbotApiFunction(
+        lambdaRole: iam.Role,
+        chatMessagesTable: dynamodb.Table,
+        chatSessionTable: dynamodb.Table,
+        chatUserTable: dynamodb.Table,
+        uploadS3Bucket: s3.Bucket): lambda.Function {
         return new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
             entry: 'src/api/chatbot/index.ts',
             handler: 'handler',
@@ -1034,7 +1060,8 @@ export class PikaConstruct extends Construct {
                 CHAT_SESSION_TABLE: chatSessionTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
                 STAGE: this.props.stage,
-                PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase
+                PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
+                UPLOAD_S3_BUCKET: uploadS3Bucket.bucketName
             },
             bundling: {
                 minify: true,
@@ -1049,7 +1076,8 @@ export class PikaConstruct extends Construct {
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
         chatAppTable: dynamodb.Table,
-        chatUserTable: dynamodb.Table
+        chatUserTable: dynamodb.Table,
+        chatSessionTable: dynamodb.Table
     ): [lambda.Function, apigateway.RestApi] {
         const lambdaRole = new iam.Role(this, 'ChatAdminApiLambdaRole', {
             roleName: `chat-admin-api-lambda-role-${this.props.stackName}`,
@@ -1115,6 +1143,7 @@ export class PikaConstruct extends Construct {
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
                 CHAT_APP_TABLE: chatAppTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
+                CHAT_SESSION_TABLE: chatSessionTable.tableName,
                 STAGE: this.props.stage
             },
             bundling: {
@@ -1190,6 +1219,9 @@ export class PikaConstruct extends Construct {
         const chatAppOverride = chatAppById.addResource('override');
         chatAppOverride.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
         chatAppOverride.addMethod('DELETE', new apigateway.LambdaIntegration(chatAdminApiFn));
+
+        const conversations = chatAdmin.addResource('conversations');
+        conversations.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
 
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {
@@ -1391,6 +1423,11 @@ export class PikaConstruct extends Construct {
         // GET /api/chat/conversations/{chatAppId}
         const conversationsByChatAppId = conversations.addResource('{chatAppId}');
         conversationsByChatAppId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        // GET /api/chat/conversation/{userId}/{sessionId}
+        const conversation = chats.addResource('conversation');
+        const conversationBySessionId = conversation.addResource("{userId}").addResource('{sessionId}');
+        conversationBySessionId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
 
         // GET /api/chat/user
         const userResource = chats.addResource('user');

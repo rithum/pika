@@ -44,6 +44,10 @@ export function getChatUserTable(): string {
     return getFromEnv('CHAT_USER_TABLE');
 }
 
+export function getUploadBucket(): string {
+    return getFromEnv('UPLOAD_S3_BUCKET');
+}
+
 // export function getAgentId(): string {
 //     return getFromEnv('AGENT_ID');
 // }

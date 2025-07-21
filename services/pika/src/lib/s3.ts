@@ -1,8 +1,10 @@
 import {
     CopyObjectCommand,
     DeleteObjectCommand,
+    GetObjectCommand,
     GetObjectTaggingCommand,
     GetObjectTaggingCommandOutput,
+    ListObjectsV2Command,
     PutObjectCommand,
     PutObjectTaggingCommand,
     S3,
@@ -70,4 +72,24 @@ export async function putS3Object(bucket: string, key: string, body: string | Bu
         ContentType: contentType || 'application/json'
     });
     await s3.send(command);
+}
+
+export async function listS3Objects(bucket: string, prefix: string) {
+    const s3 = getS3Client();
+    const command = new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix
+    });
+    const response = await s3.send(command);
+    return response;
+}
+
+export async function getS3Object(bucket: string, key: string) {
+    const s3 = getS3Client();
+    const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key
+    });
+    const response = await s3.send(command);
+    return response;
 }

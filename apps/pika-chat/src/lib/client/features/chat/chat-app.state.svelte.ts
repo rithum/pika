@@ -540,6 +540,28 @@ export class ChatAppState {
         this.#setSession(undefined);
     }
 
+    async getAllChatSessions() {
+                try {
+                    this.#appState.apis
+                    const resp = await this.fetchz(`/api/sessions`);
+                    if (resp.ok) {
+                        const sessionsResult = (await resp.json()) as ChatSessionsResponse;
+                        if (sessionsResult.success) {
+                            this.#chatSessions = sessionsResult.sessions;
+        
+                    } else {
+                            console.error('Error refreshing chat sessions from server', sessionsResult.error);
+        
+                    }
+            }
+        } catch (e) {
+                    console.error('Error refreshing chat sessions from server', e);
+                    throw e;
+        
+            }
+    }
+    
+
     async refreshChatSessions() {
         try {
             const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);

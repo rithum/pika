@@ -1,6 +1,8 @@
 import type {
     AgentDefinition,
     ChatApp,
+    ChatMessage,
+    ChatSession,
     ChatAppOverrideDdb,
     ChatAppOverride,
     ToolDefinition,
@@ -13,9 +15,10 @@ import type {
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocument, ScanCommandOutput, UpdateCommand, UpdateCommandInput } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
+import { getChatMessagesTable, getChatSessionTable } from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -710,4 +713,82 @@ export async function deleteChatAppOverrideDdb(chatAppIdWithOverride: string): P
         }
         // No ConditionExpression - won't error if the override record doesn't exist
     });
+}
+
+
+export async function getSessions(lastEvaluatedKey?: Record<string, any>) {
+    const result = await ddbDocClient.scan({
+        TableName: getChatSessionTable(),
+        ExclusiveStartKey: lastEvaluatedKey,
+        //ScanIndexForward: false
+    });
+
+    if (result.Items) {
+        result.Items = result.Items.map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+    }
+    return result as Omit<ScanCommandOutput, "Items"> & { Items?: ChatSession[] };
+}
+
+export async function getMessagesFrom(userId: string, sessionId: string, messageId?: string, inclusive = true) {
+    let command = {
+        TableName: getChatMessagesTable(),
+        KeyConditionExpression: "#user = :user and #message between :message_start and :message_end",
+        ExpressionAttributeNames: {
+            "#user": "user_id",
+            "#message": "message_id"
+        },
+        ExpressionAttributeValues: {
+            ":user": userId,
+            ":message_start": (messageId || sessionId) + (inclusive ? "" : " "),
+            ":message_end": sessionId + "=" // char that is greater than the ':' used in the message id
+        }
+    };
+    const result = await ddbDocClient.query(command);
+
+    if (result.Items) {
+        result.Items = result.Items.map((item) => convertToCamelCase<ChatMessage>(item as SnakeCase<ChatMessage>));
+    }
+    return result as Omit<ScanCommandOutput, "Items"> & { Items?: ChatMessage[] };
+}
+
+/**
+ * Scans and returns all the sessions 
+ * @returns 
+ */
+export async function getAllSessions() {
+    const allItems: ChatSession[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+        const result = await getSessions(lastEvaluatedKey);
+        if (result.Items) {
+            allItems.push(...result.Items);
+        }
+
+        lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return allItems;
+}
+
+
+export async function updateSessionLastAnalysedMessage(userId: string, sessionId: string, lastAnalyzedMessageId: string, flagged: boolean = false) {
+
+    let cmd: UpdateCommandInput = {
+        TableName: getChatSessionTable(),
+        Key: {
+            user_id: userId,
+            session_id: sessionId
+        },
+        UpdateExpression: 'set last_analyzed_message_id = :lastAnalyzedMessageId',
+        ExpressionAttributeValues: {
+            ':lastAnalyzedMessageId': lastAnalyzedMessageId
+        }
+    };
+    if (flagged) {
+        cmd.UpdateExpression += ", flagged = :flagged";
+        cmd.ExpressionAttributeValues![":flagged"] = true;
+    }
+    await ddbDocClient.update(cmd);
+
 }

@@ -1,9 +1,12 @@
 import {
+    ApiResponse,
     BaseRequestData,
     ChatMessage,
     ChatMessageForCreate,
     ChatMessageResponse,
     ChatMessagesResponse,
+    ChatSession,
+    ChatSessionAdminResponse,
     ChatSessionsResponse,
     ChatTitleUpdateRequest,
     ChatUser,
@@ -22,6 +25,9 @@ import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUs
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { extractFromJwtString } from '@pika/shared/util/jwt';
+import { listS3Objects, getS3Object } from '../../lib/s3';
+import { getUploadBucket } from '../../lib/utils';
+import { gzipSync } from 'zlib';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted
@@ -53,6 +59,10 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     },
     'GET:/api/chat/conversations': {
         handler: handleGetUserSessions,
+        passUserObj: true
+    },
+    'GET:/api/chat/conversation/{userId}/{sessionId}': {
+        handler: handleGetChatSession,
         passUserObj: true
     },
     'POST:/api/chat/{sessionId}/title': {
@@ -189,6 +199,90 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
         user: userToReturn
     };
 }
+
+/**
+ *  GET:/api/conversation/{userId}/{sessionId}
+ */
+async function handleGetChatSession(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<any> {//Promise<ChatSessionAdminResponse> {
+    type ChatSessionAdmin = ChatSessionAdminResponse["session"];
+    const sessionId = event.pathParameters?.sessionId;
+    const userId = event.pathParameters?.userId;
+    if (user.userType != "internal-user") {
+        throw new Error("Not Authroized");
+    }
+    if (!sessionId) {
+        throw new Error('Session ID is required');
+    }
+    if (!userId) {
+        throw new Error('User ID is required');
+    }
+    // Get the session and make sure it's associated with the user
+    const chatSession = await getChatSession(userId, sessionId) as ChatSessionAdmin;
+
+    if (!chatSession) {
+        throw new UnauthorizedError('Unauthorized: chat session not found');
+    }
+
+    console.log("LAM:", chatSession.lastAnalyzedMessageId, user.userId, chatSession.sessionId)
+    if (chatSession.lastAnalyzedMessageId) {
+        const uploadS3Bucket = getUploadBucket();
+        let key = `session-analysis/${chatSession.chatAppId}/${chatSession.userId}/${chatSession.sessionId}:`;
+        console.log(uploadS3Bucket, key);
+        let reportFiles = await listS3Objects(uploadS3Bucket, key);
+
+        //console.log("S3 REPORTs", reportFiles);
+        let reports = await Promise.all((reportFiles.Contents ?? []).map(async (file) => {
+            let f = await getS3Object(uploadS3Bucket, file.Key!);
+            let b = await f.Body?.transformToString();
+            return b;
+        }));
+
+        chatSession.reports = reports.filter(f => !!f) as string[];
+    }
+
+
+
+    let response = {
+        success: true,
+        session: chatSession
+    };
+
+    console.log("RESPONSE:", response);
+    let responseBody: string = JSON.stringify(response);
+    let isBase64Encoded = false;
+    let willAcceptGzip = false;
+    for (const headerName of Object.keys(event.headers ?? {})) {
+        if (headerName.toLowerCase() === 'accept-encoding') {
+            if (event.headers[headerName]?.indexOf('gzip') !== -1) {
+                willAcceptGzip = true;
+            }
+            break;
+        }
+    }
+
+    let compressionThreshold = 1000;
+    const responseHeaders: Record<string, unknown> = {
+        "Content-Type": "application/json"
+        // 'Access-Control-Allow-Credentials': true,
+        // 'Access-Control-Allow-Origin': '*',
+    };
+    if (false && willAcceptGzip && responseBody.length > compressionThreshold) {
+        console.info(`compressing response,  size = ${responseBody.length}`);
+        responseBody = gzipSync(responseBody).toString('base64');
+        responseHeaders['Content-Encoding'] = 'gzip';
+        isBase64Encoded = true;
+        console.info(`after compression, response size = ${responseBody.length}`);
+    } else {
+        console.info(`response,  size = ${responseBody.length}`);
+    }
+    return {
+        body: responseBody,
+        headers: responseHeaders,
+        isBase64Encoded,
+        statusCode: 200,
+    };
+}
+
 
 /**
  *  GET:/api/chat/{sessionId}/messages

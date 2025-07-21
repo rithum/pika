@@ -7,6 +7,7 @@ import {
     ChatAppOverride,
     ChatAppDataRequest,
     ChatAppDataResponse,
+    ChatSession,
     CreateAgentRequest,
     CreateChatAppRequest,
     CreateOrUpdateChatAppOverrideRequest,
@@ -48,7 +49,7 @@ import {
     validateChatAppDefinition,
     validateToolDefinition
 } from '../../lib/chat-admin-apis';
-import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
+import { getAgentById, getSessions, getToolById } from '../../lib/chat-admin-ddb';
 import { getUser } from '../../lib/chat-apis';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 
@@ -102,6 +103,9 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/chat-app-by-rules': {
         handler: handleGetChatAppByRules
+    },
+    'GET:/api/chat-admin/conversations': {
+        handler: handleGetAllConversations
     },
     'POST:/api/chat-admin/chat-app/{chatAppId}/override': {
         handler: handleCreateOrUpdateChatAppOverride
@@ -584,5 +588,17 @@ async function handleDeleteChatAppOverride(event: APIGatewayProxyEventPika<Delet
         success: true
     };
 }
+
+/**
+ * GET:/api/chat-admin/conversations
+ */
+async function handleGetAllConversations(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; sessions: ChatSession[] | null }> {
+    const sessions = await getSessions();
+    return {
+        success: true,
+        sessions: sessions.Items ?? null
+    };
+}
+
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);
