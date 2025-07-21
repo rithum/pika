@@ -1,4 +1,12 @@
-import { ChatApp, FeatureIdType, ChatAppFeature, FileUploadFeature, SuggestionsFeature } from '@pika/shared/types/chatbot/chatbot-types';
+import {
+    ChatApp,
+    FeatureIdType,
+    ChatAppFeature,
+    FileUploadFeature,
+    SuggestionsFeature,
+    FileUploadFeatureForChatApp,
+    SuggestionsFeatureForChatApp
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { recordsHaveSameElements } from '../src/lib/chat-admin-utils';
 
 describe('Features Type Change Verification', () => {
@@ -10,14 +18,14 @@ describe('Features Type Change Verification', () => {
                 enabled: true,
                 defaultEnabledValue: false,
                 mimeTypesAllowed: ['text/csv', 'application/json']
-            } as FileUploadFeature,
+            } as FileUploadFeatureForChatApp,
             suggestions: {
                 featureId: 'suggestions',
                 featureName: 'Suggestions',
                 enabled: true,
                 defaultEnabledValue: false,
                 suggestions: ['How can I help you?', 'What would you like to know?']
-            } as SuggestionsFeature
+            } as SuggestionsFeatureForChatApp
         };
 
         const features2: Partial<Record<FeatureIdType, ChatAppFeature>> = {
@@ -27,14 +35,14 @@ describe('Features Type Change Verification', () => {
                 enabled: true,
                 defaultEnabledValue: false,
                 mimeTypesAllowed: ['text/csv', 'application/json']
-            } as FileUploadFeature,
+            } as FileUploadFeatureForChatApp,
             suggestions: {
                 featureId: 'suggestions',
                 featureName: 'Suggestions',
                 enabled: true,
                 defaultEnabledValue: false,
                 suggestions: ['How can I help you?', 'What would you like to know?']
-            } as SuggestionsFeature
+            } as SuggestionsFeatureForChatApp
         };
 
         // Test that recordsHaveSameElements works with the new Partial<Record> type
@@ -49,7 +57,7 @@ describe('Features Type Change Verification', () => {
                 enabled: true,
                 defaultEnabledValue: false,
                 mimeTypesAllowed: ['text/csv']
-            } as FileUploadFeature
+            } as FileUploadFeatureForChatApp
         };
 
         const features2: Partial<Record<FeatureIdType, ChatAppFeature>> = {
@@ -59,7 +67,7 @@ describe('Features Type Change Verification', () => {
                 enabled: true,
                 defaultEnabledValue: false,
                 mimeTypesAllowed: ['text/csv', 'application/json']
-            } as FileUploadFeature
+            } as FileUploadFeatureForChatApp
         };
 
         // Test that recordsHaveSameElements detects differences
@@ -79,7 +87,7 @@ describe('Features Type Change Verification', () => {
                     enabled: true,
                     defaultEnabledValue: false,
                     mimeTypesAllowed: ['*']
-                } as FileUploadFeature
+                } as FileUploadFeatureForChatApp
             },
             enabled: true,
             createDate: '2024-01-01T00:00:00Z',
@@ -108,7 +116,7 @@ describe('Features Type Change Verification', () => {
                 enabled: true,
                 defaultEnabledValue: false,
                 mimeTypesAllowed: ['*']
-            } as FileUploadFeature
+            } as FileUploadFeatureForChatApp
         };
 
         expect(recordsHaveSameElements(features1, features2)).toBe(false);
