@@ -133,6 +133,76 @@ Entity-based access control allows you to restrict chat apps to specific account
 2. **Entity Field Population**: Users must have the entity identifier in their `customData`
 3. **Override Configuration**: Site admins configure which entities are allowed
 
+#### Entity Autocomplete Implementation
+
+To enable the autocomplete entity picker in the site admin interface, you need to enable the `supportUserEntityAccessControl` sub-feature and implement the entity lookup functionality:
+
+**1. Enable the Sub-Feature:**
+
+In your `pika-config.ts`, enable the entity access control UI:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        siteAdmin: {
+            websiteEnabled: true,
+            supportUserEntityAccessControl: true // Enables the entity picker UI
+        }
+    }
+};
+```
+
+**2. Implement Entity Lookup Logic:**
+
+The file `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts` contains the `getValuesForEntityAutoComplete()` function that you must implement. This function provides the autocomplete values when site admins search for entities to grant access to.
+
+**Key Points:**
+
+- The file starts with "custom" so it's protected from sync overwrites when you update from the upstream Pika project
+- You can safely modify this file without worrying about losing your changes during updates
+- The file contains detailed documentation and examples of how to implement the lookup
+- You may need to add IAM permissions if your implementation calls AWS APIs
+
+**Example Implementation Pattern:**
+
+```typescript
+export async function getValuesForEntityAutoComplete(
+    type: 'internal-user' | 'external-user',
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId: string
+): Promise<SimpleOption[] | undefined> {
+    // Your implementation here - could call:
+    // - Internal company directory API
+    // - Customer management system
+    // - LDAP/Active Directory
+    // - External CRM system
+    // - Database lookup
+
+    return entities.map((entity) => ({
+        value: entity.id, // This value gets stored in the access control
+        label: entity.name // This is what the admin sees in the UI
+    }));
+}
+```
+
+**3. Configure AWS Permissions (if needed):**
+
+If your implementation calls AWS services, add the necessary IAM permissions in `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`:
+
+```typescript
+// Example: Allow calling an API Gateway endpoint
+this.stack.webapp.taskRole.addToPolicy(
+    new iam.PolicyStatement({
+        actions: ['execute-api:Invoke'],
+        resources: ['arn:aws:execute-api:region:account:api-id/stage/method/path']
+    })
+);
+```
+
+For complete implementation details, examples, and IAM permission patterns, see the documentation in the `custom-data.ts` file itself.
+
 **Example Configuration:**
 
 ```typescript
