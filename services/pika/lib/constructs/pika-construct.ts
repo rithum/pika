@@ -1191,6 +1191,11 @@ export class PikaConstruct extends Construct {
         chatAppOverride.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
         chatAppOverride.addMethod('DELETE', new apigateway.LambdaIntegration(chatAdminApiFn));
 
+        // Session management endpoints
+        const session = chatAdmin.addResource('session');
+        const sessionSearch = session.addResource('search');
+        sessionSearch.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
+
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/api/chat_admin_url`,

@@ -65,6 +65,8 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     exp_date_unix_seconds?: number;
 }
 
+export type LastEvaluatedKey = Record<string, any>;
+
 /**
  * Additional attributes specific to a chat session.  This plus ChatUser.customData spreads into the sessionAttributes on a session using the SessionDataWithChatUserCustomDataSpreadIn type.
  */
@@ -565,6 +567,53 @@ export interface ChatSessionsResponse {
     success: boolean;
     sessions: ChatSession[];
     error?: string;
+}
+
+/**
+ * You must provide startDate.  All other parameters are optional.
+ * If you provide customUserData, then we will filter results to just the sessions whose sessionAttributes includes
+ * the attributes you specified in customUserData.  So if you provide customUserData.accountId = 'John', then we will filter
+ * to just the sessions whose sessionAttributes.accountId = 'John'.
+ *
+ * We will and together all the search params you provide.  So if you provide userId and chatAppId, then we will filter
+ * to just the sessions whose userId and chatAppId match the values you provided.
+ *
+ * The results will be sorted by startDate in descending order.
+ *
+ * The results will be paginated.  You may provide a page token to get the next page of results.
+ *
+ * TODO: the implementation should make sure that the backend query includes a matching sort: [{ startDate: 'desc' }, { sessionId: 'desc' }].
+ */
+export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
+    userId?: string;
+    chatAppId?: string;
+    sessionId?: string;
+    customUserData?: T;
+    startDate: string;
+    endDate?: string;
+
+    /**
+     * Used for deep pagination via search_after.
+     * Provide the sort values of the last item from the previous page.
+     */
+    searchAfter?: [string, string]; // Assuming sort on [startDate, sessionId]
+
+    /**
+     * Page size (defaulted by backend if not provided).
+     */
+    size?: number;
+}
+
+export interface SessionSearchResponse {
+    success: boolean;
+    sessions: ChatSession[];
+    error?: string;
+
+    /**
+     * Sort values of the last session in this page.
+     * Use this as searchAfter in your next request to get the next page.
+     */
+    nextSearchAfter?: [string, string]; // [startDate, sessionId]
 }
 
 // Agent Definition System Types
@@ -1072,7 +1121,8 @@ export type ChatAppFeature =
     | VerifyResponseFeatureForChatApp
     | TracesFeatureForChatApp
     | ChatDisclaimerNoticeFeatureForChatApp
-    | LogoutFeatureForChatApp;
+    | LogoutFeatureForChatApp
+    | SessionInsightsFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1086,7 +1136,17 @@ export interface Feature {
     enabled: boolean;
 }
 
-export const FeatureIdList = ['fileUpload', 'promptInputFieldLabel', 'suggestions', 'uiCustomization', 'verifyResponse', 'traces', 'chatDisclaimerNotice', 'logout'] as const;
+export const FeatureIdList = [
+    'fileUpload',
+    'promptInputFieldLabel',
+    'suggestions',
+    'uiCustomization',
+    'verifyResponse',
+    'traces',
+    'chatDisclaimerNotice',
+    'logout',
+    'sessionInsights'
+] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
 export const EndToEndFeatureIdList = ['verifyResponse', 'traces'] as const;
@@ -1100,7 +1160,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     verifyResponse: 'Verify Response',
     traces: 'Traces',
     chatDisclaimerNotice: 'Chat Disclaimer Notice',
-    logout: 'Logout'
+    logout: 'Logout',
+    sessionInsights: 'Session Insights'
 };
 
 export interface SiteAdminFeature {
@@ -1121,6 +1182,16 @@ export interface SiteAdminFeature {
 
         /** The display name for a plural of entities: e.g. "Accounts". Defaults to "Entities" */
         entityDisplayNamePlural?: string;
+    };
+
+    /**
+     * If turned on, any user with the pika:site-admin role will be able to view session insights
+     * for any chat session in the admin website.  This is useful for debugging and troubleshooting.
+     * This feature will not be enabled unless you have also first enabled the session insights feature
+     * at the site level in pika-config.ts.
+     */
+    sessionInsights?: {
+        enabled: boolean;
     };
 
     /**
@@ -1879,6 +1950,22 @@ export interface SiteFeatures {
 
     /** Configure whether the UI customization feature is enabled. */
     uiCustomization?: UiCustomizationFeature;
+
+    /** Configure whether the session insights feature is enabled. */
+    sessionInsights?: SessionInsightsFeature;
+}
+
+/**
+ * Configure whether the session insights feature is enabled.  When turned on, Pika will
+ * automatically collect session insights for each chat session.  If you want to view these
+ * insights, then you need to turn it on in the site admin website.
+ */
+export interface SessionInsightsFeature {
+    enabled: boolean;
+}
+
+export interface SessionInsightsFeatureForChatApp extends Feature {
+    featureId: 'sessionInsights';
 }
 
 /**

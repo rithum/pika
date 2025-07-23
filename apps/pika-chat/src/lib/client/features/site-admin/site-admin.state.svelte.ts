@@ -60,7 +60,7 @@ export class SiteAdminState {
         this.#chatApps = chatApps;
         this.#siteFeatures = siteFeatures;
         this.#appState = appState;
-        this.#nav = new SiteAdminNavState(page);
+        this.#nav = new SiteAdminNavState(page, siteFeatures);
     }
 
     get chatApps() {

@@ -74,6 +74,9 @@ export const pikaConfig: PikaConfig = {
             },
             supportSpecificUserAccessControl: {
                 enabled: true
+            },
+            sessionInsights: {
+                enabled: true
             }
         },
         fileUpload: {
@@ -95,6 +98,9 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
             showUserRegionInLeftNav: false,
             showChatHistoryInStandaloneMode: true
+        },
+        sessionInsights: {
+            enabled: true
         }
     }
 };

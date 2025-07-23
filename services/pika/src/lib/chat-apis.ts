@@ -17,7 +17,8 @@ import type {
     ChatTitleUpdateRequest,
     ChatUser,
     ChatUserLite,
-    RecordOrUndef
+    RecordOrUndef,
+    SimpleAuthenticatedUser
 } from '@pika/shared/types/chatbot/chatbot-types';
 import type { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
@@ -83,12 +84,19 @@ export async function searchForUsers(partialUserId: string): Promise<ChatUserLit
  *
  * @returns A tuple with the chat session object and a boolean indicating if it was newly created
  */
-export async function ensureChatSession(user: ChatUser<RecordOrUndef>, requestData: BaseRequestData, agentId: string, chatAppId: string): Promise<[ChatSession, boolean]> {
+export async function ensureChatSession(
+    user: ChatUser<RecordOrUndef>,
+    requestData: BaseRequestData,
+    agentId: string,
+    chatAppId: string,
+    simpleUser: SimpleAuthenticatedUser<RecordOrUndef>
+): Promise<[ChatSession, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
         sessionId: requestData.sessionId,
         agentId,
-        chatAppId
+        chatAppId,
+        simpleUser
     });
 
     let isNewSession = false;
@@ -109,6 +117,7 @@ export async function ensureChatSession(user: ChatUser<RecordOrUndef>, requestDa
             agentAliasId: agentId, //'weather-agent-alias',//requestData.agentAliasId ?? getAgentAliasId(),
             sessionAttributes: {
                 ...(user.customData ? user.customData : {}),
+                ...(simpleUser.customUserData ? simpleUser.customUserData : {}),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 timezone: requestData.timezone,

@@ -1,8 +1,10 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
-import { Bot, Settings } from '$icons/lucide';
+import { Bot, ChartBar, Settings } from '$icons/lucide';
 import type { Page } from '@sveltejs/kit';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
+import SessionInsights from '../pages/session-insights.svelte';
+import type { SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
 
 const ITEMS: NavItem[] = [
     {
@@ -16,6 +18,13 @@ const ITEMS: NavItem[] = [
         url: '/admin/chat-apps',
         icon: Bot,
         pageComponent: ChatApps
+    },
+    {
+        title: 'Session Insights',
+        url: '/admin/session-insights',
+        icon: ChartBar,
+        pageComponent: SessionInsights,
+        enabled: (siteFeatures: SiteFeatures) => siteFeatures.sessionInsights?.enabled ?? false
     }
 ];
 
@@ -28,7 +37,12 @@ export class SiteAdminNavState {
             return ITEMS;
         }
 
-        return ITEMS.map((item: NavItem) => ({
+        return ITEMS.filter((item) => {
+            if (item.enabled) {
+                return item.enabled(this.siteFeatures);
+            }
+            return true;
+        }).map((item: NavItem) => ({
             ...item,
             isActive: item.url === pageObj.url.pathname || (item.items?.some((subItem: NavSubItem) => subItem.url === pageObj.url.pathname) ?? false),
             items: item.items?.map((subItem: NavSubItem) => ({
@@ -62,5 +76,8 @@ export class SiteAdminNavState {
         }
     });
 
-    constructor(private readonly page: Page) {}
+    constructor(
+        private readonly page: Page,
+        private readonly siteFeatures: SiteFeatures
+    ) {}
 }

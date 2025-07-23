@@ -20,6 +20,7 @@
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
         PromptInputFieldLabelFeatureForChatApp,
+        SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
         TracesFeatureForChatApp,
@@ -39,6 +40,7 @@
     import TracesFeatureRenderer from './traces-feature-renderer.svelte';
     import UiCustomizationFeatureRenderer from './ui-customization-feature-renderer.svelte';
     import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
+    import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -497,6 +499,27 @@
                                 {disabled}
                                 setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
                             />
+                        {:else if typedFeatureId === 'sessionInsights'}
+                            <SessionInsightsFeatureRenderer
+                                {featureEnabled}
+                                isOverridden={featureOverridden}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | SessionInsightsFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as SessionInsightsFeatureForChatApp}
+                                {isOverrideMode}
+                            />
                         {:else if typedFeatureId === 'promptInputFieldLabel'}
                             <PromptInputFieldLabelFeatureRenderer
                                 {featureEnabled}
@@ -739,6 +762,8 @@
         <p class="text-xs text-muted-foreground">
             If enabled, users can upload files to the chat app. You can configure which file types are allowed.
         </p>
+    {:else if featureId === 'sessionInsights'}
+        <p class="text-xs text-muted-foreground">Automatically collect session insights for each chat session.</p>
     {:else if featureId === 'promptInputFieldLabel'}
         <p class="text-xs text-muted-foreground mb-2">Defaults to "Ready to chat" when enabled but no label is set.</p>
         <p class="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import type { SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Component } from 'svelte';
 
 /**
@@ -24,6 +25,7 @@ export interface NavItem {
     items?: NavSubItem[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pageComponent?: Component<any>;
+    enabled?: (siteFeatures: SiteFeatures) => boolean;
 }
 
 export interface User {

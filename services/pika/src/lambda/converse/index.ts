@@ -189,7 +189,7 @@ export const handler = enhancedStreamifyResponse(
             }
 
             console.log('Ensuring chat session...');
-            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId);
+            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId, simpleUser);
             console.log('Chat session ensured:', {
                 sessionId: chatSession.sessionId,
                 isNewSession,
