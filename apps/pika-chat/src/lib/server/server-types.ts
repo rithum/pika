@@ -53,11 +53,11 @@ export interface AppConfig {
 
     /**
      * Must be set in an environment variable.
-     * The s3 bucket where the chatbot app uploads files
+     * The s3 bucket where the chatbot app uploads files and stores files
      *
-     * env variable: UPLOAD_S3_BUCKET
+     * env variable: PIKA_S3_BUCKET
      */
-    uploadS3Bucket: string;
+    pikaS3Bucket: string;
 
     /**
      * Must be set in an environment variable.

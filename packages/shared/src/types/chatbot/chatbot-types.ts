@@ -1,6 +1,7 @@
 //TODO: make sure to turn on model invocation logging in aws
 
 import type { FunctionDefinition, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import { SnakeCase } from '../../util/chatbot-shared-utils';
 
 export type CompanyType = 'retailer' | 'supplier';
 
@@ -28,7 +29,12 @@ export interface SessionData {
  * lastMessageId.
  */
 export interface ChatSession<T extends RecordOrUndef = undefined> {
-    /** Unique identifier for this chat session */
+    /**
+     * Unique identifier for this chat session
+     *
+     * Note this is a time-based key so you can use it to lexicographically sort the sessions and to compare them
+     * as in sessionId1 < sessionId2 if sessionId1 is before sessionId2.
+     */
     sessionId: string;
     /** Unique identifier of the user participating in the session */
     userId: string;
@@ -61,11 +67,286 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     /** ISO 8601 formatted timestamp of the last session update */
     lastUpdate: string;
 
-    /** Expiration date of the message in Unix seconds */
+    /**
+     * Last Message that has been analyzed by the system for insights, this lets us detect if the user came back to
+     * the chat after the session is believed to be complete and added another message that we should analyze again.
+     *
+     * Note this is a time-based key so you can use it to lexicographically sort the messages and compare message IDs
+     * as in messageId1 < messageId2 if messageId1 is before messageId2.
+     *
+     * If present and insightsS3Url is not present then this is a bug.
+     *
+     * If lastAnalyzedMessageId is not the same as lastMessageId then this means the user has added another message
+     * to the session since we computed insights and we need to recompute them.
+     */
+    lastAnalyzedMessageId?: string;
+
+    /**
+     * If present, this is the url to the s3 object that contains the insights for the session.  If not present,
+     * then the insights are not yet computed.  If this is present and lastAnalyzedMessageId is not present, then
+     * this is a bug.
+     *
+     * The url to the s3 object in this form:
+     *
+     * s3://<bucket-name>/<session-id>/insights.json
+     */
+    insightsS3Url?: string;
+
+    /**
+     * Insights for the session computed after the session is believed to be complete.
+     *
+     * This is not persisted in dynamodb, it's only in S3 and then added to the chat session in opensearch.
+     */
+    insights?: SessionInsights;
+
+    /**
+     * Feedback for the session.
+     *
+     * This is persisted in a separate dynamodb table (chat-session-feedback)and then added to the chat session in opensearch.
+     */
+    feedback?: ChatSessionFeedback[];
+
+    /**
+     * Expiration date of the message in Unix seconds.  Internally used in dynamodb.  Don't expect that this will
+     * be set as it never will be made available to apps.  That's why it's in snake case when nothing else is.
+     */
+    exp_date_unix_seconds?: number;
+
+    /**
+     * This is used to those sessions that we need to recompute the insights for.
+     *
+     * It will be set to NEEDS_INSIGHTS_ANALYSIS when we first create a session. Then we will have a lambda wake up
+     * periodically and check if the session is ready to be analyzed (it's been some time since the last message was added).
+     * We will then compute the insights and set lastAnalyzedMessageId and insightsS3Url.  We will not put the insights
+     * on the session object as it is stored in dynamodb, too big.  It will go into opensearch on the session however.
+     *
+     * The actual computation will not be done until there is a messageId that is at last X old (message ID is really a
+     * date UUID v7) where X is whatever we set (probably an hour or two).  This is to avoid recomputing the insights
+     * for every message.
+     *
+     * Also, if we detect that the lastMessageId is not equal to lastAnalyzedMessageId then we will once again set
+     * insight_status_partition_key to NEEDS_INSIGHTS_ANALYSIS so that we can recompute the insights after enough time
+     * goes by since the new last message was added.
+     *
+     * We will unset this value once we have computed the insights and set lastAnalyzedMessageId and insightsS3Url.
+     *
+     * Note that the GSI that governs this will not include a session record unless NEEDS_INSIGHTS_ANALYSIS is set
+     * (insightStatus is the partition key)and lastMessageId is set (the sort key).  There could be a short gap between
+     * when the session is created and when the last message ID is added.  This should be fine.
+     */
+    insightStatus?: InsightStatusNeedsInsightsAnalysis | undefined;
+}
+
+/**
+ * Convenience type for updating a session with the last analyzed message id and insights s3 url.
+ *
+ * If a value is null, it will be removed from the database.  If a value is undefined, it will not be updated.
+ * If a value is present, it will be updated.
+ */
+export interface ChatSessionLiteForUpdate {
+    userId: string;
+    sessionId: string;
+    lastAnalyzedMessageId: string | undefined | null;
+    insightStatus: InsightStatusNeedsInsightsAnalysis | undefined | null;
+    insightsS3Url: string | undefined | null;
+}
+
+export const INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS = 'NEEDS_INSIGHTS_ANALYSIS';
+export type InsightStatusNeedsInsightsAnalysis = typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS;
+
+export const SESSION_FEEDBACK_STATUS = ['open', 'in_review', 'resolved', 'closed'] as const;
+export type SessionFeedbackStatus = (typeof SESSION_FEEDBACK_STATUS)[number];
+
+export const SESSION_FEEDBACK_SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
+export type SessionFeedbackSeverity = (typeof SESSION_FEEDBACK_SEVERITY)[number];
+
+export const SESSION_FEEDBACK_TYPE = [
+    'user_thumbs_up',
+    'user_thumbs_down',
+    'incorrect_information',
+    'incomplete_information',
+    'off_topic',
+    'hallucination',
+    'confusing_response',
+    'outdated_information',
+    'inappropriate_content',
+    'privacy_concern',
+    'harmful_content',
+    'system_error',
+    'timeout_occurred',
+    'tool_failure',
+    'poor_performance',
+    'training_example',
+    'context_awareness_issue',
+    'goal_misalignment',
+    'tool_capability_gap',
+    'tool_performance_issue',
+    'cost_issue',
+    'high_complexity_session',
+    'low_ai_confidence_level',
+    'critical_issues_present',
+    'user_dissatisfied',
+    'other'
+] as const;
+export type SessionFeedbackType = (typeof SESSION_FEEDBACK_TYPE)[number];
+
+export interface ChatSessionFeedback {
+    /** The session ID of the session that the feedback is about. */
+    sessionId: string;
+    /** This is a V7 UUID that is date sortable and comparable */
+    feedbackId: string;
+    /** The user ID of the user who flagged the session. */
+    userId: string;
+    /** The message ID of the session message that the feedback is about. */
+    messageId?: string;
+    /** Whether the flag was reported by a human or an AI. */
+    reportedByHuman: boolean;
+    /** Whether the feedback was created by the customer or the system. */
+    createdByCustomer: boolean;
+    /** The status of the feedback. */
+    status: SessionFeedbackStatus;
+    /** The severity of the feedback. */
+    severity: SessionFeedbackSeverity;
+    /** The type of the feedback. */
+    type: SessionFeedbackType;
+    /** A comment from the user who flagged the session. Limit to 1000 characters. */
+    userComment?: string;
+    /** Comments from the internal team. This is stored zipped in dynamodb.*/
+    internalComments?: FeedbackInternalComment[];
+    /** The date and time the feedback was created as a string in ISO 8601 format. */
+    createdOn: string;
+    /** The date and time the feedback was updated as a string in ISO 8601 format. */
+    updatedOn: string;
+
+    /** The date and time the feedback will expire as a unix timestamp in seconds. It's snake case because it's never going to be used by the app itself. */
     exp_date_unix_seconds?: number;
 }
 
-export type LastEvaluatedKey = Record<string, any>;
+export type ChatSessionFeedbackForCreate = Omit<ChatSessionFeedback, 'createdOn' | 'updatedOn' | 'internalComments' | 'exp_date_unix_seconds'>;
+export type ChatSessionFeedbackForUpdate = Omit<
+    ChatSessionFeedback,
+    'userId' | 'messageId' | 'reportedByHuman' | 'userComment' | 'createdOn' | 'updatedOn' | 'exp_date_unix_seconds' | 'createdByCustomer'
+>;
+
+export const UPDATEABLE_FEEDBACK_FIELDS = ['status', 'severity', 'type', 'internalComments'] as const;
+export type UpdateableFeedbackFields = (typeof UPDATEABLE_FEEDBACK_FIELDS)[number];
+
+export interface FeedbackInternalComment {
+    /** This is a V7 UUID that is date sortable and comparable */
+    commentId: string;
+    /** The user ID of the user who made the comment. */
+    userId: string;
+    /** The comment. */
+    comment: string;
+    /** The date and time the comment was made as a string in ISO 8601 format. */
+    createdOn: string;
+
+    type: FeedbackInternalCommentType;
+
+    status: FeedbackInternalCommentStatus;
+}
+
+export const FEEDBACK_INTERNAL_COMMENT_STATUS = ['open', 'closed'] as const;
+export type FeedbackInternalCommentStatus = (typeof FEEDBACK_INTERNAL_COMMENT_STATUS)[number];
+
+export const FEEDBACK_INTERNAL_COMMENT_TYPE = [
+    'comment',
+    'customer_outreach_recommended',
+    'customer_outreach_made',
+    'technical_action_required',
+    'technical_action_completed'
+] as const;
+export type FeedbackInternalCommentType = (typeof FEEDBACK_INTERNAL_COMMENT_TYPE)[number];
+
+export interface SessionInsights {
+    model: string;
+    /** The version of the insights algorithm that was used to compute the insights. */
+    version: string;
+    usage: SessionInsightUsage;
+    scoring: SessionInsightScoring;
+    detailMarkdown: string;
+}
+
+export interface SessionInsightUsage {
+    inputTokens: number;
+    cacheCreationInputTokens: number;
+    cacheReadInputTokens: number;
+    outputTokens: number;
+}
+
+export interface SessionInsightScoring {
+    scores: {
+        goalAchievement: {
+            score: number;
+            description: string;
+        };
+        userSatisfaction: {
+            score: number;
+            description: string;
+        };
+        aiPerformance: {
+            accuracy: {
+                score: number;
+                description: string;
+            };
+            helpfulness: {
+                score: number;
+                description: string;
+            };
+            communication: {
+                score: number;
+                description: string;
+            };
+            efficiency: {
+                score: number;
+                description: string;
+            };
+            overall: {
+                score: number;
+                description: string;
+            };
+        };
+        interactionQuality: {
+            score: number;
+            description: string;
+        };
+    };
+    assessments: {
+        userSentiment: SessionInsightUserSentiment;
+        goalCompletionStatus: SessionInsightGoalCompletionStatus;
+        satisfactionLevel: SessionInsightSatisfactionLevel;
+        requiresFollowup: boolean;
+        criticalIssuesPresent: boolean;
+        escalationNeeded: boolean;
+    };
+    metrics: {
+        sessionDurationEstimate: SessionInsightMetricsSessionDurationEstimate;
+        complexityLevel: SessionInsightMetricsComplexityLevel;
+        userEffortRequired: SessionInsightMetricsUserEffortRequired;
+        aiConfidenceLevel: SessionInsightMetricsAiConfidenceLevel;
+    };
+}
+
+export const SESSION_INSIGHT_USER_SENTIMENT = ['positive', 'neutral', 'negative'] as const;
+export type SessionInsightUserSentiment = (typeof SESSION_INSIGHT_USER_SENTIMENT)[number];
+
+export const SESSION_INSIGHT_GOAL_COMPLETION_STATUS = ['completed', 'partially_completed', 'not_completed'] as const;
+export type SessionInsightGoalCompletionStatus = (typeof SESSION_INSIGHT_GOAL_COMPLETION_STATUS)[number];
+
+export const SESSION_INSIGHT_SATISFACTION_LEVEL = ['satisfied', 'neutral', 'dissatisfied'] as const;
+export type SessionInsightSatisfactionLevel = (typeof SESSION_INSIGHT_SATISFACTION_LEVEL)[number];
+
+export const SESSION_INSIGHT_METRICS_SESSION_DURATION_ESTIMATE = ['short', 'medium', 'long'] as const;
+export type SessionInsightMetricsSessionDurationEstimate = (typeof SESSION_INSIGHT_METRICS_SESSION_DURATION_ESTIMATE)[number];
+
+export const SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL = ['low', 'medium', 'high'] as const;
+export type SessionInsightMetricsComplexityLevel = (typeof SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL)[number];
+
+export const SESSION_INSIGHT_METRICS_USER_EFFORT_REQUIRED = ['low', 'medium', 'high'] as const;
+export type SessionInsightMetricsUserEffortRequired = (typeof SESSION_INSIGHT_METRICS_USER_EFFORT_REQUIRED)[number];
+
+export const SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL = ['low', 'medium', 'high'] as const;
+export type SessionInsightMetricsAiConfidenceLevel = (typeof SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL)[number];
 
 /**
  * Additional attributes specific to a chat session.  This plus ChatUser.customData spreads into the sessionAttributes on a session using the SessionDataWithChatUserCustomDataSpreadIn type.
@@ -170,7 +451,7 @@ export const ChatMessageFileUseCase = [
      * (if the  file is of type ChatMessageFileS3)
      * Available S3 files: s3://<s3-bucket-name>/<s3-key>
      *
-     * You can be certain the <s3-bucket-name> will always be this value from SSM `/stack/chatbot/${this.stage}/s3/upload_bucket_name` so you
+     * You can be certain the <s3-bucket-name> will always be this value from SSM `/stack/chatbot/${this.stage}/s3/pika_bucket_name` so you
      * can add permissions to allow your lambda tool to have read access to the uploaded files.
      */
     'pass-through',
@@ -527,6 +808,49 @@ export interface ChatTitleUpdateRequest extends BaseRequestData {
     answerToQuestionFromAgent?: string;
 }
 
+export interface AddChatSessionFeedbackRequest {
+    /** Note you need to generate a feedbackId before calling this function as a V7 UUID. */
+    feedback: ChatSessionFeedbackForCreate;
+}
+
+export interface AddChatSessionFeedbackAdminRequest {
+    command: 'addChatSessionFeedback';
+    /** Note you need to generate a feedbackId before calling this function as a V7 UUID. */
+    feedback: ChatSessionFeedbackForCreate;
+}
+
+export interface UpdateChatSessionFeedbackAdminRequest {
+    command: 'updateChatSessionFeedback';
+    feedback: ChatSessionFeedbackForUpdate;
+}
+
+export interface SessionSearchAdminRequest {
+    command: 'sessionSearch';
+    search: SessionSearchRequest;
+}
+
+export interface GetChatSessionFeedbackResponse {
+    success: boolean;
+    feedback: ChatSessionFeedback[];
+    error?: string;
+}
+
+export interface AddChatSessionFeedbackResponse {
+    success: boolean;
+    feedback: ChatSessionFeedback;
+    error?: string;
+}
+
+export interface UpdateChatSessionFeedbackRequest {
+    feedback: ChatSessionFeedbackForUpdate;
+}
+
+export interface UpdateChatSessionFeedbackResponse {
+    success: boolean;
+    feedback: ChatSessionFeedback;
+    error?: string;
+}
+
 export interface ChatUserResponse<T extends RecordOrUndef = undefined> {
     success: boolean;
     user: ChatUser<T> | undefined;
@@ -570,7 +894,12 @@ export interface ChatSessionsResponse {
 }
 
 /**
- * You must provide startDate.  All other parameters are optional.
+ * If you are already did a search and got back a scrollId, then on the next request all you need to do is provide the scrollId
+ * and nothing else.  This will get you the next page of results.
+ *
+ * Otherwise...
+ *
+ * You must provide either createDate or lastUpdate.  All other parameters are optional.
  * If you provide customUserData, then we will filter results to just the sessions whose sessionAttributes includes
  * the attributes you specified in customUserData.  So if you provide customUserData.accountId = 'John', then we will filter
  * to just the sessions whose sessionAttributes.accountId = 'John'.
@@ -578,25 +907,101 @@ export interface ChatSessionsResponse {
  * We will and together all the search params you provide.  So if you provide userId and chatAppId, then we will filter
  * to just the sessions whose userId and chatAppId match the values you provided.
  *
- * The results will be sorted by startDate in descending order.
- *
  * The results will be paginated.  You may provide a page token to get the next page of results.
  *
  * TODO: the implementation should make sure that the backend query includes a matching sort: [{ startDate: 'desc' }, { sessionId: 'desc' }].
  */
 export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
+    /** Matches sessions whose userId matches the given value. */
     userId?: string;
+    /** Matches sessions whose chatAppId matches the given value. */
     chatAppId?: string;
+    /** Matches sessions whose sessionId matches the given value. */
     sessionId?: string;
+    /**
+     * This must either be an object or undefined.  If an object, then its type must be Record<string, string>.
+     * We will then filter the sessions to only those whose sessionAttributes includes the attributes you specified in customUserData.
+     * So if you provide customUserData.accountId = 'John', then we will filter to just the sessions whose sessionAttributes.accountId = 'John'.
+     */
     customUserData?: T;
-    startDate: string;
-    endDate?: string;
+
+    /**
+     * Matches sessions whose createDate is greater than or equal to the given value. This or lastUpdate must be provided.
+     * If endCreateDate is not provided, then will search up to now.  This is an inclusive range.
+     */
+    createDate?: string;
+    /** See comment on createDate. */
+    endCreateDate?: string;
+    /**
+     * Matches sessions whose lastUpdate is greater than or equal to the given value. This or createDate must be provided.
+     * If endLastUpdate is not provided, then will search up to now.  This is an inclusive range.
+     */
+    lastUpdate?: string;
+    /** See comment on lastUpdate. */
+    endLastUpdate?: string;
+
+    /** If true, then we will only return sessions that are flagged for human review and if false the converse. */
+    flagged?: boolean;
+
+    /** If provided, then we will only return sessions that have insights that match the given insights criteria. */
+    insights?: InsightsSearchParams;
+
+    /** Allows searching for sessions with a title that contains the given string. */
+    titlePartial?: string;
 
     /**
      * Used for deep pagination via search_after.
-     * Provide the sort values of the last item from the previous page.
+     * Provide the scrollId from the previous page response.
+     * This contains the encoded query state including sort values.
      */
-    searchAfter?: [string, string]; // Assuming sort on [startDate, sessionId]
+    scrollId?: string;
+
+    /** If provided, we will only return sessions with feedback in one ofthe given status. */
+    feedbackInStatus?: SessionFeedbackStatus[];
+
+    /** If true, only return sessions with feedback reported by a human and if false, by a computer and undefined both */
+    feedbackReportedByHuman?: boolean;
+
+    /** If true, only return sessions with feedback created by the customer and if false, by the system and undefined both */
+    feedbackCreatedByCustomer?: boolean;
+
+    /** If provided, we will only return sessions with feedback with one of the given severities. */
+    feedbackSeverity?: SessionFeedbackSeverity[];
+
+    /** If provided, we will only return sessions with feedback with one of the given types. */
+    feedbackType?: SessionFeedbackType[];
+
+    /** If provided, we will only return sessions with feedback from the given user. */
+    feedbackUserId?: string;
+
+    /** If provided, we will only return sessions with feedback with one of the given internal comment types. */
+    feedbackInternalCommentType?: FeedbackInternalCommentType[];
+
+    /** If provided, we will only return sessions with feedback with one of the given internal comment statuses. */
+    feedbackInternalCommentStatus?: FeedbackInternalCommentStatus[];
+
+    /** If provided, we will only return sessions with feedback with one of the given internal comment user ids. */
+    feedbackInternalCommentUserId?: string;
+
+    /** If provided, we will only return sessions with feedback created since the given date. */
+    feedbackCreatedSince?: string;
+
+    /** If provided, we will only return sessions with feedback created before the given date. */
+    feedbackCreatedBefore?: string;
+
+    /**
+     * The fields to sort by. Determines the shape of pagination tokens.
+     *
+     * Defaults to [{ createDate: 'desc' }, { sessionId: 'desc' }].
+     * Note that we tack on the sessionId to the end of the sort values
+     * to make sure that we can get the next page of results correctly.
+     * You don't need to provide the sessionId in the sortBy array, it will be added automatically
+     * if it's not already there.
+     */
+    sortBy?: Array<{
+        field: 'createDate' | 'lastUpdate' | 'sessionId' | 'inputTokens' | 'outputTokens' | 'totalCost' | 'insightGoalAchievementScore';
+        order: 'asc' | 'desc';
+    }>;
 
     /**
      * Page size (defaulted by backend if not provided).
@@ -604,16 +1009,48 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
     size?: number;
 }
 
-export interface SessionSearchResponse {
-    success: boolean;
-    sessions: ChatSession[];
-    error?: string;
+/**
+ * All of these are anded together.  You must at least provide hasInsights.
+ */
+export interface InsightsSearchParams {
+    /** If true, then we will only return sessions that have insights and false returns sessions that don't have insights. */
+    hasInsights: boolean;
+    goalAchievementScore?: ScoreSearchParams;
+    userSatisfactionScore?: ScoreSearchParams;
+    aiPerformanceOverallScore?: ScoreSearchParams;
+    aiPerformanceAccuracyScore?: ScoreSearchParams;
+    aiPerformanceEfficiencyScore?: ScoreSearchParams;
+    interactionQualityScore?: ScoreSearchParams;
 
+    userSentiment?: SessionInsightUserSentiment[]; // Matches documents that have any of these values.
+    goalCompletionStatus?: SessionInsightGoalCompletionStatus[]; // Matches documents that have any of these values.
+    satisfactionLevel?: SessionInsightSatisfactionLevel[]; // Matches documents that have any of these values.
+    sessionDurationEstimate?: SessionInsightMetricsSessionDurationEstimate[]; // Matches documents that have any of these values.
+    complexityLevel?: SessionInsightMetricsComplexityLevel[]; // Matches documents that have any of these values.
+    userEffortRequired?: SessionInsightMetricsUserEffortRequired[]; // Matches documents that have any of these values.
+    aiConfidenceLevel?: SessionInsightMetricsAiConfidenceLevel[]; // Matches documents that have any of these values.
+}
+
+export interface ScoreSearchParams {
+    score: number;
+    operator: 'eq' | 'gte' | 'lte';
+}
+
+export interface SessionSearchResponse<T extends RecordOrUndef = undefined> {
+    success: boolean;
+    sessions: ChatSession<T>[];
+    error?: string;
     /**
-     * Sort values of the last session in this page.
-     * Use this as searchAfter in your next request to get the next page.
+     * If returned, then there are more pages of results.  On the next request, provide this scrollId and nothing else
+     * and we will get you the next page of results.
      */
-    nextSearchAfter?: [string, string]; // [startDate, sessionId]
+    scrollId?: string;
+
+    /** For now, we will always return the total number of hits. */
+    total: number;
+
+    /** The page size that was used for this request. */
+    pageSize: number;
 }
 
 // Agent Definition System Types
@@ -1452,7 +1889,10 @@ export type SiteAdminRequest =
     | DeleteChatAppOverrideRequest
     | GetValuesForEntityAutoCompleteRequest
     | GetValuesForUserAutoCompleteRequest
-    | ClearChatAppCacheRequest;
+    | ClearChatAppCacheRequest
+    | AddChatSessionFeedbackAdminRequest
+    | UpdateChatSessionFeedbackAdminRequest
+    | SessionSearchAdminRequest;
 
 export const SiteAdminCommand = [
     'getInitialData',
@@ -1461,7 +1901,10 @@ export const SiteAdminCommand = [
     'deleteChatAppOverride',
     'getValuesForEntityAutoComplete',
     'getValuesForUserAutoComplete',
-    'clearChatAppCache'
+    'clearChatAppCache',
+    'addChatSessionFeedback',
+    'updateChatSessionFeedback',
+    'sessionSearch'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
@@ -1514,7 +1957,10 @@ export type SiteAdminResponse =
     | DeleteChatAppOverrideResponse
     | GetValuesForEntityAutoCompleteResponse
     | GetValuesForUserAutoCompleteResponse
-    | ClearChatAppCacheResponse;
+    | ClearChatAppCacheResponse
+    | AddChatSessionFeedbackResponse
+    | UpdateChatSessionFeedbackResponse
+    | SessionSearchResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
@@ -1962,6 +2408,43 @@ export interface SiteFeatures {
  */
 export interface SessionInsightsFeature {
     enabled: boolean;
+
+    /**
+     * The string is the stage that the session config applies to.  If you provide a stage named
+     * `default` then any stage not found in your map will use the default config.
+     *
+     *
+     * If you don't provide this, here are the default settings.
+     */
+    openSearchConfig?: Record<string, SessionInsightsOpenSearchConfig>;
+}
+
+export interface SessionInsightsOpenSearchConfig {
+    dedicatedMasterEnabled: boolean;
+
+    /** Ignored if dedicatedMasterEnabled is false. Defaults to 1 if not provided. Recommend >= 3 in production for quorum */
+    dedicatedMasterCount?: number;
+
+    /** Ignored if dedicatedMasterEnabled is false. Defaults to m5.large.search if not provided. */
+    masterNodeInstanceType?: string;
+
+    /** Defaults to m5.large.search if not provided. */
+    dataNodeInstanceType?: string;
+
+    /** The number of data nodes to use. Defaults to 1 if not provided. */
+    dataNodeCount?: number;
+
+    /** Defaults to false if not provided. */
+    zoneAwarenessEnabled: boolean;
+
+    /** Ignored if zoneAwarenessEnabled is false. Defaults to 1 if not provided. */
+    availabilityZoneCount?: number;
+
+    /** Unit is gigs.  Defaults to 10 gig if not provided. */
+    volumeSize?: number;
+
+    /** Defaults to gp3 if not provided. */
+    volumeType?: string;
 }
 
 export interface SessionInsightsFeatureForChatApp extends Feature {

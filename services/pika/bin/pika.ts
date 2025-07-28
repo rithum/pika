@@ -18,11 +18,12 @@
  * 2. Add 'services/pika/bin/pika.ts' to the userUnprotectedAreas array
  */
 
-import 'source-map-support/register';
+import { SessionInsightsFeature } from '@pika/shared/types/chatbot/chatbot-types';
 import * as cdk from 'aws-cdk-lib';
+import 'source-map-support/register';
+import { pikaConfig } from '../../../pika-config.js';
 import { PikaStack } from '../lib/stacks';
 import { getLoggedInAccountIdFromSts } from './sts';
-import { pikaConfig } from '../../../pika-config.js';
 
 const app = new cdk.App();
 
@@ -50,6 +51,8 @@ async function main() {
     const projNameCamel = pika.projNameCamel;
     const projNameHuman = pika.projNameHuman;
 
+    const sessionInsightsFeature = pikaConfig.siteFeatures?.sessionInsights ?? ({ enabled: false } as SessionInsightsFeature);
+
     // Create the Pika stack
     new PikaStack(app, `${projNameKebabCase}-${stage}`, {
         env,
@@ -59,7 +62,8 @@ async function main() {
         projNameKebabCase,
         projNameTitleCase,
         projNameCamel,
-        projNameHuman
+        projNameHuman,
+        sessionInsightsFeature
     });
 }
 

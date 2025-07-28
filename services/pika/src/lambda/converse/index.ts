@@ -94,9 +94,9 @@ export const handler = enhancedStreamifyResponse(
                 throw new UnauthorizedError(error ?? 'Unauthorized');
             }
 
-            const uploadS3Bucket = process.env.UPLOAD_S3_BUCKET;
-            if (!uploadS3Bucket) {
-                throw new Error('UPLOAD_S3_BUCKET is not set');
+            const pikaS3Bucket = process.env.PIKA_S3_BUCKET;
+            if (!pikaS3Bucket) {
+                throw new Error('PIKA_S3_BUCKET is not set');
             }
 
             // Easier to convert the event to a standard API Gateway event and not have to handle the different event types.
@@ -165,8 +165,8 @@ export const handler = enhancedStreamifyResponse(
             // This is necessary since bedrock and downstream tools are only known to have access to that bucket.
             if (converseRequest.files && converseRequest.files.length > 0) {
                 for (const file of converseRequest.files) {
-                    if (file.locationType === 's3' && file.s3Bucket !== uploadS3Bucket) {
-                        throw new Error(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${uploadS3Bucket}`);
+                    if (file.locationType === 's3' && file.s3Bucket !== pikaS3Bucket) {
+                        throw new Error(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${pikaS3Bucket}`);
                     }
                 }
             }

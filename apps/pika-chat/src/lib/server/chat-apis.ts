@@ -1,12 +1,17 @@
 import type {
+    AddChatSessionFeedbackRequest,
+    AddChatSessionFeedbackResponse,
     ChatMessagesResponse,
     ChatSession,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
     ChatSessionsResponse,
     ChatUser,
     ChatUserAddOrUpdateResponse,
     ChatUserLite,
     ChatUserResponse,
     ChatUserSearchResponse,
+    GetChatSessionFeedbackResponse,
     RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
@@ -65,6 +70,41 @@ export async function createChatUser<T extends RecordOrUndef = undefined>(user: 
     }
 
     return response.body.user as ChatUser<T>;
+}
+
+export async function addFeedback<T extends RecordOrUndef = undefined>(user: ChatUser<T>, feedback: ChatSessionFeedbackForCreate): Promise<ChatSessionFeedback> {
+    const request: AddChatSessionFeedbackRequest = {
+        feedback: feedback
+    };
+    const response = await invokeApi<AddChatSessionFeedbackResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/feedback`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'x-chat-auth': `Bearer ${convertToJwtString<T>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error adding feedback for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.feedback;
+}
+
+export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSessionFeedback[]> {
+    const response = await invokeApi<GetChatSessionFeedbackResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/feedback/${sessionId}`,
+        method: 'GET'
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error getting feedback for sessionId ${sessionId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.feedback;
 }
 
 export async function getChatSessions(userId: string, chatAppId: string): Promise<ChatSession[]> {

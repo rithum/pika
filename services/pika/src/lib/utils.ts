@@ -1,7 +1,8 @@
 import type { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
-import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatSession, ChatUser, RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import { ChatSessionOs } from './opensearch/types';
 
 export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')
@@ -28,6 +29,10 @@ export function getFromEnv(key: string, defaultValue?: string) {
     return value;
 }
 
+export function getEnv(): string {
+    return getFromEnv('stage');
+}
+
 export function getRegion(): string {
     return getFromEnv('AWS_REGION', 'us-east-1');
 }
@@ -40,8 +45,21 @@ export function getChatSessionTable(): string {
     return getFromEnv('CHAT_SESSION_TABLE');
 }
 
+export function getChatSessionFeedbackTable(): string {
+    return getFromEnv('CHAT_SESSION_FEEDBACK_TABLE');
+}
+
 export function getChatUserTable(): string {
     return getFromEnv('CHAT_USER_TABLE');
+}
+
+export function getPikaDomainEndpoint(): string {
+    return getFromEnv('PIKA_DOMAIN_ENDPOINT');
+}
+
+export function isDevLikeEnv(): boolean {
+    const stage = getEnv();
+    return stage.includes('dev') || stage.includes('test');
 }
 
 // export function getAgentId(): string {
@@ -191,4 +209,62 @@ export function convertChatUserToCamelFromSnakeCase(user: SnakeCase<ChatUser>): 
     }
 
     return converted as ChatUser;
+}
+
+// Convert ChatSession to snake_case for OpenSearch storage
+export function convertChatSessionToSnakeFromCamelCase<T extends RecordOrUndef = undefined>(session: ChatSession<T>): SnakeCase<ChatSession<T>> {
+    const { sessionAttributes, ...sessionWithoutAttributes } = session;
+
+    // Convert everything except sessionAttributes
+    const converted = convertToSnakeCase(sessionWithoutAttributes as any) as any;
+
+    // Add sessionAttributes back with snake_case key but preserve custom data structure
+    if (sessionAttributes !== undefined) {
+        // Extract ALL known SessionAttributes fields (not just the ones I originally listed)
+        const { firstName, lastName, timezone, token, userId, chatAppId, agentId, currentDate, ...customData } = sessionAttributes;
+
+        // Convert known SessionAttributes fields to snake_case
+        (converted as any).session_attributes = {
+            ...(firstName !== undefined && { first_name: firstName }),
+            ...(lastName !== undefined && { last_name: lastName }),
+            ...(timezone !== undefined && { timezone: timezone }), // Already snake_case
+            ...(token !== undefined && { token: token }), // Already snake_case
+            user_id: userId,
+            chat_app_id: chatAppId,
+            agent_id: agentId,
+            current_date: currentDate,
+            ...customData // Preserve custom data keys and values as-is (this is the T generic spread)
+        };
+    }
+
+    return converted as SnakeCase<ChatSession<T>>;
+}
+
+// Convert ChatSession from snake_case (from OpenSearch) to camelCase
+export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef = undefined>(session: SnakeCase<ChatSession<T>>): ChatSession<T> {
+    const { session_attributes, ...sessionWithoutAttributes } = session;
+
+    // Convert everything except session_attributes
+    const converted = convertToCamelCase(sessionWithoutAttributes as any) as any;
+
+    // Add sessionAttributes back with camelCase key but preserve custom data structure
+    if (session_attributes !== undefined) {
+        // Extract ALL known SessionAttributes fields from snake_case
+        const { first_name, last_name, timezone, token, user_id, chat_app_id, agent_id, current_date, ...customData } = session_attributes as any;
+
+        // Convert known fields back to camelCase, preserve custom data
+        (converted as any).sessionAttributes = {
+            ...(first_name !== undefined && { firstName: first_name }),
+            ...(last_name !== undefined && { lastName: last_name }),
+            ...(timezone !== undefined && { timezone: timezone }), // Already camelCase
+            ...(token !== undefined && { token: token }), // Already camelCase
+            userId: user_id,
+            chatAppId: chat_app_id,
+            agentId: agent_id,
+            currentDate: current_date,
+            ...customData // Preserve custom data keys and values as-is (this is the T generic spread)
+        } as SessionDataWithChatUserCustomDataSpreadIn<T>;
+    }
+
+    return converted as ChatSession<T>;
 }

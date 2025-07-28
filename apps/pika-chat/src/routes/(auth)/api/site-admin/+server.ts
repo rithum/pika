@@ -1,4 +1,13 @@
-import { clearChatAppCache, createOrUpdateChatAppOverride, deleteChatAppOverride, getAllChatApps, getChatApp } from '$lib/server/chat-admin-apis';
+import {
+    addChatSessionFeedback,
+    clearChatAppCache,
+    createOrUpdateChatAppOverride,
+    deleteChatAppOverride,
+    getAllChatApps,
+    getChatApp,
+    searchForSessions,
+    updateChatSessionFeedback
+} from '$lib/server/chat-admin-apis';
 import { searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
@@ -146,6 +155,38 @@ export const POST: RequestHandler = async (event) => {
         const users = await deleteChatAppOverride(user.userId, siteAdminReq.chatAppId);
         return json({
             success: true
+        });
+    } else if (siteAdminReq.command === 'addChatSessionFeedback') {
+        if (!('feedback' in siteAdminReq)) {
+            return new Response('feedback is required', { status: 400 });
+        }
+
+        const feedback = await addChatSessionFeedback(siteAdminReq.feedback);
+
+        return json({
+            success: true,
+            feedback
+        });
+    } else if (siteAdminReq.command === 'updateChatSessionFeedback') {
+        if (!('feedback' in siteAdminReq)) {
+            return new Response('feedback is required', { status: 400 });
+        }
+
+        const feedback = await updateChatSessionFeedback(siteAdminReq.feedback);
+
+        return json({
+            success: true,
+            feedback
+        });
+    } else if (siteAdminReq.command === 'sessionSearch') {
+        if (!('search' in siteAdminReq)) {
+            return new Response('search is required', { status: 400 });
+        }
+
+        const search = await searchForSessions(siteAdminReq.search);
+        return json({
+            success: true,
+            search
         });
     } else {
         return new Response('Invalid command', { status: 400 });

@@ -34,9 +34,15 @@ import type {
     DeleteChatAppOverrideRequest,
     ChatAppOverrideForCreateOrUpdate,
     ChatAppOverrideDdb,
-    UpdateableChatAppOverrideFields
+    UpdateableChatAppOverrideFields,
+    ChatSessionFeedbackForCreate,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForUpdate,
+    ChatSession,
+    SessionSearchRequest,
+    SessionSearchResponse
 } from '@pika/shared/types/chatbot/chatbot-types';
-import { PikaUserRoles, UserTypes } from '@pika/shared/types/chatbot/chatbot-types';
+import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import {
     createAgent,
@@ -59,7 +65,10 @@ import {
     deleteChatApp,
     createChatAppOverrideDdb,
     updateChatAppOverrideToDdb,
-    deleteChatAppOverrideDdb
+    deleteChatAppOverrideDdb,
+    addFeedback,
+    updateFeedback,
+    getFeedbackById
 } from './chat-admin-ddb';
 import {
     agentsAreSame,
@@ -77,6 +86,7 @@ import {
     calculateTTL
 } from './chat-admin-utils';
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { queryForSessions } from './opensearch/opensearch';
 
 /**
  * Get all defined agents
@@ -1202,4 +1212,39 @@ export function validateChatAppDataRequest(chatAppData: ChatAppDataRequest): str
     }
 
     return errors;
+}
+
+export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCreate): Promise<ChatSessionFeedback> {
+    let now = new Date().toISOString();
+
+    const feedbackToReturn: ChatSessionFeedback = {
+        ...feedback,
+        createdOn: now,
+        updatedOn: now
+    };
+
+    await addFeedback(feedbackToReturn);
+    return feedbackToReturn;
+}
+
+export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackForUpdate): Promise<ChatSessionFeedback> {
+    // Just in case, roll through the object provided and remove any fields that we are not allowed to update
+    for (const attribute of Object.keys(feedback)) {
+        if (!UPDATEABLE_FEEDBACK_FIELDS.includes(attribute as any)) {
+            delete (feedback as any)[attribute];
+        }
+    }
+
+    await updateFeedback(feedback.feedbackId, feedback);
+
+    const result = await getFeedbackById(feedback.feedbackId);
+    if (!result) {
+        throw new Error(`Feedback not found after update: ${feedback.feedbackId}`);
+    }
+
+    return result;
+}
+
+export async function searchForSessions(search: SessionSearchRequest): Promise<SessionSearchResponse> {
+    return await queryForSessions(search);
 }

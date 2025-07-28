@@ -48,12 +48,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             customUserData: user.overrideData?.[params.chatAppId] || user.customData
         };
 
-        // Replace the s3Bucket with appConfig.uploadS3Bucket in any files we have
+        // Replace the s3Bucket with appConfig.pikaS3Bucket in any files we have
         if (params.files) {
             params.files = params.files?.map((file) => ({
                 ...file,
-                s3Bucket: appConfig.uploadS3Bucket,
-                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.uploadS3Bucket)
+                s3Bucket: appConfig.pikaS3Bucket,
+                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.pikaS3Bucket)
             }));
         }
 

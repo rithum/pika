@@ -36,10 +36,10 @@ export class WeatherStack extends cdk.Stack {
 
         this.stage = props.stage;
 
-        const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(
+        const pikaBucketNameParam = ssm.StringParameter.fromStringParameterName(
             this,
-            'UploadBucketNameParam',
-            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/s3/upload_bucket_name`
+            'PikaBucketNameParam',
+            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/s3/pika_bucket_name`
         );
 
         const lambdaRole = new iam.Role(this, `${props.projNameTitleCase}LambdaRole`, {
@@ -67,7 +67,7 @@ export class WeatherStack extends cdk.Stack {
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['s3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject', 's3:PutObjectTagging'],
-                            resources: [`arn:aws:s3:::${uploadBucketNameParam.stringValue}`, `arn:aws:s3:::${uploadBucketNameParam.stringValue}/*`]
+                            resources: [`arn:aws:s3:::${pikaBucketNameParam.stringValue}`, `arn:aws:s3:::${pikaBucketNameParam.stringValue}/*`]
                         })
                     ]
                 })
@@ -85,7 +85,7 @@ export class WeatherStack extends cdk.Stack {
             architecture: lambda.Architecture.ARM_64,
             environment: {
                 STAGE: this.stage,
-                UPLOAD_S3_BUCKET: uploadBucketNameParam.stringValue,
+                PIKA_S3_BUCKET: pikaBucketNameParam.stringValue,
                 REGION: this.region
             },
             bundling: {

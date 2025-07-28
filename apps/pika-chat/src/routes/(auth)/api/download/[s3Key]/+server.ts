@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
     try {
         const getObjectCommand = new GetObjectCommand({
-            Bucket: appConfig.uploadS3Bucket,
+            Bucket: appConfig.pikaS3Bucket,
             Key: decodedS3Key
         });
 

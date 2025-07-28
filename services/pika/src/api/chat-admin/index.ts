@@ -21,7 +21,15 @@ import {
     UpdateAgentRequest,
     UpdateChatAppRequest,
     UpdateToolRequest,
-    UserChatAppRule
+    UserChatAppRule,
+    ChatSession,
+    AddChatSessionFeedbackRequest,
+    AddChatSessionFeedbackResponse,
+    AddChatSessionFeedbackAdminRequest,
+    UpdateChatSessionFeedbackRequest,
+    UpdateChatSessionFeedbackResponse,
+    SessionSearchRequest,
+    SessionSearchResponse
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
@@ -46,9 +54,12 @@ import {
     updateToolDefinition,
     validateAgentDefinition,
     validateChatAppDefinition,
-    validateToolDefinition
+    validateToolDefinition,
+    addChatSessionFeedback,
+    updateChatSessionFeedback,
+    searchForSessions
 } from '../../lib/chat-admin-apis';
-import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
+import { addFeedback, getAgentById, getToolById } from '../../lib/chat-admin-ddb';
 import { getUser } from '../../lib/chat-apis';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 
@@ -108,6 +119,15 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'DELETE:/api/chat-admin/chat-app/{chatAppId}/override': {
         handler: handleDeleteChatAppOverride
+    },
+    'POST:/api/chat-admin/session/feedback': {
+        handler: handleCreateSessionFeedback
+    },
+    'PUT:/api/chat-admin/session/feedback': {
+        handler: handleUpdateSessionFeedback
+    },
+    'POST:/api/chat-admin/session/search': {
+        handler: handleSearchSessions
     }
 };
 
@@ -648,6 +668,48 @@ async function handleDeleteChatAppOverride(event: APIGatewayProxyEventPika<Delet
     return {
         success: true
     };
+}
+
+/**
+ * POST:/api/chat-admin/session/feedback
+ */
+async function handleCreateSessionFeedback(event: APIGatewayProxyEventPika<AddChatSessionFeedbackRequest>): Promise<AddChatSessionFeedbackResponse> {
+    const createSessionFeedbackRequest = event.body;
+    if (!createSessionFeedbackRequest) {
+        throw new Error('Request body is required');
+    }
+
+    return {
+        success: true,
+        feedback: await addChatSessionFeedback(createSessionFeedbackRequest.feedback)
+    };
+}
+
+/**
+ * PUT:/api/chat-admin/session/feedback
+ */
+async function handleUpdateSessionFeedback(event: APIGatewayProxyEventPika<UpdateChatSessionFeedbackRequest>): Promise<UpdateChatSessionFeedbackResponse> {
+    const updateSessionFeedbackRequest = event.body;
+    if (!updateSessionFeedbackRequest) {
+        throw new Error('Request body is required');
+    }
+
+    return {
+        success: true,
+        feedback: await updateChatSessionFeedback(updateSessionFeedbackRequest.feedback)
+    };
+}
+
+/**
+ * POST:/api/chat-admin/session/search
+ */
+async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearchRequest>): Promise<SessionSearchResponse> {
+    const searchSessionsRequest = event.body;
+    if (!searchSessionsRequest) {
+        throw new Error('Request body is required');
+    }
+
+    return await searchForSessions(searchSessionsRequest);
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

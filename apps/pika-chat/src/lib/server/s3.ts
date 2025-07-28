@@ -19,7 +19,7 @@ export async function getPresignedUploadResponse(request: PresignedUrlUploadRequ
     const url = await getSignedUrl(
         s3Client,
         new PutObjectCommand({
-            Bucket: appConfig.uploadS3Bucket,
+            Bucket: appConfig.pikaS3Bucket,
             Key: s3Key,
             ContentLength: fileSize,
             // We will detect when the chat message is written to the database and then set the confirmed tag to true

@@ -12,6 +12,8 @@ import type {
     ChatMessage,
     ChatMessageForCreate,
     ChatSession,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
     ChatSessionForCreate,
     ChatSessionResponse,
     ChatTitleUpdateRequest,
@@ -33,7 +35,9 @@ import {
     updateSession,
     updateSessionTitleInDdb,
     getSessionsByUserIdAndChatAppId,
-    searchForUsersByPartialUserId
+    searchForUsersByPartialUserId,
+    addFeedback,
+    getFeedbackBySessionId
 } from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
@@ -312,4 +316,23 @@ export async function updateSessionTitle(sessionId: string, userId: string, requ
         success: true,
         session
     };
+}
+
+export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCreate, userId: string): Promise<ChatSessionFeedback> {
+    let now = new Date().toISOString();
+
+    const feedbackToReturn: ChatSessionFeedback = {
+        ...feedback,
+        userId,
+        createdOn: now,
+        updatedOn: now
+    };
+
+    await addFeedback(feedbackToReturn);
+    return feedbackToReturn;
+}
+
+export async function getChatSessionFeedback(sessionId: string): Promise<ChatSessionFeedback[]> {
+    //TODO: do we need to check if the user is the one who created the feedback?
+    return await getFeedbackBySessionId(sessionId);
 }

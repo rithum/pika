@@ -16,12 +16,12 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
             throw new Error('Missing function name in Bedrock Agent action lambda');
         }
 
-        // Make sure we have the s3 upload bucket name as an environment variable
-        const uploadS3BucketName = process.env.UPLOAD_S3_BUCKET;
-        if (!uploadS3BucketName) {
-            throw new Error('Missing upload S3 bucket name in environment variables');
+        // Make sure we have the s3 pika bucket name as an environment variable
+        const pikaS3BucketName = process.env.PIKA_S3_BUCKET;
+        if (!pikaS3BucketName) {
+            throw new Error('Missing pika S3 bucket name in environment variables');
         } else {
-            console.log('Upload S3 bucket name:', uploadS3BucketName);
+            console.log('Pika S3 bucket name:', pikaS3BucketName);
         }
 
         const region = process.env.AWS_REGION;
@@ -86,7 +86,7 @@ export async function handler(event: BedrockActionGroupLambdaEvent): Promise<Bed
             // Just in case, make sure the sessionId from the event is present in the sessionData
             //sessionData.sessionId = event.sessionId;
 
-            const results = await callOpenMateoApi(event.function, params, sessionData, uploadS3BucketName, region, event.sessionId);
+            const results = await callOpenMateoApi(event.function, params, sessionData, pikaS3BucketName, region, event.sessionId);
             return createBedrockLambdaResponse(results, event.actionGroup, event.messageVersion, event.function);
         }
     } catch (error) {

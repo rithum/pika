@@ -81,7 +81,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             process.env.CHAT_USER_TABLE = `chat-user-${name}-${stage}`;
             process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = name;
             process.env.TOOL_DEFINITIONS_TABLE = `tool-definitions-${name}-${stage}`;
-            process.env.UPLOAD_S3_BUCKET = `file-uploads-${name}-${stage}`;
+            process.env.PIKA_S3_BUCKET = `${name}-${stage}`;
 
             let r1: any, r2: any;
             let firstBytePromise: Promise<void> & {

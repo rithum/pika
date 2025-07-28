@@ -22,11 +22,11 @@ const CONFIRMED_TAG = 'confirmed';
 export async function handler(event: DynamoDBStreamEvent, _context: Context) {
     console.log(`Processing ${event.Records.length} records from DynamoDB stream...`);
 
-    const uploadS3Bucket = process.env.UPLOAD_S3_BUCKET;
+    const pikaS3Bucket = process.env.PIKA_S3_BUCKET;
     const stagingTableName = process.env.STAGING_TABLE_NAME;
 
-    if (!uploadS3Bucket) {
-        throw new Error('UPLOAD_S3_BUCKET is not set');
+    if (!pikaS3Bucket) {
+        throw new Error('PIKA_S3_BUCKET is not set');
     }
     if (!stagingTableName) {
         throw new Error('STAGING_TABLE_NAME is not set');
@@ -45,7 +45,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                     const newItem = unmarshall(record.dynamodb.NewImage as any) as ChatMessage;
                     for (const file of newItem.files ?? []) {
                         if (file.locationType === 's3') {
-                            if (file.s3Bucket !== uploadS3Bucket) {
+                            if (file.s3Bucket !== pikaS3Bucket) {
                                 console.warn(`Skipping S3 object ${file.s3Key} in bucket ${file.s3Bucket} because it is not the upload bucket`);
                                 continue;
                             }
@@ -93,7 +93,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                         // Delete assets from S3 referenced by the message
                         for (const asset of deletedItem.files ?? []) {
                             if (asset.locationType === 's3') {
-                                if (asset.s3Bucket !== uploadS3Bucket) {
+                                if (asset.s3Bucket !== pikaS3Bucket) {
                                     console.warn(`Skipping S3 object ${asset.s3Key} in bucket ${asset.s3Bucket} because it is not the upload bucket`);
                                     continue;
                                 }

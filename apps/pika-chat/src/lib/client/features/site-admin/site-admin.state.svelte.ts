@@ -2,18 +2,22 @@ import type { FetchZ } from '$client/app/types';
 import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
 import type {
+    AddChatSessionFeedbackResponse,
     ChatAppMode,
+    ChatSession,
     ChatUserLite,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
     GetValuesForEntityAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
     RefreshChatAppResponse,
+    SessionSearchResponse,
     SimpleOption,
     SiteAdminCommand,
     SiteAdminRequest,
     SiteAdminResponse,
-    SiteFeatures
+    SiteFeatures,
+    UpdateChatSessionFeedbackResponse
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { type ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
@@ -28,6 +32,7 @@ export class SiteAdminState {
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
+    #chatSessions = $state<ChatSession[]>([]);
     valuesForInternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
@@ -39,7 +44,10 @@ export class SiteAdminState {
         deleteChatAppOverride: false,
         getValuesForEntityAutoComplete: false,
         getValuesForUserAutoComplete: false,
-        clearChatAppCache: false
+        clearChatAppCache: false,
+        addChatSessionFeedback: false,
+        updateChatSessionFeedback: false,
+        sessionSearch: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -193,6 +201,34 @@ export class SiteAdminState {
                     command: 'refreshChatApp',
                     chatAppId: request.chatAppId
                 });
+            } else if (request.command === 'addChatSessionFeedback') {
+                const response = json as AddChatSessionFeedbackResponse;
+                const feedback = response.feedback;
+                const idx = this.#chatSessions.findIndex((session) => session.sessionId === feedback.sessionId);
+                if (idx !== -1) {
+                    if (!this.#chatSessions[idx].feedback) {
+                        this.#chatSessions[idx].feedback = [];
+                    }
+                    this.#chatSessions[idx].feedback.push(feedback);
+                }
+            } else if (request.command === 'updateChatSessionFeedback') {
+                const response = json as UpdateChatSessionFeedbackResponse;
+                const feedback = response.feedback;
+                const idx = this.#chatSessions.findIndex((session) => session.sessionId === feedback.sessionId);
+                if (idx !== -1) {
+                    if (!this.#chatSessions[idx].feedback) {
+                        this.#chatSessions[idx].feedback = [];
+                    }
+                    const feedbackIdx = this.#chatSessions[idx].feedback.findIndex((f) => f.feedbackId === feedback.feedbackId);
+                    if (feedbackIdx !== -1) {
+                        this.#chatSessions[idx].feedback[feedbackIdx] = feedback;
+                    } else {
+                        this.#chatSessions[idx].feedback.push(feedback);
+                    }
+                }
+            } else if (request.command === 'sessionSearch') {
+                const response = json as SessionSearchResponse;
+                this.#chatSessions = response.sessions;
             }
         } catch (e) {
             console.error('Error sending content admin command', e);

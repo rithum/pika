@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { PikaConstruct } from '../constructs/pika-construct';
 import { CustomStackDefs } from './custom-stack-defs';
+import { SessionInsightsFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
 export interface PikaStackProps extends cdk.StackProps {
     stage: string;
@@ -10,6 +11,7 @@ export interface PikaStackProps extends cdk.StackProps {
     projNameTitleCase: string; // Title case e.g. Pika
     projNameCamel: string; // Camel case e.g. pika
     projNameHuman: string; // Human readable e.g. Pika
+    sessionInsightsFeature: SessionInsightsFeature;
 }
 
 export class PikaStack extends cdk.Stack {
@@ -35,7 +37,8 @@ export class PikaStack extends cdk.Stack {
                 projNameKebabCase: props.projNameKebabCase,
                 projNameTitleCase: props.projNameTitleCase,
                 projNameCamel: props.projNameCamel,
-                projNameHuman: props.projNameHuman
+                projNameHuman: props.projNameHuman,
+                sessionInsightsFeature: props.sessionInsightsFeature
             })
         );
 

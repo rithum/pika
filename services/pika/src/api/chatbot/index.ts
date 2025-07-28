@@ -1,9 +1,13 @@
 import {
     BaseRequestData,
+    AddChatSessionFeedbackRequest,
+    AddChatSessionFeedbackResponse,
     ChatMessage,
     ChatMessageForCreate,
     ChatMessageResponse,
     ChatMessagesResponse,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
     ChatSessionsResponse,
     ChatTitleUpdateRequest,
     ChatUser,
@@ -11,14 +15,25 @@ import {
     ChatUserResponse,
     ChatUserSearchResponse,
     ConverseRequest,
+    GetChatSessionFeedbackResponse,
     PikaUserRoles,
     UserType
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
 import { HttpStatusError } from '@pika/shared/util/http-status-error';
-import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
-import { addChatMessage, getChatMessages, getChatSession, getUserSessions, getUserSessionsByChatAppId, searchForUsers, updateSessionTitle } from '../../lib/chat-apis';
+import { addFeedback, addUser, getFeedbackBySessionId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
+import {
+    addChatMessage,
+    addChatSessionFeedback,
+    getChatMessages,
+    getChatSession,
+    getChatSessionFeedback,
+    getUserSessions,
+    getUserSessionsByChatAppId,
+    searchForUsers,
+    updateSessionTitle
+} from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { extractFromJwtString } from '@pika/shared/util/jwt';
@@ -62,6 +77,14 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     'GET:/api/chat/conversations/{chatAppId}': {
         handler: handleGetUserSessionsByChatAppId,
         passUserObj: true
+    },
+    'POST:/api/chat/feedback': {
+        handler: handleAddFeedback,
+        passUserObj: true
+    },
+    'GET:/api/chat/feedback/{sessionId}': {
+        handler: handleGetFeedbackBySessionId,
+        passUserObj: false
     }
 };
 
@@ -301,6 +324,50 @@ async function handleUpdateSessionTitle(event: APIGatewayProxyEventPika<ChatTitl
     const titleUpdateRequest = event.body;
 
     return await updateSessionTitle(sessionId, user.userId, titleUpdateRequest);
+}
+
+/**
+ * POST:/api/chat/feedback
+ */
+async function handleAddFeedback(event: APIGatewayProxyEventPika<AddChatSessionFeedbackRequest>, user: ChatUser): Promise<AddChatSessionFeedbackResponse> {
+    const request = event.body as AddChatSessionFeedbackRequest;
+    if (!request) {
+        throw new Error('Feedback is required');
+    }
+
+    if (typeof request !== 'object') {
+        throw new Error('Feedback must be an object');
+    }
+
+    if (!('feedbackId' in request)) {
+        throw new Error('Feedback ID is required and must be a V7 UUID');
+    }
+
+    if (!('sessionId' in request)) {
+        throw new Error('Session ID is required');
+    }
+    return {
+        success: true,
+        feedback: await addChatSessionFeedback(request.feedback, user.userId)
+    };
+}
+
+/**
+ * GET:/api/chat/feedback/{sessionId}
+ *
+ * This gets the feedback directly from the chat session feedback table in dynamodb. This is used by the chat apps themsvelves and NOT
+ * by the admin site.  The admin site gets these from opensearch which stores them directly on the chat sessions.
+ */
+async function handleGetFeedbackBySessionId(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<GetChatSessionFeedbackResponse> {
+    const sessionId = event.pathParameters?.sessionId;
+    if (!sessionId) {
+        throw new Error('Session ID is required');
+    }
+
+    return {
+        success: true,
+        feedback: await getChatSessionFeedback(sessionId)
+    };
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

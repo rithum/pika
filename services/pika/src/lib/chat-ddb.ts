@@ -1,10 +1,17 @@
-import type { ChatMessage, ChatMessageUsage, ChatSession, ChatUser, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
+import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
+import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
-import { getChatMessagesTable, getChatSessionTable, getChatUserTable, convertChatUserToCamelFromSnakeCase, convertChatUserToSnakeFromCamelCase } from './utils';
+import {
+    convertChatUserToCamelFromSnakeCase,
+    convertChatUserToSnakeFromCamelCase,
+    getChatMessagesTable,
+    getChatSessionFeedbackTable,
+    getChatSessionTable,
+    getChatUserTable
+} from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -199,6 +206,32 @@ export async function addMessage(chatMessage: ChatMessage): Promise<void> {
         TableName: getChatMessagesTable(),
         Item: message
     });
+}
+
+/**
+ * Add a new feedback record to the database. Expect that it has everything on it we need and can just write it to the database.
+ */
+export async function addFeedback(feedback: ChatSessionFeedback): Promise<void> {
+    await ddbDocClient.put({
+        TableName: getChatSessionFeedbackTable(),
+        Item: convertToSnakeCase<ChatSessionFeedback>(feedback),
+        ConditionExpression: 'attribute_not_exists(feedback_id)' // Prevent overwriting existing feedback
+    });
+}
+
+export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSessionFeedback[]> {
+    const feedback = await ddbDocClient.query({
+        TableName: getChatSessionFeedbackTable(),
+        IndexName: 'chat-session-feedback-session-id-index',
+        KeyConditionExpression: 'session_id = :sessionId',
+        ExpressionAttributeValues: {
+            ':sessionId': sessionId
+        }
+    });
+
+    // Filter out any items that weren't created by the customer
+
+    return (feedback.Items || []).map((item) => convertToCamelCase<ChatSessionFeedback>(item as SnakeCase<ChatSessionFeedback>));
 }
 
 /**

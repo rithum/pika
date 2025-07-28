@@ -1,21 +1,26 @@
 import type {
     AgentDefinition,
     ChatApp,
-    ChatAppOverrideDdb,
     ChatAppOverride,
+    ChatAppOverrideDdb,
+    ChatSession,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForUpdate,
+    ChatSessionLiteForUpdate,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
-    UpdateableToolDefinitionFields,
     UpdateableChatAppOverrideFields,
-    ChatAppOverrideForCreateOrUpdate
+    UpdateableToolDefinitionFields
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
+import pRetry, { AbortError } from 'p-retry';
+import { getChatSessionFeedbackTable, getChatSessionTable } from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -710,4 +715,527 @@ export async function deleteChatAppOverrideDdb(chatAppIdWithOverride: string): P
         }
         // No ConditionExpression - won't error if the override record doesn't exist
     });
+}
+
+// ===== SESSION INSIGHTS OPERATIONS =====
+
+/**
+ * Convert existing function to async iterator that yields pages
+ * Checks timeout between each page fetch
+ */
+export async function* getSessionsThatNeedInsightsAnalysisIterator(
+    date: Date,
+    pageSize: number,
+    getRemainingTimeInMillis: () => number,
+    timeoutBufferMs: number
+): AsyncGenerator<ChatSession[], void, undefined> {
+    let lastEvaluatedKey: Record<string, any> | undefined;
+    let pageCount = 0;
+
+    do {
+        // Check if we have enough time to continue
+        if (getRemainingTimeInMillis() < timeoutBufferMs) {
+            console.log(`Stopping pagination early - timeout approaching. Processed ${pageCount} pages`);
+            break;
+        }
+
+        const sessions = await ddbDocClient.send(
+            new QueryCommand({
+                TableName: getChatSessionTable(),
+                IndexName: 'insight-status-index',
+                KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
+                ExpressionAttributeValues: {
+                    ':insightStatus': 'NEEDS_INSIGHTS_ANALYSIS',
+                    ':lastMessageId': date.toISOString()
+                },
+                ExclusiveStartKey: lastEvaluatedKey,
+                Limit: pageSize
+            })
+        );
+
+        const convertedSessions = (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+
+        if (convertedSessions.length > 0) {
+            pageCount++;
+            console.log(`Yielding page ${pageCount} with ${convertedSessions.length} sessions`);
+            yield convertedSessions;
+        }
+
+        lastEvaluatedKey = sessions.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    console.log(`Pagination complete. Total pages processed: ${pageCount}`);
+}
+
+/**
+ * If a session has insightStatus set to NEEDS_INSIGHTS_ANALYSIS then we need to compute the insights for that session.
+ * This function will return all sessions that have insightStatus set to NEEDS_INSIGHTS_ANALYSIS and have a lastMessageId
+ * that is before the date.  It collects them all up in a single query.  We could change this to be a paginated query if we need to.
+ *
+ * @param date The date after which we should compute insights for based on the lastMessageId which can be used for date comparisons.
+ */
+export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<ChatSession[]> {
+    const allSessions: ChatSession[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+        const sessions = await ddbDocClient.query({
+            TableName: getChatSessionTable(),
+            IndexName: 'insight-status-index',
+            KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
+            ExpressionAttributeValues: {
+                ':insightStatus': 'NEEDS_INSIGHTS_ANALYSIS',
+                ':lastMessageId': date.toISOString()
+            },
+            ExclusiveStartKey: lastEvaluatedKey
+        });
+
+        const convertedSessions = (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+        allSessions.push(...convertedSessions);
+
+        lastEvaluatedKey = sessions.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return allSessions;
+}
+
+/**
+ * Updates session insights analysis data in batch with robust error handling and resilience.
+ *
+ * Field update behavior:
+ * - If field value is a concrete value: updates the session field in DynamoDB
+ * - If field value is undefined: no operation on that field in DynamoDB
+ * - If field value is null: removes that field from the session in DynamoDB
+ *
+ * @param sessions Array of session update objects
+ * @returns Promise that resolves when all updates are complete
+ * @throws Error if critical validation fails or all retries are exhausted for too many batches
+ */
+export async function setSessionsInsightsAnalysisInBatch(sessions: ChatSessionLiteForUpdate[]): Promise<void> {
+    // Input validation
+    if (!Array.isArray(sessions)) {
+        throw new AbortError('Sessions parameter must be an array');
+    }
+
+    if (sessions.length === 0) {
+        console.log('No sessions to process');
+        return;
+    }
+
+    console.log(`Starting batch update process for ${sessions.length} sessions`);
+
+    // Configuration constants
+    const BATCH_SIZE = 20; // DynamoDB batch limit
+    const CONCURRENCY_LIMIT = 3; // Reduced for better stability
+    const MAX_RETRY_ATTEMPTS = 3;
+    const MIN_RETRY_DELAY_MS = 1000;
+    const MAX_RETRY_DELAY_MS = 8000;
+    const REQUEST_TIMEOUT_MS = 10000; // 10 seconds per individual request
+
+    // Split sessions into batches for processing
+    const batches: (typeof sessions)[] = [];
+    for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
+        batches.push(sessions.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`Split ${sessions.length} sessions into ${batches.length} batches`);
+
+    // Track overall results
+    const batchResults: { success: boolean; batchIndex: number; error?: Error }[] = [];
+    let totalSuccessfulUpdates = 0;
+    let totalFailedUpdates = 0;
+
+    // Process each batch with proper error handling
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        const batchId = `batch-${batchIndex + 1}-of-${batches.length}`;
+
+        console.log(`Processing ${batchId} with ${batch.length} sessions`);
+
+        try {
+            const batchResult = await processBatchWithRetry(batch, batchId, {
+                maxRetries: MAX_RETRY_ATTEMPTS,
+                minRetryDelay: MIN_RETRY_DELAY_MS,
+                maxRetryDelay: MAX_RETRY_DELAY_MS,
+                requestTimeout: REQUEST_TIMEOUT_MS,
+                concurrencyLimit: CONCURRENCY_LIMIT
+            });
+
+            batchResults.push({ success: true, batchIndex });
+            totalSuccessfulUpdates += batchResult.successCount;
+            totalFailedUpdates += batchResult.failureCount;
+
+            console.log(`${batchId} completed: ${batchResult.successCount} successful, ${batchResult.failureCount} failed`);
+        } catch (error) {
+            const errorObj = error instanceof Error ? error : new Error(String(error));
+            batchResults.push({ success: false, batchIndex, error: errorObj });
+            totalFailedUpdates += batch.length;
+
+            console.error(`${batchId} failed completely after all retries:`, {
+                error: errorObj.message,
+                batchSize: batch.length
+            });
+        }
+    }
+
+    // Report final results
+    const successfulBatches = batchResults.filter((r) => r.success).length;
+    const failedBatches = batchResults.filter((r) => !r.success).length;
+
+    console.log(`Batch processing completed:`, {
+        totalSessions: sessions.length,
+        totalBatches: batches.length,
+        successfulBatches,
+        failedBatches,
+        totalSuccessfulUpdates,
+        totalFailedUpdates
+    });
+
+    // Fail if too many batches failed (adjust threshold as needed)
+    const failureThreshold = 0.1; // 10% failure tolerance
+    if (failedBatches / batches.length > failureThreshold) {
+        const failureRate = Math.round((failedBatches / batches.length) * 100);
+        throw new Error(`Batch failure rate too high: ${failureRate}% (${failedBatches}/${batches.length} batches failed)`);
+    }
+}
+
+/**
+ * Process a single batch with retry logic using p-retry
+ */
+async function processBatchWithRetry(
+    batch: ChatSessionLiteForUpdate[],
+    batchId: string,
+    config: {
+        maxRetries: number;
+        minRetryDelay: number;
+        maxRetryDelay: number;
+        requestTimeout: number;
+        concurrencyLimit: number;
+    }
+): Promise<{ successCount: number; failureCount: number }> {
+    return await pRetry(
+        async (attemptNumber) => {
+            console.log(`${batchId} attempt ${attemptNumber}`);
+
+            // Build update requests from batch
+            const updateRequests = batch.map((session) => buildUpdateRequest(session)).filter((req): req is NonNullable<typeof req> => req !== null);
+
+            if (updateRequests.length === 0) {
+                console.log(`${batchId} has no updates to perform`);
+                return { successCount: 0, failureCount: 0 };
+            }
+
+            // Execute updates with concurrency control and timeouts
+            const results = await executeUpdatesConcurrently(updateRequests, config.concurrencyLimit, config.requestTimeout, batchId);
+
+            // Count results
+            const successCount = results.filter((r) => r.status === 'fulfilled').length;
+            const failureCount = results.filter((r) => r.status === 'rejected').length;
+
+            // Log failed requests for this attempt
+            results.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    console.warn(`${batchId} request ${index} failed on attempt ${attemptNumber}:`, result.reason);
+                }
+            });
+
+            // If we have failures and this isn't the last attempt, throw to trigger retry
+            if (failureCount > 0) {
+                const error = new Error(`${failureCount}/${results.length} requests failed in ${batchId}`);
+
+                // Check if errors are retryable
+                const hasRetryableErrors = results.some((result) => result.status === 'rejected' && isRetryableError(result.reason));
+
+                if (!hasRetryableErrors) {
+                    // All errors are non-retryable, don't retry
+                    console.warn(`${batchId} has only non-retryable errors, not retrying`);
+                    throw new AbortError(error.message);
+                }
+
+                throw error; // Retryable error
+            }
+
+            return { successCount, failureCount };
+        },
+        {
+            retries: config.maxRetries,
+            factor: 2,
+            minTimeout: config.minRetryDelay,
+            maxTimeout: config.maxRetryDelay,
+            onFailedAttempt: (error) => {
+                console.warn(`${batchId} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left:`, {
+                    error: error.message,
+                    attemptNumber: error.attemptNumber,
+                    retriesLeft: error.retriesLeft
+                });
+            }
+        }
+    );
+}
+
+/**
+ * Build DynamoDB update request from session data
+ */
+function buildUpdateRequest(session: {
+    userId: string;
+    sessionId: string;
+    lastAnalyzedMessageId: string | undefined | null;
+    insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | undefined | null;
+    insightsS3Url: string | undefined | null;
+}): {
+    userId: string;
+    sessionId: string;
+    updateParams: any;
+} | null {
+    const updateExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
+
+    // Handle insightStatus field
+    if (session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS') {
+        updateExpressions.push('#insightStatus = :insightStatus');
+        expressionAttributeNames['#insightStatus'] = 'insight_status';
+        expressionAttributeValues[':insightStatus'] = session.insightStatus;
+    } else if (session.insightStatus === null) {
+        updateExpressions.push('#insightStatus = :insightStatus');
+        expressionAttributeNames['#insightStatus'] = 'insight_status';
+        expressionAttributeValues[':insightStatus'] = null;
+    }
+
+    // Handle insightsS3Url field
+    if (session.insightsS3Url !== undefined) {
+        updateExpressions.push('#insightsS3Url = :insightsS3Url');
+        expressionAttributeNames['#insightsS3Url'] = 'insights_s3_url';
+        expressionAttributeValues[':insightsS3Url'] = session.insightsS3Url;
+    }
+
+    // Handle lastAnalyzedMessageId field
+    if (session.lastAnalyzedMessageId !== undefined) {
+        updateExpressions.push('#lastAnalyzedMessageId = :lastAnalyzedMessageId');
+        expressionAttributeNames['#lastAnalyzedMessageId'] = 'last_analyzed_message_id';
+        expressionAttributeValues[':lastAnalyzedMessageId'] = session.lastAnalyzedMessageId;
+    }
+
+    // Skip if no updates needed
+    if (updateExpressions.length === 0) {
+        return null;
+    }
+
+    return {
+        userId: session.userId,
+        sessionId: session.sessionId,
+        updateParams: {
+            TableName: getChatSessionTable(),
+            Key: {
+                user_id: session.userId,
+                session_id: session.sessionId
+            },
+            UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+            ExpressionAttributeNames: expressionAttributeNames,
+            ExpressionAttributeValues: expressionAttributeValues
+        }
+    };
+}
+
+export async function getFeedbackById(feedbackId: string): Promise<ChatSessionFeedback | undefined> {
+    const feedback = await ddbDocClient.get({
+        TableName: getChatSessionFeedbackTable(),
+        Key: { feedback_id: feedbackId }
+    });
+    return feedback.Item ? convertToCamelCase<ChatSessionFeedback>(feedback.Item as SnakeCase<ChatSessionFeedback>) : undefined;
+}
+
+/**
+ * Only update the fields that are provided.
+ * @param feedback
+ */
+export async function updateFeedback(feedbackId: string, feedback: ChatSessionFeedbackForUpdate): Promise<void> {
+    const now = new Date().toISOString();
+
+    // Build update expression and attribute values dynamically based on provided fields
+    const setExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
+
+    // Always update updatedOn
+    setExpressions.push('#updatedOn = :updatedOn');
+    expressionAttributeNames['#updatedOn'] = 'updated_on';
+    expressionAttributeValues[':updatedOn'] = now;
+
+    // Handle each updateable field if provided
+    for (const [field, value] of Object.entries(feedback)) {
+        if (value !== undefined) {
+            setExpressions.push(`#${field} = :${field}`);
+            expressionAttributeNames[`#${field}`] = convertStringToSnakeCase(field);
+            expressionAttributeValues[`:${field}`] = value;
+        }
+    }
+
+    const updateExpression = `SET ${setExpressions.join(', ')}`;
+
+    await ddbDocClient.update({
+        TableName: getChatSessionFeedbackTable(),
+        Key: { feedback_id: feedbackId },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ConditionExpression: 'attribute_exists(feedback_id)' // Ensure feedback exists
+    });
+}
+
+/**
+ * Add a new feedback record to the database. Expect that it has everything on it we need and can just write it to the database.
+ */
+export async function addFeedback(feedback: ChatSessionFeedback): Promise<void> {
+    await ddbDocClient.put({
+        TableName: getChatSessionFeedbackTable(),
+        Item: convertToSnakeCase<ChatSessionFeedback>(feedback),
+        ConditionExpression: 'attribute_not_exists(feedback_id)' // Prevent overwriting existing feedback
+    });
+}
+
+/**
+ * Execute DynamoDB updates with controlled concurrency and timeouts
+ */
+async function executeUpdatesConcurrently(
+    updateRequests: { userId: string; sessionId: string; updateParams: any }[],
+    concurrencyLimit: number,
+    timeoutMs: number,
+    batchId: string
+): Promise<PromiseSettledResult<any>[]> {
+    const executeWithTimeout = async (request: (typeof updateRequests)[0], index: number) => {
+        // Add jitter to reduce thundering herd
+        const jitter = Math.random() * 100;
+        await new Promise((resolve) => setTimeout(resolve, jitter));
+
+        // Execute with timeout
+        return Promise.race([
+            ddbDocClient.update(request.updateParams),
+            new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs))
+        ]);
+    };
+
+    // Process in chunks to control concurrency
+    const results: PromiseSettledResult<any>[] = [];
+    for (let i = 0; i < updateRequests.length; i += concurrencyLimit) {
+        const chunk = updateRequests.slice(i, i + concurrencyLimit);
+        const chunkResults = await Promise.allSettled(chunk.map((request, index) => executeWithTimeout(request, i + index)));
+        results.push(...chunkResults);
+    }
+
+    return results;
+}
+
+/**
+ * Determine if an error is retryable based on AWS DynamoDB error patterns
+ */
+function isRetryableError(error: any): boolean {
+    if (!error) return false;
+
+    const errorMessage = error.message || String(error);
+    const errorName = error.name || error.code || '';
+
+    // Non-retryable errors (4xx client errors - don't retry)
+    const nonRetryablePatterns = [
+        // DynamoDB-specific non-retryable errors
+        'ValidationException',
+        'ResourceNotFoundException',
+        'ConditionalCheckFailedException',
+        'AccessDeniedException',
+        'UnrecognizedClientException',
+        'InvalidParameterValueException',
+        'ItemSizeTooLargeException',
+        'ItemCollectionSizeLimitExceededException',
+        'DuplicateTransactionError',
+        'TransactionConflictException',
+        'InvalidEndpointException',
+        'ResourceInUseException',
+        'BackupInUseException',
+        'ContinuousBackupsUnavailableException',
+
+        // General AWS auth/permission errors
+        'InvalidSignatureException',
+        'TokenRefreshRequiredException',
+        'IncompleteSignatureException',
+        'MissingAuthenticationTokenException',
+        'ExpiredTokenException',
+        'InvalidAccessKeyIdException',
+        'InvalidUserIdException',
+
+        // HTTP 4xx patterns
+        'HTTP 400',
+        'HTTP 401',
+        'HTTP 403',
+        'HTTP 404'
+    ];
+
+    // Retryable errors (5xx server errors and throttling - can retry)
+    const retryablePatterns = [
+        // DynamoDB throttling and capacity errors
+        'ProvisionedThroughputExceededException',
+        'RequestLimitExceeded',
+        'ThrottlingException',
+        'LimitExceededException',
+
+        // AWS service errors (5xx)
+        'InternalServerError',
+        'InternalFailure',
+        'ServiceUnavailableException',
+        'ServiceUnavailable',
+        'SlowDown',
+        'TooManyRequestsException',
+
+        // Network and connectivity errors
+        'TimeoutError',
+        'RequestTimeout',
+        'ECONNRESET',
+        'ENOTFOUND',
+        'ECONNREFUSED',
+        'ETIMEDOUT',
+        'EPIPE',
+        'socket hang up',
+        'network timeout',
+        'connection timeout',
+        'read timeout',
+        'write timeout',
+
+        // HTTP 5xx patterns
+        'HTTP 500',
+        'HTTP 502',
+        'HTTP 503',
+        'HTTP 504',
+
+        // Generic timeout patterns
+        'timeout',
+        'Timeout'
+    ];
+
+    // Check for non-retryable patterns first (more specific check)
+    for (const pattern of nonRetryablePatterns) {
+        if (errorName.includes(pattern) || errorMessage.includes(pattern)) {
+            return false;
+        }
+    }
+
+    // Check for retryable patterns
+    for (const pattern of retryablePatterns) {
+        if (errorName.includes(pattern) || errorMessage.includes(pattern)) {
+            return true;
+        }
+    }
+
+    // For unknown errors, check HTTP status if available
+    const httpStatus = error.statusCode || error.$metadata?.httpStatusCode;
+    if (httpStatus) {
+        if (httpStatus >= 400 && httpStatus < 500) {
+            return false; // 4xx client errors are not retryable
+        }
+        if (httpStatus >= 500) {
+            return true; // 5xx server errors are retryable
+        }
+    }
+
+    // Conservative approach: default to retryable for truly unknown errors
+    // This ensures we don't miss retrying legitimate transient failures
+    return true;
 }

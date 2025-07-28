@@ -48,7 +48,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const fileBuffer = Buffer.from(await file.arrayBuffer());
 
         const putCommand = new PutObjectCommand({
-            Bucket: appConfig.uploadS3Bucket,
+            Bucket: appConfig.pikaS3Bucket,
             Key: s3Key,
             Body: fileBuffer,
             ContentType: fileMimeType,
@@ -67,7 +67,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             message: e instanceof Error ? e.message : 'Unknown error',
             name: e instanceof Error ? e.name : 'Unknown',
             region: appConfig.awsRegion,
-            bucket: appConfig.uploadS3Bucket
+            bucket: appConfig.pikaS3Bucket
         });
 
         return getErrorResponse(500, `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);

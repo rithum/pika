@@ -1,13 +1,20 @@
 import type {
+    AddChatSessionFeedbackResponse,
     AuthenticatedUser,
     ChatApp,
     ChatAppOverride,
     ChatAppOverrideForCreateOrUpdate,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
+    ChatSessionFeedbackForUpdate,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
     RecordOrUndef,
+    SessionSearchRequest,
+    SessionSearchResponse,
+    UpdateChatSessionFeedbackResponse,
     UserChatAppRule
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
@@ -218,4 +225,49 @@ export async function deleteChatAppOverride(userId: string, chatAppId: string): 
             `Error deleting chat app override for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`
         );
     }
+}
+
+export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCreate): Promise<ChatSessionFeedback> {
+    const response = await invokeApi<AddChatSessionFeedbackResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/session/feedback`,
+        method: 'POST',
+        body: feedback
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error adding chat session feedback with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.feedback;
+}
+
+export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackForUpdate): Promise<ChatSessionFeedback> {
+    const response = await invokeApi<UpdateChatSessionFeedbackResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/session/feedback`,
+        method: 'PUT',
+        body: feedback
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error updating chat session feedback with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.feedback;
+}
+
+export async function searchForSessions(search: SessionSearchRequest): Promise<SessionSearchResponse> {
+    const response = await invokeApi<SessionSearchResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/session/search`,
+        method: 'POST',
+        body: search
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error searching for sessions with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body;
 }

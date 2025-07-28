@@ -15,7 +15,7 @@ export class AppConfigProxy implements AppConfig {
     private _redirectCallbackUriPath: string | undefined;
     private _awsRegion: string | undefined;
     private _awsAccount: string | undefined;
-    private _uploadS3Bucket: string | undefined;
+    private _pikaS3Bucket: string | undefined;
     private _stage: string | undefined;
     private _isLocal: boolean | undefined;
     private _masterCookieKey: string | undefined;
@@ -136,13 +136,13 @@ export class AppConfigProxy implements AppConfig {
                 }
             },
             {
-                name: 'uploadS3Bucket',
+                name: 'pikaS3Bucket',
                 setValue: async (_isLocal: boolean, _stage: string, _cache: Cache) => {
-                    const result = env.UPLOAD_S3_BUCKET ?? process.env.UPLOAD_S3_BUCKET;
+                    const result = env.PIKA_S3_BUCKET ?? process.env.PIKA_S3_BUCKET;
                     if (!result) {
-                        throw new Error('UPLOAD_S3_BUCKET is not set');
+                        throw new Error('PIKA_S3_BUCKET is not set');
                     }
-                    this._uploadS3Bucket = result;
+                    this._pikaS3Bucket = result;
                 }
             },
             {
@@ -222,9 +222,9 @@ export class AppConfigProxy implements AppConfig {
         return this._awsAccount;
     }
 
-    public get uploadS3Bucket(): string {
-        if (!this._uploadS3Bucket) throw new Error('App config not initialized');
-        return this._uploadS3Bucket;
+    public get pikaS3Bucket(): string {
+        if (!this._pikaS3Bucket) throw new Error('App config not initialized');
+        return this._pikaS3Bucket;
     }
 
     public get stage(): string {

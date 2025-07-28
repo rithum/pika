@@ -1,7 +1,7 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
-import type { ChatAppMode, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppMode, ChatSessionFeedbackForCreate, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
     UserOverrideDataCommand,
@@ -524,6 +524,20 @@ export class ChatAppState {
         const persistedState = this.#inprogressInputs[this.#currentSession.sessionId];
         this.#chatInput = persistedState?.text ?? '';
         this.#inputFiles = persistedState?.uploads || [];
+    }
+
+    async addFeedback(feedback: ChatSessionFeedbackForCreate) {
+        const response = await this.fetchz('/api/session-feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(feedback)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to add feedback');
+        }
     }
 
     removeFile(s3Key: string) {

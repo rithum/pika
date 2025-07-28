@@ -105,7 +105,7 @@ fileUpload: {
 **S3 Bucket Access Required:**
 
 ```typescript
-const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(this, 'UploadBucketNameParam', `/stack/chatbot/${this.stage}/s3/upload_bucket_name`);
+const uploadBucketNameParam = ssm.StringParameter.fromStringParameterName(this, 'PikaBucketNameParam', `/stack/chatbot/${this.stage}/s3/pika_bucket_name`);
 ```
 
 ### Suggestions

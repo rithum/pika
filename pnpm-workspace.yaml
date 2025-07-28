@@ -31,6 +31,7 @@ catalog:
   '@aws-sdk/client-s3': ^3.810.0
   '@aws-sdk/s3-request-presigner': ^3.810.0
   '@aws-sdk/client-sts': ^3.810.0
+  '@aws-sdk/client-sqs': ^3.810.0
   '@aws-sdk/credential-provider-node': ^3.810.0
   '@smithy/signature-v4': ^5.1.2
   '@aws-crypto/sha256-js': ^5.2.0
@@ -125,3 +126,9 @@ catalog:
   'highlight.js': ^11.11.1
   'deep-equal': ^2.2.3
   '@types/deep-equal': ^1.0.4
+  aws4: ^1.13.2
+  '@types/aws4': ^1.11.6
+  '@aws-sdk/types': ^3.840.0
+  'p-map': ^7.0.3
+  'lodash.chunk': ^4.2.0
+  '@types/lodash.chunk': ^4.2.9
