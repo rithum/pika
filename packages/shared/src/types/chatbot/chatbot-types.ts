@@ -1541,6 +1541,12 @@ export interface KnowledgeBase {
      * Then the template value 'my-{account.id}' would match the value 'my-123'.
      */
     filter?: RetrievalFilter;
+
+    /**
+     * The number of results to return from the knowledge base.  If not provided, the default is a smaller number,
+     * probably 5.
+     */
+    numberOfResults?: number;
 }
 
 export type UpdateableChatAppFields = Extract<

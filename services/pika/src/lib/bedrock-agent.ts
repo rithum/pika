@@ -451,7 +451,17 @@ export async function invokeAgentToGetAnswer(
         return {
             knowledgeBaseId: kb.id,
             description: kb.description,
-            filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined
+            filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
+            ...(kb.filter || kb.numberOfResults
+                ? {
+                      retrievalConfiguration: {
+                          vectorSearchConfiguration: {
+                              filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
+                              ...(kb.numberOfResults ? { numberOfResults: kb.numberOfResults } : {})
+                          }
+                      }
+                  }
+                : {})
         };
     });
 
