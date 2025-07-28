@@ -455,6 +455,8 @@ export async function invokeAgentToGetAnswer(
         };
     });
 
+    console.log('Knowledge bases:', JSON.stringify(knowledgeBases, null, 2));
+
     // const authDataGzipHexEncoded = simpleUser.authData ? gzipAndBase64EncodeString(JSON.stringify(simpleUser.authData)) : undefined;
 
     console.log('Building command input...');
