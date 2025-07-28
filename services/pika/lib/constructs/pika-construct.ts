@@ -318,7 +318,7 @@ export class PikaConstruct extends Construct {
     private createPikaS3Bucket(): s3.Bucket {
         console.log(`Creating pika S3 bucket ${this.props.stackName}`);
         return new s3.Bucket(this, 'PikaS3Bucket', {
-            bucketName: this.props.stackName,
+            bucketName: `pika-files-${this.props.stackName}`,
             removalPolicy: cdk.RemovalPolicy.RETAIN,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
             //TODO: come back to this for cleanup
