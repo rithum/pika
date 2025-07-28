@@ -1,6 +1,6 @@
 //TODO: make sure to turn on model invocation logging in aws
 
-import type { FunctionDefinition, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 import { SnakeCase } from '../../util/chatbot-shared-utils';
 
 export type CompanyType = 'retailer' | 'supplier';
@@ -1514,6 +1514,33 @@ export interface KnowledgeBase {
 
     /** A description of the knowledge base */
     description: string;
+
+    /**
+     * This is the filter values that will be used to filter the knowledge base to restrict the set of
+     * documents that are searched as part of the retrieve operation.
+     *
+     * When you have a file to ingest into the knowledge base in s3, you can include an accompanying metadata file
+     * that defines metadata attributes and values applicable to the file.
+     *
+     * Note that each `value` in this filter may contain templated values like this:
+     *
+     * my-${name}-and-${company}
+     *
+     * If present, we will try to match the template attribute name to either a user top level attribute
+     * name (one of userId, firstName, lastName) or an attribute within the user.customData object.  Note that the template value
+     * may include dot notation to access a nested attribute.  For example, if the user has a customData object
+     * with the following structure:
+     *
+     * {
+     *  customData: {
+     *      account: {
+     *          id: '123'
+     *      }
+     *  }
+     *
+     * Then the template value 'my-${account.id}' would match the value 'my-123'.
+     */
+    filter?: RetrievalFilter;
 }
 
 export type UpdateableChatAppFields = Extract<
