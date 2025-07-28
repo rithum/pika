@@ -6,7 +6,8 @@ import {
     type InvokeInlineAgentCommandInput,
     KnowledgeBase,
     type Trace,
-    type RetrievalFilter
+    type RetrievalFilter,
+    Attribution
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
@@ -71,7 +72,7 @@ if (global.awslambda == null) {
 
 interface InvokeAgentHooks {
     onStart: () => void;
-    onChunk: (chunk: string, chunkIndex: number) => void;
+    onChunk: (chunk: string, chunkIndex: number, attribution?: Attribution) => void;
     onTrace: (trace: Trace) => void;
     onEnd: (usage: ChatMessageUsage) => void;
     onError: (error: any) => void;
@@ -142,7 +143,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                 });
                 responseMsg += decodedChunk;
 
-                hooks.onChunk(decodedChunk, chunkCount);
+                hooks.onChunk(decodedChunk, chunkCount, chunk.chunk.attribution);
                 console.log(label, `Chunk ${chunkCount} written to response stream`);
             }
 
@@ -527,6 +528,7 @@ export async function invokeAgentToGetAnswer(
         console.log('Current usage costs calculated:', usage);
     }
 
+    let citationCount = 0;
     let hooks: InvokeAgentHooks = {
         onStart: function (): void {
             console.log('Setting up HTTP response stream...');
@@ -536,10 +538,15 @@ export async function invokeAgentToGetAnswer(
             });
             console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
         },
-        onChunk: function (chunk: string, chunkCount: number): void {
+        onChunk: function (chunk: string, chunkCount: number, attribution?: Attribution): void {
             responseMsg += chunk;
             responseStream.write(chunk);
             console.log(`Chunk ${chunkCount} written to response stream`);
+            attribution?.citations?.forEach((citation) => {
+                let citationText = `[Citation ${++citationCount}](${citation?.retrievedReferences?.[0]?.location?.s3Location?.uri})`;
+                responseMsg += citationText;
+                responseStream.write(citationText);
+            });
         },
         onTrace: function (trace: Trace): void {
             traces.push(trace);
