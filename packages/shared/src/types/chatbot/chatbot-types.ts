@@ -1524,7 +1524,7 @@ export interface KnowledgeBase {
      *
      * Note that each `value` in this filter may contain templated values like this:
      *
-     * my-${name}-and-${company}
+     * my-{name}-and-{company}
      *
      * If present, we will try to match the template attribute name to either a user top level attribute
      * name (one of userId, firstName, lastName) or an attribute within the user.customData object.  Note that the template value
@@ -1538,7 +1538,7 @@ export interface KnowledgeBase {
      *      }
      *  }
      *
-     * Then the template value 'my-${account.id}' would match the value 'my-123'.
+     * Then the template value 'my-{account.id}' would match the value 'my-123'.
      */
     filter?: RetrievalFilter;
 }

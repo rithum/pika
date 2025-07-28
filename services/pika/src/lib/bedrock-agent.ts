@@ -4,7 +4,9 @@ import {
     type ConversationHistory,
     InvokeInlineAgentCommand,
     type InvokeInlineAgentCommandInput,
-    type Trace
+    KnowledgeBase,
+    type Trace,
+    type RetrievalFilter
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
@@ -46,7 +48,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => { };
+                let set = (key: any, value: any) => {};
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -81,15 +83,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-            content: {
-                traceId?: string;
-                input?: unknown;
-                text: string;
-                type?: string;
-                name?: string;
-            }[];
-            traceId: string;
-        }
+              content: {
+                  traceId?: string;
+                  input?: unknown;
+                  text: string;
+                  type?: string;
+                  name?: string;
+              }[];
+              traceId: string;
+          }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -182,10 +184,8 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                     trace.orchestrationTrace?.invocationInput ||
                     trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
                     trace.orchestrationTrace?.observation?.knowledgeBaseLookupOutput ||
-
                     // Usage
                     trace.orchestrationTrace?.modelInvocationOutput ||
-
                     // Thinking & Errors
                     trace.orchestrationTrace?.rationale ||
                     trace.failureTrace
@@ -447,6 +447,14 @@ export async function invokeAgentToGetAnswer(
         });
     }
 
+    const knowledgeBases: KnowledgeBase[] = (agentAndTools.agent.knowledgeBases ?? []).map((kb) => {
+        return {
+            knowledgeBaseId: kb.id,
+            description: kb.description,
+            filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined
+        };
+    });
+
     // const authDataGzipHexEncoded = simpleUser.authData ? gzipAndBase64EncodeString(JSON.stringify(simpleUser.authData)) : undefined;
 
     console.log('Building command input...');
@@ -460,10 +468,7 @@ export async function invokeAgentToGetAnswer(
             streamFinalResponse: true
         },
         actionGroups: actionGroups,
-        knowledgeBases: (agentAndTools.agent.knowledgeBases ?? []).map((kb) => ({
-            knowledgeBaseId: kb.id,
-            description: kb.description
-        })),
+        knowledgeBases,
         inlineSessionState: {
             // Include the conversation history if we need to reattach to the session
             ...(conversationHistory ? { conversationHistory } : {}),
@@ -690,6 +695,124 @@ IMPORTANT: Return ONLY the title text with no explanations, quotes, or additiona
     const responseBody = new TextDecoder().decode(response.body);
     const parsedResponse = JSON.parse(responseBody);
     return parsedResponse.content[0].text;
+}
+
+function replaceTemplateValues(filter: RetrievalFilter, userData: any): RetrievalFilter {
+    const replaceInValue = (value: any): any => {
+        if (typeof value === 'string') {
+            // Check if the entire value is a single template like "{userId}"
+            const singleTemplateMatch = value.match(/^{([^}]+)}$/);
+            if (singleTemplateMatch) {
+                // Handle single template - can return any data type
+                const path = singleTemplateMatch[1];
+                const resolvedValue = resolveTemplatePath(path, userData);
+                return resolvedValue !== undefined ? resolvedValue : value;
+            }
+
+            // Handle embedded templates - must return string
+            return value.replace(/\{([^}]+)\}/g, (match, path) => {
+                const resolvedValue = resolveTemplatePath(path, userData);
+                if (resolvedValue === undefined) {
+                    return match; // Return original template if no match
+                }
+                // Convert to string for embedded templates
+                return String(resolvedValue);
+            });
+        }
+        if (Array.isArray(value)) {
+            return value.map(replaceInValue);
+        }
+        return value;
+    };
+
+    // Helper function to resolve a template path
+    const resolveTemplatePath = (path: string, userData: any): any => {
+        // Handle edge cases
+        if (!userData || typeof userData !== 'object') {
+            return undefined;
+        }
+
+        // Clean up the path - trim whitespace and filter out empty segments
+        const cleanPath = path.trim();
+        if (!cleanPath) {
+            return undefined;
+        }
+
+        const pathParts = cleanPath.split('.').filter((part: string) => part.length > 0);
+        if (pathParts.length === 0) {
+            return undefined;
+        }
+
+        // Navigate the object path
+        let result = userData;
+        for (const part of pathParts) {
+            if (result === null || result === undefined || typeof result !== 'object') {
+                return undefined;
+            }
+            result = result[part];
+        }
+
+        // Return the value if it's a primitive type or array
+        if (result === null || typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean' || Array.isArray(result)) {
+            return result;
+        }
+
+        // Don't return complex objects
+        return undefined;
+    };
+
+    const replaceInFilterAttribute = (attr: any): any => ({
+        ...attr,
+        value: replaceInValue(attr.value)
+    });
+
+    // Handle all the different RetrievalFilter union types
+    if ('equals' in filter) {
+        return { equals: replaceInFilterAttribute(filter.equals) };
+    }
+    if ('notEquals' in filter) {
+        return { notEquals: replaceInFilterAttribute(filter.notEquals) };
+    }
+    if ('greaterThan' in filter) {
+        return { greaterThan: replaceInFilterAttribute(filter.greaterThan) };
+    }
+    if ('greaterThanOrEquals' in filter) {
+        return { greaterThanOrEquals: replaceInFilterAttribute(filter.greaterThanOrEquals) };
+    }
+    if ('lessThan' in filter) {
+        return { lessThan: replaceInFilterAttribute(filter.lessThan) };
+    }
+    if ('lessThanOrEquals' in filter) {
+        return { lessThanOrEquals: replaceInFilterAttribute(filter.lessThanOrEquals) };
+    }
+    if ('in' in filter) {
+        return { in: replaceInFilterAttribute(filter.in) };
+    }
+    if ('notIn' in filter) {
+        return { notIn: replaceInFilterAttribute(filter.notIn) };
+    }
+    if ('startsWith' in filter) {
+        return { startsWith: replaceInFilterAttribute(filter.startsWith) };
+    }
+    if ('listContains' in filter) {
+        return { listContains: replaceInFilterAttribute(filter.listContains) };
+    }
+    if ('stringContains' in filter) {
+        return { stringContains: replaceInFilterAttribute(filter.stringContains) };
+    }
+    if ('andAll' in filter && filter.andAll) {
+        return {
+            andAll: filter.andAll.map((subFilter) => replaceTemplateValues(subFilter, userData))
+        };
+    }
+    if ('orAll' in filter && filter.orAll) {
+        return {
+            orAll: filter.orAll.map((subFilter) => replaceTemplateValues(subFilter, userData))
+        };
+    }
+
+    // Return the filter unchanged if it doesn't match any known types
+    return filter;
 }
 
 //TODO: We found the actual type for the SDK and are using it.  Leaving this here for now
