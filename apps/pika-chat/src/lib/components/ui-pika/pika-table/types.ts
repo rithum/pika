@@ -1,5 +1,5 @@
 import type { AppState } from '$client/app/app.state.svelte';
-import type { Column, Row } from '@tanstack/table-core';
+import type { Column, ColumnFiltersState, Row, SortingState } from '@tanstack/table-core';
 import type { Component } from 'svelte';
 
 export interface FacetedFilterData {
@@ -59,3 +59,42 @@ export interface RowActionsProps<TData> {
 }
 
 export type RowActionMenuItem<TData> = 'Separator' | RowActionMenuItemNode<TData> | RowActionMenuItemSubMenu<TData>;
+
+// === SERVER-SIDE TYPES ===
+
+export interface ServerSideTableState {
+    // === PAGINATION ===
+    pageIndex: number;
+    pageSize: number;
+    totalRecords?: number; // Total number of records available
+    scrollId?: string; // For cursor-based pagination
+    hasNextPage?: boolean; // Indicates if there are more pages available
+
+    // === SORTING ===
+    sorting: SortingState;
+
+    // === FILTERING ===
+    columnFilters: ColumnFiltersState;
+    globalFilter?: string;
+
+    // === LOADING STATE ===
+    isLoading?: boolean;
+    error?: string;
+
+    // === METADATA ===
+    requestId: string;
+}
+
+export interface ServerSideState {
+    // === REQUEST INITIATOR ===
+    requestData: (tableState: ServerSideTableState) => Promise<void>;
+
+    // === PAGINATION STYLE ===
+    paginationMode: 'offset' | 'cursor';
+
+    // === DEBOUNCING ===
+    debounceMs?: number; // Default 300ms
+
+    // === ERROR HANDLING ===
+    onError?: (error: string) => void;
+}

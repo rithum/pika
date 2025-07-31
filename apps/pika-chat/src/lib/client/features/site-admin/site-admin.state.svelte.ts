@@ -23,6 +23,7 @@ import { type ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
+import type { ServerSideTableState } from '$lib/components/ui-pika/pika-table/types';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -33,6 +34,18 @@ export class SiteAdminState {
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
     #chatSessions = $state<ChatSession[]>([]);
+    #sessionsPagination = $state<ServerSideTableState>({
+        pageIndex: 0,
+        pageSize: 20,
+        totalRecords: 0,
+        scrollId: undefined as string | undefined,
+        hasNextPage: false,
+        isLoading: false,
+        error: undefined as string | undefined,
+        sorting: [],
+        columnFilters: [],
+        requestId: ''
+    });
     valuesForInternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
@@ -69,6 +82,14 @@ export class SiteAdminState {
         this.#siteFeatures = siteFeatures;
         this.#appState = appState;
         this.#nav = new SiteAdminNavState(page, siteFeatures);
+    }
+
+    get chatSessions() {
+        return this.#chatSessions;
+    }
+
+    get sessionsPagination() {
+        return this.#sessionsPagination;
     }
 
     get chatApps() {
@@ -228,7 +249,17 @@ export class SiteAdminState {
                 }
             } else if (request.command === 'sessionSearch') {
                 const response = json as SessionSearchResponse;
+
+                // Update data
                 this.#chatSessions = response.sessions;
+
+                // Update pagination metadata
+                this.#sessionsPagination.totalRecords = response.total;
+                this.#sessionsPagination.pageSize = response.pageSize;
+                this.#sessionsPagination.scrollId = response.scrollId;
+                this.#sessionsPagination.hasNextPage = !!response.scrollId;
+                this.#sessionsPagination.isLoading = false;
+                this.#sessionsPagination.error = undefined;
             }
         } catch (e) {
             console.error('Error sending content admin command', e);

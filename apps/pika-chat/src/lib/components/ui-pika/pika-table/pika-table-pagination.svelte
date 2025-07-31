@@ -8,13 +8,29 @@
     import * as Select from '$lib/components/ui/select';
     import type { Table } from '@tanstack/table-core';
 
-    let { table }: { table: Table<TData> } = $props();
+    let {
+        table,
+        serverSideTableState,
+        serverSide,
+    }: {
+        table: Table<TData>;
+        serverSideTableState?: import('./types').ServerSideTableState;
+        serverSide?: import('./types').ServerSideState;
+    } = $props();
+
+    // For cursor-based pagination, we can't jump to arbitrary pages
+    const isCursorBased = $derived(serverSide?.paginationMode === 'cursor');
 </script>
 
 <div class="flex items-center justify-between px-2">
     <div class="text-muted-foreground flex-1 text-sm">
-        {table.getFilteredSelectedRowModel().rows.length} of
-        {table.getFilteredRowModel().rows.length} row(s) selected.
+        {#if serverSideTableState?.totalRecords !== undefined}
+            {table.getFilteredSelectedRowModel().rows.length} of
+            {serverSideTableState.totalRecords} total row(s) selected.
+        {:else}
+            {table.getFilteredSelectedRowModel().rows.length} of
+            {table.getFilteredRowModel().rows.length} row(s) selected.
+        {/if}
     </div>
     <div class="flex items-center space-x-6 lg:space-x-8">
         <div class="flex items-center space-x-2">
@@ -40,15 +56,18 @@
             </Select.Root>
         </div>
         <div class="flex w-[100px] items-center justify-center text-sm font-medium">
-            Page {table.getState().pagination.pageIndex + 1} of
-            {table.getPageCount()}
+            {#if table.getPageCount() > 0}
+                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            {:else}
+                Page {table.getState().pagination.pageIndex + 1}
+            {/if}
         </div>
         <div class="flex items-center space-x-2">
             <Button
                 variant="outline"
                 class="hidden size-8 p-0 lg:flex"
                 onclick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}
+                disabled={!table.getCanPreviousPage() || isCursorBased}
             >
                 <span class="sr-only">Go to first page</span>
                 <ChevronsLeft />
@@ -74,8 +93,13 @@
             <Button
                 variant="outline"
                 class="hidden size-8 p-0 lg:flex"
-                onclick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}
+                onclick={() => {
+                    const pageCount = table.getPageCount();
+                    if (pageCount > 0) {
+                        table.setPageIndex(pageCount - 1);
+                    }
+                }}
+                disabled={!table.getCanNextPage() || table.getPageCount() <= 0 || isCursorBased}
             >
                 <span class="sr-only">Go to last page</span>
                 <ChevronsRight />

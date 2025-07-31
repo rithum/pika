@@ -123,14 +123,14 @@ export async function getMatchingChatApps(
         if (allAreCached) {
             const chatApps = (await Promise.all(chatAppIds.map((chatAppId) => getChatApp(chatAppId)))) as ChatApp[];
             console.log(
-                '✅ getMatchingChatApps returning cached result:',
+                'getMatchingChatApps returning cached result:',
                 chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
             );
             return chatApps;
         }
     }
 
-    console.log('🌐 Making API call to chat-admin/chat-app-by-rules with request:', request);
+    console.log('Making API call to chat-admin/chat-app-by-rules with request:', request);
 
     const response = await invokeApi<GetChatAppsByRulesResponse>({
         apiId: appConfig.chatAdminApiId,
@@ -142,7 +142,7 @@ export async function getMatchingChatApps(
         }
     });
 
-    console.log('📡 API response received:', {
+    console.log('API response received:', {
         statusCode: response.statusCode,
         success: response.body?.success,
         chatAppsCount: response.body?.chatApps?.length,
@@ -150,7 +150,7 @@ export async function getMatchingChatApps(
     });
 
     if (!response.body || !response.body.success) {
-        console.error('❌ Error getting matching chat apps:', {
+        console.error('Error getting matching chat apps:', {
             statusCode: response.statusCode,
             error: response.body?.error,
             userId: user.userId
@@ -159,7 +159,7 @@ export async function getMatchingChatApps(
     }
 
     console.log(
-        '📋 Chat apps received from API:',
+        'Chat apps received from API:',
         response.body.chatApps.map((app) => ({
             chatAppId: app.chatAppId,
             title: app.title,
@@ -184,7 +184,7 @@ export async function getMatchingChatApps(
     }
 
     console.log(
-        '✅ getMatchingChatApps final result:',
+        'getMatchingChatApps final result:',
         response.body.chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
     );
     return response.body.chatApps;
