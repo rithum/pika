@@ -188,7 +188,7 @@ Create your UI component in `apps/pika-chat/src/lib/client/features/chat/user-da
 
 ```svelte
 <script lang="ts">
-    import Combobox from '$lib/components/ui-pika/combobox/combobox.svelte';
+    import Combobox from '$ui/pika/combobox/combobox.svelte';
     import type { UserOverrideDataCommand } from '@pika/shared/types/chatbot/chatbot-types';
 
     // Required props interface

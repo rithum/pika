@@ -1,8 +1,8 @@
 <script lang="ts">
-    import TooltipPlus from '$comps/ui-pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$lib/components/ui/button';
-    import * as Dialog from '$lib/components/ui/dialog';
-    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import * as Dialog from '$ui/shadcn/dialog';
+    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';

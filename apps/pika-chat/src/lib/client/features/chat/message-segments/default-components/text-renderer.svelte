@@ -137,50 +137,67 @@
     <!-- {console.log('[TEXT-RENDERER] Skipping render - no meaningful content:', { rawContent: JSON.stringify(segment.rawContent), rawContentLength: segment.rawContent.length })} -->
 {/if}
 
-<style lang="postcss">
-    /* TODO: find a better set of styles for this and a better way to do it. */
+<style>
+    /* Modern CSS - no PostCSS processing needed! */
     /* Add styles for markdown content - copied from markdown-message-renderer.svelte */
     :global(.markdown-content) {
         word-break: break-word;
     }
 
     :global(.markdown-content pre) {
-        @apply rounded p-4 overflow-x-auto;
-    }
-
-    :global(.markdown-content code) {
-        @apply bg-gray-100 rounded px-1 py-0.5 text-sm;
+        border-radius: 0.375rem; /* rounded */
+        padding: 1rem; /* p-4 */
+        overflow-x: auto; /* overflow-x-auto */
     }
 
     :global(.markdown-content pre code) {
-        @apply bg-transparent p-0;
+        background-color: transparent; /* bg-transparent */
+        padding: 0; /* p-0 */
+    }
+
+    :global(.markdown-content code) {
+        background-color: var(--color-gray-100); /* bg-gray-100 */
+        border-radius: 0.25rem; /* rounded */
+        padding: 0.125rem 0.25rem; /* py-0.5 px-1 */
+        font-size: 0.875rem; /* text-sm */
+        line-height: 1.25rem; /* text-sm line-height */
     }
 
     :global(.markdown-content blockquote) {
-        @apply border-l-4 border-gray-300 pl-4 italic;
+        border-left: 4px solid var(--color-gray-300); /* border-l-4 border-gray-300 */
+        padding-left: 1rem; /* pl-4 */
+        font-style: italic; /* italic */
     }
 
     :global(.markdown-content table) {
-        @apply w-full border-collapse;
+        width: 100%; /* w-full */
+        border-collapse: collapse; /* border-collapse */
     }
 
     :global(.markdown-content th),
     :global(.markdown-content td) {
-        @apply border border-gray-300 px-3 py-2;
+        border: 1px solid var(--color-gray-300); /* border border-gray-300 */
+        padding: 0.5rem 0.75rem; /* py-2 px-3 */
     }
 
     :global(.markdown-content th) {
-        @apply bg-gray-100 font-semibold;
+        background-color: var(--color-gray-100); /* bg-gray-100 */
+        font-weight: 600; /* font-semibold */
     }
 
     /* Streaming indicator styles */
-
     .streaming {
-        @apply relative;
-    }
+        position: relative; /* relative */
 
-    .streaming::after {
-        content: '';
-        @apply inline-block w-2 h-4 bg-gray-400 opacity-75 animate-pulse ml-1;
+        &::after {
+            content: '';
+            display: inline-block; /* inline-block */
+            width: 0.5rem; /* w-2 */
+            height: 1rem; /* h-4 */
+            background-color: var(--color-gray-400); /* bg-gray-400 */
+            opacity: 0.75; /* opacity-75 */
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; /* animate-pulse */
+            margin-left: 0.25rem; /* ml-1 */
+        }
     }
 </style>

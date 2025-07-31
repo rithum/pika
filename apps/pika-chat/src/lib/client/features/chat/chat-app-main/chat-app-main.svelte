@@ -1,6 +1,6 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
-    import ExpandableContainer from '$comps/ui-pika/expandable-container/expandable-container.svelte';
+    import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { formatDateTime } from '../../../../utils';

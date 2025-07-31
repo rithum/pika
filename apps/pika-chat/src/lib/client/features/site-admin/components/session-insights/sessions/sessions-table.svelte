@@ -1,14 +1,14 @@
 <script lang="ts">
     import { Archive, Eye, MessageSquare, Search, Trash2, UserCheck } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PikaTable from '$lib/components/ui-pika/pika-table/pika-table.svelte';
+    import PikaTable from '$ui/pika/pika-table/pika-table.svelte';
     import type {
         FacetedFilters,
         GlobalFilterProps,
         RowActionsProps,
         ServerSideState,
         ServerSideTableState,
-    } from '$lib/components/ui-pika/pika-table/types';
+    } from '$ui/pika/pika-table/types';
     import type {
         ChatSession,
         InsightsSearchParams,

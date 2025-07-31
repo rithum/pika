@@ -1,11 +1,11 @@
 <script lang="ts">
     import { ChevronDown, Expand, Shrink } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { PikaBadge } from '$lib/components/ui-pika/pika-badge';
-    import { Badge } from '$lib/components/ui/badge';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import { Label } from '$lib/components/ui/label';
-    import { Separator } from '$lib/components/ui/separator';
+    import { PikaBadge } from '$ui/pika/pika-badge';
+    import { Badge } from '$ui/shadcn/badge';
+    import { Checkbox } from '$ui/shadcn/checkbox';
+    import { Label } from '$ui/shadcn/label';
+    import { Separator } from '$ui/shadcn/separator';
     import { FEATURE_NAMES, VerifyResponseClassificationDescriptions } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';
@@ -29,8 +29,8 @@
         VerifyResponseFeatureForChatApp,
     } from '@pika/shared/types/chatbot/chatbot-types';
     // Import individual feature components
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
-    import Button from '$lib/components/ui/button/button.svelte';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import Button from '$ui/shadcn/button/button.svelte';
     import { assert } from '$lib/utils';
     import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
     import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';

@@ -1,10 +1,10 @@
 <script lang="ts">
     import { BrushCleaning, Expand, Loader, Shrink } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PikaAlert from '$lib/components/ui-pika/pika-alert/pika-alert.svelte';
-    import { Button } from '$lib/components/ui/button';
-    import { ScrollArea } from '$lib/components/ui/scroll-area';
-    import { Separator } from '$lib/components/ui/separator';
+    import PikaAlert from '$ui/pika/pika-alert/pika-alert.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import { ScrollArea } from '$ui/shadcn/scroll-area';
+    import { Separator } from '$ui/shadcn/separator';
     import type {
         ChatApp,
         ChatAppOverrideForCreateOrUpdate,

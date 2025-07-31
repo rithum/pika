@@ -1,11 +1,11 @@
 <script lang="ts">
-    import TooltipPlus from '$comps/ui-pika/tooltip-plus/tooltip-plus.svelte';
-    import * as Sidebar from '$comps/ui/sidebar';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
+    import * as Sidebar from '$ui/shadcn/sidebar';
     import ChatNav from '../nav/chat-nav.svelte';
 
-    import Button from '$comps/ui/button/button.svelte';
+    import Button from '$ui/shadcn/button/button.svelte';
     import { PanelLeft } from '$icons/lucide';
-    import { useSidebar } from '$lib/components/ui/sidebar';
+    import { useSidebar } from '$ui/shadcn/sidebar';
     import { SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';

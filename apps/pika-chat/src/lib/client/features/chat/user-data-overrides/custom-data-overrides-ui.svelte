@@ -3,7 +3,7 @@
   of what you need to do with complete instructions.
 -->
 <script lang="ts">
-    import Combobox from '$lib/components/ui-pika/combobox/combobox.svelte';
+    import Combobox from '$ui/pika/combobox/combobox.svelte';
     import type { UserOverrideDataCommand } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

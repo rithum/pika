@@ -3,10 +3,6 @@ import { twMerge } from 'tailwind-merge';
 import type { HotKey, HotKeyBase } from './client/app/types';
 // import { formatDistanceToNow, isPast } from 'date-fns';
 
-export function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs));
-}
-
 function getOS(): string | undefined {
     if (!navigator) return undefined;
     const userAgent = navigator.userAgent.toLowerCase();

@@ -1,7 +1,7 @@
 <script lang="ts">
-    import List from '$lib/components/ui-pika/list/list.svelte';
-    import { Button } from '$lib/components/ui/button';
-    import { Label } from '$lib/components/ui/label';
+    import List from '$ui/pika/list/list.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import { Label } from '$ui/shadcn/label';
     import type { FileUploadFeature } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

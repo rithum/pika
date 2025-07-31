@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Badge } from '$lib/components/ui/badge';
-    import { ScrollArea } from '$lib/components/ui/scroll-area';
+    import { Badge } from '$ui/shadcn/badge';
+    import { ScrollArea } from '$ui/shadcn/scroll-area';
     import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

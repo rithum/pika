@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import fs from 'fs';
 import path from 'path';
@@ -12,6 +13,7 @@ export default defineConfig(async () => {
 
     return {
         plugins: [
+            tailwindcss(),
             siteFeaturesVitePlugin(),
             sveltekit(),
             Icons({

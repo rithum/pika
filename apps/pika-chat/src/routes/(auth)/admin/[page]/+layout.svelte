@@ -3,8 +3,8 @@
     import type { AppState } from '$client/app/app.state.svelte';
     import SiteAdminSidebar from '$client/features/site-admin/layout/site-admin-sidebar.svelte';
     import SiteAdminTitlebar from '$client/features/site-admin/layout/site-admin-titlebar.svelte';
-    import { Slideout, SlideoutContent, SlideoutProvider } from '$comps/ui-pika/slideout';
-    import * as Sidebar from '$comps/ui/sidebar/index.js';
+    import { Slideout, SlideoutContent, SlideoutProvider } from '$ui/pika/slideout';
+    import * as Sidebar from '$ui/shadcn/sidebar/index.js';
     import type { ChatApp, SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
 

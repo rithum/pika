@@ -1,4 +1,4 @@
-import { GeneralError, MalformedScrollIdException, OsError, OsQuery } from './types';
+import { GeneralError, MalformedScrollIdException, OsError, type OsQuery } from './types';
 import { errors } from '@opensearch-project/opensearch';
 
 /**

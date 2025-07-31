@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { type ChatApp, type UserType } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';

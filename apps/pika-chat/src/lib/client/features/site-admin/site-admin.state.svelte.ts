@@ -1,6 +1,6 @@
 import type { FetchZ } from '$client/app/types';
 import type { AppState } from '$lib/client/app/app.state.svelte';
-import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
+import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type {
     AddChatSessionFeedbackResponse,
     ChatAppMode,
@@ -23,7 +23,7 @@ import { type ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
-import type { ServerSideTableState } from '$lib/components/ui-pika/pika-table/types';
+import type { ServerSideTableState } from '$ui/pika/pika-table/types';
 
 export class SiteAdminState {
     #appState: AppState;

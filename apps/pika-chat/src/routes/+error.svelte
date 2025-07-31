@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { Button } from '$lib/components/ui/button';
+    import { Button } from '$ui/shadcn/button';
 
     function goBack() {
         history.back();

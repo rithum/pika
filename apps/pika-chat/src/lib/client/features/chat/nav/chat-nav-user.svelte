@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import * as Avatar from '$comps/ui/avatar';
-    import * as DropdownMenu from '$comps/ui/dropdown-menu';
-    import * as Sidebar from '$comps/ui/sidebar';
-    import { useSidebar } from '$comps/ui/sidebar';
+    import * as Avatar from '$ui/shadcn/avatar';
+    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
+    import * as Sidebar from '$ui/shadcn/sidebar';
+    import { useSidebar } from '$ui/shadcn/sidebar';
     import { ChevronsUpDown } from '$icons/lucide';
     import { getContext } from 'svelte';
 

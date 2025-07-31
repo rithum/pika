@@ -1,7 +1,7 @@
 <script lang="ts">
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
-    import SimpleDropdown from '$lib/components/ui-pika/simple-dropdown/simple-dropdown.svelte';
-    import { Label } from '$lib/components/ui/label';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Label } from '$ui/shadcn/label';
     import {
         VerifyResponseRetryableClassificationDescriptions,
         type FeatureError,

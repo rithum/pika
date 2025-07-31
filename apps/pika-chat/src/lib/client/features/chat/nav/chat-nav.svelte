@@ -1,7 +1,7 @@
 <script lang="ts">
-    import * as Sidebar from '$comps/ui/sidebar';
-    import { Ellipsis } from '$lib/components/ui/breadcrumb';
-    import { Button } from '$lib/components/ui/button';
+    import * as Sidebar from '$ui/shadcn/sidebar';
+    import { Ellipsis } from '$ui/shadcn/breadcrumb';
+    import { Button } from '$ui/shadcn/button';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
 

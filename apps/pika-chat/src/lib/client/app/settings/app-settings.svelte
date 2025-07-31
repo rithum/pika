@@ -1,6 +1,6 @@
 <script lang="ts">
-    import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
-    import * as Dialog from '$lib/components/ui/dialog';
+    import Checkbox from '$ui/shadcn/checkbox/checkbox.svelte';
+    import * as Dialog from '$ui/shadcn/dialog';
     import { getContext } from 'svelte';
     import type { AppState } from '../app.state.svelte';
 

@@ -1,4 +1,4 @@
-import { ChatSession, ChatSessionFeedback, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { type ChatSession, type ChatSessionFeedback, type RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { Types, API } from '@opensearch-project/opensearch';
 import { convertChatSessionToCamelFromSnakeCase, convertChatSessionToSnakeFromCamelCase } from '../utils';

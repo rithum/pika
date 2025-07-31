@@ -1,7 +1,7 @@
 <script lang="ts">
     import { ChevronRight, CircleCheck } from '$icons/lucide';
-    import TextWaveShimmer from '$lib/components/ui-pika/text-wave-shimmer/text-wave-shimmer.svelte';
-    import { Button } from '$lib/components/ui/button';
+    import TextWaveShimmer from '$ui/pika/text-wave-shimmer/text-wave-shimmer.svelte';
+    import { Button } from '$ui/shadcn/button';
     import { Copy } from '$lib/icons/ci';
     import { Expand, Shrink } from '$lib/icons/lucide';
     import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';

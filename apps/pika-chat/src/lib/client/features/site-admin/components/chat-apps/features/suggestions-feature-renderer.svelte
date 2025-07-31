@@ -1,9 +1,9 @@
 <script lang="ts">
-    import List from '$lib/components/ui-pika/list/list.svelte';
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import { Input } from '$lib/components/ui/input';
-    import { Label } from '$lib/components/ui/label';
+    import List from '$ui/pika/list/list.svelte';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import { Checkbox } from '$ui/shadcn/checkbox';
+    import { Input } from '$ui/shadcn/input';
+    import { Label } from '$ui/shadcn/label';
     import { assert } from '$lib/utils';
     import type { SuggestionsFeature } from '@pika/shared/types/chatbot/chatbot-types';
 

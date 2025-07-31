@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { ScrollArea } from '$lib/components/ui/scroll-area';
+    import { ScrollArea } from '$ui/shadcn/scroll-area';
     import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
 

@@ -4,10 +4,10 @@ import {
     type ConversationHistory,
     InvokeInlineAgentCommand,
     type InvokeInlineAgentCommandInput,
-    KnowledgeBase,
+    type KnowledgeBase,
     type Trace,
     type RetrievalFilter,
-    Attribution
+    type Attribution
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {

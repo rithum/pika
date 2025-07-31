@@ -1,6 +1,6 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
-import type { SidebarState } from '$lib/components/ui/sidebar/context.svelte';
+import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
 import type { ChatAppMode, ChatSessionFeedbackForCreate, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,

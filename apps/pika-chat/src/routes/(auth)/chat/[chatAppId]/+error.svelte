@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { Button } from '$lib/components/ui/button';
+    import { Button } from '$ui/shadcn/button';
 
     let chatAppId = $derived(page.params.chatAppId);
     let is404 = $derived(page.status === 404);

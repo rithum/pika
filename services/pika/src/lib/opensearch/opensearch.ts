@@ -14,29 +14,29 @@ import { Client, Types, API } from '@opensearch-project/opensearch';
 import OsClient from './opensearch-client';
 import { buildScrollIdFromQueryAndLastHitSort, getNextPageQueryFromScrollId, handleOsError, prepareSearchTerm } from './opensearch-utils';
 import {
-    BulkResp,
-    BulkType,
-    DeleteOp,
-    DomainIndex,
-    MSearchResp,
-    OSSearchResult,
-    OpenSearchIndexable,
+    type BulkResp,
+    type BulkType,
+    type DeleteOp,
+    type DomainIndex,
+    type MSearchResp,
+    type OSSearchResult,
+    type OpenSearchIndexable,
     OsError,
-    OsFilterTermOrTermsQuery,
-    OsQuery,
-    OsSort,
-    OsWork,
+    type OsFilterTermOrTermsQuery,
+    type OsQuery,
+    type OsSort,
+    type OsWork,
     getDomainIndex,
     isDeleteObj,
     isPartialUpdateObj,
     osIndexMeta,
-    ConversationIdAndInternalId,
+    type ConversationIdAndInternalId,
     GeneralError,
-    PartialUpdateOp
+    type PartialUpdateOp
 } from './types';
 import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import { convertToSnakeCase, convertToCamelCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
-import {
+import type {
     SessionSearchRequest,
     ChatSession,
     ChatSessionFeedback,

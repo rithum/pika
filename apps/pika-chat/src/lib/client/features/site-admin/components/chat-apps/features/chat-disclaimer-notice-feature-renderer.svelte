@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Label } from '$lib/components/ui/label';
-    import { Textarea } from '$lib/components/ui/textarea';
+    import { Label } from '$ui/shadcn/label';
+    import { Textarea } from '$ui/shadcn/textarea';
     import type { ChatDisclaimerNoticeFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

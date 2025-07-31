@@ -1,7 +1,7 @@
-import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$lib/components/ui-pika/pika-table';
-import type { RowActionsProps } from '$lib/components/ui-pika/pika-table/types';
-import { Button } from '$lib/components/ui/button';
-import { renderComponent } from '$lib/components/ui/data-table/render-helpers';
+import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
+import type { RowActionsProps } from '$ui/pika/pika-table/types';
+import { Button } from '$ui/shadcn/button';
+import { renderComponent } from '$ui/shadcn/data-table/render-helpers';
 import { formatDistanceToNow } from 'date-fns';
 import type { ChatSession } from '@pika/shared/types/chatbot/chatbot-types';
 import type { ColumnDef } from '@tanstack/table-core';

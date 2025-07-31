@@ -1,8 +1,8 @@
 <script lang="ts">
     import ChatSidebar from '$client/features/chat/layout/chat-sidebar.svelte';
     import ChatTitlebar from '$client/features/chat/layout/chat-titlebar.svelte';
-    import { Slideout, SlideoutContent, SlideoutProvider } from '$comps/ui-pika/slideout';
-    import * as Sidebar from '$comps/ui/sidebar/index.js';
+    import { Slideout, SlideoutContent, SlideoutProvider } from '$ui/pika/slideout';
+    import * as Sidebar from '$ui/shadcn/sidebar/index.js';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
     import { getContext, setContext, type Snippet } from 'svelte';

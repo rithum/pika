@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import List from '$lib/components/ui-pika/list/list.svelte';
-    import PopupHelp from '$lib/components/ui-pika/popup-help/popup-help.svelte';
-    import { Checkbox } from '$lib/components/ui/checkbox';
-    import { Label } from '$lib/components/ui/label';
+    import List from '$ui/pika/list/list.svelte';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import { Checkbox } from '$ui/shadcn/checkbox';
+    import { Label } from '$ui/shadcn/label';
     import { assert } from '$lib/utils';
     import {
         type ChatApp,

@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import TooltipPlus from '$comps/ui-pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$lib/components/ui/button';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from '$ui/shadcn/button';
     import { PanelLeft } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
 

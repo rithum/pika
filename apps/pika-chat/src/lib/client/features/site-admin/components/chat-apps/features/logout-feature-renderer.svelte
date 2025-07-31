@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { Input } from '$lib/components/ui/input';
-    import { Label } from '$lib/components/ui/label';
-    import { Textarea } from '$lib/components/ui/textarea';
+    import { Input } from '$ui/shadcn/input';
+    import { Label } from '$ui/shadcn/label';
+    import { Textarea } from '$ui/shadcn/textarea';
     import type { FeatureError, LogoutFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 

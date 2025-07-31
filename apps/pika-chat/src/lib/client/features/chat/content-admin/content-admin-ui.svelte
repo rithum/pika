@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Combobox from '$lib/components/ui-pika/combobox/combobox.svelte';
+    import Combobox from '$ui/pika/combobox/combobox.svelte';
     import type { ChatUserLite, ContentAdminCommand } from '@pika/shared/types/chatbot/chatbot-types';
 
     interface Props {

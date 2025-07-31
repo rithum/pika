@@ -1,8 +1,8 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import type { AppState } from '$client/app/app.state.svelte';
-    import { Button } from '$lib/components/ui/button';
-    import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+    import { Button } from '$ui/shadcn/button';
+    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import { Settings2 } from '$lib/icons/lucide';
     import type { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';

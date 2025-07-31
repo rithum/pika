@@ -1,7 +1,7 @@
 //TODO: make sure to turn on model invocation logging in aws
 
 import type { FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
-import { SnakeCase } from '../../util/chatbot-shared-utils';
+import { type SnakeCase } from '../../util/chatbot-shared-utils';
 
 export type CompanyType = 'retailer' | 'supplier';
 
