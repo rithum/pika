@@ -207,7 +207,7 @@
                             rulesObj.applyRulesAs = value;
                         }
                     }
-                    widthClasses="w-[300px]"
+                    classes="w-[300px]"
                     mapping={{
                         value: (item) => item as string,
                         label: (item) => {

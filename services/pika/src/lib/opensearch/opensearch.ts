@@ -291,25 +291,10 @@ function getTotalValue(total: any): number {
 }
 
 /**
- * Put new functions here
- */
-
-/**
  * Query for chat sessions with comprehensive filtering and pagination support
  */
 export async function queryForSessions<T extends RecordOrUndef = undefined>(searchRequest: SessionSearchRequest<T>): Promise<SessionSearchResponse<T>> {
     try {
-        // Validation
-        if (!searchRequest.createDate && !searchRequest.lastUpdate) {
-            return {
-                success: false,
-                sessions: [],
-                error: 'Either createDate or lastUpdate must be provided',
-                total: 0,
-                pageSize: searchRequest.size ?? MAX_RESULTS
-            };
-        }
-
         if (searchRequest.insights && searchRequest.insights.hasInsights === undefined) {
             return {
                 success: false,
@@ -374,21 +359,15 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 filter.push({ term: { flagged: searchRequest.flagged } });
             }
 
-            // Date range queries
-            if (searchRequest.createDate) {
-                const rangeFilter: any = { gte: searchRequest.createDate };
-                if (searchRequest.endCreateDate) {
-                    rangeFilter.lte = searchRequest.endCreateDate;
+            // We will handle the feedback date filter below
+            if (searchRequest.dateFilter && (searchRequest.dateFilter.dateType === 'created' || searchRequest.dateFilter.dateType === 'updated')) {
+                const rangeFilter: any = { gte: searchRequest.dateFilter.startDate };
+                const dateType = searchRequest.dateFilter.dateType ?? 'created';
+                const field = dateType === 'created' ? 'create_date' : 'last_update';
+                if (searchRequest.dateFilter.endDate) {
+                    rangeFilter.lte = searchRequest.dateFilter.endDate;
                 }
-                filter.push({ range: { create_date: rangeFilter } });
-            }
-
-            if (searchRequest.lastUpdate) {
-                const rangeFilter: any = { gte: searchRequest.lastUpdate };
-                if (searchRequest.endLastUpdate) {
-                    rangeFilter.lte = searchRequest.endLastUpdate;
-                }
-                filter.push({ range: { last_update: rangeFilter } });
+                filter.push({ range: { [field]: rangeFilter } });
             }
 
             // Custom user data filtering
@@ -517,8 +496,7 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 (searchRequest.feedbackInStatus && searchRequest.feedbackInStatus.length > 0) ||
                 (searchRequest.feedbackSeverity && searchRequest.feedbackSeverity.length > 0) ||
                 (searchRequest.feedbackType && searchRequest.feedbackType.length > 0) ||
-                searchRequest.feedbackCreatedSince ||
-                searchRequest.feedbackCreatedBefore ||
+                (searchRequest.dateFilter?.dateType === 'feedback' && searchRequest.dateFilter.startDate) ||
                 searchRequest.feedbackInternalCommentUserId ||
                 (searchRequest.feedbackInternalCommentType && searchRequest.feedbackInternalCommentType.length > 0) ||
                 (searchRequest.feedbackInternalCommentStatus && searchRequest.feedbackInternalCommentStatus.length > 0)
@@ -580,13 +558,13 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 }
 
                 // Feedback date range filters
-                if (searchRequest.feedbackCreatedSince || searchRequest.feedbackCreatedBefore) {
+                if (searchRequest.dateFilter?.dateType === 'feedback' && searchRequest.dateFilter.startDate) {
                     const dateRangeFilter: any = {};
-                    if (searchRequest.feedbackCreatedSince) {
-                        dateRangeFilter.gte = searchRequest.feedbackCreatedSince;
+                    if (searchRequest.dateFilter.startDate) {
+                        dateRangeFilter.gte = searchRequest.dateFilter.startDate;
                     }
-                    if (searchRequest.feedbackCreatedBefore) {
-                        dateRangeFilter.lte = searchRequest.feedbackCreatedBefore;
+                    if (searchRequest.dateFilter.endDate) {
+                        dateRangeFilter.lte = searchRequest.dateFilter.endDate;
                     }
                     feedbackFilters.push({ range: { 'feedback.created_on': dateRangeFilter } });
                 }

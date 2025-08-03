@@ -35,6 +35,7 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
+import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 
 const MAX_FILES = 5;
 
@@ -71,6 +72,7 @@ export class ChatAppState {
     #chatApp = $state<ChatApp>() as ChatApp;
     #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
+    #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #chatSessions = $state<ChatSession[]>([]);
     #sortedChatSessions = $derived.by(() => {
         const arr = [...this.#chatSessions];
@@ -193,6 +195,13 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    /**
+     * The user prefs for the current user for this chat app.
+     */
+    get userPrefs() {
+        return this.#userPrefs;
+    }
 
     get mode() {
         return this.#mode;
@@ -401,6 +410,7 @@ export class ChatAppState {
         this.#features = features;
         this.#customDataUiRepresentation = customDataUiRepresentation;
         this.#mode = mode;
+        this.#userPrefs = new UserPrefsState(this.fetchz);
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;

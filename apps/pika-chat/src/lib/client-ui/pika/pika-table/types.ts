@@ -75,7 +75,6 @@ export interface ServerSideTableState {
 
     // === FILTERING ===
     columnFilters: ColumnFiltersState;
-    globalFilter?: string;
 
     // === LOADING STATE ===
     isLoading?: boolean;
@@ -85,7 +84,11 @@ export interface ServerSideTableState {
     requestId: string;
 }
 
-export interface ServerSideState {
+/**
+ * Unified server-side configuration that combines both configuration and state.
+ * This is the recommended interface for new implementations.
+ */
+export interface ServerSideConfig {
     // === REQUEST INITIATOR ===
     requestData: (tableState: ServerSideTableState) => Promise<void>;
 
@@ -97,4 +100,7 @@ export interface ServerSideState {
 
     // === ERROR HANDLING ===
     onError?: (error: string) => void;
+
+    // === DYNAMIC TABLE STATE ===
+    tableState: ServerSideTableState;
 }

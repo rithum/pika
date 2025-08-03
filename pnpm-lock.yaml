@@ -171,9 +171,6 @@ catalogs:
     aws4:
       specifier: ^1.13.2
       version: 1.13.2
-    bits-ui:
-      specifier: ^2.9.0
-      version: 2.9.0
     camelcase-keys:
       specifier: ^9.1.3
       version: 9.1.3
@@ -339,9 +336,6 @@ catalogs:
     tailwind-merge:
       specifier: ^3.3.1
       version: 3.3.1
-    tailwind-variants:
-      specifier: ^2.1.0
-      version: 2.1.0
     tailwindcss:
       specifier: ^4.1.11
       version: 4.1.11
@@ -535,8 +529,8 @@ importers:
         specifier: 'catalog:'
         version: 2.195.0(constructs@10.4.2)
       bits-ui:
-        specifier: 'catalog:'
-        version: 2.9.0(@internationalized/date@3.8.0)(svelte@5.37.1)
+        specifier: ^1.8.0
+        version: 1.8.0(svelte@5.37.1)
       chart.js:
         specifier: 'catalog:'
         version: 4.4.9
@@ -552,6 +546,9 @@ importers:
       date-fns:
         specifier: 'catalog:'
         version: 4.1.0
+      date-fns-tz:
+        specifier: ^3.2.0
+        version: 3.2.0(date-fns@4.1.0)
       deep-equal:
         specifier: 'catalog:'
         version: 2.2.3
@@ -631,8 +628,8 @@ importers:
         specifier: 'catalog:'
         version: 3.3.1
       tailwind-variants:
-        specifier: 'catalog:'
-        version: 2.1.0(tailwind-merge@3.3.1)(tailwindcss@4.1.11)
+        specifier: ^0.2.1
+        version: 0.2.1(tailwindcss@4.1.11)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.1.11
@@ -868,7 +865,7 @@ importers:
         version: link:../eslint-config
       svelte:
         specifier: ^5.19.3
-        version: 5.30.2
+        version: 5.37.1
 
   packages/typescript-config: {}
 
@@ -3312,12 +3309,11 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  bits-ui@2.9.0:
-    resolution: {integrity: sha512-5lj7L4/TvC0SQHfynwGSXFXO9mDeVszW4+C+lDbEMQFesWT78Z3tkfPTzGYsm8PBauP847uE5xovDGAhndjuog==}
-    engines: {node: '>=20'}
+  bits-ui@1.8.0:
+    resolution: {integrity: sha512-CXD6Orp7l8QevNDcRPLXc/b8iMVgxDWT2LyTwsdLzJKh9CxesOmPuNePSPqAxKoT59FIdU4aFPS1k7eBdbaCxg==}
+    engines: {node: '>=18', pnpm: '>=8.7.0'}
     peerDependencies:
-      '@internationalized/date': ^3.8.1
-      svelte: ^5.33.0
+      svelte: ^5.11.0
 
   body-parser@2.2.0:
     resolution: {integrity: sha512-02qvAaxv8tp7fBa/mw1ga98OGm+eCbqzJOKoRt70sLmfEEi+jyBYVTDGfCL/k06/4EMk/z01gCe7HoCH/f2LTg==}
@@ -3613,6 +3609,9 @@ packages:
     resolution: {integrity: sha512-HTUrgRJ7r4dsZKU6GjmpfRK1O76h97Z8MfS1G0FozR+oF2kG6Vfe8JE6zwrkbxigziPHinCJ+gCPjA9EaBDtRw==}
     engines: {node: '>= 6'}
 
+  css.escape@1.5.1:
+    resolution: {integrity: sha512-YUifsXXuknHlUsmlgyY0PKzgPOr7/FjCePfHNt0jxm83wHZi44VDMQ7/fGNkjY3/jV1MC+1CmZbaHzugyeRtpg==}
+
   cssesc@3.0.0:
     resolution: {integrity: sha512-/Tb/JcjK111nNScGob5MNtsntNM1aCNUDipB/TkwZFhyDrrE47SOx/18wF2bbjgc3ZzCSKW1T5nt5EbFoAz/Vg==}
     engines: {node: '>=4'}
@@ -3639,6 +3638,11 @@ packages:
   csso@5.0.5:
     resolution: {integrity: sha512-0LrrStPOdJj+SPCCrGhzryycLjwcgUSHBtxNA8aIDxf0GLsRh1cKYhB00Gd1lDOS4yGH69+SNn13+TWbVHETFQ==}
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0, npm: '>=7.0.0'}
+
+  date-fns-tz@3.2.0:
+    resolution: {integrity: sha512-sg8HqoTEulcbbbVXeg84u5UnlsQa8GS5QXMqjjYIhS4abEVVKIUwe0/l/UhrZdKaL/W5eWZNlbTeEIiOXTcsBQ==}
+    peerDependencies:
+      date-fns: ^3.0.0 || ^4.0.0
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
@@ -3944,9 +3948,6 @@ packages:
   esquery@1.6.0:
     resolution: {integrity: sha512-ca9pw9fomFcKPvFLXhBKUK90ZvGibiGOvRJNbjljY7s7uq/5YO4BOzcYtJqExdx99rF6aAcnRxHmcUHcz6sQsg==}
     engines: {node: '>=0.10'}
-
-  esrap@1.4.6:
-    resolution: {integrity: sha512-F/D2mADJ9SHY3IwksD4DAXjTt7qt7GWUf3/8RhCNWmC/67tyb55dpimHmy7EplakFaflV0R/PC+fdSPqrRHAQw==}
 
   esrap@2.1.0:
     resolution: {integrity: sha512-yzmPNpl7TBbMRC5Lj2JlJZNPml0tzqoqP5B1JXycNUwtqma9AKCO0M2wHrdgsHcy1WRW7S9rJknAMtByg3usgA==}
@@ -5876,11 +5877,6 @@ packages:
     peerDependencies:
       svelte: ^5.7.0
 
-  runed@0.29.2:
-    resolution: {integrity: sha512-0cq6cA6sYGZwl/FvVqjx9YN+1xEBu9sDDyuWdDW1yWX7JF2wmvmVKfH+hVCZs+csW+P3ARH92MjI3H9QTagOQA==}
-    peerDependencies:
-      svelte: ^5.7.0
-
   rxjs@7.8.2:
     resolution: {integrity: sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==}
 
@@ -6163,16 +6159,6 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  svelte-toolbelt@0.9.3:
-    resolution: {integrity: sha512-HCSWxCtVmv+c6g1ACb8LTwHVbDqLKJvHpo6J8TaqwUme2hj9ATJCpjCPNISR1OCq2Q4U1KT41if9ON0isINQZw==}
-    engines: {node: '>=18', pnpm: '>=8.7.0'}
-    peerDependencies:
-      svelte: ^5.30.2
-
-  svelte@5.30.2:
-    resolution: {integrity: sha512-zfGFEwwPeILToOxOqQyFq/vc8euXrX2XyoffkBNgn/k8D1nxbLt5+mNaqQBmZF/vVhBGmkY6VmNK18p9Gf0auQ==}
-    engines: {node: '>=18'}
-
   svelte@5.37.1:
     resolution: {integrity: sha512-h8arWpQZ+3z8eahyBT5KkiBOUsG6xvI5Ykg0ozRr9xEdImgSMUPUlOFWRNkUsT7Ti0DSUCTEbPoped0aoxFyWA==}
     engines: {node: '>=18'}
@@ -6189,18 +6175,17 @@ packages:
     resolution: {integrity: sha512-iK5/YhZxq5GO5z8wb0bY1317uDF3Zjpha0QFFLA8/trAoiLbQD0HUbMesEaxyzUgDxi2QlcbM8IvqOlEjgoXBA==}
     engines: {node: '>=12.17'}
 
+  tailwind-merge@2.6.0:
+    resolution: {integrity: sha512-P+Vu1qXfzediirmHOC3xKGAYeZtPcV9g76X+xg2FD4tYgR71ewMA35Y3sCz3zhiN/dwefRpJX0yBcgwi1fXNQA==}
+
   tailwind-merge@3.3.1:
     resolution: {integrity: sha512-gBXpgUm/3rp1lMZZrM/w7D8GKqshif0zAymAhbCyIt8KMe+0v9DQ7cdYLR4FHH/cKpdTXb+A/tKKU3eolfsI+g==}
 
-  tailwind-variants@2.1.0:
-    resolution: {integrity: sha512-82m0eRex0z6A3GpvfoTCpHr+wWJmbecfVZfP3mqLoDxeya5tN4mYJQZwa5Aw1hRZTedwpu1D2JizYenoEdyD8w==}
+  tailwind-variants@0.2.1:
+    resolution: {integrity: sha512-2xmhAf4UIc3PijOUcJPA1LP4AbxhpcHuHM2C26xM0k81r0maAO6uoUSHl3APmvHZcY5cZCY/bYuJdfFa4eGoaw==}
     engines: {node: '>=16.x', pnpm: '>=7.x'}
     peerDependencies:
-      tailwind-merge: '>=3.0.0'
       tailwindcss: '*'
-    peerDependenciesMeta:
-      tailwind-merge:
-        optional: true
 
   tailwindcss@4.1.11:
     resolution: {integrity: sha512-2E9TBm6MDD/xKYe+dvJZAmg3yxIEDNRc0jwlNyDg/4Fil2QcSLjFKGVff0lAf1jjeaArlG/M75Ey/EYr/OJtBA==}
@@ -10220,15 +10205,16 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  bits-ui@2.9.0(@internationalized/date@3.8.0)(svelte@5.37.1):
+  bits-ui@1.8.0(svelte@5.37.1):
     dependencies:
       '@floating-ui/core': 1.7.3
       '@floating-ui/dom': 1.7.3
       '@internationalized/date': 3.8.0
+      css.escape: 1.5.1
       esm-env: 1.2.2
-      runed: 0.29.2(svelte@5.37.1)
+      runed: 0.23.4(svelte@5.37.1)
       svelte: 5.37.1
-      svelte-toolbelt: 0.9.3(svelte@5.37.1)
+      svelte-toolbelt: 0.7.1(svelte@5.37.1)
       tabbable: 6.2.0
 
   body-parser@2.2.0:
@@ -10525,6 +10511,8 @@ snapshots:
 
   css-what@6.1.0: {}
 
+  css.escape@1.5.1: {}
+
   cssesc@3.0.0: {}
 
   cssnano-preset-default@7.0.7(postcss@8.5.6):
@@ -10574,6 +10562,10 @@ snapshots:
   csso@5.0.5:
     dependencies:
       css-tree: 2.2.1
+
+  date-fns-tz@3.2.0(date-fns@4.1.0):
+    dependencies:
+      date-fns: 4.1.0
 
   date-fns@4.1.0: {}
 
@@ -10934,10 +10926,6 @@ snapshots:
   esquery@1.6.0:
     dependencies:
       estraverse: 5.3.0
-
-  esrap@1.4.6:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.0
 
   esrap@2.1.0:
     dependencies:
@@ -12917,11 +12905,6 @@ snapshots:
       esm-env: 1.2.2
       svelte: 5.37.1
 
-  runed@0.29.2(svelte@5.37.1):
-    dependencies:
-      esm-env: 1.2.2
-      svelte: 5.37.1
-
   rxjs@7.8.2:
     dependencies:
       tslib: 2.8.1
@@ -13234,30 +13217,6 @@ snapshots:
       style-to-object: 1.0.8
       svelte: 5.37.1
 
-  svelte-toolbelt@0.9.3(svelte@5.37.1):
-    dependencies:
-      clsx: 2.1.1
-      runed: 0.29.2(svelte@5.37.1)
-      style-to-object: 1.0.8
-      svelte: 5.37.1
-
-  svelte@5.30.2:
-    dependencies:
-      '@ampproject/remapping': 2.3.0
-      '@jridgewell/sourcemap-codec': 1.5.0
-      '@sveltejs/acorn-typescript': 1.0.5(acorn@8.14.1)
-      '@types/estree': 1.0.7
-      acorn: 8.14.1
-      aria-query: 5.3.2
-      axobject-query: 4.1.0
-      clsx: 2.1.1
-      esm-env: 1.2.2
-      esrap: 1.4.6
-      is-reference: 3.0.3
-      locate-character: 3.0.0
-      magic-string: 0.30.17
-      zimmerframe: 1.1.2
-
   svelte@5.37.1:
     dependencies:
       '@ampproject/remapping': 2.3.0
@@ -13292,13 +13251,14 @@ snapshots:
       array-back: 6.2.2
       wordwrapjs: 5.1.0
 
+  tailwind-merge@2.6.0: {}
+
   tailwind-merge@3.3.1: {}
 
-  tailwind-variants@2.1.0(tailwind-merge@3.3.1)(tailwindcss@4.1.11):
+  tailwind-variants@0.2.1(tailwindcss@4.1.11):
     dependencies:
+      tailwind-merge: 2.6.0
       tailwindcss: 4.1.11
-    optionalDependencies:
-      tailwind-merge: 3.3.1
 
   tailwindcss@4.1.11: {}
 

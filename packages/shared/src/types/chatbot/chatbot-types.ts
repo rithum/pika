@@ -151,45 +151,6 @@ export interface ChatSessionLiteForUpdate {
     insightsS3Url: string | undefined | null;
 }
 
-export const INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS = 'NEEDS_INSIGHTS_ANALYSIS';
-export type InsightStatusNeedsInsightsAnalysis = typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS;
-
-export const SESSION_FEEDBACK_STATUS = ['open', 'in_review', 'resolved', 'closed'] as const;
-export type SessionFeedbackStatus = (typeof SESSION_FEEDBACK_STATUS)[number];
-
-export const SESSION_FEEDBACK_SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
-export type SessionFeedbackSeverity = (typeof SESSION_FEEDBACK_SEVERITY)[number];
-
-export const SESSION_FEEDBACK_TYPE = [
-    'user_thumbs_up',
-    'user_thumbs_down',
-    'incorrect_information',
-    'incomplete_information',
-    'off_topic',
-    'hallucination',
-    'confusing_response',
-    'outdated_information',
-    'inappropriate_content',
-    'privacy_concern',
-    'harmful_content',
-    'system_error',
-    'timeout_occurred',
-    'tool_failure',
-    'poor_performance',
-    'training_example',
-    'context_awareness_issue',
-    'goal_misalignment',
-    'tool_capability_gap',
-    'tool_performance_issue',
-    'cost_issue',
-    'high_complexity_session',
-    'low_ai_confidence_level',
-    'critical_issues_present',
-    'user_dissatisfied',
-    'other'
-] as const;
-export type SessionFeedbackType = (typeof SESSION_FEEDBACK_TYPE)[number];
-
 export interface ChatSessionFeedback {
     /** The session ID of the session that the feedback is about. */
     sessionId: string;
@@ -222,6 +183,87 @@ export interface ChatSessionFeedback {
     exp_date_unix_seconds?: number;
 }
 
+export const INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS = 'NEEDS_INSIGHTS_ANALYSIS';
+export type InsightStatusNeedsInsightsAnalysis = typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS;
+
+export const SESSION_FEEDBACK_STATUS = ['open', 'in_review', 'resolved', 'closed'] as const;
+export type SessionFeedbackStatus = (typeof SESSION_FEEDBACK_STATUS)[number];
+export const SESSION_FEEDBACK_STATUS_VALUES: NameValuePair<SessionFeedbackStatus>[] = [
+    { name: 'Open', value: 'open' },
+    { name: 'In Review', value: 'in_review' },
+    { name: 'Resolved', value: 'resolved' },
+    { name: 'Closed', value: 'closed' }
+];
+
+export const SESSION_FEEDBACK_SEVERITY = ['low', 'medium', 'high', 'critical'] as const;
+export type SessionFeedbackSeverity = (typeof SESSION_FEEDBACK_SEVERITY)[number];
+export const SESSION_FEEDBACK_SEVERITY_VALUES: NameValuePair<SessionFeedbackSeverity>[] = [
+    { name: 'Low', value: 'low' },
+    { name: 'Medium', value: 'medium' },
+    { name: 'High', value: 'high' },
+    { name: 'Critical', value: 'critical' }
+];
+
+export const SESSION_FEEDBACK_TYPE = [
+    'user_thumbs_up',
+    'user_thumbs_down',
+    'incorrect_information',
+    'incomplete_information',
+    'off_topic',
+    'hallucination',
+    'confusing_response',
+    'outdated_information',
+    'inappropriate_content',
+    'privacy_concern',
+    'harmful_content',
+    'system_error',
+    'timeout_occurred',
+    'tool_failure',
+    'poor_performance',
+    'training_example',
+    'context_awareness_issue',
+    'goal_misalignment',
+    'tool_capability_gap',
+    'tool_performance_issue',
+    'cost_issue',
+    'high_complexity_session',
+    'low_ai_confidence_level',
+    'critical_issues_present',
+    'user_dissatisfied',
+    'user_question_to_chat_author',
+    'other'
+] as const;
+export type SessionFeedbackType = (typeof SESSION_FEEDBACK_TYPE)[number];
+export const SESSION_FEEDBACK_TYPE_VALUES: NameValueDescTriple<SessionFeedbackType>[] = [
+    { name: 'Confusing Response', value: 'confusing_response', desc: 'Session was confusing' },
+    { name: 'Context Awareness Issue', value: 'context_awareness_issue', desc: 'Session had context awareness issue' },
+    { name: 'Cost Issue', value: 'cost_issue', desc: 'Session had cost issue' },
+    { name: 'Critical Issues Present', value: 'critical_issues_present', desc: 'Session had critical issues present' },
+    { name: 'Goal Misalignment', value: 'goal_misalignment', desc: 'Session had goal misalignment' },
+    { name: 'Hallucination', value: 'hallucination', desc: 'Session contained hallucinations' },
+    { name: 'Harmful Content', value: 'harmful_content', desc: 'Session contained harmful content' },
+    { name: 'High Complexity Session', value: 'high_complexity_session', desc: 'Session was high complexity' },
+    { name: 'Inappropriate Content', value: 'inappropriate_content', desc: 'Session contained inappropriate content' },
+    { name: 'Incorrect Information', value: 'incorrect_information', desc: 'Session contained incorrect information' },
+    { name: 'Incomplete Information', value: 'incomplete_information', desc: 'Session contained incomplete information' },
+    { name: 'Low AI Confidence Level', value: 'low_ai_confidence_level', desc: 'Session had low AI confidence level' },
+    { name: 'Off Topic', value: 'off_topic', desc: 'Session was off topic' },
+    { name: 'Other', value: 'other', desc: 'Session had indeterminate issue' },
+    { name: 'Outdated Information', value: 'outdated_information', desc: 'Session contained outdated information' },
+    { name: 'Poor Performance', value: 'poor_performance', desc: 'Session experienced poor performance' },
+    { name: 'Privacy Concern', value: 'privacy_concern', desc: 'Session contained privacy concern' },
+    { name: 'System Error', value: 'system_error', desc: 'Session encountered system error' },
+    { name: 'Timeout Occurred', value: 'timeout_occurred', desc: 'Session timed out' },
+    { name: 'Tool Capability Gap', value: 'tool_capability_gap', desc: 'Session had tool capability gap' },
+    { name: 'Tool Failure', value: 'tool_failure', desc: 'Session encountered tool failure' },
+    { name: 'Tool Performance Issue', value: 'tool_performance_issue', desc: 'Session had tool performance issue' },
+    { name: 'Training Example', value: 'training_example', desc: 'Session was training example' },
+    { name: 'User Dissatisfied', value: 'user_dissatisfied', desc: 'User was dissatisfied with session.' },
+    { name: 'User Question to Chat Author', value: 'user_question_to_chat_author', desc: 'User asked question not to AI but to chat app author' },
+    { name: 'User Thumbs Down', value: 'user_thumbs_down', desc: 'User gave thumbs down to session' },
+    { name: 'User Thumbs Up', value: 'user_thumbs_up', desc: 'User gave thumbs up to session' }
+];
+
 export type ChatSessionFeedbackForCreate = Omit<ChatSessionFeedback, 'createdOn' | 'updatedOn' | 'internalComments' | 'exp_date_unix_seconds'>;
 export type ChatSessionFeedbackForUpdate = Omit<
     ChatSessionFeedback,
@@ -248,6 +290,10 @@ export interface FeedbackInternalComment {
 
 export const FEEDBACK_INTERNAL_COMMENT_STATUS = ['open', 'closed'] as const;
 export type FeedbackInternalCommentStatus = (typeof FEEDBACK_INTERNAL_COMMENT_STATUS)[number];
+export const FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES: NameValueDescTriple<FeedbackInternalCommentStatus>[] = [
+    { name: 'Open', value: 'open', desc: 'The comment is open and is awaiting action.' },
+    { name: 'Closed', value: 'closed', desc: 'The comment is closed and has been resolved.' }
+];
 
 export const FEEDBACK_INTERNAL_COMMENT_TYPE = [
     'comment',
@@ -257,6 +303,13 @@ export const FEEDBACK_INTERNAL_COMMENT_TYPE = [
     'technical_action_completed'
 ] as const;
 export type FeedbackInternalCommentType = (typeof FEEDBACK_INTERNAL_COMMENT_TYPE)[number];
+export const FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES: NameValueDescTriple<FeedbackInternalCommentType>[] = [
+    { name: 'Comment', value: 'comment', desc: 'A comment about the feedback.' },
+    { name: 'Customer Outreach Recommended', value: 'customer_outreach_recommended', desc: 'A recommendation to reach out to the customer.' },
+    { name: 'Customer Outreach Made', value: 'customer_outreach_made', desc: 'A record that an outreach was made to the customer.' },
+    { name: 'Technical Action Required', value: 'technical_action_required', desc: 'A technical action is required to resolve the feedback.' },
+    { name: 'Technical Action Completed', value: 'technical_action_completed', desc: 'A record that a technical action was completed to resolve the feedback.' }
+];
 
 export interface SessionInsights {
     model: string;
@@ -329,24 +382,59 @@ export interface SessionInsightScoring {
 
 export const SESSION_INSIGHT_USER_SENTIMENT = ['positive', 'neutral', 'negative'] as const;
 export type SessionInsightUserSentiment = (typeof SESSION_INSIGHT_USER_SENTIMENT)[number];
+export const SESSION_INSIGHT_USER_SENTIMENT_VALUES: NameValueDescTriple<SessionInsightUserSentiment>[] = [
+    { name: 'Positive', value: 'positive', desc: 'The user is satisfied with the session.' },
+    { name: 'Neutral', value: 'neutral', desc: 'The user is neutral about the session.' },
+    { name: 'Negative', value: 'negative', desc: 'The user is dissatisfied with the session.' }
+];
 
 export const SESSION_INSIGHT_GOAL_COMPLETION_STATUS = ['completed', 'partially_completed', 'not_completed'] as const;
 export type SessionInsightGoalCompletionStatus = (typeof SESSION_INSIGHT_GOAL_COMPLETION_STATUS)[number];
+export const SESSION_INSIGHT_GOAL_COMPLETION_STATUS_VALUES: NameValueDescTriple<SessionInsightGoalCompletionStatus>[] = [
+    { name: 'Completed', value: 'completed', desc: 'The agent achieved the goal.' },
+    { name: 'Partially Completed', value: 'partially_completed', desc: 'The agent partially achieved the goal.' },
+    { name: 'Not Completed', value: 'not_completed', desc: 'The agent did not achieve the goal.' }
+];
 
 export const SESSION_INSIGHT_SATISFACTION_LEVEL = ['satisfied', 'neutral', 'dissatisfied'] as const;
 export type SessionInsightSatisfactionLevel = (typeof SESSION_INSIGHT_SATISFACTION_LEVEL)[number];
+export const SESSION_INSIGHT_SATISFACTION_LEVEL_VALUES: NameValueDescTriple<SessionInsightSatisfactionLevel>[] = [
+    { name: 'Satisfied', value: 'satisfied', desc: 'The user is satisfied with the overall session.' },
+    { name: 'Neutral', value: 'neutral', desc: 'The user is neutral about the overall session.' },
+    { name: 'Dissatisfied', value: 'dissatisfied', desc: 'The user is dissatisfied with the overall session.' }
+];
 
 export const SESSION_INSIGHT_METRICS_SESSION_DURATION_ESTIMATE = ['short', 'medium', 'long'] as const;
 export type SessionInsightMetricsSessionDurationEstimate = (typeof SESSION_INSIGHT_METRICS_SESSION_DURATION_ESTIMATE)[number];
+export const SESSION_INSIGHT_METRICS_SESSION_DURATION_ESTIMATE_VALUES: NameValueDescTriple<SessionInsightMetricsSessionDurationEstimate>[] = [
+    { name: 'Short', value: 'short', desc: 'The session was short.' },
+    { name: 'Medium', value: 'medium', desc: 'The session was medium.' },
+    { name: 'Long', value: 'long', desc: 'The session was long.' }
+];
 
 export const SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL = ['low', 'medium', 'high'] as const;
 export type SessionInsightMetricsComplexityLevel = (typeof SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL)[number];
+export const SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL_VALUES: NameValueDescTriple<SessionInsightMetricsComplexityLevel>[] = [
+    { name: 'Low', value: 'low', desc: 'The session was low complexity.' },
+    { name: 'Medium', value: 'medium', desc: 'The session was medium complexity.' },
+    { name: 'High', value: 'high', desc: 'The session was high complexity.' }
+];
 
 export const SESSION_INSIGHT_METRICS_USER_EFFORT_REQUIRED = ['low', 'medium', 'high'] as const;
 export type SessionInsightMetricsUserEffortRequired = (typeof SESSION_INSIGHT_METRICS_USER_EFFORT_REQUIRED)[number];
+export const SESSION_INSIGHT_METRICS_USER_EFFORT_REQUIRED_VALUES: NameValueDescTriple<SessionInsightMetricsUserEffortRequired>[] = [
+    { name: 'Low', value: 'low', desc: 'The user required low effort to get the response they wanted.' },
+    { name: 'Medium', value: 'medium', desc: 'The user required medium effort to get the response they wanted.' },
+    { name: 'High', value: 'high', desc: 'The user required high effort to get the response they wanted.' }
+];
 
 export const SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL = ['low', 'medium', 'high'] as const;
 export type SessionInsightMetricsAiConfidenceLevel = (typeof SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL)[number];
+export const SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL_VALUES: NameValueDescTriple<SessionInsightMetricsAiConfidenceLevel>[] = [
+    { name: 'Low', value: 'low', desc: 'The AI was not confident in the response.' },
+    { name: 'Medium', value: 'medium', desc: 'The AI was moderately confident in the response.' },
+    { name: 'High', value: 'high', desc: 'The AI was highly confident in the response.' }
+];
 
 /**
  * Additional attributes specific to a chat session.  This plus ChatUser.customData spreads into the sessionAttributes on a session using the SessionDataWithChatUserCustomDataSpreadIn type.
@@ -826,7 +914,7 @@ export interface UpdateChatSessionFeedbackAdminRequest {
 
 export interface SessionSearchAdminRequest {
     command: 'sessionSearch';
-    search: SessionSearchRequest;
+    search: SessionSearchRequest<RecordOrUndef>;
 }
 
 export interface GetChatSessionFeedbackResponse {
@@ -860,6 +948,37 @@ export interface ChatUserResponse<T extends RecordOrUndef = undefined> {
 export interface ChatUserSearchResponse {
     success: boolean;
     users: ChatUserLite[];
+    error?: string;
+}
+
+export type UserPrefs = Record<string, unknown>;
+
+export interface GetChatUserPrefsResponse {
+    success: boolean;
+    userId: string;
+    prefs?: UserPrefs;
+    error?: string;
+}
+
+export interface SetChatUserPrefsRequest {
+    prefs: UserPrefs;
+
+    /**
+     * If true, we will first get the existing prefs for the user and then merge them with the new prefs.
+     * If false, we will just set the new prefs and overwrite any existing prefs.
+     * If you want to delete a pref when doing a partial update, then you should include the pref and set
+     * its value expressly to null.  When not doing a partial updated, just omit the pref and it will be deleted.
+     * To delete all prefs, send in an empty object when not doing a partial update.
+     */
+    partial?: boolean;
+}
+
+export interface SetChatUserPrefsResponse {
+    success: boolean;
+    userId: string;
+
+    /** If successful, returns the new complete prefs object. */
+    prefs?: UserPrefs;
     error?: string;
 }
 
@@ -899,7 +1018,9 @@ export interface ChatSessionsResponse {
  *
  * Otherwise...
  *
- * You must provide either createDate or lastUpdate.  All other parameters are optional.
+ * If you don't provide any search criteria, it just returns all sessions forever orderd by createDate descending unless
+ * specified otherwise.
+ *
  * If you provide customUserData, then we will filter results to just the sessions whose sessionAttributes includes
  * the attributes you specified in customUserData.  So if you provide customUserData.accountId = 'John', then we will filter
  * to just the sessions whose sessionAttributes.accountId = 'John'.
@@ -925,29 +1046,19 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
      */
     customUserData?: T;
 
+    /** Allows searching for sessions with a title that contains the given string. */
+    titlePartial?: string;
+
     /**
-     * Matches sessions whose createDate is greater than or equal to the given value. This or lastUpdate must be provided.
-     * If endCreateDate is not provided, then will search up to now.  This is an inclusive range.
+     * Filter by date range.
      */
-    createDate?: string;
-    /** See comment on createDate. */
-    endCreateDate?: string;
-    /**
-     * Matches sessions whose lastUpdate is greater than or equal to the given value. This or createDate must be provided.
-     * If endLastUpdate is not provided, then will search up to now.  This is an inclusive range.
-     */
-    lastUpdate?: string;
-    /** See comment on lastUpdate. */
-    endLastUpdate?: string;
+    dateFilter?: SessionSearchDateFilter;
 
     /** If true, then we will only return sessions that are flagged for human review and if false the converse. */
     flagged?: boolean;
 
     /** If provided, then we will only return sessions that have insights that match the given insights criteria. */
     insights?: InsightsSearchParams;
-
-    /** Allows searching for sessions with a title that contains the given string. */
-    titlePartial?: string;
 
     /**
      * Used for deep pagination via search_after.
@@ -983,12 +1094,6 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
     /** If provided, we will only return sessions with feedback with one of the given internal comment user ids. */
     feedbackInternalCommentUserId?: string;
 
-    /** If provided, we will only return sessions with feedback created since the given date. */
-    feedbackCreatedSince?: string;
-
-    /** If provided, we will only return sessions with feedback created before the given date. */
-    feedbackCreatedBefore?: string;
-
     /**
      * The fields to sort by. Determines the shape of pagination tokens.
      *
@@ -999,7 +1104,7 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
      * if it's not already there.
      */
     sortBy?: Array<{
-        field: 'createDate' | 'lastUpdate' | 'sessionId' | 'inputTokens' | 'outputTokens' | 'totalCost' | 'insightGoalAchievementScore';
+        field: SessionSearchSortField;
         order: 'asc' | 'desc';
     }>;
 
@@ -1008,6 +1113,70 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
      */
     size?: number;
 }
+
+export const SESSION_SEARCH_SORT_FIELDS = ['createDate', 'lastUpdate', 'sessionId', 'inputTokens', 'outputTokens', 'totalCost', 'insightGoalAchievementScore'] as const;
+export type SessionSearchSortField = (typeof SESSION_SEARCH_SORT_FIELDS)[number];
+export const SESSION_SEARCH_SORT_FIELDS_VALUES: NameValuePair<SessionSearchSortField>[] = [
+    { name: 'Create Date', value: 'createDate' },
+    { name: 'Last Update', value: 'lastUpdate' },
+    { name: 'Session ID', value: 'sessionId' },
+    { name: 'Input Tokens', value: 'inputTokens' },
+    { name: 'Output Tokens', value: 'outputTokens' },
+    { name: 'Total Cost', value: 'totalCost' },
+    { name: 'Insight Goal Achievement Score', value: 'insightGoalAchievementScore' }
+];
+
+export const SESSION_SEARCH_DATE_TYPES = ['created', 'updated', 'feedback'] as const;
+export type SessionSearchDateType = (typeof SESSION_SEARCH_DATE_TYPES)[number];
+export const SESSION_SEARCH_DATE_TYPES_VALUES: NameValuePair<SessionSearchDateType>[] = [
+    { name: 'Create Date', value: 'created' },
+    { name: 'Last Update', value: 'updated' },
+    { name: 'Feedback Created', value: 'feedback' }
+];
+
+export interface SessionSearchDateFilter {
+    dateType: SessionSearchDateType;
+    startDate: string;
+    endDate?: string;
+}
+
+export const SESSION_SEARCH_DATE_PRESETS = [
+    '1-minute',
+    '5-minutes',
+    'last-hour',
+    'last-day',
+    'last-week',
+    'last-month',
+    'last-3months',
+    'last-6-months',
+    'last-year',
+    'last-2-years'
+] as const;
+export type SessionSearchDatePreset = (typeof SESSION_SEARCH_DATE_PRESETS)[number];
+export const SESSION_SEARCH_DATE_PRESETS_VALUES: NameValuePair<SessionSearchDatePreset>[] = [
+    { name: '1 Minute', value: '1-minute' },
+    { name: '5 Minutes', value: '5-minutes' },
+    { name: 'Last Hour', value: 'last-hour' },
+    { name: 'Last Day', value: 'last-day' },
+    { name: 'Last Week', value: 'last-week' },
+    { name: 'Last Month', value: 'last-month' },
+    { name: 'Last 3 Months', value: 'last-3months' },
+    { name: 'Last 6 Months', value: 'last-6-months' },
+    { name: 'Last Year', value: 'last-year' },
+    { name: 'Last 2 Years', value: 'last-2-years' }
+];
+export const SESSION_SEARCH_DATE_PRESETS_SHORT_VALUES: NameValuePair<SessionSearchDatePreset>[] = [
+    { name: '1 Min', value: '1-minute' },
+    { name: '5 Min', value: '5-minutes' },
+    { name: 'Hour', value: 'last-hour' },
+    { name: 'Day', value: 'last-day' },
+    { name: 'Week', value: 'last-week' },
+    { name: 'Month', value: 'last-month' },
+    { name: '3 Mo', value: 'last-3months' },
+    { name: '6 Mo', value: 'last-6-months' },
+    { name: 'Year', value: 'last-year' },
+    { name: '2 Yrs', value: 'last-2-years' }
+];
 
 /**
  * All of these are anded together.  You must at least provide hasInsights.
@@ -1033,8 +1202,16 @@ export interface InsightsSearchParams {
 
 export interface ScoreSearchParams {
     score: number;
-    operator: 'eq' | 'gte' | 'lte';
+    operator: ScoreSearchOperator;
 }
+
+export const SCORE_SEARCH_OPERATORS = ['eq', 'gte', 'lte'] as const;
+export type ScoreSearchOperator = (typeof SCORE_SEARCH_OPERATORS)[number];
+export const SCORE_SEARCH_OPERATORS_VALUES: NameValuePair<ScoreSearchOperator>[] = [
+    { name: '=', value: 'eq' },
+    { name: '>=', value: 'gte' },
+    { name: '<=', value: 'lte' }
+];
 
 export interface SessionSearchResponse<T extends RecordOrUndef = undefined> {
     success: boolean;
@@ -2671,4 +2848,15 @@ export interface FeatureError {
 
     /** THis is set to true when the parent features component already checks for and handles this kind of error. */
     parentShouldIgnore?: boolean;
+}
+
+export interface NameValuePair<T> {
+    name: string;
+    value: T;
+}
+
+export interface NameValueDescTriple<T> {
+    name: string;
+    value: T;
+    desc?: string;
 }

@@ -1745,6 +1745,13 @@ export class PikaConstruct extends Construct {
         // POST /api/chat/user
         userResource.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
 
+        // GET /api/chat/user/prefs
+        const prefs = userResource.addResource('prefs');
+        prefs.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        // POST /api/chat/user/prefs
+        prefs.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
+
         // POST /api/chat/feedback
         const feedback = chats.addResource('feedback');
         feedback.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));

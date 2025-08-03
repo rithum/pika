@@ -1,6 +1,6 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite, UserPrefs } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
@@ -64,6 +64,42 @@ export async function getUserByUserId(userId: string): Promise<ChatUser | undefi
     }
 
     return userItem ? convertChatUserToCamelFromSnakeCase(userItem) : undefined;
+}
+
+export async function getUserPrefsByUserId(userId: string): Promise<UserPrefs | undefined> {
+    const user = await ddbDocClient.get({
+        TableName: getChatUserTable(),
+        Key: {
+            user_id: `${userId}/prefs`
+        }
+    });
+
+    let result: UserPrefs | undefined;
+
+    // Remove the user_id attribute from the user prefs.
+    if (user.Item) {
+        result = user.Item as unknown as UserPrefs;
+        delete (result as any).user_id;
+    }
+
+    return result;
+}
+
+export async function setUserPrefsForUser(userId: string, prefs: UserPrefs): Promise<void> {
+    await ddbDocClient.put({
+        TableName: getChatUserTable(),
+        Item: {
+            ...prefs,
+            user_id: `${userId}/prefs`
+        }
+    });
+}
+
+export async function deleteUserPrefsForUser(userId: string): Promise<void> {
+    await ddbDocClient.delete({
+        TableName: getChatUserTable(),
+        Key: { user_id: `${userId}/prefs` }
+    });
 }
 
 export async function addUser(user: ChatUser): Promise<ChatUser> {

@@ -92,7 +92,7 @@
         --accent-foreground: oklch(0.514 0.146 255.748);
         --destructive: oklch(0.577 0.215 27.311);
         --destructive-foreground: oklch(0.984 0.004 248.227);
-        --ring: oklch(0.137 0.036 258.532);
+        --ring: var(--bluebright-100);
         --chart-1: oklch(0.646 0.222 41.116);
         --chart-2: oklch(0.6 0.118 184.704);
         --chart-3: oklch(0.398 0.07 227.392);
@@ -151,7 +151,7 @@
         --accent-foreground: oklch(0.984 0.004 248.227);
         --destructive: oklch(0.396 0.133 25.712);
         --destructive-foreground: oklch(0.984 0.004 248.227);
-        --ring: oklch(0.869 0.02 252.89);
+        --ring: oklch(0.625 0.05 253.665);
         --chart-1: oklch(0.488 0.243 264.376);
         --chart-2: oklch(0.696 0.17 162.48);
         --chart-3: oklch(0.769 0.188 70.08);
@@ -306,6 +306,9 @@
     --color-gray-700: var(--gray-700);
     --color-gray-800: var(--gray-800);
     --color-gray-900: var(--gray-900);
+
+    /* --tw-ring-offset-color: var(--bluebright-500);
+    --tw-ring-offset-width: 0px; */
 }
 
 @layer base {
@@ -315,6 +318,19 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+@layer utilities {
+    /* .ring-offset-bluebright-500 {
+        --tw-ring-offset-color: var(--bluebright-500);
+    }
+
+    /* Override ring-offset-background globally */
+    /* .ring-offset-background {
+        --tw-ring-offset-color: var(--bluebright-500);
+        --tw-ring-offset-width: 0px;
+        --tw-ring-width: 0px;
+    } */
 
     /* Style the title bar to match sidebar */
     #root {

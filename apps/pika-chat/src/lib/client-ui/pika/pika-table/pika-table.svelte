@@ -20,26 +20,25 @@
         getPaginationRowModel,
         getSortedRowModel,
     } from '@tanstack/table-core';
-    import { getContext } from 'svelte';
+    import { getContext, type Snippet } from 'svelte';
     import TablePagination from './pika-table-pagination.svelte';
     import TableToolbar from './pika-table-toolbar.svelte';
-    import type { FacetedFilters, GlobalFilterProps, ServerSideState, ServerSideTableState } from './types';
+    import type { FacetedFilters, GlobalFilterProps, ServerSideTableState, ServerSideConfig } from './types';
 
-    let {
-        columns,
-        data,
-        classes,
-        globalFilterProps = $bindable<GlobalFilterProps>(),
-        facetedFilters,
-        tableKey,
-        serverSide,
-        serverSideTableState,
-    }: {
+    interface Props {
         columns: ColumnDef<TData, TValue>[];
         data: TData[];
         classes?: string;
+
+        // If you pass in toolbar content then global filter and faceted filters will be ignored
         globalFilterProps?: GlobalFilterProps;
         facetedFilters?: FacetedFilters;
+
+        // Appears above the table
+        toolbarContent?: Snippet;
+
+        // Appears beneath the toolbar and above the table
+        beneathToolbarContent?: Snippet;
 
         // This should be a human readable name for the table that is used to save/load column visibility
         // and to show in the settings UI.  Here's an example: "AWS SSO Profiles"
@@ -47,10 +46,21 @@
         alwaysPinLeftColumns?: string[];
         alwaysPinRightColumns?: string[];
 
-        // Server-side configuration
-        serverSide?: ServerSideState;
-        serverSideTableState?: ServerSideTableState;
-    } = $props();
+        // Server-side configuration (new unified API)
+        serverSideConfig?: ServerSideConfig;
+    }
+
+    let {
+        columns,
+        data,
+        classes,
+        globalFilterProps = $bindable<GlobalFilterProps>(),
+        facetedFilters,
+        toolbarContent,
+        beneathToolbarContent,
+        tableKey,
+        serverSideConfig = $bindable<ServerSideConfig>(),
+    }: Props = $props();
 
     const appState = getContext<AppState>('appState');
     const appSettings = appState.settings;
@@ -64,19 +74,30 @@
     let pageSize = $derived(appSettings.getTableNumRows(tableKey, 10));
 
     // === SERVER-SIDE LOGIC ===
+
     let debouncedRequestData: ((tableState: ServerSideTableState) => Promise<void>) | undefined;
 
     // Create debounced function when serverSide config changes
     $effect(() => {
-        if (serverSide) {
-            const debounceMs = serverSide.debounceMs ?? 300;
+        const serverState = serverSideConfig;
+        if (serverState) {
+            const debounceMs = serverState.debounceMs ?? 300;
             debouncedRequestData = debounce(async (tableState: ServerSideTableState) => {
                 try {
-                    await serverSide.requestData(tableState);
+                    await serverState.requestData(tableState);
+
+                    // If using new API, update the tableState
+                    if (serverSideConfig) {
+                        serverSideConfig.tableState = { ...serverSideConfig.tableState, ...tableState };
+                    }
                 } catch (error) {
-                    serverSide.onError?.(error instanceof Error ? error.message : 'Unknown error');
+                    serverState.onError?.(error instanceof Error ? error.message : 'Unknown error');
                 }
             }, debounceMs);
+
+            setTimeout(() => {
+                triggerServerRequest();
+            }, 5000);
         } else {
             debouncedRequestData = undefined;
         }
@@ -84,14 +105,14 @@
 
     // Trigger server request when table state changes
     function triggerServerRequest() {
-        if (!serverSide || !debouncedRequestData) return;
+        const serverState = serverSideConfig;
+        if (!serverState || !debouncedRequestData) return;
 
         const tableState: ServerSideTableState = {
             pageIndex,
             pageSize,
             sorting,
             columnFilters,
-            globalFilter: globalFilterProps?.globalFilterValue ?? '',
             requestId: crypto.randomUUID(),
         };
 
@@ -113,7 +134,7 @@
         ...(globalFilterProps?.showGlobalFilter ? { globalFilterFn: 'includesString' } : {}),
         get data() {
             // When server-side, ignore the data prop - data comes from reactive state
-            return serverSide ? [] : data;
+            return serverSideConfig ? [] : data;
         },
         state: {
             get sorting() {
@@ -137,24 +158,31 @@
         },
 
         // === MANUAL MODES FOR SERVER-SIDE ===
-        ...(serverSide
-            ? {
-                  manualSorting: true,
-                  manualFiltering: true,
-                  manualPagination: true,
-                  pageCount: (() => {
-                      // Calculate pageCount if totalRecords is available, regardless of pagination mode
-                      if (serverSideTableState?.totalRecords !== undefined && pageSize > 0) {
-                          return Math.ceil(serverSideTableState.totalRecords / pageSize);
-                      }
-                      // For cursor-based pagination without totalRecords, we don't know the total
-                      if (serverSide.paginationMode === 'cursor') {
-                          return -1; // Unknown page count for cursor pagination without totalRecords
-                      }
-                      return undefined; // Unknown page count
-                  })(),
-              }
-            : {}),
+        get manualSorting() {
+            return !!serverSideConfig;
+        },
+        get manualFiltering() {
+            return !!serverSideConfig;
+        },
+        get manualPagination() {
+            return !!serverSideConfig;
+        },
+        get pageCount() {
+            const serverState = serverSideConfig;
+            if (!serverState) return undefined;
+
+            const tableState = serverSideConfig?.tableState;
+
+            // Calculate pageCount if totalRecords is available, regardless of pagination mode
+            if (tableState?.totalRecords !== undefined && pageSize > 0) {
+                return Math.ceil(tableState.totalRecords / pageSize);
+            }
+            // For cursor-based pagination without totalRecords, we don't know the total
+            if (serverState.paginationMode === 'cursor') {
+                return -1; // Unknown page count for cursor pagination without totalRecords
+            }
+            return undefined; // Unknown page count
+        },
 
         onRowSelectionChange: (updater) => {
             if (typeof updater === 'function') {
@@ -171,7 +199,7 @@
             }
 
             // Trigger server request for server-side tables
-            if (serverSide) {
+            if (serverSideConfig) {
                 triggerServerRequest();
             }
         },
@@ -183,7 +211,7 @@
             }
 
             // Trigger server request for server-side tables
-            if (serverSide) {
+            if (serverSideConfig) {
                 triggerServerRequest();
             }
         },
@@ -202,7 +230,7 @@
                 appSettings.setTableNumRows(tableKey, val.pageSize);
 
                 // Trigger server request for server-side tables
-                if (serverSide) {
+                if (serverSideConfig) {
                     triggerServerRequest();
                 }
             } else {
@@ -214,7 +242,7 @@
                 globalFilterProps.globalFilterValue = value;
 
                 // Trigger server request for server-side tables
-                if (serverSide) {
+                if (serverSideConfig) {
                     triggerServerRequest();
                 }
             }
@@ -222,7 +250,7 @@
 
         // === ROW MODELS ===
         getCoreRowModel: getCoreRowModel(),
-        ...(serverSide
+        ...(serverSideConfig
             ? {}
             : {
                   getFilteredRowModel: getFilteredRowModel(),
@@ -235,7 +263,7 @@
 </script>
 
 <div class="space-y-4 {classes ? classes : ''}">
-    <TableToolbar {table} {globalFilterProps} {facetedFilters} />
+    <TableToolbar {table} {globalFilterProps} {facetedFilters} {toolbarContent} {beneathToolbarContent} />
     <div class="rounded-md border">
         <Table.Root>
             <Table.Header>
@@ -271,5 +299,5 @@
             </Table.Body>
         </Table.Root>
     </div>
-    <TablePagination {table} {serverSideTableState} {serverSide} />
+    <TablePagination {table} serverSide={serverSideConfig} />
 </div>

@@ -12,7 +12,10 @@ import type {
     ChatUserResponse,
     ChatUserSearchResponse,
     GetChatSessionFeedbackResponse,
-    RecordOrUndef
+    GetChatUserPrefsResponse,
+    RecordOrUndef,
+    SetChatUserPrefsResponse,
+    UserPrefs
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from '@pika/shared/util/jwt';
 import { appConfig } from './config';
@@ -136,4 +139,39 @@ export async function getChatMessages(sessionId: string, userId: string): Promis
         }
     });
     return response.body;
+}
+
+export async function getUserPrefs(userId: string): Promise<UserPrefs | undefined> {
+    const response = await invokeApi<GetChatUserPrefsResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/user/prefs`,
+        method: 'GET',
+        headers: {
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error getting user prefs for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.prefs;
+}
+
+export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: boolean): Promise<UserPrefs> {
+    const response = await invokeApi<SetChatUserPrefsResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/user/prefs`,
+        method: 'POST',
+        body: { prefs, partial },
+        headers: {
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error setting user prefs for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.prefs!;
 }

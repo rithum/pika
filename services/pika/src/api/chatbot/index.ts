@@ -17,7 +17,10 @@ import {
     ConverseRequest,
     GetChatSessionFeedbackResponse,
     PikaUserRoles,
-    UserType
+    UserType,
+    GetChatUserPrefsResponse,
+    SetChatUserPrefsRequest,
+    SetChatUserPrefsResponse
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
@@ -29,9 +32,11 @@ import {
     getChatMessages,
     getChatSession,
     getChatSessionFeedback,
+    getUserPrefs,
     getUserSessions,
     getUserSessionsByChatAppId,
     searchForUsers,
+    setUserPrefs,
     updateSessionTitle
 } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
@@ -48,6 +53,14 @@ type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, userId: st
 const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdFnTypeHandler<any, any>; passUserObj: boolean }> = {
     'GET:/api/chat/user': {
         handler: handleGetUser,
+        passUserObj: false
+    },
+    'GET:/api/chat/user/prefs': {
+        handler: handleGetUserPrefs,
+        passUserObj: false
+    },
+    'POST:/api/chat/user/prefs': {
+        handler: handleSetUserPrefs,
         passUserObj: false
     },
     'GET:/api/chat/user/search/{partialUserId}': {
@@ -153,6 +166,48 @@ async function handleGetUser(_event: APIGatewayProxyEventPika<void>, userId: str
     return {
         success: true,
         user
+    };
+}
+
+/**
+ * GET:/api/chat/user/prefs
+ */
+async function handleGetUserPrefs(_event: APIGatewayProxyEventPika<void>, userId: string): Promise<GetChatUserPrefsResponse> {
+    const prefs = await getUserPrefs(userId);
+    return {
+        success: true,
+        userId,
+        prefs
+    };
+}
+
+/**
+ * POST:/api/chat/user/prefs
+ */
+async function handleSetUserPrefs(event: APIGatewayProxyEventPika<SetChatUserPrefsRequest>, userId: string): Promise<SetChatUserPrefsResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new Error('Request is required');
+    }
+
+    if (!('prefs' in request)) {
+        throw new Error('Prefs are required');
+    }
+
+    if (typeof request.prefs !== 'object') {
+        throw new Error('Prefs must be an object');
+    }
+
+    if ('partial' in request && typeof request.partial !== 'boolean') {
+        throw new Error('Partial must be a boolean');
+    }
+
+    const newPrefs = await setUserPrefs(userId, request.prefs, request.partial ?? false);
+
+    return {
+        success: true,
+        userId,
+        prefs: newPrefs
     };
 }
 

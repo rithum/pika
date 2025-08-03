@@ -24,6 +24,8 @@ import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
 import type { ServerSideTableState } from '$ui/pika/pika-table/types';
+import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
+import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -34,6 +36,8 @@ export class SiteAdminState {
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
     #chatSessions = $state<ChatSession[]>([]);
+    #sessionInsights = $state<SessionInsightsState>() as SessionInsightsState;
+    #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #sessionsPagination = $state<ServerSideTableState>({
         pageIndex: 0,
         pageSize: 20,
@@ -82,6 +86,18 @@ export class SiteAdminState {
         this.#siteFeatures = siteFeatures;
         this.#appState = appState;
         this.#nav = new SiteAdminNavState(page, siteFeatures);
+        this.#userPrefs = new UserPrefsState(this.fetchz);
+    }
+
+    get sessionInsights() {
+        if (!this.#sessionInsights) {
+            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs);
+        }
+        return this.#sessionInsights;
+    }
+
+    get userPrefs() {
+        return this.#userPrefs;
     }
 
     get chatSessions() {

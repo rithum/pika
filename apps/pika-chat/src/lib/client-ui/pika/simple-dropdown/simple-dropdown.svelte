@@ -19,7 +19,7 @@
         // We will figure out the plural form of the data type name using the plur library if not provided
         optionTypeNamePlural,
         onValueChanged,
-        widthClasses = 'w-[200px]',
+        classes,
         popupWidthClasses = '',
         loading = false,
         showValueInListEntries = false,
@@ -34,7 +34,7 @@
         inputPlaceholder?: string;
         searchPlaceholder?: string;
         onValueChanged?: (value: T) => void;
-        widthClasses?: string;
+        classes?: string;
         // This is the name of the type of data in the dropdown that a user will understand
         optionTypeName?: string;
         optionTypeNamePlural?: string;
@@ -143,8 +143,8 @@
             {#snippet child({ props })}
                 <Button
                     variant="outline"
-                    class={`flex items-center justify-between ${widthClasses}`}
                     {...props}
+                    class={`flex items-center justify-between ${classes}`}
                     role="combobox"
                     aria-expanded={open}
                     {disabled}

@@ -45,21 +45,28 @@ Create a world-class, professional session search and insights experience that a
 
 ### Required shadcn-svelte Components
 
-**To be installed before implementation:**
+**Components installed:**
 
-- `Calendar` - For date range selection
-- `Date Picker` - Alternative date input method
-- `Range Calendar` - For date range selection
-- `Popover` - For dropdown panels and date pickers
+All required components have been installed and are available for use. The following components should be used with their preferred sources:
+
+**Preferred Pika Components** (use `$ui/pika`):
+
+- `DatePicker` and `DateRangePicker` - For date selection (prefer over shadcn calendar components)
+- `PikaBadge` - For filter chips and status indicators (prefer over shadcn badge)
+- `PikaAlert` - For search tips and error states (prefer over shadcn alert)
+- `PikaTable` - For the enhanced table experience (prefer over shadcn table)
+- `Combobox` - For dropdown selections with search
+
+**Shadcn Components** (use `$ui/shadcn`):
+
+- `Popover` - For dropdown panels
 - `Slider` - For score range inputs
 - `Switch` - For boolean toggle filters
 - `Tabs` - For organizing advanced filters
-- `Badge` - For filter chips and status indicators
 - `Card` - For search panel sections
 - `Collapsible` - For advanced search panel
 - `Separator` - For visual organization
-- `Toggle Group` - For mutually exclusive options
-- `Alert` - For search tips and error states
+- `ToggleGroup` - For mutually exclusive options
 
 ### Simple Search Mode
 
@@ -70,10 +77,13 @@ interface SimpleSearchState {
 
     // Essential filters
     dateRange: {
-        start: Date | null;
-        end: Date | null;
+        start: Date; // Required - defaults to one week ago, cannot be removed
+        end: Date | null; // Optional - defaults to now if not provided
         preset?: 'today' | 'week' | 'month' | '3months' | 'custom';
     };
+
+    // Date filter type (required - API validation enforces one must be provided)
+    dateFilterType: 'createDate' | 'lastUpdate' | 'feedbackCreatedSince';
 
     // Quick status filters
     insightsStatus: 'all' | 'available' | 'processing' | 'pending';
@@ -99,15 +109,20 @@ interface SimpleSearchState {
     <div class="flex items-center gap-4">
         <Label>Date Range:</Label>
         <DateRangePicker bind:range={simpleSearch.dateRange} />
+        <Select bind:value={simpleSearch.dateFilterType}>
+            <option value="createDate">Created Date</option>
+            <option value="lastUpdate">Last Updated</option>
+            <option value="feedbackCreatedSince">Feedback Date</option>
+        </Select>
         <div class="flex gap-1">
-            <Badge variant={datePreset === 'today' ? 'default' : 'outline'} onclick={() => setDatePreset('today')}
-                >Today</Badge
+            <PikaBadge variant={datePreset === 'today' ? 'default' : 'outline'} onclick={() => setDatePreset('today')}
+                >Today</PikaBadge
             >
-            <Badge variant={datePreset === 'week' ? 'default' : 'outline'} onclick={() => setDatePreset('week')}
-                >Week</Badge
+            <PikaBadge variant={datePreset === 'week' ? 'default' : 'outline'} onclick={() => setDatePreset('week')}
+                >Week</PikaBadge
             >
-            <Badge variant={datePreset === 'month' ? 'default' : 'outline'} onclick={() => setDatePreset('month')}
-                >Month</Badge
+            <PikaBadge variant={datePreset === 'month' ? 'default' : 'outline'} onclick={() => setDatePreset('month')}
+                >Month</PikaBadge
             >
         </div>
     </div>
@@ -325,13 +340,13 @@ interface AdvancedSearchState extends SimpleSearchState {
 
             <TabsContent value="custom" class="space-y-4">
                 <!-- Dynamic custom data filters -->
-                <Alert>
+                <PikaAlert>
                     <Info class="h-4 w-4" />
                     <AlertTitle>Custom Data Filters</AlertTitle>
                     <AlertDescription>
                         Filter by custom session attributes. Available fields are determined by your session data.
                     </AlertDescription>
-                </Alert>
+                </PikaAlert>
 
                 <div class="space-y-2">
                     {#each Object.entries(availableCustomFields) as [field, type]}
@@ -567,9 +582,19 @@ function buildSessionSearchRequest(simpleSearch: SimpleSearchState, advancedSear
         // Global search
         titlePartial: simpleSearch.globalQuery,
 
-        // Date range
-        createDate: simpleSearch.dateRange.start?.toISOString(),
-        endCreateDate: simpleSearch.dateRange.end?.toISOString(),
+        // Date range - apply to the selected date filter type
+        ...(simpleSearch.dateFilterType === 'createDate' && {
+            createDate: simpleSearch.dateRange.start.toISOString(),
+            endCreateDate: simpleSearch.dateRange.end?.toISOString()
+        }),
+        ...(simpleSearch.dateFilterType === 'lastUpdate' && {
+            lastUpdate: simpleSearch.dateRange.start.toISOString(),
+            endLastUpdate: simpleSearch.dateRange.end?.toISOString()
+        }),
+        ...(simpleSearch.dateFilterType === 'feedbackCreatedSince' && {
+            feedbackCreatedSince: simpleSearch.dateRange.start.toISOString(),
+            feedbackCreatedBefore: simpleSearch.dateRange.end?.toISOString()
+        }),
 
         // Basic insights filter
         insights:
@@ -619,25 +644,7 @@ function buildSessionSearchRequest(simpleSearch: SimpleSearchState, advancedSear
 
 ## 🎨 Custom Components to Create
 
-### 1. DateRangePicker Component
-
-```typescript
-// DateRangePicker.svelte
-interface DateRangePickerProps {
-    range: { start: Date | null; end: Date | null };
-    presets?: DateRangePreset[];
-    placeholder?: string;
-    disabled?: boolean;
-}
-
-interface DateRangePreset {
-    label: string;
-    value: 'today' | 'week' | 'month' | '3months' | 'custom';
-    range: { start: Date; end: Date };
-}
-```
-
-### 2. InsightsScoreCell Component
+### 1. InsightsScoreCell Component
 
 ```typescript
 // InsightsScoreCell.svelte
@@ -650,7 +657,7 @@ interface InsightsScoreCellProps {
 }
 ```
 
-### 3. FeedbackDetailsCell Component
+### 2. FeedbackDetailsCell Component
 
 ```typescript
 // FeedbackDetailsCell.svelte
@@ -661,7 +668,7 @@ interface FeedbackDetailsCellProps {
 }
 ```
 
-### 4. SearchPresetManager Component
+### 3. SearchPresetManager Component
 
 ```typescript
 // SearchPresetManager.svelte
@@ -678,10 +685,8 @@ interface SearchPresetManagerProps {
 
 ### Phase 1: Core Search Interface ⭐⭐⭐
 
-- [ ] Install required shadcn-svelte components
 - [ ] Build simple search mode UI
 - [ ] Integrate with existing table
-- [ ] Basic date range picker
 - [ ] Simple filter integration
 
 ### Phase 2: Advanced Search ⭐⭐

@@ -20,7 +20,8 @@ import type {
     ChatUser,
     ChatUserLite,
     RecordOrUndef,
-    SimpleAuthenticatedUser
+    SimpleAuthenticatedUser,
+    UserPrefs
 } from '@pika/shared/types/chatbot/chatbot-types';
 import type { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
@@ -37,7 +38,9 @@ import {
     getSessionsByUserIdAndChatAppId,
     searchForUsersByPartialUserId,
     addFeedback,
-    getFeedbackBySessionId
+    getFeedbackBySessionId,
+    getUserPrefsByUserId,
+    setUserPrefsForUser
 } from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
@@ -66,6 +69,30 @@ export async function getUserSessionsByChatAppId(userId: string, chatAppId: stri
  */
 export async function getUser(userId: string): Promise<ChatUser | undefined> {
     return await getUserByUserId(userId);
+}
+
+export async function getUserPrefs(userId: string): Promise<UserPrefs | undefined> {
+    return await getUserPrefsByUserId(userId);
+}
+
+export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: boolean): Promise<UserPrefs> {
+    let prefsToSet = prefs;
+    if (partial) {
+        const existingPrefs = (await getUserPrefs(userId)) ?? {};
+
+        // Remove any prefs that are set to null.
+        Object.keys(existingPrefs).forEach((key) => {
+            if (prefs[key] === null) {
+                delete prefs[key];
+                delete existingPrefs[key];
+            }
+        });
+
+        prefsToSet = { ...existingPrefs, ...prefs };
+    }
+
+    await setUserPrefsForUser(userId, prefsToSet);
+    return prefsToSet;
 }
 
 /**

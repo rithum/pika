@@ -1,0 +1,384 @@
+<script lang="ts">
+    import { Archive, Download, Eye, ListFilter, MessageSquare, Trash2, X } from '$icons/lucide';
+
+    import PikaTable from '$ui/pika/pika-table/pika-table.svelte';
+    import type { RowActionsProps, ServerSideConfig, ServerSideTableState } from '$ui/pika/pika-table/types';
+    import { Button } from '$ui/shadcn/button';
+    import { Card } from '$ui/shadcn/card';
+    import { Input } from '$ui/shadcn/input';
+    import { Separator } from '$ui/shadcn/separator';
+    import type { ChatSession, SessionSearchRequest } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ColumnFiltersState } from '@tanstack/table-core';
+    import FiltersPopup from './filters-popup.svelte';
+    import type { SessionInsightsState } from './session-insights.state.svelte';
+    // Import additional PikaTable components
+    import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
+    import { renderComponent } from '$ui/shadcn/data-table/render-helpers';
+    import type { ColumnDef } from '@tanstack/table-core';
+    import { formatDistanceToNow } from 'date-fns';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import type { SiteAdminState } from '../../site-admin.state.svelte';
+    import { getContext } from 'svelte';
+    import FiltersAppliedPanel from './filters-applied-panel.svelte';
+
+    const appState = getContext<AppState>('appState');
+    const siteAdminState = appState.siteAdmin;
+    const sessionInsights = siteAdminState.sessionInsights;
+
+    // Create properly typed versions of Pika components for ChatSession data
+    const TableColumnHeader = PikaTableColumnHeader<ChatSession, unknown>;
+    const TableRowActions = PikaTableRowActions<ChatSession>;
+
+    // Helper functions to extract specific filters
+    // function extractInsightsFilter(columnFilters: ColumnFiltersState) {
+    //     const insightsFilter = columnFilters.find((f) => f.id === 'insightsStatus');
+    //     if (!insightsFilter) return undefined;
+
+    //     const values = insightsFilter.value as string[];
+    //     return {
+    //         hasInsights: values.includes('available'),
+    //     };
+    // }
+
+    // function extractFeedbackFilter(columnFilters: ColumnFiltersState) {
+    //     const feedbackFilter = columnFilters.find((f) => f.id === 'feedbackStatus');
+    //     if (!feedbackFilter) return undefined;
+
+    //     const values = feedbackFilter.value as string[];
+    //     const severities: ('low' | 'medium' | 'high' | 'critical')[] = [];
+
+    //     if (values.includes('negative')) {
+    //         severities.push('high', 'medium');
+    //     }
+    //     if (values.includes('positive')) {
+    //         severities.push('low');
+    //     }
+
+    //     return severities.length > 0 ? severities : undefined;
+    // }
+
+    // Row action menu configuration
+    const actionProps: RowActionsProps<ChatSession> = {
+        menuWidth: '180px',
+        menuItems: [
+            {
+                label: 'View Session',
+                icon: Eye,
+                onclick: (row, appState) => {
+                    console.log('View session:', row.original.sessionId);
+                },
+            },
+            {
+                label: 'View Messages',
+                icon: MessageSquare,
+                onclick: (row, appState) => {
+                    console.log('View messages:', row.original.sessionId);
+                },
+            },
+            'Separator',
+            {
+                label: 'Session Actions',
+                icon: Archive,
+                menuItems: [
+                    {
+                        label: 'Archive Session',
+                        onclick: (row, appState) => {
+                            console.log('Archive session:', row.original.sessionId);
+                        },
+                    },
+                    {
+                        label: 'Delete Session',
+                        icon: Trash2,
+                        onclick: (row, appState) => {
+                            if (confirm('Are you sure you want to delete this session?')) {
+                                console.log('Delete session:', row.original.sessionId);
+                            }
+                        },
+                    },
+                ],
+            },
+        ],
+    };
+
+    // Column definitions using PikaTable approach
+    const columns: ColumnDef<ChatSession>[] = [
+        // Selection checkbox column
+        {
+            id: 'select',
+            header: ({ table }) =>
+                renderComponent(PikaTableCheckbox, {
+                    checked: table.getIsAllPageRowsSelected(),
+                    indeterminate: table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected(),
+                    onCheckedChange: (value: boolean) => table.toggleAllPageRowsSelected(!!value),
+                    ariaLabel: 'Select all',
+                }),
+            cell: ({ row }) =>
+                renderComponent(PikaTableCheckbox, {
+                    checked: row.getIsSelected(),
+                    onCheckedChange: (value: boolean) => row.toggleSelected(!!value),
+                    ariaLabel: `Select row`,
+                }),
+            enableSorting: false,
+            enableHiding: false,
+            size: 50,
+        },
+
+        // Session ID with truncation for long IDs
+        {
+            accessorKey: 'sessionId',
+            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Session ID' }),
+            cell: ({ getValue }) => {
+                const sessionId = getValue() as string;
+                return `${sessionId.slice(0, 8)}...${sessionId.slice(-4)}`;
+            },
+            enableGlobalFilter: true,
+            size: 120,
+        },
+
+        // User ID
+        {
+            accessorKey: 'userId',
+            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'User' }),
+            cell: ({ getValue }) => {
+                const userId = getValue() as string | undefined;
+                return userId || '-';
+            },
+            enableGlobalFilter: true,
+            size: 120,
+        },
+
+        // Session Title
+        {
+            accessorKey: 'title',
+            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Title' }),
+            cell: ({ getValue }) => {
+                const title = getValue() as string | undefined;
+                return title || 'Untitled Session';
+            },
+            enableGlobalFilter: true,
+            size: 200,
+        },
+
+        // Created Date with relative time
+        {
+            accessorKey: 'createDate',
+            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Created' }),
+            cell: ({ getValue }) => {
+                const date = new Date(getValue() as string);
+                return formatDistanceToNow(date, { addSuffix: true });
+            },
+            sortingFn: (rowA, rowB) => {
+                const dateA = new Date(rowA.getValue('createDate') as string);
+                const dateB = new Date(rowB.getValue('createDate') as string);
+                return dateA.getTime() - dateB.getTime();
+            },
+            size: 120,
+        },
+
+        // Enhanced Insights Column with Progress Bars
+        // {
+        //     id: 'insightsScores',
+        //     header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Insights Scores' }),
+        //     cell: ({ row }) => {
+        //         return renderComponent(InsightsScoreCell, {
+        //             insights: row.original.insights,
+        //             compact: true,
+        //         });
+        //     },
+        //     size: 200,
+        // },
+
+        // // Enhanced Feedback Column with Severity Indicators
+        // {
+        //     id: 'feedbackDetails',
+        //     header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Feedback Details' }),
+        //     cell: ({ row }) => {
+        //         return renderComponent(FeedbackDetailsCell, {
+        //             feedback: row.original.feedback || [],
+        //             maxDisplay: 2,
+        //         });
+        //     },
+        //     size: 150,
+        // },
+
+        // Row Actions
+        {
+            id: 'actions',
+            enableHiding: false,
+            cell: ({ row }) => renderComponent(TableRowActions, { row, actionProps }),
+            size: 50,
+        },
+    ];
+
+    // Server-side table state
+    let serverSideTableState = $state<ServerSideTableState>({
+        pageIndex: 0,
+        pageSize: 50,
+        totalRecords: undefined,
+        scrollId: undefined,
+        hasNextPage: false,
+        sorting: [],
+        columnFilters: [],
+        isLoading: false,
+        error: undefined,
+        requestId: '',
+    });
+
+    // Server-side configuration
+    let serverSideConfig = $state<ServerSideConfig>({
+        paginationMode: 'cursor',
+        debounceMs: 300,
+        get tableState() {
+            return serverSideTableState;
+        },
+
+        requestData: async (tableState: ServerSideTableState) => {
+            console.log('requestData', tableState);
+
+            // Update our local table state
+            serverSideTableState = { ...serverSideTableState, ...tableState, isLoading: true };
+
+            // try {
+            //     // Convert TanStack state to SessionSearchRequest format
+            //     const searchRequest: SessionSearchRequest = {
+            //         size: 50,
+            //         scrollId: sessionInsights.searchQuery.scrollId,
+
+            //         // Map sorting
+            //         sortBy: tableState.sorting.map((s) => ({
+            //             field: s.id as any,
+            //             order: s.desc ? 'desc' : 'asc',
+            //         })),
+
+            //         // Map global filter
+            //         titlePartial: tableState.globalFilter,
+
+            //         // Extract specific filters from columnFilters
+            //         insights: extractInsightsFilter(tableState.columnFilters),
+            //         feedbackSeverity: extractFeedbackFilter(tableState.columnFilters),
+
+            //         // Use session insights date range
+            //         // createDate: sessionInsights.simpleSearch.dateRange.start.toISOString(),
+            //         // endCreateDate: sessionInsights.simpleSearch.dateRange.end?.toISOString(),
+            //     };
+
+            //     // Call session insights search with the constructed request
+            //     // await sessionInsights.performSearchWithRequest(searchRequest);
+
+            //     // Update table state with response data
+            //     serverSideTableState = {
+            //         ...serverSideTableState,
+            //         isLoading: false,
+            //         totalRecords: undefined, //TODO: sessionInsights.totalRecords,
+            //         hasNextPage: sessionInsights.hasMore,
+            //         scrollId: sessionInsights.searchQuery.scrollId,
+            //         error: undefined,
+            //     };
+            // } catch (error) {
+            //     serverSideTableState = {
+            //         ...serverSideTableState,
+            //         isLoading: false,
+            //         error: error instanceof Error ? error.message : 'Unknown error',
+            //     };
+            //     throw error;
+            // }
+        },
+
+        onError: (error: string) => {
+            console.error('Server-side table error:', error);
+            serverSideTableState = {
+                ...serverSideTableState,
+                isLoading: false,
+                error,
+            };
+        },
+    });
+
+    // Bulk actions
+    function exportSelected() {
+        console.log('Export selected sessions:', sessionInsights.selectedSessions);
+    }
+
+    function bulkAddFeedback() {
+        console.log('Add feedback to selected sessions:', sessionInsights.selectedSessions);
+    }
+
+    function bulkArchive() {
+        console.log('Archive selected sessions:', sessionInsights.selectedSessions);
+    }
+
+    function clearSelection() {
+        sessionInsights.clearSelection();
+    }
+</script>
+
+<div class="space-y-4">
+    <!-- Bulk Actions Toolbar -->
+    {#if sessionInsights.selectedSessions.length > 0}
+        <Card class="p-3 bg-blue-50 border-blue-200">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="font-medium">{sessionInsights.selectedSessions.length} sessions selected</span>
+                    <Separator orientation="vertical" class="h-4" />
+                    <div class="flex gap-2">
+                        <Button variant="outline" size="sm" onclick={exportSelected}>
+                            <Download class="w-4 h-4 mr-2" />
+                            Export
+                        </Button>
+                        <Button variant="outline" size="sm" onclick={bulkAddFeedback}>
+                            <MessageSquare class="w-4 h-4 mr-2" />
+                            Add Feedback
+                        </Button>
+                        <Button variant="outline" size="sm" onclick={bulkArchive}>
+                            <Archive class="w-4 h-4 mr-2" />
+                            Archive
+                        </Button>
+                    </div>
+                </div>
+                <Button variant="ghost" size="sm" onclick={clearSelection}>
+                    <X class="w-4 h-4" />
+                </Button>
+            </div>
+        </Card>
+    {/if}
+
+    <!-- bind:globalFilterProps -->
+    <!-- PikaTable Component -->
+    <PikaTable
+        {columns}
+        data={sessionInsights.sessions}
+        tableKey="session-insights"
+        bind:serverSideConfig
+        classes="min-h-[600px]"
+        {toolbarContent}
+    />
+</div>
+
+{#snippet toolbarContent()}
+    <div>
+        <!-- onchange={(e) => {
+                table.setGlobalFilter(e.currentTarget.value);
+            }} -->
+        <div class="flex gap-3 items-start">
+            <div class="flex items-center gap-1">
+                <Input
+                    placeholder="Search by session title..."
+                    value={sessionInsights.searchQuery.titlePartial}
+                    oninput={(e) => {
+                        sessionInsights.searchQuery.titlePartial = (e.currentTarget.value ?? '').trim();
+
+                        if (
+                            sessionInsights.searchQuery.titlePartial &&
+                            sessionInsights.searchQuery.titlePartial.length > 3
+                        ) {
+                            sessionInsights.performSearch(false);
+                        }
+                    }}
+                    class="h-8 w-[150px] lg:w-[250px]"
+                />
+                <FiltersPopup />
+            </div>
+            <FiltersAppliedPanel />
+        </div>
+    </div>
+{/snippet}

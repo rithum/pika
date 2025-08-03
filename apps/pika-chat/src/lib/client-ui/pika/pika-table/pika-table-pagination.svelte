@@ -7,16 +7,14 @@
     import { Button } from '$ui/shadcn/button';
     import * as Select from '$ui/shadcn/select';
     import type { Table } from '@tanstack/table-core';
+    import type { ServerSideConfig } from './types';
 
-    let {
-        table,
-        serverSideTableState,
-        serverSide,
-    }: {
+    interface Props {
         table: Table<TData>;
-        serverSideTableState?: import('./types').ServerSideTableState;
-        serverSide?: import('./types').ServerSideState;
-    } = $props();
+        serverSide: ServerSideConfig;
+    }
+
+    let { table, serverSide }: Props = $props();
 
     // For cursor-based pagination, we can't jump to arbitrary pages
     const isCursorBased = $derived(serverSide?.paginationMode === 'cursor');
@@ -24,9 +22,9 @@
 
 <div class="flex items-center justify-between px-2">
     <div class="text-muted-foreground flex-1 text-sm">
-        {#if serverSideTableState?.totalRecords !== undefined}
+        {#if serverSide?.tableState?.totalRecords !== undefined}
             {table.getFilteredSelectedRowModel().rows.length} of
-            {serverSideTableState.totalRecords} total row(s) selected.
+            {serverSide.tableState.totalRecords} total row(s) selected.
         {:else}
             {table.getFilteredSelectedRowModel().rows.length} of
             {table.getFilteredRowModel().rows.length} row(s) selected.
