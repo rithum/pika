@@ -145,15 +145,15 @@
                     order: s.desc ? 'desc' : 'asc',
                 })),
 
-                // Map filters to your specific search params
-                titlePartial: tableState.globalFilter,
+                // // Map filters to your specific search params
+                // titlePartial: tableState.globalFilter,
 
                 // Extract specific filters from columnFilters
                 insights: extractInsightsFilter(tableState.columnFilters),
                 feedbackSeverity: extractFeedbackFilter(tableState.columnFilters),
 
                 // Required date range (last 30 days as default)
-                createDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+                // createDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
             };
 
             const siteAdminRequest = {

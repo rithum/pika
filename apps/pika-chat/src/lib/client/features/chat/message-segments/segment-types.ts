@@ -32,6 +32,6 @@ export interface MetadataTagSegment extends TagMessageSegment {
  * It is used to handle the metadata tag and do whatever it needs to do.
  * For example, a trace tag will cause the trace to be added to the chat message's trace array
  */
-export type MetadataTagHandler = (segment: MetadataTagSegment, message: ChatMessageForRendering, chatAppState: ChatAppState, appState: AppState) => void;
+export type MetadataTagHandler = (segment: MetadataTagSegment, message: ChatMessageForRendering, chatAppState?: ChatAppState, appState: AppState) => void;
 
 export type ProcessedSegment = ProcessedTextSegment | ProcessedTagSegment | MetadataTagSegment;

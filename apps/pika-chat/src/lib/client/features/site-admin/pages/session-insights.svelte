@@ -5,6 +5,7 @@
     import SessionsTable from '../components/session-insights/sessions-table.svelte';
     import { RefreshCw } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
+    import SessionMessages from '../components/session-insights/session-messages.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -45,6 +46,7 @@
 
                 <!-- Sessions Table -->
                 <SessionsTable />
+                <SessionMessages />
             </div>
         </ScrollArea>
     </div>

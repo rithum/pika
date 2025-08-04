@@ -95,8 +95,8 @@ export class AppState {
         return this.#chatApps[chatApp.chatAppId];
     }
 
-    addSiteAdminState(chatApps: ChatApp[], siteFeatures: SiteFeatures, page: Page): SiteAdminState {
-        this.#siteAdmin = new SiteAdminState(this.fetchz, this, chatApps, siteFeatures, page);
+    addSiteAdminState(chatApps: ChatApp[], siteFeatures: SiteFeatures, page: Page, componentRegistry: ComponentRegistry): SiteAdminState {
+        this.#siteAdmin = new SiteAdminState(this.fetchz, this, chatApps, siteFeatures, page, componentRegistry);
         return this.#siteAdmin;
     }
 

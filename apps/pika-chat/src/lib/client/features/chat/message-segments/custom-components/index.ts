@@ -32,7 +32,7 @@ import type { MetadataTagHandler } from '../segment-types';
  * Each renderer component must accept the following props:
  * - `segment: ProcessedTagSegment` - Contains tag content and streaming status
  * - `appState: AppState` - Global application state
- * - `chatAppState: ChatAppState` - Chat-specific state and actions
+ * - `chatAppState?: ChatAppState` - Chat-specific state and actions
  *
  * The `segment.rawContent` contains the text content between the XML tags,
  * and `segment.streamingStatus` indicates if content is still being received.

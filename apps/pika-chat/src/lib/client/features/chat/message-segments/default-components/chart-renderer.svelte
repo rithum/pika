@@ -6,7 +6,7 @@
     interface Props {
         segment: ProcessedTagSegment;
         appState: AppState;
-        chatAppState: ChatAppState;
+        chatAppState?: ChatAppState;
     }
 
     let { segment }: Props = $props();

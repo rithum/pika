@@ -1,16 +1,31 @@
 import type { FetchZ } from '$lib/client/app/types';
-import type { SessionSearchRequest, SessionSearchResponse, ChatSession, RecordOrUndef, SessionSearchAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type {
+    SessionSearchRequest,
+    SessionSearchResponse,
+    ChatSession,
+    RecordOrUndef,
+    SessionSearchAdminRequest,
+    ChatUserLite,
+    GetValuesForAutoCompleteResponse,
+    GetValuesForUserAutoCompleteResponse,
+    ChatMessageForRendering,
+    ChatMessagesResponse
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { createDefaultSearchQuery } from './utils';
 import type { AdvancedSearchState, SavedSearch, SimpleSearchState } from './types';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
 import cloneDeep from 'lodash.clonedeep';
+import deepEqual from 'deep-equal';
+import { untrack } from 'svelte';
+import { MessageSegmentProcessor } from '$lib/client/features/chat/message-segments/segment-processor';
+import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
 
 const DEFAULT_SEARCH_ERROR = 'Unknown error occurred while searching sessions.  Please try again later.';
 const SAVED_SEARCHES_KEY = 'pika:admin:session-insights:saved-searches';
 
 export class SessionInsightsState {
     #userPrefs: UserPrefsState;
-    #sessions = $state<ChatSession[]>([]);
+    #sessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #selectedSessions = $state<string[]>([]);
     #isSearching = $state(false);
     #isUpdatingUserPrefs = $state(false);
@@ -20,16 +35,71 @@ export class SessionInsightsState {
     #savedSearches = $state<SavedSearch[]>([]);
     #lastSearchTimestamp = $state<Date | undefined>(undefined);
     #hasMore = $state(false);
-    searchQuery = $state<SessionSearchRequest<RecordOrUndef>>(createDefaultSearchQuery());
+    searchQuery = $state<SessionSearchRequest<RecordOrUndef>>() as SessionSearchRequest<RecordOrUndef>;
+    #scrollId = $state<string | undefined>(undefined);
+    #previousSearchQuery = $state<SessionSearchRequest<RecordOrUndef> | undefined>(undefined);
     timezone = $state<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    valuesForUserAutoComplete = $state<ChatUserLite[] | undefined>(undefined);
+    userAutoCompleteSearchInProgress = $state(false);
+    sessionIdToShowMessagesForInline = $state<string | undefined>(undefined);
+    #currentSession = $derived.by(() => {
+        if (!this.sessionIdToShowMessagesForInline) {
+            return undefined;
+        }
+        return this.#sessions.find((session) => session.sessionId === this.sessionIdToShowMessagesForInline);
+    });
+    #curSessionMessages = $state<ChatMessageForRendering[]>([]);
+    #retrievingMessages = $state(false);
+    #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
+    #componentRegistry: ComponentRegistry;
 
     constructor(
         private readonly fetchz: FetchZ,
-        userPrefs: UserPrefsState
+        userPrefs: UserPrefsState,
+        componentRegistry: ComponentRegistry
     ) {
         this.#userPrefs = userPrefs;
+        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
         this.loadSavedSearches();
-        this.performSearch();
+        this.searchQuery = createDefaultSearchQuery();
+        this.#componentRegistry = componentRegistry;
+
+        $effect(() => {
+            const query = this.searchQuery;
+            const previousQuery = this.#previousSearchQuery;
+
+            if (deepEqual(query, previousQuery)) {
+                return;
+            }
+
+            this.performSearch();
+        });
+
+        $effect(() => {
+            if (this.#currentSession) {
+                this.refreshMessagesForCurrentSession();
+            }
+        });
+    }
+
+    get componentRegistry() {
+        return this.#componentRegistry;
+    }
+
+    get retrievingMessages() {
+        return this.#retrievingMessages;
+    }
+
+    get currentSession() {
+        return this.#currentSession;
+    }
+
+    get currentSessionMessages() {
+        return this.#curSessionMessages;
+    }
+
+    get scrollId() {
+        return this.#scrollId;
     }
 
     get totalResults() {
@@ -69,6 +139,7 @@ export class SessionInsightsState {
         this.#hasMore = false;
         this.#totalResults = 0;
         this.#lastSearchTimestamp = undefined;
+        this.#scrollId = undefined;
         this.performSearch();
     }
 
@@ -88,6 +159,63 @@ export class SessionInsightsState {
         await this.performSearch(true);
     }
 
+    async refreshMessagesForCurrentSession() {
+        if (!this.#currentSession) {
+            this.#curSessionMessages = [];
+            return;
+        }
+
+        try {
+            this.#retrievingMessages = true;
+            const chatAppId = this.#currentSession.chatAppId;
+            const resp = await this.fetchz(`/api/message/${chatAppId}/${this.#currentSession.sessionId}`);
+            if (resp.ok) {
+                const msgResult = (await resp.json()) as ChatMessagesResponse;
+                if (msgResult.success) {
+                    this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
+                } else {
+                    console.error('Error refreshing messages for current session', msgResult.error);
+                }
+            }
+        } catch (e) {
+            console.error('Error refreshing messages for current session', e);
+        } finally {
+            this.#retrievingMessages = false;
+        }
+    }
+
+    #processMessageIntoSegments(message: ChatMessageForRendering, isStreaming: boolean): ChatMessageForRendering {
+        this.#messageProcessor.parseMessage(message.message, message.segments, isStreaming);
+        return message;
+    }
+
+    async getValuesForUserAutoComplete(valueProvidedByUser: string) {
+        try {
+            this.userAutoCompleteSearchInProgress = true;
+            const response = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: 'getValuesForUserAutoComplete', valueProvidedByUser })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to get values for auto complete');
+            }
+
+            const responseBody = (await response.json()) as GetValuesForUserAutoCompleteResponse;
+
+            if (!responseBody.success) {
+                throw new Error('Failed to get values for auto complete');
+            }
+
+            this.valuesForUserAutoComplete = (responseBody.data ?? []) as ChatUserLite[];
+        } finally {
+            this.userAutoCompleteSearchInProgress = false;
+        }
+    }
+
     async performSearch(append = false) {
         if (this.#isSearching) return;
 
@@ -95,15 +223,16 @@ export class SessionInsightsState {
         this.#searchError = undefined;
 
         try {
-            if (append && !this.searchQuery.scrollId) {
+            if (append && !this.#scrollId) {
                 throw new Error('Cannot append to search without a scrollId');
             }
 
             if (!append) {
-                delete this.searchQuery.scrollId;
+                this.#scrollId = undefined;
             }
 
-            const query = cloneDeep(this.searchQuery);
+            const savedQuery = cloneDeep(this.searchQuery);
+            const query = { ...cloneDeep(this.searchQuery), scrollId: this.#scrollId };
             const titlePartial = (query.titlePartial ?? '').trim();
             query.titlePartial = titlePartial.length >= 3 ? titlePartial : undefined;
 
@@ -126,24 +255,25 @@ export class SessionInsightsState {
                 return;
             }
 
-            const responseBody = await response.json();
+            const responseBody = (await response.json()) as SessionSearchResponse<RecordOrUndef>;
+
             if (!responseBody.success) {
                 this.#searchError = DEFAULT_SEARCH_ERROR;
                 console.error('Unknown error searching sessions.  Error: ', responseBody.error, 'Response body:', JSON.stringify(responseBody, null, 2));
                 return;
             }
 
-            const responseData = responseBody.search as SessionSearchResponse;
-
             if (append) {
-                this.#sessions.push(...responseData.sessions);
+                this.#sessions.push(...responseBody.sessions);
             } else {
-                this.#sessions = responseData.sessions;
+                this.#sessions = responseBody.sessions;
             }
 
-            this.searchQuery.scrollId = responseData.scrollId;
-            this.#hasMore = !!responseData.scrollId;
-            this.#totalResults = responseData.total || 0;
+            this.#previousSearchQuery = savedQuery;
+
+            this.#scrollId = responseBody.scrollId;
+            this.#hasMore = !!responseBody.scrollId;
+            this.#totalResults = responseBody.total || 0;
             this.#lastSearchTimestamp = new Date();
         } catch (error) {
             console.error(`Error searching sessions: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);

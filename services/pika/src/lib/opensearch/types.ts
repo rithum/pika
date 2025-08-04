@@ -3,8 +3,8 @@ import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type 
 import { Types, API } from '@opensearch-project/opensearch';
 import { convertChatSessionToCamelFromSnakeCase, convertChatSessionToSnakeFromCamelCase } from '../utils';
 
-export type OpenSearchIndexable = ChatSession;
-export type OpenSearchIngestType = ChatSessionOs;
+export type OpenSearchIndexable = ChatSession<RecordOrUndef>;
+export type OpenSearchIngestType = ChatSessionOs<RecordOrUndef>;
 
 export const SessionIndex = 'session';
 
@@ -15,10 +15,10 @@ export const DomainIndices = [SessionIndex] as const;
 export type DomainIndex = (typeof DomainIndices)[number];
 
 export interface OpenSearchIndexableMap {
-    session: ChatSession;
+    session: ChatSession<RecordOrUndef>;
 }
 export interface OpenSearchIngestMap {
-    session: ChatSessionOs;
+    session: ChatSessionOs<RecordOrUndef>;
 }
 export interface OpenSearchIndexableIdMap {
     session: 'sessionId';

@@ -26,6 +26,7 @@ import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
 import type { ServerSideTableState } from '$ui/pika/pika-table/types';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
+import type { ComponentRegistry } from '../chat/message-segments/component-registry';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -53,6 +54,7 @@ export class SiteAdminState {
     valuesForInternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
+    #componentRegistry: ComponentRegistry;
 
     siteAdminOperationInProgress: Record<SiteAdminCommand, boolean> = $state({
         getInitialData: false,
@@ -80,18 +82,20 @@ export class SiteAdminState {
         appState: AppState,
         chatApps: ChatApp[],
         siteFeatures: SiteFeatures,
-        page: Page
+        page: Page,
+        componentRegistry: ComponentRegistry
     ) {
         this.#chatApps = chatApps;
         this.#siteFeatures = siteFeatures;
         this.#appState = appState;
         this.#nav = new SiteAdminNavState(page, siteFeatures);
         this.#userPrefs = new UserPrefsState(this.fetchz);
+        this.#componentRegistry = componentRegistry;
     }
 
     get sessionInsights() {
         if (!this.#sessionInsights) {
-            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs);
+            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry);
         }
         return this.#sessionInsights;
     }

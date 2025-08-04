@@ -5,17 +5,19 @@
     import Trace from '../chat-app-main/trace.svelte';
     import type { ChatAppState } from '../chat-app.state.svelte';
     import type { MetadataTagSegment, ProcessedTagSegment, ProcessedTextSegment } from './segment-types';
+    import type { ComponentRegistry } from './component-registry';
 
     interface Props {
         message: ChatMessageForRendering;
-        chatAppState: ChatAppState;
+        chatAppState?: ChatAppState;
         files?: ChatMessageFile[];
         isStreaming: boolean;
+        componentRegistry: ComponentRegistry;
+        traceEnabled: boolean;
     }
 
-    let { message, chatAppState, files = [], isStreaming }: Props = $props();
+    let { message, chatAppState, files = [], isStreaming, componentRegistry, traceEnabled }: Props = $props();
     const appState = getContext<AppState>('appState');
-    const traceEnabled = $derived(chatAppState.features.traces.enabled);
 
     // LOGGING: Track message changes
     $effect(() => {
@@ -59,9 +61,9 @@
                 // });
 
                 if (segment.streamingStatus === 'completed') {
-                    const handler = chatAppState.componentRegistry.getMetadataHandler(metadataSegment.tag);
+                    const handler = componentRegistry.getMetadataHandler(metadataSegment.tag);
                     if (handler) {
-                        handler(metadataSegment, message, chatAppState, appState);
+                        handler(metadataSegment, message, chatAppState ?? undefined, appState);
                         metadataSegment.hasCalledHandler = true;
                         // console.log('[MESSAGE-RENDERER] Metadata handler applied successfully');
                     } else {

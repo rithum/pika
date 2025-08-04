@@ -7,6 +7,7 @@ import type {
     ChatSessionFeedback,
     ChatSessionFeedbackForUpdate,
     ChatSessionLiteForUpdate,
+    RecordOrUndef,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
@@ -20,7 +21,7 @@ import { DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
 import pRetry, { AbortError } from 'p-retry';
-import { getChatSessionFeedbackTable, getChatSessionTable } from './utils';
+import { convertChatSessionToCamelFromSnakeCase, getChatSessionFeedbackTable, getChatSessionTable } from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -728,7 +729,7 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
     pageSize: number,
     getRemainingTimeInMillis: () => number,
     timeoutBufferMs: number
-): AsyncGenerator<ChatSession[], void, undefined> {
+): AsyncGenerator<ChatSession<RecordOrUndef>[], void, undefined> {
     let lastEvaluatedKey: Record<string, any> | undefined;
     let pageCount = 0;
 
@@ -752,8 +753,7 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
                 Limit: pageSize
             })
         );
-
-        const convertedSessions = (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+        const convertedSessions = (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
 
         if (convertedSessions.length > 0) {
             pageCount++;
@@ -774,8 +774,8 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
  *
  * @param date The date after which we should compute insights for based on the lastMessageId which can be used for date comparisons.
  */
-export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<ChatSession[]> {
-    const allSessions: ChatSession[] = [];
+export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<ChatSession<RecordOrUndef>[]> {
+    const allSessions: ChatSession<RecordOrUndef>[] = [];
     let lastEvaluatedKey: Record<string, any> | undefined;
 
     do {
@@ -790,7 +790,7 @@ export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<C
             ExclusiveStartKey: lastEvaluatedKey
         });
 
-        const convertedSessions = (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+        const convertedSessions = (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
         allSessions.push(...convertedSessions);
 
         lastEvaluatedKey = sessions.LastEvaluatedKey;

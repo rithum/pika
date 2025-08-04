@@ -251,6 +251,8 @@
                                             {message}
                                             files={message.files ?? []}
                                             chatAppState={chat}
+                                            componentRegistry={chat.componentRegistry}
+                                            traceEnabled={chat.features.traces.enabled}
                                             isStreaming={chat.isStreamingResponseNow &&
                                                 !chat.waitingForFirstStreamedResponse}
                                         />

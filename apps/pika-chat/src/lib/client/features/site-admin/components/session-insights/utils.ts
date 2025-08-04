@@ -22,7 +22,6 @@ export function createDefaultDateFilter(): SessionSearchDateFilter {
 
 export function createDefaultSearchQuery(): SessionSearchRequest<RecordOrUndef> {
     const result: SessionSearchRequest<RecordOrUndef> = {
-        titlePartial: '',
         dateFilter: createDefaultDateFilter(),
         sortBy: [
             {

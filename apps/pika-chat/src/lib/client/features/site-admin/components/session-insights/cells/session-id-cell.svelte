@@ -1,0 +1,21 @@
+<script lang="ts">
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import { getContext } from 'svelte';
+
+    interface Props {
+        sessionId: string;
+    }
+
+    let { sessionId }: Props = $props();
+    const appState = getContext<AppState>('appState');
+</script>
+
+<CopyButton
+    showTextAsLink={true}
+    truncateAfter={12}
+    embedded={true}
+    linkCallbackFn={() => (appState.siteAdmin.sessionInsights.sessionIdToShowMessagesForInline = sessionId)}
+>
+    {sessionId}
+</CopyButton>

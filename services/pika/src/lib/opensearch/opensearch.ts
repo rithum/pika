@@ -32,7 +32,8 @@ import {
     osIndexMeta,
     type ConversationIdAndInternalId,
     GeneralError,
-    type PartialUpdateOp
+    type PartialUpdateOp,
+    ChatSessionOs
 } from './types';
 import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import { convertToSnakeCase, convertToCamelCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
@@ -2104,7 +2105,11 @@ function addQueryFilterTermFromObjWithSubKey<T>(obj: T, key: keyof T, subKey: st
  * Handle changes to chat sessions from DynamoDB change stream.
  * For updates, we carefully preserve any existing feedback array in OpenSearch.
  */
-export async function chatSessionUpdated(obj: { newObjects?: ChatSession[]; updatedObjects?: ChatSession[]; deletedObjects?: ChatSession[] }): Promise<void> {
+export async function chatSessionUpdated(obj: {
+    newObjects?: ChatSession<RecordOrUndef>[];
+    updatedObjects?: ChatSession<RecordOrUndef>[];
+    deletedObjects?: ChatSession<RecordOrUndef>[];
+}): Promise<void> {
     const work: OsWork[] = [];
 
     // Handle new sessions - simple inserts
@@ -2128,13 +2133,13 @@ export async function chatSessionUpdated(obj: { newObjects?: ChatSession[]; upda
         for (const session of obj.updatedObjects) {
             // Convert to snake_case for OpenSearch, but exclude feedback field
             const converted = osIndexMeta.session.convertToOsType(session);
-            const { feedback, ...partialDoc } = converted as any;
+            const { feedback, ...partialDoc } = converted as ChatSessionOs<RecordOrUndef>;
 
             work.push({
                 op: 'partialUpdate',
                 id: session.sessionId,
                 index: 'session',
-                doc: partialDoc
+                doc: partialDoc as ChatSessionOs<RecordOrUndef>
             });
         }
     }

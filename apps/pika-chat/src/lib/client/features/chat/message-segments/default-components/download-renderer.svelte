@@ -8,7 +8,7 @@
     interface Props {
         segment: ProcessedTagSegment;
         appState: AppState;
-        chatAppState: ChatAppState;
+        chatAppState?: ChatAppState;
     }
 
     let { segment, chatAppState }: Props = $props();
@@ -51,7 +51,7 @@
     }
 
     function handleDownload() {
-        if (downloadData) {
+        if (downloadData && chatAppState) {
             chatAppState.downloadFile(downloadData.s3Key);
         }
     }

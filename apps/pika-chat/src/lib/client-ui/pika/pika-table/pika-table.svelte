@@ -46,7 +46,7 @@
         alwaysPinLeftColumns?: string[];
         alwaysPinRightColumns?: string[];
 
-        // Server-side configuration (new unified API)
+        // Server-side configuration
         serverSideConfig?: ServerSideConfig;
     }
 
@@ -78,46 +78,42 @@
     let debouncedRequestData: ((tableState: ServerSideTableState) => Promise<void>) | undefined;
 
     // Create debounced function when serverSide config changes
-    $effect(() => {
-        const serverState = serverSideConfig;
-        if (serverState) {
-            const debounceMs = serverState.debounceMs ?? 300;
-            debouncedRequestData = debounce(async (tableState: ServerSideTableState) => {
-                try {
-                    await serverState.requestData(tableState);
+    // $effect(() => {
+    //     const serverState = serverSideConfig;
+    //     if (serverState) {
+    //         const debounceMs = serverState.debounceMs ?? 300;
+    //         debouncedRequestData = debounce(async (tableState: ServerSideTableState) => {
+    //             try {
+    //                 await serverState.requestData(tableState);
 
-                    // If using new API, update the tableState
-                    if (serverSideConfig) {
-                        serverSideConfig.tableState = { ...serverSideConfig.tableState, ...tableState };
-                    }
-                } catch (error) {
-                    serverState.onError?.(error instanceof Error ? error.message : 'Unknown error');
-                }
-            }, debounceMs);
-
-            setTimeout(() => {
-                triggerServerRequest();
-            }, 5000);
-        } else {
-            debouncedRequestData = undefined;
-        }
-    });
+    //                 // If using new API, update the tableState
+    //                 if (serverSideConfig) {
+    //                     serverSideConfig.tableState = { ...serverSideConfig.tableState, ...tableState };
+    //                 }
+    //             } catch (error) {
+    //                 serverState.onError?.(error instanceof Error ? error.message : 'Unknown error');
+    //             }
+    //         }, debounceMs);
+    //     } else {
+    //         debouncedRequestData = undefined;
+    //     }
+    // });
 
     // Trigger server request when table state changes
-    function triggerServerRequest() {
-        const serverState = serverSideConfig;
-        if (!serverState || !debouncedRequestData) return;
+    // function triggerServerRequest() {
+    //     const serverState = serverSideConfig;
+    //     if (!serverState || !debouncedRequestData) return;
 
-        const tableState: ServerSideTableState = {
-            pageIndex,
-            pageSize,
-            sorting,
-            columnFilters,
-            requestId: crypto.randomUUID(),
-        };
+    //     const tableState: ServerSideTableState = {
+    //         pageIndex,
+    //         pageSize,
+    //         sorting,
+    //         columnFilters,
+    //         requestId: crypto.randomUUID(),
+    //     };
 
-        debouncedRequestData(tableState);
-    }
+    //     debouncedRequestData(tableState);
+    // }
 
     // Utility function for debouncing
     function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -133,8 +129,7 @@
         enableRowSelection: true,
         ...(globalFilterProps?.showGlobalFilter ? { globalFilterFn: 'includesString' } : {}),
         get data() {
-            // When server-side, ignore the data prop - data comes from reactive state
-            return serverSideConfig ? [] : data;
+            return data;
         },
         state: {
             get sorting() {
@@ -199,9 +194,9 @@
             }
 
             // Trigger server request for server-side tables
-            if (serverSideConfig) {
-                triggerServerRequest();
-            }
+            // if (serverSideConfig) {
+            //     triggerServerRequest();
+            // }
         },
         onColumnFiltersChange: (updater) => {
             if (typeof updater === 'function') {
@@ -211,9 +206,9 @@
             }
 
             // Trigger server request for server-side tables
-            if (serverSideConfig) {
-                triggerServerRequest();
-            }
+            // if (serverSideConfig) {
+            //     triggerServerRequest();
+            // }
         },
         onColumnVisibilityChange: (updater) => {
             if (typeof updater === 'function') {
@@ -230,9 +225,9 @@
                 appSettings.setTableNumRows(tableKey, val.pageSize);
 
                 // Trigger server request for server-side tables
-                if (serverSideConfig) {
-                    triggerServerRequest();
-                }
+                // if (serverSideConfig) {
+                //     triggerServerRequest();
+                // }
             } else {
                 throw new Error('onPaginationChange updater must be a function');
             }
@@ -242,9 +237,9 @@
                 globalFilterProps.globalFilterValue = value;
 
                 // Trigger server request for server-side tables
-                if (serverSideConfig) {
-                    triggerServerRequest();
-                }
+                // if (serverSideConfig) {
+                //     triggerServerRequest();
+                // }
             }
         },
 

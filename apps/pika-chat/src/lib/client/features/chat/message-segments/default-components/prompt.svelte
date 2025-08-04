@@ -8,7 +8,7 @@
     interface Props {
         segment: ProcessedTagSegment;
         appState: AppState;
-        chatAppState: ChatAppState;
+        chatAppState?: ChatAppState;
         disabled?: boolean;
     }
 
@@ -19,8 +19,10 @@
         //     segmentId: segment.id,
         //     promptContent: segment.rawContent
         // });
-        chat.chatInput = segment.rawContent;
-        chat.sendMessage();
+        if (chat) {
+            chat.chatInput = segment.rawContent;
+            chat.sendMessage();
+        }
     }
 
     // Show placeholder ONLY during streaming state AND when there's actual content

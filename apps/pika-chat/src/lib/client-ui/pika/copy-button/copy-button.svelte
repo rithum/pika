@@ -5,12 +5,25 @@
 
     interface Props {
         children?: Snippet<[]>;
+
+        /** When embedded in other elements, like a table, we don't want borders */
+        embedded?: boolean;
+
+        /** Truncate the value after this many characters showing a ...*/
+        truncateAfter?: number;
+
+        /** If true, the text will be shown as a link */
+        showTextAsLink?: boolean;
+
+        /** If showTextAsLink is true, this function will be called when the link is clicked */
+        linkCallbackFn?: () => void;
     }
 
-    const { children }: Props = $props();
+    const { children, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn }: Props = $props();
 
     let hiddenRef: HTMLElement;
     let value: string | undefined = $state(undefined);
+    let truncatedValue: string | undefined = $state(undefined);
     let showCheckmark = $state(false);
 
     $effect(() => {
@@ -33,6 +46,21 @@
         value = (hiddenRef.textContent || '').trim();
         if (!value) {
             throw new Error('Did not find any text in the hidden container of ValueToCopy');
+        }
+
+        if (truncateAfter && truncateAfter > 0 && value.length > truncateAfter) {
+            // Check if there are enough characters to make the "start...end" format worthwhile
+            // We need at least truncateAfter + 7 characters (3 for "..." + 4 for end)
+            // to make the start...end format meaningful
+            const minLengthForStartEnd = truncateAfter + 7;
+
+            if (value.length >= minLengthForStartEnd) {
+                // Use "start...end" format
+                truncatedValue = `${value.slice(0, truncateAfter)}...${value.slice(-4)}`;
+            } else {
+                // Just truncate with "..." at the end
+                truncatedValue = `${value.slice(0, truncateAfter)}...`;
+            }
         }
     }
 
@@ -65,8 +93,12 @@
     bind:this={hiddenRef}
     style="display: none; position: absolute; left: -9999px;">{#if children}{@render children()}{/if}</pre>
 
-<span class="inline-flex w-fit items-center border border-gray-200 rounded-sm">
-    <span class="border-r border-gray-200 px-2">{@render children?.()}</span>
+<span class="inline-flex w-fit items-center {embedded ? '' : 'border border-gray-200 rounded-sm'}">
+    {#if showTextAsLink}
+        <Button class="p-0" variant="link" onclick={() => linkCallbackFn?.()}>{truncatedValue || value}</Button>
+    {:else}
+        <span class={embedded ? '' : 'border-r border-gray-200 px-2'}>{truncatedValue || value}</span>
+    {/if}
     <span class="w-6 h-6 flex items-center justify-center">
         {#if showCheckmark}
             <Check class="w-3.5 h-3.5 text-green-500" />

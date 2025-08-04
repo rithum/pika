@@ -7,6 +7,7 @@
     import * as Sidebar from '$ui/shadcn/sidebar/index.js';
     import type { ChatApp, SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext, type Snippet } from 'svelte';
+    import { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
 
     interface Props {
         data: {
@@ -21,8 +22,9 @@
     const appState = getContext<AppState>('appState');
     const chatApps = data.chatApps;
     const siteFeatures = data.siteFeatures;
+    const componentRegistry = ComponentRegistry.create();
 
-    appState.addSiteAdminState(chatApps, siteFeatures, page);
+    appState.addSiteAdminState(chatApps, siteFeatures, page, componentRegistry);
 </script>
 
 <Sidebar.Provider>

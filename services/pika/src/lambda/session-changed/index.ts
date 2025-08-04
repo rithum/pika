@@ -1,10 +1,10 @@
-import { ChatSession, SessionInsights } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, RecordOrUndef, SessionInsights } from '@pika/shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { randomUUID } from 'crypto';
-import { isTTLDeletion } from '../../lib/utils';
+import { convertChatSessionToCamelFromSnakeCase, isTTLDeletion } from '../../lib/utils';
 import { chatSessionUpdated } from '../../lib/opensearch/opensearch';
 import { SnakeCase, convertToCamelCase } from '@pika/shared/util/chatbot-shared-utils';
 
@@ -27,9 +27,9 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
     }
 
     // Track changes for OpenSearch replication
-    const newObjects: ChatSession[] = [];
-    const updatedObjects: ChatSession[] = [];
-    const deletedObjects: ChatSession[] = [];
+    const newObjects: ChatSession<RecordOrUndef>[] = [];
+    const updatedObjects: ChatSession<RecordOrUndef>[] = [];
+    const deletedObjects: ChatSession<RecordOrUndef>[] = [];
 
     for (const record of event.Records) {
         console.log(`Event ID: ${record.eventID}`);
@@ -40,7 +40,9 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
             switch (record.eventName) {
                 case 'INSERT':
                     if (record.dynamodb?.NewImage) {
-                        const newSession = unmarshall(record.dynamodb.NewImage as any) as ChatSession;
+                        const newSession = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(
+                            unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSession<RecordOrUndef>>
+                        );
                         console.log(`New session created: ${newSession.sessionId}`);
 
                         // Handle insights for new sessions that might already have insights URLs
@@ -51,8 +53,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                 case 'MODIFY':
                     if (record.dynamodb?.NewImage) {
-                        const modifiedSession = unmarshall(record.dynamodb.NewImage as any) as ChatSession;
-                        const oldSession = record.dynamodb?.OldImage ? (unmarshall(record.dynamodb.OldImage as any) as ChatSession) : undefined;
+                        const modifiedSession = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(
+                            unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSession<RecordOrUndef>>
+                        );
+                        const oldSession = record.dynamodb?.OldImage
+                            ? convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(unmarshall(record.dynamodb.OldImage as any) as SnakeCase<ChatSession<RecordOrUndef>>)
+                            : undefined;
 
                         console.log(`Session modified: ${modifiedSession.sessionId}`);
 
@@ -64,7 +70,9 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                 case 'REMOVE':
                     if (record.dynamodb?.OldImage) {
-                        const deletedSession = unmarshall(record.dynamodb.OldImage as any) as ChatSession;
+                        const deletedSession = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(
+                            unmarshall(record.dynamodb.OldImage as any) as SnakeCase<ChatSession<RecordOrUndef>>
+                        );
 
                         if (isTTLDeletion(record)) {
                             console.log(`Session ${deletedSession.sessionId} was deleted due to TTL expiration`);
@@ -184,7 +192,7 @@ async function readInsightsFromS3(s3Url: string): Promise<SessionInsights | unde
  * @param oldSession The old session from DynamoDB stream (if available)
  * @returns Updated session with insights populated if needed
  */
-async function processInsightsChanges(newSession: ChatSession, oldSession?: ChatSession): Promise<ChatSession> {
+async function processInsightsChanges(newSession: ChatSession<RecordOrUndef>, oldSession?: ChatSession<RecordOrUndef>): Promise<ChatSession<RecordOrUndef>> {
     const newInsightsUrl = newSession.insightsS3Url;
     const oldInsightsUrl = oldSession?.insightsS3Url;
 

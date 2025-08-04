@@ -257,8 +257,8 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
     return response.body.feedback;
 }
 
-export async function searchForSessions(search: SessionSearchRequest): Promise<SessionSearchResponse> {
-    const response = await invokeApi<SessionSearchResponse>({
+export async function searchForSessions(search: SessionSearchRequest<RecordOrUndef>): Promise<SessionSearchResponse<RecordOrUndef>> {
+    const response = await invokeApi<SessionSearchResponse<RecordOrUndef>>({
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/search`,
         method: 'POST',

@@ -7,7 +7,7 @@
     import { Card } from '$ui/shadcn/card';
     import { Input } from '$ui/shadcn/input';
     import { Separator } from '$ui/shadcn/separator';
-    import type { ChatSession, SessionSearchRequest } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatSession, RecordOrUndef, SessionSearchRequest } from '@pika/shared/types/chatbot/chatbot-types';
     import type { ColumnFiltersState } from '@tanstack/table-core';
     import FiltersPopup from './filters-popup.svelte';
     import type { SessionInsightsState } from './session-insights.state.svelte';
@@ -20,14 +20,13 @@
     import type { SiteAdminState } from '../../site-admin.state.svelte';
     import { getContext } from 'svelte';
     import FiltersAppliedPanel from './filters-applied-panel.svelte';
+    import { columns } from './sessions-table-columns';
 
     const appState = getContext<AppState>('appState');
     const siteAdminState = appState.siteAdmin;
     const sessionInsights = siteAdminState.sessionInsights;
 
     // Create properly typed versions of Pika components for ChatSession data
-    const TableColumnHeader = PikaTableColumnHeader<ChatSession, unknown>;
-    const TableRowActions = PikaTableRowActions<ChatSession>;
 
     // Helper functions to extract specific filters
     // function extractInsightsFilter(columnFilters: ColumnFiltersState) {
@@ -56,159 +55,6 @@
 
     //     return severities.length > 0 ? severities : undefined;
     // }
-
-    // Row action menu configuration
-    const actionProps: RowActionsProps<ChatSession> = {
-        menuWidth: '180px',
-        menuItems: [
-            {
-                label: 'View Session',
-                icon: Eye,
-                onclick: (row, appState) => {
-                    console.log('View session:', row.original.sessionId);
-                },
-            },
-            {
-                label: 'View Messages',
-                icon: MessageSquare,
-                onclick: (row, appState) => {
-                    console.log('View messages:', row.original.sessionId);
-                },
-            },
-            'Separator',
-            {
-                label: 'Session Actions',
-                icon: Archive,
-                menuItems: [
-                    {
-                        label: 'Archive Session',
-                        onclick: (row, appState) => {
-                            console.log('Archive session:', row.original.sessionId);
-                        },
-                    },
-                    {
-                        label: 'Delete Session',
-                        icon: Trash2,
-                        onclick: (row, appState) => {
-                            if (confirm('Are you sure you want to delete this session?')) {
-                                console.log('Delete session:', row.original.sessionId);
-                            }
-                        },
-                    },
-                ],
-            },
-        ],
-    };
-
-    // Column definitions using PikaTable approach
-    const columns: ColumnDef<ChatSession>[] = [
-        // Selection checkbox column
-        {
-            id: 'select',
-            header: ({ table }) =>
-                renderComponent(PikaTableCheckbox, {
-                    checked: table.getIsAllPageRowsSelected(),
-                    indeterminate: table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected(),
-                    onCheckedChange: (value: boolean) => table.toggleAllPageRowsSelected(!!value),
-                    ariaLabel: 'Select all',
-                }),
-            cell: ({ row }) =>
-                renderComponent(PikaTableCheckbox, {
-                    checked: row.getIsSelected(),
-                    onCheckedChange: (value: boolean) => row.toggleSelected(!!value),
-                    ariaLabel: `Select row`,
-                }),
-            enableSorting: false,
-            enableHiding: false,
-            size: 50,
-        },
-
-        // Session ID with truncation for long IDs
-        {
-            accessorKey: 'sessionId',
-            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Session ID' }),
-            cell: ({ getValue }) => {
-                const sessionId = getValue() as string;
-                return `${sessionId.slice(0, 8)}...${sessionId.slice(-4)}`;
-            },
-            enableGlobalFilter: true,
-            size: 120,
-        },
-
-        // User ID
-        {
-            accessorKey: 'userId',
-            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'User' }),
-            cell: ({ getValue }) => {
-                const userId = getValue() as string | undefined;
-                return userId || '-';
-            },
-            enableGlobalFilter: true,
-            size: 120,
-        },
-
-        // Session Title
-        {
-            accessorKey: 'title',
-            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Title' }),
-            cell: ({ getValue }) => {
-                const title = getValue() as string | undefined;
-                return title || 'Untitled Session';
-            },
-            enableGlobalFilter: true,
-            size: 200,
-        },
-
-        // Created Date with relative time
-        {
-            accessorKey: 'createDate',
-            header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Created' }),
-            cell: ({ getValue }) => {
-                const date = new Date(getValue() as string);
-                return formatDistanceToNow(date, { addSuffix: true });
-            },
-            sortingFn: (rowA, rowB) => {
-                const dateA = new Date(rowA.getValue('createDate') as string);
-                const dateB = new Date(rowB.getValue('createDate') as string);
-                return dateA.getTime() - dateB.getTime();
-            },
-            size: 120,
-        },
-
-        // Enhanced Insights Column with Progress Bars
-        // {
-        //     id: 'insightsScores',
-        //     header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Insights Scores' }),
-        //     cell: ({ row }) => {
-        //         return renderComponent(InsightsScoreCell, {
-        //             insights: row.original.insights,
-        //             compact: true,
-        //         });
-        //     },
-        //     size: 200,
-        // },
-
-        // // Enhanced Feedback Column with Severity Indicators
-        // {
-        //     id: 'feedbackDetails',
-        //     header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Feedback Details' }),
-        //     cell: ({ row }) => {
-        //         return renderComponent(FeedbackDetailsCell, {
-        //             feedback: row.original.feedback || [],
-        //             maxDisplay: 2,
-        //         });
-        //     },
-        //     size: 150,
-        // },
-
-        // Row Actions
-        {
-            id: 'actions',
-            enableHiding: false,
-            cell: ({ row }) => renderComponent(TableRowActions, { row, actionProps }),
-            size: 50,
-        },
-    ];
 
     // Server-side table state
     let serverSideTableState = $state<ServerSideTableState>({
@@ -367,12 +213,12 @@
                     oninput={(e) => {
                         sessionInsights.searchQuery.titlePartial = (e.currentTarget.value ?? '').trim();
 
-                        if (
-                            sessionInsights.searchQuery.titlePartial &&
-                            sessionInsights.searchQuery.titlePartial.length > 3
-                        ) {
-                            sessionInsights.performSearch(false);
-                        }
+                        // if (
+                        //     sessionInsights.searchQuery.titlePartial &&
+                        //     sessionInsights.searchQuery.titlePartial.length > 3
+                        // ) {
+                        //     sessionInsights.performSearch(false);
+                        // }
                     }}
                     class="h-8 w-[150px] lg:w-[250px]"
                 />

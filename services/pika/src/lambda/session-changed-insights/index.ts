@@ -1,7 +1,9 @@
-import { ChatSession } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { setSessionsInsightsAnalysisInBatch } from '../../lib/chat-admin-ddb';
+import { SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import { convertChatSessionToCamelFromSnakeCase } from 'src/lib/utils';
 
 /**
  * This lambda function is used to handle the changes to the chat session table.
@@ -44,13 +46,13 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         console.log(`Event Name: ${record.eventName}`);
         console.log('DynamoDB Record: ', JSON.stringify(record.dynamodb, null, 2));
 
-        let session: ChatSession;
+        let session: ChatSession<RecordOrUndef>;
         if (record.eventName === 'INSERT' || record.eventName === 'MODIFY') {
             if (!record.dynamodb?.NewImage) {
                 console.log('No NewImage found, skipping record');
                 continue;
             }
-            session = unmarshall(record.dynamodb.NewImage as any) as ChatSession;
+            session = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSession<RecordOrUndef>>);
         } else {
             console.log(`Skipping unsupported event type: ${record.eventName}`);
             continue;
@@ -86,7 +88,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
  * Determines if a session needs insights analysis updates based on the design requirements.
  * Returns the update object if an update is needed, null otherwise.
  */
-function determineInsightAnalysisUpdate(session: ChatSession):
+function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
     | {
           userId: string;
           sessionId: string;
@@ -95,6 +97,7 @@ function determineInsightAnalysisUpdate(session: ChatSession):
           insightsS3Url: string | undefined | null;
       }
     | undefined {
+    console.log(`determineInsightAnalysisUpdate: ${JSON.stringify(session, null, 2)}`);
     // Ensure we have the required fields
     if (!session.userId || !session.sessionId) {
         console.log('Session missing required userId or sessionId, skipping');

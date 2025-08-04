@@ -1,10 +1,12 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite, UserPrefs } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite, RecordOrUndef, UserPrefs } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
 import {
+    convertChatSessionToCamelFromSnakeCase,
+    convertChatSessionToSnakeFromCamelCase,
     convertChatUserToCamelFromSnakeCase,
     convertChatUserToSnakeFromCamelCase,
     getChatMessagesTable,
@@ -189,7 +191,7 @@ export async function getChatMessagesInSession(userId: string, sessionId: string
     return (messages.Items || []).map((item) => convertToCamelCase<ChatMessage>(item as SnakeCase<ChatMessage>));
 }
 
-export async function getUserSessionsByUserId(userId: string): Promise<ChatSession[]> {
+export async function getUserSessionsByUserId(userId: string): Promise<ChatSession<RecordOrUndef>[]> {
     const sessions = await ddbDocClient.query({
         TableName: getChatSessionTable(),
         KeyConditionExpression: 'user_id = :userId',
@@ -198,10 +200,10 @@ export async function getUserSessionsByUserId(userId: string): Promise<ChatSessi
         }
     });
 
-    return (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+    return (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
 }
 
-export async function getSessionsByUserIdAndChatAppId(userId: string, chatAppId: string): Promise<ChatSession[]> {
+export async function getSessionsByUserIdAndChatAppId(userId: string, chatAppId: string): Promise<ChatSession<RecordOrUndef>[]> {
     const sessions = await ddbDocClient.query({
         TableName: getChatSessionTable(),
         IndexName: 'user-chat-app-index',
@@ -212,10 +214,10 @@ export async function getSessionsByUserIdAndChatAppId(userId: string, chatAppId:
         }
     });
 
-    return (sessions.Items || []).map((item) => convertToCamelCase<ChatSession>(item as SnakeCase<ChatSession>));
+    return (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
 }
 
-export async function getChatSessionByUserIdAndSessionId(userId: string, sessionId: string): Promise<ChatSession | undefined> {
+export async function getChatSessionByUserIdAndSessionId(userId: string, sessionId: string): Promise<ChatSession<RecordOrUndef> | undefined> {
     const session = await ddbDocClient.get({
         TableName: getChatSessionTable(),
         Key: {
@@ -224,13 +226,13 @@ export async function getChatSessionByUserIdAndSessionId(userId: string, session
         }
     });
 
-    return session.Item ? convertToCamelCase<ChatSession>(session.Item as SnakeCase<ChatSession>) : undefined;
+    return session.Item ? convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(session.Item as SnakeCase<ChatSession<RecordOrUndef>>) : undefined;
 }
 
-export async function addChatSession(chatSession: ChatSession): Promise<ChatSession> {
+export async function addChatSession(chatSession: ChatSession<RecordOrUndef>): Promise<ChatSession<RecordOrUndef>> {
     await ddbDocClient.put({
         TableName: getChatSessionTable(),
-        Item: convertToSnakeCase<ChatSession>(chatSession)
+        Item: convertChatSessionToSnakeFromCamelCase<RecordOrUndef>(chatSession)
     });
 
     return chatSession;
@@ -301,7 +303,7 @@ export async function updateSession(sessionId: string, userId: string, lastMessa
     });
 }
 
-export async function updateSessionTitleInDdb(sessionId: string, userId: string, title: string): Promise<ChatSession> {
+export async function updateSessionTitleInDdb(sessionId: string, userId: string, title: string): Promise<ChatSession<RecordOrUndef>> {
     await ddbDocClient.update({
         TableName: getChatSessionTable(),
         Key: {

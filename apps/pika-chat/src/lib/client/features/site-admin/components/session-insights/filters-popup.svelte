@@ -8,6 +8,7 @@
     import DatePopup from './date-popup.svelte';
     import type { SessionSearchDateFilter } from '@pika/shared/types/chatbot/chatbot-types';
     import { createDefaultDateFilter } from './utils';
+    import UserFilter from './filters/user-filter.svelte';
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
 
@@ -58,6 +59,7 @@
                         placeholder="Select Date"
                         bind:timezone={sessionInsights.timezone}
                     />
+                    <UserFilter bind:userId={sessionInsights.searchQuery.userId} />
                 </div>
             </div>
             {#if advancedOpen}

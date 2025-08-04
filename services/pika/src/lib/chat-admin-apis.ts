@@ -40,7 +40,8 @@ import type {
     ChatSessionFeedbackForUpdate,
     ChatSession,
     SessionSearchRequest,
-    SessionSearchResponse
+    SessionSearchResponse,
+    RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from '@pika/shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
@@ -1245,6 +1246,6 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
     return result;
 }
 
-export async function searchForSessions(search: SessionSearchRequest): Promise<SessionSearchResponse> {
-    return await queryForSessions(search);
+export async function searchForSessions(search: SessionSearchRequest<RecordOrUndef>): Promise<SessionSearchResponse<RecordOrUndef>> {
+    return await queryForSessions<RecordOrUndef>(search);
 }

@@ -56,11 +56,11 @@ export function getChatMessages(userId: string, sessionId: string) {
  * Get all chat sessions for a user.  This is used to display a list of sessions
  * to the user so they can select one.
  */
-export async function getUserSessions(userId: string): Promise<ChatSession[]> {
+export async function getUserSessions(userId: string): Promise<ChatSession<RecordOrUndef>[]> {
     return await getUserSessionsByUserId(userId);
 }
 
-export async function getUserSessionsByChatAppId(userId: string, chatAppId: string): Promise<ChatSession[]> {
+export async function getUserSessionsByChatAppId(userId: string, chatAppId: string): Promise<ChatSession<RecordOrUndef>[]> {
     return await getSessionsByUserIdAndChatAppId(userId, chatAppId);
 }
 
@@ -121,7 +121,7 @@ export async function ensureChatSession(
     agentId: string,
     chatAppId: string,
     simpleUser: SimpleAuthenticatedUser<RecordOrUndef>
-): Promise<[ChatSession, boolean]> {
+): Promise<[ChatSession<RecordOrUndef>, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
         sessionId: requestData.sessionId,
@@ -131,7 +131,7 @@ export async function ensureChatSession(
     });
 
     let isNewSession = false;
-    let chatSession: ChatSession | undefined = requestData.sessionId ? await getChatSession(user.userId, requestData.sessionId) : undefined;
+    let chatSession: ChatSession<RecordOrUndef> | undefined = requestData.sessionId ? await getChatSession(user.userId, requestData.sessionId) : undefined;
 
     console.log('Existing session lookup result:', {
         found: !!chatSession,
@@ -185,7 +185,7 @@ export async function ensureChatSession(
  * company id, and user id.  This allows us to verify that the session is valid
  * and belongs to the user.
  */
-export async function createChatSession(chatSessionForCreate: ChatSessionForCreate): Promise<ChatSession> {
+export async function createChatSession(chatSessionForCreate: ChatSessionForCreate): Promise<ChatSession<RecordOrUndef>> {
     let sessionId = uuidv7();
     const token = createSessionToken(sessionId, chatSessionForCreate.userId);
     const date = new Date().toISOString();
@@ -209,7 +209,7 @@ export async function createChatSession(chatSessionForCreate: ChatSessionForCrea
  * Get a chat session by user id and session id.  This is used to verify that the
  * session is valid and belongs to the user.
  */
-export async function getChatSession(userId: string, sessionId: string): Promise<ChatSession | undefined> {
+export async function getChatSession(userId: string, sessionId: string): Promise<ChatSession<RecordOrUndef> | undefined> {
     const chatSession = await getChatSessionByUserIdAndSessionId(userId, sessionId);
     if (chatSession) {
         validateUserAgainstSession(chatSession, userId, sessionId);
@@ -228,7 +228,7 @@ export async function getChatSession(userId: string, sessionId: string): Promise
  */
 export async function addChatMessage(
     chatMessageForCreate: ChatMessageForCreate,
-    chatSession?: ChatSession,
+    chatSession?: ChatSession<RecordOrUndef>,
     userQuestionAsked?: string,
     answerToQuestionFromAgent?: string
 ): Promise<ChatMessage> {
@@ -313,7 +313,7 @@ export async function addChatMessage(
  * @param userId The user id to validate against the session.
  * @param sessionId The session id to ensure matches the session object.
  */
-export function validateUserAgainstSession(session: ChatSession, userId: string, sessionId?: string) {
+export function validateUserAgainstSession(session: ChatSession<RecordOrUndef>, userId: string, sessionId?: string) {
     if (sessionId && session.sessionId !== sessionId) {
         throw new UnauthorizedError(`Unauthorized: session id mismatch: ${sessionId} !== ${session.sessionId}`);
     }
