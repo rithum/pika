@@ -1,5 +1,5 @@
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
-import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { Context } from 'aws-lambda';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
@@ -155,7 +155,7 @@ export async function processInsightsWithPipeline(date: Date, config: PipelineCo
 }
 
 async function processPageWithAtomicCompletion(
-    sessions: ChatSession[],
+    sessions: ChatSession<RecordOrUndef>[],
     config: PipelineConfig,
     context: Context
 ): Promise<{ processed: number; failed: number; errors: string[] }> {
@@ -208,7 +208,7 @@ async function processPageWithAtomicCompletion(
  * Includes automatic batch flushing when thresholds are reached
  */
 async function processSessionAtomically(
-    session: ChatSession,
+    session: ChatSession<RecordOrUndef>,
     sessionBatch: ChatSessionLiteForUpdate[],
     feedbackBatch: ChatSessionFeedback[],
     config: PipelineConfig,

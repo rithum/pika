@@ -20,6 +20,7 @@ import {
     type ChatMessageUsage,
     type ChatSession,
     Inaccurate,
+    RecordOrUndef,
     type SimpleAuthenticatedUser,
     Unclassified,
     type VerifyResponseClassification,
@@ -392,7 +393,7 @@ Response with ONLY the classification Letter inside an <answer></answer> tag.  E
  *          to persist it should it be needed.
  */
 export async function invokeAgentToGetAnswer(
-    chatSession: ChatSession,
+    chatSession: ChatSession<RecordOrUndef>,
     simpleUser: SimpleAuthenticatedUser<any>,
     messageId: string,
     questionFromUser: string,

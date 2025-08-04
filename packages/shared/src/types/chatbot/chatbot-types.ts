@@ -1002,13 +1002,13 @@ export interface ChatMessagesResponse {
 
 export interface ChatSessionResponse {
     success: boolean;
-    session: ChatSession;
+    session: ChatSession<RecordOrUndef>;
     error?: string;
 }
 
 export interface ChatSessionsResponse {
     success: boolean;
-    sessions: ChatSession[];
+    sessions: ChatSession<RecordOrUndef>[];
     error?: string;
 }
 

@@ -285,7 +285,7 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
  * @param responseStream The response stream to stream the response to.
  */
 async function converse(
-    chatSession: ChatSession,
+    chatSession: ChatSession<RecordOrUndef>,
     isNewSession: boolean,
     user: ChatUser<RecordOrUndef>,
     simpleUser: SimpleAuthenticatedUser<RecordOrUndef>,
@@ -430,7 +430,7 @@ function prependInstructionsWhenNeeded(messages: ChatMessage[], instructions?: s
  * by a message from the user or the bot that is not part of the conversation history.
  * This function will detect these errors and create artificial messages to maintain the conversation flow.
  */
-export function fixTurnTakingErrors(messageHistory: ChatMessage[], chatSession: ChatSession, userId: string): ChatMessage[] {
+export function fixTurnTakingErrors(messageHistory: ChatMessage[], chatSession: ChatSession<RecordOrUndef>, userId: string): ChatMessage[] {
     const result: ChatMessage[] = [];
 
     // Track the last message to detect conversation flow errors

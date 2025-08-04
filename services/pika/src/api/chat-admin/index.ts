@@ -29,7 +29,8 @@ import {
     UpdateChatSessionFeedbackRequest,
     UpdateChatSessionFeedbackResponse,
     SessionSearchRequest,
-    SessionSearchResponse
+    SessionSearchResponse,
+    RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 
@@ -703,7 +704,7 @@ async function handleUpdateSessionFeedback(event: APIGatewayProxyEventPika<Updat
 /**
  * POST:/api/chat-admin/session/search
  */
-async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearchRequest>): Promise<SessionSearchResponse> {
+async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearchRequest>): Promise<SessionSearchResponse<RecordOrUndef | undefined>> {
     const searchSessionsRequest = event.body;
     if (!searchSessionsRequest) {
         throw new Error('Request body is required');

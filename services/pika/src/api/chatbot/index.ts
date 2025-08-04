@@ -20,7 +20,8 @@ import {
     UserType,
     GetChatUserPrefsResponse,
     SetChatUserPrefsRequest,
-    SetChatUserPrefsResponse
+    SetChatUserPrefsResponse,
+    RecordOrUndef
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
 

@@ -1,6 +1,14 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate, SessionInsights, SessionInsightScoring, SessionInsightUsage } from '@pika/shared/types/chatbot/chatbot-types';
+import {
+    ChatSession,
+    ChatSessionFeedback,
+    ChatSessionLiteForUpdate,
+    RecordOrUndef,
+    SessionInsights,
+    SessionInsightScoring,
+    SessionInsightUsage
+} from '@pika/shared/types/chatbot/chatbot-types';
 import { SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
@@ -73,7 +81,7 @@ interface ModelResponse<T = unknown, A extends Array<unknown> = T[]> {
  * @param sessionBatch If needed, add updates to be performed on the session to this batch
  * @param feedbackBatch If needed, add feedback to be added on the session to this batch
  */
-export async function analyzeSession(session: ChatSession, sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[]) {
+export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[]) {
     // If you change the insights instructions, you need to increment this version.
     // The instructions file are versioned according to this version: instructions/insights-instructions-v{version}.md
     const insightsVersion = 2;
@@ -258,7 +266,7 @@ async function invokeModel<T = unknown>(
 
 export function addFeedback(
     scoring: SnakeCase<SessionInsightScoring>,
-    session: ChatSession,
+    session: ChatSession<RecordOrUndef>,
     firstAnalyzedMessage: string,
     lastAnalyzedMessageId: string,
     insightsS3Url: string,
