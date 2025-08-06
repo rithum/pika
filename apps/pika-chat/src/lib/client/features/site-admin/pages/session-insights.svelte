@@ -3,13 +3,13 @@
     import { ScrollArea } from '$ui/shadcn/scroll-area';
     import { getContext, type Snippet } from 'svelte';
     import SessionsTable from '../components/session-insights/sessions-table.svelte';
-    import { RefreshCw } from '$icons/lucide';
+    import { RefreshCw, ChartBar, MessageSquare } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
     import SessionMessages from '../components/session-insights/session-messages.svelte';
     import * as Resizable from '$ui/shadcn/resizable';
     import { Separator } from '$ui/shadcn/separator';
-    import { X, Expand, Shrink } from '$icons/lucide';
-    import * as ResizablePrimitive from 'paneforge';
+    import { X } from '$icons/lucide';
+    import SessionInsightsDetail from '../components/session-insights/session-insights-detail.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -56,7 +56,8 @@
     {#if sessionInsights.currentSession}
         <Resizable.Handle withHandle />
         <Resizable.Pane defaultSize={50}>
-            <div class="h-full">
+            <div class="h-full flex flex-col">
+                <!-- Header with controls -->
                 <div class="flex p-4">
                     <div class="flex w-full flex-col">
                         <div class="text-sm text-muted-foreground">
@@ -66,24 +67,60 @@
                             {sessionInsights.currentSession.title}
                         </div>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onclick={() => (sessionInsights.sessionIdToShowMessagesForInline = undefined)}
-                    >
-                        <X class="w-4 h-4" />
-                    </Button>
+
+                    <!-- Panel Toggle Controls -->
+                    <div class="flex gap-2">
+                        <Button
+                            variant={sessionInsights.showInsightsPanel ? 'default' : 'outline'}
+                            size="sm"
+                            onclick={() => sessionInsights.toggleInsightsPanel()}
+                        >
+                            <ChartBar class="w-4 h-4 mr-2" />
+                            Insights
+                        </Button>
+                        <Button
+                            variant={sessionInsights.showMessagesPanel ? 'default' : 'outline'}
+                            size="sm"
+                            onclick={() => sessionInsights.toggleMessagesPanel()}
+                        >
+                            <MessageSquare class="w-4 h-4 mr-2" />
+                            Messages
+                        </Button>
+                        <Button variant="ghost" size="icon" onclick={() => sessionInsights.closeRightPanel()}>
+                            <X class="w-4 h-4" />
+                        </Button>
+                    </div>
                 </div>
                 <Separator />
-                <div class="flex h-full justify-center p-6 pl-4 pr-4">
-                    <SessionMessages />
+
+                <!-- Vertical Resizable Panels -->
+                <div class="flex-1">
+                    <Resizable.PaneGroup direction="vertical">
+                        {#if sessionInsights.showInsightsPanel}
+                            <Resizable.Pane defaultSize={sessionInsights.showMessagesPanel ? 40 : 100}>
+                                <SessionInsightsDetail />
+                            </Resizable.Pane>
+                            {#if sessionInsights.showMessagesPanel}
+                                <Resizable.Handle withHandle />
+                            {/if}
+                        {/if}
+
+                        {#if sessionInsights.showMessagesPanel}
+                            <Resizable.Pane defaultSize={sessionInsights.showInsightsPanel ? 60 : 100}>
+                                <div class="flex h-full justify-center p-6 pl-4 pr-4">
+                                    <SessionMessages />
+                                </div>
+                            </Resizable.Pane>
+                        {/if}
+                    </Resizable.PaneGroup>
                 </div>
             </div>
         </Resizable.Pane>
     {/if}
 </Resizable.PaneGroup>
 
-<!-- <div class="flex flex-col h-full">
+<!-- OLD COMMENTED OUT CODE:
+<div class="flex flex-col h-full">
     <div class="flex-1 flex flex-col">
         <ScrollArea class="flex-1">
             <div class="p-6 space-y-6">

@@ -15,7 +15,7 @@
     showTextAsLink={true}
     truncateAfter={12}
     embedded={true}
-    linkCallbackFn={() => (appState.siteAdmin.sessionInsights.sessionIdToShowMessagesForInline = sessionId)}
+    linkCallbackFn={() => appState.siteAdmin.sessionInsights.openSession(sessionId)}
 >
     {sessionId}
 </CopyButton>

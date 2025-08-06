@@ -53,6 +53,10 @@ export class SessionInsightsState {
     #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #componentRegistry: ComponentRegistry;
 
+    // Panel visibility state
+    #showInsightsPanel = $state(true);
+    #showMessagesPanel = $state(true);
+
     constructor(
         private readonly fetchz: FetchZ,
         userPrefs: UserPrefsState,
@@ -130,8 +134,45 @@ export class SessionInsightsState {
         return this.#sessions;
     }
 
+    get showInsightsPanel() {
+        return this.#showInsightsPanel;
+    }
+
+    get showMessagesPanel() {
+        return this.#showMessagesPanel;
+    }
+
     clearSelection() {
         this.#selectedSessions = [];
+    }
+
+    toggleInsightsPanel() {
+        this.#showInsightsPanel = !this.#showInsightsPanel;
+
+        // If both panels are hidden, close the entire right panel
+        if (!this.#showInsightsPanel && !this.#showMessagesPanel) {
+            this.sessionIdToShowMessagesForInline = undefined;
+        }
+    }
+
+    toggleMessagesPanel() {
+        this.#showMessagesPanel = !this.#showMessagesPanel;
+
+        // If both panels are hidden, close the entire right panel
+        if (!this.#showInsightsPanel && !this.#showMessagesPanel) {
+            this.sessionIdToShowMessagesForInline = undefined;
+        }
+    }
+
+    closeRightPanel() {
+        this.sessionIdToShowMessagesForInline = undefined;
+    }
+
+    // Reset panel visibility when opening a new session
+    openSession(sessionId: string) {
+        this.sessionIdToShowMessagesForInline = sessionId;
+        this.#showInsightsPanel = true;
+        this.#showMessagesPanel = true;
     }
 
     async refreshData() {
