@@ -185,12 +185,6 @@ export const POST: RequestHandler = async (event) => {
 
         const search = await searchForSessions(siteAdminReq.search);
         return json({ ...search });
-    } else if (siteAdminReq.command === 'getValuesForAutoComplete') {
-        const users = await searchForUser(user.userId, siteAdminReq.valueProvidedByUser);
-        return json({
-            success: true,
-            data: users
-        });
     } else {
         return new Response('Invalid command', { status: 400 });
     }

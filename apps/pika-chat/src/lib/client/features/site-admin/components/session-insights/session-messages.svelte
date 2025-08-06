@@ -3,10 +3,48 @@
     import ChatFileDisplay from '$lib/client/features/chat/chat-input/chat-file-display.svelte';
     import MessageRenderer from '$lib/client/features/chat/message-segments/message-renderer.svelte';
     import { formatDateTime } from '$lib/utils';
+    import type { ChatAppOverridableFeatures } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
+
+    const features: ChatAppOverridableFeatures = {
+        traces: {
+            enabled: true,
+            detailedTraces: true,
+        },
+        verifyResponse: {
+            enabled: true,
+        },
+        chatDisclaimerNotice:
+            'This is a chatbot that can help you with your questions. It is not a human and does not have access to your personal information.',
+        logout: {
+            enabled: true,
+            menuItemTitle: 'Logout',
+            dialogTitle: 'Logout',
+            dialogDescription: 'Are you sure you want to logout?',
+        },
+        siteAdmin: {
+            websiteEnabled: true,
+        },
+        fileUpload: {
+            mimeTypesAllowed: ['image/png', 'image/jpeg', 'image/gif'],
+        },
+        suggestions: {
+            suggestions: ['Hello', 'How are you?', 'What is the weather in Tokyo?'],
+            randomize: true,
+            randomizeAfter: 10,
+            maxToShow: 3,
+        },
+        promptInputFieldLabel: {
+            label: 'Ask me anything...',
+        },
+        uiCustomization: {
+            showUserRegionInLeftNav: true,
+            showChatHistoryInStandaloneMode: true,
+        },
+    };
 </script>
 
 {#if sessionInsights.retrievingMessages || (sessionInsights.currentSessionMessages && sessionInsights.currentSessionMessages.length > 0)}
@@ -14,7 +52,7 @@
     <div class="inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto">
         <!-- Centered content container -->
         <div class="w-full max-w-[768px] mx-auto">
-            <div class="pb-4 px-4 pt-10">
+            <div class="pb-4 pt-10">
                 {#each sessionInsights.currentSessionMessages as message}
                     <div class="flex flex-col gap-8 mb-10">
                         {#if message.source === 'user'}
@@ -39,6 +77,7 @@
                                     isStreaming={false}
                                     componentRegistry={sessionInsights.componentRegistry}
                                     traceEnabled={true}
+                                    {features}
                                 />
                                 {#if message.files && message.files.length > 0}
                                     <div class="flex flex-wrap gap-2 max-w-[66%]">

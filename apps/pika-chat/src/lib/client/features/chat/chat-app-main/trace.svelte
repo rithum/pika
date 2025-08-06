@@ -3,8 +3,8 @@
     import TextWaveShimmer from '$ui/pika/text-wave-shimmer/text-wave-shimmer.svelte';
     import { Button } from '$ui/shadcn/button';
     import { Copy } from '$lib/icons/ci';
-    import { Expand, Shrink } from '$lib/icons/lucide';
-    import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+    import { Expand, Shrink } from '$icons/lucide';
+    import type { ChatAppOverridableFeatures, ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
@@ -14,6 +14,7 @@
 
     interface Props {
         message: ChatMessageForRendering;
+        features: ChatAppOverridableFeatures;
     }
 
     const md = new MarkdownIt({
@@ -35,13 +36,12 @@
         },
     });
 
-    let { message }: Props = $props();
+    let { message, features }: Props = $props();
 
-    const chatAppState = getContext<ChatAppState>('chatAppState');
-    const detailedTrace = $derived(chatAppState.features.traces.detailedTraces);
+    const detailedTrace = $derived(features.traces.detailedTraces);
 
     // TODO: Pull this from the correct user setting
-    const dontGroupTraces = $derived(chatAppState.features.traceDontGroup?.value);
+    const dontGroupTraces = $derived(features.traceDontGroup?.value);
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {

@@ -1,7 +1,7 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
-import type { ChatAppMode, ChatSessionFeedbackForCreate, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppMode, ChatSessionFeedbackForCreate, RecordOrUndef, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
     UserOverrideDataCommand,
@@ -73,14 +73,14 @@ export class ChatAppState {
     #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
-    #chatSessions = $state<ChatSession[]>([]);
+    #chatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #sortedChatSessions = $derived.by(() => {
         const arr = [...this.#chatSessions];
         return arr.sort((a, b) => {
             return new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime();
         });
     });
-    #currentSession = $state<ChatSession>() as ChatSession; // Initialized in constructor
+    #currentSession = $state<ChatSession<RecordOrUndef>>() as ChatSession<RecordOrUndef>; // Initialized in constructor
     #curSessionMessages = $state<ChatMessageForRendering[]>([]);
     #inputFiles = $state<UploadInstance[]>([]);
     #newSession = $derived(!!this.#currentSession); // We don't have a session created yet that we are working within
@@ -497,7 +497,7 @@ export class ChatAppState {
     /**
      * Pass in undefined to create a new interim session for a new chat session.
      */
-    #setSession(session: ChatSession | undefined) {
+    #setSession(session: ChatSession<RecordOrUndef> | undefined) {
         if (session) {
             this.#currentSession = session;
             this.#curSessionMessages = [];

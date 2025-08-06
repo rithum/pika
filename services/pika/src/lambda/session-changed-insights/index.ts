@@ -1,4 +1,4 @@
-import { ChatSession, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { setSessionsInsightsAnalysisInBatch } from '../../lib/chat-admin-ddb';
@@ -37,7 +37,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         userId: string;
         sessionId: string;
         lastAnalyzedMessageId: string | undefined | null;
-        insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | undefined | null;
+        insightStatus: typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS | undefined | null;
         insightsS3Url: string | undefined | null;
     }[] = [];
 
@@ -93,7 +93,7 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
           userId: string;
           sessionId: string;
           lastAnalyzedMessageId: string | undefined | null;
-          insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | undefined | null;
+          insightStatus: typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS | undefined | null;
           insightsS3Url: string | undefined | null;
       }
     | undefined {
@@ -114,7 +114,7 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
             userId: session.userId,
             sessionId: session.sessionId,
             lastAnalyzedMessageId: undefined, // Leave it alone since already not defined
-            insightStatus: 'NEEDS_INSIGHTS_ANALYSIS',
+            insightStatus: INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
             insightsS3Url: undefined // Leave it alone since we aren't supposed to have one yet anyway
         };
     }
@@ -126,7 +126,7 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
             userId: session.userId,
             sessionId: session.sessionId,
             lastAnalyzedMessageId: null, // Set it to null so it will be removed from the session in dynamodb
-            insightStatus: 'NEEDS_INSIGHTS_ANALYSIS',
+            insightStatus: INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
             insightsS3Url: undefined // Leave it alone so the daemon lambda can see that there was an old s3 file and remove it once it recomputes insights
         };
     }
@@ -138,13 +138,13 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
     }
 
     // Additional case: Session has no lastMessageId → ensure it doesn't have insightStatus set
-    if (!hasLastMessageId && session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS') {
+    if (!hasLastMessageId && session.insightStatus === INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS) {
         console.log('Additional rule: Session has no lastMessageId but has insightStatus set - clearing it');
         return {
             userId: session.userId,
             sessionId: session.sessionId,
             lastAnalyzedMessageId: undefined,
-            insightStatus: undefined, // Clear the status
+            insightStatus: null, // Remove the status entirely from the record and GSI
             insightsS3Url: undefined
         };
     }

@@ -1,6 +1,10 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import type { ChatMessageFile, ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+    import type {
+        ChatAppOverridableFeatures,
+        ChatMessageFile,
+        ChatMessageForRendering,
+    } from '@pika/shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import Trace from '../chat-app-main/trace.svelte';
     import type { ChatAppState } from '../chat-app.state.svelte';
@@ -14,9 +18,10 @@
         isStreaming: boolean;
         componentRegistry: ComponentRegistry;
         traceEnabled: boolean;
+        features: ChatAppOverridableFeatures;
     }
 
-    let { message, chatAppState, files = [], isStreaming, componentRegistry, traceEnabled }: Props = $props();
+    let { message, chatAppState, files = [], isStreaming, componentRegistry, traceEnabled, features }: Props = $props();
     const appState = getContext<AppState>('appState');
 
     // LOGGING: Track message changes
@@ -99,7 +104,7 @@
     })} -->
 
     {#if traceEnabled}
-        <Trace {message} />
+        <Trace {message} {features} />
     {/if}
 
     <!-- Render each processed segment -->

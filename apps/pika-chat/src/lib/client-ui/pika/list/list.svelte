@@ -217,7 +217,7 @@
                             options={availablePredefinedOptions}
                             optionTypeName={addRemove.predefinedOptions.optionTypeName || 'option'}
                             optionTypeNamePlural={addRemove.predefinedOptions.optionTypeNamePlural || 'options'}
-                            widthClasses="w-full"
+                            classes="w-full"
                             inputPlaceholder={addRemove.addValueInputPlaceholder}
                             searchPlaceholder={addRemove.allowArbitraryValues?.popupInputPlaceholder}
                             {disabled}

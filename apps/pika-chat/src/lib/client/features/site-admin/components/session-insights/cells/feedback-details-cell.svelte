@@ -90,11 +90,11 @@
                             {new Date(item.createdOn).toLocaleDateString()}
                         </span>
                     </div>
-                    {#if item.description}
+                    <!-- {#if item.description}
                         <div class="truncate" title={item.description}>
                             {item.description}
                         </div>
-                    {/if}
+                    {/if} -->
                     {#if item.type}
                         <div class="text-muted-foreground">
                             Type: {item.type}

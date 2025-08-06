@@ -10,17 +10,21 @@ import {
     SessionInsightUsage
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { getChatMessagesInSession } from 'src/lib/chat-ddb';
 import { v7 as uuidv7 } from 'uuid';
 import { getRegion } from '../../lib/utils';
+import { instructions } from './instructions/insights-instructions-v2';
 
 interface AnalyzeEvent {}
 
 const sessionSettleDurationMS = 1000 * 60 * 1; // 1 minute
 
-const instructions = readFileSync('./analyze-session-instructions-v2.md').toString();
+// Instructions are loaded via TypeScript import for reliable bundling
+console.log('[INSIGHTS-ANALYZER] Instructions loaded via TypeScript import, length:', instructions.length);
+console.log('[INSIGHTS-ANALYZER] Instructions preview:', instructions.substring(0, 100) + '...');
+
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 
 const s3Client = new S3Client({});
@@ -82,6 +86,9 @@ interface ModelResponse<T = unknown, A extends Array<unknown> = T[]> {
  * @param feedbackBatch If needed, add feedback to be added on the session to this batch
  */
 export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[]) {
+    const sessionKey = `${session.chatAppId}:${session.userId}:${session.sessionId}`;
+    console.log(`[INSIGHTS-ANALYZER] Starting analysis for session: ${sessionKey}`);
+
     // If you change the insights instructions, you need to increment this version.
     // The instructions file are versioned according to this version: instructions/insights-instructions-v{version}.md
     const insightsVersion = 2;
@@ -91,9 +98,20 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
     let lastAnalyzedMessageId: string | undefined;
 
     try {
-        // Analyze all messages in the session
-        console.log(`Session: ${session.chatAppId}:${session.userId}:${session.sessionId}, lm: ${lastMessageId}`);
+        // Validate instructions before proceeding
+        if (!instructions || typeof instructions !== 'string') {
+            console.error(`[INSIGHTS-ANALYZER] Instructions validation failed:`, {
+                instructionsType: typeof instructions,
+                instructionsValue: instructions
+            });
+            throw new Error(`Instructions not loaded properly: ${typeof instructions}`);
+        }
+
+        console.log(`[INSIGHTS-ANALYZER] Session: ${sessionKey}, lastMessageId: ${lastMessageId}`);
+        console.log(`[INSIGHTS-ANALYZER] Loading messages for user: ${session.userId}, sessionId: ${session.sessionId}`);
+
         let messages = await getChatMessagesInSession(session.userId, session.sessionId);
+        console.log(`[INSIGHTS-ANALYZER] Retrieved ${messages.length} messages for session ${sessionKey}`);
 
         // Simplify messages and traces
         if (messages.length) {
@@ -125,17 +143,26 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
             };
 
             // replace the prompt variables
+            console.log(`[INSIGHTS-ANALYZER] Replacing prompt variables in instructions (length: ${instructions.length})`);
+            console.log(`[INSIGHTS-ANALYZER] Available context variables:`, Object.keys(context));
+
             let prompt = instructions.replace(/{{(.+)}}/g, (str, variableName) => {
+                console.log(`[INSIGHTS-ANALYZER] Replacing variable: ${variableName}`);
                 let v = context[variableName];
                 if (v != null) {
                     if (typeof v === 'object') {
-                        return JSON.stringify(v);
+                        const jsonStr = JSON.stringify(v);
+                        console.log(`[INSIGHTS-ANALYZER] Variable ${variableName} replaced with JSON (length: ${jsonStr.length})`);
+                        return jsonStr;
                     }
-
+                    console.log(`[INSIGHTS-ANALYZER] Variable ${variableName} replaced with string value`);
                     return v;
                 }
+                console.log(`[INSIGHTS-ANALYZER] Variable ${variableName} not found in context, keeping placeholder`);
                 return str;
             });
+
+            console.log(`[INSIGHTS-ANALYZER] Final prompt length: ${prompt.length}`);
 
             // Invoke model
             // let c = new InvokeModelCommand({
@@ -206,9 +233,20 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
             } else {
                 console.error('***NO RESPONSE***', session.userId, session.sessionId);
             }
+        } else {
+            console.log(`[INSIGHTS-ANALYZER] No messages found for session ${sessionKey}`);
         }
     } catch (e) {
-        console.error(`ERROR analyzing session: ${session.sessionId}`, e);
+        console.error(`[INSIGHTS-ANALYZER] ERROR analyzing session ${sessionKey}:`, e);
+        if (e instanceof Error) {
+            console.error(`[INSIGHTS-ANALYZER] Error details:`, {
+                name: e.name,
+                message: e.message,
+                stack: e.stack
+            });
+        } else {
+            console.error(`[INSIGHTS-ANALYZER] Unknown error type:`, String(e));
+        }
     }
 }
 

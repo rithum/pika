@@ -14,6 +14,7 @@ import type {
     UpdateableChatAppOverrideFields,
     UpdateableToolDefinitionFields
 } from '@pika/shared/types/chatbot/chatbot-types';
+import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from '@pika/shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -746,7 +747,7 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
                 IndexName: 'insight-status-index',
                 KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
                 ExpressionAttributeValues: {
-                    ':insightStatus': 'NEEDS_INSIGHTS_ANALYSIS',
+                    ':insightStatus': INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
                     ':lastMessageId': date.toISOString()
                 },
                 ExclusiveStartKey: lastEvaluatedKey,
@@ -784,7 +785,7 @@ export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<C
             IndexName: 'insight-status-index',
             KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
             ExpressionAttributeValues: {
-                ':insightStatus': 'NEEDS_INSIGHTS_ANALYSIS',
+                ':insightStatus': INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
                 ':lastMessageId': date.toISOString()
             },
             ExclusiveStartKey: lastEvaluatedKey
@@ -987,38 +988,60 @@ function buildUpdateRequest(session: {
     sessionId: string;
     updateParams: any;
 } | null {
-    const updateExpressions: string[] = [];
+    const setExpressions: string[] = [];
+    const removeExpressions: string[] = [];
     const expressionAttributeNames: Record<string, string> = {};
     const expressionAttributeValues: Record<string, any> = {};
 
     // Handle insightStatus field
     if (session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS') {
-        updateExpressions.push('#insightStatus = :insightStatus');
+        setExpressions.push('#insightStatus = :insightStatus');
         expressionAttributeNames['#insightStatus'] = 'insight_status';
         expressionAttributeValues[':insightStatus'] = session.insightStatus;
     } else if (session.insightStatus === null) {
-        updateExpressions.push('#insightStatus = :insightStatus');
-        expressionAttributeNames['#insightStatus'] = 'insight_status';
-        expressionAttributeValues[':insightStatus'] = null;
+        // Remove the field entirely to remove it from GSI
+        removeExpressions.push('#insightStatusRemove');
+        expressionAttributeNames['#insightStatusRemove'] = 'insight_status';
     }
 
     // Handle insightsS3Url field
     if (session.insightsS3Url !== undefined) {
-        updateExpressions.push('#insightsS3Url = :insightsS3Url');
-        expressionAttributeNames['#insightsS3Url'] = 'insights_s3_url';
-        expressionAttributeValues[':insightsS3Url'] = session.insightsS3Url;
+        if (session.insightsS3Url === null) {
+            // Remove the field entirely
+            removeExpressions.push('#insightsS3UrlRemove');
+            expressionAttributeNames['#insightsS3UrlRemove'] = 'insights_s3_url';
+        } else {
+            setExpressions.push('#insightsS3Url = :insightsS3Url');
+            expressionAttributeNames['#insightsS3Url'] = 'insights_s3_url';
+            expressionAttributeValues[':insightsS3Url'] = session.insightsS3Url;
+        }
     }
 
     // Handle lastAnalyzedMessageId field
     if (session.lastAnalyzedMessageId !== undefined) {
-        updateExpressions.push('#lastAnalyzedMessageId = :lastAnalyzedMessageId');
-        expressionAttributeNames['#lastAnalyzedMessageId'] = 'last_analyzed_message_id';
-        expressionAttributeValues[':lastAnalyzedMessageId'] = session.lastAnalyzedMessageId;
+        if (session.lastAnalyzedMessageId === null) {
+            // Remove the field entirely
+            removeExpressions.push('#lastAnalyzedMessageIdRemove');
+            expressionAttributeNames['#lastAnalyzedMessageIdRemove'] = 'last_analyzed_message_id';
+        } else {
+            setExpressions.push('#lastAnalyzedMessageId = :lastAnalyzedMessageId');
+            expressionAttributeNames['#lastAnalyzedMessageId'] = 'last_analyzed_message_id';
+            expressionAttributeValues[':lastAnalyzedMessageId'] = session.lastAnalyzedMessageId;
+        }
     }
 
     // Skip if no updates needed
-    if (updateExpressions.length === 0) {
+    if (setExpressions.length === 0 && removeExpressions.length === 0) {
         return null;
+    }
+
+    // Build UpdateExpression
+    const expressionParts: string[] = [];
+    if (setExpressions.length > 0) {
+        expressionParts.push(`SET ${setExpressions.join(', ')}`);
+    }
+    if (removeExpressions.length > 0) {
+        expressionParts.push(`REMOVE ${removeExpressions.join(', ')}`);
     }
 
     return {
@@ -1030,9 +1053,9 @@ function buildUpdateRequest(session: {
                 user_id: session.userId,
                 session_id: session.sessionId
             },
-            UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+            UpdateExpression: expressionParts.join(' '),
             ExpressionAttributeNames: expressionAttributeNames,
-            ExpressionAttributeValues: expressionAttributeValues
+            ExpressionAttributeValues: Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined
         }
     };
 }

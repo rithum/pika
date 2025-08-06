@@ -88,6 +88,7 @@
         "markdown-it": "catalog:",
         "marked": "catalog:",
         "mode-watcher": "catalog:",
+        "paneforge": "1.0.0-next.6",
         "path": "catalog:",
         "plur": "catalog:",
         "prettier": "catalog:",

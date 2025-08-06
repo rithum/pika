@@ -196,7 +196,7 @@ export const handle: Handle = async ({ event, resolve }) => {
  */
 async function addToLocalsFromAuthProvider(
     pathName: string,
-    event: RequestEvent<Partial<Record<string, string>>, string | null>,
+    event: RequestEvent,
     authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
 ): Promise<void> {

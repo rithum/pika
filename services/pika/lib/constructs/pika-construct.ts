@@ -64,7 +64,13 @@ export class PikaConstruct extends Construct {
         const storageResources = this.createStorageResources(openSearchDomain);
 
         if (openSearchDomain && storageResources.chatSessionFeedbackTable) {
-            this.createGenerateSessionInsightsInfra(openSearchDomain, storageResources.chatSessionTable, storageResources.pikaS3Bucket, storageResources.chatSessionFeedbackTable);
+            this.createGenerateSessionInsightsInfra(
+                openSearchDomain,
+                storageResources.chatSessionTable,
+                storageResources.pikaS3Bucket,
+                storageResources.chatSessionFeedbackTable,
+                storageResources.chatMessagesTable
+            );
         }
 
         // Create compute resources
@@ -932,6 +938,33 @@ export class PikaConstruct extends Construct {
         });
 
         return toolDefinitionsTable;
+    }
+
+    private createSessionRunnerMutexTable(): dynamodb.Table {
+        const sessionRunnerMutexTable = new dynamodb.Table(this, 'SessionRunnerMutexTable', {
+            partitionKey: {
+                name: 'lock_name',
+                type: dynamodb.AttributeType.STRING
+            },
+            tableName: `session-runner-mutex-${this.props.stackName}`,
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+            timeToLiveAttribute: 'ttl' // Auto-cleanup stale locks
+        });
+
+        new ssm.StringParameter(this, 'SessionRunnerMutexTableNameParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/session_runner_mutex`,
+            stringValue: sessionRunnerMutexTable.tableName,
+            description: 'DynamoDB Table Name for Session Runner Mutex'
+        });
+
+        new ssm.StringParameter(this, 'SessionRunnerMutexTableArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/session_runner_mutex_arn`,
+            stringValue: sessionRunnerMutexTable.tableArn,
+            description: 'DynamoDB Table ARN for Session Runner Mutex'
+        });
+
+        return sessionRunnerMutexTable;
     }
 
     // Archive processor method
@@ -1866,20 +1899,11 @@ export class PikaConstruct extends Construct {
         openSearchDomain: opensearch.Domain,
         chatSessionTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
-        chatSessionFeedbackTable: dynamodb.Table
+        chatSessionFeedbackTable: dynamodb.Table,
+        chatMessagesTable: dynamodb.Table
     ): void {
-        // Create SQS queue for session insights runner scheduling
-        const sessionInsightsRunnerQueue = new sqs.Queue(this, 'SessionInsightsRunnerQueue', {
-            queueName: `session-insights-queue-${this.props.stackName}`,
-            visibilityTimeout: cdk.Duration.minutes(16), // 16 minutes for 15-minute lambda timeout
-            //TODO: do we want to use a dead letter queue? Do we need an alert for this then?
-            deadLetterQueue: {
-                queue: new sqs.Queue(this, 'SessionInsightsRunnerDeadLetterQueue', {
-                    queueName: `session-insights-dlq-${this.props.stackName}`
-                }),
-                maxReceiveCount: 3
-            }
-        });
+        // Create DynamoDB mutex table for session insights runner coordination
+        const sessionRunnerMutexTable = this.createSessionRunnerMutexTable();
 
         // Create IAM role for session changed insights lambda
         const sessionChangedInsightsLambdaRole = new iam.Role(this, 'SessionChangedInsightsLambdaRole', {
@@ -1951,7 +1975,14 @@ export class PikaConstruct extends Construct {
                                 'dynamodb:BatchWriteItem',
                                 'dynamodb:BatchGetItem'
                             ],
-                            resources: [chatSessionTable.tableArn, `${chatSessionTable.tableArn}/*`, chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`]
+                            resources: [
+                                chatMessagesTable.tableArn,
+                                `${chatMessagesTable.tableArn}/*`,
+                                chatSessionTable.tableArn,
+                                `${chatSessionTable.tableArn}/*`,
+                                chatSessionFeedbackTable.tableArn,
+                                `${chatSessionFeedbackTable.tableArn}/*`
+                            ]
                         }),
                         // S3 permissions for insights storage
                         new iam.PolicyStatement({
@@ -1959,11 +1990,11 @@ export class PikaConstruct extends Construct {
                             actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
                             resources: [`${pikaS3Bucket.bucketArn}/session-insights/*`]
                         }),
-                        // SQS permissions for scheduling
+                        // DynamoDB permissions for mutex table
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['sqs:SendMessage', 'sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-                            resources: [sessionInsightsRunnerQueue.queueArn]
+                            actions: ['dynamodb:PutItem', 'dynamodb:DeleteItem', 'dynamodb:GetItem'],
+                            resources: [sessionRunnerMutexTable.tableArn, `${sessionRunnerMutexTable.tableArn}/*`]
                         }),
                         // OpenSearch permissions
                         new iam.PolicyStatement({
@@ -1976,39 +2007,17 @@ export class PikaConstruct extends Construct {
             }
         });
 
-        // Create IAM role for initial trigger lambda
-        const sessionInsightsInitialTriggerLambdaRole = new iam.Role(this, 'SessionInsightsInitialTriggerLambdaRole', {
-            roleName: `session-insights-initial-trigger-lambda-role-${this.props.stackName}`,
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-            inlinePolicies: {
-                MainPolicy: new iam.PolicyDocument({
-                    statements: [
-                        new iam.PolicyStatement({
-                            effect: iam.Effect.ALLOW,
-                            actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
-                            resources: ['arn:aws:logs:*:*:*']
-                        }),
-                        new iam.PolicyStatement({
-                            effect: iam.Effect.ALLOW,
-                            actions: ['sqs:SendMessage'],
-                            resources: [sessionInsightsRunnerQueue.queueArn]
-                        })
-                    ]
-                })
-            }
-        });
-
         // Environment variables for insights lambdas
         const insightsEnvironment = {
             STAGE: this.props.stage,
             REGION: this.props.region,
+            CHAT_MESSAGES_TABLE: chatMessagesTable.tableName,
             CHAT_SESSION_TABLE: chatSessionTable.tableName,
             CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName,
             PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint,
             PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
-            SESSION_INSIGHTS_RUNNER_QUEUE: sessionInsightsRunnerQueue.queueUrl,
+            SESSION_RUNNER_MUTEX_TABLE: sessionRunnerMutexTable.tableName,
             WAIT_TO_COMPUTE_INSIGHTS_MS: '3600000', // 1 hour
-            EXECUTE_RUNNER_EVERY_MS: '60000', // 1 minute
             NOOP_EXECUTION: 'false'
         };
 
@@ -2052,26 +2061,6 @@ export class PikaConstruct extends Construct {
             }
         });
 
-        // Create the initial trigger lambda
-        const sessionInsightsInitialTriggerLambda = new nodejs.NodejsFunction(this, 'SessionInsightsInitialTriggerLambda', {
-            runtime: lambda.Runtime.NODEJS_22_X,
-            entry: 'src/lambda/session-insights-initial-trigger/index.ts',
-            handler: 'handler',
-            timeout: cdk.Duration.minutes(5),
-            memorySize: 256,
-            role: sessionInsightsInitialTriggerLambdaRole,
-            architecture: lambda.Architecture.ARM_64,
-            environment: {
-                SESSION_INSIGHTS_RUNNER_QUEUE: sessionInsightsRunnerQueue.queueUrl
-            },
-            bundling: {
-                minify: true,
-                sourceMap: true,
-                target: 'node22',
-                externalModules: ['@aws-sdk']
-            }
-        });
-
         // Add DynamoDB stream event source to session changed insights lambda
         sessionChangedInsightsLambda.addEventSource(
             new DynamoEventSource(chatSessionTable, {
@@ -2082,27 +2071,18 @@ export class PikaConstruct extends Construct {
             })
         );
 
-        // Add SQS event source to session insights runner lambda
-        sessionInsightsRunnerLambda.addEventSource(
-            new SqsEventSource(sessionInsightsRunnerQueue, {
-                batchSize: 1,
-                maxBatchingWindow: cdk.Duration.seconds(1)
-            })
-        );
-
-        // Create custom resource to trigger initial insights runner execution
-        const sessionInsightsInitialTriggerCustomResource = new CustomResource(this, 'SessionInsightsInitialTriggerCustomResource', {
-            serviceToken: sessionInsightsInitialTriggerLambda.functionArn,
-            properties: {
-                QueueUrl: sessionInsightsRunnerQueue.queueUrl,
-                // Force update on every deployment
-                Timestamp: Date.now()
-            }
+        // Create EventBridge rule to trigger insights runner every minute
+        const sessionInsightsSchedule = new events.Rule(this, 'SessionInsightsSchedule', {
+            ruleName: `session-insights-schedule-${this.props.stackName}`,
+            description: 'Triggers session insights runner every minute',
+            schedule: events.Schedule.rate(cdk.Duration.minutes(1))
         });
 
-        // Ensure custom resource depends on queue and session table
-        sessionInsightsInitialTriggerCustomResource.node.addDependency(sessionInsightsRunnerQueue);
-        sessionInsightsInitialTriggerCustomResource.node.addDependency(chatSessionTable);
+        sessionInsightsSchedule.addTarget(
+            new targets.LambdaFunction(sessionInsightsRunnerLambda, {
+                retryAttempts: 0 // Don't retry - let next schedule handle it
+            })
+        );
 
         // Grant additional permissions
         chatSessionTable.grantReadWriteData(sessionInsightsRunnerLambda);

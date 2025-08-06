@@ -6,6 +6,10 @@
     import { RefreshCw } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
     import SessionMessages from '../components/session-insights/session-messages.svelte';
+    import * as Resizable from '$ui/shadcn/resizable';
+    import { Separator } from '$ui/shadcn/separator';
+    import { X, Expand, Shrink } from '$icons/lucide';
+    import * as ResizablePrimitive from 'paneforge';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -26,11 +30,63 @@
     });
 </script>
 
-<div class="flex flex-col h-full">
+<Resizable.PaneGroup direction="horizontal" class="flex flex-col h-full">
+    <Resizable.Pane defaultSize={50}>
+        <div class="flex-1 flex flex-col">
+            <ScrollArea class="flex-1">
+                <div class="p-6 space-y-6">
+                    {#if sessionInsights.totalResults > 0}
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm text-muted-foreground">
+                                Found {sessionInsights.totalResults.toLocaleString()} sessions
+                            </div>
+                            {#if sessionInsights.lastSearchTimestamp}
+                                <div class="text-xs text-muted-foreground">
+                                    Last updated: {sessionInsights.lastSearchTimestamp.toLocaleString()}
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+
+                    <SessionsTable />
+                </div>
+            </ScrollArea>
+        </div>
+    </Resizable.Pane>
+    {#if sessionInsights.currentSession}
+        <Resizable.Handle withHandle />
+        <Resizable.Pane defaultSize={50}>
+            <div class="h-full">
+                <div class="flex p-4">
+                    <div class="flex w-full flex-col">
+                        <div class="text-sm text-muted-foreground">
+                            {sessionInsights.currentSession.sessionId}
+                        </div>
+                        <div class="text-sm text-muted-foreground">
+                            {sessionInsights.currentSession.title}
+                        </div>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onclick={() => (sessionInsights.sessionIdToShowMessagesForInline = undefined)}
+                    >
+                        <X class="w-4 h-4" />
+                    </Button>
+                </div>
+                <Separator />
+                <div class="flex h-full justify-center p-6 pl-4 pr-4">
+                    <SessionMessages />
+                </div>
+            </div>
+        </Resizable.Pane>
+    {/if}
+</Resizable.PaneGroup>
+
+<!-- <div class="flex flex-col h-full">
     <div class="flex-1 flex flex-col">
         <ScrollArea class="flex-1">
             <div class="p-6 space-y-6">
-                <!-- Results Summary -->
                 {#if sessionInsights.totalResults > 0}
                     <div class="flex items-center justify-between">
                         <div class="text-sm text-muted-foreground">
@@ -44,13 +100,12 @@
                     </div>
                 {/if}
 
-                <!-- Sessions Table -->
                 <SessionsTable />
                 <SessionMessages />
             </div>
         </ScrollArea>
     </div>
-</div>
+</div> -->
 
 {#snippet pageHeaderRightSnippet()}
     <div class="flex items-center gap-2">
@@ -59,10 +114,8 @@
 
         <!-- Export Options -->
         <!-- TODO: Implement export functionality -->
-
-        <!-- Refresh -->
         <Button
-            class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+            variant="outline"
             onclick={() => sessionInsights.refreshData()}
             disabled={sessionInsights.isSearching}
             aria-label="Refresh sessions data"

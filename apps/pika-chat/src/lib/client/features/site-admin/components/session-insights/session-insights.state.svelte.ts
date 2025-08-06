@@ -160,8 +160,8 @@ export class SessionInsightsState {
     }
 
     async refreshMessagesForCurrentSession() {
+        this.#curSessionMessages = [];
         if (!this.#currentSession) {
-            this.#curSessionMessages = [];
             return;
         }
 

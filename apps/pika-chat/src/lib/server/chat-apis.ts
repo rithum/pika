@@ -110,7 +110,7 @@ export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSes
     return response.body.feedback;
 }
 
-export async function getChatSessions(userId: string, chatAppId: string): Promise<ChatSession[]> {
+export async function getChatSessions(userId: string, chatAppId: string): Promise<ChatSession<RecordOrUndef>[]> {
     const response = await invokeApi<ChatSessionsResponse>({
         apiId: appConfig.chatApiId,
         path: `${appConfig.stage}/api/chat/conversations/${chatAppId}`,

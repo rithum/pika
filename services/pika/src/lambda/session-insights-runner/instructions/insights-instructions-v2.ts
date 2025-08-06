@@ -1,12 +1,12 @@
-# AI Agent Chat Session Analysis Prompt
+export const instructions = `# AI Agent Chat Session Analysis Prompt
 
 You are an expert AI customer experience analyst. Analyze the following chat session between a customer and an AI agent. Provide both a comprehensive qualitative assessment and structured JSON scoring. Read through all messages carefully to understand the complete interaction flow and evaluate the AI agent's performance.
 
 ## Chat Session Messages:
 
-```
+\`\`\`
 {{chat_messages}}
-```
+\`\`\`
 
 ## Analysis Requirements:
 
@@ -90,7 +90,7 @@ Please provide your analysis in TWO parts:
 
 First, provide a structured JSON output with numerical scores and key assessments with the json answer wrapped in a <json>{}</json> tag:
 
-```json
+\`\`\`json
 {
   "scores": {
     "goal_achievement": {
@@ -143,7 +143,7 @@ First, provide a structured JSON output with numerical scores and key assessment
     "ai_confidence_level": "low|medium|high"
   }
 }
-```
+\`\`\`
 
 ### Part 2: Detailed Qualitative Analysis
 
@@ -168,3 +168,6 @@ Then provide detailed insights for each of the following areas using numbered se
 - **9-10**: Excellent/Exceptional performance
 
 Ensure your JSON scores align with your detailed analysis and provide clear justification for scores in the qualitative section.
+`;
+
+export default instructions;

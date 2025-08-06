@@ -33,7 +33,7 @@ import {
     type ConversationIdAndInternalId,
     GeneralError,
     type PartialUpdateOp,
-    ChatSessionOs
+    type ChatSessionOs
 } from './types';
 import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import { convertToSnakeCase, convertToCamelCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';

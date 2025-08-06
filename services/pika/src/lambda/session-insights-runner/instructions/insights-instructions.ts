@@ -1,12 +1,12 @@
-# Chat Session Analysis Prompt
+export const instructions = `# Chat Session Analysis Prompt
 
 You are an expert customer experience analyst. Analyze the following chat session messages and provide a comprehensive assessment. Read through all messages carefully to understand the complete interaction flow.
 
 ## Chat Session Messages:
 
-```
+\`\`\`
 {{chat_messages}}
-```
+\`\`\`
 
 ## Analysis Requirements:
 
@@ -88,3 +88,4 @@ Please structure your response clearly with numbered sections corresponding to e
 - Consider both explicit user feedback and implicit behavioral cues
 - Prioritize recommendations based on potential impact on user experience
 - Flag any patterns that might indicate systemic issues beyond this single session
+  `;

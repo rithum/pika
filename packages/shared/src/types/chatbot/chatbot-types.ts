@@ -140,8 +140,12 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
 /**
  * Convenience type for updating a session with the last analyzed message id and insights s3 url.
  *
- * If a value is null, it will be removed from the database.  If a value is undefined, it will not be updated.
- * If a value is present, it will be updated.
+ * Field update behavior:
+ * - If a value is null: the field will be REMOVED from the database entirely (using DynamoDB REMOVE expression)
+ * - If a value is undefined: the field will not be updated at all (field remains unchanged)
+ * - If a value is present: the field will be SET to that value (using DynamoDB SET expression)
+ *
+ * Note: Setting insightStatus to null removes it from the sparse GSI since the field no longer exists.
  */
 export interface ChatSessionLiteForUpdate {
     userId: string;
