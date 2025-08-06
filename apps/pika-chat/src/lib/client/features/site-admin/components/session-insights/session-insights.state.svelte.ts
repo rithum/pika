@@ -209,7 +209,13 @@ export class SessionInsightsState {
         try {
             this.#retrievingMessages = true;
             const chatAppId = this.#currentSession.chatAppId;
-            const resp = await this.fetchz(`/api/message/${chatAppId}/${this.#currentSession.sessionId}`);
+            const resp = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: 'getChatMessagesAsAdmin', sessionId: this.#currentSession.sessionId, chatAppId, userId: this.#currentSession.userId })
+            });
             if (resp.ok) {
                 const msgResult = (await resp.json()) as ChatMessagesResponse;
                 if (msgResult.success) {

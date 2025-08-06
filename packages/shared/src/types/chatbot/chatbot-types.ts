@@ -2106,7 +2106,8 @@ export type SiteAdminRequest =
     | ClearChatAppCacheRequest
     | AddChatSessionFeedbackAdminRequest
     | UpdateChatSessionFeedbackAdminRequest
-    | SessionSearchAdminRequest;
+    | SessionSearchAdminRequest
+    | GetChatMessagesAsAdminRequest;
 
 export const SiteAdminCommand = [
     'getInitialData',
@@ -2118,12 +2119,20 @@ export const SiteAdminCommand = [
     'clearChatAppCache',
     'addChatSessionFeedback',
     'updateChatSessionFeedback',
-    'sessionSearch'
+    'sessionSearch',
+    'getChatMessagesAsAdmin'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
 export interface SiteAdminCommandRequestBase {
     command: SiteAdminCommand;
+}
+
+export interface GetChatMessagesAsAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getChatMessagesAsAdmin';
+    sessionId: string;
+    chatAppId: string;
+    userId: string;
 }
 
 export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandRequestBase {
@@ -2174,11 +2183,16 @@ export type SiteAdminResponse =
     | ClearChatAppCacheResponse
     | AddChatSessionFeedbackResponse
     | UpdateChatSessionFeedbackResponse
-    | SessionSearchResponse;
+    | SessionSearchResponse
+    | GetChatMessagesAsAdminResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
     error?: string;
+}
+
+export interface GetChatMessagesAsAdminResponse extends SiteAdminCommandResponseBase {
+    messages: ChatMessage[];
 }
 
 export interface ClearChatAppCacheResponse extends SiteAdminCommandResponseBase {}

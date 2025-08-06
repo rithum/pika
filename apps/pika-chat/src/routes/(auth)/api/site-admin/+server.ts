@@ -8,11 +8,11 @@ import {
     searchForSessions,
     updateChatSessionFeedback
 } from '$lib/server/chat-admin-apis';
-import { searchForUser } from '$lib/server/chat-apis';
+import { getChatMessages, searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
-import type { ConverseRequestWithCommand, SimpleAuthenticatedUser, SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ConverseRequestWithCommand, GetChatMessagesAsAdminResponse, SimpleAuthenticatedUser, SiteAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getValuesForEntityAutoComplete } from './custom-data';
 
@@ -185,6 +185,24 @@ export const POST: RequestHandler = async (event) => {
 
         const search = await searchForSessions(siteAdminReq.search);
         return json({ ...search });
+    } else if (siteAdminReq.command === 'getChatMessagesAsAdmin') {
+        if (!('sessionId' in siteAdminReq)) {
+            return new Response('sessionId is required', { status: 400 });
+        }
+
+        if (!('chatAppId' in siteAdminReq)) {
+            return new Response('chatAppId is required', { status: 400 });
+        }
+
+        if (!('userId' in siteAdminReq)) {
+            return new Response('userId is required', { status: 400 });
+        }
+        const messages = await getChatMessages(siteAdminReq.sessionId, siteAdminReq.userId);
+        const result: GetChatMessagesAsAdminResponse = {
+            success: true,
+            messages: messages.messages
+        };
+        return json(result);
     } else {
         return new Response('Invalid command', { status: 400 });
     }
