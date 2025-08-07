@@ -208,7 +208,7 @@
         <!-- Access Mode Selector -->
         <SimpleDropdown
             bind:value={accessMode}
-            classes="w-[300px]"
+            wrapperClasses="w-[300px]"
             disabled={!isOverrideMode || disabled}
             mapping={{
                 value: (item) => item as string,

@@ -24,6 +24,7 @@
     import TablePagination from './pika-table-pagination.svelte';
     import TableToolbar from './pika-table-toolbar.svelte';
     import type { FacetedFilters, GlobalFilterProps, ServerSideTableState, ServerSideConfig } from './types';
+    import { Separator } from '$ui/shadcn/separator';
 
     interface Props {
         columns: ColumnDef<TData, TValue>[];
@@ -257,13 +258,13 @@
     });
 </script>
 
-<div class="space-y-4 {classes ? classes : ''}">
+<div class="space-y-4 {classes ? classes : ''} ">
     <TableToolbar {table} {globalFilterProps} {facetedFilters} {toolbarContent} {beneathToolbarContent} />
-    <div class="rounded-md border">
-        <Table.Root>
+    <div class="rounded-md border h-full flex flex-col overflow-y-auto">
+        <Table.Root class="h-full">
             <Table.Header>
                 {#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
-                    <Table.Row>
+                    <Table.Row class="sticky top-0 bg-gray-50 shadow-[inset_0_-1px_0_#ededed]">
                         {#each headerGroup.headers as header (header.id)}
                             <Table.Head colspan={header.colSpan}>
                                 {#if !header.isPlaceholder}
@@ -277,7 +278,7 @@
                     </Table.Row>
                 {/each}
             </Table.Header>
-            <Table.Body>
+            <Table.Body class="">
                 {#each table.getRowModel().rows as row (row.id)}
                     <Table.Row data-state={row.getIsSelected() && 'selected'}>
                         {#each row.getVisibleCells() as cell (cell.id)}

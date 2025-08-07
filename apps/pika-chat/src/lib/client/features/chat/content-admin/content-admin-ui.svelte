@@ -86,7 +86,8 @@
     {loading}
     optionTypeName="user"
     optionTypeNamePlural="users"
-    widthClasses="w-[320px]"
+    wrapperClasses="w-[320px]"
+    popupWidthClasses="w-[320px]"
     minCharactersForSearch={3}
     {disabled}
 />

@@ -1,23 +1,15 @@
 <script lang="ts">
-    import { Archive, Download, Eye, ListFilter, MessageSquare, Trash2, X } from '$icons/lucide';
+    import { Archive, Download, MessageSquare, X } from '$icons/lucide';
 
     import PikaTable from '$ui/pika/pika-table/pika-table.svelte';
-    import type { RowActionsProps, ServerSideConfig, ServerSideTableState } from '$ui/pika/pika-table/types';
+    import type { ServerSideConfig, ServerSideTableState } from '$ui/pika/pika-table/types';
     import { Button } from '$ui/shadcn/button';
     import { Card } from '$ui/shadcn/card';
     import { Input } from '$ui/shadcn/input';
     import { Separator } from '$ui/shadcn/separator';
-    import type { ChatSession, RecordOrUndef, SessionSearchRequest } from '@pika/shared/types/chatbot/chatbot-types';
-    import type { ColumnFiltersState } from '@tanstack/table-core';
     import FiltersPopup from './filters-popup.svelte';
-    import type { SessionInsightsState } from './session-insights.state.svelte';
     // Import additional PikaTable components
-    import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
-    import { renderComponent } from '$ui/shadcn/data-table/render-helpers';
-    import type { ColumnDef } from '@tanstack/table-core';
-    import { formatDistanceToNow } from 'date-fns';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import type { SiteAdminState } from '../../site-admin.state.svelte';
     import { getContext } from 'svelte';
     import FiltersAppliedPanel from './filters-applied-panel.svelte';
     import { columns } from './sessions-table-columns';
@@ -158,7 +150,7 @@
     }
 </script>
 
-<div class="space-y-4">
+<div class="flex flex-col h-full pb-4">
     <!-- Bulk Actions Toolbar -->
     {#if sessionInsights.selectedSessions.length > 0}
         <Card class="p-3 bg-blue-50 border-blue-200">
@@ -195,7 +187,7 @@
         data={sessionInsights.sessions}
         tableKey="session-insights"
         bind:serverSideConfig
-        classes="min-h-[600px]"
+        classes="h-full flex flex-col"
         {toolbarContent}
     />
 </div>

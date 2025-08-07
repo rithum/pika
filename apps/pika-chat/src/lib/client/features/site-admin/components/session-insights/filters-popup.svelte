@@ -6,11 +6,15 @@
     import * as Popover from '$ui/shadcn/popover';
     import { getContext } from 'svelte';
     import DatePopup from './date-popup.svelte';
-    import type { SessionSearchDateFilter } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatApp, SessionSearchDateFilter } from '@pika/shared/types/chatbot/chatbot-types';
     import { createDefaultDateFilter } from './utils';
     import UserFilter from './filters/user-filter.svelte';
+    import { Label } from '$lib/client-ui/shadcn/label';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import ChatAppsFilter from './filters/chatapps-filter.svelte';
     const appState = getContext<AppState>('appState');
-    const sessionInsights = appState.siteAdmin.sessionInsights;
+    const siteAdmin = appState.siteAdmin;
+    const sessionInsights = siteAdmin.sessionInsights;
 
     let advancedOpen = $state(false);
 </script>
@@ -48,7 +52,7 @@
                     </div>
                 </div>
                 <Separator />
-                <div class="p-4 flex flex-col gap-4">
+                <div class="p-4 pr-2 flex flex-col gap-4">
                     <DatePopup
                         bind:dateFilter={
                             () => sessionInsights.searchQuery.dateFilter,
@@ -56,10 +60,11 @@
                                 sessionInsights.searchQuery.dateFilter = value;
                             }
                         }
-                        placeholder="Select Date"
+                        placeholder="Filter by dates..."
                         bind:timezone={sessionInsights.timezone}
                     />
                     <UserFilter bind:userId={sessionInsights.searchQuery.userId} />
+                    <ChatAppsFilter bind:chatAppId={sessionInsights.searchQuery.chatAppId} />
                 </div>
             </div>
             {#if advancedOpen}

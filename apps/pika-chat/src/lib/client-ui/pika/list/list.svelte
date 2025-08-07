@@ -183,7 +183,8 @@
                             loading={addRemove.search.loading}
                             optionTypeName="account"
                             optionTypeNamePlural="accounts"
-                            widthClasses="w-full"
+                            wrapperClasses="w-full"
+                            popupWidthClasses="w-[300px]"
                             showValueInListEntries={true}
                             minCharactersForSearch={1}
                             {disabled}
@@ -217,7 +218,7 @@
                             options={availablePredefinedOptions}
                             optionTypeName={addRemove.predefinedOptions.optionTypeName || 'option'}
                             optionTypeNamePlural={addRemove.predefinedOptions.optionTypeNamePlural || 'options'}
-                            classes="w-full"
+                            wrapperClasses="w-full"
                             inputPlaceholder={addRemove.addValueInputPlaceholder}
                             searchPlaceholder={addRemove.allowArbitraryValues?.popupInputPlaceholder}
                             {disabled}

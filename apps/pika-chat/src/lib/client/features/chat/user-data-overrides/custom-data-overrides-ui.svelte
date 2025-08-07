@@ -110,7 +110,8 @@
     {loading}
     optionTypeName="account"
     optionTypeNamePlural="accounts"
-    widthClasses="w-[320px]"
+    wrapperClasses="w-[320px]"
+    popupWidthClasses="w-[320px]"
     showValueInListEntries={true}
     minCharactersForSearch={1}
     {disabled}

@@ -143,7 +143,7 @@
                     }
                     disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
                     inputPlaceholder="Select threshold..."
-                    classes="w-[320px]"
+                    wrapperClasses="w-[320px]"
                     mapping={{
                         value: (item) => item.classification,
                         label: (item) => item.label,

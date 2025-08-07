@@ -30,27 +30,12 @@
     });
 </script>
 
-<Resizable.PaneGroup direction="horizontal" class="flex flex-col h-full">
+<Resizable.PaneGroup direction="horizontal" class="flex flex-col">
     <Resizable.Pane defaultSize={50}>
-        <div class="flex-1 flex flex-col">
-            <ScrollArea class="flex-1">
-                <div class="p-6 space-y-6">
-                    {#if sessionInsights.totalResults > 0}
-                        <div class="flex items-center justify-between">
-                            <div class="text-sm text-muted-foreground">
-                                Found {sessionInsights.totalResults.toLocaleString()} sessions
-                            </div>
-                            {#if sessionInsights.lastSearchTimestamp}
-                                <div class="text-xs text-muted-foreground">
-                                    Last updated: {sessionInsights.lastSearchTimestamp.toLocaleString()}
-                                </div>
-                            {/if}
-                        </div>
-                    {/if}
-
-                    <SessionsTable />
-                </div>
-            </ScrollArea>
+        <div class="flex h-full">
+            <div class="p-6 flex flex-col flex-1">
+                <SessionsTable />
+            </div>
         </div>
     </Resizable.Pane>
     {#if sessionInsights.currentSession}
@@ -75,16 +60,14 @@
                             size="sm"
                             onclick={() => sessionInsights.toggleInsightsPanel()}
                         >
-                            <ChartBar class="w-4 h-4 mr-2" />
-                            Insights
+                            <ChartBar class="w-4 h-4" />
                         </Button>
                         <Button
                             variant={sessionInsights.showMessagesPanel ? 'default' : 'outline'}
                             size="sm"
                             onclick={() => sessionInsights.toggleMessagesPanel()}
                         >
-                            <MessageSquare class="w-4 h-4 mr-2" />
-                            Messages
+                            <MessageSquare class="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onclick={() => sessionInsights.closeRightPanel()}>
                             <X class="w-4 h-4" />

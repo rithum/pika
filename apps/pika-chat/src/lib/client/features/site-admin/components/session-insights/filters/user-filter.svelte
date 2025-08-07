@@ -14,7 +14,7 @@
     const sessionInsights = appState.siteAdmin.sessionInsights;
 </script>
 
-<div class="flex flex-col gap-2">
+<div class="flex flex-col gap-1 w-full mr-4">
     <Label class="text-sm font-medium text-muted-foreground">User</Label>
     <!-- onValueChanged={valueChanged} -->
     <Combobox
@@ -41,7 +41,8 @@
         loading={sessionInsights.userAutoCompleteSearchInProgress}
         optionTypeName="user"
         optionTypeNamePlural="users"
-        widthClasses="w-[320px]"
         minCharactersForSearch={3}
+        allowClear={true}
+        inputPlaceholder="Filter by user..."
     />
 </div>

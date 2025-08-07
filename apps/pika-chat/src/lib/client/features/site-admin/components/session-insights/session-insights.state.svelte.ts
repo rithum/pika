@@ -9,7 +9,8 @@ import type {
     GetValuesForAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
     ChatMessageForRendering,
-    ChatMessagesResponse
+    ChatMessagesResponse,
+    ChatApp
 } from '@pika/shared/types/chatbot/chatbot-types';
 import { createDefaultSearchQuery } from './utils';
 import type { AdvancedSearchState, SavedSearch, SimpleSearchState } from './types';
@@ -165,6 +166,8 @@ export class SessionInsightsState {
     }
 
     closeRightPanel() {
+        this.#showMessagesPanel = false;
+        this.#showInsightsPanel = false;
         this.sessionIdToShowMessagesForInline = undefined;
     }
 

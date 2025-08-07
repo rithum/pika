@@ -19,7 +19,8 @@
         // We will figure out the plural form of the data type name using the plur library if not provided
         optionTypeNamePlural,
         onValueChanged,
-        classes,
+        wrapperClasses = '',
+        buttonClasses = '',
         popupWidthClasses = '',
         loading = false,
         showValueInListEntries = false,
@@ -34,7 +35,8 @@
         inputPlaceholder?: string;
         searchPlaceholder?: string;
         onValueChanged?: (value: T) => void;
-        classes?: string;
+        wrapperClasses?: string;
+        buttonClasses?: string;
         // This is the name of the type of data in the dropdown that a user will understand
         optionTypeName?: string;
         optionTypeNamePlural?: string;
@@ -137,14 +139,14 @@
     }
 </script>
 
-<div class="flex items-center">
+<div class="flex items-center ${wrapperClasses} gap-2">
     <Popover.Root bind:open>
-        <Popover.Trigger bind:ref={triggerRef}>
+        <Popover.Trigger bind:ref={triggerRef} class="flex-1">
             {#snippet child({ props })}
                 <Button
                     variant="outline"
                     {...props}
-                    class={`flex items-center justify-between ${classes}`}
+                    class={`flex items-center justify-between w-full ${buttonClasses}`}
                     role="combobox"
                     aria-expanded={open}
                     {disabled}
@@ -251,7 +253,9 @@
             </Command.Root>
         </Popover.Content>
     </Popover.Root>
-    {#if allowClear && value}
-        <X class="ml-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100 cursor-pointer" onclick={handleClear} />
+    {#if allowClear && !disabled}
+        <Button variant="ghost" size="icon" class="h-4 w-4 text-muted-foreground " onclick={handleClear}>
+            <X />
+        </Button>
     {/if}
 </div>

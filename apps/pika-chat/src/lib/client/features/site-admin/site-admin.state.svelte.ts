@@ -66,7 +66,8 @@ export class SiteAdminState {
         clearChatAppCache: false,
         addChatSessionFeedback: false,
         updateChatSessionFeedback: false,
-        sessionSearch: false
+        sessionSearch: false,
+        getChatMessagesAsAdmin: false
     });
 
     #appSidebarState: SidebarState | undefined;
