@@ -25,8 +25,8 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
     const authProvider = locals.authProvider;
     let customDataFieldPathToMatchUsersEntity: string | undefined;
 
-    if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
-        customDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+    if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
+        customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
     }
 
     try {

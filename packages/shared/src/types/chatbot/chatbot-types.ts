@@ -1529,9 +1529,8 @@ export interface GetChatAppsByRulesRequest {
     /**
      * We sometimes need to know if a user's associated "entity" (account or company) is allowed to access a chat app.
      * This is the path to the custom data field that is used to match against the entity.  Of course,
-     * your AuthProvider will need to implement this method to return the path to the custom data field and this
-     * assumes that your users actually have a customData field and are associated with an entity like an account or company.
-     * that you might want to match against.
+     * your must have enabled the entity feature in pika-config.ts and set the attributeName to the path to the custom data field
+     * attribute name that contains the entity value.
      *
      * For example, if a user is associated with an account and has `customData.accountId` then this might be 'accountId'.
      */
@@ -1824,22 +1823,14 @@ export interface SiteAdminFeature {
          * If you turn this on then we expect that you will provide
          */
         enabled: boolean;
-
-        /** The placeholder text for the search input: e.g. "Search for an account...". Defaults to "Search for an entity..." */
-        searchPlaceholderText?: string;
-
-        /** The display name for a single entity: e.g. "Account". Defaults to "Entity" */
-        entityDisplayNameSingular?: string;
-
-        /** The display name for a plural of entities: e.g. "Accounts". Defaults to "Entities" */
-        entityDisplayNamePlural?: string;
     };
 
     /**
      * If turned on, any user with the pika:site-admin role will be able to view session insights
      * for any chat session in the admin website.  This is useful for debugging and troubleshooting.
      * This feature will not be enabled unless you have also first enabled the session insights feature
-     * at the site level in pika-config.ts.
+     * at the site level in pika-config.ts.  Note that the entity feature must be turned on
+     * if you want to display and filter by entity in the session insights UI.
      */
     sessionInsights?: {
         enabled: boolean;
@@ -2137,9 +2128,9 @@ export interface GetChatMessagesAsAdminRequest extends SiteAdminCommandRequestBa
 
 export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandRequestBase {
     command: 'getValuesForEntityAutoComplete';
-    type: 'internal-user' | 'external-user';
     valueProvidedByUser: string;
-    chatAppId: string;
+    chatAppId?: string;
+    type?: 'internal-user' | 'external-user';
 }
 
 export interface GetValuesForUserAutoCompleteRequest extends SiteAdminCommandRequestBase {
@@ -2592,6 +2583,14 @@ export interface SiteFeatures {
     /** Configure whether chat apps are shown on the home page. */
     homePage?: HomePageSiteFeature;
 
+    /**
+     * If this is provided then you intend to use the entity feature which means that you will be associating an
+     * entity (such as an account or a company or organization) with a user and saving that information in the
+     * chatUser.customData object.  This tells us that you intend to do that and that gives us attributes
+     * we can use to display and filter by the entity.
+     */
+    entity?: EntitySiteFeature;
+
     /** Configure whether users can override their user data. */
     userDataOverrides?: UserDataOverridesSiteFeature;
 
@@ -2689,6 +2688,47 @@ export interface SessionInsightsFeatureForChatApp extends Feature {
  */
 export interface ContentAdminSiteFeature {
     enabled: boolean;
+}
+
+/**
+ * If this is provided then you intend to use the entity feature which means that you will be associating an
+ * entity (such as an account or a company or organization) with a user and saving that information in the
+ * chatUser.customData object.  This tells us that you intend to do that and that gives us attributes
+ * we can use to display and filter by the entity.
+ *
+ * This won't affect anything an external customer sees or interacts with since presumably an external customer
+ * is a specific account or company and so this feature is only intended for internal users and admins
+ * to be able to act on behalf of a specific account or company and in the admin UI to filter by entity.
+ */
+export interface EntitySiteFeature {
+    enabled: boolean;
+
+    /**
+     * The attribute name in the chatUser.customData object that contains the entity value: e.g. "accountId".
+     * So, you might have a user object that looks like this returned by your AuthProvider:
+     * ```ts
+     * {
+     *     customData: {
+     *         accountId: '123'
+     *     }
+     * }
+     * ```
+     *
+     * If not provided this feature will not work.
+     */
+    attributeName: string;
+
+    /** The placeholder text for the search input. */
+    searchPlaceholderText: string;
+
+    /** The singular name of the entity. */
+    displayNameSingular: string;
+
+    /** The plural name of the entity. */
+    displayNamePlural: string;
+
+    /** The title of the column header in the entity table as in Account ID.  */
+    tableColumnHeaderTitle: string;
 }
 
 /**

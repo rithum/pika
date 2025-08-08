@@ -8,7 +8,7 @@
     import SessionMessages from '../components/session-insights/session-messages.svelte';
     import * as Resizable from '$ui/shadcn/resizable';
     import { Separator } from '$ui/shadcn/separator';
-    import { X } from '$icons/lucide';
+    import { X, Loader } from '$icons/lucide';
     import SessionInsightsDetail from '../components/session-insights/session-insights-detail.svelte';
 
     const appState = getContext<AppState>('appState');
@@ -134,15 +134,20 @@
 
         <!-- Export Options -->
         <!-- TODO: Implement export functionality -->
+        {#if sessionInsights.loading}
+            <div class="flex items-center gap-1">
+                <Loader class="mr-2 w-4 h-4 animate-spin text-muted-foreground" />
+                <span class="text-muted-foreground">{sessionInsights.loading}</span>
+            </div>
+        {/if}
         <Button
             variant="outline"
             onclick={() => sessionInsights.refreshData()}
             disabled={sessionInsights.isSearching}
             aria-label="Refresh sessions data"
         >
-            <RefreshCw class="w-4 h-4 {sessionInsights.isSearching ? 'animate-spin' : ''}" />
+            <RefreshCw class="w-4 h-4" />
         </Button>
-
         <!-- Settings -->
         <!-- TODO: Implement settings -->
     </div>

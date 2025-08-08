@@ -125,29 +125,38 @@ The site admin feature implements a sophisticated access control system with the
 
 ### Entity-Based Access Control
 
-Entity-based access control allows you to restrict chat apps to specific accounts, companies, or organizations. This works in conjunction with your authentication provider's entity mapping.
+Entity-based access control allows you to restrict chat apps to specific accounts, companies, or organizations. This functionality is now provided through the dedicated Entity feature, which serves as the foundation for entity-based operations throughout Pika.
 
 **Setup Requirements:**
 
-1. **Authentication Provider Integration**: Your auth provider must implement `getCustomDataFieldPathToMatchUsersEntity()`
-2. **Entity Field Population**: Users must have the entity identifier in their `customData`
-3. **Override Configuration**: Site admins configure which entities are allowed
+1. **Entity Feature Configuration**: Enable the entity feature site-wide in your configuration
+2. **Entity Field Population**: Users must have the entity identifier in their `customData` at the field specified by `entity.attributeName`
+3. **Entity Autocomplete Implementation**: Implement the entity lookup function
+4. **Override Configuration**: Site admins configure which entities are allowed
 
 #### Entity Autocomplete Implementation
 
-To enable the autocomplete entity picker in the site admin interface, you need to enable the `supportUserEntityAccessControl` sub-feature and implement the entity lookup functionality:
+To enable entity-based access control in the site admin interface, you need to enable the Entity feature and implement the entity lookup functionality:
 
-**1. Enable the Sub-Feature:**
+**1. Enable the Entity Feature:**
 
-In your `pika-config.ts`, enable the entity access control UI:
+In your `pika-config.ts`, enable the entity feature:
 
 ```typescript
 export const pikaConfig: PikaConfig = {
     // ... other configuration
     siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId', // Field in customData containing entity ID
+            searchPlaceholderText: 'Search for an account...',
+            displayNameSingular: 'Account', // How to refer to one entity
+            displayNamePlural: 'Accounts', // How to refer to multiple entities
+            tableColumnHeaderTitle: 'Account ID' // Column header in tables
+        },
         siteAdmin: {
-            websiteEnabled: true,
-            supportUserEntityAccessControl: true // Enables the entity picker UI
+            websiteEnabled: true
+            // Entity access control is automatically enabled when entity feature is on
         }
     }
 };
@@ -206,16 +215,18 @@ For complete implementation details, examples, and IAM permission patterns, see 
 **Example Configuration:**
 
 ```typescript
-// Authentication provider specifies entity field
-async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
-    return 'accountId'; // or 'company.id', 'organization.externalId', etc.
+// Entity feature configuration specifies entity field
+entity: {
+    enabled: true,
+    attributeName: 'accountId', // or 'company.id', 'organization.externalId', etc.
+    // ... other config
 }
 
 // User's customData contains the entity identifier
 {
     userId: 'user_123',
     customData: {
-        accountId: 'enterprise_account_1',
+        accountId: 'enterprise_account_1', // This field name matches entity.attributeName
         email: 'user@enterprise.com'
     }
 }
@@ -362,9 +373,11 @@ const hrToolOverride = {
 
 **Entity-Based Access Not Working:**
 
-- Verify authentication provider implements `getCustomDataFieldPathToMatchUsersEntity()`
+- Verify the entity feature is enabled in `pika-config.ts` with `entity.enabled: true`
+- Check that `entity.attributeName` matches the field in user `customData`
 - Check that users have the entity field populated in `customData`
 - Ensure entity values in override match exactly with user data
+- Confirm `getValuesForEntityAutoComplete()` is properly implemented
 
 **Overrides Not Taking Effect:**
 
@@ -374,6 +387,7 @@ const hrToolOverride = {
 
 ## Related Features
 
+- **[Entity Feature](./entity-feature.md)**: Complete guide to the entity feature and its configuration
 - **[Authentication Guide](./authentication.md)**: How to implement entity-based access control in your auth provider
 - **[User Data Override Feature](./overriding-user-data.md)**: Allows users to override their own data for testing
 - **[Content Admin Feature](./content-admin.md)**: Allows admins to view other users' chat content

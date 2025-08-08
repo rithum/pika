@@ -5,9 +5,7 @@ export class UserPrefsState {
     #prefs = $state<UserPrefs>();
     #initialized = $state(false);
 
-    constructor(private readonly fetchz: FetchZ) {
-        this.refreshPrefsFromServer();
-    }
+    constructor(private readonly fetchz: FetchZ) {}
 
     get initialized() {
         return this.#initialized;
@@ -49,7 +47,10 @@ export class UserPrefsState {
      * @param key - The key of the pref to get
      * @returns The value of the pref, or undefined if the pref is not set
      */
-    getPref<T>(key: string): T | undefined {
+    async getPref<T>(key: string): Promise<T | undefined> {
+        if (!this.#initialized) {
+            await this.refreshPrefsFromServer();
+        }
         return this.#prefs?.[key] as T | undefined;
     }
 

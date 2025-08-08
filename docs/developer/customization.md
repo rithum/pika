@@ -457,7 +457,21 @@ The system follows this order when determining chat app access:
 
 **Entity-Based Access Control Example:**
 
+This functionality requires the Entity feature to be enabled and configured. See the [Entity Feature Guide](./entity-feature.md) for complete setup instructions.
+
 ```typescript
+// First, enable the entity feature in pika-config.ts
+siteFeatures: {
+    entity: {
+        enabled: true,
+        attributeName: "accountId",
+        searchPlaceholderText: "Search for an account...",
+        displayNameSingular: "Account",
+        displayNamePlural: "Accounts",
+        tableColumnHeaderTitle: "Account ID"
+    }
+}
+
 // Example: Restrict a chat app to specific customer accounts
 const customerSupportOverride = {
     enabled: true,
@@ -468,7 +482,7 @@ const customerSupportOverride = {
 // Users need:
 // - For external users: customData.accountId must be in the external list
 // - For internal users: customData entity field must be in the internal list
-// - Entity field is determined by AuthProvider.getCustomDataFieldPathToMatchUsersEntity()
+// - Entity field is determined by entity.attributeName in the entity feature configuration of pika-config.ts
 ```
 
 **User ID Access Control Example:**
@@ -503,7 +517,7 @@ const internalToolOverride = {
 
 The override system works seamlessly with your authentication provider:
 
-- **Entity Field Mapping**: Uses `AuthProvider.getCustomDataFieldPathToMatchUsersEntity()` to determine which custom data field contains the entity identifier
+- **Entity Field Mapping**: Uses `entity.attributeName` from the entity feature configuration to determine which custom data field contains the entity identifier of pika-config.ts
 - **Nested Field Support**: Supports dot notation for nested fields (e.g., `'company.accountId'`)
 - **Type Safety**: Validates entity values against configured access control lists
 
@@ -521,7 +535,7 @@ The override system works seamlessly with your authentication provider:
 - **Beta Testing**: New features rolled out to specific user groups
 - **Compliance**: Regulatory requirements for data access segregation
 
-**Documentation:** See [Entity-Based Access Control](./authentication.md#entity-based-access-control-integration) for authentication provider setup and [Chat App Override APIs](./api-reference.md) for programmatic management.
+**Documentation:** See [Entity Feature Guide](./entity-feature.md) for complete entity setup, [Entity-Based Access Control](./authentication.md#entity-based-access-control-integration) for authentication provider setup, and [Chat App Override APIs](./api-reference.md) for programmatic management.
 
 #### Feature Override System
 
@@ -640,6 +654,16 @@ The override system works seamlessly with your authentication provider:
 - **Note:** Project names are automatically imported from `pika-config.ts`
 
 **Important:** These files are protected from framework updates by default. If you want to receive framework updates for these files, add them to the `userUnprotectedAreas` array in `.pika-sync.json`.
+
+### Entity Feature
+
+**Purpose:** Associate users with organizational entities (accounts, companies, organizations) to enable entity-based access control, filtering, and display throughout the system.
+
+**Use Case:** Multi-tenant applications, customer support systems, partner portals, and any scenario where users belong to specific organizational entities.
+
+**Configuration:** Enable in `pika-config.ts` siteFeatures with entity display names, field mapping, and implement the autocomplete data source.
+
+**Documentation:** See [Entity Feature Guide](./entity-feature.md) for complete configuration and implementation details.
 
 ### User Data Override Feature
 

@@ -49,14 +49,6 @@ export const POST: RequestHandler = async (event) => {
             return new Response('User is not allowed to use entity access control', { status: 403 });
         }
 
-        if (!('chatAppId' in siteAdminReq)) {
-            return new Response('chatAppId is required', { status: 400 });
-        }
-
-        if (!('type' in siteAdminReq)) {
-            return new Response('type is required', { status: 400 });
-        }
-
         if (!('valueProvidedByUser' in siteAdminReq)) {
             return new Response('valueProvidedByUser is required', { status: 400 });
         }

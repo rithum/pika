@@ -2,26 +2,30 @@ import type { AuthenticatedUser, RecordOrUndef, SimpleOption } from '@pika/share
 
 /**
  * Get the values for an auto complete input component in the admin UI.  This is used if you have turned on
- * the siteAdmin feature and within it the supportUserEntityAccessControl feature in the site features (@see pika-config.ts).
+ * the entity feature and siteAdmin feature and within it the sessionInsights feature.
  *
- * When you turn that on, the admin UI will show a new section in the chat app configuration called "Entity Access Control" that
- * can be set for internal and external users separately.  The admin user can then search for entities whose users are
- * to be given exclusive access to the chat app, meaning that only users associated with those entities will be able to
- * access the chat app.
+ * When you turn on siteAdmin.entity.enabled, the admin UI will show a new section in the chat app
+ * configuration called "Entity Access Control" that can be set for internal and external users separately.  The
+ * admin user can then search for entities whose users are to be given exclusive access to the chat app, meaning that
+ * only users associated with those entities will be able to access the chat app.
+ *
+ * When you turn on siteAdmin.entity.enabled and siteAdmin.sessionInsights.enabled, the admin UI will allow for the display
+ * and filtering of entities in the session insights UI.  The admin user can then search for entities whose users are
+ * to be displayed in the session insights UI (of course, assuming you have enabled session insights in the site features).
  *
  * This would let you do a query using the `valueProvidedByUser` to get the values for the auto complete input.
  *
- * @param type The type of user to get the values for: "internal-user" or "external-user"
+ * You should completely replace this file with your own implementation.  This is just a placeholder to get you started.
+ *
  * @param valueProvidedByUser The value provided by the user (the value typed by the user in the picker to query on)
  * @param user The logged in user
- * @param chatAppId The chat app whose entity access control is being configured
+ * @param chatAppId The chat app whose entity access control is being configured (won't be there in some cases)
  * @returns
  */
 export async function getValuesForEntityAutoComplete(
-    _type: 'internal-user' | 'external-user',
     valueProvidedByUser: string,
     _user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    _chatAppId: string
+    _chatAppId?: string
 ): Promise<SimpleOption[] | undefined> {
     /*
         Replace everything in this function with your own implementation.  You may use fetch to reach out to an API.

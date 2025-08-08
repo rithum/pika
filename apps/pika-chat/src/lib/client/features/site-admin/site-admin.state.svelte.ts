@@ -27,9 +27,11 @@ import type { ServerSideTableState } from '$ui/pika/pika-table/types';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 import type { ComponentRegistry } from '../chat/message-segments/component-registry';
+import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
+    #identity: IdentityState;
     #chatApps = $state<ChatApp[]>([]);
     #siteFeatures = $state<SiteFeatures>();
     #nav = $state<SiteAdminNavState>() as SiteAdminNavState;
@@ -84,7 +86,8 @@ export class SiteAdminState {
         chatApps: ChatApp[],
         siteFeatures: SiteFeatures,
         page: Page,
-        componentRegistry: ComponentRegistry
+        componentRegistry: ComponentRegistry,
+        identity: IdentityState
     ) {
         this.#chatApps = chatApps;
         this.#siteFeatures = siteFeatures;
@@ -92,11 +95,12 @@ export class SiteAdminState {
         this.#nav = new SiteAdminNavState(page, siteFeatures);
         this.#userPrefs = new UserPrefsState(this.fetchz);
         this.#componentRegistry = componentRegistry;
+        this.#identity = identity;
     }
 
     get sessionInsights() {
         if (!this.#sessionInsights) {
-            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry);
+            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry, this.#identity);
         }
         return this.#sessionInsights;
     }

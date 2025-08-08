@@ -36,6 +36,14 @@ export const pikaConfig: PikaConfig = {
                 ]
             }
         },
+        entity: {
+            enabled: true,
+            attributeName: 'accountId',
+            tableColumnHeaderTitle: 'Account ID',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            searchPlaceholderText: 'Search for an account...'
+        },
         userDataOverrides: {
             enabled: true,
             promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId', 'accountType']
@@ -67,10 +75,7 @@ export const pikaConfig: PikaConfig = {
         siteAdmin: {
             websiteEnabled: true,
             supportUserEntityAccessControl: {
-                enabled: true,
-                searchPlaceholderText: 'Search for an account...',
-                entityDisplayNameSingular: 'Account',
-                entityDisplayNamePlural: 'Accounts'
+                enabled: true
             },
             supportSpecificUserAccessControl: {
                 enabled: true

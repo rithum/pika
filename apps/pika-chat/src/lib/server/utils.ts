@@ -128,6 +128,10 @@ export function isUserSiteAdmin(user: AuthenticatedUser<RecordOrUndef, RecordOrU
     return result;
 }
 
+export function isUserAllowedToUseSessionInsights(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
+    return isUserSiteAdmin(user) && (siteFeatures?.siteAdmin?.sessionInsights?.enabled ?? false);
+}
+
 export function isUserAllowedToUseSpecificUserAccessControl(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
     let result = siteFeatures?.siteAdmin?.supportSpecificUserAccessControl?.enabled ?? false;
     if (result) {
@@ -137,7 +141,7 @@ export function isUserAllowedToUseSpecificUserAccessControl(user: AuthenticatedU
 }
 
 export function isUserAllowedToUseEntityAccessControl(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
-    let result = siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled ?? false;
+    let result = (siteFeatures?.entity?.enabled && siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled) ?? false;
     if (result) {
         result = user.roles?.includes('pika:site-admin') ?? false;
     }

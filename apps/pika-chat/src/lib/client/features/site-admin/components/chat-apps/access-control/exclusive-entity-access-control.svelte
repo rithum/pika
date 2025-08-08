@@ -38,7 +38,11 @@
     let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
     let entityDisplaySingularLower = $derived.by(() => {
-        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular;
+        let val =
+            siteAdmin.siteFeatures?.entity?.enabled &&
+            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
+                ? siteAdmin.siteFeatures?.entity?.displayNameSingular
+                : undefined;
         if (val) {
             return val.charAt(0).toLowerCase() + val.slice(1);
         } else {
@@ -47,7 +51,11 @@
     });
 
     let entityDisplaySingularUpper = $derived.by(() => {
-        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNameSingular;
+        let val =
+            siteAdmin.siteFeatures?.entity?.enabled &&
+            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
+                ? siteAdmin.siteFeatures?.entity?.displayNameSingular
+                : undefined;
         if (val) {
             return val.charAt(0).toUpperCase() + val.slice(1);
         } else {
@@ -56,7 +64,11 @@
     });
 
     let entityDisplayPluralLower = $derived.by(() => {
-        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural;
+        let val =
+            siteAdmin.siteFeatures?.entity?.enabled &&
+            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
+                ? siteAdmin.siteFeatures?.entity?.displayNamePlural
+                : undefined;
         if (val) {
             return val.charAt(0).toLowerCase() + val.slice(1);
         } else {
@@ -65,7 +77,11 @@
     });
 
     let entityDisplayPluralUpper = $derived.by(() => {
-        let val = siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.entityDisplayNamePlural;
+        let val =
+            siteAdmin.siteFeatures?.entity?.enabled &&
+            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
+                ? siteAdmin.siteFeatures?.entity?.displayNamePlural
+                : undefined;
         if (val) {
             return val.charAt(0).toUpperCase() + val.slice(1);
         } else {
@@ -249,7 +265,7 @@
                         options: autoCompleteOptions,
                         minCharactersForSearch: 1,
                         showValueInListEntries: true,
-                        popupInputPlaceholder: `${siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.searchPlaceholderText ?? `Search for an ${entityDisplaySingularLower}`}...`,
+                        popupInputPlaceholder: `${siteAdmin.siteFeatures?.entity?.searchPlaceholderText ?? `Search for an ${entityDisplaySingularLower}`}...`,
                         optionTypeName: entityDisplaySingularUpper,
                         optionTypeNamePlural: entityDisplayPluralUpper,
                         loading: loadingEntities,

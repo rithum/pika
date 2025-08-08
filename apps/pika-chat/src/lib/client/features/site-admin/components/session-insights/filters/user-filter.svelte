@@ -4,6 +4,7 @@
     import type { ChatUserLite, NameValuePair } from '@pika/shared/types/chatbot/chatbot-types';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { getContext } from 'svelte';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
 
     interface Props {
         userId: string | undefined;
@@ -15,34 +16,36 @@
 </script>
 
 <div class="flex flex-col gap-1 w-full mr-4">
-    <Label class="text-sm font-medium text-muted-foreground">User</Label>
-    <!-- onValueChanged={valueChanged} -->
-    <Combobox
-        bind:value={
-            () => {
-                let result: ChatUserLite | undefined = undefined;
+    <div class="flex items-center gap-2 w-full">
+        <PopupHelp popoverClasses="text-xs w-auto p-1">Filter by user</PopupHelp>
+        <Combobox
+            bind:value={
+                () => {
+                    let result: ChatUserLite | undefined = undefined;
 
-                if (userId) {
-                    result = { userId };
+                    if (userId) {
+                        result = { userId };
+                    }
+
+                    return result;
+                },
+                (val) => {
+                    userId = val?.userId ?? undefined;
                 }
-
-                return result;
-            },
-            (val) => {
-                userId = val?.userId ?? undefined;
             }
-        }
-        mapping={{
-            value: (val) => val?.userId ?? '',
-            label: (val) => val?.userId ?? '',
-        }}
-        options={sessionInsights.valuesForUserAutoComplete}
-        onSearchValueChanged={(val) => sessionInsights.getValuesForUserAutoComplete(val)}
-        loading={sessionInsights.userAutoCompleteSearchInProgress}
-        optionTypeName="user"
-        optionTypeNamePlural="users"
-        minCharactersForSearch={3}
-        allowClear={true}
-        inputPlaceholder="Filter by user..."
-    />
+            mapping={{
+                value: (val) => val?.userId ?? '',
+                label: (val) => val?.userId ?? '',
+            }}
+            options={sessionInsights.valuesForUserAutoComplete}
+            onSearchValueChanged={(val) => sessionInsights.getValuesForUserAutoComplete(val)}
+            loading={sessionInsights.userAutoCompleteSearchInProgress}
+            optionTypeName="user"
+            optionTypeNamePlural="users"
+            minCharactersForSearch={3}
+            allowClear={true}
+            inputPlaceholder="Filter by user..."
+            wrapperClasses="flex-1 w-full"
+        />
+    </div>
 </div>

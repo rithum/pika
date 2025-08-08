@@ -1,31 +1,34 @@
 import type { FetchZ } from '$lib/client/app/types';
+import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
+import { MessageSegmentProcessor } from '$lib/client/features/chat/message-segments/segment-processor';
+import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
 import type {
-    SessionSearchRequest,
-    SessionSearchResponse,
-    ChatSession,
-    RecordOrUndef,
-    SessionSearchAdminRequest,
-    ChatUserLite,
-    GetValuesForAutoCompleteResponse,
-    GetValuesForUserAutoCompleteResponse,
     ChatMessageForRendering,
     ChatMessagesResponse,
-    ChatApp
+    ChatSession,
+    ChatUserLite,
+    GetValuesForEntityAutoCompleteRequest,
+    GetValuesForEntityAutoCompleteResponse,
+    GetValuesForUserAutoCompleteResponse,
+    RecordOrUndef,
+    SessionSearchAdminRequest,
+    SessionSearchRequest,
+    SessionSearchResponse,
+    SimpleOption
 } from '@pika/shared/types/chatbot/chatbot-types';
-import { createDefaultSearchQuery } from './utils';
-import type { AdvancedSearchState, SavedSearch, SimpleSearchState } from './types';
-import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
-import cloneDeep from 'lodash.clonedeep';
 import deepEqual from 'deep-equal';
-import { untrack } from 'svelte';
-import { MessageSegmentProcessor } from '$lib/client/features/chat/message-segments/segment-processor';
-import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
+import cloneDeep from 'lodash.clonedeep';
+import { SvelteMap } from 'svelte/reactivity';
+import type { SavedSearch } from './types';
+import { createDefaultSearchQuery } from './utils';
+import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 
 const DEFAULT_SEARCH_ERROR = 'Unknown error occurred while searching sessions.  Please try again later.';
 const SAVED_SEARCHES_KEY = 'pika:admin:session-insights:saved-searches';
 
 export class SessionInsightsState {
     #userPrefs: UserPrefsState;
+    #identity: IdentityState;
     #sessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #selectedSessions = $state<string[]>([]);
     #isSearching = $state(false);
@@ -34,6 +37,9 @@ export class SessionInsightsState {
     #totalResults = $state(0);
     #expandedRows = $state<Set<string>>(new Set());
     #savedSearches = $state<SavedSearch[]>([]);
+    savedSearchInUse = $state<SavedSearch | undefined>(undefined);
+    #savingSavedSearch = $state(false);
+    #deletingSavedSearch = $state(false);
     #lastSearchTimestamp = $state<Date | undefined>(undefined);
     #hasMore = $state(false);
     searchQuery = $state<SessionSearchRequest<RecordOrUndef>>() as SessionSearchRequest<RecordOrUndef>;
@@ -53,6 +59,22 @@ export class SessionInsightsState {
     #retrievingMessages = $state(false);
     #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #componentRegistry: ComponentRegistry;
+    #valuesForEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
+    #entityAutoCompleteSearchInProgress = $state(false);
+    #entitiesRetrievedMap = $state<SvelteMap<string, SimpleOption>>(new SvelteMap());
+    #entitiesRetrieved = $derived.by(() => {
+        return Array.from(this.#entitiesRetrievedMap.values());
+    });
+    #loading = $derived.by(() => {
+        const savingSavedSearch = this.#savingSavedSearch ? 'Saving search...' : undefined;
+        const deletingSavedSearch = this.#deletingSavedSearch ? 'Deleting...' : undefined;
+        const searching = this.#isSearching ? 'Filtering sessions...' : undefined;
+        const entityAutoCompleteSearchInProgress = this.#entityAutoCompleteSearchInProgress ? 'Searching...' : undefined;
+        const retrievingMessages = this.#retrievingMessages ? 'Retrieving messages...' : undefined;
+        const userSearch = this.userAutoCompleteSearchInProgress ? 'Searching...' : undefined;
+
+        return savingSavedSearch ?? searching ?? entityAutoCompleteSearchInProgress ?? retrievingMessages ?? userSearch ?? undefined;
+    });
 
     // Panel visibility state
     #showInsightsPanel = $state(true);
@@ -61,13 +83,15 @@ export class SessionInsightsState {
     constructor(
         private readonly fetchz: FetchZ,
         userPrefs: UserPrefsState,
-        componentRegistry: ComponentRegistry
+        componentRegistry: ComponentRegistry,
+        identity: IdentityState
     ) {
         this.#userPrefs = userPrefs;
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
         this.loadSavedSearches();
         this.searchQuery = createDefaultSearchQuery();
         this.#componentRegistry = componentRegistry;
+        this.#identity = identity;
 
         $effect(() => {
             const query = this.searchQuery;
@@ -85,6 +109,26 @@ export class SessionInsightsState {
                 this.refreshMessagesForCurrentSession();
             }
         });
+    }
+
+    get savingSavedSearch() {
+        return this.#savingSavedSearch;
+    }
+
+    get loading() {
+        return this.#loading;
+    }
+
+    get entityAutoCompleteSearchInProgress() {
+        return this.#entityAutoCompleteSearchInProgress;
+    }
+
+    get entitiesRetrieved() {
+        return this.#entitiesRetrieved;
+    }
+
+    get valuesForEntityAutoComplete() {
+        return this.#valuesForEntityAutoComplete;
     }
 
     get componentRegistry() {
@@ -188,19 +232,88 @@ export class SessionInsightsState {
     }
 
     private async loadSavedSearches() {
-        const savedSearches = this.#userPrefs.getPref<SavedSearch[]>(SAVED_SEARCHES_KEY);
+        const savedSearches = await this.#userPrefs.getPref<SavedSearch[]>(SAVED_SEARCHES_KEY);
+        if (savedSearches && savedSearches.length > 0) {
+            // Descending order by createdAt
+            savedSearches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+
         this.#savedSearches = savedSearches ?? [];
     }
 
-    async saveSearch(search: SavedSearch) {
-        this.#savedSearches = [...this.#savedSearches, search];
-        await this.#userPrefs.modifyPref(SAVED_SEARCHES_KEY, this.#savedSearches);
+    async saveSearch(name: string) {
+        try {
+            this.#savingSavedSearch = true;
+            let existing = this.#savedSearches.find((s) => s.name === name);
+            if (existing) {
+                existing.searchParams = cloneDeep(this.searchQuery);
+            } else {
+                this.#savedSearches.unshift({
+                    id: crypto.randomUUID(),
+                    name,
+                    searchParams: cloneDeep(this.searchQuery),
+                    createdAt: new Date(),
+                    createdBy: this.#identity.user.userId
+                });
+            }
+
+            await this.#userPrefs.modifyPref(SAVED_SEARCHES_KEY, this.#savedSearches);
+        } finally {
+            this.#savingSavedSearch = false;
+        }
+    }
+
+    async deleteSavedSearch(search: SavedSearch) {
+        try {
+            this.#deletingSavedSearch = true;
+            this.#savedSearches = this.#savedSearches.filter((s) => s.name !== search.name);
+            if (this.savedSearchInUse?.name === search.name) {
+                this.savedSearchInUse = undefined;
+                this.searchQuery = createDefaultSearchQuery();
+            }
+            await this.#userPrefs.modifyPref(SAVED_SEARCHES_KEY, this.#savedSearches);
+        } finally {
+            this.#deletingSavedSearch = false;
+        }
     }
 
     async loadMore() {
         if (!this.#hasMore) return;
 
         await this.performSearch(true);
+    }
+
+    async getValuesForEntityAutoComplete(valueProvidedByUser: string) {
+        try {
+            this.#entityAutoCompleteSearchInProgress = true;
+
+            const request: GetValuesForEntityAutoCompleteRequest = {
+                command: 'getValuesForEntityAutoComplete',
+                valueProvidedByUser
+            };
+            const resp = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!resp.ok) {
+                throw new Error('Failed to get values for entity auto complete');
+            }
+
+            const responseBody = (await resp.json()) as GetValuesForEntityAutoCompleteResponse;
+
+            if (!responseBody.success) {
+                throw new Error('Failed to get values for entity auto complete');
+            }
+
+            this.#valuesForEntityAutoComplete = responseBody.data;
+            responseBody.data?.forEach((entity) => this.#entitiesRetrievedMap.set(entity.value, entity));
+        } finally {
+            this.#entityAutoCompleteSearchInProgress = false;
+        }
     }
 
     async refreshMessagesForCurrentSession() {

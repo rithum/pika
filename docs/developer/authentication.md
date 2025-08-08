@@ -450,32 +450,34 @@ export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomDat
 
 ### Overview
 
-Your authentication provider can specify which custom data field should be used for entity-based access control to chat apps. This enables sophisticated access control where specific accounts, companies, or organizations can be granted or denied access to individual chat apps.
+The Pika framework now provides entity-based access control through the dedicated Entity feature. This enables sophisticated access control where specific accounts, companies, or organizations can be granted or denied access to individual chat apps.
 
-### The `getCustomDataFieldPathToMatchUsersEntity` Method
+### Entity Feature Configuration
 
-This optional method tells the framework which field in the user's `customData` should be used to match against entity access control lists defined in chat app overrides.
+Instead of implementing a method in your authentication provider, entity-based access control is now configured declaratively in your `pika-config.ts`:
 
 ```typescript
-/**
- * Specify which custom data field to use for entity-based access control.
- * This enables fine-grained access control where specific entities (accounts, companies, etc.)
- * can be granted access to individual chat apps via ChatAppOverride settings.
- *
- * @returns The path to the custom data field to match against entities.
- *          For example, 'accountId' would match against customData.accountId.
- *          Supports dot notation for nested fields like 'company.accountId'.
- */
-async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
-    return 'accountId'; // or 'company.id', 'organization.externalId', etc.
-}
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId', // Field in user.customData containing entity identifier
+            searchPlaceholderText: 'Search for an account...',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            tableColumnHeaderTitle: 'Account ID'
+        }
+    }
+};
 ```
+
+The `attributeName` field specifies which field in the user's `customData` should be used to match against entity access control lists defined in chat app overrides.
 
 ### How Entity Matching Works
 
-1. **Authentication Provider Setup**: Your provider specifies the field path (e.g., `'accountId'`)
+1. **Entity Feature Setup**: Configure the `attributeName` in your entity feature settings (e.g., `'accountId'`)
 2. **Chat App Override Configuration**: Admins can configure exclusive access lists for chat apps
-3. **Access Check**: Framework extracts the entity value from user's `customData` and checks against allowed entities
+3. **Access Check**: Framework extracts the entity value from user's `customData` using the configured `attributeName` and checks against allowed entities
 4. **Access Granted/Denied**: User gains access only if their entity is in the allowed list
 
 ### Implementation Examples
@@ -483,11 +485,14 @@ async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
 **Simple Entity Matching:**
 
 ```typescript
-// User's customData: { accountId: 'acct_123', email: 'user@company.com' }
-async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
-    return 'accountId'; // Will match against 'acct_123'
+// Entity feature configuration:
+entity: {
+    enabled: true,
+    attributeName: 'accountId', // Will match against user's customData.accountId
+    // ... other config
 }
 
+// User's customData: { accountId: 'acct_123', email: 'user@company.com' }
 // Chat app override allows: ['acct_123', 'acct_456']
 // Result: User granted access because 'acct_123' is in the allowed list
 ```
@@ -495,21 +500,16 @@ async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
 **Nested Field Matching:**
 
 ```typescript
-// User's customData: { company: { id: 'comp_789', name: 'Acme Corp' }, role: 'admin' }
-async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
-    return 'company.id'; // Will match against 'comp_789'
+// Entity feature configuration:
+entity: {
+    enabled: true,
+    attributeName: 'company.id', // Will match against user's customData.company.id
+    // ... other config
 }
 
+// User's customData: { company: { id: 'comp_789', name: 'Acme Corp' }, role: 'admin' }
 // Chat app override allows: ['comp_789', 'comp_101']
 // Result: User granted access because 'comp_789' is in the allowed list
-```
-
-**Dynamic Entity Selection:**
-
-```typescript
-async getCustomDataFieldPathToMatchUsersEntity(): Promise<string | undefined> {
-    return 'companyId';
-}
 ```
 
 ### Access Control Precedence
@@ -554,7 +554,7 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
                 customData: {
                     email: userData.email,
                     companyId: userData.companyId,
-                    accountId: userData.accountId, // This will be used for entity matching
+                    accountId: userData.accountId, // This will be used for entity matching when configured in entity.attributeName
                     department: userData.department
                 },
                 authData: {
@@ -568,11 +568,6 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
                 }
             }
         };
-    }
-
-    // Specify that accountId should be used for entity-based access control
-    async getCustomDataFieldPathToMatchUsersEntity(): Promise<string> {
-        return 'accountId';
     }
 
     // Optional: Display the current account context to users

@@ -24,7 +24,7 @@
             open = false;
         }}
     >
-        <HelpCircleOutline class="w-4 h-4 hover:text-blue-500 transition-colors" />
+        <HelpCircleOutline class="w-4 h-4 text-gray-400 hover:text-blue-500 transition-colors" />
     </Popover.Trigger>
 
     <Popover.Content class={cn('w-120', popoverClasses)}>

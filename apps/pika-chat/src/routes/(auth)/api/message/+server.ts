@@ -1,5 +1,6 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { appConfig } from '$lib/server/config';
+import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { getErrorResponse, getOverridableFeatures, isUserContentAdmin } from '$lib/server/utils';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
@@ -59,13 +60,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         let chatApp: ChatApp | undefined;
         try {
-            const authProvider = locals.authProvider;
-            let getCustomDataFieldPathToMatchUsersEntity: string | undefined;
+            let customDataFieldPathToMatchUsersEntity: string | undefined;
 
-            if (authProvider.getCustomDataFieldPathToMatchUsersEntity) {
-                getCustomDataFieldPathToMatchUsersEntity = await authProvider.getCustomDataFieldPathToMatchUsersEntity();
+            if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
+                customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
             }
-            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, getCustomDataFieldPathToMatchUsersEntity);
+
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, customDataFieldPathToMatchUsersEntity);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {
