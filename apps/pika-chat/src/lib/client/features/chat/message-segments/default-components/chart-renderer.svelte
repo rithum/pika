@@ -71,6 +71,15 @@
             // });
             const chartConfig = JSON.parse(rawTagContent);
 
+            // LLM tries to use type `horizontalBar` but we can fix it
+            if (chartConfig.type === 'horizontalBar') {
+                if (chartConfig.options == null) {
+                    chartConfig.options = {};
+                }
+                chartConfig.type = 'bar';
+                chartConfig.options.indexAxis = 'y';
+            }
+
             // Yield to browser for other renders
             await new Promise((resolve) => requestAnimationFrame(resolve));
 
