@@ -61,8 +61,10 @@ export async function ensureDomainExists(indexName: DomainIndex, options?: { dry
             } else if (isEmpty(diff.additivePutBody)) {
                 console.log(`Index ${meta.name} mappings are up to date.`);
             } else {
+                // Always log the mapping changes to be applied, regardless of dry run
+                console.log(`Index ${meta.name} requires additive mapping updates. putMapping body: ${JSON.stringify(diff.additivePutBody)}`);
                 if (dryRun) {
-                    console.log(`Index ${meta.name} requires additive mapping updates. Would call putMapping with body: ${JSON.stringify(diff.additivePutBody)}`);
+                    console.log(`Dry run enabled. Skipping indices.putMapping for ${meta.name}.`);
                 } else {
                     const putResp = await client.indices.putMapping({ index: meta.name, body: diff.additivePutBody });
                     if (putResp.statusCode !== 200) {
