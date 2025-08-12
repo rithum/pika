@@ -1229,6 +1229,8 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
 }
 
 export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackForUpdate): Promise<ChatSessionFeedback> {
+    const feedbackId = feedback.feedbackId;
+
     // Just in case, roll through the object provided and remove any fields that we are not allowed to update
     for (const attribute of Object.keys(feedback)) {
         if (!UPDATEABLE_FEEDBACK_FIELDS.includes(attribute as any)) {
@@ -1236,11 +1238,11 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
         }
     }
 
-    await updateFeedback(feedback.feedbackId, feedback);
+    await updateFeedback(feedbackId, feedback);
 
-    const result = await getFeedbackById(feedback.feedbackId);
+    const result = await getFeedbackById(feedbackId);
     if (!result) {
-        throw new Error(`Feedback not found after update: ${feedback.feedbackId}`);
+        throw new Error(`Feedback not found after update: ${feedbackId}`);
     }
 
     return result;

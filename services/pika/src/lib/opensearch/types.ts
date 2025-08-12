@@ -103,6 +103,14 @@ export const chatSessionOpenSearchMappings = {
                     severity: { type: 'keyword' },
                     type: { type: 'keyword' },
                     user_comment: { type: 'text' },
+                    attachments: {
+                        type: 'nested',
+                        properties: {
+                            s3_url: { type: 'keyword' },
+                            name: { type: 'keyword' },
+                            mime_type: { type: 'keyword' }
+                        }
+                    },
                     internal_comments: {
                         type: 'nested',
                         properties: {
@@ -110,7 +118,15 @@ export const chatSessionOpenSearchMappings = {
                             comment: { type: 'text' },
                             created_on: { type: 'date' },
                             type: { type: 'keyword' },
-                            status: { type: 'keyword' }
+                            status: { type: 'keyword' },
+                            attachments: {
+                                type: 'nested',
+                                properties: {
+                                    s3_url: { type: 'keyword' },
+                                    name: { type: 'keyword' },
+                                    mime_type: { type: 'keyword' }
+                                }
+                            }
                         }
                     },
                     created_on: { type: 'date' },
@@ -286,7 +302,17 @@ export interface PartialUpdateOp {
     op: 'partialUpdate';
     id: string;
     index: DomainIndex;
-    doc: Partial<OpenSearchIngestType>;
+    /**
+     * When performing a partial update with a document payload, specify fields to merge into the existing _source.
+     */
+    doc?: Partial<OpenSearchIngestType>;
+    /**
+     * When performing a partial update using a script, provide the painless script and parameters.
+     */
+    script?: {
+        source: string;
+        params?: Record<string, unknown>;
+    };
 }
 
 export function isDeleteObj(obj: OsWork): obj is DeleteOp {

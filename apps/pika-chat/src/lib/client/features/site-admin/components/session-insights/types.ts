@@ -7,3 +7,10 @@ export interface SavedSearch {
     createdAt: Date;
     createdBy: string;
 }
+
+export interface ImageForLightbox {
+    src: string;
+    name: string;
+    s3Url: string;
+    alt: string;
+}

@@ -58,6 +58,9 @@ const MICRO_BATCH_SIZE = 500;
 /** Limit the number of results we get back from opensearch when doing a term search */
 const MAX_TERM_SEARCH_RESULTS = 100;
 
+/** Batch size for mget existence checks */
+const MGET_BATCH_SIZE = 1000;
+
 export function getDeleteOp(obj: OpenSearchIndexable): DeleteOp {
     const index = getDomainIndex(obj);
     return {
@@ -195,6 +198,40 @@ export async function doMicroBatchWork(work: OsWork[]): Promise<void> {
 }
 
 /**
+ * Efficiently determine which documents exist in OpenSearch for a given index and set of ids.
+ * Returns a Set of ids that currently exist.
+ */
+export async function getExistingDocumentsByIds(index: DomainIndex, ids: string[]): Promise<Set<string>> {
+    const existingIds = new Set<string>();
+
+    if (!ids || ids.length === 0) {
+        return existingIds;
+    }
+
+    const indexName = osIndexMeta[index].name;
+    const chunks = spliceIntoChunks([...ids], MGET_BATCH_SIZE);
+
+    for (const chunk of chunks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resp = await execOpenSearchCmd<any>('mget', `Failed mget for index ${indexName}`, async (client: Client) => {
+            // The OpenSearch client expects ids in the body for mget when specifying a single index
+            // https://opensearch.org/docs/latest/api-reference/document-apis/multi-get/
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+            return (await client.mget({ index: indexName, body: { ids: chunk }, _source: false } as any)) as any;
+        });
+
+        const docs = resp?.body?.docs ?? [];
+        for (const doc of docs) {
+            if (doc && (doc.found === true || doc.found === 'true')) {
+                existingIds.add(String(doc._id));
+            }
+        }
+    }
+
+    return existingIds;
+}
+
+/**
  * Don't call this directly.  Call doMicroBatchWork instead.
  * The execOpenSearchCmd wrapper function helps us deal with times when the opensearch client seems
  * to go stale after extended periods.
@@ -215,7 +252,10 @@ async function bulkOperation(arr: OsWork[], errMsg: string) {
                 if (isDeleteObj(obj)) {
                     return [{ delete: { _index: obj.index, _id: obj.id } }];
                 } else if (isPartialUpdateObj(obj)) {
-                    return [{ update: { _index: obj.index, _id: obj.id } }, { doc: obj.doc, doc_as_upsert: false }];
+                    if (obj.script) {
+                        return [{ update: { _index: obj.index, _id: obj.id } }, { script: obj.script, scripted_upsert: false }];
+                    }
+                    return [{ update: { _index: obj.index, _id: obj.id } }, { doc: obj.doc ?? {}, doc_as_upsert: false }];
                 } else {
                     const index = getDomainIndex(obj);
                     // As any is fine because we just extracted the correct type from the object
@@ -2198,21 +2238,30 @@ function createAddFeedbackOperation(sessionId: string, feedback: any): PartialUp
         op: 'partialUpdate',
         id: sessionId,
         index: 'session',
-        doc: {
-            script: {
-                source: `
-                    if (ctx._source.feedback == null) {
-                        ctx._source.feedback = [];
-                    }
-                    ctx._source.feedback.add(params.feedback);
-                    ctx._source.last_index_date = params.currentDate;
-                `,
-                params: {
-                    feedback,
-                    currentDate: new Date().toISOString()
+        script: {
+            source: `
+                if (ctx._source.feedback == null) {
+                    ctx._source.feedback = [];
                 }
+                boolean exists = false;
+                for (int i = 0; i < ctx._source.feedback.length; i++) {
+                    if (ctx._source.feedback[i].feedback_id == params.feedback.feedback_id) {
+                        // Replace existing entry to ensure idempotency
+                        ctx._source.feedback[i] = params.feedback;
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    ctx._source.feedback.add(params.feedback);
+                }
+                ctx._source.last_index_date = params.currentDate;
+            `,
+            params: {
+                feedback,
+                currentDate: new Date().toISOString()
             }
-        } as any
+        }
     };
 }
 
@@ -2224,26 +2273,24 @@ function createUpdateFeedbackOperation(sessionId: string, feedback: any, feedbac
         op: 'partialUpdate',
         id: sessionId,
         index: 'session',
-        doc: {
-            script: {
-                source: `
-                    if (ctx._source.feedback != null) {
-                        for (int i = 0; i < ctx._source.feedback.length; i++) {
-                            if (ctx._source.feedback[i].feedback_id == params.feedbackId) {
-                                ctx._source.feedback[i] = params.feedback;
-                                break;
-                            }
+        script: {
+            source: `
+                if (ctx._source.feedback != null) {
+                    for (int i = 0; i < ctx._source.feedback.length; i++) {
+                        if (ctx._source.feedback[i].feedback_id == params.feedbackId) {
+                            ctx._source.feedback[i] = params.feedback;
+                            break;
                         }
                     }
-                    ctx._source.last_index_date = params.currentDate;
-                `,
-                params: {
-                    feedback,
-                    feedbackId,
-                    currentDate: new Date().toISOString()
                 }
+                ctx._source.last_index_date = params.currentDate;
+            `,
+            params: {
+                feedback,
+                feedbackId,
+                currentDate: new Date().toISOString()
             }
-        } as any
+        }
     };
 }
 
@@ -2255,19 +2302,17 @@ function createRemoveFeedbackOperation(sessionId: string, feedbackId: string): P
         op: 'partialUpdate',
         id: sessionId,
         index: 'session',
-        doc: {
-            script: {
-                source: `
-                    if (ctx._source.feedback != null) {
-                        ctx._source.feedback.removeIf(item -> item.feedback_id == params.feedbackId);
-                    }
-                    ctx._source.last_index_date = params.currentDate;
-                `,
-                params: {
-                    feedbackId,
-                    currentDate: new Date().toISOString()
+        script: {
+            source: `
+                if (ctx._source.feedback != null) {
+                    ctx._source.feedback.removeIf(item -> item.feedback_id == params.feedbackId);
                 }
+                ctx._source.last_index_date = params.currentDate;
+            `,
+            params: {
+                feedbackId,
+                currentDate: new Date().toISOString()
             }
-        } as any
+        }
     };
 }

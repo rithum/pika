@@ -2,6 +2,7 @@ import { ChatSessionFeedback } from '@pika/shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { chatSessionFeedbackChanged } from '../../lib/opensearch/opensearch';
+import { SnakeCase, convertToCamelCase } from '@pika/shared/util/chatbot-shared-utils';
 
 /**
  * This lambda function handles changes to the chat session feedback table.
@@ -27,7 +28,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
             switch (record.eventName) {
                 case 'INSERT':
                     if (record.dynamodb?.NewImage) {
-                        const newFeedback = unmarshall(record.dynamodb.NewImage as any) as ChatSessionFeedback;
+                        const newFeedback = convertToCamelCase<ChatSessionFeedback>(unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSessionFeedback>);
                         console.log(`New feedback created: ${newFeedback.feedbackId} for session ${newFeedback.sessionId}`);
                         newObjects.push(newFeedback);
                     }
@@ -35,7 +36,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                 case 'MODIFY':
                     if (record.dynamodb?.NewImage) {
-                        const modifiedFeedback = unmarshall(record.dynamodb.NewImage as any) as ChatSessionFeedback;
+                        const modifiedFeedback = convertToCamelCase<ChatSessionFeedback>(unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSessionFeedback>);
                         console.log(`Feedback modified: ${modifiedFeedback.feedbackId} for session ${modifiedFeedback.sessionId}`);
                         updatedObjects.push(modifiedFeedback);
                     }
@@ -43,7 +44,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                 case 'REMOVE':
                     if (record.dynamodb?.OldImage) {
-                        const deletedFeedback = unmarshall(record.dynamodb.OldImage as any) as ChatSessionFeedback;
+                        const deletedFeedback = convertToCamelCase<ChatSessionFeedback>(unmarshall(record.dynamodb.OldImage as any) as SnakeCase<ChatSessionFeedback>);
                         console.log(`Feedback deleted: ${deletedFeedback.feedbackId} for session ${deletedFeedback.sessionId}`);
                         deletedObjects.push(deletedFeedback);
                     }

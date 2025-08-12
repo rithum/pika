@@ -1090,7 +1090,9 @@ export async function updateFeedback(feedbackId: string, feedback: ChatSessionFe
         if (value !== undefined) {
             setExpressions.push(`#${field} = :${field}`);
             expressionAttributeNames[`#${field}`] = convertStringToSnakeCase(field);
-            expressionAttributeValues[`:${field}`] = value;
+            // Ensure nested objects/arrays have snake_cased keys for consistency with inserts
+            const valueToStore = value !== null && typeof value === 'object' ? convertToSnakeCase(value as any) : value;
+            expressionAttributeValues[`:${field}`] = valueToStore;
         }
     }
 

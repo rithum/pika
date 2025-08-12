@@ -3,13 +3,14 @@
     import { ScrollArea } from '$ui/shadcn/scroll-area';
     import { getContext, type Snippet } from 'svelte';
     import SessionsTable from '../components/session-insights/sessions-table.svelte';
-    import { RefreshCw, ChartBar, MessageSquare } from '$icons/lucide';
+    import { RefreshCw, ChartBar, MessagesSquare, MessageCircle } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
-    import SessionMessages from '../components/session-insights/session-messages.svelte';
+    import SessionMessages from '$lib/client/features/site-admin/components/session-insights/session-messages.svelte';
     import * as Resizable from '$ui/shadcn/resizable';
     import { Separator } from '$ui/shadcn/separator';
     import { X, Loader } from '$icons/lucide';
-    import SessionInsightsDetail from '../components/session-insights/session-insights-detail.svelte';
+    import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
+    import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -63,11 +64,18 @@
                             <ChartBar class="w-4 h-4" />
                         </Button>
                         <Button
+                            variant={sessionInsights.showFeedbackPanel ? 'default' : 'outline'}
+                            size="sm"
+                            onclick={() => sessionInsights.toggleFeedbackPanel()}
+                        >
+                            <MessageCircle class="w-4 h-4" />
+                        </Button>
+                        <Button
                             variant={sessionInsights.showMessagesPanel ? 'default' : 'outline'}
                             size="sm"
                             onclick={() => sessionInsights.toggleMessagesPanel()}
                         >
-                            <MessageSquare class="w-4 h-4" />
+                            <MessagesSquare class="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onclick={() => sessionInsights.closeRightPanel()}>
                             <X class="w-4 h-4" />
@@ -80,16 +88,25 @@
                 <div class="flex-1">
                     <Resizable.PaneGroup direction="vertical">
                         {#if sessionInsights.showInsightsPanel}
-                            <Resizable.Pane defaultSize={sessionInsights.showMessagesPanel ? 40 : 100}>
+                            <Resizable.Pane defaultSize={sessionInsights.showMessagesPanel ? 33 : 100}>
                                 <SessionInsightsDetail />
                             </Resizable.Pane>
-                            {#if sessionInsights.showMessagesPanel}
+                            {#if sessionInsights.showMessagesPanel || sessionInsights.showFeedbackPanel}
+                                <Resizable.Handle withHandle />
+                            {/if}
+                        {/if}
+
+                        {#if sessionInsights.showFeedbackPanel}
+                            <Resizable.Pane defaultSize={33}>
+                                <SessionFeedback />
+                            </Resizable.Pane>
+                            {#if sessionInsights.showMessagesPanel || sessionInsights.showInsightsPanel}
                                 <Resizable.Handle withHandle />
                             {/if}
                         {/if}
 
                         {#if sessionInsights.showMessagesPanel}
-                            <Resizable.Pane defaultSize={sessionInsights.showInsightsPanel ? 60 : 100}>
+                            <Resizable.Pane defaultSize={sessionInsights.showInsightsPanel ? 34 : 100}>
                                 <div class="flex h-full justify-center p-6 pl-4 pr-4">
                                     <SessionMessages />
                                 </div>

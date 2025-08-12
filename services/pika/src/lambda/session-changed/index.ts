@@ -5,7 +5,7 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import { convertChatSessionToCamelFromSnakeCase, isTTLDeletion } from '../../lib/utils';
-import { chatSessionUpdated } from '../../lib/opensearch/opensearch';
+import { chatSessionUpdated, getExistingDocumentsByIds } from '../../lib/opensearch/opensearch';
 import { SnakeCase, convertToCamelCase } from '@pika/shared/util/chatbot-shared-utils';
 
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION });
@@ -30,6 +30,10 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
     const newObjects: ChatSession<RecordOrUndef>[] = [];
     const updatedObjects: ChatSession<RecordOrUndef>[] = [];
     const deletedObjects: ChatSession<RecordOrUndef>[] = [];
+
+    // First pass: collect sessions by event type so we can batch-check existence for MODIFY
+    const modifySessions: ChatSession<RecordOrUndef>[] = [];
+    const modifyOldSessionsById: Map<string, ChatSession<RecordOrUndef> | undefined> = new Map();
 
     for (const record of event.Records) {
         console.log(`Event ID: ${record.eventID}`);
@@ -62,9 +66,9 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                         console.log(`Session modified: ${modifiedSession.sessionId}`);
 
-                        // Handle insights S3 URL changes
-                        const processedSession = await processInsightsChanges(modifiedSession, oldSession);
-                        updatedObjects.push(processedSession);
+                        // Defer processing until we know if it exists in OpenSearch
+                        modifySessions.push(modifiedSession);
+                        modifyOldSessionsById.set(modifiedSession.sessionId, oldSession);
                     }
                     break;
 
@@ -94,6 +98,40 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         } catch (error) {
             console.error(`Error processing record ${record.eventID}:`, error);
             // Continue processing other records rather than failing the entire batch
+        }
+    }
+
+    // Pre-process MODIFY records: batch existence check in OpenSearch to decide insert vs partial update
+    if (modifySessions.length > 0) {
+        try {
+            const ids = modifySessions.map((s) => s.sessionId);
+            const existing = await getExistingDocumentsByIds('session', ids);
+
+            for (const session of modifySessions) {
+                const oldSession = modifyOldSessionsById.get(session.sessionId);
+
+                if (existing.has(session.sessionId)) {
+                    // Exists in OpenSearch → process as update with insights-change handling
+                    const processed = await processInsightsChanges(session, oldSession);
+                    updatedObjects.push(processed);
+                } else {
+                    // Missing in OpenSearch → insert full document.
+                    // Always try to populate insights from S3 if a URL is present, regardless of whether it changed.
+                    let sessionToInsert = session;
+                    if (session.insightsS3Url) {
+                        const insights = await readInsightsFromS3(session.insightsS3Url);
+                        sessionToInsert = { ...session, insights };
+                    }
+                    newObjects.push(sessionToInsert);
+                }
+            }
+        } catch (error) {
+            console.error('Failed batch existence check for MODIFY sessions; falling back to updates:', error);
+            // Best-effort fallback: treat all modifies as updates
+            for (const session of modifySessions) {
+                const processed = await processInsightsChanges(session, modifyOldSessionsById.get(session.sessionId));
+                updatedObjects.push(processed);
+            }
         }
     }
 

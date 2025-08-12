@@ -6,7 +6,11 @@ import type {
     ChatMessageForRendering,
     ChatMessagesResponse,
     ChatSession,
+    ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
+    ChatSessionFeedbackForUpdate,
     ChatUserLite,
+    Attachment,
     GetValuesForEntityAutoCompleteRequest,
     GetValuesForEntityAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
@@ -19,7 +23,7 @@ import type {
 import deepEqual from 'deep-equal';
 import cloneDeep from 'lodash.clonedeep';
 import { SvelteMap } from 'svelte/reactivity';
-import type { SavedSearch } from './types';
+import type { ImageForLightbox, SavedSearch } from './types';
 import { createDefaultSearchQuery } from './utils';
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 
@@ -75,10 +79,18 @@ export class SessionInsightsState {
 
         return savingSavedSearch ?? searching ?? entityAutoCompleteSearchInProgress ?? retrievingMessages ?? userSearch ?? undefined;
     });
+    imageForLightbox = $state<ImageForLightbox | undefined>(undefined);
+    showImageLightbox = $state(false);
+    loadingImageLightbox = $state(false);
 
     // Panel visibility state
     #showInsightsPanel = $state(true);
     #showMessagesPanel = $state(true);
+    #showFeedbackPanel = $state(true);
+    #savingFeedback = $state(false);
+    #updatingFeedback = $state(false);
+    #addingInternalComment = $state(false);
+    attachmentOperationInProgress = $state(false);
 
     constructor(
         private readonly fetchz: FetchZ,
@@ -109,6 +121,18 @@ export class SessionInsightsState {
                 this.refreshMessagesForCurrentSession();
             }
         });
+    }
+
+    get savingFeedback() {
+        return this.#savingFeedback;
+    }
+
+    get updatingFeedback() {
+        return this.#updatingFeedback;
+    }
+
+    get addingInternalComment() {
+        return this.#addingInternalComment;
     }
 
     get savingSavedSearch() {
@@ -187,6 +211,44 @@ export class SessionInsightsState {
         return this.#showMessagesPanel;
     }
 
+    get showFeedbackPanel() {
+        return this.#showFeedbackPanel;
+    }
+
+    /**
+     * Load an image into the lightbox and show it.
+     *
+     * Convert to a temporary signed download via /api/download and display inline
+     * We'll fetch blob and create object URL for preview
+     *
+     * @param s3Url - The S3 URL of the image to load.
+     * @param name - The name of the image.
+     * @param urlObj - The URL object to use to create the object URL.
+     */
+    async loadLightboxImageAndShowLightbox(s3Url: string, name: string, urlObj: typeof URL) {
+        if (this.imageForLightbox?.src) {
+            urlObj.revokeObjectURL(this.imageForLightbox.src);
+        }
+
+        this.imageForLightbox = undefined;
+        this.showImageLightbox = true;
+
+        this.loadingImageLightbox = true;
+        try {
+            const s3Key = this.getS3KeyFromUrl(s3Url);
+            const resp = await fetch(`/api/download/${encodeURIComponent(s3Key)}`);
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            this.imageForLightbox = { src: url, name, s3Url, alt: name };
+        } catch (e) {
+            console.error('Error loading lightbox image', e);
+            this.showImageLightbox = false;
+            this.downloadAttachment(s3Url);
+        } finally {
+            this.loadingImageLightbox = false;
+        }
+    }
+
     clearSelection() {
         this.#selectedSessions = [];
     }
@@ -194,8 +256,8 @@ export class SessionInsightsState {
     toggleInsightsPanel() {
         this.#showInsightsPanel = !this.#showInsightsPanel;
 
-        // If both panels are hidden, close the entire right panel
-        if (!this.#showInsightsPanel && !this.#showMessagesPanel) {
+        // If all panels are hidden, close the entire right panel
+        if (!this.#showInsightsPanel && !this.#showMessagesPanel && !this.#showFeedbackPanel) {
             this.sessionIdToShowMessagesForInline = undefined;
         }
     }
@@ -203,8 +265,8 @@ export class SessionInsightsState {
     toggleMessagesPanel() {
         this.#showMessagesPanel = !this.#showMessagesPanel;
 
-        // If both panels are hidden, close the entire right panel
-        if (!this.#showInsightsPanel && !this.#showMessagesPanel) {
+        // If all panels are hidden, close the entire right panel
+        if (!this.#showInsightsPanel && !this.#showMessagesPanel && !this.#showFeedbackPanel) {
             this.sessionIdToShowMessagesForInline = undefined;
         }
     }
@@ -212,7 +274,17 @@ export class SessionInsightsState {
     closeRightPanel() {
         this.#showMessagesPanel = false;
         this.#showInsightsPanel = false;
+        this.#showFeedbackPanel = false;
         this.sessionIdToShowMessagesForInline = undefined;
+    }
+
+    toggleFeedbackPanel() {
+        this.#showFeedbackPanel = !this.#showFeedbackPanel;
+
+        // If all panels are hidden, close the entire right panel
+        if (!this.#showInsightsPanel && !this.#showMessagesPanel && !this.#showFeedbackPanel) {
+            this.sessionIdToShowMessagesForInline = undefined;
+        }
     }
 
     // Reset panel visibility when opening a new session
@@ -379,6 +451,62 @@ export class SessionInsightsState {
         }
     }
 
+    getS3KeyFromUrl(s3Url: string): string {
+        // expects s3://bucket/key
+        if (!s3Url.startsWith('s3://')) return s3Url;
+        const firstSlash = s3Url.indexOf('/', 's3://'.length);
+        return s3Url.substring(firstSlash + 1);
+    }
+
+    async downloadAttachment(s3Url: string) {
+        try {
+            const s3Key = this.getS3KeyFromUrl(s3Url);
+            const resp = await this.fetchz(`/api/download/${encodeURIComponent(s3Key)}`);
+            const blob = await resp.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = s3Key.split('/').pop() || 'download';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Error downloading attachment', e);
+        }
+    }
+
+    async uploadFeedbackAttachment(file: File): Promise<Attachment> {
+        this.attachmentOperationInProgress = true;
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const resp = await this.fetchz('/api/site-admin/file', { method: 'POST', body: form });
+            if (!resp.ok) {
+                throw new Error('Failed to upload attachment');
+            }
+            const json = (await resp.json()) as { success: boolean; attachment: Attachment };
+            if (!json.success || !json.attachment) {
+                throw new Error('Invalid upload response');
+            }
+            return json.attachment;
+        } finally {
+            this.attachmentOperationInProgress = false;
+        }
+    }
+
+    async deleteFeedbackAttachmentByS3Key(s3Key: string): Promise<void> {
+        this.attachmentOperationInProgress = true;
+        try {
+            const resp = await this.fetchz(`/api/site-admin/file?s3Key=${encodeURIComponent(s3Key)}`, { method: 'DELETE' });
+            if (!resp.ok) {
+                throw new Error('Failed to delete attachment');
+            }
+        } finally {
+            this.attachmentOperationInProgress = false;
+        }
+    }
+
     async performSearch(append = false) {
         if (this.#isSearching) return;
 
@@ -445,6 +573,96 @@ export class SessionInsightsState {
             this.#isSearching = false;
         }
     }
+
+    /**
+     * Add feedback to the current session (or any session by id) and update local state.
+     * Follows existing site-admin POST command patterns used elsewhere in this class.
+     */
+    async addChatSessionFeedback(feedback: ChatSessionFeedbackForCreate): Promise<ChatSessionFeedback | undefined> {
+        try {
+            this.#savingFeedback = true;
+            const resp = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: 'addChatSessionFeedback', feedback })
+            });
+
+            if (!resp.ok) {
+                console.error('Failed to add chat session feedback');
+                return undefined;
+            }
+
+            const json = (await resp.json()) as { success: boolean; feedback?: ChatSessionFeedback };
+            if (!json.success || !json.feedback) {
+                console.error('Failed to add chat session feedback (unsuccessful response)');
+                return undefined;
+            }
+
+            // Update local sessions cache
+            const newFeedback = json.feedback;
+            const idx = this.#sessions.findIndex((s) => s.sessionId === newFeedback.sessionId);
+            if (idx !== -1) {
+                if (!this.#sessions[idx].feedback) {
+                    this.#sessions[idx].feedback = [];
+                }
+                this.#sessions[idx].feedback!.push(newFeedback);
+            }
+
+            return newFeedback;
+        } catch (e) {
+            console.error('Error adding chat session feedback', e);
+            return undefined;
+        } finally {
+            this.#savingFeedback = false;
+        }
+    }
+
+    /**
+     * Update feedback (status, severity, type, internal comments, etc.) and update local state.
+     */
+    async updateChatSessionFeedback(feedback: ChatSessionFeedbackForUpdate): Promise<ChatSessionFeedback | undefined> {
+        try {
+            this.#updatingFeedback = true;
+            const resp = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: 'updateChatSessionFeedback', feedback })
+            });
+
+            if (!resp.ok) {
+                console.error('Failed to update chat session feedback');
+                return undefined;
+            }
+
+            const json = (await resp.json()) as { success: boolean; feedback?: ChatSessionFeedback };
+            if (!json.success || !json.feedback) {
+                console.error('Failed to update chat session feedback (unsuccessful response)');
+                return undefined;
+            }
+
+            // Update local sessions cache
+            const updated = json.feedback;
+            const sessionIdx = this.#sessions.findIndex((s) => s.sessionId === updated.sessionId);
+            if (sessionIdx !== -1) {
+                const feedbackArr = (this.#sessions[sessionIdx].feedback = this.#sessions[sessionIdx].feedback ?? []);
+                const fbIdx = feedbackArr.findIndex((f) => f.feedbackId === updated.feedbackId);
+                if (fbIdx !== -1) {
+                    feedbackArr[fbIdx] = updated;
+                } else {
+                    feedbackArr.push(updated);
+                }
+            }
+
+            return updated;
+        } catch (e) {
+            console.error('Error updating chat session feedback', e);
+            return undefined;
+        } finally {
+            this.#updatingFeedback = false;
+        }
+    }
+
+    // TODO(bruce): add helpers for adding/editing internal comments if needed at the state level.
 }
 
 // function setDatePreset(preset: 'today' | 'week' | 'month' | '3months') {

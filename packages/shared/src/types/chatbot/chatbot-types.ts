@@ -178,13 +178,27 @@ export interface ChatSessionFeedback {
     userComment?: string;
     /** Comments from the internal team. This is stored zipped in dynamodb.*/
     internalComments?: FeedbackInternalComment[];
+    /** Attachments to the feedback. */
+    attachments?: Attachment[];
     /** The date and time the feedback was created as a string in ISO 8601 format. */
     createdOn: string;
     /** The date and time the feedback was updated as a string in ISO 8601 format. */
     updatedOn: string;
-
     /** The date and time the feedback will expire as a unix timestamp in seconds. It's snake case because it's never going to be used by the app itself. */
     exp_date_unix_seconds?: number;
+}
+
+export interface Attachment {
+    /**
+     * The url to the s3 object in this form:
+     *
+     * s3://<bucket-name>/<session-id>/<attachment-id>.{extension}
+     */
+    s3Url: string;
+    /** Name of the attachment. */
+    name: string;
+    /** MIME type of the attachment. */
+    mimeType: string;
 }
 
 export const INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS = 'NEEDS_INSIGHTS_ANALYSIS';
@@ -271,10 +285,10 @@ export const SESSION_FEEDBACK_TYPE_VALUES: NameValueDescTriple<SessionFeedbackTy
 export type ChatSessionFeedbackForCreate = Omit<ChatSessionFeedback, 'createdOn' | 'updatedOn' | 'internalComments' | 'exp_date_unix_seconds'>;
 export type ChatSessionFeedbackForUpdate = Omit<
     ChatSessionFeedback,
-    'userId' | 'messageId' | 'reportedByHuman' | 'userComment' | 'createdOn' | 'updatedOn' | 'exp_date_unix_seconds' | 'createdByCustomer'
+    'userId' | 'messageId' | 'reportedByHuman' | 'createdOn' | 'updatedOn' | 'exp_date_unix_seconds' | 'createdByCustomer'
 >;
 
-export const UPDATEABLE_FEEDBACK_FIELDS = ['status', 'severity', 'type', 'internalComments'] as const;
+export const UPDATEABLE_FEEDBACK_FIELDS = ['status', 'severity', 'type', 'internalComments', 'userComment', 'attachments'] as const;
 export type UpdateableFeedbackFields = (typeof UPDATEABLE_FEEDBACK_FIELDS)[number];
 
 export interface FeedbackInternalComment {
@@ -284,6 +298,8 @@ export interface FeedbackInternalComment {
     userId: string;
     /** The comment. */
     comment: string;
+    /** The attachments to the comment. */
+    attachments?: Attachment[];
     /** The date and time the comment was made as a string in ISO 8601 format. */
     createdOn: string;
 
@@ -2713,9 +2729,7 @@ export interface EntitySiteFeature {
      *     }
      * }
      * ```
-     *
-     * If not provided this feature will not work.
-     */
+     * If not provided this feature will not work. */
     attributeName: string;
 
     /** The placeholder text for the search input. */

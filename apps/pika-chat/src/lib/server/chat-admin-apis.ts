@@ -232,7 +232,7 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/feedback`,
         method: 'POST',
-        body: feedback
+        body: { feedback }
     });
 
     if (!response.body || !response.body.success) {
@@ -247,7 +247,7 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/feedback`,
         method: 'PUT',
-        body: feedback
+        body: { feedback }
     });
 
     if (!response.body || !response.body.success) {
