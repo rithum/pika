@@ -8,9 +8,10 @@
 
     interface Props {
         userId: string | undefined;
+        inputPlaceholder?: string;
     }
 
-    let { userId = $bindable() }: Props = $props();
+    let { userId = $bindable(), inputPlaceholder = 'Filter by user...' }: Props = $props();
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
 </script>
@@ -44,7 +45,7 @@
             optionTypeNamePlural="users"
             minCharactersForSearch={3}
             allowClear={true}
-            inputPlaceholder="Filter by user..."
+            {inputPlaceholder}
             wrapperClasses="flex-1 w-full"
         />
     </div>

@@ -1,53 +1,30 @@
-import { Client, Types, API } from '@opensearch-project/opensearch';
-// import {
-//     BulkCreateResponseItem,
-//     DeleteByQueryResponse,
-//     MainError,
-//     MsearchBody,
-//     MsearchHeader,
-//     MsearchResponse,
-//     QueryDslBoolQuery,
-//     QueryDslQueryContainer,
-//     SearchSortResults,
-//     SearchTotalHits
-// } from '@opensearch-project/opensearch/api/';
+import { Client, Types } from '@opensearch-project/opensearch';
+
+import type { ChatSession, ChatSessionFeedback, RecordOrUndef, ScoreSearchParams, SessionSearchRequest, SessionSearchResponse } from '@pika/shared/types/chatbot/chatbot-types';
+import { convertToSnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import OsClient from './opensearch-client';
-import { buildScrollIdFromQueryAndLastHitSort, getNextPageQueryFromScrollId, handleOsError, prepareSearchTerm } from './opensearch-utils';
+import { buildScrollIdFromQueryAndLastHitSort, getNextPageQueryFromScrollId, handleOsError } from './opensearch-utils';
 import {
     type BulkResp,
     type BulkType,
+    type ChatSessionOs,
     type DeleteOp,
     type DomainIndex,
-    type MSearchResp,
-    type OSSearchResult,
+    GeneralError,
     type OpenSearchIndexable,
+    type OpenSearchIndexableMap,
+    type OpenSearchIngestMap,
     OsError,
     type OsFilterTermOrTermsQuery,
     type OsQuery,
-    type OsSort,
     type OsWork,
+    type PartialUpdateOp,
     getDomainIndex,
     isDeleteObj,
     isPartialUpdateObj,
-    osIndexMeta,
-    type ConversationIdAndInternalId,
-    GeneralError,
-    type PartialUpdateOp,
-    type ChatSessionOs
+    osIndexMeta
 } from './types';
-import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
-import { convertToSnakeCase, convertToCamelCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
-import type {
-    SessionSearchRequest,
-    ChatSession,
-    ChatSessionFeedback,
-    SessionAttributes,
-    SessionDataWithChatUserCustomDataSpreadIn,
-    ScoreSearchParams,
-    InsightsSearchParams,
-    SessionSearchResponse,
-    RecordOrUndef
-} from '@pika/shared/types/chatbot/chatbot-types';
 
 /** Limit the number of results we get back from opensearch */
 const MAX_RESULTS = 1000;
@@ -229,6 +206,49 @@ export async function getExistingDocumentsByIds(index: DomainIndex, ids: string[
     }
 
     return existingIds;
+}
+
+/**
+ * Retrieve documents by their IDs for a given domain index. Returns a map keyed by the document id
+ * (the OpenSearch _id, which for our indices is the domain id such as sessionId) to the base type
+ * object (converted from the OpenSearch ingest shape).
+ */
+export async function getDocumentsByIds<T extends DomainIndex>(index: T, ids: string[]): Promise<Record<string, OpenSearchIndexableMap[T]>> {
+    const results: Record<string, OpenSearchIndexableMap[T]> = Object.create(null);
+
+    if (!ids || ids.length === 0) {
+        return results;
+    }
+
+    const indexName = osIndexMeta[index].name;
+    const chunks = spliceIntoChunks([...ids], MGET_BATCH_SIZE);
+
+    for (const chunk of chunks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resp = await execOpenSearchCmd<any>('mget', `Failed mget for index ${indexName}`, async (client: Client) => {
+            // The OpenSearch client expects ids in the body for mget when specifying a single index
+            // https://opensearch.org/docs/latest/api-reference/document-apis/multi-get/
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+            return (await client.mget({ index: indexName, body: { ids: chunk }, _source: true } as any)) as any;
+        });
+
+        const docs = resp?.body?.docs ?? [];
+        for (const doc of docs) {
+            if (doc && (doc.found === true || doc.found === 'true')) {
+                const id = String(doc._id);
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                const source = doc._source as OpenSearchIngestMap[T];
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                const converted: OpenSearchIndexableMap[T] = osIndexMeta[index].convertFromOsToBaseType(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    source as any
+                ) as OpenSearchIndexableMap[T];
+                results[id] = converted;
+            }
+        }
+    }
+
+    return results;
 }
 
 /**
@@ -566,9 +586,6 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                     }
                 });
             } else if (hasFeedbackCriteria) {
-                // If any feedback criteria specified, require feedback to exist
-                filter.push({ exists: { field: 'feedback' } });
-
                 // Build nested feedback filters
                 const feedbackFilters: any[] = [];
 

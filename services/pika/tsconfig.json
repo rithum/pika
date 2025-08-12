@@ -22,7 +22,8 @@
         "bin",
         "lib/stacks",
         "tools/jwt-secret-generator",
-        "test"
+        "test",
+        "tools/opensearch/os-tools.ts"
     ],
     "exclude": [
         "node_modules",

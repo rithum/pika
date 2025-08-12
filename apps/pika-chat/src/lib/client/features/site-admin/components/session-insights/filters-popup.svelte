@@ -139,6 +139,14 @@
                                 sessionInsights.searchQuery.feedbackInternalCommentStatus
                             }
                         />
+                        <UserFilter
+                            bind:userId={sessionInsights.searchQuery.feedbackUserId}
+                            inputPlaceholder="Filter by feedback user..."
+                        />
+                        <UserFilter
+                            bind:userId={sessionInsights.searchQuery.feedbackInternalCommentUserId}
+                            inputPlaceholder="Filter by internal comment user..."
+                        />
                     </div>
                 </div>
             {/if}
