@@ -901,6 +901,80 @@ export async function setSessionsInsightsAnalysisInBatch(sessions: ChatSessionLi
 }
 
 /**
+ * Perform a no-op touch on a chat session to trigger DynamoDB Streams without changing business data.
+ * Sets last_update to its current value if present; otherwise performs a self-assign update.
+ */
+export async function touchChatSession(session: { userId: string; sessionId: string }): Promise<void> {
+    const tableName = getChatSessionTable();
+    const key = { user_id: session.userId, session_id: session.sessionId };
+
+    // Retrieve the current last_update value (if any)
+    const current = await ddbDocClient.get({
+        TableName: tableName,
+        Key: key,
+        ProjectionExpression: 'last_update'
+    });
+
+    const lastUpdate = (current.Item as any)?.last_update;
+
+    if (lastUpdate !== undefined) {
+        // Re-set the same value to force an update event
+        await ddbDocClient.update({
+            TableName: tableName,
+            Key: key,
+            UpdateExpression: 'SET #lastUpdate = :lastUpdate',
+            ExpressionAttributeNames: { '#lastUpdate': 'last_update' },
+            ExpressionAttributeValues: { ':lastUpdate': lastUpdate }
+        });
+    } else {
+        // Fall back to a self-assign update which does not add attributes
+        await ddbDocClient.update({
+            TableName: tableName,
+            Key: key,
+            UpdateExpression: 'SET #lastUpdate = #lastUpdate',
+            ExpressionAttributeNames: { '#lastUpdate': 'last_update' }
+        });
+    }
+}
+
+/**
+ * Perform a no-op touch on a feedback record to trigger DynamoDB Streams without changing business data.
+ * Re-writes updated_on to its current value if present; otherwise performs a self-assign update.
+ */
+export async function touchChatFeedback(feedbackId: string): Promise<void> {
+    const tableName = getChatSessionFeedbackTable();
+    const key = { feedback_id: feedbackId };
+
+    // Retrieve the current updated_on value (if any)
+    const current = await ddbDocClient.get({
+        TableName: tableName,
+        Key: key,
+        ProjectionExpression: 'updated_on'
+    });
+
+    const updatedOn = (current.Item as any)?.updated_on;
+
+    if (updatedOn !== undefined) {
+        // Re-set the same value to force an update event
+        await ddbDocClient.update({
+            TableName: tableName,
+            Key: key,
+            UpdateExpression: 'SET #updatedOn = :updatedOn',
+            ExpressionAttributeNames: { '#updatedOn': 'updated_on' },
+            ExpressionAttributeValues: { ':updatedOn': updatedOn }
+        });
+    } else {
+        // Fall back to a self-assign update which does not add attributes
+        await ddbDocClient.update({
+            TableName: tableName,
+            Key: key,
+            UpdateExpression: 'SET #updatedOn = #updatedOn',
+            ExpressionAttributeNames: { '#updatedOn': 'updated_on' }
+        });
+    }
+}
+
+/**
  * Process a single batch with retry logic using p-retry
  */
 async function processBatchWithRetry(

@@ -717,6 +717,27 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
 
         // Execute the search
         const index = osIndexMeta.session.name; // Use configured session index name
+        // Log the final query before execution (help diagnose unexpected filters/sorts)
+        try {
+            console.log(
+                'queryForSessions: final query',
+                JSON.stringify(
+                    {
+                        index,
+                        size: body.size,
+                        sort: body.sort,
+                        track_total_hits: body.track_total_hits,
+                        filterCount: (body.query?.bool?.filter as any[])?.length ?? 0,
+                        mustCount: (body.query?.bool?.must as any[])?.length ?? 0,
+                        query: body
+                    },
+                    null,
+                    2
+                )
+            );
+        } catch (e) {
+            console.warn('queryForSessions: failed to log final query', e);
+        }
         const resp = await execOpenSearchCmd(`queryForSessions`, `Failed queryForSessions`, async (client: Client): Promise<any> => {
             return await client.search({ index, body } as any);
         });
@@ -724,6 +745,58 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
         // Process the response
         const morePages = resp.body.hits.hits.length === (searchRequest.size ?? MAX_RESULTS);
         let scrollId: string | undefined;
+
+        // Log response summary including totals and bounds
+        try {
+            const totalRaw = resp.body.hits.total;
+            const totalParsed = getTotalValue(totalRaw);
+            const hitsLen = resp.body.hits.hits.length;
+            console.log(
+                'queryForSessions: response summary',
+                JSON.stringify(
+                    {
+                        tookMs: resp.body.took,
+                        hitsReturned: hitsLen,
+                        totalRaw,
+                        totalParsed,
+                        pageSize: body.size,
+                        morePages,
+                        sort: body.sort,
+                        track_total_hits: body.track_total_hits
+                    },
+                    null,
+                    2
+                )
+            );
+
+            console.log(
+                'queryForSessions: page bounds',
+                JSON.stringify(
+                    {
+                        firstId: resp.body.hits.hits[0]?._source?.session_id,
+                        firstSort: resp.body.hits.hits[0]?.sort,
+                        lastId: resp.body.hits.hits[hitsLen - 1]?._source?.session_id,
+                        lastSort: resp.body.hits.hits[hitsLen - 1]?.sort
+                    },
+                    null,
+                    2
+                )
+            );
+        } catch (e) {
+            console.warn('queryForSessions: failed to log response summary/bounds', e);
+        }
+
+        // Optional debug: run a filtered count using the same query.bool to compare totals
+        try {
+            const countResp = await execOpenSearchCmd('queryForSessions:debugCount', 'Failed debugCount', async (client: Client): Promise<any> => {
+                return await client.count({ index, body: { query: body.query } } as any);
+            });
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+            const countVal = (countResp as any)?.body?.count ?? (countResp as any)?.count;
+            console.log('queryForSessions: debugCount (filters only)', countVal);
+        } catch (e) {
+            console.warn('queryForSessions: debugCount failed', e);
+        }
 
         for (let i = 0; i < resp.body.hits.hits.length; i++) {
             const hit = resp.body.hits.hits[i];

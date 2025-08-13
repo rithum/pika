@@ -6,6 +6,7 @@ import type { ChatSession, RecordOrUndef } from '@pika/shared/types/chatbot/chat
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
 import SessionIdCell from './cells/session-id-cell.svelte';
+import UserIdCell from './cells/user-id-cell.svelte';
 
 const TableColumnHeader = PikaTableColumnHeader<ChatSession<RecordOrUndef>, unknown>;
 const TableRowActions = PikaTableRowActions<ChatSession<RecordOrUndef>>;
@@ -51,7 +52,8 @@ export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
         header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'User' }),
         cell: ({ getValue }) => {
             const userId = getValue() as string | undefined;
-            return userId || '-';
+            if (!userId) return '-';
+            return renderComponent(UserIdCell, { userId });
         },
         enableGlobalFilter: true,
         size: 120

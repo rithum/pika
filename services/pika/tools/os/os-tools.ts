@@ -1,6 +1,7 @@
 import { deleteIndex, getDocumentsByIds } from '../../src/lib/opensearch/opensearch';
 import { ensureDomainExists } from '../../src/lib/opensearch/index-initializer';
-import { type DomainIndex, DomainIndices, SessionIndex } from '../../src/lib/opensearch/types';
+import { type DomainIndex, DomainIndices, SessionIndex, getIndexMeta } from '../../src/lib/opensearch/types';
+import OsClient from '../../src/lib/opensearch/opensearch-client';
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
@@ -44,6 +45,33 @@ async function getDocuments(indexName: string, ids: string[]) {
     console.log(`Fetching ${ids.length} document(s) from index '${idx}'...`);
     const result = await getDocumentsByIds(idx, ids);
     console.log(JSON.stringify(result, null, 2));
+}
+
+async function countDocumentsForIndex(index: DomainIndex): Promise<number> {
+    const client = await OsClient.getClient();
+    const indexName = getIndexMeta(index).name;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resp = await client.count({ index: indexName, body: { query: { match_all: {} } } } as any);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        const count = (resp as any)?.body?.count ?? (resp as any)?.count;
+        return typeof count === 'number' ? count : 0;
+    } catch (err: any) {
+        const type = err?.meta?.body?.error?.type;
+        if (type === 'index_not_found_exception') return 0;
+        throw err;
+    }
+}
+
+async function countAllDocuments(): Promise<{ total: number; byIndex: Record<string, number> }> {
+    let total = 0;
+    const byIndex: Record<string, number> = {};
+    for (const idx of DomainIndices) {
+        const c = await countDocumentsForIndex(idx);
+        byIndex[idx] = c;
+        total += c;
+    }
+    return { total, byIndex };
 }
 
 async function main(): Promise<void> {
@@ -98,12 +126,26 @@ async function main(): Promise<void> {
             await getDocuments(effectiveIndex, effectiveIds);
             break;
         }
+        case 'count': {
+            const target = indexRaw?.toLowerCase();
+            if (!target || target === 'all') {
+                const res = await countAllDocuments();
+                console.log(JSON.stringify(res, null, 2));
+            } else {
+                if (!DomainIndices.includes(indexRaw as DomainIndex)) {
+                    throw new Error(`Invalid index name: ${indexRaw}. Valid options: ${DomainIndices.join(', ')} or 'all'`);
+                }
+                const c = await countDocumentsForIndex(indexRaw as DomainIndex);
+                console.log(JSON.stringify({ index: indexRaw, count: c }, null, 2));
+            }
+            break;
+        }
         case 'help':
         default:
             console.log(
                 [
                     'Usage:',
-                    '  pnpm tsx services/pika/tools/os/os-tools.ts <command> [index] [--dry-run] [ids...]',
+                    '  pnpm tsx tools/os/os-tools.ts <command> [index] [--dry-run] [ids...]',
                     '',
                     'Commands:',
                     '  ensure            Ensure index exists and mappings are up to date (additive updates only)',
@@ -113,6 +155,7 @@ async function main(): Promise<void> {
                     '  delete            Delete index',
                     '  recreate          Delete then create index',
                     '  get|mget          Retrieve documents by IDs and print as JSON (usage: get [index] <id1> <id2> ...)',
+                    '  count             Count documents (usage: count [index|all], default: all)',
                     '',
                     `Defaults: index='${SessionIndex}'`
                 ].join('\n')

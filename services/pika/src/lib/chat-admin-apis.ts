@@ -1249,5 +1249,12 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
 }
 
 export async function searchForSessions(search: SessionSearchRequest<RecordOrUndef>): Promise<SessionSearchResponse<RecordOrUndef>> {
+    // Log what we're about to pass to the OS query layer
+    try {
+        console.log('searchForSessions: calling queryForSessions with', JSON.stringify(search, null, 2));
+    } catch (e) {
+        console.warn('searchForSessions: failed to log request payload', e);
+    }
+
     return await queryForSessions<RecordOrUndef>(search);
 }

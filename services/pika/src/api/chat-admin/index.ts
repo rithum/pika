@@ -710,6 +710,40 @@ async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearc
         throw new Error('Request body is required');
     }
 
+    // Log a concise summary of the incoming search request for diagnostics
+    try {
+        console.log(
+            'sessionSearch: request summary',
+            JSON.stringify(
+                {
+                    size: searchSessionsRequest.size ?? 'default',
+                    sortBy: searchSessionsRequest.sortBy,
+                    hasScrollId: !!searchSessionsRequest.scrollId,
+                    hasDateFilter: !!searchSessionsRequest.dateFilter,
+                    dateFilter: searchSessionsRequest.dateFilter,
+                    flagged: (searchSessionsRequest as any).flagged,
+                    insightsPresent: !!(searchSessionsRequest as any).insights,
+                    insightsKeys: (searchSessionsRequest as any).insights ? Object.keys((searchSessionsRequest as any).insights) : undefined,
+                    feedbackSelectedKeys: [
+                        'feedbackReportedByHuman',
+                        'feedbackCreatedByCustomer',
+                        'feedbackUserId',
+                        'feedbackInStatus',
+                        'feedbackSeverity',
+                        'feedbackType',
+                        'feedbackInternalCommentUserId',
+                        'feedbackInternalCommentType',
+                        'feedbackInternalCommentStatus'
+                    ].filter((k) => (searchSessionsRequest as any)[k] !== undefined)
+                },
+                null,
+                2
+            )
+        );
+    } catch (e) {
+        console.warn('sessionSearch: failed to log request summary', e);
+    }
+
     return await searchForSessions(searchSessionsRequest);
 }
 
