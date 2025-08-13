@@ -12,24 +12,21 @@
 
     let { title, score, description, icon, compact = false }: Props = $props();
 
+    $inspect('insights-score-card', { title, score });
+    console.log('insights-score-card', { title, score });
+
     // Score color logic
-    const scoreColor = $derived(() => {
-        if (score >= 8) return 'bg-green-500';
-        if (score >= 6) return 'bg-yellow-500';
-        return 'bg-red-500';
-    });
+    const scoreColor = $derived(score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-yellow-500' : 'bg-red-500');
 
-    const scoreBgColor = $derived(() => {
-        if (score >= 8) return 'bg-green-50 border-green-200';
-        if (score >= 6) return 'bg-yellow-50 border-yellow-200';
-        return 'bg-red-50 border-red-200';
-    });
+    const scoreBgColor = $derived(
+        score >= 8
+            ? 'bg-green-50 border-green-200'
+            : score >= 6
+              ? 'bg-yellow-50 border-yellow-200'
+              : 'bg-red-50 border-red-200'
+    );
 
-    const scoreTextColor = $derived(() => {
-        if (score >= 8) return 'text-green-700';
-        if (score >= 6) return 'text-yellow-700';
-        return 'text-red-700';
-    });
+    const scoreTextColor = $derived(score >= 8 ? 'text-green-700' : score >= 6 ? 'text-yellow-700' : 'text-red-700');
 </script>
 
 <div class="border rounded-lg p-3 {scoreBgColor}">
