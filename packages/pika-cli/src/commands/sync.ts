@@ -1006,7 +1006,7 @@ function shouldSkipDirectory(dirPath: string): boolean {
     const matchOptions = { dot: true, matchBase: true } as const;
 
     for (const pattern of skipPatterns) {
-        if (minimatch(normalizedPath, pattern, matchOptions)) {
+        if (minimatch(normalizedPath, pattern, matchOptions) || minimatch(normalizedPath + '/', pattern, matchOptions)) {
             logger.debug(`[DEBUG] shouldSkipDirectory: ${normalizedPath} matches glob: ${pattern}`);
             return true;
         }

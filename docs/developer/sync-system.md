@@ -2,11 +2,11 @@
 
 The Pika Framework sync system allows you to receive updates from the main framework repository while preserving your customizations. This guide explains how the sync system works and how to use it effectively.
 
-## 🔄 Overview
+## Overview
 
 Your Pika project is a fork of the Pika framework that you can check into your own source control. The sync system intelligently merges framework updates with your changes, ensuring you can continue to receive improvements while maintaining your customizations.
 
-### 📦 Package.json Special Handling
+### Package.json Special Handling
 
 The sync system includes special handling for `package.json` files to intelligently merge dependencies and scripts:
 
@@ -14,7 +14,7 @@ The sync system includes special handling for `package.json` files to intelligen
 - **Selective Updates**: Only changed values are updated; your additions remain untouched
 - **Interactive Confirmation**: You're prompted to confirm each package.json change with detailed information about what will be updated
 
-## 🛡️ How It Works
+## How It Works
 
 ### The Sync Process
 
@@ -35,19 +35,26 @@ The sync system uses multiple layers of protection to preserve your work:
 
 #### Protection Pattern Types
 
-The protection system supports three types of patterns:
+Patterns use glob matching (minimatch) with options `dot: true` and `matchBase: true`:
 
-1. **Directory Patterns** (ending with `/`): Protects entire directories and all contents
+- `dot: true` includes dotfiles (e.g., `.env*`)
+- `matchBase: true` lets filename-only patterns match in any directory
 
-    - Example: `services/custom/` protects all files in the directory and subdirectories
+Supported pattern styles:
 
-2. **Exact Path Patterns** (containing `/`): Protects specific files at exact locations
+1. **Directory Patterns**: End with `/` (or use `/**`) to protect the whole subtree
 
-    - Example: `apps/pika-chat/my-file.ts` protects only that specific file
+    - Example: `services/custom/` or `services/custom/**`
 
-3. **Filename Patterns** (no `/`): Protects files with that name anywhere in the project (gitignore-style)
-    - Example: `cdk.context.json` protects any file named `cdk.context.json` regardless of location
-    - Example: `.env` protects all `.env` files at any directory level
+2. **Exact Path Patterns**: Contain `/` and point to a specific file
+
+    - Example: `apps/pika-chat/my-file.ts`
+
+3. **Filename Patterns**: No `/`; matched anywhere (basename match)
+    - Example: `cdk.context.json`
+    - Example: `.env` (all `.env` files anywhere)
+
+Globs are supported in all styles (e.g., `**/*.log`, `.env*`, `apps/**/+page.svelte`).
 
 #### Pattern Matching Examples
 
@@ -59,9 +66,10 @@ Here's how different patterns work in practice:
 | `pika-config.ts`      | Filename   | `pika-config.ts`<br>`apps/chat/pika-config.ts`<br>`services/api/pika-config.ts` | `pika-config.backup.ts`                                |
 | `apps/chat/config.ts` | Exact Path | `apps/chat/config.ts`                                                           | `apps/chat/auth/config.ts`<br>`services/api/config.ts` |
 | `.env`                | Filename   | `.env`<br>`apps/chat/.env`<br>`services/api/.env`                               | `.env.local`<br>`my.env`                               |
-| `.env.*`              | Filename   | `.env.local`<br>`apps/chat/.env.production`                                     | `.env`<br>`custom.env.local`                           |
+| `.env*`               | Filename   | `.env`<br>`.env.local`<br>`apps/chat/.env.production`                           | `custom.env.local`                                     |
+| `**/.env.*.local`     | Glob       | `apps/chat/.env.prod.local`<br>`services/api/.env.test.local`                   | `.env`                                                 |
 
-## ⚙️ Configuration
+## Configuration
 
 ### Sync Configuration File (`.pika-sync.json`)
 
@@ -79,7 +87,7 @@ The `.pika-sync.json` file tracks your sync status and allows you to customize s
         "apps/custom/",
         ".env",
         ".env.local",
-        ".env.*",
+        ".env*",
         "pika-config.ts",
         ".pika-sync.json",
         ".gitignore",
@@ -102,7 +110,7 @@ Framework-managed list of protected files. **Don't edit this section** - it's ma
 
 #### `userProtectedAreas`
 
-Additional files you want to protect from framework updates. Supports all three pattern types:
+Additional files you want to protect from framework updates. Supports glob patterns with the same semantics (minimatch with `dot: true`, `matchBase: true`):
 
 ```json
 "userProtectedAreas": [
@@ -116,7 +124,7 @@ Additional files you want to protect from framework updates. Supports all three 
 
 #### `userUnprotectedAreas`
 
-Default protected files you want to allow updates for. Also supports all three pattern types:
+Default protected files you want to allow updates for. Note: these entries remove matching strings from the default protected list during merge; they do not act as negative-globs. To unprotect a default, specify the exact protected pattern string (e.g., `"package.json"`). If you need finer control, remove the broad default and add narrower entries to `userProtectedAreas`.
 
 ```json
 "userUnprotectedAreas": [
@@ -126,7 +134,7 @@ Default protected files you want to allow updates for. Also supports all three p
 ]
 ```
 
-## 🔒 Default Protected Areas
+## Default Protected Areas
 
 The following areas are automatically protected from framework updates:
 
@@ -154,7 +162,7 @@ Any path segment starting with "custom-" is automatically protected:
 - `apps/my-app/custom-config/` - subdirectory with custom- prefix
 - `services/api/custom-middleware.ts` - file with custom- prefix
 
-## 📦 Package.json Special Handling
+## Package.json Special Handling
 
 The sync system includes intelligent handling for `package.json` files that goes beyond simple file comparison.
 
@@ -230,7 +238,7 @@ When a `package.json` file differs between your fork and the framework, the sync
 For each package.json file that has changes, you'll see:
 
 ```
-📦 Package.json changes detected in apps/pika-chat/package.json:
+  Package.json changes detected in apps/pika-chat/package.json:
    • Modified attributes: name
    • Added scripts: test
    • Added dependencies: vite
@@ -239,7 +247,7 @@ For each package.json file that has changes, you'll see:
 Apply package.json changes to apps/pika-chat/package.json? (Y/n)
 ```
 
-## 📁 Sample Directory Handling
+## Sample Directory Handling
 
 The sync system handles sample applications intelligently:
 
@@ -258,7 +266,7 @@ This allows you to:
 - Remove samples you don't need
 - Customize samples for your use case
 
-## 🔧 Using the Sync Command
+## Using the Sync Command
 
 ### Basic Sync
 
@@ -308,7 +316,7 @@ pika sync --help
     pika sync
     ```
 
-## 🎯 User Modification Handling
+## User Modification Handling
 
 When you modify files outside protected areas, the sync command will:
 
@@ -340,7 +348,7 @@ What would you like to do?
 Enter your choice (1-4): 2
 ```
 
-## 📋 Best Practices
+## Best Practices
 
 ### 1. Use Designated Areas
 
@@ -379,7 +387,7 @@ Use `--dry-run` and `--diff` options to review changes before applying them.
 
 Add important custom files to `userProtectedAreas` if they're not in default protected areas.
 
-## 🔄 Source Control Integration
+## Source Control Integration
 
 ### Your Project is Standalone
 
@@ -411,7 +419,7 @@ git add .
 git commit -m "Sync framework updates"
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -453,13 +461,13 @@ If you encounter sync issues:
 4. **Search existing issues**: Check the [GitHub repository](https://github.com/rithum/pika)
 5. **Create a new issue**: Provide detailed error information
 
-## 📚 Learn More
+## Learn More
 
 - **Framework documentation**: [https://github.com/rithum/pika](https://github.com/rithum/pika)
 - **Customization guide**: [Customization Guide](./customization.md)
 - **Run sync help**: `pika sync --help`
 
-## 🎯 Quick Reference
+## Quick Reference
 
 ### Essential Commands
 
