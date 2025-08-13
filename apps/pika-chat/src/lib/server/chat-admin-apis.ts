@@ -39,6 +39,7 @@ export async function getAllChatApps(): Promise<ChatApp[]> {
         path: `${appConfig.stage}/api/chat-admin/chat-app`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -56,6 +57,7 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -138,6 +140,7 @@ export async function getMatchingChatApps(
         method: 'POST',
         body: request,
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -197,6 +200,7 @@ export async function createOrUpdateChatAppOverride(userId: string, chatAppId: s
         method: 'POST',
         body: { override, userId },
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -216,6 +220,7 @@ export async function deleteChatAppOverride(userId: string, chatAppId: string): 
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}/override`,
         method: 'DELETE',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -232,7 +237,10 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/feedback`,
         method: 'POST',
-        body: { feedback }
+        body: { feedback },
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
     });
 
     if (!response.body || !response.body.success) {
@@ -247,7 +255,10 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/feedback`,
         method: 'PUT',
-        body: { feedback }
+        body: { feedback },
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
     });
 
     if (!response.body || !response.body.success) {
@@ -262,7 +273,10 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/session/search`,
         method: 'POST',
-        body: search
+        body: search,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
     });
 
     if (!response.body || !response.body.success) {

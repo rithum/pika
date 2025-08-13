@@ -24,7 +24,7 @@ Common scenarios where this feature is valuable:
 
 ## Configuration
 
-### 1. Enable the Feature
+### 1. Enable and disable the Feature
 
 In your `pika-config.ts`, enable the user data override feature:
 
@@ -55,6 +55,31 @@ export const pikaConfig: PikaConfig = {
     }
 };
 ```
+
+You may disable this feature for an individual chat app by adding a chat app feature override with `enabled: false`:
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'customer-support',
+    // ... other chat app settings
+    features: {
+        userDataOverride: {
+            featureId: 'userDataOverride',
+            enabled: false // Disable for this chat app
+        }
+    }
+};
+```
+
+Notes:
+
+- This only takes effect if the feature is enabled at the site level in `pika-config.ts`.
+- When overriding features at the chat app level, provide the complete configuration for that feature. For this feature, the only setting is `enabled`.
+
+See also:
+
+- More site-level configuration details in the [Customization Guide](./customization.md)
+- Override precedence and best practices in [Overriding Features](./overriding-features.md)
 
 ### 2. Configuration Options
 

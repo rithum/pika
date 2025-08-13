@@ -27,7 +27,7 @@ import {
 } from './types';
 
 /** Limit the number of results we get back from opensearch */
-const MAX_RESULTS = 1000;
+const MAX_RESULTS = 500;
 
 /** Microbatch requests no larger than this */
 const MICRO_BATCH_SIZE = 500;
@@ -36,7 +36,7 @@ const MICRO_BATCH_SIZE = 500;
 const MAX_TERM_SEARCH_RESULTS = 100;
 
 /** Batch size for mget existence checks */
-const MGET_BATCH_SIZE = 1000;
+const MGET_BATCH_SIZE = 500;
 
 export function getDeleteOp(obj: OpenSearchIndexable): DeleteOp {
     const index = getDomainIndex(obj);
@@ -378,6 +378,26 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 if (searchRequest.size) {
                     body.size = searchRequest.size;
                 }
+                // Update source filtering based on include flags for this request
+                try {
+                    const excludes: string[] = [];
+                    if (!searchRequest.includeInsights) {
+                        excludes.push('insights');
+                    }
+                    if (!searchRequest.includeFeedback) {
+                        excludes.push('feedback');
+                    }
+                    if (excludes.length > 0) {
+                        (body as any)._source = { excludes };
+                    } else {
+                        // If both are requested, ensure we don't carry over excludes from previous pages
+                        if ((body as any)._source && (body as any)._source.excludes) {
+                            delete (body as any)._source.excludes;
+                        }
+                    }
+                } catch {
+                    // best-effort; ignore source filtering errors
+                }
             } catch (error) {
                 return {
                     success: false,
@@ -400,6 +420,21 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 size: searchRequest.size ?? MAX_RESULTS,
                 track_total_hits: true
             };
+            // Configure source filtering so that by default we exclude large nested fields
+            try {
+                const excludes: string[] = [];
+                if (!searchRequest.includeInsights) {
+                    excludes.push('insights');
+                }
+                if (!searchRequest.includeFeedback) {
+                    excludes.push('feedback');
+                }
+                if (excludes.length > 0) {
+                    (body as any)._source = { excludes };
+                }
+            } catch {
+                // best-effort; ignore source filtering errors
+            }
         }
 
         // Only build filters for new queries (not when using scrollId)

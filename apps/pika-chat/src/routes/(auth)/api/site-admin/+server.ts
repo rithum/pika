@@ -47,7 +47,7 @@ export const POST: RequestHandler = async (event) => {
             return new Response('valueProvidedByUser is required', { status: 400 });
         }
 
-        const valuesForAutoComplete = await getValuesForEntityAutoComplete(siteAdminReq.type, siteAdminReq.valueProvidedByUser, user, siteAdminReq.chatAppId);
+        const valuesForAutoComplete = await getValuesForEntityAutoComplete(siteAdminReq.valueProvidedByUser, user, siteAdminReq.chatAppId);
 
         return json({
             success: true,

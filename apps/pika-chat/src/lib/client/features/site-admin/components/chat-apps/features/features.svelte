@@ -749,6 +749,8 @@
                                 {chatAppId}
                                 setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
                             />
+                        {:else if typedFeatureId === 'userDataOverrides'}
+                            <div>No additional configuration may be overridden for this feature.</div>
                         {/if}
                     </div>
                 </div>

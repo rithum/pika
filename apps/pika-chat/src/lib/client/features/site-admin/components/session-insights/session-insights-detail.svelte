@@ -22,13 +22,14 @@
 
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
-    const currentSession = $derived(sessionInsights.currentSession);
-    const insights = $derived(currentSession?.insights);
+    const insights = $derived(!!sessionInsights.currentSession ? sessionInsights.curSessionInsights : undefined);
 </script>
 
 <ScrollArea class="h-full">
     <div class="p-6">
-        {#if !insights}
+        {#if sessionInsights.isRetrievingCompleteSession}
+            {@render loader()}
+        {:else if !insights}
             <!-- Empty State -->
             <div class="flex flex-col items-center justify-center h-full text-center p-8">
                 <ChartBar class="w-12 h-12 text-muted-foreground mb-4" />
@@ -36,7 +37,7 @@
                 <p class="text-sm text-muted-foreground max-w-sm">
                     Insights will appear here once the session analysis is complete.
                 </p>
-                {#if currentSession?.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS'}
+                {#if sessionInsights.currentSession?.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS'}
                     <Badge variant="outline" class="mt-3">
                         <Clock class="w-3 h-3 mr-1" />
                         Analysis Pending
@@ -160,36 +161,44 @@
                     </ExpandableContainer>
 
                     <!-- Cost & Usage -->
-                    {#if currentSession}
+                    {#if sessionInsights.currentSession}
                         <ExpandableContainer title="Cost & Usage" useCase="default">
                             <div class="grid grid-cols-2 gap-4 text-sm">
                                 <div class="space-y-2">
                                     <div class="flex justify-between">
                                         <span class="text-muted-foreground">Input Tokens:</span>
                                         <span class="font-mono"
-                                            >{currentSession.inputTokens?.toLocaleString() || 'N/A'}</span
+                                            >{sessionInsights.currentSession.inputTokens?.toLocaleString() ||
+                                                'N/A'}</span
                                         >
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-muted-foreground">Output Tokens:</span>
                                         <span class="font-mono"
-                                            >{currentSession.outputTokens?.toLocaleString() || 'N/A'}</span
+                                            >{sessionInsights.currentSession.outputTokens?.toLocaleString() ||
+                                                'N/A'}</span
                                         >
                                     </div>
                                 </div>
                                 <div class="space-y-2">
                                     <div class="flex justify-between">
                                         <span class="text-muted-foreground">Input Cost:</span>
-                                        <span class="font-mono">${currentSession.inputCost?.toFixed(4) || 'N/A'}</span>
+                                        <span class="font-mono"
+                                            >${sessionInsights.currentSession.inputCost?.toFixed(4) || 'N/A'}</span
+                                        >
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-muted-foreground">Output Cost:</span>
-                                        <span class="font-mono">${currentSession.outputCost?.toFixed(4) || 'N/A'}</span>
+                                        <span class="font-mono"
+                                            >${sessionInsights.currentSession.outputCost?.toFixed(4) || 'N/A'}</span
+                                        >
                                     </div>
                                     <Separator />
                                     <div class="flex justify-between font-medium">
                                         <span>Total Cost:</span>
-                                        <span class="font-mono">${currentSession.totalCost?.toFixed(4) || 'N/A'}</span>
+                                        <span class="font-mono"
+                                            >${sessionInsights.currentSession.totalCost?.toFixed(4) || 'N/A'}</span
+                                        >
                                     </div>
                                 </div>
                             </div>
@@ -209,3 +218,16 @@
         {/if}
     </div>
 </ScrollArea>
+
+{#snippet loader()}
+    <div class="flex items-center justify-center">
+        <svg class="w-6 h-6 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+        </svg>
+    </div>
+{/snippet}

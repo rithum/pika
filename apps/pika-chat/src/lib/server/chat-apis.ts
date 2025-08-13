@@ -27,6 +27,7 @@ export async function getChatUser<T extends RecordOrUndef = undefined>(userId: s
         path: `${appConfig.stage}/api/chat/user`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -44,6 +45,7 @@ export async function searchForUser(userId: string, partialUserId: string): Prom
         path: `${appConfig.stage}/api/chat/user/search/${partialUserId}`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -64,6 +66,7 @@ export async function createChatUser<T extends RecordOrUndef = undefined>(user: 
         method: 'POST',
         body: user,
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<T>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
         }
     });
@@ -85,6 +88,7 @@ export async function addFeedback<T extends RecordOrUndef = undefined>(user: Cha
         method: 'POST',
         body: request,
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<T>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
         }
     });
@@ -100,7 +104,10 @@ export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSes
     const response = await invokeApi<GetChatSessionFeedbackResponse>({
         apiId: appConfig.chatApiId,
         path: `${appConfig.stage}/api/chat/feedback/${sessionId}`,
-        method: 'GET'
+        method: 'GET',
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
     });
 
     if (!response.body || !response.body.success) {
@@ -116,6 +123,7 @@ export async function getChatSessions(userId: string, chatAppId: string): Promis
         path: `${appConfig.stage}/api/chat/conversations/${chatAppId}`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -135,6 +143,7 @@ export async function getChatMessages(sessionId: string, userId: string): Promis
         path: `${appConfig.stage}/api/chat/${sessionId}/messages`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -147,6 +156,7 @@ export async function getUserPrefs(userId: string): Promise<UserPrefs | undefine
         path: `${appConfig.stage}/api/chat/user/prefs`,
         method: 'GET',
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });
@@ -165,6 +175,7 @@ export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: bo
         method: 'POST',
         body: { prefs, partial },
         headers: {
+            'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
         }
     });

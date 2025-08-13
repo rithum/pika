@@ -1438,7 +1438,8 @@ export class PikaConstruct extends Construct {
                 allowOrigins: apigateway.Cors.ALL_ORIGINS,
                 allowMethods: apigateway.Cors.ALL_METHODS,
                 allowHeaders: ['Content-Type', 'Authorization']
-            }
+            },
+            minCompressionSize: cdk.Size.mebibytes(1)
         });
 
         const apiResource = api.root.addResource('api');
@@ -1740,7 +1741,8 @@ export class PikaConstruct extends Construct {
                 allowOrigins: apigateway.Cors.ALL_ORIGINS,
                 allowMethods: apigateway.Cors.ALL_METHODS,
                 allowHeaders: ['Content-Type', 'Authorization']
-            }
+            },
+            minCompressionSize: cdk.Size.mebibytes(1)
         });
 
         const apiResource = api.root.addResource('api');

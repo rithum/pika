@@ -51,15 +51,22 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
         throw error(404, 'Chat app is not enabled');
     }
 
+    let chatAppDisabledUserDataOverride = false;
+    if (chatApp.override?.features?.userDataOverrides?.enabled === false || chatApp.features?.userDataOverrides?.enabled === false) {
+        chatAppDisabledUserDataOverride = true;
+    }
+
     // Note you don't get to set user override data if you are viewing content for another user.
     const userIsContentAdmin = isUserContentAdmin(locals.user);
     const isViewingContentForAnotherUser = locals.user.viewingContentFor && !!locals.user.viewingContentFor[chatAppId];
     const { userTypes, ...userDataOverridesRest } = siteFeatures?.userDataOverrides ?? {};
     let userDataOverrideSettings: UserDataOverrideSettings = {
         ...(isViewingContentForAnotherUser ? {} : userDataOverridesRest),
-        enabled: !isViewingContentForAnotherUser && isUserAllowedToUseUserDataOverrides(locals.user),
+        enabled: !chatAppDisabledUserDataOverride && !isViewingContentForAnotherUser && isUserAllowedToUseUserDataOverrides(locals.user),
         userNeedsToProvideDataOverrides:
-            !isViewingContentForAnotherUser && doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
+            !chatAppDisabledUserDataOverride &&
+            !isViewingContentForAnotherUser &&
+            doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
     };
     const features = getOverridableFeatures(chatApp, locals.user);
     let customDataUiRepresentation: CustomDataUiRepresentation | undefined;

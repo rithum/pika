@@ -1,45 +1,46 @@
 <script lang="ts">
-    import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getContext } from 'svelte';
     import {
-        MessageCircle,
-        Plus,
         CircleDot,
+        Expand,
+        File,
+        Loader,
+        MessageCircle,
+        MessageSquareText,
+        Pencil,
+        Plus,
         Tag,
         TriangleAlert,
-        Pencil,
-        Loader,
-        MessageSquareText,
-        File,
-        Expand,
     } from '$icons/lucide';
-    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Card } from '$ui/shadcn/card';
-    import { Separator } from '$ui/shadcn/separator';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import { Button } from '$ui/shadcn/button';
-    import * as Tooltip from '$ui/shadcn/tooltip';
-    import AddFeedbackDialog from './add-feedback-dialog.svelte';
-    import EditFeedbackDialog from './edit-feedback-dialog.svelte';
-    import AddInternalCommentDialog from './add-internal-comment-dialog.svelte';
-    import EditInternalCommentDialog from './edit-internal-comment-dialog.svelte';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
     import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
+    import { Badge } from '$ui/shadcn/badge';
+    import { Button } from '$ui/shadcn/button';
+    import { Card } from '$ui/shadcn/card';
+    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
+    import { ScrollArea } from '$ui/shadcn/scroll-area';
+    import { Separator } from '$ui/shadcn/separator';
+    import * as Tooltip from '$ui/shadcn/tooltip';
     import type { ChatSessionFeedback, ChatSessionFeedbackForUpdate } from '@pika/shared/types/chatbot/chatbot-types';
-    import LightboxDialog from './lightbox-dialog.svelte';
     import {
-        SESSION_FEEDBACK_STATUS_VALUES,
-        SESSION_FEEDBACK_SEVERITY_VALUES,
-        SESSION_FEEDBACK_TYPE_VALUES,
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
         FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES,
+        SESSION_FEEDBACK_SEVERITY_VALUES,
+        SESSION_FEEDBACK_STATUS_VALUES,
+        SESSION_FEEDBACK_TYPE_VALUES,
     } from '@pika/shared/types/chatbot/chatbot-types';
-    import Lightbox from './lightbox-dialog.svelte';
+    import { getContext } from 'svelte';
+    import AddFeedbackDialog from './add-feedback-dialog.svelte';
+    import AddInternalCommentDialog from './add-internal-comment-dialog.svelte';
+    import EditFeedbackDialog from './edit-feedback-dialog.svelte';
+    import EditInternalCommentDialog from './edit-internal-comment-dialog.svelte';
+    import LightboxDialog from './lightbox-dialog.svelte';
 
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
     const currentSession = $derived(sessionInsights.currentSession);
-    const feedback = $derived(currentSession?.feedback ?? []);
+    const feedback = $derived(
+        currentSession && sessionInsights.curSessionFeedback ? sessionInsights.curSessionFeedback : []
+    );
     const feedbackSortedDesc = $derived.by(() => {
         const arr = Array.isArray(feedback) ? [...feedback] : [];
         arr.sort((a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime());
@@ -158,7 +159,9 @@
                     </div>
                 </div>
 
-                {#if feedback.length === 0}
+                {#if sessionInsights.isRetrievingCompleteSession}
+                    {@render loader()}
+                {:else if feedback.length === 0}
                     <Card class="p-6 text-center">
                         <div class="flex flex-col items-center gap-2">
                             <MessageCircle class="w-6 h-6 text-muted-foreground" />
@@ -437,3 +440,16 @@
 {/if}
 
 <LightboxDialog bind:open={sessionInsights.showImageLightbox} />
+
+{#snippet loader()}
+    <div class="flex items-center justify-center">
+        <svg class="w-6 h-6 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+        </svg>
+    </div>
+{/snippet}

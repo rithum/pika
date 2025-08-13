@@ -1114,6 +1114,12 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
     /** If provided, we will only return sessions with feedback with one of the given internal comment user ids. */
     feedbackInternalCommentUserId?: string;
 
+    /** If true, then we will include the insights in the response. */
+    includeInsights?: boolean;
+
+    /** If true, then we will include the feedback in the response. */
+    includeFeedback?: boolean;
+
     /**
      * The fields to sort by. Determines the shape of pagination tokens.
      *
@@ -1788,7 +1794,8 @@ export type ChatAppFeature =
     | TracesFeatureForChatApp
     | ChatDisclaimerNoticeFeatureForChatApp
     | LogoutFeatureForChatApp
-    | SessionInsightsFeatureForChatApp;
+    | SessionInsightsFeatureForChatApp
+    | UserDataOverrideFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1811,7 +1818,8 @@ export const FeatureIdList = [
     'traces',
     'chatDisclaimerNotice',
     'logout',
-    'sessionInsights'
+    'sessionInsights',
+    'userDataOverrides'
 ] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
@@ -1827,7 +1835,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     traces: 'Traces',
     chatDisclaimerNotice: 'Chat Disclaimer Notice',
     logout: 'Logout',
-    sessionInsights: 'Session Insights'
+    sessionInsights: 'Session Insights',
+    userDataOverrides: 'User Data Override'
 };
 
 export interface SiteAdminFeature {
@@ -2692,6 +2701,16 @@ export interface SessionInsightsOpenSearchConfig {
 
 export interface SessionInsightsFeatureForChatApp extends Feature {
     featureId: 'sessionInsights';
+}
+
+/**
+ * The user data override feature may be enabled at the site level.  If enabled, then individual chat apps
+ * may choose to disable the feature.  Why would they do this?  Perhaps they don't need the data
+ * that may be overridden and don't want to prompt users to provide the data which may add friction
+ * and confusion.
+ */
+export interface UserDataOverrideFeatureForChatApp extends Feature {
+    featureId: 'userDataOverrides';
 }
 
 /**

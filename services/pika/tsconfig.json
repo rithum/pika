@@ -23,7 +23,8 @@
         "lib/stacks",
         "tools/jwt-secret-generator",
         "test",
-        "tools/opensearch/os-tools.ts"
+        "tools/os/os-tools.ts",
+        "tools/os/ddb-tools.ts"
     ],
     "exclude": [
         "node_modules",

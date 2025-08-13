@@ -112,7 +112,9 @@ export class ChatAppState {
     #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
 
     // You may not have overridden data if you are viewing content for another user.
-    #userNeedsToProvideDataOverrides = $derived(!this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides);
+    #userNeedsToProvideDataOverrides = $derived(
+        !this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.enabled && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides
+    );
 
     userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean> = $state({
         getInitialDialogData: false,

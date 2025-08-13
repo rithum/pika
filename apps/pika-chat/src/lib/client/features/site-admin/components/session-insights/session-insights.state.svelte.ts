@@ -18,7 +18,8 @@ import type {
     SessionSearchAdminRequest,
     SessionSearchRequest,
     SessionSearchResponse,
-    SimpleOption
+    SimpleOption,
+    SessionInsights
 } from '@pika/shared/types/chatbot/chatbot-types';
 import deepEqual from 'deep-equal';
 import cloneDeep from 'lodash.clonedeep';
@@ -36,6 +37,7 @@ export class SessionInsightsState {
     #sessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #selectedSessions = $state<string[]>([]);
     #isSearching = $state(false);
+    #isRetrievingCompleteSession = $state(false);
     #isUpdatingUserPrefs = $state(false);
     #searchError = $state<string | undefined>(undefined);
     #totalResults = $state(0);
@@ -60,6 +62,8 @@ export class SessionInsightsState {
         return this.#sessions.find((session) => session.sessionId === this.sessionIdToShowMessagesForInline);
     });
     #curSessionMessages = $state<ChatMessageForRendering[]>([]);
+    #curSessionFeedback = $state<ChatSessionFeedback[] | undefined>(undefined);
+    #curSessionInsights = $state<SessionInsights | undefined>(undefined);
     #retrievingMessages = $state(false);
     #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #componentRegistry: ComponentRegistry;
@@ -76,8 +80,9 @@ export class SessionInsightsState {
         const entityAutoCompleteSearchInProgress = this.#entityAutoCompleteSearchInProgress ? 'Searching...' : undefined;
         const retrievingMessages = this.#retrievingMessages ? 'Retrieving messages...' : undefined;
         const userSearch = this.userAutoCompleteSearchInProgress ? 'Searching...' : undefined;
+        const retrievingCompleteSession = this.#isRetrievingCompleteSession ? 'Retrieving session...' : undefined;
 
-        return savingSavedSearch ?? searching ?? entityAutoCompleteSearchInProgress ?? retrievingMessages ?? userSearch ?? undefined;
+        return savingSavedSearch ?? searching ?? entityAutoCompleteSearchInProgress ?? retrievingMessages ?? userSearch ?? retrievingCompleteSession ?? undefined;
     });
     imageForLightbox = $state<ImageForLightbox | undefined>(undefined);
     showImageLightbox = $state(false);
@@ -118,9 +123,24 @@ export class SessionInsightsState {
 
         $effect(() => {
             if (this.#currentSession) {
+                this.#curSessionInsights = undefined;
+                this.#curSessionFeedback = undefined;
                 this.refreshMessagesForCurrentSession();
+                this.getCompleteSessionObjectForCurrentSession();
             }
         });
+    }
+
+    get curSessionInsights() {
+        return this.#curSessionInsights;
+    }
+
+    get curSessionFeedback() {
+        return this.#curSessionFeedback;
+    }
+
+    get isRetrievingCompleteSession() {
+        return this.#isRetrievingCompleteSession;
     }
 
     get savingFeedback() {
@@ -574,6 +594,59 @@ export class SessionInsightsState {
         }
     }
 
+    async getCompleteSessionObjectForCurrentSession() {
+        if (!this.#currentSession) return;
+
+        this.#isRetrievingCompleteSession = true;
+        this.#searchError = undefined;
+
+        try {
+            const request: SessionSearchAdminRequest = {
+                command: 'sessionSearch',
+                search: { sessionId: this.#currentSession.sessionId, includeInsights: true, includeFeedback: true }
+            };
+
+            const response = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                this.#searchError = DEFAULT_SEARCH_ERROR;
+                console.error('Unknown error searching sessions', JSON.stringify(this.searchQuery, null, 2));
+                return;
+            }
+
+            const responseBody = (await response.json()) as SessionSearchResponse<RecordOrUndef>;
+
+            if (!responseBody.success) {
+                this.#searchError = DEFAULT_SEARCH_ERROR;
+                console.error(
+                    'Unknown error searching sessions to get complete session for current sesssion.  Error: ',
+                    responseBody.error,
+                    'Response body:',
+                    JSON.stringify(responseBody, null, 2)
+                );
+                return;
+            }
+
+            if (responseBody.sessions.length === 0) {
+                console.error('No session found for current session');
+                return;
+            }
+
+            this.#curSessionFeedback = responseBody.sessions[0].feedback;
+            this.#curSessionInsights = responseBody.sessions[0].insights;
+        } catch (error) {
+            console.error(`Error searching sessions to get complete session for current sesssion: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);
+        } finally {
+            this.#isRetrievingCompleteSession = false;
+        }
+    }
+
     /**
      * Add feedback to the current session (or any session by id) and update local state.
      * Follows existing site-admin POST command patterns used elsewhere in this class.
@@ -600,12 +673,12 @@ export class SessionInsightsState {
 
             // Update local sessions cache
             const newFeedback = json.feedback;
-            const idx = this.#sessions.findIndex((s) => s.sessionId === newFeedback.sessionId);
-            if (idx !== -1) {
-                if (!this.#sessions[idx].feedback) {
-                    this.#sessions[idx].feedback = [];
+            if (this.#currentSession && this.#currentSession.sessionId === newFeedback.sessionId) {
+                if (!this.#curSessionFeedback) {
+                    this.#curSessionFeedback = [newFeedback];
+                } else {
+                    this.#curSessionFeedback.push(newFeedback);
                 }
-                this.#sessions[idx].feedback!.push(newFeedback);
             }
 
             return newFeedback;
@@ -642,14 +715,12 @@ export class SessionInsightsState {
 
             // Update local sessions cache
             const updated = json.feedback;
-            const sessionIdx = this.#sessions.findIndex((s) => s.sessionId === updated.sessionId);
-            if (sessionIdx !== -1) {
-                const feedbackArr = (this.#sessions[sessionIdx].feedback = this.#sessions[sessionIdx].feedback ?? []);
-                const fbIdx = feedbackArr.findIndex((f) => f.feedbackId === updated.feedbackId);
+            if (this.#currentSession && this.#currentSession.sessionId === updated.sessionId) {
+                const fbIdx = (this.#curSessionFeedback ?? []).findIndex((f) => f.feedbackId === updated.feedbackId);
                 if (fbIdx !== -1) {
-                    feedbackArr[fbIdx] = updated;
+                    this.#curSessionFeedback![fbIdx] = updated;
                 } else {
-                    feedbackArr.push(updated);
+                    this.#curSessionFeedback!.push(updated);
                 }
             }
 

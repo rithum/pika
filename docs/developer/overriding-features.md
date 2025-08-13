@@ -470,6 +470,31 @@ features: {
 }
 ```
 
+#### 9. User Data Override Feature
+
+```typescript
+// Site level configuration (enable the feature)
+siteFeatures: {
+    userDataOverrides: {
+        enabled: true
+    }
+}
+
+// Chat app override - can only disable this feature per app
+features: {
+    userDataOverride: {
+        featureId: 'userDataOverride',
+        enabled: false // Disable for this chat app
+    }
+}
+```
+
+Notes:
+
+- Chat apps can only disable this feature. Site-level enablement and options are defined in `pika-config.ts`.
+- When overriding a feature, you must provide a complete configuration for that feature. For `userDataOverride`, the only setting is `enabled`.
+- See site-level options in the Customization Guide (User Data Override Configuration).
+
 ## Configuration Patterns
 
 ### 1. Access Rules Override

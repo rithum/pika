@@ -74,6 +74,44 @@ async function countAllDocuments(): Promise<{ total: number; byIndex: Record<str
     return { total, byIndex };
 }
 
+function bytesToMB(bytes: number): number {
+    return bytes / (1024 * 1024);
+}
+
+async function getStoreSizeBytesForIndex(index: DomainIndex): Promise<number> {
+    const client = await OsClient.getClient();
+    const indexName = getIndexMeta(index).name;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const resp = await client.indices.stats({ index: indexName, metric: ['store'] } as any);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        const indices = (resp as any)?.body?.indices ?? (resp as any)?.indices;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const stats = indices?.[indexName]?.total ?? indices?.[indexName]?.primaries ?? (resp as any)?.body?.total ?? (resp as any)?.total;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+        const sizeInBytes = stats?.store?.size_in_bytes ?? stats?.store?.total_data_set_size_in_bytes;
+        const bytesNum = typeof sizeInBytes === 'number' ? sizeInBytes : Number(sizeInBytes ?? 0);
+        return Number.isFinite(bytesNum) ? bytesNum : 0;
+    } catch (err: any) {
+        const type = err?.meta?.body?.error?.type;
+        if (type === 'index_not_found_exception') return 0;
+        throw err;
+    }
+}
+
+async function getStoreSizeAll(): Promise<{ totalBytes: number; totalMB: number; byIndex: Record<string, { bytes: number; mb: number }> }> {
+    let totalBytes = 0;
+    const byIndex: Record<string, { bytes: number; mb: number }> = {};
+    for (const idx of DomainIndices) {
+        const bytes = await getStoreSizeBytesForIndex(idx);
+        const mb = bytesToMB(bytes);
+        byIndex[idx] = { bytes, mb: Number(mb.toFixed(3)) };
+        totalBytes += bytes;
+    }
+    const totalMB = bytesToMB(totalBytes);
+    return { totalBytes, totalMB: Number(totalMB.toFixed(3)), byIndex };
+}
+
 async function main(): Promise<void> {
     // Load .env.local if present (located at services/pika/.env.local)
     const envPath = path.join(__dirname, '..', '..', '.env.local');
@@ -140,6 +178,21 @@ async function main(): Promise<void> {
             }
             break;
         }
+        case 'size': {
+            const target = indexRaw?.toLowerCase();
+            if (!target || target === 'all') {
+                const res = await getStoreSizeAll();
+                console.log(JSON.stringify(res, null, 2));
+            } else {
+                if (!DomainIndices.includes(indexRaw as DomainIndex)) {
+                    throw new Error(`Invalid index name: ${indexRaw}. Valid options: ${DomainIndices.join(', ')} or 'all'`);
+                }
+                const bytes = await getStoreSizeBytesForIndex(indexRaw as DomainIndex);
+                const mb = bytesToMB(bytes);
+                console.log(JSON.stringify({ index: indexRaw, bytes, mb: Number(mb.toFixed(3)) }, null, 2));
+            }
+            break;
+        }
         case 'help':
         default:
             console.log(
@@ -156,6 +209,7 @@ async function main(): Promise<void> {
                     '  recreate          Delete then create index',
                     '  get|mget          Retrieve documents by IDs and print as JSON (usage: get [index] <id1> <id2> ...)',
                     '  count             Count documents (usage: count [index|all], default: all)',
+                    '  size              Report storage size in bytes and MB (usage: size [index|all], default: all)',
                     '',
                     `Defaults: index='${SessionIndex}'`
                 ].join('\n')

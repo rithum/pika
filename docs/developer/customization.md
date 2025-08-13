@@ -244,6 +244,7 @@ export const pikaConfig: PikaConfig = {
 | `suggestions`           | Show suggested prompts to users        | ✅ Custom suggestions            |
 | `promptInputFieldLabel` | Label above chat input field           | ✅ Custom label text             |
 | `uiCustomization`       | UI display customizations              | ✅ Display settings              |
+| `userDataOverride`      | User data override UI availability     | ✅ Can disable per chat app      |
 
 **Key Principles:**
 
@@ -298,6 +299,20 @@ export const pikaConfig: PikaConfig = {
 - **`menuItemTitle`** (optional): Text for the menu item that opens the override dialog
 - **`dialogTitle`** (optional): Title of the override dialog
 - **`promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing`** (optional): Force override dialog if these custom data attributes are missing
+
+Chat apps can choose to disable this feature per app using an override:
+
+```typescript
+// In the chat app definition
+features: {
+    userDataOverride: {
+        featureId: 'userDataOverride',
+        enabled: false // Disable for this chat app
+    }
+}
+```
+
+See the [Overriding Features Guide](./overriding-features.md#9-user-data-override-feature) for override rules and precedence.
 
 #### Content Admin Configuration
 
