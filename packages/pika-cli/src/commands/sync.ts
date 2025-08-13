@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
 import path from 'path';
+import { minimatch } from 'minimatch';
 import { fileManager } from '../utils/file-manager.js';
 import { gitManager } from '../utils/git-manager.js';
 import { logger } from '../utils/logger.js';
@@ -931,42 +932,32 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
 }
 
 function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
+    // Normalize to forward slashes for consistent matching
+    const normalizedFilePath = filePath.replace(/\\/g, '/');
+
     // Check if any path segment starts with 'custom-'
-    const pathSegments = filePath.split('/');
+    const pathSegments = normalizedFilePath.split('/');
     const hasCustomSegment = pathSegments.some((segment) => segment.startsWith('custom-'));
 
     if (hasCustomSegment) {
-        logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches custom- pattern`);
+        logger.debug(`[DEBUG] isProtectedArea: ${normalizedFilePath} matches custom- pattern`);
         return true;
     }
 
-    // Check against explicit protected areas
-    const isProtected = protectedAreas.some((area) => {
-        if (area.endsWith('/')) {
-            // Directory protection (current behavior)
-            return filePath.startsWith(area);
-        } else if (area.includes('/')) {
-            // Exact path protection (current behavior)
-            return filePath === area;
-        } else {
-            // Simple filename protection (new gitignore-style behavior)
-            const fileName = path.basename(filePath);
-            return fileName === area;
+    // Check against protected areas using glob semantics
+    const matchOptions = { dot: true, matchBase: true } as const;
+
+    const matchingArea = protectedAreas.find((area) => {
+        let pattern = area.replace(/\\/g, '/');
+        // Directory entries (ending with '/') should protect the entire subtree
+        if (pattern.endsWith('/')) {
+            pattern = pattern + '**';
         }
+        return minimatch(normalizedFilePath, pattern, matchOptions);
     });
 
-    if (isProtected) {
-        const matchingArea = protectedAreas.find((area) => {
-            if (area.endsWith('/')) {
-                return filePath.startsWith(area);
-            } else if (area.includes('/')) {
-                return filePath === area;
-            } else {
-                const fileName = path.basename(filePath);
-                return fileName === area;
-            }
-        });
-        logger.debug(`[DEBUG] isProtectedArea: ${filePath} matches protected area: ${matchingArea}`);
+    if (matchingArea) {
+        logger.debug(`[DEBUG] isProtectedArea: ${normalizedFilePath} matches protected area: ${matchingArea}`);
         return true;
     }
 
@@ -974,47 +965,54 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
 }
 
 function shouldSkipDirectory(dirPath: string): boolean {
+    // True globs for robust matching across the tree
     const skipPatterns = [
-        'node_modules',
-        '.git',
-        '.turbo',
-        'dist',
-        'build',
-        '.svelte-kit',
-        'cdk.out',
-        'packages/pika-cli', // Skip CLI package (removed in create-app.ts)
-        'future-changes',
-        '.pika-temp',
-        '.DS_Store',
-        'Thumbs.db',
-        '.vscode',
-        '.idea',
-        '*.swp',
-        '*.swo',
-        '*.tmp',
-        '*.temp',
-        '*.log',
-        'logs',
-        '.pnpm-store',
-        '.npm',
-        '.cache',
-        'coverage',
-        '.nyc_output',
-        '.next',
-        '.nuxt',
-        '.output',
-        '.vercel',
-        '.netlify',
-        '.env.local',
-        '.env.*.local'
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.turbo/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/.svelte-kit/**',
+        '**/cdk.out/**',
+        'packages/pika-cli/**',
+        '**/future-changes/**',
+        '**/.pika-temp/**',
+        '**/.vscode/**',
+        '**/.idea/**',
+        '**/logs/**',
+        '**/.pnpm-store/**',
+        '**/.npm/**',
+        '**/.cache/**',
+        '**/coverage/**',
+        '**/.nyc_output/**',
+        '**/.next/**',
+        '**/.nuxt/**',
+        '**/.output/**',
+        '**/.vercel/**',
+        '**/.netlify/**',
+        // File patterns
+        '**/.DS_Store',
+        '**/Thumbs.db',
+        '**/*.swp',
+        '**/*.swo',
+        '**/*.tmp',
+        '**/*.temp',
+        '**/*.log',
+        '**/.env.local',
+        '**/.env.*.local'
     ];
 
-    const shouldSkip = skipPatterns.some((pattern) => dirPath.includes(pattern));
-    if (shouldSkip) {
-        const matchingPattern = skipPatterns.find((pattern) => dirPath.includes(pattern));
-        logger.debug(`[DEBUG] shouldSkipDirectory: ${dirPath} matches pattern: ${matchingPattern}`);
+    const normalizedPath = dirPath.replace(/\\/g, '/');
+    const matchOptions = { dot: true, matchBase: true } as const;
+
+    for (const pattern of skipPatterns) {
+        if (minimatch(normalizedPath, pattern, matchOptions)) {
+            logger.debug(`[DEBUG] shouldSkipDirectory: ${normalizedPath} matches glob: ${pattern}`);
+            return true;
+        }
     }
-    return shouldSkip;
+
+    return false;
 }
 
 function isOptionalSampleDirectory(filePath: string): boolean {
@@ -1255,26 +1253,26 @@ function getDefaultProtectedAreas(): string[] {
 
     // Fallback to hardcoded list if config file is not available
     return [
-        'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/',
-        'apps/pika-chat/src/lib/server/auth-provider/',
-        'services/custom/',
-        'apps/custom/',
+        'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/**',
+        'apps/pika-chat/src/lib/server/auth-provider/**',
+        'services/custom/**',
+        'apps/custom/**',
         '.env',
         '.env.local',
-        '.env.*',
+        '.env*',
         'pika-config.ts',
         '.pika-sync.json',
         '.gitignore', // Always protect .gitignore
         'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
         'cdk.context.json', // Always protect CDK-generated context file
         // CI/CD configuration directories
-        '.github/', // GitHub Actions workflows
-        '.gitlab/', // GitLab CI/CD configurations
-        '.circleci/', // CircleCI configurations
-        '.bitbucket/', // Bitbucket Pipelines configs
-        '.azure-pipelines/', // Azure Pipelines setup
-        '.azure/', // Azure Pipelines setup (alternative)
-        '.ci/', // Generic or custom-named CI configuration folders
+        '.github/**', // GitHub Actions workflows
+        '.gitlab/**', // GitLab CI/CD configurations
+        '.circleci/**', // CircleCI configurations
+        '.bitbucket/**', // Bitbucket Pipelines configs
+        '.azure-pipelines/**', // Azure Pipelines setup
+        '.azure/**', // Azure Pipelines setup (alternative)
+        '.ci/**', // Generic or custom-named CI configuration folders
         // CI/CD configuration files
         '.gitlab-ci.yml', // GitLab CI
         '.circleci/config.yml', // CircleCI
