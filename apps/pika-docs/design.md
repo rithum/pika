@@ -259,7 +259,7 @@ export default defineConfig({
             }),
             siteConfig: {
                 title: 'Pika Platform',
-                description: 'Build, deploy, and operate agentic apps with confidence'
+                description: 'An AWS framework for sparking agent innovation by supporting rapid iteration'
             }
         })
     ]

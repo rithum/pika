@@ -16,6 +16,22 @@ export default defineConfig(async ({ mode }) => {
         sidebar: {
             '/docs/': [
                 {
+                    title: 'Features',
+                    collapsible: true,
+                    items: [
+                        { title: 'Overview', to: '/docs/features/overview/' },
+                        { title: 'Advanced Chat Apps', to: '/docs/features/advanced-chat-apps/' },
+                        { title: 'Built on Amazon Web Services', to: '/docs/features/built-on-aws/' },
+                        { title: 'LLM-based Agents', to: '/docs/features/llm-based-agents/' },
+                        { title: 'Agents as Config', to: '/docs/features/agents-as-config/' },
+                        { title: 'Self Correcting', to: '/docs/features/self-correcting/' },
+                        { title: 'LLM Generated Feedback', to: '/docs/features/llm-generated-feedback/' },
+                        { title: 'Insights', to: '/docs/features/insights/' },
+                        { title: 'Highly Customizable', to: '/docs/features/highly-customizable/' },
+                        { title: 'Admin Site', to: '/docs/features/admin-site/' }
+                    ]
+                },
+                {
                     title: 'Cheatsheets',
                     collapsible: false,
                     items: [
@@ -85,7 +101,7 @@ export default defineConfig(async ({ mode }) => {
                 }),
                 siteConfig: {
                     title: 'Pika Platform',
-                    description: 'Build, deploy, and operate agentic apps with confidence'
+                    description: 'Intelligence strikes fast'
                 }
             })
         ]
