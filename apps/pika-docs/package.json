@@ -7,7 +7,7 @@
     "license": "MIT",
     "scripts": {
         "dev": "vite dev",
-        "build": "vite build",
+        "build": "vite build && cp CNAME dist",
         "sync:developer-docs": "node ./scripts/sync-developer-docs.mjs"
     },
     "devDependencies": {
