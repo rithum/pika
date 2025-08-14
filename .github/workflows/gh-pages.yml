@@ -29,11 +29,15 @@ jobs:
                   cache: pnpm
                   cache-dependency-path: pnpm-lock.yaml
 
-            - name: Enable corepack
-              run: corepack enable
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.9.0
+                  run_install: false
 
-            - name: Prepare pnpm
-              run: corepack prepare pnpm@10.9.0 --activate
+            - name: Add pnpm to PATH
+              run: |
+                  echo "$(pnpm store path)/../.." >> $GITHUB_PATH
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
