@@ -6,6 +6,8 @@ outline: [2, 3]
 
 After a session completes, an LLM reviews it and writes objective feedback. You get actionable suggestions without manual triage.
 
+![Feedback AI](/assets/img/feedback-ai.png 'Feedback AI')
+
 ## What gets generated
 
 - Summary of the session goal and outcome

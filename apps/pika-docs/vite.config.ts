@@ -24,6 +24,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Built on Amazon Web Services', to: '/docs/features/built-on-aws/' },
                         { title: 'LLM-based Agents', to: '/docs/features/llm-based-agents/' },
                         { title: 'Agents as Config', to: '/docs/features/agents-as-config/' },
+                        { title: 'Answer Reasoning', to: '/docs/features/answer-reasoning/' },
                         { title: 'Self Correcting', to: '/docs/features/self-correcting/' },
                         { title: 'LLM Generated Feedback', to: '/docs/features/llm-generated-feedback/' },
                         { title: 'Insights', to: '/docs/features/insights/' },

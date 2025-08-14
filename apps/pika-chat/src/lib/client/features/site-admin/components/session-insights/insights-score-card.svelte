@@ -12,9 +12,6 @@
 
     let { title, score, description, icon, compact = false }: Props = $props();
 
-    $inspect('insights-score-card', { title, score });
-    console.log('insights-score-card', { title, score });
-
     // Score color logic
     const scoreColor = $derived(score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-yellow-500' : 'bg-red-500');
 

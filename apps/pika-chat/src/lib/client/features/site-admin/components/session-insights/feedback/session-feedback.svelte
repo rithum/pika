@@ -222,7 +222,7 @@
                                                 <div class="text-[11px] text-muted-foreground">
                                                     User: {item.userId}
                                                     <span class="mx-1">•</span>
-                                                    Source: {item.createdByCustomer ? 'Customer' : 'Rithum'}
+                                                    Source: {item.createdByCustomer ? 'Customer' : 'Internal'}
                                                     <span class="mx-1">•</span>
                                                     Reporter: {item.reportedByHuman ? 'Human' : 'AI'}
                                                     <span class="mx-1">•</span>

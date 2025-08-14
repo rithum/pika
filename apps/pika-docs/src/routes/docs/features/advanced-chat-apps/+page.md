@@ -6,9 +6,13 @@ outline: [2, 3]
 
 Build modern chat experiences that remember context, call tools, and stream answers with a polished UI.
 
+![Chat App](/assets/img/weather-chat.png 'Chat App')
+
 ## Multiple Chat Apps
 
 Host one or many chat apps with fine-grained control over exactly whom may access which chat apps (internal versus external users, only specific users, only users with specific companies/accounts, etc.).
+
+![Chat Apps Home Page](/assets/img/multiple-chat-apps.png 'Chat Apps Home Page')
 
 ## Session memory
 

@@ -6,6 +6,8 @@ outline: [2, 3]
 
 Understand how your assistants perform with built‑in analytics and graded signals.
 
+![Session Insights](/assets/img/session-insights.png 'Session Insights')
+
 ## What we compute
 
 - Goal completion likelihood

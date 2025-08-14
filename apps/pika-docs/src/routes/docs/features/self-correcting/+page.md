@@ -6,6 +6,8 @@ outline: [2, 3]
 
 Improve answer quality with an independent verifier. It reviews the agent’s output, grades it, and can trigger an automatic reprompt when needed.
 
+![Answer Grade](/assets/img/answer-grade.png 'Answer Grade')
+
 ## How it works
 
 - The primary agent answers the user.

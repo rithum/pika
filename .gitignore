@@ -4,6 +4,7 @@ apps/pika-chat/src/lib/server/custom-site-features.ts
 node_modules
 build
 .svelte-kit
+.sveltepress/
 .turbo
 dist
 cdk.out
