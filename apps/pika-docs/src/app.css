@@ -1,0 +1,15 @@
+/* Hide the site title text in sidebar, keep logo */
+/* .sidebar .title-text,
+[class*='title']:not([class*='logo']) {
+    display: none !important;
+} */
+
+.sidebar-logo .title,
+.logo-container .title,
+.active-icon svg {
+    display: none !important;
+}
+
+.feature-item .icon {
+    background: none !important;
+}
