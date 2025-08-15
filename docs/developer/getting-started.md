@@ -2,6 +2,8 @@
 
 Welcome to Pika Framework! This guide will help you get up and running with your first AI-powered chat application in minutes.
 
+[Visit Pika documentation and guide website](http://pika.tools)
+
 ## 🚀 Quick Start
 
 ### Prerequisites
