@@ -26,7 +26,7 @@ export default {
     // Module name mapping to handle SvelteKit path aliases
     moduleNameMapper: {
         '^\\$lib/(.*)$': '<rootDir>/src/lib/$1',
-        '^@pika/shared/(.*)$': '<rootDir>/../../packages/shared/$1'
+        '^pika-shared/(.*)$': '<rootDir>/../../packages/shared/$1'
     },
 
     // Enable ES modules

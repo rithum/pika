@@ -25,8 +25,8 @@ const config = {
             '$icons/*': path.resolve('./src/lib/icons/*'),
             $client: path.resolve('./src/lib/client'),
             '$client/*': path.resolve('./src/lib/client/*'),
-            '@pika/shared': path.resolve('../../packages/shared/src'),
-            '@pika/shared/*': path.resolve('../../packages/shared/src/*')
+            'pika-shared': path.resolve('../../packages/shared/src'),
+            'pika-shared/*': path.resolve('../../packages/shared/src/*')
         }
     }
 };

@@ -13,8 +13,8 @@ const config = {
             pages: 'dist'
         }),
         alias: {
-            '@pika/shared': path.resolve('../../packages/shared/src'),
-            '@pika/shared/*': path.resolve('../../packages/shared/src/*')
+            'pika-shared': path.resolve('../../packages/shared/src'),
+            'pika-shared/*': path.resolve('../../packages/shared/src/*')
         }
     }
 };

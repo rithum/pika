@@ -8,7 +8,7 @@ module.exports = {
         '^.+\\.ts$': 'ts-jest'
     },
     moduleNameMapper: {
-        '^@pika/shared/(.*)$': '<rootDir>/../../packages/pika-shared/src/$1'
+        '^pika-shared/(.*)$': '<rootDir>/../../packages/pika-shared/src/$1'
     },
     setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
     testTimeout: 30000
