@@ -52,10 +52,11 @@ function runTests() {
 function bumpVersion(type) {
     console.log(`📈 Bumping ${type} version...`);
     const oldVersion = getCurrentVersion();
-    execCommand(`pnpm version ${type} --no-git-tag-version`);
+    execCommand(`pnpm version ${type} --git-tag-version=true`);
     const newVersion = getCurrentVersion();
 
     console.log(`Version bumped: ${oldVersion} → ${newVersion}`);
+    console.log(`✅ Git commit and tag created automatically`);
     return newVersion;
 }
 
@@ -75,12 +76,7 @@ function publishPackage(isDryRun = false) {
     execCommand(`pnpm publish ${dryRunFlag}`);
 }
 
-function createGitTag(version) {
-    console.log(`🏷️  Creating git tag v${version}...`);
-    execCommand(`git add .`);
-    execCommand(`git commit -m "chore: release v${version}"`);
-    execCommand(`git tag -a v${version} -m "Release v${version}"`);
-}
+// Git tag and commit are now handled automatically by pnpm version command
 
 function pushToRemote() {
     console.log('🚀 Pushing to remote...');
@@ -115,8 +111,7 @@ async function main() {
         // Publish
         publishPackage(false);
 
-        // Git operations
-        createGitTag(newVersion);
+        // Push git changes (commit and tag were created by version command)
         pushToRemote();
 
         console.log(`✅ Successfully released v${newVersion}!`);

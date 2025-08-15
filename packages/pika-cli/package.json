@@ -1,6 +1,6 @@
 {
     "name": "@pika/app",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "description": "CLI tool for creating and managing Pika framework chat applications",
     "type": "module",
     "main": "dist/index.js",
@@ -21,13 +21,12 @@
         "type-check": "tsc --noEmit",
         "prepack": "pnpm run build",
         "prepublishOnly": "echo 'Publishing @pika/app...' && pnpm run build",
-        "postpublish": "git push && git push --tags",
-        "version:patch": "pnpm version patch",
-        "version:minor": "pnpm version minor",
-        "version:major": "pnpm version major",
-        "release:patch": "pnpm run version:patch && pnpm publish",
-        "release:minor": "pnpm run version:minor && pnpm publish",
-        "release:major": "pnpm run version:major && pnpm publish",
+        "version:patch": "pnpm version patch --git-tag-version=true",
+        "version:minor": "pnpm version minor --git-tag-version=true",
+        "version:major": "pnpm version major --git-tag-version=true",
+        "release:patch": "pnpm run version:patch && pnpm publish && git push && git push --tags",
+        "release:minor": "pnpm run version:minor && pnpm publish && git push && git push --tags",
+        "release:major": "pnpm run version:major && pnpm publish && git push && git push --tags",
         "release:dry": "pnpm publish --dry-run"
     },
     "keywords": [
