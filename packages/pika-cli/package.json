@@ -1,5 +1,5 @@
 {
-    "name": "@pika/app",
+    "name": "pika-app",
     "version": "1.0.1",
     "description": "CLI tool for creating and managing Pika framework chat applications",
     "type": "module",
@@ -20,7 +20,7 @@
         "test:coverage": "jest --coverage",
         "type-check": "tsc --noEmit",
         "prepack": "pnpm run build",
-        "prepublishOnly": "echo 'Publishing @pika/app...' && pnpm run build",
+        "prepublishOnly": "echo 'Publishing pika-app...' && pnpm run build",
         "version:patch": "pnpm version patch --git-tag-version=true",
         "version:minor": "pnpm version minor --git-tag-version=true",
         "version:major": "pnpm version major --git-tag-version=true",

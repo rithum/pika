@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Release script for @pika/app
+ * Release script for pika-app
  * Handles version bumping, changelog generation, and publishing
  */
 
@@ -115,7 +115,7 @@ async function main() {
         pushToRemote();
 
         console.log(`✅ Successfully released v${newVersion}!`);
-        console.log(`📦 Package published: https://www.npmjs.com/package/@pika/app`);
+        console.log(`📦 Package published: https://www.npmjs.com/package/pika-app`);
     }
 }
 
