@@ -1,7 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite, RecordOrUndef, UserPrefs } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import type { ChatMessage, ChatMessageUsage, ChatSession, ChatSessionFeedback, ChatUser, ChatUserLite, RecordOrUndef, UserPrefs } from 'pika-shared/types/chatbot/chatbot-types';
+import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
 import {

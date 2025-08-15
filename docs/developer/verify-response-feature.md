@@ -78,7 +78,7 @@ Configure when the system should automatically retry:
 
 ```typescript
 // Available threshold options
-import { AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate } from '@pika/shared/types/chatbot/chatbot-types';
+import { AccurateWithStatedAssumptions, AccurateWithUnstatedAssumptions, Inaccurate } from 'pika-shared/types/chatbot/chatbot-types';
 
 // Retry only on inaccurate responses
 autoRepromptThreshold: Inaccurate; // 'F'

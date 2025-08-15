@@ -2,7 +2,7 @@
     import List from '$ui/pika/list/list.svelte';
     import { Button } from '$ui/shadcn/button';
     import { Label } from '$ui/shadcn/label';
-    import type { FileUploadFeature } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { FileUploadFeature } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         featureEnabled: boolean;

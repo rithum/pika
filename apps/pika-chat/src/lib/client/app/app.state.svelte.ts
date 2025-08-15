@@ -8,7 +8,7 @@ import type {
     CustomDataUiRepresentation,
     SiteFeatures,
     UserDataOverrideSettings
-} from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';

@@ -67,7 +67,7 @@
         "@aws-sdk/lib-dynamodb": "catalog:",
         "@openmeteo/sdk": "^1.20.0",
         "@opensearch-project/opensearch": "catalog:",
-        "@pika/shared": "workspace:*",
+        "pika-shared": "workspace:*",
         "@smithy/node-http-handler": "catalog:",
         "aws4": "catalog:",
         "lambda-stream": "catalog:",

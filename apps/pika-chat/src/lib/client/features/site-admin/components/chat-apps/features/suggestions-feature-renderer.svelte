@@ -5,7 +5,7 @@
     import { Input } from '$ui/shadcn/input';
     import { Label } from '$ui/shadcn/label';
     import { assert } from '$lib/utils';
-    import type { SuggestionsFeature } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { SuggestionsFeature } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         overriddenFeature: SuggestionsFeature | undefined;

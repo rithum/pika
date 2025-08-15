@@ -9,7 +9,7 @@
         SessionInsightMetricsComplexityLevel,
         SessionInsightMetricsUserEffortRequired,
         SessionInsightMetricsAiConfidenceLevel,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         assessments: {

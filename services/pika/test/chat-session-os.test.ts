@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { SessionSearchRequest, SessionSearchResponse } from '@pika/shared/types/chatbot/chatbot-types';
+import { SessionSearchRequest, SessionSearchResponse } from 'pika-shared/types/chatbot/chatbot-types';
 import { queryForSessions } from '../src/lib/opensearch/opensearch';
 
 /**

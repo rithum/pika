@@ -16,8 +16,8 @@ import type {
     RecordOrUndef,
     SetChatUserPrefsResponse,
     UserPrefs
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToJwtString } from '@pika/shared/util/jwt';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { convertToJwtString } from 'pika-shared/util/jwt';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
 

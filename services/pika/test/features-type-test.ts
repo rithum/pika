@@ -6,7 +6,7 @@ import {
     SuggestionsFeature,
     FileUploadFeatureForChatApp,
     SuggestionsFeatureForChatApp
-} from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { recordsHaveSameElements } from '../src/lib/chat-admin-utils';
 
 describe('Features Type Change Verification', () => {

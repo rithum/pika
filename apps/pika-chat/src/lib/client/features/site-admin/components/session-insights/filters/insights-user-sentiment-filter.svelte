@@ -9,7 +9,7 @@
         type NameValueDescTriple,
         type InsightsSearchParams,
         type SessionInsightUserSentiment,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
 

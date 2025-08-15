@@ -2,7 +2,7 @@ import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$
 import type { RowActionsProps } from '$ui/pika/pika-table/types';
 import { renderComponent } from '$ui/shadcn/data-table';
 import { Archive, Eye, MessageSquare, Trash2 } from '$icons/lucide';
-import type { ChatSession, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
 import SessionIdCell from './cells/session-id-cell.svelte';

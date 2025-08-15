@@ -48,7 +48,7 @@ interface SyncConfig {
 }
 
 /*
-// This is defined in @pika/shared/src/types/chatbot/chatbot-types.ts
+// This is defined in pika-shared/src/types/chatbot/chatbot-types.ts
 interface PikaConfig {
     pika: {
         projNameL: string;

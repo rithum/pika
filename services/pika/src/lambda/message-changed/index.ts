@@ -1,4 +1,4 @@
-import { ChatMessage } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatMessage } from 'pika-shared/types/chatbot/chatbot-types';
 import { unmarshall, marshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';

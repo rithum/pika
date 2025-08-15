@@ -10,7 +10,7 @@ import {
     serializeAuthenticatedUserToCookies
 } from '$lib/server/cookies';
 import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
-import type { AuthenticatedUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;

@@ -41,7 +41,7 @@
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
         "@aws-sdk/client-bedrock-runtime": "catalog:",
         "@aws-sdk/client-lambda": "catalog:",
-        "@pika/shared": "workspace:*",
+        "pika-shared": "workspace:*",
         "source-map-support": "catalog:"
     },
     "files": [

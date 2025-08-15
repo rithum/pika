@@ -1,4 +1,4 @@
-import type { AgentDefinition, ToolDefinition } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AgentDefinition, ToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
 import { areSame } from './same';
 

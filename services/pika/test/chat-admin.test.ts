@@ -17,7 +17,7 @@ import {
     UpdateAgentRequest,
     UpdateChatAppRequest,
     UpdateToolRequest
-} from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
 import { invokeApi } from '../src/lib/invoke-api';
 

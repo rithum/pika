@@ -1,7 +1,7 @@
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import type { ConverseRequest, ConverseRequestWithCommand, RecordOrUndef, SimpleAuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToJwtString } from '@pika/shared/util/jwt';
+import type { ConverseRequest, ConverseRequestWithCommand, RecordOrUndef, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
+import { convertToJwtString } from 'pika-shared/util/jwt';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { PassThrough } from 'stream';
 import { handler } from '../../../../../services/pika/src/lambda/converse';

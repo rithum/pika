@@ -4,7 +4,7 @@
         ChatAppOverridableFeatures,
         ChatMessageFile,
         ChatMessageForRendering,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import Trace from '../chat-app-main/trace.svelte';
     import type { ChatAppState } from '../chat-app.state.svelte';

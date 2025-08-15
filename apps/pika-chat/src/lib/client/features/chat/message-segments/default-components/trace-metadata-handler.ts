@@ -1,5 +1,5 @@
 import type { AppState } from '$lib/client/app/app.state.svelte';
-import type { ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ChatAppState } from '../../chat-app.state.svelte';
 import type { MetadataTagSegment } from '../segment-types';
 

@@ -6,7 +6,7 @@ import {
     type SessionSearchDateFilter,
     type SessionSearchDatePreset,
     type SessionSearchRequest
-} from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { format, parseISO } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 

@@ -42,8 +42,8 @@ import type {
     SessionSearchRequest,
     SessionSearchResponse,
     RecordOrUndef
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from 'pika-shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import {
     createAgent,
@@ -86,7 +86,7 @@ import {
     createEntityWithMetadata,
     calculateTTL
 } from './chat-admin-utils';
-import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { queryForSessions } from './opensearch/opensearch';
 
 /**

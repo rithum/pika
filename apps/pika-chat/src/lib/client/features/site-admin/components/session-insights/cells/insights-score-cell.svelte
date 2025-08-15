@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { SessionInsights } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { SessionInsights } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         insights?: SessionInsights;

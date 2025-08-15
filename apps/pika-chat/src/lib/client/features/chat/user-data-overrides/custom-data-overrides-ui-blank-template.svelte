@@ -9,7 +9,7 @@
   You can delete this file once you you don't need it anymore.
 -->
 <script lang="ts">
-    import type { UserOverrideDataCommand } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
 
     /**
      * You must have these props in order for the dialog to be able to interact with your ui component correctly.

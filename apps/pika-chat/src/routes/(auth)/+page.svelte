@@ -4,7 +4,7 @@
     import { Button } from '$ui/shadcn/button';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import { Settings2 } from '$lib/icons/lucide';
-    import type { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatAppLite } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import type { PageData } from './$types';
 

@@ -114,7 +114,7 @@ promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: [
 Implement the required methods in `apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-user-data.ts`:
 
 ```typescript
-import type { AuthenticatedUser, ChatApp, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ChatApp, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * Get initial data for the override dialog
@@ -214,7 +214,7 @@ Create your UI component in `apps/pika-chat/src/lib/client/features/chat/user-da
 ```svelte
 <script lang="ts">
     import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import type { UserOverrideDataCommand } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
 
     // Required props interface
     interface Props {

@@ -22,8 +22,8 @@ import type {
     RecordOrUndef,
     SimpleAuthenticatedUser,
     UserPrefs
-} from '@pika/shared/types/chatbot/chatbot-types';
-import type { BaseRequestData } from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import type { BaseRequestData } from 'pika-shared/types/chatbot/chatbot-types';
 import { v7 as uuidv7 } from 'uuid';
 import { getTitleFromBedrockIfNeeded } from './bedrock-agent';
 import {

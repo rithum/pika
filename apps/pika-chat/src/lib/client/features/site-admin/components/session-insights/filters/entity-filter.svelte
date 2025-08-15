@@ -7,7 +7,7 @@
         RecordOrUndef,
         SessionDataWithChatUserCustomDataSpreadIn,
         SimpleOption,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { getContext } from 'svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';

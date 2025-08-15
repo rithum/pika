@@ -1,4 +1,4 @@
-import type { UploadInfo, UploadStatus } from '@pika/shared/types/upload-types';
+import type { UploadInfo, UploadStatus } from 'pika-shared/types/upload-types';
 
 export class UploadInstance {
     #status = $state<UploadStatus>({ status: 'idle', progress: 0 });

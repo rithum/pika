@@ -1,5 +1,5 @@
 import type { FetchZ } from '$client/app/types';
-import type { GetChatUserPrefsResponse, SetChatUserPrefsRequest, SetChatUserPrefsResponse, UserPrefs } from '@pika/shared/types/chatbot/chatbot-types';
+import type { GetChatUserPrefsResponse, SetChatUserPrefsRequest, SetChatUserPrefsResponse, UserPrefs } from 'pika-shared/types/chatbot/chatbot-types';
 
 export class UserPrefsState {
     #prefs = $state<UserPrefs>();

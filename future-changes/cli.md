@@ -139,23 +139,23 @@ export async function createAppCommand(projectName?: string, options?: any) {
 // Core implementation functions
 async function clonePikaRepository(targetPath: string): Promise<void> {
     console.log('📥 Cloning Pika framework repository...');
-    
+
     // Clone the repository (shallow clone for speed)
     await execAsync(`git clone --depth 1 https://github.com/yourusername/pika.git ${targetPath}`);
-    
+
     console.log('✅ Repository cloned successfully');
 }
 
 async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
     console.log('🧹 Cleaning up repository artifacts...');
-    
+
     const artifactsToRemove = [
-        '.git',                    // Remove original git history
-        '.github',                 // Remove GitHub workflows/templates
-        'future-changes',          // Remove planning documents
-        '.gitignore'               // We'll create a new one
+        '.git', // Remove original git history
+        '.github', // Remove GitHub workflows/templates
+        'future-changes', // Remove planning documents
+        '.gitignore' // We'll create a new one
     ];
-    
+
     for (const artifact of artifactsToRemove) {
         const artifactPath = path.join(projectPath, artifact);
         if (await fileManager.exists(artifactPath)) {
@@ -163,43 +163,41 @@ async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
             console.log(`  ✅ Removed ${artifact}`);
         }
     }
-    
+
     // Create new .gitignore appropriate for user projects
     await createUserGitignore(projectPath);
 }
 
 async function removeCLIPackage(projectPath: string): Promise<void> {
     console.log('🗑️  Removing CLI package (not needed in user projects)...');
-    
+
     const cliPackagePath = path.join(projectPath, 'packages/pika-cli');
     if (await fileManager.exists(cliPackagePath)) {
         await fileManager.removeDirectory(cliPackagePath);
         console.log('  ✅ CLI package removed');
     }
-    
+
     // Update root package.json to remove CLI workspace reference
     await updateRootPackageJson(projectPath);
 }
 
 async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
     console.log('📝 Updating project metadata...');
-    
+
     // Update root package.json
     const rootPackageJsonPath = path.join(config.projectPath, 'package.json');
     const rootPackageJson = JSON.parse(await fileManager.readFile(rootPackageJsonPath));
-    
+
     rootPackageJson.name = config.projectName;
     rootPackageJson.description = config.description || `A chat application built with Pika Framework`;
-    
+
     // Remove CLI from workspaces
     if (rootPackageJson.workspaces) {
-        rootPackageJson.workspaces = rootPackageJson.workspaces.filter(
-            (workspace: string) => !workspace.includes('pika-cli')
-        );
+        rootPackageJson.workspaces = rootPackageJson.workspaces.filter((workspace: string) => !workspace.includes('pika-cli'));
     }
-    
+
     await fileManager.writeFile(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
-    
+
     // Update individual app package.json files if needed
     await updateAppPackageJson(config);
 }
@@ -243,17 +241,17 @@ logs/
 # Uncomment if you plan to keep services in separate repos:
 # services/custom/
 `;
-    
+
     await fileManager.writeFile(path.join(projectPath, '.gitignore'), gitignoreContent);
 }
 
 async function initializeNewGitRepository(projectPath: string): Promise<void> {
     console.log('🔧 Initializing new git repository...');
-    
+
     await gitManager.initRepository(projectPath);
     await gitManager.addAll(projectPath);
     await gitManager.commit('Initial commit: Pika project created', projectPath);
-    
+
     console.log('✅ New git repository initialized');
 }
 
@@ -853,10 +851,7 @@ function shouldSkipDirectory(dirName: string): boolean {
 }
 
 function isOptionalSampleDirectory(filePath: string): boolean {
-    const optionalDirs = [
-        'services/samples/weather',
-        'apps/samples/enterprise-site'
-    ];
+    const optionalDirs = ['services/samples/weather', 'apps/samples/enterprise-site'];
     return optionalDirs.includes(filePath);
 }
 
@@ -924,7 +919,7 @@ export default {
 ### Auth Template (`templates/auth/custom-auth.ts.template`)
 
 ```typescript
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import type { UserAuthData } from '$lib/shared-types';
 
 /**

@@ -1,4 +1,4 @@
-import { ChatSession, RecordOrUndef, SessionInsights } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, RecordOrUndef, SessionInsights } from 'pika-shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -6,7 +6,7 @@ import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import { convertChatSessionToCamelFromSnakeCase, isTTLDeletion } from '../../lib/utils';
 import { chatSessionUpdated, getExistingDocumentsByIds } from '../../lib/opensearch/opensearch';
-import { SnakeCase, convertToCamelCase } from '@pika/shared/util/chatbot-shared-utils';
+import { SnakeCase, convertToCamelCase } from 'pika-shared/util/chatbot-shared-utils';
 
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const s3Client = new S3Client({ region: process.env.AWS_REGION });

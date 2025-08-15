@@ -1,6 +1,6 @@
-import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse } from '@pika/shared/types/chatbot/bedrock';
-import { RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn, SessionData } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertBedrockParamsToCorrectType, createBedrockLambdaResponse, handleBedrockError, normalizeSessionAttributes } from '@pika/shared/util/bedrock';
+import { BedrockActionGroupLambdaEvent, BedrockActionGroupLambdaResponse } from 'pika-shared/types/chatbot/bedrock';
+import { RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn, SessionData } from 'pika-shared/types/chatbot/chatbot-types';
+import { convertBedrockParamsToCorrectType, createBedrockLambdaResponse, handleBedrockError, normalizeSessionAttributes } from 'pika-shared/util/bedrock';
 import { callOpenMateoApi } from './openmateo-apis';
 
 /**

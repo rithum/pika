@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from 'pika-shared/types/chatbot/chatbot-types';
 import { type RequestEvent } from '@sveltejs/kit';
 import crypto from 'crypto';
 

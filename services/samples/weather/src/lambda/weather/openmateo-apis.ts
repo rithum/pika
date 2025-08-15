@@ -1,4 +1,4 @@
-import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from '@pika/shared/types/chatbot/chatbot-types';
+import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from 'pika-shared/types/chatbot/chatbot-types';
 import { GetObjectCommand, S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { parseCSVFiles } from './csv-parser';
 import {

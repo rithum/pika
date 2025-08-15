@@ -4,7 +4,7 @@
     import { Button } from '$ui/shadcn/button';
     import { Input } from '$ui/shadcn/input';
     import { Label } from '$ui/shadcn/label';
-    import { SCORE_SEARCH_OPERATORS_VALUES, type InsightsSearchParams } from '@pika/shared/types/chatbot/chatbot-types';
+    import { SCORE_SEARCH_OPERATORS_VALUES, type InsightsSearchParams } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

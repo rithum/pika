@@ -1,7 +1,7 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
-import type { ChatAppMode, ChatSessionFeedbackForCreate, RecordOrUndef, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppMode, ChatSessionFeedbackForCreate, RecordOrUndef, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
     UserOverrideDataCommand,
@@ -24,8 +24,8 @@ import {
     type SaveUserOverrideDataResponse,
     type UserOverrideDataCommandRequest,
     type UserOverrideDataCommandResponse
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { generateChatFileUploadS3KeyName, sanitizeFileName } from '@pika/shared/util/chatbot-shared-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { v7 as uuidv7 } from 'uuid';

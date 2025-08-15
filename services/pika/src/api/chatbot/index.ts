@@ -22,10 +22,10 @@ import {
     SetChatUserPrefsRequest,
     SetChatUserPrefsResponse,
     RecordOrUndef
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
-import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { addFeedback, addUser, getFeedbackBySessionId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
 import {
     addChatMessage,
@@ -42,7 +42,7 @@ import {
 } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { extractFromJwtString } from '@pika/shared/util/jwt';
+import { extractFromJwtString } from 'pika-shared/util/jwt';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted

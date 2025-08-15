@@ -1,6 +1,6 @@
 import { getChatSessions, getUserPrefs, setUserPrefs } from '$lib/server/chat-apis';
 import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
-import type { SetChatUserPrefsRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { SetChatUserPrefsRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { json, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ request, params, locals }) => {

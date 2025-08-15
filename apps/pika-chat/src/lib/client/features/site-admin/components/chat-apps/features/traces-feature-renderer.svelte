@@ -3,7 +3,7 @@
     import Checkbox from '$ui/shadcn/checkbox/checkbox.svelte';
     import { Label } from '$ui/shadcn/label';
     import { assert } from '$lib/utils';
-    import type { FeatureError, TracesFeatureForChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { FeatureError, TracesFeatureForChatApp } from 'pika-shared/types/chatbot/chatbot-types';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {

@@ -1,6 +1,6 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type { ChatAppLite } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatAppLite } from 'pika-shared/types/chatbot/chatbot-types';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 
 export async function load(

@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { PikaConstruct } from '../constructs/pika-construct';
 import { CustomStackDefs } from './custom-stack-defs';
-import { SessionInsightsFeature } from '@pika/shared/types/chatbot/chatbot-types';
+import { SessionInsightsFeature } from 'pika-shared/types/chatbot/chatbot-types';
 
 export interface PikaStackProps extends cdk.StackProps {
     stage: string;

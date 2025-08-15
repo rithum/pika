@@ -31,10 +31,10 @@ import {
     SessionSearchRequest,
     SessionSearchResponse,
     RecordOrUndef
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from '@pika/shared/util/api-gateway-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
-import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import {
     createAgentDefinition,
     createChatAppDefinition,

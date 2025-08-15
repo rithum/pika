@@ -1,4 +1,4 @@
-import { ChatApp, ChatAppDataRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatApp, ChatAppDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 import pRetry, { AbortError } from 'p-retry';
 import { invokeApi } from '../../lib/invoke-api';

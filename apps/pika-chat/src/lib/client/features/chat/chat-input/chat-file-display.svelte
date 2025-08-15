@@ -1,6 +1,6 @@
 <script lang="ts">
     import { File } from '$lib/icons/lucide';
-    import type { ChatMessageFile } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatMessageFile } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         file: ChatMessageFile;

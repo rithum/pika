@@ -10,16 +10,16 @@
         SESSION_FEEDBACK_SEVERITY_VALUES,
         SESSION_FEEDBACK_STATUS_VALUES,
         SESSION_FEEDBACK_TYPE_VALUES,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import type {
         ChatSessionFeedbackForCreate,
         SessionFeedbackSeverity,
         SessionFeedbackStatus,
         SessionFeedbackType,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { v7 as uuidv7 } from 'uuid';
     import { toast } from 'svelte-sonner';
-    import type { Attachment } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { Attachment } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         open: boolean;

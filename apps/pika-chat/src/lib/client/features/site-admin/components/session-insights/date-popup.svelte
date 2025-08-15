@@ -12,12 +12,12 @@
         NameValuePair,
         SessionSearchDateFilter,
         SessionSearchDatePreset,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         SESSION_SEARCH_DATE_PRESETS_SHORT_VALUES,
         SESSION_SEARCH_DATE_TYPES_VALUES,
         type SessionSearchDateType,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         createDefaultDateFilter,
         getSessionSearchDateDisplayValue,

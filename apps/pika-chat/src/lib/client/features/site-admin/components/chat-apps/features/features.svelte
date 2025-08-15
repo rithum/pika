@@ -6,7 +6,7 @@
     import { Checkbox } from '$ui/shadcn/checkbox';
     import { Label } from '$ui/shadcn/label';
     import { Separator } from '$ui/shadcn/separator';
-    import { FEATURE_NAMES, VerifyResponseClassificationDescriptions } from '@pika/shared/types/chatbot/chatbot-types';
+    import { FEATURE_NAMES, VerifyResponseClassificationDescriptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';
 
@@ -27,7 +27,7 @@
         UiCustomizationFeature,
         UiCustomizationFeatureForChatApp,
         VerifyResponseFeatureForChatApp,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     // Import individual feature components
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import Button from '$ui/shadcn/button/button.svelte';

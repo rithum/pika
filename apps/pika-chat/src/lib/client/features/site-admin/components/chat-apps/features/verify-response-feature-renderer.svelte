@@ -6,7 +6,7 @@
         VerifyResponseRetryableClassificationDescriptions,
         type FeatureError,
         type VerifyResponseFeatureForChatApp,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {

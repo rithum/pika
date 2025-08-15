@@ -3,7 +3,7 @@ import { searchForUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { serializeContentAdminDataToCookies } from '$lib/server/cookies';
 import { isUserContentAdmin } from '$lib/server/utils';
-import type { ContentAdminRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ContentAdminRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 
 export const POST: RequestHandler = async (event) => {

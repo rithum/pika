@@ -1,4 +1,4 @@
-import { SessionInsightsFeature, SessionInsightsOpenSearchConfig } from '@pika/shared/types/chatbot/chatbot-types';
+import { SessionInsightsFeature, SessionInsightsOpenSearchConfig } from 'pika-shared/types/chatbot/chatbot-types';
 import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';

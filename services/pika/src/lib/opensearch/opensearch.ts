@@ -1,7 +1,7 @@
 import { Client, Types } from '@opensearch-project/opensearch';
 
-import type { ChatSession, ChatSessionFeedback, RecordOrUndef, ScoreSearchParams, SessionSearchRequest, SessionSearchResponse } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToSnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import type { ChatSession, ChatSessionFeedback, RecordOrUndef, ScoreSearchParams, SessionSearchRequest, SessionSearchResponse } from 'pika-shared/types/chatbot/chatbot-types';
+import { convertToSnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import OsClient from './opensearch-client';
 import { buildScrollIdFromQueryAndLastHitSort, getNextPageQueryFromScrollId, handleOsError } from './opensearch-utils';

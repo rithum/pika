@@ -4,7 +4,7 @@ import type { Page } from '@sveltejs/kit';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
-import type { SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
+import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 
 const ITEMS: NavItem[] = [
     {

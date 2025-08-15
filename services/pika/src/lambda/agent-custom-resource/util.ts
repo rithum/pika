@@ -1,4 +1,4 @@
-import { AgentDataRequest, AgentDefinition, ToolDefinition } from '@pika/shared/types/chatbot/chatbot-types';
+import { AgentDataRequest, AgentDefinition, ToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
 import { invokeApi } from '../../lib/invoke-api';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 import pRetry, { AbortError } from 'p-retry';

@@ -7,7 +7,7 @@
         type InsightsSearchParams,
         type NameValueDescTriple,
         type SessionInsightMetricsComplexityLevel,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
 
     interface Props {

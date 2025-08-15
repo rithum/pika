@@ -1,5 +1,5 @@
 import { AppState } from '$client/app/app.state.svelte';
-import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
 import type { LoadEvent } from '@sveltejs/kit';
 
 export async function load({ fetch, data }: LoadEvent) {

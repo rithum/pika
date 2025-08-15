@@ -2,7 +2,7 @@
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { Label } from '$ui/shadcn/label';
-    import type { NameValuePair } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { NameValuePair } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
 

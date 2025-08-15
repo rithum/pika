@@ -16,8 +16,8 @@ import type {
     SessionSearchResponse,
     UpdateChatSessionFeedbackResponse,
     UserChatAppRule
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { convertToJwtString } from '@pika/shared/util/jwt';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { convertToJwtString } from 'pika-shared/util/jwt';
 import { hash } from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { appConfig } from './config';

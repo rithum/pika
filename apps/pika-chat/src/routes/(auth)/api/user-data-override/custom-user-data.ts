@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, ChatApp, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, ChatApp, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 /**
  * Get the initial data for the user data override dialog.  This is the data that will be displayed in the dialog when the user
  * clicks the user data override button.  Lets say you want to have a company picker in the user data override dialog.  You would

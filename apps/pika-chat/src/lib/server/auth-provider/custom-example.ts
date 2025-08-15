@@ -1,7 +1,7 @@
 import { appConfig } from '$lib/server/config';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import type { AuthenticatedUser, AuthenticateResult } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult } from 'pika-shared/types/chatbot/chatbot-types';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import type { RequestEvent } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';

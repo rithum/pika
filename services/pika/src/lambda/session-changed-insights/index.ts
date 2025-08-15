@@ -1,8 +1,8 @@
-import { ChatSession, INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { setSessionsInsightsAnalysisInBatch } from '../../lib/chat-admin-ddb';
-import { SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+import { SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { convertChatSessionToCamelFromSnakeCase } from 'src/lib/utils';
 
 /**

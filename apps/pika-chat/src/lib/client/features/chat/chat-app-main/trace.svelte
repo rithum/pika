@@ -4,7 +4,7 @@
     import { Button } from '$ui/shadcn/button';
     import { Copy } from '$lib/icons/ci';
     import { Expand, Shrink } from '$icons/lucide';
-    import type { ChatAppOverridableFeatures, ChatMessageForRendering } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';

@@ -4,7 +4,7 @@
     import { Checkbox } from '$ui/shadcn/checkbox/index.js';
     import { Label } from '$ui/shadcn/label/index.js';
     import { assert } from '$lib/utils';
-    import type { AccessRules, UserRole } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { AccessRules, UserRole } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         rulesObj: AccessRules | undefined;

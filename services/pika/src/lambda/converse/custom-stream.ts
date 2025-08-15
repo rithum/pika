@@ -3,7 +3,7 @@ import { streamifyResponse as originalStreamifyResponse, ResponseStream } from '
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { sanitizeAndStringifyError } from '../../lib/utils';
-import { HttpStatusError } from '@pika/shared/util/http-status-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 
 /**
  * Custom wrapper for streamifyResponse that uses EnhancedResponseStream instead of the default ResponseStream

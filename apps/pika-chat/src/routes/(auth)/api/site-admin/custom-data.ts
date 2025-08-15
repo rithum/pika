@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, RecordOrUndef, SimpleOption } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef, SimpleOption } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * Get the values for an auto complete input component in the admin UI.  This is used if you have turned on

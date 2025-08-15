@@ -10,7 +10,7 @@
         type SimpleOption,
         type UserRole,
         type UserType,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     interface Props {

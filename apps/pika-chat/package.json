@@ -44,7 +44,7 @@
         "@internationalized/date": "catalog:",
         "@lucide/svelte": "^0.482.0",
         "@opensearch-project/opensearch": "catalog:",
-        "@pika/shared": "workspace:*",
+        "pika-shared": "workspace:*",
         "@smithy/node-http-handler": "catalog:",
         "@smithy/signature-v4": "catalog:",
         "@sveltejs/adapter-node": "catalog:",

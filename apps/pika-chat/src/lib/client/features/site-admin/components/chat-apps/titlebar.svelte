@@ -1,7 +1,7 @@
 <script lang="ts">
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import { Button } from '$ui/shadcn/button';
-    import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         selectedChatApp: ChatApp;

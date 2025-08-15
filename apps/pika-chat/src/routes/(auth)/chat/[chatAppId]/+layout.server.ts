@@ -1,7 +1,7 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, UserDataOverrideSettings } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 

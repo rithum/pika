@@ -1,4 +1,4 @@
-import type { AccessRules, ChatApp, ChatAppOverride, ChatUser, UserChatAppRule, UserType } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AccessRules, ChatApp, ChatAppOverride, ChatUser, UserChatAppRule, UserType } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * This function is used to get the matching chat apps for a user.  It is used to get the chat apps that the user is allowed to access.

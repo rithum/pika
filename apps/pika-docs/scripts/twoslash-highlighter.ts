@@ -28,7 +28,7 @@ export async function createTwoslashOptions(): Promise<TwoslashOptions> {
             baseUrl: '/',
             paths: {
                 '@chatbot-types': [VIRTUAL_CHATBOT_TYPES],
-                '@pika/shared/*': [path.resolve(__dirname, '../../../packages/shared/src/*')]
+                'pika-shared/*': [path.resolve(__dirname, '../../../packages/shared/src/*')]
             },
             strict: true,
             esModuleInterop: true,

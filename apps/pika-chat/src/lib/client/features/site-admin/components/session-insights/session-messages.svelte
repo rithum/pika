@@ -3,7 +3,7 @@
     import ChatFileDisplay from '$lib/client/features/chat/chat-input/chat-file-display.svelte';
     import MessageRenderer from '$lib/client/features/chat/message-segments/message-renderer.svelte';
     import { formatDateTime } from '$lib/utils';
-    import type { ChatAppOverridableFeatures } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatAppOverridableFeatures } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');

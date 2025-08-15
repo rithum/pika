@@ -1,6 +1,6 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { PresignedUrlUploadRequest, PresignedUrlUploadResponse } from '@pika/shared/types/upload-types';
+import type { PresignedUrlUploadRequest, PresignedUrlUploadResponse } from 'pika-shared/types/upload-types';
 import { appConfig } from './config';
 
 const THIRTY_MINUTES_SECONDS = 30 * 60; // 1800 seconds

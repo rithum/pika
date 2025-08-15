@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Label } from '$ui/shadcn/label';
     import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import type { ChatUserLite, NameValuePair } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatUserLite, NameValuePair } from 'pika-shared/types/chatbot/chatbot-types';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { getContext } from 'svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';

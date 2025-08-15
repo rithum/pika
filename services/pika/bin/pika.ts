@@ -18,7 +18,7 @@
  * 2. Add 'services/pika/bin/pika.ts' to the userUnprotectedAreas array
  */
 
-import { SessionInsightsFeature } from '@pika/shared/types/chatbot/chatbot-types';
+import { SessionInsightsFeature } from 'pika-shared/types/chatbot/chatbot-types';
 import * as cdk from 'aws-cdk-lib';
 import 'source-map-support/register';
 import { pikaConfig } from '../../../pika-config.js';

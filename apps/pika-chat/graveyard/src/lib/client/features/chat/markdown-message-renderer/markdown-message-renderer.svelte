@@ -10,7 +10,7 @@
     import ChatComponent from './markdown-tag-components/chat.svelte';
     import DownloadComponent from './markdown-tag-components/download.svelte';
     import type { AppState } from '$client/app/app.state.svelte';
-    import type { ChatMessageFile } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatMessageFile } from 'pika-shared/types/chatbot/chatbot-types';
     import { ChatAppState } from '../chat-app.state.svelte';
 
     interface Props {

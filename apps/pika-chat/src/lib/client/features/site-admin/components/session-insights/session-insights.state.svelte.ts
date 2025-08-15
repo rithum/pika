@@ -20,7 +20,7 @@ import type {
     SessionSearchResponse,
     SimpleOption,
     SessionInsights
-} from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
 import deepEqual from 'deep-equal';
 import cloneDeep from 'lodash.clonedeep';
 import { SvelteMap } from 'svelte/reactivity';

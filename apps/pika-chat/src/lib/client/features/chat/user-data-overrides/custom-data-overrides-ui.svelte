@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
     import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import type { UserOverrideDataCommand } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         isValid: boolean | string;

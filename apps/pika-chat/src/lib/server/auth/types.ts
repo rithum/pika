@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import type { RequestEvent } from '@sveltejs/kit';
 
 /**

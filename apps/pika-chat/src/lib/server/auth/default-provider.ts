@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from 'pika-shared/types/chatbot/chatbot-types';
 import type { RequestEvent } from '@sveltejs/kit';
 import { AuthProvider } from './types.js';
 

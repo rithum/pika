@@ -696,7 +696,7 @@ Create your main authentication provider. Your provider must extend the generic 
 ```typescript
 // apps/pika-chat/src/lib/server/auth-provider/index.ts
 import type { RequestEvent } from '@sveltejs/kit';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { AuthProvider, NotAuthenticatedError, ForceUserToReauthenticateError } from '../auth/types';
 import { redirect } from '@sveltejs/kit';
 import type { YourCustomAuthData, YourCustomUserData } from './types';

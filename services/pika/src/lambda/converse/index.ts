@@ -11,11 +11,11 @@ import type {
     ConverseRequestWithCommand,
     RecordOrUndef,
     SimpleAuthenticatedUser
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from '@pika/shared/util/api-gateway-utils';
-import { HttpStatusError } from '@pika/shared/util/http-status-error';
-import { extractFromJwtString } from '@pika/shared/util/jwt';
-import { redactData } from '@pika/shared/util/server-client-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
+import { extractFromJwtString } from 'pika-shared/util/jwt';
+import { redactData } from 'pika-shared/util/server-client-utils';
 import { LRUCache } from 'lru-cache';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
 import { getAgentAndTools } from '../../lib/chat-admin-apis';

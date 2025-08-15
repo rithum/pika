@@ -13,9 +13,9 @@ import type {
     UpdateableChatAppFields,
     UpdateableChatAppOverrideFields,
     UpdateableToolDefinitionFields
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from '@pika/shared/types/chatbot/chatbot-types';
-import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from 'pika-shared/types/chatbot/chatbot-types';
+import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dynamodb';

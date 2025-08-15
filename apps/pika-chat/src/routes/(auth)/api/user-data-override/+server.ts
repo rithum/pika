@@ -2,7 +2,7 @@ import { getChatApp } from '$lib/server/chat-admin-apis';
 import { appConfig } from '$lib/server/config';
 import { serializeUserOverrideDataToCookies } from '$lib/server/cookies';
 import { isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { UserOverrideDataCommandRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { UserOverrideDataCommandRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { getInitialDataForUserDataOverrideDialog, getValuesForAutoComplete, userOverrideDataPostedFromDialog } from './custom-user-data';
 

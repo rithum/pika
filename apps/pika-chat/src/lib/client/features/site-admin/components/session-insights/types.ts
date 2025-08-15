@@ -1,4 +1,4 @@
-import type { RecordOrUndef, SessionSearchRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { RecordOrUndef, SessionSearchRequest } from 'pika-shared/types/chatbot/chatbot-types';
 
 export interface SavedSearch {
     id: string;

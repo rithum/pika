@@ -1,8 +1,8 @@
-import { ChatSessionFeedback } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSessionFeedback } from 'pika-shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
 import { chatSessionFeedbackChanged } from '../../lib/opensearch/opensearch';
-import { SnakeCase, convertToCamelCase } from '@pika/shared/util/chatbot-shared-utils';
+import { SnakeCase, convertToCamelCase } from 'pika-shared/util/chatbot-shared-utils';
 
 /**
  * This lambda function handles changes to the chat session feedback table.

@@ -20,14 +20,14 @@
     import { ScrollArea } from '$ui/shadcn/scroll-area';
     import { Separator } from '$ui/shadcn/separator';
     import * as Tooltip from '$ui/shadcn/tooltip';
-    import type { ChatSessionFeedback, ChatSessionFeedbackForUpdate } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatSessionFeedback, ChatSessionFeedbackForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
         FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES,
         SESSION_FEEDBACK_SEVERITY_VALUES,
         SESSION_FEEDBACK_STATUS_VALUES,
         SESSION_FEEDBACK_TYPE_VALUES,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import AddFeedbackDialog from './add-feedback-dialog.svelte';
     import AddInternalCommentDialog from './add-internal-comment-dialog.svelte';

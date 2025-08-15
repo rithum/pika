@@ -3,10 +3,10 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "@pika/shared/*": [
+            "pika-shared/*": [
                 "packages/shared/src/*"
             ],
-            "@pika/shared": [
+            "pika-shared": [
                 "packages/shared/src"
             ]
         },

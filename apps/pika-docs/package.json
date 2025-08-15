@@ -11,7 +11,7 @@
         "sync:developer-docs": "node ./scripts/sync-developer-docs.mjs"
     },
     "devDependencies": {
-        "@pika/shared": "workspace:*",
+        "pika-shared": "workspace:*",
         "@shikijs/twoslash": "^3.9.2",
         "@sveltejs/adapter-static": "^3.0.1",
         "@sveltejs/kit": "^2.8.1",

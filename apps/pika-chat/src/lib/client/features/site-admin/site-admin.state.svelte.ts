@@ -18,8 +18,8 @@ import type {
     SiteAdminResponse,
     SiteFeatures,
     UpdateChatSessionFeedbackResponse
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { type ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { type ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';

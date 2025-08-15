@@ -3,7 +3,7 @@
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import { Button } from '$ui/shadcn/button';
     import * as Popover from '$ui/shadcn/popover';
-    import { type InsightsSearchParams } from '@pika/shared/types/chatbot/chatbot-types';
+    import { type InsightsSearchParams } from 'pika-shared/types/chatbot/chatbot-types';
     import InsightsScoreFilter from './insights-score.svelte';
 
     interface Props {

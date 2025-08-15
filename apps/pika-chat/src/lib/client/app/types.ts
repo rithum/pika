@@ -1,4 +1,4 @@
-import type { SiteFeatures } from '@pika/shared/types/chatbot/chatbot-types';
+import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import type { Component } from 'svelte';
 
 /**

@@ -2,7 +2,7 @@ import { handleAuthCallback, logout, redirectToAuth, refresh } from '$lib/server
 import { appConfig } from '$lib/server/config';
 import { addSecurityHeaders, decryptCookieString, deleteCookies } from '$lib/server/utils';
 import { AUTHENTICATED_USER_COOKIE_NAME, AUTHENTICATED_USER_ACCESS_TOKEN_COOKIE_NAME, type UserAuthData } from '$lib/shared-types';
-import type { AuthenticatedUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 
 // Initialize server configuration

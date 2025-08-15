@@ -1,5 +1,5 @@
-import type { AgentDataRequest, ChatAppForIdempotentCreateOrUpdate } from '@pika/shared/types/chatbot/chatbot-types';
-import { gzipAndBase64EncodeString } from '@pika/shared/util/server-utils';
+import type { AgentDataRequest, ChatAppForIdempotentCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';

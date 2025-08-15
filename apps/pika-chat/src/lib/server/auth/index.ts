@@ -1,5 +1,5 @@
 import { appConfig } from '$lib/server/config';
-import type { RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import DefaultAuthProvider from './default-provider';
 import type { AuthProvider } from './types';
 import { ForceUserToReauthenticateError, NotAuthenticatedError } from './types';

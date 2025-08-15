@@ -1,6 +1,6 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {

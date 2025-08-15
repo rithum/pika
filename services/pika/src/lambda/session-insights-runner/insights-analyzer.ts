@@ -8,8 +8,8 @@ import {
     SessionInsights,
     SessionInsightScoring,
     SessionInsightUsage
-} from '@pika/shared/types/chatbot/chatbot-types';
-import { SnakeCase } from '@pika/shared/util/chatbot-shared-utils';
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { getChatMessagesInSession } from 'src/lib/chat-ddb';

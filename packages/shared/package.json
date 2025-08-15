@@ -1,6 +1,6 @@
 {
-    "name": "@pika/shared",
-    "version": "0.0.1",
+    "name": "pika-shared",
+    "version": "1.0.1",
     "private": true,
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
@@ -27,7 +27,16 @@
         "dev": "tsup --watch",
         "lint": "eslint src/",
         "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
-        "check-types": "tsc --noEmit"
+        "check-types": "tsc --noEmit",
+        "prepack": "pnpm run build",
+        "prepublishOnly": "echo 'Publishing pika-app...' && pnpm run build",
+        "version:patch": "pnpm version patch --git-tag-version=true",
+        "version:minor": "pnpm version minor --git-tag-version=true",
+        "version:major": "pnpm version major --git-tag-version=true",
+        "release:patch": "pnpm run version:patch && pnpm publish && git push && git push --tags",
+        "release:minor": "pnpm run version:minor && pnpm publish && git push && git push --tags",
+        "release:major": "pnpm run version:major && pnpm publish && git push && git push --tags",
+        "release:dry": "pnpm publish --dry-run"
     },
     "devDependencies": {
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
@@ -47,5 +56,18 @@
         "camelcase-keys": "catalog:",
         "jsonwebtoken": "catalog:",
         "snakecase-keys": "catalog:"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rithum/pika.git",
+        "directory": "packages/pika-cli"
+    },
+    "bugs": {
+        "url": "https://github.com/rithum/pika/issues"
+    },
+    "homepage": "https://github.com/rithum/pika#readme",
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
     }
 }

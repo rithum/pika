@@ -3,7 +3,7 @@
     import List from '$ui/pika/list/list.svelte';
     import { Label } from '$ui/shadcn/label';
     import { assert } from '$lib/utils';
-    import type { ChatApp, ChatUserLite } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatApp, ChatUserLite } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     interface Props {

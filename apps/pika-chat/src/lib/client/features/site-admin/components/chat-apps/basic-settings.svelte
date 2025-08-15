@@ -4,7 +4,7 @@
     import { Checkbox } from '$ui/shadcn/checkbox';
     import { Input } from '$ui/shadcn/input';
     import { Label } from '$ui/shadcn/label';
-    import type { ChatApp } from '@pika/shared/types/chatbot/chatbot-types';
+    import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
     import ConfigSection from '../config-section.svelte';
 
     interface Props {

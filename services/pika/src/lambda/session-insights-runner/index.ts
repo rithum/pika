@@ -1,5 +1,5 @@
 import { ConditionalCheckFailedException, DynamoDBClient, PutItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
-import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate, RecordOrUndef } from '@pika/shared/types/chatbot/chatbot-types';
+import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { Context } from 'aws-lambda';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';

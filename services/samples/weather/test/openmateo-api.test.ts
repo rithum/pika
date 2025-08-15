@@ -19,7 +19,7 @@ import {
     GetGeocodingParams
 } from '../src/lambda/weather/types';
 
-import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from '@pika/shared/types/chatbot/chatbot-types';
+import { RecordOrUndef, SessionData, SessionDataWithChatUserCustomDataSpreadIn } from 'pika-shared/types/chatbot/chatbot-types';
 
 // Test coordinates for New York City
 const TEST_COORDINATES = {

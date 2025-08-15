@@ -1,4 +1,4 @@
-import type { ChatUser } from '@pika/shared/types/chatbot/chatbot-types';
+import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 
 export async function load(event: RequestEvent<Record<string, string>>): Promise<ChatUser> {

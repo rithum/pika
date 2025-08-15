@@ -1,5 +1,5 @@
 import { addFeedback } from '$lib/server/chat-apis';
-import type { AddChatSessionFeedbackRequest } from '@pika/shared/types/chatbot/chatbot-types';
+import type { AddChatSessionFeedbackRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { json, redirect, type RequestHandler } from '@sveltejs/kit';
 
 export const POST: RequestHandler = async (event) => {

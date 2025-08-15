@@ -9,7 +9,7 @@
         ChatApp,
         ChatAppOverrideForCreateOrUpdate,
         UserChatAppRule,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import deepEqual from 'deep-equal';
     import { getContext, type Snippet } from 'svelte';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';

@@ -9,15 +9,15 @@
     import {
         FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES,
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
-    } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import type {
         ChatSessionFeedback,
         ChatSessionFeedbackForUpdate,
         FeedbackInternalComment,
         FeedbackInternalCommentStatus,
         FeedbackInternalCommentType,
-    } from '@pika/shared/types/chatbot/chatbot-types';
-    import type { Attachment } from '@pika/shared/types/chatbot/chatbot-types';
+    } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { Attachment } from 'pika-shared/types/chatbot/chatbot-types';
     import { toast } from 'svelte-sonner';
 
     interface Props {
