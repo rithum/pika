@@ -1,5 +1,7 @@
 # Pika (ピカ)
 
+[Visit Pika documentation and guide website](http://pika.tools)
+
 A framework for rapidly deploying AI-powered chat applications and agents. The name "Pika" (ピカ) in Japanese means "spark" or "flash of electricity," symbolizing its purpose of quickly igniting and powering new agent-based solutions.
 
 ![Pika Framework Architecture](./docs/svgs/framework-architecture.drawio.svg)
