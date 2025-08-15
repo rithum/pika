@@ -58,6 +58,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Chat Disclaimer Notice', to: '/docs/developer/chat-disclaimer-notice-feature/' },
                         { title: 'Overriding User Data', to: '/docs/developer/overriding-user-data/' },
                         { title: 'Entity Feature', to: '/docs/developer/entity-feature/' },
+                        { title: 'Custom Msg Tags', to: '/docs/developer/custom-message-tags/' },
                         { title: 'Site Admin Feature', to: '/docs/developer/site-admin-feature/' },
                         { title: 'Content Admin', to: '/docs/developer/content-admin/' },
                         { title: 'Stack Management', to: '/docs/developer/stack-management/' },

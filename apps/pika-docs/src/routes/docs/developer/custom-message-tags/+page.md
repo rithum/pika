@@ -94,99 +94,103 @@ interface Props {
 
 <Tabs activeName="Component Code">
   <TabPanel name="Component Code">
-    ```js
-    <!-- DataTableRenderer.svelte -->
-    <script lang="ts">
-        import type { AppState } from '$client/app/app.state.svelte';
-        import { ChatAppState } from '../../chat-app.state.svelte';
-        import type { ProcessedTagSegment } from '../segment-types';
 
-        interface Props {
-            segment: ProcessedTagSegment;
-            appState: AppState;
-            chatAppState: ChatAppState;
-        }
+```js title="DataTableRenderer.svelte"
+<script lang="ts">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import { ChatAppState } from '../../chat-app.state.svelte';
+    import type { ProcessedTagSegment } from '../segment-types';
 
-        let { segment }: Props = $props();
+    interface Props {
+        segment: ProcessedTagSegment;
+        appState: AppState;
+        chatAppState: ChatAppState;
+    }
 
-        let rawTagContent = $derived(segment.rawContent);
-        let showPlaceholder = $derived(segment.streamingStatus === 'pending');
-        let error = $state<string | null>(null);
-        let tableData = $state<{headers: string[], rows: string[][]} | null>(null);
+    let { segment }: Props = $props();
 
-        $effect(() => {
-            if (showPlaceholder) return;
+    let rawTagContent = $derived(segment.rawContent);
+    let showPlaceholder = $derived(segment.streamingStatus === 'pending');
+    let error = $state<string | null>(null);
+    let tableData = $state<{headers: string[], rows: string[][]} | null>(null);
 
-            try {
-                const parsed = JSON.parse(rawTagContent);
-                if (!parsed.headers || !parsed.rows) {
-                    error = 'Invalid table data format';
-                    return;
-                }
-                tableData = parsed;
-                error = null;
-            } catch (e) {
-                error = e instanceof Error ? e.message : 'Failed to parse table data';
+    $effect(() => {
+        if (showPlaceholder) return;
+
+        try {
+            const parsed = JSON.parse(rawTagContent);
+            if (!parsed.headers || !parsed.rows) {
+                error = 'Invalid table data format';
+                return;
             }
-        });
-    </script>
+            tableData = parsed;
+            error = null;
+        } catch (e) {
+            error = e instanceof Error ? e.message : 'Failed to parse table data';
+        }
+    });
+</script>
 
-    <div class="my-4">
-        {#if showPlaceholder}
-            <div class="animate-pulse bg-gray-100 rounded-lg p-4 text-center text-gray-500">
-                Loading table...
-            </div>
-        {:else if error}
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-                <p class="font-semibold">Table Error</p>
-                <p class="text-sm">{error}</p>
-            </div>
-        {:else if tableData}
-            <div class="overflow-x-auto bg-white rounded-lg shadow">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+<div class="my-4">
+    {#if showPlaceholder}
+        <div class="animate-pulse bg-gray-100 rounded-lg p-4 text-center text-gray-500">
+            Loading table...
+        </div>
+    {:else if error}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <p class="font-semibold">Table Error</p>
+            <p class="text-sm">{error}</p>
+        </div>
+    {:else if tableData}
+        <div class="overflow-x-auto bg-white rounded-lg shadow">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        {#each tableData.headers as header}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {header}
+                            </th>
+                        {/each}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {#each tableData.rows as row}
                         <tr>
-                            {#each tableData.headers as header}
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {header}
-                                </th>
+                            {#each row as cell}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {cell}
+                                </td>
                             {/each}
                         </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        {#each tableData.rows as row}
-                            <tr>
-                                {#each row as cell}
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {cell}
-                                    </td>
-                                {/each}
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
-        {/if}
-    </div>
-    ```
+                    {/each}
+                </tbody>
+            </table>
+        </div>
+    {/if}
+</div>
+```
 
-  </TabPanel>
-  <TabPanel name="Registration">
-    ```js
-    import DataTableRenderer from './DataTableRenderer.svelte';
+</TabPanel>
+<TabPanel name="Registration">
 
-    export const customRenderers: Record<string, Component<any>> = {
-        datatable: DataTableRenderer
-    };
-    ```
+```js
+import DataTableRenderer from './DataTableRenderer.svelte';
 
-  </TabPanel>
-  <TabPanel name="Usage">
-    ```
-    Here's your sales data:
+export const customRenderers: Record<string, Component<any>> = {
+datatable: DataTableRenderer
+};
 
-    <datatable>{"headers": ["Product", "Sales", "Revenue"], "rows": [["Widget A", "150", "$1,500"], ["Widget B", "200", "$2,000"]]}</datatable>
-    ```
+```
+
+</TabPanel>
+<TabPanel name="Usage">
+
+```
+Here's your sales data:
+
+<datatable>{"headers": ["Product", "Sales", "Revenue"], "rows": [["Widget A", "150", "$1,500"], ["Widget B", "200", "$2,000"]]}</datatable>
+
+```
 
   </TabPanel>
 </Tabs>
@@ -216,56 +220,58 @@ type MetadataTagHandler = (segment: MetadataTagSegment, message: ChatMessageForR
 
 <Tabs activeName="Handler Implementation">
   <TabPanel name="Handler Implementation">
-    ```js
-    // analytics-handler.ts
-    import type { MetadataTagHandler } from '../segment-types';
 
-    export const analyticsHandler: MetadataTagHandler = (segment, message, chatAppState, appState) => {
-        // Only process completed segments to avoid duplicate processing
-        if (segment.streamingStatus !== 'completed') return;
+```js title="analytics-handler.ts"
+import type { MetadataTagHandler } from '../segment-types';
 
-        try {
-            const analyticsData = JSON.parse(segment.rawContent);
+export const analyticsHandler: MetadataTagHandler = (segment, message, chatAppState, appState) => {
+    // Only process completed segments to avoid duplicate processing
+    if (segment.streamingStatus !== 'completed') return;
 
-            // Add analytics data to the message
-            if (!message.metadata) {
-                message.metadata = {};
-            }
-            message.metadata.analytics = analyticsData;
+    try {
+        const analyticsData = JSON.parse(segment.rawContent);
 
-            // Trigger analytics tracking
-            if (analyticsData.event && analyticsData.properties) {
-                // Send to your analytics service
-                trackEvent(analyticsData.event, analyticsData.properties);
-            }
-        } catch (error) {
-            console.error('Failed to process analytics metadata', error);
+        // Add analytics data to the message
+        if (!message.metadata) {
+            message.metadata = {};
         }
-    };
+        message.metadata.analytics = analyticsData;
 
-    function trackEvent(event: string, properties: any) {
-        // Your analytics implementation
-        console.log('Analytics event:', event, properties);
+        // Trigger analytics tracking
+        if (analyticsData.event && analyticsData.properties) {
+            // Send to your analytics service
+            trackEvent(analyticsData.event, analyticsData.properties);
+        }
+    } catch (error) {
+        console.error('Failed to process analytics metadata', error);
     }
-    ```
+};
+
+function trackEvent(event: string, properties: any) {
+    // Your analytics implementation
+    console.log('Analytics event:', event, properties);
+}
+```
 
   </TabPanel>
   <TabPanel name="Registration">
-    ```js
-    import { analyticsHandler } from './analytics-handler';
 
-    export const customMetadataHandlers: Record<string, MetadataTagHandler> = {
-        analytics: analyticsHandler
-    };
-    ```
+```js
+import { analyticsHandler } from './analytics-handler';
+
+export const customMetadataHandlers: Record<string, MetadataTagHandler> = {
+    analytics: analyticsHandler
+};
+```
 
   </TabPanel>
   <TabPanel name="Usage">
-    ```
-    I've processed your request successfully.
 
-    <analytics>{"event": "query_processed", "properties": {"type": "data_analysis", "duration": 2.5, "tokens": 250}}</analytics>
-    ```
+```
+I've processed your request successfully.
+
+<analytics>{"event": "query_processed", "properties": {"type": "data_analysis", "duration": 2.5, "tokens": 250}}</analytics>
+```
 
   </TabPanel>
 </Tabs>
