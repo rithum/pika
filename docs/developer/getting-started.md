@@ -29,7 +29,7 @@ curl -fsSL https://get.pnpm.io/install.sh | sh -
 Install the Pika CLI globally to create and manage your Pika applications:
 
 ```bash
-pnpm install -g @pika/cli
+pnpm install -g pika-app
 ```
 
 ### Create Your First Application

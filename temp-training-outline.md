@@ -103,7 +103,7 @@ A comprehensive video training series designed to help developers and teams quic
     - Quick commands to verify installation
 - **Pika CLI Installation (1 min):**
     ```bash
-    pnpm install -g @pika/cli
+    pnpm install -g pika-app
     pika create-app my-chat-app
     ```
 - **Project Structure Tour (2 min):**

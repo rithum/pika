@@ -106,7 +106,7 @@ git --version
 Install the Pika CLI globally to access it from anywhere on your system:
 
 ```bash
-pnpm install -g @pika/cli
+pnpm install -g pika-app
 ```
 
 ### Verify Installation

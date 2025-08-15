@@ -44,7 +44,7 @@ Start with the [Documentation Overview](./docs/README.md) for a complete guide t
 1. **Install Pika CLI**:
 
     ```bash
-    pnpm install -g @pika/cli
+    pnpm install -g pika-app
     ```
 
 2. **Create your first application**:

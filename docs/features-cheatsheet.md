@@ -2,7 +2,8 @@
 
 ### 1. Fork, scaffold, and sync (Pika CLI + workflow)
 
-- Install pnpm and CLI: `npm i -g pnpm @pika/cli`.
+- Install pnpm : `npm i -g pnpm`.
+- Install pika app: `pnpm i -g pika-app`
 - Create app: `pika create-app my-app` → open the new repo.
 - Review `.pika-sync.json` protected areas; add any of your custom paths under `userProtectedAreas`.
 - Pull updates safely: `pika sync --dry-run` → `pika sync --diff` → `pika sync` (or `--visual-diff`).
