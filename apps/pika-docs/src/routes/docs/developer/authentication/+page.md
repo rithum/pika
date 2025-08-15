@@ -78,7 +78,7 @@ async authenticate(event: RequestEvent): Promise<AuthenticatedUser<AuthData, Cus
 
 The framework uses a two-tier data structure to separate authentication data from business data:
 
-### AuthenticatedUserT&lt;, U&gt;
+### AuthenticatedUser&lt;T, U&gt;
 
 - **T (Auth Data)**: Sensitive authentication information (tokens, sessions, etc.)
 
@@ -418,18 +418,18 @@ const sharedApp: ChatApp = {
 
 ### Common Security Mistakes
 
-Dangerouse Patterns to Avoid
+Bad Patterns to Avoid
 
 <Tabs activeName="Missing UserType">
   <TabPanel name="Missing UserType">
 
 ```js
-// DANGEROUS - Missing userType assignment
+// Missing userType assignment defaults to internal
 const user: AuthenticatedUser = {
     userId: 'user123',
     firstName: 'John',
     lastName: 'Doe'
-    // Missing userType = potential security issues
+    // Missing userType = defaults to internal
 };
 ```
 
@@ -437,11 +437,11 @@ const user: AuthenticatedUser = {
   <TabPanel name="Open Admin Tools">
 
 ```js
-// DANGEROUS - Admin tools accessible to all users
+// Admin tools default to only internal users if not specified
 const adminTools: ChatApp = {
     chatAppId: 'admin-tools',
     title: 'Admin Tools'
-    // Missing userTypesAllowed = everyone can access admin tools!
+    // Missing userTypesAllowed means only internal users may access (note will still need correct permissions on user account)
 };
 ```
 
@@ -449,11 +449,10 @@ const adminTools: ChatApp = {
   <TabPanel name="Data Exposure">
   
 ```js
-// DANGEROUS - Customer data exposed to internal users
 const customerApp: ChatApp = {
     chatAppId: 'customer-data',
     title: 'Customer Portal'
-    // Missing userTypesAllowed = internal users can see customer data
+    // Missing userType = defaults to internal
 };
 ```
 

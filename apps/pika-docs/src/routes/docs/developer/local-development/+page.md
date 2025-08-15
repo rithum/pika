@@ -100,21 +100,16 @@ The frontend depends on the backend services, so you need to deploy them first.
 
 #### Deploy Sample Weather Service
 
-<Tabs activeName="Weather Service">
-  <TabPanel name="Weather Service">
-    ```bash
-    # Navigate to the weather service
-    cd services/weather
+```bash
+# Navigate to the weather service
+cd services/weather
 
-    # Build the service
-    pnpm build
+# Build the service
+pnpm build
 
-    # Deploy to AWS
-    pnpm run cdk:deploy
-    ```
-
-  </TabPanel>
-</Tabs>
+# Deploy to AWS
+pnpm run cdk:deploy
+```
 
 ### 3. Start the Frontend
 
@@ -187,19 +182,21 @@ Visit `http://localhost:5173` to test. The sample enterprise site demonstrates:
 
 <Tabs activeName="Frontend Changes">
   <TabPanel name="Frontend Changes">
-    **Custom Components**: Add components in the custom-markdown-tag-components directory
 
-    **Frontend Stack Changes**: Use `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` to customize stack
+**Custom Components**: Add components in the custom-markdown-tag-components directory
 
-    **Authentication**: Modify the auth-provider directory
+**Frontend Stack Changes**: Use `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` to customize stack
+
+**Authentication**: Modify the auth-provider directory
 
   </TabPanel>
   <TabPanel name="Backend Changes">
-    **Backend Stack Changes**: Use `services/pika/lib/stacks/custom-stack-defs.ts` to customize stack
 
-    **Custom Services**: Add new services in the `services/custom/` directory
+**Backend Stack Changes**: Use `services/pika/lib/stacks/custom-stack-defs.ts` to customize stack
 
-    **API Changes**: Modify existing service endpoints and handlers
+**Custom Services**: Add new services in the `services/custom/` directory
+
+**API Changes**: Modify existing service endpoints and handlers
 
   </TabPanel>
 </Tabs>
@@ -216,23 +213,25 @@ The frontend development server supports hot reloading:
 
 <Tabs activeName="Frontend Debugging">
   <TabPanel name="Frontend Debugging">
-    ```bash
-    # Start with debugging enabled
-    pnpm run dev -- --debug
 
-    # Check browser console for errors
-    # Use browser dev tools for component inspection
-    ```
+```bash
+# Start with debugging enabled
+pnpm run dev -- --debug
+
+# Check browser console for errors
+# Use browser dev tools for component inspection
+```
 
   </TabPanel>
   <TabPanel name="Backend Debugging">
-    ```bash
-    # Check CloudWatch logs for Lambda functions
-    aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/mycompany"
 
-    # View specific function logs
-    aws logs tail /aws/lambda/mycompany-weather-function --follow
-    ```
+```bash
+# Check CloudWatch logs for Lambda functions
+aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/mycompany"
+
+# View specific function logs
+aws logs tail /aws/lambda/mycompany-weather-function --follow
+```
 
   </TabPanel>
 </Tabs>
@@ -297,16 +296,20 @@ cd services/weather && pnpm build && pnpm run cdk:deploy
 
 <Tabs activeName="Kill Process">
   <TabPanel name="Kill Process">
-    ```bash
-    # Kill the process using port 3000
-    lsof -ti:3000 | xargs kill -9
-    ```
+
+```bash
+# Kill the process using port 3000
+lsof -ti:3000 | xargs kill -9
+```
+
   </TabPanel>
   <TabPanel name="Different Port">
-    ```bash
-    # Or use a different port
-    pnpm run dev -- --port 3001
-    ```
+
+```bash
+# Or use a different port
+pnpm run dev -- --port 3001
+```
+
   </TabPanel>
 </Tabs>
 
@@ -359,16 +362,20 @@ Monitor your deployed services:
 
 <Tabs activeName="Logs">
   <TabPanel name="Logs">
-    ```bash
-    # View recent logs
-    aws logs tail /aws/lambda/mycompany-pika-service --follow
-    ```
+
+```bash
+# View recent logs
+aws logs tail /aws/lambda/mycompany-pika-service --follow
+```
+
   </TabPanel>
   <TabPanel name="Metrics">
-    ```bash
-    # Check metrics
-    aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration
-    ```
+
+```bash
+# Check metrics
+aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration
+```
+
   </TabPanel>
 </Tabs>
 

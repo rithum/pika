@@ -36,6 +36,7 @@ brew install node
 
   </TabPanel>
   <TabPanel name="Linux">
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
@@ -43,7 +44,9 @@ sudo apt-get install -y nodejs
 
   </TabPanel>
   <TabPanel name="Windows">
-    Download and install from [nodejs.org](https://nodejs.org/)
+  
+Download and install from [nodejs.org](https://nodejs.org/)
+
   </TabPanel>
 </Tabs>
 
@@ -84,18 +87,24 @@ git --version
 
 <Tabs activeName="macOS">
   <TabPanel name="macOS">
-    ```bash
-    brew install git
-    ```
+
+```bash
+brew install git
+```
+
   </TabPanel>
   <TabPanel name="Linux">
-    ```bash
-    sudo apt-get install git  # Ubuntu/Debian
-    sudo yum install git      # CentOS/RHEL
-    ```
+
+```bash
+sudo apt-get install git  # Ubuntu/Debian
+sudo yum install git      # CentOS/RHEL
+```
+
   </TabPanel>
   <TabPanel name="Windows">
-    Download and install from [git-scm.com](https://git-scm.com/)
+
+Download and install from [git-scm.com](https://git-scm.com/)
+
   </TabPanel>
 </Tabs>
 
@@ -164,22 +173,28 @@ For the best development experience, we recommend:
 
 <Tabs activeName="VS Code Interface">
   <TabPanel name="VS Code Interface">
-    1. Open VS Code or Cursor
-    2. Go to the Extensions view (Ctrl+Shift+X / Cmd+Shift+X)
-    3. Search for each extension by name and install them
+
+1. Open VS Code or Cursor
+2. Go to the Extensions view (Ctrl+Shift+X / Cmd+Shift+X)
+3. Search for each extension by name and install them
+
   </TabPanel>
   <TabPanel name="Command Line">
-    ```bash
-    # Install all recommended extensions at once
-    code --install-extension svelte.svelte-vscode
-    code --install-extension hediet.vscode-drawio
-    code --install-extension yzhang.markdown-all-in-one
-    code --install-extension shd101wyy.markdown-preview-enhanced
-    code --install-extension esbenp.prettier-vscode
-    ```
+
+```bash
+# Install all recommended extensions at once
+code --install-extension svelte.svelte-vscode
+code --install-extension hediet.vscode-drawio
+code --install-extension yzhang.markdown-all-in-one
+code --install-extension shd101wyy.markdown-preview-enhanced
+code --install-extension esbenp.prettier-vscode
+```
+
   </TabPanel>
   <TabPanel name="Auto-install">
-    If you open the Pika project in VS Code/Cursor, you'll see a notification asking if you want to install the recommended extensions. Click "Install" to install all of them at once.
+
+If you open the Pika project in VS Code/Cursor, you'll see a notification asking if you want to install the recommended extensions. Click "Install" to install all of them at once.
+
   </TabPanel>
 </Tabs>
 
@@ -189,19 +204,25 @@ If you haven't already, you should probably install the AWS CLI:
 
 <Tabs activeName="macOS">
   <TabPanel name="macOS">
-    ```bash
-    brew install awscli
-    ```
+
+```bash
+brew install awscli
+```
+
   </TabPanel>
   <TabPanel name="Linux">
-    ```bash
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
-    sudo ./aws/install
-    ```
+
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+```
+
   </TabPanel>
   <TabPanel name="Windows">
-    Download and install from [aws.amazon.com/cli](https://aws.amazon.com/cli/)
+
+Download and install from [aws.amazon.com/cli](https://aws.amazon.com/cli/)
+
   </TabPanel>
 </Tabs>
 

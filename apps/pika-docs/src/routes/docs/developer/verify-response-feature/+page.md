@@ -64,7 +64,9 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
-**⚠️ Important:** Setting `enabled: true` alone is not sufficient. You must also specify `userTypes` or `userRoles` to grant access to users. Without access control configuration, the feature will be disabled for all users due to Pika's secure-by-default system.
+:::important[Set User Types/Roles]
+Setting `enabled: true` alone is not sufficient. You must also specify `userTypes` or `userRoles` to grant access to users. Without access control configuration, the feature will be disabled for all users due to Pika's secure-by-default system.
+:::
 
 ### 2. Configuration Options
 

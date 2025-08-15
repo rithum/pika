@@ -70,19 +70,25 @@ apps/pika-chat/
 
 <Tabs activeName="Message Tags">
   <TabPanel name="Message Tags">
-    **Custom Message Tags**: `src/lib/client/features/chat/message-segments/custom-components/`
-    
-    Add custom renderers for XML tags in LLM responses
+
+**Custom Message Tags**: `src/lib/client/features/chat/message-segments/custom-components/`
+
+Add custom renderers for XML tags in LLM responses
+
   </TabPanel>
   <TabPanel name="Authentication">
-    **Authentication**: `src/lib/server/auth-provider/`
-    
-    Implement custom authentication flows
+
+**Authentication**: `src/lib/server/auth-provider/`
+
+Implement custom authentication flows
+
   </TabPanel>
   <TabPanel name="Infrastructure">
-    **Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
-    
-    Customize AWS infrastructure
+
+**Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
+
+Customize AWS infrastructure
+
   </TabPanel>
 </Tabs>
 
@@ -312,48 +318,61 @@ You can add additional protected areas by editing `.pika-sync.json`:
 
 <Tabs activeName="Project Config">
   <TabPanel name="Project Config">
-    **File:** `pika-config.ts`
-    
-    **Purpose:** Update project names and settings
-    
-    **Protected:** Yes
+
+**File:** `pika-config.ts`
+
+**Purpose:** Update project names and settings
+
+**Protected:** Yes
+
   </TabPanel>
-  <TabPanel name="Message Tags">
-    **Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
-    
-    **Purpose:** Add custom renderers for XML tags in LLM responses and metadata handlers
-    
-    **Protected:** Yes
+  <TabPanel name="Msg Tags">
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+
+**Purpose:** Add custom renderers for XML tags in LLM responses and metadata handlers
+
+**Protected:** Yes
+
   </TabPanel>
-  <TabPanel name="Authentication">
-    **Location:** `apps/pika-chat/src/lib/server/auth-provider/`
-    
-    **Purpose:** Implement custom authentication flows
-    
-    **Protected:** Yes
+  <TabPanel name="Auth">
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/`
+
+**Purpose:** Implement custom authentication flows
+
+**Protected:** Yes
+
   </TabPanel>
   <TabPanel name="Custom Apps">
-    **Location:** `apps/custom/`
-    
-    **Purpose:** Add new web applications
-    
-    **Protected:** Yes
+
+**Location:** `apps/custom/`
+
+**Purpose:** Add new web applications
+
+**Protected:** Yes
+
   </TabPanel>
   <TabPanel name="Custom Services">
-    **Location:** `services/custom/`
-    
-    **Purpose:** Add new backend services
-    
-    **Protected:** Yes
+
+**Location:** `services/custom/`
+
+**Purpose:** Add new backend services
+
+**Protected:** Yes
+
   </TabPanel>
-  <TabPanel name="Infrastructure">
-    **Locations:**
-    - `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
-    - `services/pika/lib/stacks/custom-stack-defs.ts`
-    
-    **Purpose:** Customize AWS infrastructure
-    
-    **Protected:** Yes (by default)
+  <TabPanel name="Infra">
+
+**Locations:**
+
+- `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
+- `services/pika/lib/stacks/custom-stack-defs.ts`
+
+**Purpose:** Customize AWS infrastructure
+
+**Protected:** Yes (by default)
+
   </TabPanel>
 </Tabs>
 

@@ -282,30 +282,29 @@ I've processed your request successfully.
 
 Pika includes several built-in renderers you can reference:
 
-<Tabs activeName="Visual Renderers">
-  <TabPanel name="Visual Renderers">
-    **Image Renderer (`image`)**
-    - **Purpose**: Displays images from URLs
-    - **Content**: Image URL as plain text
-    - **Features**: Loading states, error handling, responsive sizing
+**Image Renderer (`image`)**
 
-    **Download Renderer (`download`)**
-    - **Purpose**: Creates download buttons for files
-    - **Content**: JSON with `s3Key` and optional `title`
-    - **Features**: File download integration, S3 support
+- **Purpose**: Displays images from URLs
+- **Content**: Image URL as plain text
+- **Features**: Loading states, error handling, responsive sizing
 
-    **Chart Renderer (`chart`)**
-    - **Purpose**: Renders Chart.js charts
-    - **Content**: Chart.js configuration JSON
-    - **Features**: Dynamic chart loading, responsive design
+**Download Renderer (`download`)**
 
-    **Prompt Renderer (`prompt`)**
-    - **Purpose**: Creates clickable prompt buttons
-    - **Content**: Prompt text or JSON configuration
-    - **Features**: Click-to-send functionality
+- **Purpose**: Creates download buttons for files
+- **Content**: JSON with `s3Key` and optional `title`
+- **Features**: File download integration, S3 support
 
-  </TabPanel>
-</Tabs>
+**Chart Renderer (`chart`)**
+
+- **Purpose**: Renders Chart.js charts
+- **Content**: Chart.js configuration JSON
+- **Features**: Dynamic chart loading, responsive design
+
+**Prompt Renderer (`prompt`)**
+
+- **Purpose**: Creates clickable prompt buttons
+- **Content**: Prompt text or JSON configuration
+- **Features**: Click-to-send functionality
 
 ### Default Metadata Handlers
 

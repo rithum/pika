@@ -45,24 +45,29 @@ aws --version
 
 <Tabs activeName="macOS">
   <TabPanel name="macOS">
-    ```bash
-    # Check current version
-    node --version
 
-    # Update Node.js with Homebrew
-    brew upgrade node
-    ```
+```bash
+# Check current version
+node --version
+
+# Update Node.js with Homebrew
+brew upgrade node
+```
 
   </TabPanel>
   <TabPanel name="Linux">
-    ```bash
-    # Update Node.js with NodeSource
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-    ```
+
+```bash
+# Update Node.js with NodeSource
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
   </TabPanel>
   <TabPanel name="Windows">
-    Download and install from [nodejs.org](https://nodejs.org/)
+
+Download and install from [nodejs.org](https://nodejs.org/)
+
   </TabPanel>
 </Tabs>
 
@@ -76,23 +81,25 @@ aws --version
 
 <Tabs activeName="Official Installer">
   <TabPanel name="Official Installer">
-    ```bash
-    # Use the official installer (recommended)
-    curl -fsSL https://get.pnpm.io/install.sh | sh -
 
-    # Verify installation
-    pnpm --version
-    ```
+```bash
+# Use the official installer (recommended)
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+# Verify installation
+pnpm --version
+```
 
   </TabPanel>
   <TabPanel name="npm">
-    ```bash
-    # Install pnpm globally via npm
-    npm install -g pnpm
 
-    # Verify installation
-    pnpm --version
-    ```
+```bash
+# Install pnpm globally via npm
+npm install -g pnpm
+
+# Verify installation
+pnpm --version
+```
 
   </TabPanel>
 </Tabs>
@@ -150,21 +157,24 @@ pnpm list --depth=0
 
 <Tabs activeName="Debug Build">
   <TabPanel name="Debug Build">
-    ```bash
-    # Check build logs for specific errors
-    pnpm build --verbose
 
-    # Check for environment-specific issues
-    echo $NODE_ENV
-    ```
+```bash
+# Check build logs for specific errors
+pnpm build --verbose
+
+# Check for environment-specific issues
+echo $NODE_ENV
+```
 
   </TabPanel>
   <TabPanel name="Individual Packages">
-    ```bash
-    # Try building individual packages
-    cd apps/pika-chat && pnpm build
-    cd services/pika && pnpm build
-    ```
+
+```bash
+# Try building individual packages
+cd apps/pika-chat && pnpm build
+cd services/pika && pnpm build
+```
+
   </TabPanel>
 </Tabs>
 
@@ -180,22 +190,25 @@ pnpm list --depth=0
 
 <Tabs activeName="AWS CLI">
   <TabPanel name="AWS CLI">
-    ```bash
-    # Configure AWS CLI
-    aws configure
 
-    # Verify credentials
-    aws sts get-caller-identity
-    ```
+```bash
+# Configure AWS CLI
+aws configure
+
+# Verify credentials
+aws sts get-caller-identity
+```
 
   </TabPanel>
   <TabPanel name="Environment Variables">
-    ```bash
-    # Set environment variables
-    export AWS_ACCESS_KEY_ID=your-access-key
-    export AWS_SECRET_ACCESS_KEY=your-secret-key
-    export AWS_DEFAULT_REGION=us-east-1
-    ```
+
+```bash
+# Set environment variables
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_DEFAULT_REGION=us-east-1
+```
+
   </TabPanel>
 </Tabs>
 
@@ -252,20 +265,23 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 
 <Tabs activeName="Certificate">
   <TabPanel name="Certificate">
-    ```bash
-    # Verify certificate exists
-    aws acm list-certificates --region us-east-1
 
-    # Check certificate ARN format
-    # Should be: arn:aws:acm:region:account:certificate/cert-id
-    ```
+```bash
+# Verify certificate exists
+aws acm list-certificates --region us-east-1
+
+# Check certificate ARN format
+# Should be: arn:aws:acm:region:account:certificate/cert-id
+```
 
   </TabPanel>
   <TabPanel name="Hosted Zone">
-    ```bash
-    # Verify hosted zone exists
-    aws route53 list-hosted-zones
-    ```
+
+```bash
+# Verify hosted zone exists
+aws route53 list-hosted-zones
+```
+
   </TabPanel>
 </Tabs>
 
@@ -279,19 +295,22 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 
 <Tabs activeName="VPC">
   <TabPanel name="VPC">
-    ```bash
-    # List VPCs
-    aws ec2 describe-vpcs
-    ```
+
+```bash
+# List VPCs
+aws ec2 describe-vpcs
+```
+
   </TabPanel>
   <TabPanel name="Subnets">
-    ```bash
-    # List subnets
-    aws ec2 describe-subnets
 
-    # Verify subnet tags
-    aws ec2 describe-subnets --subnet-ids subnet-12345678
-    ```
+```bash
+# List subnets
+aws ec2 describe-subnets
+
+# Verify subnet tags
+aws ec2 describe-subnets --subnet-ids subnet-12345678
+```
 
   </TabPanel>
 </Tabs>
@@ -308,22 +327,24 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 
 <Tabs activeName="Development Server">
   <TabPanel name="Development Server">
-    ```bash
-    # Check if development server is running
-    lsof -i :3000
 
-    # Check for build errors
-    cd apps/pika-chat && pnpm build
-    ```
+```bash
+# Check if development server is running
+lsof -i :3000
+
+# Check for build errors
+cd apps/pika-chat && pnpm build
+```
 
   </TabPanel>
   <TabPanel name="Environment">
-    ```bash
-    # Check environment variables
-    cat .env.local
 
-    # Check browser console for JavaScript errors
-    ```
+```bash
+# Check environment variables
+cat .env.local
+
+# Check browser console for JavaScript errors
+```
 
   </TabPanel>
 </Tabs>
@@ -338,19 +359,22 @@ aws cloudformation describe-stacks --stack-name CDKToolkit
 
 <Tabs activeName="Deployment Status">
   <TabPanel name="Deployment Status">
-    ```bash
-    # Check if services are deployed
-    aws cloudformation describe-stacks --stack-name mycompany-pika
-    ```
+
+```bash
+# Check if services are deployed
+aws cloudformation describe-stacks --stack-name mycompany-pika
+```
+
   </TabPanel>
   <TabPanel name="Logs">
-    ```bash
-    # Check Lambda function logs
-    aws logs tail /aws/lambda/mycompany-pika-service --follow
 
-    # Check API Gateway logs
-    aws logs tail /aws/apigateway/mycompany-api --follow
-    ```
+```bash
+# Check Lambda function logs
+aws logs tail /aws/lambda/mycompany-pika-service --follow
+
+# Check API Gateway logs
+aws logs tail /aws/apigateway/mycompany-api --follow
+```
 
   </TabPanel>
 </Tabs>
@@ -383,23 +407,25 @@ cat apps/pika-chat/src/lib/server/auth-provider/index.ts
 
 <Tabs activeName="Basic Checks">
   <TabPanel name="Basic Checks">
-    ```bash
-    # Check internet connection
-    ping github.com
 
-    # Use debug mode for more information
-    pika sync --debug
-    ```
+```bash
+# Check internet connection
+ping github.com
+
+# Use debug mode for more information
+pika sync --debug
+```
 
   </TabPanel>
   <TabPanel name="GitHub Access">
-    ```bash
-    # Check GitHub access
-    curl -I https://github.com/rithum/pika
 
-    # Try with different branch
-    pika sync --branch main
-    ```
+```bash
+# Check GitHub access
+curl -I https://github.com/rithum/pika
+
+# Try with different branch
+pika sync --branch main
+```
 
   </TabPanel>
 </Tabs>
@@ -414,21 +440,24 @@ cat apps/pika-chat/src/lib/server/auth-provider/index.ts
 
 <Tabs activeName="Protection">
   <TabPanel name="Protection">
-    ```bash
-    # Check sync configuration
-    cat .pika-sync.json
 
-    # Add files to userProtectedAreas
-    # Edit .pika-sync.json and add:
-    "userProtectedAreas": ["my-custom-file.ts"]
-    ```
+```bash
+# Check sync configuration
+cat .pika-sync.json
+
+# Add files to userProtectedAreas
+# Edit .pika-sync.json and add:
+"userProtectedAreas": ["my-custom-file.ts"]
+```
 
   </TabPanel>
   <TabPanel name="Recovery">
-    ```bash
-    # Restore from git if available
-    git checkout HEAD -- my-custom-file.ts
-    ```
+
+```bash
+# Restore from git if available
+git checkout HEAD -- my-custom-file.ts
+```
+
   </TabPanel>
 </Tabs>
 
@@ -442,20 +471,23 @@ cat apps/pika-chat/src/lib/server/auth-provider/index.ts
 
 <Tabs activeName="Review">
   <TabPanel name="Review">
-    ```bash
-    # Review conflicts
-    pika sync --diff
 
-    # Resolve conflicts manually
-    # Edit conflicted files and remove conflict markers
-    ```
+```bash
+# Review conflicts
+pika sync --diff
+
+# Resolve conflicts manually
+# Edit conflicted files and remove conflict markers
+```
 
   </TabPanel>
   <TabPanel name="Protection">
-    ```bash
-    # Or protect the file
-    # Add to userProtectedAreas in .pika-sync.json
-    ```
+
+```bash
+# Or protect the file
+# Add to userProtectedAreas in .pika-sync.json
+```
+
   </TabPanel>
 </Tabs>
 
@@ -478,30 +510,36 @@ env | grep -i aws
 
 <Tabs activeName="View Logs">
   <TabPanel name="View Logs">
-    ```bash
-    # View recent logs
-    aws logs tail /aws/lambda/mycompany-pika-service --follow
-    ```
+
+```bash
+# View recent logs
+aws logs tail /aws/lambda/mycompany-pika-service --follow
+```
+
   </TabPanel>
   <TabPanel name="Search Errors">
-    ```bash
-    # Search for errors
-    aws logs filter-log-events \
-        --log-group-name /aws/lambda/mycompany-pika-service \
-        --filter-pattern "ERROR"
-    ```
+
+```bash
+# Search for errors
+aws logs filter-log-events \
+    --log-group-name /aws/lambda/mycompany-pika-service \
+    --filter-pattern "ERROR"
+```
+
   </TabPanel>
   <TabPanel name="Export Logs">
-    ```bash
-    # Export logs for analysis
-    aws logs export-task \
-        --task-name "export-$(date +%s)" \
-        --log-group-name /aws/lambda/mycompany-pika-service \
-        --from 1640995200000 \
-        --to 1641081600000 \
-        --destination "mycompany-logs-bucket" \
-        --destination-prefix "logs/"
-    ```
+
+```bash
+# Export logs for analysis
+aws logs export-task \
+    --task-name "export-$(date +%s)" \
+    --log-group-name /aws/lambda/mycompany-pika-service \
+    --from 1640995200000 \
+    --to 1641081600000 \
+    --destination "mycompany-logs-bucket" \
+    --destination-prefix "logs/"
+```
+
   </TabPanel>
 </Tabs>
 
@@ -509,30 +547,34 @@ env | grep -i aws
 
 <Tabs activeName="Lambda Metrics">
   <TabPanel name="Lambda Metrics">
-    ```bash
-    # Check Lambda function performance
-    aws cloudwatch get-metric-statistics \
-        --namespace AWS/Lambda \
-        --metric-name Duration \
-        --dimensions Name=FunctionName,Value=mycompany-pika-service \
-        --start-time 2024-01-01T00:00:00Z \
-        --end-time 2024-01-02T00:00:00Z \
-        --period 3600 \
-        --statistics Average,Maximum
-    ```
+
+```bash
+# Check Lambda function performance
+aws cloudwatch get-metric-statistics \
+    --namespace AWS/Lambda \
+    --metric-name Duration \
+    --dimensions Name=FunctionName,Value=mycompany-pika-service \
+    --start-time 2024-01-01T00:00:00Z \
+    --end-time 2024-01-02T00:00:00Z \
+    --period 3600 \
+    --statistics Average,Maximum
+```
+
   </TabPanel>
   <TabPanel name="API Gateway Metrics">
-    ```bash
-    # Check API Gateway performance
-    aws cloudwatch get-metric-statistics \
-        --namespace AWS/ApiGateway \
-        --metric-name Count \
-        --dimensions Name=ApiName,Value=mycompany-api \
-        --start-time 2024-01-01T00:00:00Z \
-        --end-time 2024-01-02T00:00:00Z \
-        --period 3600 \
-        --statistics Sum
-    ```
+
+```bash
+# Check API Gateway performance
+aws cloudwatch get-metric-statistics \
+    --namespace AWS/ApiGateway \
+    --metric-name Count \
+    --dimensions Name=ApiName,Value=mycompany-api \
+    --start-time 2024-01-01T00:00:00Z \
+    --end-time 2024-01-02T00:00:00Z \
+    --period 3600 \
+    --statistics Sum
+```
+
   </TabPanel>
 </Tabs>
 

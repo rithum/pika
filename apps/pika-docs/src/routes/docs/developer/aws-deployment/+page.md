@@ -46,32 +46,29 @@ cdk bootstrap
 
 Pika uses a two-stack deployment model:
 
-<Tabs activeName="Backend Stack">
-  <TabPanel name="Backend Stack">
-    **Backend Infrastructure Stack**
-    
-    **Purpose:** Core agent infrastructure and management
-    
-    **Components:**
-    - AWS Bedrock integration
-    - Agent management infrastructure
-    - Tool orchestration
-    - Knowledge base integration
-    - API Gateway
-    - Lambda functions
-  </TabPanel>
-  <TabPanel name="Frontend Stack">
-    **Frontend Infrastructure Stack**
-    
-    **Purpose:** Web application hosting and delivery
-    
-    **Components:**
-    - CloudFront distribution
-    - Route 53 DNS configuration
-    - SSL certificate management
-    - Custom domain setup
-  </TabPanel>
-</Tabs>
+### Backend Infrastructure Stack
+
+**Purpose:** Core agent infrastructure and management
+
+**Components:**
+
+- AWS Bedrock integration
+- Agent management infrastructure
+- Tool orchestration
+- Knowledge base integration
+- API Gateway
+- Lambda functions
+
+### Frontend Infrastructure Stack
+
+**Purpose:** Web application hosting and delivery
+
+**Components:**
+
+- CloudFront distribution
+- Route 53 DNS configuration
+- SSL certificate management
+- Custom domain setup
 
 ## Security Checklist - Required for Production
 
@@ -233,33 +230,39 @@ export const customStackDefs = {
 
 Deploy the core backend infrastructure first:
 
+#### Core Service
+
 <Tabs activeName="Core Service">
   <TabPanel name="Core Service">
-    ```bash
-    # Navigate to the core Pika service
-    cd services/pika
 
-    # Build the service
-    pnpm build
+```bash
+# Navigate to the core Pika service
+cd services/pika
 
-    # Deploy to AWS (defaults to 'test' stage)
-    pnpm run cdk:deploy
+# Build the service
+pnpm build
 
-    # Deploy to specific stage
-    STAGE=prod pnpm run cdk:deploy
-    STAGE=staging pnpm run cdk:deploy
-    STAGE=dev pnpm run cdk:deploy
-    ```
+# Deploy to AWS (defaults to 'test' stage)
+pnpm run cdk:deploy
+
+# Deploy to specific stage
+STAGE=prod pnpm run cdk:deploy
+STAGE=staging pnpm run cdk:deploy
+STAGE=dev pnpm run cdk:deploy
+```
 
   </TabPanel>
   <TabPanel name="What Gets Deployed">
-    **What gets deployed:**
-    - Agent management infrastructure
-    - AWS Bedrock integration
-    - API Gateway
-    - Core Lambda functions
-    - IAM roles and policies
-  </TabPanel>
+
+```bash
+- Agent management infrastructure
+- AWS Bedrock integration
+- API Gateway
+- Core Lambda functions
+- IAM roles and policies
+```
+
+</TabPanel>
 </Tabs>
 
 **Stage Configuration:**
@@ -275,28 +278,32 @@ Deploy the sample weather service:
 
 <Tabs activeName="Weather Service">
   <TabPanel name="Weather Service">
-    ```bash
-    # Navigate to the weather service
-    cd services/samples/weather
 
-    # Build the service
-    pnpm build
+```bash
+# Navigate to the weather service
+cd services/samples/weather
 
-    # Deploy to AWS (defaults to 'test' stage)
-    pnpm run cdk:deploy
+# Build the service
+pnpm build
 
-    # Deploy to specific stage
-    STAGE=prod pnpm run cdk:deploy
-    STAGE=staging pnpm run cdk:deploy
-    STAGE=dev pnpm run cdk:deploy
-    ```
+# Deploy to AWS (defaults to 'test' stage)
+pnpm run cdk:deploy
+
+# Deploy to specific stage
+STAGE=prod pnpm run cdk:deploy
+STAGE=staging pnpm run cdk:deploy
+STAGE=dev pnpm run cdk:deploy
+```
 
   </TabPanel>
   <TabPanel name="What Gets Deployed">
-    **What gets deployed:**
-    - Weather agent definition
-    - Weather tool Lambda function
-    - Agent registration with the core service
+
+```bash
+- Weather agent definition
+- Weather tool Lambda function
+- Agent registration with the core service
+```
+
   </TabPanel>
 </Tabs>
 
@@ -325,12 +332,15 @@ STAGE=dev pnpm run cdk:deploy
 
   </TabPanel>
   <TabPanel name="What Gets Deployed">
-    **What gets deployed:**
-    - S3 bucket for static assets
-    - CloudFront distribution
-    - Route 53 DNS records
-    - SSL certificate (if configured)
-    - Custom domain setup
+
+```bash
+  - S3 bucket for static assets
+  - CloudFront distribution
+  - Route 53 DNS records
+  - SSL certificate (if configured)
+  - Custom domain setup
+```
+
   </TabPanel>
 </Tabs>
 
@@ -482,16 +492,10 @@ cdk bootstrap
 
 **Solution:**
 
-<Tabs activeName="Certificate">
-  <TabPanel name="Certificate">
     - Verify the certificate ARN is correct
     - Ensure the certificate is in the same region as your stack
-  </TabPanel>
-  <TabPanel name="Hosted Zone">
     - Check that the hosted zone ID is correct
     - Verify the domain is properly configured
-  </TabPanel>
-</Tabs>
 
 ### 4. VPC Configuration Issues
 

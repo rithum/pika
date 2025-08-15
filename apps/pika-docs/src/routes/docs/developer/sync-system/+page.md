@@ -51,21 +51,27 @@ Supported pattern styles:
 
 <Tabs activeName="Directory Patterns">
   <TabPanel name="Directory Patterns">
-    **Directory Patterns**: End with `/` (or use `/**`) to protect the whole subtree
-    
-    Example: `services/custom/` or `services/custom/**`
-  </TabPanel>
-  <TabPanel name="Exact Path Patterns">
-    **Exact Path Patterns**: Contain `/` and point to a specific file
-    
-    Example: `apps/pika-chat/my-file.ts`
+
+**Directory Patterns**: End with `/` (or use `/**`) to protect the whole subtree
+
+Example: `services/custom/` or `services/custom/**`
+
+</TabPanel>
+<TabPanel name="Exact Path Patterns">
+
+**Exact Path Patterns**: Contain `/` and point to a specific file
+
+Example: `apps/pika-chat/my-file.ts`
+
   </TabPanel>
   <TabPanel name="Filename Patterns">
-    **Filename Patterns**: No `/`; matched anywhere (basename match)
-    
+
+**Filename Patterns**: No `/`; matched anywhere (basename match)
+
     Examples:
     - `cdk.context.json`
     - `.env` (all `.env` files anywhere)
+
   </TabPanel>
 </Tabs>
 
@@ -305,33 +311,37 @@ pika sync
 
 <Tabs activeName="Preview">
   <TabPanel name="Preview">
-    ```bash
-    # Show what would be updated without applying changes
-    pika sync --dry-run
 
-    # Show diffs for changed files
-    pika sync --diff
-    ```
+```bash
+# Show what would be updated without applying changes
+pika sync --dry-run
+
+# Show diffs for changed files
+pika sync --diff
+```
 
   </TabPanel>
   <TabPanel name="Advanced">
-    ```bash
-    # Open diffs in your IDE visually (Cursor or VS Code)
-    pika sync --visual-diff
 
-    # Enable detailed debug logging
-    pika sync --debug
+```bash
+# Open diffs in your IDE visually (Cursor or VS Code)
+pika sync --visual-diff
 
-    # Sync from a specific branch
-    pika sync --branch develop
-    ```
+# Enable detailed debug logging
+pika sync --debug
+
+# Sync from a specific branch
+pika sync --branch develop
+```
 
   </TabPanel>
   <TabPanel name="Help">
-    ```bash
-    # Get help with sync options
-    pika sync --help
-    ```
+
+```bash
+# Get help with sync options
+pika sync --help
+```
+
   </TabPanel>
 </Tabs>
 

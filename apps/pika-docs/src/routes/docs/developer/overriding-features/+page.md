@@ -132,7 +132,7 @@ export const pikaConfig: PikaConfig = {
 Overrides at each level **completely replace** settings from lower levels - they do NOT merge:
 
 ```js
-// ❌ WRONG: This override will LOSE the autoRepromptThreshold setting
+// WRONG: This override will LOSE the autoRepromptThreshold setting
 // Site level
 siteFeatures: {
     verifyResponse: {
@@ -155,7 +155,7 @@ features: {
 ```
 
 ```js
-// ✅ CORRECT: Complete override with all required settings
+// CORRECT: Complete override with all required settings
 features: {
     verifyResponse: {
         featureId: 'verifyResponse',
@@ -168,7 +168,7 @@ features: {
 ```
 
 ```js
-// ❌ WRONG: Admin override will LOSE chat app settings
+// WRONG: Admin override will LOSE chat app settings
 // Site level
 siteFeatures: {
     verifyResponse: {
@@ -201,7 +201,7 @@ override: {
 ```
 
 ```js
-// ✅ CORRECT: Complete admin override
+// CORRECT: Complete admin override
 override: {
     features: {
         verifyResponse: {
@@ -256,7 +256,7 @@ const adminOverride = {
         enabled: true,
         autoRepromptThreshold: 'F', // More lenient than chat app
         userTypes: ['internal-user', 'external-user'] // Broader access than chat app
-        // ✅ Complete override - admin must provide all settings
+        // Complete override - admin must provide all settings
     }
 };
 
@@ -298,7 +298,7 @@ features: {
             userTypes: ['internal-user'], // Keep from site level
             userRoles: ['pika:content-admin'] // More restrictive
         }
-        // ✅ Complete configuration - must define both basic and detailed trace rules
+        // Complete configuration - must define both basic and detailed trace rules
     }
 }
 ```
@@ -323,7 +323,7 @@ features: {
         enabled: true,
         autoRepromptThreshold: 'F', // More lenient threshold
         userTypes: ['internal-user'] // More restrictive access
-        // ✅ Complete configuration - includes all properties from site level
+        // Complete configuration - includes all properties from site level
     }
 }
 ```
@@ -586,9 +586,9 @@ The site admin interface provides clear feedback about feature configuration:
 
 ### Validation Messages
 
-- **⚠️ Not configured at site level** - Add to `pika-config.ts`
-- **🚫 Disabled at site level** - Cannot be enabled by chat apps
-- **⚠️ Chat app has this enabled but site level doesn't allow it** - Configuration conflict
+- **Not configured at site level** - Add to `pika-config.ts`
+- **Disabled at site level** - Cannot be enabled by chat apps
+- **Chat app has this enabled but site level doesn't allow it** - Configuration conflict
 
 ### Smart Controls
 
@@ -632,7 +632,7 @@ features: {
         featureId: 'fileUpload',
         enabled: true,
         mimeTypesAllowed: ['image/*'] // Customer service only needs images
-        // ✅ Complete override - must include all required properties
+        // Complete override - must include all required properties
     }
 }
 ```
@@ -642,7 +642,7 @@ features: {
 When overriding a feature, include ALL properties that the feature supports:
 
 ```js
-// ❌ BAD: Incomplete override loses site-level settings
+// BAD: Incomplete override loses site-level settings
 features: {
     verifyResponse: {
         featureId: 'verifyResponse',
@@ -651,7 +651,7 @@ features: {
     }
 }
 
-// ✅ GOOD: Complete override preserves all necessary settings
+// GOOD: Complete override preserves all necessary settings
 features: {
     verifyResponse: {
         featureId: 'verifyResponse',
@@ -698,7 +698,7 @@ Admin overrides are perfect for:
 siteFeatures: {
     myFeature: {
         featureId: 'myFeature',
-        enabled: false // ❌ This disables for all chat apps
+        enabled: false //  This disables for all chat apps
     }
 }
 
@@ -706,7 +706,7 @@ siteFeatures: {
 siteFeatures: {
     myFeature: {
         featureId: 'myFeature',
-        enabled: true // ✅ Now chat apps can use it
+        enabled: true //  Now chat apps can use it
     }
 }
 
@@ -715,7 +715,7 @@ features: {
     verifyResponse: {
         featureId: 'verifyResponse',
         enabled: true,
-        userTypes: ['internal-user'] // ❌ Missing autoRepromptThreshold
+        userTypes: ['internal-user'] // Missing autoRepromptThreshold
     }
 }
 
@@ -724,14 +724,14 @@ features: {
     verifyResponse: {
         featureId: 'verifyResponse',
         enabled: true,
-        autoRepromptThreshold: 'C', // ✅ Explicitly include all settings
+        autoRepromptThreshold: 'C', // Explicitly include all settings
         userTypes: ['internal-user']
     }
 }
 
 // Problem: Chat app settings being ignored
 // Check if admin override exists and is taking precedence
-chatApp.override?.features?.verifyResponse // ❌ If this exists, it replaces chat app settings
+chatApp.override?.features?.verifyResponse // If this exists, it replaces chat app settings
 
 // Solution: Either remove admin override or update it with desired settings
 // Remove admin override to restore chat app settings
@@ -741,7 +741,7 @@ delete chatApp.override.features.verifyResponse;
 chatApp.override.features.verifyResponse = {
     featureId: 'verifyResponse',
     enabled: true,
-    autoRepromptThreshold: 'C', // ✅ Complete admin override
+    autoRepromptThreshold: 'C', // Complete admin override
     userTypes: ['internal-user']
 };
 ```
