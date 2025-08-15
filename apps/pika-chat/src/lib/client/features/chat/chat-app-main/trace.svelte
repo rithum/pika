@@ -11,6 +11,7 @@
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';
+    import { v4 as uuidv4 } from 'uuid';
 
     interface Props {
         message: ChatMessageForRendering;
@@ -39,6 +40,7 @@
     let { message, features }: Props = $props();
 
     const detailedTrace = $derived(features.traces.detailedTraces);
+    let expandedTraces = $state<Record<string, boolean>>({});
 
     // TODO: Pull this from the correct user setting
     const dontGroupTraces = $derived(features.traceDontGroup?.value);
@@ -127,29 +129,29 @@
         | {
               type: 'toolInvocation';
               title: string;
+              id: string;
               parameters?: { markdown: string; rawText: string };
               response?: { markdown: string; rawText: string };
-              expanded: boolean;
           }
         | {
               type: 'knowledgeBaseInvocation';
               title: string;
+              id: string;
               parameters?: { markdown: string; rawText: string };
               response?: { markdown: string; rawText: string };
-              expanded: boolean;
           }
         | {
               type: 'text';
               title?: string;
+              id: string;
               markdown: string;
               rawText: string;
-              expanded: boolean;
           }
         | {
               type: 'verification';
               title?: string;
+              id: string;
               grade: string;
-              expanded: boolean;
           };
 
     function extractFunctionName(parametersRawText: string): string | null {
@@ -186,32 +188,35 @@
 
                 // Check if this is a verification trace
                 const verificationMatch = rationaleText.match(/^(.*?Verified Response):\s+([A-Z])$/);
+                const id = val.orchestrationTrace.rationale.traceId ?? rationaleText;
+
                 if (verificationMatch) {
                     let a = dontGroupTraces ? grouped : verificationTraces;
                     a.push({
+                        id,
                         type: 'verification',
                         title: verificationMatch[1].match(/correction/i)
                             ? 'Correction Verification'
                             : 'Response Verification',
                         grade: verificationMatch[2],
-                        expanded: false,
                     });
                 } else {
                     const [md, rawText] = renderMarkdown(rationaleText);
                     grouped.push({
+                        id: 'stuff',
                         type: 'text',
                         markdown: md,
                         rawText,
-                        expanded: false,
                     });
                 }
             } else if (val.failureTrace?.failureReason) {
+                const id = val.failureTrace.traceId ?? val.failureTrace.failureReason;
                 const [md, rawText] = renderMarkdown(val.failureTrace.failureReason, 'plaintext');
                 grouped.push({
+                    id,
                     type: 'text',
                     markdown: md,
                     rawText,
-                    expanded: false,
                 });
             } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
                 // Parameters trace
@@ -226,10 +231,11 @@
 
                 if (!toolInvocation) {
                     const functionName = extractFunctionName(rawText);
+                    const id = val.orchestrationTrace.invocationInput.traceId ?? functionName ?? uuidv4();
                     toolInvocation = {
+                        id,
                         type: 'toolInvocation',
                         title: functionName ? `Invoking tool: ${functionName}` : 'Invoking tool...',
-                        expanded: false,
                     };
                     if (dontGroupTraces) {
                         grouped.push(toolInvocation);
@@ -251,6 +257,7 @@
                     val.orchestrationTrace?.observation.actionGroupInvocationOutput.text,
                     'try-json'
                 );
+                const id = val.orchestrationTrace.observation.traceId ?? uuidv4();
 
                 // Look for a tool invocation that doesn't have a response yet
                 let matchedToolInvocation = null;
@@ -275,10 +282,10 @@
                     // Create a new tool invocation for orphaned response
                     const key = `tool_response_${index}`;
                     const toolInvocation: GroupedTrace & { type: 'toolInvocation' } = {
+                        id,
                         type: 'toolInvocation',
                         title: 'Tool response',
                         response: { markdown: md, rawText },
-                        expanded: false,
                     };
 
                     if (dontGroupTraces) {
@@ -288,6 +295,7 @@
                     }
                 }
             } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.text) {
+                const id = val.orchestrationTrace.invocationInput.traceId ?? uuidv4();
                 // Parameters trace
                 const [md, rawText] = renderMarkdown(
                     val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.text,
@@ -301,9 +309,9 @@
                 if (!kbInvocation) {
                     const kbId = val.orchestrationTrace?.invocationInput?.knowledgeBaseLookupInput?.knowledgeBaseId;
                     kbInvocation = {
+                        id,
                         type: 'knowledgeBaseInvocation',
                         title: kbId ? `Invoking Knowledge Base: ${kbId}` : 'Invoking Knowledge Base...',
-                        expanded: false,
                     };
                     if (dontGroupTraces) {
                         grouped.push(kbInvocation);
@@ -317,6 +325,7 @@
                 detailedTrace &&
                 val.orchestrationTrace?.observation?.knowledgeBaseLookupOutput?.retrievedReferences
             ) {
+                const id = val.orchestrationTrace.observation.traceId ?? uuidv4();
                 // Response trace - try to match with a previous parameters trace
                 const [md, rawText] = renderMarkdown(
                     val.orchestrationTrace?.observation?.knowledgeBaseLookupOutput?.retrievedReferences,
@@ -346,10 +355,10 @@
                     // Create a new tool invocation for orphaned response
                     const key = `kb_response_${index}`;
                     const toolInvocation: GroupedTrace & { type: 'knowledgeBaseInvocation' } = {
+                        id,
                         type: 'knowledgeBaseInvocation',
                         title: 'Knowledge Base response',
                         response: { markdown: md, rawText },
-                        expanded: false,
                     };
 
                     if (dontGroupTraces) {
@@ -440,7 +449,7 @@
 {/snippet}
 
 {#snippet verificationTrace(trace: GroupedTrace & { type: 'verification' })}
-    <div class="border border-slate-200 rounded-lg p-4 mt-2 {trace.expanded ? 'pb-4' : 'pb-2'}">
+    <div class="border border-slate-200 rounded-lg p-4 mt-2 {expandedTraces[trace.id] ? 'pb-4' : 'pb-2'}">
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-3">
                 <div class="flex items-center gap-2">
@@ -465,11 +474,17 @@
             <button
                 class="text-slate-500 hover:text-slate-700 transition-colors"
                 onclick={() => {
-                    trace.expanded = !trace.expanded;
-                    groupedTraces = [...groupedTraces];
+                    if (expandedTraces[trace.id]) {
+                        delete expandedTraces[trace.id];
+                    } else {
+                        expandedTraces[trace.id] = true;
+                    }
+                    console.log('expandedTraces', expandedTraces);
                 }}
             >
-                <ChevronRight class="w-4 h-4 transition-transform duration-200 {trace.expanded ? 'rotate-90' : ''}" />
+                <ChevronRight
+                    class="w-4 h-4 transition-transform duration-200 {expandedTraces[trace.id] ? 'rotate-90' : ''}"
+                />
             </button>
         </div>
 
@@ -487,7 +502,7 @@
             {/if}
         </div>
 
-        {#if trace.expanded}
+        {#if expandedTraces[trace.id]}
             <div class="mt-3 pt-3 border-t border-slate-200 text-sm text-slate-600">
                 <div class="font-medium mb-2">Verification Scale:</div>
                 <div class="space-y-1">
@@ -555,11 +570,14 @@
                     variant="ghost"
                     size="icon"
                     onclick={() => {
-                        trace.expanded = !trace.expanded;
-                        groupedTraces = [...groupedTraces];
+                        if (expandedTraces[trace.id]) {
+                            delete expandedTraces[trace.id];
+                        } else {
+                            expandedTraces[trace.id] = true;
+                        }
                     }}
                 >
-                    {#if trace.expanded}
+                    {#if expandedTraces[trace.id]}
                         <Shrink class="w-4 h-4" />
                     {:else}
                         <Expand class="w-4 h-4" />
@@ -568,20 +586,23 @@
             </div>
         </div>
         <div
-            class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${trace.expanded ? '' : 'max-h-64'}`}
+            class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${expandedTraces[trace.id] ? '' : 'max-h-64'}`}
         >
             {@html content.markdown}
-            {#if trace.expanded}
+            {#if expandedTraces[trace.id]}
                 <div class="buttons flex relative mt-[-20px]">
                     <Button
                         variant="ghost"
                         size="icon"
                         onclick={() => {
-                            trace.expanded = !trace.expanded;
-                            groupedTraces = [...groupedTraces];
+                            if (expandedTraces[trace.id]) {
+                                delete expandedTraces[trace.id];
+                            } else {
+                                expandedTraces[trace.id] = true;
+                            }
                         }}
                     >
-                        {#if trace.expanded}
+                        {#if expandedTraces[trace.id]}
                             <Shrink class="w-4 h-4" />
                         {:else}
                             <Expand class="w-4 h-4" />
