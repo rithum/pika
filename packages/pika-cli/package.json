@@ -1,6 +1,6 @@
 {
-    "name": "pika-cli",
-    "version": "1.0.0",
+    "name": "@pika/app",
+    "version": "1.0.1",
     "description": "CLI tool for creating and managing Pika framework chat applications",
     "type": "module",
     "main": "dist/index.js",
@@ -19,7 +19,16 @@
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
         "type-check": "tsc --noEmit",
-        "prepublishOnly": "pnpm run build"
+        "prepack": "pnpm run build",
+        "prepublishOnly": "echo 'Publishing @pika/app...' && pnpm run build",
+        "postpublish": "git push && git push --tags",
+        "version:patch": "pnpm version patch",
+        "version:minor": "pnpm version minor",
+        "version:major": "pnpm version major",
+        "release:patch": "pnpm run version:patch && pnpm publish",
+        "release:minor": "pnpm run version:minor && pnpm publish",
+        "release:major": "pnpm run version:major && pnpm publish",
+        "release:dry": "pnpm publish --dry-run"
     },
     "keywords": [
         "pika",
@@ -62,6 +71,19 @@
     },
     "engines": {
         "node": ">=22.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rithum/pika.git",
+        "directory": "packages/pika-cli"
+    },
+    "bugs": {
+        "url": "https://github.com/rithum/pika/issues"
+    },
+    "homepage": "https://github.com/rithum/pika#readme",
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
     },
     "files": [
         "dist",

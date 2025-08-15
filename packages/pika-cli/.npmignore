@@ -1,0 +1,58 @@
+# Source files
+src/
+test/
+__tests__/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Development files
+.eslintrc.*
+.prettierrc.*
+.prettierignore
+jest.config.*
+tsconfig*.json
+tsup.config.*
+.DS_Store
+.vscode/
+.idea/
+
+# Build artifacts
+node_modules/
+.turbo/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Development documentation
+readme-dev.md
+CONTRIBUTING.md
+CUSTOM_PROTECTION.md
+
+# Git and CI
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env*
+!.env.example
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Keep these files
+!README.md
+!LICENSE
+!CHANGELOG.md
