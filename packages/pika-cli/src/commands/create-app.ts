@@ -226,6 +226,7 @@ async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
     const artifactsToRemove = [
         '.github', // Remove GitHub workflows/templates
         'future-changes', // Remove planning documents
+        'apps/pika-docs', // Remove documentation site (not needed for user projects)
         '.gitignore', // We'll create a new one
         'node_modules' // Remove any existing node_modules from the template
     ];
