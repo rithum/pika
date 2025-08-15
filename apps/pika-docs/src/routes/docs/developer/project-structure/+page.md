@@ -188,6 +188,27 @@ The `packages` directory contains shared code and utilities used across multiple
 - **Configuration** - Shared configuration utilities
 - **Testing utilities** - Common test helpers
 
+### Pika Shared Types Package
+
+The core Pika types (such as `ChatApp`, `ChatAgent`, `ChatUser`, `AuthenticatedUser`, and others) are published to npm as a standalone package. This allows external applications and services to use Pika's type definitions without importing the entire framework.
+
+:::tip[Using Shared Types in External Projects]
+If you're building external services or applications that integrate with Pika, you can install the shared types package:
+
+```bash
+pnpm add -d pika-shared
+```
+
+This gives you access to all the essential Pika types for building compatible integrations.
+:::
+
+**What's included:**
+
+- **Core Types**: `ChatApp`, `ChatAgent`, `ChatUser`, `AuthenticatedUser`
+- **Feature Types**: Type definitions for all Pika features
+- **API Types**: Request/response types for Pika API endpoints
+- **Utility Types**: Helper types used throughout the framework
+
 ## Configuration Files
 
 ### Project Configuration (`pika-config.ts`)

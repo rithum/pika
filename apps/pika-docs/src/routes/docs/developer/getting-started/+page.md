@@ -33,7 +33,7 @@ curl -fsSL https://get.pnpm.io/install.sh | sh -
 Install the Pika CLI globally to create and manage your Pika applications:
 
 ```bash
-pnpm install -g @pika/cli
+pnpm install -g @pika-app
 ```
 
 ### Create Your First Application
@@ -76,6 +76,8 @@ When you create a Pika application, you receive a complete, production-ready cha
 - **Generic Chat Backend** (`/services/pika`) - Core infrastructure for agent management and tool orchestration
 - **Sample Weather Service** (`/services/samples/weather`) - Example of how to define a chat app/agent
 - **Sample Web Application** (`/apps/samples/enterprise-site`) - Demo of embedded chat mode
+- **Shared Types Package** (`pika-shared`) - Published npm package with TypeScript types for external integrations
+- **Pika App Package** (`pika-app`) - Published npm package that has the `pika` cli app for creating new apps and syncing existing with upstream pika changes
 
 ### Key Features
 
