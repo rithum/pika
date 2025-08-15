@@ -32,14 +32,14 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Admin Site', to: '/docs/features/admin-site/' }
                     ]
                 },
-                {
-                    title: 'Cheatsheets',
-                    collapsible: false,
-                    items: [
-                        { title: 'Pika Features Cheat Sheet', to: '/docs/cheatsheets/features-cheatsheet/' },
-                        { title: 'Pika Features Overview', to: '/docs/cheatsheets/features/' }
-                    ]
-                },
+                // {
+                //     title: 'Cheatsheets',
+                //     collapsible: false,
+                //     items: [
+                //         { title: 'Pika Features Cheat Sheet', to: '/docs/cheatsheets/features-cheatsheet/' },
+                //         { title: 'Pika Features Overview', to: '/docs/cheatsheets/features/' }
+                //     ]
+                // },
                 {
                     title: 'Developer Guide',
                     collapsible: true,
@@ -65,12 +65,12 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'AWS Deployment', to: '/docs/developer/aws-deployment/' },
                         { title: 'Troubleshooting', to: '/docs/developer/troubleshooting/' }
                     ]
-                },
-                {
-                    title: 'Overview',
-                    collapsible: true,
-                    items: [{ title: 'Docs Overview', to: '/docs/overview/' }]
                 }
+                // {
+                //     title: 'Overview',
+                //     collapsible: true,
+                //     items: [{ title: 'Docs Overview', to: '/docs/overview/' }]
+                // }
             ]
         },
         github: 'https://github.com/rithum/pika',

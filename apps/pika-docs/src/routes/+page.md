@@ -7,9 +7,9 @@ actions:
     - label: Get Started
       to: /docs/developer/getting-started/
       type: primary
-    - label: Features Cheat Sheet
+    - label: Features
       type: flat
-      to: /docs/cheatsheets/features-cheatsheet/
+      to: /docs/features/overview/
 features:
     - title: Advanced Chat Apps
       description: Built-in session memory, agentic workflows, gorgeous UI, enterprise-scale, secure, robust
