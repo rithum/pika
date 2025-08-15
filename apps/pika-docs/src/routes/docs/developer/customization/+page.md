@@ -1,10 +1,8 @@
 ---
 title: Customization
-description: Imported from docs/developer/customization.md
+description: Complete guide to customizing Pika Framework for your specific needs
 outline: [2, 3]
 ---
-
-# Pika Framework Customization Guide
 
 This guide explains the different customization areas in your Pika project and how to use them effectively.
 
@@ -19,6 +17,10 @@ Pika Framework provides several designated areas where you can add your custom c
 **Location:** `pika-config.ts` (root directory)
 
 **Purpose:** Central configuration file for project names and settings used across your Pika project.
+
+:::important[Protected Configuration]
+This file is protected from framework updates and will never be overwritten when you run `pika sync`. All stack definition files automatically import and use these values.
+:::
 
 **What to customize here:**
 
@@ -47,15 +49,11 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
-**Important:** This file is protected from framework updates and will never be overwritten when you run `pika sync`. All stack definition files automatically import and use these values.
-
 ### Site Features Configuration
 
 **Location:** `pika-config.ts` (root directory)
 
 **Purpose:** Configure site-wide features that affect the behavior of your Pika chat application across all users and chat apps.
-
-**Available Features:**
 
 #### Home Page Configuration
 
@@ -63,7 +61,7 @@ Configure the home page experience including title, welcome message, and chat ap
 
 **Configuration Example:**
 
-```js
+````js
 export const pikaConfig: PikaConfig = {
     pika: {
         // ... project names configuration
@@ -76,28 +74,28 @@ export const pikaConfig: PikaConfig = {
             // Optional: Custom title for the home page
             homePageTitle: 'Welcome to My Company Chat',
 
-            // Optional: Custom welcome message
-            welcomeMessage: 'Get started by selecting a chat app below or asking me anything!',
+                // Optional: Custom welcome message
+                welcomeMessage: 'Get started by selecting a chat app below or asking me anything!',
 
-            // Optional: Configure which users see links to which chat apps
-            linksToChatApps: {
-                userChatAppRules: [
-                    // External users can only see links to external chat apps
-                    {
-                        userTypes: ['external-user'],
-                        chatAppUserTypes: ['external-user']
-                    },
-                    // Internal users can see links to internal and external chat apps
-                    {
-                        userTypes: ['internal-user'],
-                        chatAppUserTypes: ['internal-user', 'external-user']
-                    }
-                ]
+                // Optional: Configure which users see links to which chat apps
+                linksToChatApps: {
+                    userChatAppRules: [
+                        // External users can only see links to external chat apps
+                        {
+                            userTypes: ['external-user'],
+                            chatAppUserTypes: ['external-user']
+                        },
+                        // Internal users can see links to internal and external chat apps
+                        {
+                            userTypes: ['internal-user'],
+                            chatAppUserTypes: ['internal-user', 'external-user']
+                        }
+                    ]
+                }
             }
         }
-    }
-};
-```
+    };
+    ```
 
 **Key Configuration Options:**
 
@@ -145,25 +143,29 @@ siteFeatures: {
         welcomeMessage: "Ask me anything to get started!"
     }
 }
-```
+````
 
 **Notes:**
 
 - All home page configuration options are optional
 - If `homePageTitle` is not provided, a default title will be used
 - If `welcomeMessage` is not provided, a default welcome message will be used
-- For chat app links feature:
-    - You must have at least one rule to enable showing chat app links
+- For chat app links feature: You must have at least one rule to enable showing chat app links
+  :::
 
 #### Chat App Features Configuration
 
-**Important:** All chat app features must be enabled at the site level before individual chat apps can use them. This provides consistent governance and control across your entire deployment.
+:::important[Site-Level Enablement Required]
+All chat app features must be enabled at the site level before individual chat apps can use them. This provides consistent governance and control across your entire deployment.
+:::
 
-**Security Note:** Pika uses a **secure-by-default** access control system. Setting `enabled: true` alone does NOT activate a feature for users. You must also specify `userTypes` or `userRoles` to grant access. Features without explicit access control configuration will appear as "disabled" to all users, even when `enabled: true`.
+:::warning[Secure-by-Default Access Control]
+Pika uses a **secure-by-default** access control system. Setting `enabled: true` alone does NOT activate a feature for users. You must also specify `userTypes` or `userRoles` to grant access. Features without explicit access control configuration will appear as "disabled" to all users, even when `enabled: true`.
+:::
 
 **Configuration Example:**
 
-```js
+````js
 export const pikaConfig: PikaConfig = {
     // ... project names configuration
     siteFeatures: {
@@ -196,6 +198,10 @@ export const pikaConfig: PikaConfig = {
             notice: 'This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support.'
         },
 
+  </TabPanel>
+  <TabPanel name="UI Features">
+    ```js
+    siteFeatures: {
         // Enable logout functionality
         logout: {
             featureId: 'logout',
@@ -236,7 +242,7 @@ export const pikaConfig: PikaConfig = {
         }
     }
 };
-```
+````
 
 **Feature Overview:**
 
@@ -258,21 +264,24 @@ export const pikaConfig: PikaConfig = {
 - **Chat App Restrictions**: Chat apps can only make features more restrictive than site level and override feature settings
 - **Admin Override Power**: Admin overrides can completely replace chat app settings (but not enable site-disabled features)
 - **Feature Hierarchy**: Site → Chat App → Admin Override → User access control flow
-- **Override Documentation**: See [Overriding Features Guide](/docs/developer/overriding-features/) for complete details
+
+:::info[Complete Override Documentation]
+See [Overriding Features Guide](/docs/developer/overriding-features/) for complete details on the override system.
+:::
 
 **Access Control:**
 
 - **User Types**: `internal-user` (employees) vs `external-user` (customers)
 - **User Roles**: Fine-grained permissions like `pika:content-admin`, `pika:site-admin`
 - **Access Rules**: Use `userTypes`, `userRoles`, and `applyRulesAs` for precise control
-    - User types and chat app user types are defined by your authentication system and chat app configurations
-    - Rules are evaluated in order, and a user can match multiple rules (all matching chat app types will be shown)
-    - If no rules match the user, they won't see any chat app links on the home page
-- This is a site-wide feature - it affects the entire home page experience across your Pika installation
 
-**📖 Complete Access Control Guide:** For detailed information about chat app access rules, precedence order, override systems, and troubleshooting, see the [Chat App Access Control Guide](/docs/developer/chat-app-access-control/).
+:::info[Complete Access Control Guide]
+For detailed information about chat app access rules, precedence order, override systems, and troubleshooting, see the [Chat App Access Control Guide](/docs/developer/chat-app-access-control/).
+:::
 
-#### User Data Override Configuration
+#### Advanced Features Configuration
+
+<Expansion title="User Data Override Configuration">
 
 Configure the user data override feature to allow authorized users to act on behalf of different accounts or contexts:
 
@@ -320,7 +329,9 @@ features: {
 
 See the [Overriding Features Guide](/docs/developer/overriding-features/#9-user-data-override-feature) for override rules and precedence.
 
-#### Content Admin Configuration
+</Expansion>
+
+<Expansion title="Content Admin Configuration">
 
 Configure the content admin feature to allow super-admin users to view other users' chat content:
 
@@ -343,78 +354,9 @@ export const pikaConfig: PikaConfig = {
 
 **Security Note:** Only assign the `pika:content-admin` role to trusted users who need debugging access to other users' chat data.
 
-#### Traces Configuration
+</Expansion>
 
-Configure the traces feature to show AI reasoning and tool invocation details:
-
-```js
-export const pikaConfig: PikaConfig = {
-    // ... other configuration
-    siteFeatures: {
-        traces: {
-            enabled: true,
-            userTypes: ['internal-user'],
-            detailedTraces: {
-                enabled: true,
-                userTypes: ['internal-user'],
-                userRoles: ['pika:content-admin']
-            }
-        }
-    }
-};
-```
-
-**Key Configuration Options:**
-
-- **`enabled`** (required): Whether to enable the traces feature
-- **`userTypes`** (optional): User types that can see traces
-- **`userRoles`** (optional): User roles that can see traces
-- **`detailedTraces`** (optional): Additional access rules for detailed parameter traces
-
-#### Verify Response Configuration
-
-Configure the verify response feature to automatically check AI response accuracy:
-
-```js
-export const pikaConfig: PikaConfig = {
-    // ... other configuration
-    siteFeatures: {
-        verifyResponse: {
-            enabled: true,
-            autoRepromptThreshold: 'c', // Accurate with unstated assumptions
-            userTypes: ['internal-user', 'external-user']
-        }
-    }
-};
-```
-
-**Key Configuration Options:**
-
-- **`enabled`** (required): Whether to enable response verification
-- **`autoRepromptThreshold`** (optional): Grade threshold for automatic retries (B, C, or F)
-- **`userTypes`** (optional): User types that can use verified responses
-- **`userRoles`** (optional): User roles that can use verified responses
-
-#### Chat Disclaimer Notice Configuration
-
-Configure disclaimer notices to inform users about AI limitations:
-
-```js
-export const pikaConfig: PikaConfig = {
-    // ... other configuration
-    siteFeatures: {
-        chatDisclaimerNotice: {
-            notice: "This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company isn't liable for problems caused by relying solely on this chat."
-        }
-    }
-};
-```
-
-**Key Configuration Options:**
-
-- **`notice`** (required): The disclaimer text to display to users
-
-#### Site Admin Configuration
+<Expansion title="Site Admin Configuration">
 
 Configure the site admin feature to provide a web interface for managing chat app access control:
 
@@ -428,10 +370,6 @@ export const pikaConfig: PikaConfig = {
     }
 };
 ```
-
-**Key Configuration Options:**
-
-- **`websiteEnabled`** (required): Whether to enable the site admin web interface
 
 **Additional Setup Required:**
 
@@ -449,9 +387,9 @@ export const pikaConfig: PikaConfig = {
 
 **Security Note:** Only assign the `pika:site-admin` role to trusted administrators who need to manage chat app access control settings.
 
-**Documentation:** See [Site Admin Feature Guide](/docs/developer/site-admin-feature/) for complete setup and usage instructions.
+</Expansion>
 
-#### Chat App Override System
+<Expansion title="Chat App Override System">
 
 **Purpose:** Provide fine-grained access control for individual chat apps through administrative overrides that can restrict access based on user IDs, entities, or enhanced access rules.
 
@@ -499,54 +437,7 @@ const customerSupportOverride = {
     exclusiveExternalAccessControl: ['account_enterprise_1', 'account_enterprise_2', 'account_premium_gold'],
     exclusiveInternalAccessControl: ['support_department', 'customer_success']
 };
-
-// Users need:
-// - For external users: customData.accountId must be in the external list
-// - For internal users: customData entity field must be in the internal list
-// - Entity field is determined by entity.attributeName in the entity feature configuration of pika-config.ts
 ```
-
-**User ID Access Control Example:**
-
-```js
-// Example: Beta testing chat app restricted to specific users
-const betaTestOverride = {
-    enabled: true,
-    exclusiveUserIdAccessControl: ['user_beta_tester_1', 'user_beta_tester_2', 'user_product_manager_1']
-};
-
-// Only these specific user IDs can access the chat app
-```
-
-**Home Page Visibility Control:**
-
-```js
-// Example: Hide internal tools from home page for external users
-const internalToolOverride = {
-    enabled: true,
-    userTypes: ['internal-user'], // Only internal users can access
-    homePageFilterRules: [
-        {
-            userTypes: ['internal-user'],
-            chatAppUserTypes: ['internal-user'] // Only show to internal users on home page
-        }
-    ]
-};
-```
-
-**Integration with Authentication:**
-
-The override system works seamlessly with your authentication provider:
-
-- **Entity Field Mapping**: Uses `entity.attributeName` from the entity feature configuration to determine which custom data field contains the entity identifier of pika-config.ts
-- **Nested Field Support**: Supports dot notation for nested fields (e.g., `'company.accountId'`)
-- **Type Safety**: Validates entity values against configured access control lists
-
-**Management:**
-
-- **Site Admin Interface**: Visual interface for users with `pika:site-admin` role
-- **API Access**: REST APIs for programmatic management of overrides
-- **Database Storage**: Overrides stored separately from chat app definitions for scalability
 
 **Use Cases:**
 
@@ -556,19 +447,7 @@ The override system works seamlessly with your authentication provider:
 - **Beta Testing**: New features rolled out to specific user groups
 - **Compliance**: Regulatory requirements for data access segregation
 
-**Documentation:** See [Entity Feature Guide](/docs/developer/entity-feature/) for complete entity setup, [Entity-Based Access Control](/docs/developer/authentication/#entity-based-access-control-integration) for authentication provider setup, and [Chat App Override APIs](/docs/developer/api-reference) for programmatic management.
-
-#### Feature Override System
-
-**Purpose:** Allow individual chat apps to customize site-level feature configurations for specialized behavior.
-
-**Use Case:** Different feature requirements for customer-facing vs. internal chat apps, specialized compliance needs, or app-specific user experience requirements.
-
-**Configuration:** Configure in individual chat app definitions to override site-level settings.
-
-**Critical Override Requirement:** When overriding a feature (either at chat app level or admin level), **ALL configuration settings** for that feature must be provided. Overrides completely replace lower-level settings - they do NOT merge.
-
-**Documentation:** See [Overriding Features Guide](/docs/developer/overriding-features/) for complete override system documentation.
+</Expansion>
 
 ## Customization Areas
 
@@ -593,7 +472,9 @@ The override system works seamlessly with your authentication provider:
 - Business-specific data renderers (customer cards, product displays, interactive elements)
 - Analytics and telemetry handlers
 
-**Documentation:** See [Custom Message Tags Guide](/docs/developer/custom-message-tags/) for detailed implementation instructions.
+:::info[Documentation]
+See [Custom Message Tags Guide](/docs/developer/custom-message-tags/) for detailed implementation instructions.
+:::
 
 ### 2. Authentication
 
@@ -615,7 +496,9 @@ The override system works seamlessly with your authentication provider:
 - Multi-tenant authentication
 - Role-based access control
 
-**Documentation:** See [Authentication Guide](/docs/developer/authentication/) for detailed implementation instructions.
+:::info[Documentation]
+See [Authentication Guide](/docs/developer/authentication/) for detailed implementation instructions.
+:::
 
 ### 3. Custom Web Applications
 
@@ -657,7 +540,7 @@ The override system works seamlessly with your authentication provider:
 - Data analytics services
 - Third-party integrations (CRM, marketing tools, etc.)
 
-### 5. Stack Definition Files (Protected by Default)
+### 5. Stack Definition Files
 
 **Locations:**
 
@@ -672,11 +555,18 @@ The override system works seamlessly with your authentication provider:
 - Account IDs and regions
 - Custom AWS resources
 - Environment-specific settings
-- **Note:** Project names are automatically imported from `pika-config.ts`
 
-**Important:** These files are protected from framework updates by default. If you want to receive framework updates for these files, add them to the `userUnprotectedAreas` array in `.pika-sync.json`.
+:::note[Project Name Integration]
+Project names are automatically imported from `pika-config.ts`
+:::
 
-### Entity Feature
+:::important[Protected by Default]
+These files are protected from framework updates by default. If you want to receive framework updates for these files, add them to the `userUnprotectedAreas` array in `.pika-sync.json`.
+:::
+
+### Advanced Features
+
+<Expansion title="Entity Feature">
 
 **Purpose:** Associate users with organizational entities (accounts, companies, organizations) to enable entity-based access control, filtering, and display throughout the system.
 
@@ -686,7 +576,9 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [Entity Feature Guide](/docs/developer/entity-feature/) for complete configuration and implementation details.
 
-### User Data Override Feature
+</Expansion>
+
+<Expansion title="User Data Override Feature">
 
 **Purpose:** Allow authorized users to override their authentication-provided data for specific chat apps.
 
@@ -696,7 +588,9 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [User Data Override Guide](/docs/developer/overriding-user-data/) for complete implementation details.
 
-### Content Admin Feature
+</Expansion>
+
+<Expansion title="Content Admin Feature">
 
 **Purpose:** Allow designated super-admin users to view chat sessions and messages for any user in the system for debugging and support.
 
@@ -706,7 +600,9 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [Content Admin Guide](/docs/developer/content-admin/) for complete setup and usage instructions.
 
-### Traces Feature
+</Expansion>
+
+<Expansion title="Traces Feature">
 
 **Purpose:** Provide visibility into AI reasoning processes, tool invocations, and execution details for debugging and transparency.
 
@@ -716,7 +612,9 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [Traces Feature Guide](/docs/developer/traces-feature/) for complete configuration and usage instructions.
 
-### Verify Response Feature
+</Expansion>
+
+<Expansion title="Verify Response Feature">
 
 **Purpose:** Automatically evaluate AI response accuracy and quality, with optional auto-reprompting for improved responses.
 
@@ -726,7 +624,9 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [Verify Response Feature Guide](/docs/developer/verify-response-feature/) for complete setup and configuration instructions.
 
-### Chat Disclaimer Notice Feature
+</Expansion>
+
+<Expansion title="Chat Disclaimer Notice Feature">
 
 **Purpose:** Display disclaimer messages to users about AI limitations and appropriate usage expectations.
 
@@ -736,6 +636,8 @@ The override system works seamlessly with your authentication provider:
 
 **Documentation:** See [Chat Disclaimer Notice Feature Guide](/docs/developer/chat-disclaimer-notice-feature/) for configuration examples and best practices.
 
+</Expansion>
+
 ## Configuration Files
 
 ### Environment Configuration
@@ -744,7 +646,9 @@ The override system works seamlessly with your authentication provider:
 
 **Purpose:** Store environment-specific configuration like API keys, database URLs, and feature flags.
 
-**Protected:** Yes - these files are never overwritten by sync operations.
+:::important[Protected Files]
+These files are never overwritten by sync operations.
+:::
 
 ### Pika Configuration
 
@@ -752,7 +656,9 @@ The override system works seamlessly with your authentication provider:
 
 **Purpose:** Central configuration for project names and settings used across all stacks and resources.
 
-**Protected:** Yes - this file is never overwritten by sync operations.
+:::important[Protected Configuration]
+This file is never overwritten by sync operations.
+:::
 
 **Key Features:**
 

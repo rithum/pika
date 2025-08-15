@@ -1,14 +1,12 @@
 ---
 title: Local Development
-description: Imported from docs/developer/local-development.md
+description: Complete guide to running Pika Framework locally for development and testing
 outline: [2, 3]
 ---
 
-# Local Development
-
 This guide explains how to run your Pika application locally for development and testing.
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before running locally, make sure you have:
 
@@ -31,17 +29,20 @@ aws configure
 
 Enter your AWS access key, secret key, region, and output format.
 
-## 🏗️ Local Development Architecture
+## Local Development Architecture
 
 When running locally, Pika uses a hybrid approach:
+
+:::info[Hybrid Architecture]
 
 - **Frontend**: Runs locally on your machine
 - **Backend Services**: Deployed to AWS (required for functionality)
 - **Sample Services**: Deployed to AWS for testing
 
 This approach ensures you're testing against the same infrastructure you'll use in production.
+:::
 
-## 🔧 Step-by-Step Local Setup
+## Step-by-Step Local Setup
 
 ### 1. Configure Your Project
 
@@ -75,33 +76,45 @@ export const pikaConfig: PikaConfig = {
 
 ### 2. Deploy Backend Services
 
-The frontend depends on the backend services, so you need to deploy them first:
+:::important[Backend First]
+The frontend depends on the backend services, so you need to deploy them first.
+:::
 
 #### Deploy Core Backend Service
 
-```bash
-# Navigate to the core Pika backend service
-cd services/pika
+<Tabs activeName="Core Service">
+  <TabPanel name="Core Service">
+    ```bash
+    # Navigate to the core Pika backend service
+    cd services/pika
 
-# Build the service
-pnpm build
+    # Build the service
+    pnpm build
 
-# Deploy to AWS (make sure you are AWS local config is set to where you want to deploy)
-pnpm run cdk:deploy
-```
+    # Deploy to AWS (make sure you are AWS local config is set to where you want to deploy)
+    pnpm run cdk:deploy
+    ```
+
+  </TabPanel>
+</Tabs>
 
 #### Deploy Sample Weather Service
 
-```bash
-# Navigate to the weather service
-cd services/weather
+<Tabs activeName="Weather Service">
+  <TabPanel name="Weather Service">
+    ```bash
+    # Navigate to the weather service
+    cd services/weather
 
-# Build the service
-pnpm build
+    # Build the service
+    pnpm build
 
-# Deploy to AWS
-pnpm run cdk:deploy
-```
+    # Deploy to AWS
+    pnpm run cdk:deploy
+    ```
+
+  </TabPanel>
+</Tabs>
 
 ### 3. Start the Frontend
 
@@ -139,7 +152,7 @@ pnpm run dev
 
 Then access it with `http://localhost:5173`. Click the AI icon top right to show the pika chat front end embedded in an iframe.
 
-## 🎯 What You Can Test Locally
+## What You Can Test Locally
 
 ### 1. Generic Chat Interface
 
@@ -168,14 +181,28 @@ Visit `http://localhost:5173` to test. The sample enterprise site demonstrates:
 - Cross-origin communication
 - Responsive design
 
-## 🔧 Development Workflow
+## Development Workflow
 
 ### Making Changes
 
-1. **Custom Components**: Add components in the custom-markdown-tag-components directory
-2. **Frontend Stack Changes**: Use `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` to customize stack
-3. **Authentication**: Modify the auth-provider directory
-4. **Backend Stack Changes**: Use `services/pika/lib/stacks/custom-stack-defs.ts` to customize stack
+<Tabs activeName="Frontend Changes">
+  <TabPanel name="Frontend Changes">
+    **Custom Components**: Add components in the custom-markdown-tag-components directory
+
+    **Frontend Stack Changes**: Use `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` to customize stack
+
+    **Authentication**: Modify the auth-provider directory
+
+  </TabPanel>
+  <TabPanel name="Backend Changes">
+    **Backend Stack Changes**: Use `services/pika/lib/stacks/custom-stack-defs.ts` to customize stack
+
+    **Custom Services**: Add new services in the `services/custom/` directory
+
+    **API Changes**: Modify existing service endpoints and handlers
+
+  </TabPanel>
+</Tabs>
 
 ### Hot Reloading
 
@@ -187,35 +214,40 @@ The frontend development server supports hot reloading:
 
 ### Debugging
 
-#### Frontend Debugging
+<Tabs activeName="Frontend Debugging">
+  <TabPanel name="Frontend Debugging">
+    ```bash
+    # Start with debugging enabled
+    pnpm run dev -- --debug
 
-```bash
-# Start with debugging enabled
-pnpm run dev -- --debug
+    # Check browser console for errors
+    # Use browser dev tools for component inspection
+    ```
 
-# Check browser console for errors
-# Use browser dev tools for component inspection
-```
+  </TabPanel>
+  <TabPanel name="Backend Debugging">
+    ```bash
+    # Check CloudWatch logs for Lambda functions
+    aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/mycompany"
 
-#### Backend Debugging
+    # View specific function logs
+    aws logs tail /aws/lambda/mycompany-weather-function --follow
+    ```
 
-```bash
-# Check CloudWatch logs for Lambda functions
-aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/mycompany"
+  </TabPanel>
+</Tabs>
 
-# View specific function logs
-aws logs tail /aws/lambda/mycompany-weather-function --follow
-```
-
-## 🐛 Common Issues
+## Common Issues
 
 ### 1. Backend Services Not Deployed
 
+:::warning[Service Unavailable]
 **Symptoms:**
 
 - Frontend loads but chat doesn't work
 - 404 errors when trying to send messages
 - "Service unavailable" errors
+  :::
 
 **Solution:**
 
@@ -227,45 +259,65 @@ cd services/weather && pnpm build && pnpm run cdk:deploy
 
 ### 2. AWS Credentials Not Configured
 
+:::warning[Credentials Missing]
 **Symptoms:**
 
 - CDK deployment fails
 - "Unable to locate credentials" errors
+  :::
 
 **Solution:**
 
-```bash
-# Configure AWS CLI
-aws configure
-
-# Or set environment variables
-export AWS_ACCESS_KEY_ID=your-access-key
-export AWS_SECRET_ACCESS_KEY=your-secret-key
-export AWS_DEFAULT_REGION=us-east-1
-```
+<Tabs activeName="AWS CLI">
+  <TabPanel name="AWS CLI">
+    ```bash
+    # Configure AWS CLI
+    aws configure
+    ```
+  </TabPanel>
+  <TabPanel name="Environment Variables">
+    ```bash
+    # Or set environment variables
+    export AWS_ACCESS_KEY_ID=your-access-key
+    export AWS_SECRET_ACCESS_KEY=your-secret-key
+    export AWS_DEFAULT_REGION=us-east-1
+    ```
+  </TabPanel>
+</Tabs>
 
 ### 3. Port Already in Use
 
+:::warning[Port Conflict]
 **Symptoms:**
 
 - "Port 3000 is already in use" error
+  :::
 
 **Solution:**
 
-```bash
-# Kill the process using port 3000
-lsof -ti:3000 | xargs kill -9
-
-# Or use a different port
-pnpm run dev -- --port 3001
-```
+<Tabs activeName="Kill Process">
+  <TabPanel name="Kill Process">
+    ```bash
+    # Kill the process using port 3000
+    lsof -ti:3000 | xargs kill -9
+    ```
+  </TabPanel>
+  <TabPanel name="Different Port">
+    ```bash
+    # Or use a different port
+    pnpm run dev -- --port 3001
+    ```
+  </TabPanel>
+</Tabs>
 
 ### 4. Build Errors
 
+:::warning[Build Issues]
 **Symptoms:**
 
 - TypeScript compilation errors
 - Missing dependencies
+  :::
 
 **Solution:**
 
@@ -278,7 +330,7 @@ pnpm install
 pnpm build
 ```
 
-## 🔄 Development Tips
+## Development Tips
 
 ### 1. Use Environment Variables
 
@@ -293,23 +345,32 @@ VITE_DEBUG=true
 
 ### 2. Monitor AWS Costs
 
+:::caution[Cost Monitoring]
 Local development still uses AWS resources:
 
 - Monitor your AWS billing dashboard
 - Use AWS Cost Explorer to track expenses
 - Consider using AWS Free Tier for development
+  :::
 
 ### 3. Use AWS CloudWatch
 
 Monitor your deployed services:
 
-```bash
-# View recent logs
-aws logs tail /aws/lambda/mycompany-pika-service --follow
-
-# Check metrics
-aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration
-```
+<Tabs activeName="Logs">
+  <TabPanel name="Logs">
+    ```bash
+    # View recent logs
+    aws logs tail /aws/lambda/mycompany-pika-service --follow
+    ```
+  </TabPanel>
+  <TabPanel name="Metrics">
+    ```bash
+    # Check metrics
+    aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration
+    ```
+  </TabPanel>
+</Tabs>
 
 ### 4. Test Different Scenarios
 
@@ -318,7 +379,7 @@ aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Durati
 - **Custom components**: Test your custom UI components
 - **Error handling**: Test various error scenarios
 
-## 📚 Next Steps
+## Next Steps
 
 Now that you can run Pika locally:
 
@@ -327,7 +388,7 @@ Now that you can run Pika locally:
 3. **Deploy to production** - Check out [AWS Deployment](/docs/developer/aws-deployment/)
 4. **Learn about the sync system** - Read [Sync System](/docs/developer/sync-system/)
 
-## 🆘 Getting Help
+## Getting Help
 
 If you encounter issues:
 

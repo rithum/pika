@@ -1,10 +1,8 @@
 ---
 title: Authentication
-description: Imported from docs/developer/authentication.md
+description: Complete guide to implementing custom authentication in Pika Framework
 outline: [2, 3]
 ---
-
-# Custom Authentication Guide
 
 This guide explains how to implement custom authentication in your Pika project using the authentication customization extension point.
 
@@ -12,64 +10,84 @@ This guide explains how to implement custom authentication in your Pika project 
 
 Pika Framework provides a flexible authentication system that allows you to implement your own authentication logic while maintaining the framework's user management and chat functionality. Your custom authentication code is protected from framework updates and can handle complex flows like OAuth, SSO, and custom auth providers.
 
-## 🚨 CRITICAL SECURITY WARNING
+## Critical Security Warning
 
-**⚠️ THE DEFAULT MOCK AUTHENTICATION IS NOT SECURE ⚠️**
+:::warning[Critical Security Warning]
+**THE DEFAULT MOCK AUTHENTICATION IS NOT SECURE**
 
-### Default Behavior - Development Only
-
-Pika Framework ships with a **default mock authentication provider** located at `apps/pika-chat/src/lib/server/auth/default-provider.ts` that:
+Pika Framework ships with a **default mock authentication provider** that:
 
 - **Hardcodes a single test user** (`userId: '123', firstName: 'Test', lastName: 'User'`)
 - **Requires no password or validation** - anyone visiting your site is automatically authenticated
 - **Does not assign a `userType`** - this can cause security issues with chat app access control
 - **Returns the same mock user for every request**
+  :::
 
 ### Production Deployment Requirements
 
-**🔒 BEFORE DEPLOYING PUBLICLY, YOU MUST:**
+:::caution[Before Deploying Publicly, You Must]
 
 1. **Replace the mock provider** with your own authentication implementation
 2. **Assign proper `userType` values** (`internal-user` or `external-user`) to all users
 3. **Configure `userTypesAllowed`** on all chat apps to control access
 4. **Test authentication flows** thoroughly in staging environment
+   :::
 
 ### Security Risk
 
 The mock provider creates a significant security vulnerability:
 
+<Tabs activeName="Insecure Mock">
+  <TabPanel name="Insecure Mock">
+
 ```js
-// ❌ CURRENT MOCK PROVIDER - INSECURE
+// CURRENT MOCK PROVIDER - INSECURE
 async authenticate(_event: RequestEvent): Promise<AuthenticatedUser<MockAuthData, MockCustomData>> {
     return {
         userId: '123',
         firstName: 'Test',
         lastName: 'User',
         userType: 'internal-user', // marked as internal user for development
-        // ⚠️ No actual authentication - anyone can access!
+        // No actual authentication - anyone can access!
         // ... rest of user data
     };
 }
 ```
 
-**Fix this by implementing a custom provider that:**
+  </TabPanel>
+  <TabPanel name="Secure Custom">
 
-- Validates real user credentials
-- Assigns appropriate `userType` values
-- Implements proper access controls
+```js
+// SECURE CUSTOM PROVIDER
+async authenticate(event: RequestEvent): Promise<AuthenticatedUser<AuthData, CustomData>> {
+    const token = this.extractAuthToken(event);
+    if (!token) {
+        throw new NotAuthenticatedError('No valid token');
+    }
+
+    // Validate real user credentials
+    const userData = await this.validateTokenWithProvider(token);
+    return this.createAuthenticatedUser(userData, token);
+}
+```
+
+  </TabPanel>
+</Tabs>
 
 ## Understanding User Data Types
 
 The framework uses a two-tier data structure to separate authentication data from business data:
 
-### `AuthenticatedUser<T, U>`
+### AuthenticatedUserT&lt;, U&gt;
 
 - **T (Auth Data)**: Sensitive authentication information (tokens, sessions, etc.)
+
     - Stored securely in encrypted cookies
     - Never saved to database
     - Available server-side only
     - Not sent to agent or tools
     - Auth Data must be of type `Record<string, string>` or undefined
+
 - **U (Custom Data)**: Business-specific user information (company details, account info, etc.)
     - Stored securely in encrypted cookies
     - Saved to chat user database as `customData`
@@ -77,9 +95,9 @@ The framework uses a two-tier data structure to separate authentication data fro
     - Persists across sessions
     - Custom Data must be of type `Record<string, string>` or undefined
 
-### `ChatUser<T>`
+### ChatUser &lt;T&gt;
 
-- **T (Custom Data)**: Same as the U type in `AuthenticatedUser<T, U>`
+- **T (Custom Data)**: Same as the U type in `AuthenticatedUser&lt; T, U&gt;`
     - Contains business-specific user information
     - Core fields: `userId`, `firstName`, `lastName`, `userType`, `role`, `features`
     - Custom fields: stored in the `customData` property
@@ -104,25 +122,48 @@ You can distinguish between different types of users by setting the `userType` f
 - Apply different security policies
 
 **Usage in Chat Apps:**
-When defining a `ChatApp`, you can restrict access using `userTypesAllowed`:
+
+<Tabs activeName="Internal Only">
+  <TabPanel name="Internal Only">
 
 ```js
-// Example: Chat app only for internal users
+// Chat app only for internal users
 const internalChatApp: ChatApp = {
     chatAppId: 'internal-support',
     title: 'Internal Support Chat',
     userTypesAllowed: ['internal-user'] // Only internal users can access
     // ... other properties
 };
+```
 
-// Example: Chat app for all users (explicit configuration required)
-const publicChatApp: ChatApp = {
+  </TabPanel>
+  <TabPanel name="External Only">
+
+```js
+// Chat app only for external users
+const externalChatApp: ChatApp = {
     chatAppId: 'customer-support',
     title: 'Customer Support',
-    userTypes: ['internal-user', 'external-user'] // Must explicitly specify access
+    userTypesAllowed: ['external-user'] // Only external users can access
     // ... other properties
 };
 ```
+
+  </TabPanel>
+  <TabPanel name="Both Types">
+
+```js
+// Chat app for all users (explicit configuration)
+const publicChatApp: ChatApp = {
+    chatAppId: 'general-support',
+    title: 'General Support',
+    userTypesAllowed: ['internal-user', 'external-user'] // Both can access
+    // ... other properties
+};
+```
+
+  </TabPanel>
+</Tabs>
 
 ### User Roles and Permissions
 
@@ -141,43 +182,12 @@ You can assign roles to users for advanced access control and administrative cap
 - **Important:** Do not create custom roles starting with `pika:` (reserved for framework use)
 - Custom roles are not currently used by the framework but will be supported in future versions
 
-**Example Usage:**
-
-```js
-// User with admin privileges
-const adminUser: AuthenticatedUser<AuthData, CustomData> = {
-    userId: 'admin-123',
-    firstName: 'John',
-    lastName: 'Admin',
-    userType: 'internal-user',
-    roles: ['pika:content-admin', 'company-admin', 'support-lead']
-    // ... other properties
-};
-
-// Regular user with custom business roles
-const managerUser: AuthenticatedUser<AuthData, CustomData> = {
-    userId: 'manager-456',
-    firstName: 'Jane',
-    lastName: 'Manager',
-    userType: 'internal-user',
-    roles: ['department-manager', 'budget-approver']
-    // ... other properties
-};
-
-// External customer (no special roles)
-const customerUser: AuthenticatedUser<AuthData, CustomData> = {
-    userId: 'customer-789',
-    firstName: 'Bob',
-    lastName: 'Customer',
-    userType: 'external-user'
-    // No roles array = no special permissions
-    // ... other properties
-};
-```
-
 ### Implementation Examples
 
 Here are practical examples of how to implement user type and role logic in your authentication provider:
+
+<Tabs activeName="User Type Logic">
+  <TabPanel name="User Type Logic">
 
 ```js
 // Example: Determine user type based on email domain
@@ -190,7 +200,12 @@ function determineUserType(email: string, userData: any): UserType {
     }
     return 'external-user';
 }
+```
 
+  </TabPanel>
+  <TabPanel name="Role Extraction">
+
+```js
 // Example: Extract roles from your auth provider
 function extractUserRoles(userData: any): string[] {
     const roles: string[] = [];
@@ -208,14 +223,16 @@ function extractUserRoles(userData: any): string[] {
         if (userData.permissions.includes('approve_budgets')) {
             roles.push('budget-approver');
         }
-        if (userData.permissions.includes('view_analytics')) {
-            roles.push('analytics-viewer');
-        }
     }
 
     return roles;
 }
+```
 
+  </TabPanel>
+  <TabPanel name="Complete Example">
+
+```js
 // Example: Enhanced authentication method
 private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser<YourCustomAuthData, YourCustomUserData> {
     const userType = this.determineUserType(userData.email, userData);
@@ -246,9 +263,15 @@ private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser
 }
 ```
 
+  </TabPanel>
+</Tabs>
+
 ### Chat App Access Control
 
 Here's how to configure chat apps with user type restrictions:
+
+<Tabs activeName="Employee Support">
+  <TabPanel name="Employee Support">
 
 ```js
 // Internal-only chat app for employee support
@@ -261,7 +284,12 @@ const employeeChatApp: ChatApp = {
     enabled: true
     // ... other properties
 };
+```
 
+  </TabPanel>
+  <TabPanel name="Customer Support">
+
+```js
 // Customer-facing chat app
 const customerChatApp: ChatApp = {
     chatAppId: 'customer-support',
@@ -272,7 +300,12 @@ const customerChatApp: ChatApp = {
     enabled: true
     // ... other properties
 };
+```
 
+  </TabPanel>
+  <TabPanel name="Admin Debug">
+
+```js
 // Admin chat app for debugging (accessible to content admins only)
 const adminChatApp: ChatApp = {
     chatAppId: 'admin-debug',
@@ -290,46 +323,62 @@ const adminChatApp: ChatApp = {
                 enabled: true,
                 userRoles: ['pika:content-admin']
             }
-        },
-        verifyResponse: {
-            featureId: 'verifyResponse',
-            enabled: true,
-            userRoles: ['pika:content-admin']
         }
     }
     // ... other properties
 };
 ```
 
-**📖 For comprehensive access control information:** See the [Chat App Access Control Guide](/docs/developer/chat-app-access-control/) for detailed explanations of all access rules, precedence order, override systems, and troubleshooting.
+  </TabPanel>
+</Tabs>
 
-## Quick Reference: Security Essentials
+:::info[Learn More]
+For comprehensive access control information, see the [Chat App Access Control Guide](/docs/developer/chat-app-access-control/) for detailed explanations of all access rules, precedence order, override systems, and troubleshooting.
+:::
 
-### 🔒 Production Deployment Checklist
+## Production Deployment Checklist
 
-**Before deploying to production, ensure:**
+Before deploying to production, ensure:
 
-| ✅  | Security Requirement                             | Why It Matters                  |
+|     | Security Requirement                             | Why It Matters                  |
 | --- | ------------------------------------------------ | ------------------------------- |
-| ✅  | Custom auth provider implemented                 | Mock provider has no security   |
-| ✅  | All users have `userType` assigned               | Controls chat app access        |
-| ✅  | Chat apps have `userTypesAllowed` configured     | Prevents unauthorized access    |
-| ✅  | Internal tools restricted to `['internal-user']` | Protects admin functionality    |
-| ✅  | Customer-facing apps restricted appropriately    | Data privacy and access control |
+|     | Custom auth provider implemented                 | Mock provider has no security   |
+|     | All users have `userType` assigned               | Controls chat app access        |
+|     | Chat apps have `userTypesAllowed` configured     | Prevents unauthorized access    |
+|     | Internal tools restricted to `['internal-user']` | Protects admin functionality    |
+|     | Customer-facing apps restricted appropriately    | Data privacy and access control |
 
-### 👥 User Type Quick Guide
+### User Type Quick Guide
+
+<Tabs activeName="Internal User">
+  <TabPanel name="Internal User">
 
 ```js
-// User type assignment in your auth provider
+// User type assignment for company employees
 const user: AuthenticatedUser = {
     // ... other fields
     userType: 'internal-user', // Company employees, staff, admins
-    // OR
+};
+```
+
+  </TabPanel>
+  <TabPanel name="External User">
+
+```js
+// User type assignment for customers
+const user: AuthenticatedUser = {
+    // ... other fields
     userType: 'external-user' // Customers, partners, external users
 };
 ```
 
-### 🛡️ Chat App Access Control
+  </TabPanel>
+</Tabs>
+
+### Chat App Access Control
+
+<Tabs activeName="Internal Only">
+  <TabPanel name="Internal Only">
 
 ```js
 // Restrict to internal users only (admin tools, employee resources)
@@ -338,14 +387,24 @@ const internalApp: ChatApp = {
     title: 'Admin Dashboard',
     userTypesAllowed: ['internal-user'] // Only internal users
 };
+```
 
+  </TabPanel>
+  <TabPanel name="External Only">
+
+```js
 // Restrict to external users only (customer support, public services)
 const externalApp: ChatApp = {
     chatAppId: 'customer-support',
     title: 'Customer Support',
     userTypesAllowed: ['external-user'] // Only external users
 };
+```
 
+  </TabPanel>
+  <TabPanel name="Both Types">
+
+```js
 // Allow both user types (general purpose, shared resources)
 const sharedApp: ChatApp = {
     chatAppId: 'general-chat',
@@ -354,31 +413,52 @@ const sharedApp: ChatApp = {
 };
 ```
 
-### ⚠️ Common Security Mistakes
+  </TabPanel>
+</Tabs>
+
+### Common Security Mistakes
+
+Dangerouse Patterns to Avoid
+
+<Tabs activeName="Missing UserType">
+  <TabPanel name="Missing UserType">
 
 ```js
-// ❌ DANGEROUS - Missing userType assignment
+// DANGEROUS - Missing userType assignment
 const user: AuthenticatedUser = {
     userId: 'user123',
     firstName: 'John',
     lastName: 'Doe'
     // Missing userType = potential security issues
 };
+```
 
-// ❌ DANGEROUS - Admin tools accessible to all users
+  </TabPanel>
+  <TabPanel name="Open Admin Tools">
+
+```js
+// DANGEROUS - Admin tools accessible to all users
 const adminTools: ChatApp = {
     chatAppId: 'admin-tools',
     title: 'Admin Tools'
     // Missing userTypesAllowed = everyone can access admin tools!
 };
+```
 
-// ❌ DANGEROUS - Customer data exposed to internal users
+  </TabPanel>
+  <TabPanel name="Data Exposure">
+  
+```js
+// DANGEROUS - Customer data exposed to internal users
 const customerApp: ChatApp = {
     chatAppId: 'customer-data',
     title: 'Customer Portal'
     // Missing userTypesAllowed = internal users can see customer data
 };
 ```
+
+  </TabPanel>
+</Tabs>
 
 ## Customization Location
 
@@ -401,11 +481,11 @@ This allows you to store arbitrarily large authentication data without worrying 
 
 ## Generic Type System
 
-The Pika authentication system uses TypeScript generics to provide type safety while allowing flexibility in your authentication data structure. This ensures your auth data and custom user data are properly typed throughout the system.
+The Pika authentication system uses TypeScript generics to provide type safety while allowing flexibility in your authentication data structure.
 
-### AuthProvider<T, U> Generic Parameters
+### AuthProvider&lt;T, U&gt; Generic Parameters
 
-When creating your authentication provider, you must extend `AuthProvider<T, U>` where:
+When creating your authentication provider, you must extend `AuthProvider&lt;T, U&gt;` where:
 
 - **T (Auth Data Type)**: Contains authentication-specific data like tokens, session IDs, etc.
 
@@ -421,6 +501,9 @@ When creating your authentication provider, you must extend `AuthProvider<T, U>`
 
 ### Example Type Definitions
 
+<Tabs activeName="Type Definitions">
+  <TabPanel name="Type Definitions">
+
 ```js
 // T - Auth data (cookies only, not database)
 interface MyAuthData {
@@ -435,7 +518,12 @@ interface MyCustomData {
     accountType: 'retailer' | 'supplier';
     email: string;
 }
+```
 
+  </TabPanel>
+  <TabPanel name="Provider Implementation">
+
+```js
 // Properly typed provider
 export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomData> {
     // Methods are automatically typed with your specific types
@@ -444,6 +532,9 @@ export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomDat
     }
 }
 ```
+
+  </TabPanel>
+</Tabs>
 
 ### Type Safety Benefits
 
@@ -456,11 +547,11 @@ export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomDat
 
 ### Overview
 
-The Pika framework now provides entity-based access control through the dedicated Entity feature. This enables sophisticated access control where specific accounts, companies, or organizations can be granted or denied access to individual chat apps.
+The Pika framework provides entity-based access control through the dedicated Entity feature. This enables sophisticated access control where specific accounts, companies, or organizations can be granted or denied access to individual chat apps.
 
 ### Entity Feature Configuration
 
-Instead of implementing a method in your authentication provider, entity-based access control is now configured declaratively in your `pika-config.ts`:
+Entity-based access control is configured declaratively in your `pika-config.ts`:
 
 ```js
 export const pikaConfig: PikaConfig = {
@@ -488,7 +579,8 @@ The `attributeName` field specifies which field in the user's `customData` shoul
 
 ### Implementation Examples
 
-**Simple Entity Matching:**
+<Tabs activeName="Simple Matching">
+  <TabPanel name="Simple Matching">
 
 ```js
 // Entity feature configuration:
@@ -503,7 +595,8 @@ entity: {
 // Result: User granted access because 'acct_123' is in the allowed list
 ```
 
-**Nested Field Matching:**
+  </TabPanel>
+  <TabPanel name="Nested Fields">
 
 ```js
 // Entity feature configuration:
@@ -517,6 +610,9 @@ entity: {
 // Chat app override allows: ['comp_789', 'comp_101']
 // Result: User granted access because 'comp_789' is in the allowed list
 ```
+
+  </TabPanel>
+</Tabs>
 
 ### Access Control Precedence
 
@@ -594,7 +690,8 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
 
 ### Use Cases for Entity-Based Access Control
 
-**Multi-Tenant SaaS Application:**
+<Tabs activeName="Multi-Tenant SaaS">
+  <TabPanel name="Multi-Tenant SaaS">
 
 ```js
 // Different customers can only access their own support chat
@@ -602,7 +699,8 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
 // Chat app override: exclusiveExternalAccessControl: ['customer_123', 'customer_456']
 ```
 
-**Partner Portal:**
+  </TabPanel>
+  <TabPanel name="Partner Portal">
 
 ```js
 // Different partners have access to different tools
@@ -610,7 +708,8 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
 // Chat app override: exclusiveExternalAccessControl: ['partner_gold', 'partner_platinum']
 ```
 
-**Department-Specific Internal Tools:**
+  </TabPanel>
+  <TabPanel name="Department Tools">
 
 ```js
 // Internal users from specific departments
@@ -618,13 +717,17 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
 // Chat app override: exclusiveInternalAccessControl: ['engineering', 'product']
 ```
 
-**Account-Based External Access:**
+  </TabPanel>
+  <TabPanel name="Account Access">
 
 ```js
 // External users representing specific accounts
 // customData: { accountId: 'enterprise_client_1' }
 // Chat app override: exclusiveExternalAccessControl: ['enterprise_client_1', 'enterprise_client_2']
 ```
+
+  </TabPanel>
+</Tabs>
 
 ### Security Considerations
 
@@ -635,6 +738,7 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
 
 ## Complete Working Example
 
+:::tip[Working Example Available]
 A fully functional authentication provider example is included at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts`. This example demonstrates:
 
 - **Time-based validation** (validates only every 5 minutes for performance)
@@ -643,12 +747,13 @@ A fully functional authentication provider example is included at `apps/pika-cha
 - **Generic, customizable structure** for any HTTP-based auth system
 - **Cookie management** and redirect handling
 
-**To use this example:**
+To use this example:
 
 1. Copy the contents of `custom-example.ts`
 2. Paste into your `index.ts` file
 3. Customize the URLs, types, and business logic for your auth provider
 4. Update the user lookup mechanism (database or API)
+   :::
 
 ## Implementation Steps
 
@@ -697,7 +802,9 @@ Create your main authentication provider. Your provider must extend the generic 
 - **T** is your auth data type (stored securely in cookies, not database)
 - **U** is your custom user data type (stored in database as `customData`)
 
-**Important:** Use `extends AuthProvider<YourAuthType, YourCustomType>` not `implements AuthProvider`.
+:::important[Implementation Note]
+Use `extends AuthProvider<YourAuthType, YourCustomType>` not `implements AuthProvider`.
+:::
 
 ```js
 // apps/pika-chat/src/lib/server/auth-provider/index.ts
@@ -800,35 +907,6 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         return response.json();
     }
 
-    private async validateTokenWithProvider(token: string): Promise<boolean> {
-        // Validate token with your auth provider
-        const response = await fetch('https://your-auth-provider.com/api/validate', {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-
-        return response.ok;
-    }
-
-    private async refreshTokens(refreshToken: string): Promise<any> {
-        // Refresh tokens with your auth provider
-        const response = await fetch('https://your-auth-provider.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                client_id: 'your-client-id',
-                client_secret: 'your-client-secret',
-                refresh_token: refreshToken
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to refresh tokens');
-        }
-
-        return response.json();
-    }
-
     private createAuthenticatedUser(userData: any, token: string): AuthenticatedUser<YourCustomAuthData, YourCustomUserData> {
         return {
             userId: userData.id,
@@ -865,63 +943,7 @@ export default class YourAuthProvider extends AuthProvider<YourCustomAuthData, Y
         };
     }
 
-    private async startOAuthFlow(event: RequestEvent): Promise<AuthenticateResult<YourCustomAuthData, YourCustomUserData>> {
-        // Redirect to your auth provider's login page
-        const authUrl = new URL('https://your-auth-provider.com/oauth/authorize');
-        authUrl.searchParams.set('client_id', 'your-client-id');
-        authUrl.searchParams.set('redirect_uri', `${event.url.origin}/oauth/callback`);
-        authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('scope', 'openid profile email');
-
-        return { redirectTo: redirect(302, authUrl.toString()) };
-    }
-
-    private async handleOAuthCallback(event: RequestEvent): Promise<AuthenticateResult<YourCustomAuthData, YourCustomUserData>> {
-        const code = event.url.searchParams.get('code');
-        if (!code) {
-            return { redirectTo: redirect(302, '/login?error=no_code') };
-        }
-
-        // Exchange code for tokens
-        const tokens = await this.exchangeCodeForTokens(code, event.url.origin);
-
-        // Get user data
-        const userData = await this.getUserFromAuthProvider(tokens.access_token);
-
-        // Create authenticated user
-        const user = this.createAuthenticatedUser(userData, tokens.access_token);
-
-        // Set auth cookie (framework will handle the rest)
-        event.cookies.set('your-auth-token', tokens.access_token, {
-            path: '/',
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax'
-        });
-
-        // Redirect to main app
-        return { redirectTo: redirect(302, '/') };
-    }
-
-    private async exchangeCodeForTokens(code: string, redirectUri: string): Promise<any> {
-        const response = await fetch('https://your-auth-provider.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                grant_type: 'authorization_code',
-                client_id: 'your-client-id',
-                client_secret: 'your-client-secret',
-                code,
-                redirect_uri: `${redirectUri}/oauth/callback`
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to exchange code for tokens');
-        }
-
-        return response.json();
-    }
+    // Additional helper methods would go here...
 }
 ```
 
@@ -983,7 +1005,7 @@ The framework provides protected files that won't be overwritten during sync ope
 - **`+page.server.ts`**: Server-side logic to access data passed from your auth provider
 - **`+page.svelte`**: Client-side component for handling authentication UI and logic
 
-### The `addValueToLocalsForRoute` Method
+### The addValueToLocalsForRoute Method
 
 Your auth provider can implement the optional `addValueToLocalsForRoute` method to pass data to the client-side authentication route:
 
@@ -1003,7 +1025,8 @@ async addValueToLocalsForRoute?(
 
 ### Implementation Example
 
-Here's how to implement a client-side authentication flow:
+<Tabs activeName="OAuth Provider">
+  <TabPanel name="OAuth Provider">
 
 ```js
 // Example: OAuth with client-side popup handling
@@ -1023,7 +1046,6 @@ export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAut
         // Check if this is a callback from client-side auth
         const authCode = event.url.searchParams.get('auth_code');
         if (authCode) {
-            // Exchange code for tokens and create user
             const tokens = await this.exchangeCodeForTokens(authCode);
             const userData = await this.getUserFromProvider(tokens.access_token);
             const user = this.createAuthenticatedUser(userData, tokens);
@@ -1038,7 +1060,6 @@ export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAut
                 const user = this.createAuthenticatedUser(userData, { access_token: token });
                 return { authenticatedUser: user };
             } catch (error) {
-                // Token invalid, clear it and redirect to client auth
                 event.cookies.delete('oauth-token');
             }
         }
@@ -1062,38 +1083,14 @@ export default class OAuthClientAuthProvider extends AuthProvider<OAuthClientAut
         }
         return undefined;
     }
-
-    private createAuthenticatedUser(userData: any, tokens: any): AuthenticatedUser<OAuthClientAuthData, OAuthClientUserData> {
-        return {
-            userId: userData.id,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            userType: 'external-user',
-            customData: {
-                email: userData.email,
-                provider: 'oauth'
-            },
-            authData: {
-                accessToken: tokens.access_token,
-                refreshToken: tokens.refresh_token,
-                expiresAt: Date.now() + tokens.expires_in * 1000
-            },
-            features: {
-                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
-                history: { type: 'history', history: true }
-            }
-        };
-    }
 }
 ```
 
-### Client-Side Implementation
-
-Update the protected client-side files to handle your authentication flow:
-
-**`+page.server.ts`:**
+  </TabPanel>
+  <TabPanel name="Client Page Server">
 
 ```js
+// +page.server.ts
 import { type RequestEvent } from '@sveltejs/kit';
 
 export async function load(event: RequestEvent): Promise<{ customData: Record<string, unknown> | undefined }> {
@@ -1101,10 +1098,11 @@ export async function load(event: RequestEvent): Promise<{ customData: Record<st
 }
 ```
 
-**`+page.svelte`:**
+  </TabPanel>
+  <TabPanel name="Client Page Component">
 
-```svelte
-<script lang="ts">
+```js title="+page.svelte"
+&lt;script lang="ts"&gt;
     import { page } from '$app/stores';
     import { onMount } from 'svelte';
 
@@ -1113,7 +1111,6 @@ export async function load(event: RequestEvent): Promise<{ customData: Record<st
 
     onMount(() => {
         if (customData) {
-            // Start OAuth flow with data from server
             startOAuthFlow(customData);
         }
     });
@@ -1126,14 +1123,13 @@ export async function load(event: RequestEvent): Promise<{ customData: Record<st
         authUrl.searchParams.set('scope', authData.oauthScopes);
         authUrl.searchParams.set('state', generateRandomState());
 
-        // Open popup or redirect
         window.location.href = authUrl.toString();
     }
 
     function generateRandomState(): string {
         return Math.random().toString(36).substring(2, 15);
     }
-</script>
+&lt;/script&gt;
 
 <div class="auth-container">
     <h2>Authenticating...</h2>
@@ -1165,31 +1161,8 @@ export async function load(event: RequestEvent): Promise<{ customData: Record<st
 </style>
 ```
 
-### Callback Handling
-
-Create a callback route to handle the return from client-side authentication:
-
-**`apps/pika-chat/src/routes/auth/callback/+page.server.ts`:**
-
-```js
-import { redirect } from '@sveltejs/kit';
-import type { RequestEvent } from '@sveltejs/kit';
-
-export async function load(event: RequestEvent) {
-    // Extract auth code from URL
-    const authCode = event.url.searchParams.get('code');
-    const state = event.url.searchParams.get('state');
-
-    if (authCode) {
-        // Redirect back to main app with auth code
-        // The authenticate method will pick up the auth_code parameter
-        return redirect(302, `/?auth_code=${authCode}`);
-    }
-
-    // No auth code - redirect to login
-    return redirect(302, '/auth/client-auth');
-}
-```
+  </TabPanel>
+</Tabs>
 
 ### Flow Sequence
 
@@ -1222,9 +1195,11 @@ This pattern is ideal for:
 
 ## Example Use Cases
 
-**💡 TIP:** Before reviewing these examples, check out the complete working example at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts` which includes time-based validation and multi-endpoint fallback patterns you can copy directly.
+:::tip[Working Example Reference]
+Before reviewing these examples, check out the complete working example at `apps/pika-chat/src/lib/server/auth-provider/custom-example.ts` which includes time-based validation and multi-endpoint fallback patterns you can copy directly.
+:::
 
-### OAuth Provider Integration
+<Expansion title="OAuth Provider Integration">
 
 ```js
 // Example: Google OAuth integration with token refresh
@@ -1310,7 +1285,9 @@ export default class GoogleAuthProvider extends AuthProvider<GoogleAuthData, Goo
 }
 ```
 
-### SSO Integration
+</Expansion>
+
+<Expansion title="SAML SSO Integration">
 
 ```js
 // Example: SAML SSO integration
@@ -1381,7 +1358,9 @@ export default class SAMLAuthProvider extends AuthProvider<SAMLAuthData, SAMLUse
 }
 ```
 
-### Custom Token Validation
+</Expansion>
+
+<Expansion title="JWT Token Validation">
 
 ```js
 // Example: JWT token validation with refresh
@@ -1467,535 +1446,7 @@ export default class JWTAuthProvider extends AuthProvider<JWTAuthData, JWTUserDa
 }
 ```
 
-### Multi-Tenant Authentication
-
-```js
-// Example: Multi-tenant authentication with organization switching
-interface MultiTenantAuthData {
-    accessToken: string;
-    currentOrgId: string;
-    availableOrgs: Array<{ id: string; name: string }>;
-    userRole: string;
-}
-
-interface MultiTenantUserData {
-    email: string;
-    companyId: string;
-    companyName: string;
-    companyType: string;
-}
-
-export default class MultiTenantAuthProvider extends AuthProvider<MultiTenantAuthData, MultiTenantUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<MultiTenantAuthData, MultiTenantUserData>> {
-        // Check for organization context in URL or headers
-        const orgId = event.url.searchParams.get('org') || event.request.headers.get('x-organization-id') || event.cookies.get('current-org');
-
-        const token = event.cookies.get('auth-token');
-        if (!token) {
-            return { redirectTo: redirect(302, '/login') };
-        }
-
-        try {
-            const userData = await this.getUserWithOrganizations(token);
-
-            // If no org specified, use the user's default org
-            const targetOrgId = orgId || userData.defaultOrgId;
-
-            // Verify user has access to this organization
-            const hasAccess = userData.organizations.some((org) => org.id === targetOrgId);
-            if (!hasAccess) {
-                throw new NotAuthenticatedError('Access denied to organization');
-            }
-
-            const user = this.createMultiTenantUser(userData, targetOrgId);
-            return { authenticatedUser: user };
-        } catch (error) {
-            throw new NotAuthenticatedError('Multi-tenant authentication failed');
-        }
-    }
-
-    async validateUser(
-        event: RequestEvent,
-        user: AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData>
-    ): Promise<AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> | undefined> {
-        // Check if user still has access to current organization
-        const hasAccess = await this.validateOrgAccess(user.userId, user.authData.currentOrgId);
-
-        if (!hasAccess) {
-            // User lost access to current org, try to switch to another accessible org
-            const accessibleOrgs = await this.getUserOrganizations(user.userId);
-            if (accessibleOrgs.length > 0) {
-                const newOrgId = accessibleOrgs[0].id;
-                return this.createMultiTenantUser(user, newOrgId);
-            }
-            throw new ForceUserToReauthenticateError('No accessible organizations');
-        }
-
-        return undefined; // Access still valid
-    }
-
-    private createMultiTenantUser(userData: any, orgId: string): AuthenticatedUser<MultiTenantAuthData, MultiTenantUserData> {
-        const org = userData.organizations.find((o) => o.id === orgId);
-        return {
-            userId: userData.id,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            customData: {
-                email: userData.email,
-                companyId: org.id,
-                companyName: org.name,
-                companyType: org.type
-            },
-            authData: {
-                accessToken: userData.accessToken,
-                currentOrgId: orgId,
-                availableOrgs: userData.organizations.map((o) => ({ id: o.id, name: o.name })),
-                userRole: org.role
-            },
-            features: {
-                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
-                history: { type: 'history', history: true }
-            }
-        };
-    }
-}
-```
-
-### API Key Authentication
-
-```js
-// Example: API key authentication for service-to-service communication
-interface APIKeyAuthData {
-    apiKey: string;
-    serviceId: string;
-    permissions: string[];
-    rateLimit: number;
-}
-
-interface ServiceUserData {
-    email: string;
-    companyId: string;
-    companyName: string;
-    companyType: string;
-}
-
-export default class APIKeyAuthProvider extends AuthProvider<APIKeyAuthData, ServiceUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<APIKeyAuthData, ServiceUserData>> {
-        const apiKey = event.request.headers.get('x-api-key') || event.cookies.get('api-key');
-
-        if (!apiKey) {
-            throw new NotAuthenticatedError('API key required');
-        }
-
-        try {
-            const serviceData = await this.validateAPIKey(apiKey);
-            const user = this.createServiceUser(serviceData, apiKey);
-            return { authenticatedUser: user };
-        } catch (error) {
-            throw new NotAuthenticatedError('Invalid API key');
-        }
-    }
-
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<APIKeyAuthData, ServiceUserData>): Promise<AuthenticatedUser<APIKeyAuthData, ServiceUserData> | undefined> {
-        // For API keys, check if the key is still valid and not revoked
-        const isValid = await this.validateAPIKey(user.authData.apiKey);
-
-        if (!isValid) {
-            throw new ForceUserToReauthenticateError('API key revoked or expired');
-        }
-
-        return undefined; // API key still valid
-    }
-
-    private createServiceUser(serviceData: any, apiKey: string): AuthenticatedUser<APIKeyAuthData, ServiceUserData> {
-        return {
-            userId: `service_${serviceData.id}`,
-            firstName: serviceData.name,
-            lastName: '',
-            customData: {
-                email: serviceData.email,
-                companyId: serviceData.organizationId,
-                companyName: serviceData.organizationName,
-                companyType: 'service'
-            },
-            authData: {
-                apiKey,
-                serviceId: serviceData.id,
-                permissions: serviceData.permissions,
-                rateLimit: serviceData.rateLimit
-            },
-            features: {
-                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
-                history: { type: 'history', history: true }
-            }
-        };
-    }
-}
-```
-
-### Session-Based Authentication
-
-```js
-// Example: Traditional session-based authentication with Redis
-interface SessionAuthData {
-    sessionId: string;
-    expiresAt: number;
-}
-
-interface SessionUserData {
-    email: string;
-    lastLogin: number;
-}
-
-export default class SessionAuthProvider extends AuthProvider<SessionAuthData, SessionUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<SessionAuthData, SessionUserData>> {
-        const sessionId = event.cookies.get('session-id');
-
-        if (!sessionId) {
-            return { redirectTo: redirect(302, '/login') };
-        }
-
-        try {
-            const sessionData = await this.getSessionFromRedis(sessionId);
-            if (!sessionData) {
-                throw new NotAuthenticatedError('Session not found');
-            }
-
-            // Check if session is expired
-            if (sessionData.expiresAt < Date.now()) {
-                await this.deleteSessionFromRedis(sessionId);
-                throw new NotAuthenticatedError('Session expired');
-            }
-
-            const user = this.createUserFromSession(sessionData);
-            return { authenticatedUser: user };
-        } catch (error) {
-            event.cookies.delete('session-id');
-            throw new NotAuthenticatedError('Invalid session');
-        }
-    }
-
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<SessionAuthData, SessionUserData>): Promise<AuthenticatedUser<SessionAuthData, SessionUserData> | undefined> {
-        const sessionId = user.authData.sessionId;
-
-        // Check if session still exists and is valid
-        const sessionData = await this.getSessionFromRedis(sessionId);
-
-        if (!sessionData) {
-            throw new ForceUserToReauthenticateError('Session not found');
-        }
-
-        if (sessionData.expiresAt < Date.now()) {
-            await this.deleteSessionFromRedis(sessionId);
-            throw new ForceUserToReauthenticateError('Session expired');
-        }
-
-        // Extend session if it's about to expire
-        const timeUntilExpiry = sessionData.expiresAt - Date.now();
-        if (timeUntilExpiry < 30 * 60 * 1000) {
-            // Less than 30 minutes
-            const extendedSession = await this.extendSession(sessionId);
-            return this.createUserFromSession(extendedSession);
-        }
-
-        return undefined; // Session still valid
-    }
-}
-```
-
-### OAuth2 with PKCE (Public Key Code Exchange)
-
-```js
-// Example: OAuth2 with PKCE for enhanced security
-interface OAuth2PKCEAuthData {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number;
-    codeVerifier: string;
-}
-
-interface OAuth2PKCEUserData {
-    email: string;
-    scope: string[];
-}
-
-export default class OAuth2PKCEProvider extends AuthProvider<OAuth2PKCEAuthData, OAuth2PKCEUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<OAuth2PKCEAuthData, OAuth2PKCEUserData>> {
-        const code = event.url.searchParams.get('code');
-        const state = event.url.searchParams.get('state');
-        const codeVerifier = event.cookies.get('code_verifier');
-
-        if (code && state && codeVerifier) {
-            // OAuth callback - exchange code for tokens
-            return this.handleOAuthCallback(event, code, state, codeVerifier);
-        }
-
-        // Check for existing access token
-        const accessToken = event.cookies.get('access_token');
-        if (accessToken) {
-            try {
-                const userData = await this.getUserWithToken(accessToken);
-                const user = this.createUserFromOAuth(userData, accessToken);
-                return { authenticatedUser: user };
-            } catch (error) {
-                // Token invalid, clear cookies and redirect to login
-                event.cookies.delete('access_token');
-                event.cookies.delete('refresh_token');
-                return this.startOAuthFlow(event);
-            }
-        }
-
-        // No tokens found, start OAuth flow
-        return this.startOAuthFlow(event);
-    }
-
-    async validateUser(
-        event: RequestEvent,
-        user: AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData>
-    ): Promise<AuthenticatedUser<OAuth2PKCEAuthData, OAuth2PKCEUserData> | undefined> {
-        const accessToken = user.authData.accessToken;
-        const refreshToken = user.authData.refreshToken;
-
-        try {
-            // Check if access token is still valid
-            const isValid = await this.validateAccessToken(accessToken);
-
-            if (isValid) {
-                return undefined; // Token still valid
-            }
-
-            // Access token expired, try to refresh
-            if (refreshToken) {
-                const newTokens = await this.refreshAccessToken(refreshToken);
-                const updatedUser = { ...user };
-                updatedUser.authData = {
-                    ...updatedUser.authData,
-                    accessToken: newTokens.access_token,
-                    refreshToken: newTokens.refresh_token,
-                    expiresAt: Date.now() + newTokens.expires_in * 1000
-                };
-                return updatedUser;
-            }
-
-            throw new ForceUserToReauthenticateError('Access token expired and no refresh token');
-        } catch (error) {
-            throw new ForceUserToReauthenticateError('OAuth token validation failed');
-        }
-    }
-
-    private async startOAuthFlow(event: RequestEvent): Promise<AuthenticateResult<OAuth2PKCEAuthData, OAuth2PKCEUserData>> {
-        const codeVerifier = this.generateCodeVerifier();
-        const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-        const state = this.generateState();
-
-        // Store PKCE parameters in cookies
-        event.cookies.set('code_verifier', codeVerifier, { httpOnly: true, secure: true });
-        event.cookies.set('oauth_state', state, { httpOnly: true, secure: true });
-
-        const authUrl = new URL('https://your-oauth-provider.com/oauth/authorize');
-        authUrl.searchParams.set('client_id', process.env.OAUTH_CLIENT_ID);
-        authUrl.searchParams.set('redirect_uri', `${event.url.origin}/oauth/callback`);
-        authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('scope', 'openid profile email');
-        authUrl.searchParams.set('code_challenge', codeChallenge);
-        authUrl.searchParams.set('code_challenge_method', 'S256');
-        authUrl.searchParams.set('state', state);
-
-        return { redirectTo: redirect(302, authUrl.toString()) };
-    }
-}
-```
-
-### Role-Based Access Control (RBAC)
-
-```js
-// Example: Authentication with role-based access control
-interface RBACAuthData {
-    accessToken: string;
-    roles: string[];
-    permissions: string[];
-    lastRoleCheck: number;
-}
-
-interface RBACUserData {
-    email: string;
-    companyId: string;
-    companyName: string;
-    companyType: string;
-}
-
-export default class RBACAuthProvider extends AuthProvider<RBACAuthData, RBACUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<RBACAuthData, RBACUserData>> {
-        const token = event.cookies.get('auth-token');
-        if (!token) {
-            return { redirectTo: redirect(302, '/login') };
-        }
-
-        try {
-            const userData = await this.getUserWithRoles(token);
-            const user = this.createRBACUser(userData, token);
-            return { authenticatedUser: user };
-        } catch (error) {
-            throw new NotAuthenticatedError('RBAC authentication failed');
-        }
-    }
-
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<RBACAuthData, RBACUserData>): Promise<AuthenticatedUser<RBACAuthData, RBACUserData> | undefined> {
-        // Check if user's roles have changed
-        const currentRoles = await this.getUserRoles(user.userId);
-        const hasRoleChanges = this.hasRoleChanges(user.authData.roles, currentRoles);
-
-        if (hasRoleChanges) {
-            // User's roles have changed, update the user object
-            const updatedUser = { ...user };
-            updatedUser.authData = {
-                ...updatedUser.authData,
-                roles: currentRoles,
-                permissions: await this.getPermissionsForRoles(currentRoles)
-            };
-            return updatedUser;
-        }
-
-        return undefined; // No changes needed
-    }
-
-    private createRBACUser(userData: any, token: string): AuthenticatedUser<RBACAuthData, RBACUserData> {
-        return {
-            userId: userData.id,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            customData: {
-                email: userData.email,
-                companyId: userData.organizationId,
-                companyName: userData.organizationName,
-                companyType: userData.organizationType
-            },
-            authData: {
-                accessToken: token,
-                roles: userData.roles,
-                permissions: userData.permissions,
-                lastRoleCheck: Date.now()
-            },
-            features: {
-                instruction: { type: 'instruction', instruction: 'You are a helpful assistant.' },
-                history: { type: 'history', history: true }
-            }
-        };
-    }
-}
-```
-
-### Two-Factor Authentication (2FA)
-
-```js
-// Example: Authentication with 2FA support
-interface TwoFactorAuthData {
-    accessToken: string;
-    twoFactorToken?: string;
-    twoFactorEnabled: boolean;
-}
-
-interface TwoFactorUserData {
-    email: string;
-    phoneNumber: string;
-}
-
-export default class TwoFactorAuthProvider extends AuthProvider<TwoFactorAuthData, TwoFactorUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<TwoFactorAuthData, TwoFactorUserData>> {
-        const token = event.cookies.get('auth-token');
-        const twoFactorToken = event.cookies.get('2fa-token');
-
-        if (!token) {
-            return { redirectTo: redirect(302, '/login') };
-        }
-
-        try {
-            const userData = await this.getUserData(token);
-
-            // Check if user has 2FA enabled
-            if (userData.twoFactorEnabled && !twoFactorToken) {
-                // User needs to complete 2FA
-                return { redirectTo: redirect(302, '/2fa/verify') };
-            }
-
-            // Validate 2FA if required
-            if (userData.twoFactorEnabled && twoFactorToken) {
-                const isValid2FA = await this.validateTwoFactorToken(userData.id, twoFactorToken);
-                if (!isValid2FA) {
-                    event.cookies.delete('2fa-token');
-                    return { redirectTo: redirect(302, '/2fa/verify') };
-                }
-            }
-
-            const user = this.createTwoFactorUser(userData, token, twoFactorToken);
-            return { authenticatedUser: user };
-        } catch (error) {
-            throw new NotAuthenticatedError('Two-factor authentication failed');
-        }
-    }
-
-    async validateUser(
-        event: RequestEvent,
-        user: AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData>
-    ): Promise<AuthenticatedUser<TwoFactorAuthData, TwoFactorUserData> | undefined> {
-        // Check if 2FA token is still valid
-        if (user.authData.twoFactorToken) {
-            const isValid2FA = await this.validateTwoFactorToken(user.userId, user.authData.twoFactorToken);
-            if (!isValid2FA) {
-                throw new ForceUserToReauthenticateError('Two-factor authentication expired');
-            }
-        }
-
-        return undefined; // 2FA still valid
-    }
-}
-```
-
-### Webhook Authentication
-
-```js
-// Example: Webhook authentication for external service integration
-interface WebhookAuthData {
-    webhookId: string;
-    signature: string;
-    timestamp: number;
-}
-
-interface WebhookUserData {
-    sourceSystem: string;
-    accountId: string;
-}
-
-export default class WebhookAuthProvider extends AuthProvider<WebhookAuthData, WebhookUserData> {
-    async authenticate(event: RequestEvent): Promise<AuthenticateResult<WebhookAuthData, WebhookUserData>> {
-        // Verify webhook signature
-        const signature = event.request.headers.get('x-webhook-signature');
-        const payload = await event.request.text();
-
-        if (!this.verifyWebhookSignature(payload, signature)) {
-            throw new NotAuthenticatedError('Invalid webhook signature');
-        }
-
-        const webhookData = JSON.parse(payload);
-
-        // Extract user information from webhook payload
-        const userData = await this.processWebhookData(webhookData);
-        const user = this.createWebhookUser(userData);
-        return { authenticatedUser: user };
-    }
-
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<WebhookAuthData, WebhookUserData>): Promise<AuthenticatedUser<WebhookAuthData, WebhookUserData> | undefined> {
-        // For webhook-based auth, check if the webhook session is still valid
-        const isValid = await this.validateWebhookSession(user.authData.webhookId);
-
-        if (!isValid) {
-            throw new ForceUserToReauthenticateError('Webhook session expired');
-        }
-
-        return undefined; // Webhook session still valid
-    }
-}
-```
+</Expansion>
 
 ### Best Practices for Access Control
 
@@ -2100,15 +1551,27 @@ describe('YourAuthProvider', () => {
 ### Common Issues
 
 1. **Provider not detected**: Ensure your provider is the default export
+
 2. **Type errors with generics**: Common mistake - do NOT declare your own generic parameters:
 
-    ```js
-    // ❌ WRONG - Don't redeclare generics
-    export default class MyProvider<MyAuthData, MyCustomData> extends AuthProvider {
+<Tabs activeName="Correct">
+  <TabPanel name="Correct">
 
-    // ✅ CORRECT - Use your concrete types
-    export default class MyProvider extends AuthProvider<MyAuthData, MyCustomData> {
-    ```
+```js
+// CORRECT - Use your concrete types
+export default class MyProvider extends AuthProvider<MyAuthData, MyCustomData> {
+```
+
+  </TabPanel>
+  <TabPanel name="Wrong">
+
+```js
+// WRONG - Don't redeclare generics
+export default class MyProvider<MyAuthData, MyCustomData> extends AuthProvider {
+```
+
+  </TabPanel>
+</Tabs>
 
 3. **Type errors**: Make sure your auth data types match your interface definitions
 4. **Redirect loops**: Check your authentication logic

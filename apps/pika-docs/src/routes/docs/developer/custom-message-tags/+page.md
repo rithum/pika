@@ -1,10 +1,8 @@
 ---
 title: Custom Message Tags
-description: Imported from docs/developer/custom-message-tags.md
+description: Create custom renderers for XML tags in LLM responses and metadata handlers for interactive chat experiences
 outline: [2, 3]
 ---
-
-# Custom Message Tags Guide
 
 This guide explains how to create custom renderers for XML tags in LLM responses and metadata handlers for processing non-visual tags in your Pika chat application.
 
@@ -12,7 +10,9 @@ This guide explains how to create custom renderers for XML tags in LLM responses
 
 When an LLM generates responses containing XML elements (e.g., `<image>`, `<download>`, `<chart>`), Pika's message rendering system uses the XML tag name to find and instantiate the appropriate renderer component. This system allows you to create rich, interactive chat experiences with custom UI components and data processing.
 
+:::info[Custom Message Tags Benefits]
 With custom message tags, you can create rich, interactive chat experiences that go far beyond simple text responses. The system is designed to be flexible and extensible, allowing you to build exactly the user experience your application needs.
+:::
 
 ## How It Works
 
@@ -82,106 +82,114 @@ interface Props {
 
 #### Key Considerations
 
+:::tip[Implementation Tips]
+
 - **Streaming Support**: Handle the `streamingStatus` to show loading states while content is being received
 - **Error Handling**: Gracefully handle malformed content or parsing errors
 - **JSON Parsing**: Many tags contain JSON data that needs to be parsed
 - **Responsive Design**: Ensure components work on different screen sizes
+  :::
 
 ### Example: Custom Data Table Renderer
 
-```js
-<!-- DataTableRenderer.svelte -->
-<script lang="ts">
-    import type { AppState } from '$client/app/app.state.svelte';
-    import { ChatAppState } from '../../chat-app.state.svelte';
-    import type { ProcessedTagSegment } from '../segment-types';
+<Tabs activeName="Component Code">
+  <TabPanel name="Component Code">
+    ```js
+    <!-- DataTableRenderer.svelte -->
+    <script lang="ts">
+        import type { AppState } from '$client/app/app.state.svelte';
+        import { ChatAppState } from '../../chat-app.state.svelte';
+        import type { ProcessedTagSegment } from '../segment-types';
 
-    interface Props {
-        segment: ProcessedTagSegment;
-        appState: AppState;
-        chatAppState: ChatAppState;
-    }
-
-    let { segment }: Props = $props();
-
-    let rawTagContent = $derived(segment.rawContent);
-    let showPlaceholder = $derived(segment.streamingStatus === 'pending');
-    let error = $state<string | null>(null);
-    let tableData = $state<{headers: string[], rows: string[][]} | null>(null);
-
-    $effect(() => {
-        if (showPlaceholder) return;
-
-        try {
-            const parsed = JSON.parse(rawTagContent);
-            if (!parsed.headers || !parsed.rows) {
-                error = 'Invalid table data format';
-                return;
-            }
-            tableData = parsed;
-            error = null;
-        } catch (e) {
-            error = e instanceof Error ? e.message : 'Failed to parse table data';
+        interface Props {
+            segment: ProcessedTagSegment;
+            appState: AppState;
+            chatAppState: ChatAppState;
         }
-    });
-</script>
 
-<div class="my-4">
-    {#if showPlaceholder}
-        <div class="animate-pulse bg-gray-100 rounded-lg p-4 text-center text-gray-500">
-            Loading table...
-        </div>
-    {:else if error}
-        <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-            <p class="font-semibold">Table Error</p>
-            <p class="text-sm">{error}</p>
-        </div>
-    {:else if tableData}
-        <div class="overflow-x-auto bg-white rounded-lg shadow">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        {#each tableData.headers as header}
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                {header}
-                            </th>
-                        {/each}
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {#each tableData.rows as row}
+        let { segment }: Props = $props();
+
+        let rawTagContent = $derived(segment.rawContent);
+        let showPlaceholder = $derived(segment.streamingStatus === 'pending');
+        let error = $state<string | null>(null);
+        let tableData = $state<{headers: string[], rows: string[][]} | null>(null);
+
+        $effect(() => {
+            if (showPlaceholder) return;
+
+            try {
+                const parsed = JSON.parse(rawTagContent);
+                if (!parsed.headers || !parsed.rows) {
+                    error = 'Invalid table data format';
+                    return;
+                }
+                tableData = parsed;
+                error = null;
+            } catch (e) {
+                error = e instanceof Error ? e.message : 'Failed to parse table data';
+            }
+        });
+    </script>
+
+    <div class="my-4">
+        {#if showPlaceholder}
+            <div class="animate-pulse bg-gray-100 rounded-lg p-4 text-center text-gray-500">
+                Loading table...
+            </div>
+        {:else if error}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <p class="font-semibold">Table Error</p>
+                <p class="text-sm">{error}</p>
+            </div>
+        {:else if tableData}
+            <div class="overflow-x-auto bg-white rounded-lg shadow">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
                         <tr>
-                            {#each row as cell}
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {cell}
-                                </td>
+                            {#each tableData.headers as header}
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    {header}
+                                </th>
                             {/each}
                         </tr>
-                    {/each}
-                </tbody>
-            </table>
-        </div>
-    {/if}
-</div>
-```
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {#each tableData.rows as row}
+                            <tr>
+                                {#each row as cell}
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {cell}
+                                    </td>
+                                {/each}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+        {/if}
+    </div>
+    ```
 
-Register it in `index.ts`:
+  </TabPanel>
+  <TabPanel name="Registration">
+    ```js
+    import DataTableRenderer from './DataTableRenderer.svelte';
 
-```js
-import DataTableRenderer from './DataTableRenderer.svelte';
+    export const customRenderers: Record<string, Component<any>> = {
+        datatable: DataTableRenderer
+    };
+    ```
 
-export const customRenderers: Record<string, Component<any>> = {
-    datatable: DataTableRenderer
-};
-```
+  </TabPanel>
+  <TabPanel name="Usage">
+    ```
+    Here's your sales data:
 
-Usage in LLM response:
+    <datatable>{"headers": ["Product", "Sales", "Revenue"], "rows": [["Widget A", "150", "$1,500"], ["Widget B", "200", "$2,000"]]}</datatable>
+    ```
 
-```
-Here's your sales data:
-
-<datatable>{"headers": ["Product", "Sales", "Revenue"], "rows": [["Widget A", "150", "$1,500"], ["Widget B", "200", "$2,000"]]}</datatable>
-```
+  </TabPanel>
+</Tabs>
 
 ## Metadata Handlers
 
@@ -206,56 +214,61 @@ type MetadataTagHandler = (segment: MetadataTagSegment, message: ChatMessageForR
 
 ### Example: Analytics Metadata Handler
 
-```js
-// analytics-handler.ts
-import type { MetadataTagHandler } from '../segment-types';
+<Tabs activeName="Handler Implementation">
+  <TabPanel name="Handler Implementation">
+    ```js
+    // analytics-handler.ts
+    import type { MetadataTagHandler } from '../segment-types';
 
-export const analyticsHandler: MetadataTagHandler = (segment, message, chatAppState, appState) => {
-    // Only process completed segments to avoid duplicate processing
-    if (segment.streamingStatus !== 'completed') return;
+    export const analyticsHandler: MetadataTagHandler = (segment, message, chatAppState, appState) => {
+        // Only process completed segments to avoid duplicate processing
+        if (segment.streamingStatus !== 'completed') return;
 
-    try {
-        const analyticsData = JSON.parse(segment.rawContent);
+        try {
+            const analyticsData = JSON.parse(segment.rawContent);
 
-        // Add analytics data to the message
-        if (!message.metadata) {
-            message.metadata = {};
+            // Add analytics data to the message
+            if (!message.metadata) {
+                message.metadata = {};
+            }
+            message.metadata.analytics = analyticsData;
+
+            // Trigger analytics tracking
+            if (analyticsData.event && analyticsData.properties) {
+                // Send to your analytics service
+                trackEvent(analyticsData.event, analyticsData.properties);
+            }
+        } catch (error) {
+            console.error('Failed to process analytics metadata', error);
         }
-        message.metadata.analytics = analyticsData;
+    };
 
-        // Trigger analytics tracking
-        if (analyticsData.event && analyticsData.properties) {
-            // Send to your analytics service
-            trackEvent(analyticsData.event, analyticsData.properties);
-        }
-    } catch (error) {
-        console.error('Failed to process analytics metadata', error);
+    function trackEvent(event: string, properties: any) {
+        // Your analytics implementation
+        console.log('Analytics event:', event, properties);
     }
-};
+    ```
 
-function trackEvent(event: string, properties: any) {
-    // Your analytics implementation
-    console.log('Analytics event:', event, properties);
-}
-```
+  </TabPanel>
+  <TabPanel name="Registration">
+    ```js
+    import { analyticsHandler } from './analytics-handler';
 
-Register the handler:
+    export const customMetadataHandlers: Record<string, MetadataTagHandler> = {
+        analytics: analyticsHandler
+    };
+    ```
 
-```js
-import { analyticsHandler } from './analytics-handler';
+  </TabPanel>
+  <TabPanel name="Usage">
+    ```
+    I've processed your request successfully.
 
-export const customMetadataHandlers: Record<string, MetadataTagHandler> = {
-    analytics: analyticsHandler
-};
-```
+    <analytics>{"event": "query_processed", "properties": {"type": "data_analysis", "duration": 2.5, "tokens": 250}}</analytics>
+    ```
 
-Usage in LLM response:
-
-```
-I've processed your request successfully.
-
-<analytics>{"event": "query_processed", "properties": {"type": "data_analysis", "duration": 2.5, "tokens": 250}}</analytics>
-```
+  </TabPanel>
+</Tabs>
 
 ## Built-in Examples
 
@@ -263,33 +276,34 @@ I've processed your request successfully.
 
 Pika includes several built-in renderers you can reference:
 
-#### Image Renderer (`image`)
+<Tabs activeName="Visual Renderers">
+  <TabPanel name="Visual Renderers">
+    **Image Renderer (`image`)**
+    - **Purpose**: Displays images from URLs
+    - **Content**: Image URL as plain text
+    - **Features**: Loading states, error handling, responsive sizing
 
-- **Purpose**: Displays images from URLs
-- **Content**: Image URL as plain text
-- **Features**: Loading states, error handling, responsive sizing
+    **Download Renderer (`download`)**
+    - **Purpose**: Creates download buttons for files
+    - **Content**: JSON with `s3Key` and optional `title`
+    - **Features**: File download integration, S3 support
 
-#### Download Renderer (`download`)
+    **Chart Renderer (`chart`)**
+    - **Purpose**: Renders Chart.js charts
+    - **Content**: Chart.js configuration JSON
+    - **Features**: Dynamic chart loading, responsive design
 
-- **Purpose**: Creates download buttons for files
-- **Content**: JSON with `s3Key` and optional `title`
-- **Features**: File download integration, S3 support
+    **Prompt Renderer (`prompt`)**
+    - **Purpose**: Creates clickable prompt buttons
+    - **Content**: Prompt text or JSON configuration
+    - **Features**: Click-to-send functionality
 
-#### Chart Renderer (`chart`)
-
-- **Purpose**: Renders Chart.js charts
-- **Content**: Chart.js configuration JSON
-- **Features**: Dynamic chart loading, responsive design
-
-#### Prompt Renderer (`prompt`)
-
-- **Purpose**: Creates clickable prompt buttons
-- **Content**: Prompt text or JSON configuration
-- **Features**: Click-to-send functionality
+  </TabPanel>
+</Tabs>
 
 ### Default Metadata Handlers
 
-#### Trace Handler (`trace`)
+**Trace Handler (`trace`)**
 
 - **Purpose**: Adds execution traces to messages
 - **Content**: JSON with trace information
@@ -358,9 +372,12 @@ This affects all text content in messages, not just XML tags.
 
 Always check `streamingStatus` and provide appropriate loading states:
 
+:::info[Streaming States]
+
 - **pending**: the content is still streaming and isn't done
 - **complete**: the content is done streaming
 - **error**: something broke when streaming the content
+  :::
 
 ```js
 {#if segment.streamingStatus === 'pending'}

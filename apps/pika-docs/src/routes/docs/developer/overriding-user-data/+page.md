@@ -4,8 +4,6 @@ description: Imported from docs/developer/overriding-user-data.md
 outline: [2, 3]
 ---
 
-# User Data Override Feature
-
 The User Data Override feature allows authorized users to override user values set by the authentication provider in `ChatUser.customData`. This is particularly useful for internal users who need to act on behalf of different accounts, companies, or roles without requiring separate authentication sessions. For example, an admin may need to be able to act as though he was a member of a specific account.
 
 ## Overview

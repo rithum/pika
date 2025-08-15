@@ -1,14 +1,12 @@
 ---
 title: Project Structure
-description: Imported from docs/developer/project-structure.md
+description: Understanding the structure and organization of your Pika Framework application
 outline: [2, 3]
 ---
 
-# Project Structure
-
 This guide explains the structure of your Pika application and what each component does.
 
-## 🏗️ Overview
+## Overview
 
 Your Pika application follows a monorepo structure that separates concerns and enables easy customization. Here's the high-level structure:
 
@@ -24,7 +22,7 @@ my-pika-app/
 └── pnpm-workspace.yaml     # Workspace configuration
 ```
 
-## 📱 Applications (`/apps`)
+## Applications (`/apps`)
 
 The `apps` directory contains all frontend application stacks in your Pika project.
 
@@ -32,7 +30,7 @@ The `apps` directory contains all frontend application stacks in your Pika proje
 
 The core chat interface that can render any chat application in your platform.
 
-**Key Features:**
+:::info[Key Features]
 
 - Generic chat interface that works with any agent
 - Authentication system
@@ -43,6 +41,7 @@ The core chat interface that can render any chat application in your platform.
 - Response quality verification
 - Customizable disclaimer notices
 - Feature override system for chat app customization
+  :::
 
 **Structure:**
 
@@ -69,9 +68,23 @@ apps/pika-chat/
 
 **Customization Areas:**
 
-- **Custom Message Tags**: `src/lib/client/features/chat/message-segments/custom-components/`
-- **Authentication**: `src/lib/server/auth-provider/`
-- **Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
+<Tabs activeName="Message Tags">
+  <TabPanel name="Message Tags">
+    **Custom Message Tags**: `src/lib/client/features/chat/message-segments/custom-components/`
+    
+    Add custom renderers for XML tags in LLM responses
+  </TabPanel>
+  <TabPanel name="Authentication">
+    **Authentication**: `src/lib/server/auth-provider/`
+    
+    Implement custom authentication flows
+  </TabPanel>
+  <TabPanel name="Infrastructure">
+    **Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
+    
+    Customize AWS infrastructure
+  </TabPanel>
+</Tabs>
 
 ### Sample Applications (`/apps/samples`)
 
@@ -87,7 +100,7 @@ A sample web application that demonstrates embedded chat mode.
 - Demonstrates iframe integration
 - Example of a complete web application
 
-## 🔧 Services (`/services`)
+## Services (`/services`)
 
 The `services` directory contains all backend service stacks.
 
@@ -95,12 +108,13 @@ The `services` directory contains all backend service stacks.
 
 The main backend service that provides chat app management, agent management, tool orchestration and agent invocation (called from front end).
 
-**Key Features:**
+:::info[Key Features]
 
 - Chat App and agent management infrastructure
 - Tool orchestration
 - Knowledge base integration
 - AWS Bedrock integration
+  :::
 
 **Structure:**
 
@@ -122,12 +136,13 @@ services/pika/
 
 Your custom backend services and API endpoints.
 
-**Purpose:**
+:::tip[Custom Services Purpose]
 
 - Add new API services
 - Background job processors
 - Data processing pipelines
 - Integration services
+  :::
 
 **Example Use Cases:**
 
@@ -162,7 +177,7 @@ services/samples/weather/
 └── package.json
 ```
 
-## 📦 Shared Packages (`/packages`)
+## Shared Packages (`/packages`)
 
 The `packages` directory contains shared code and utilities used across multiple applications and services.
 
@@ -173,11 +188,15 @@ The `packages` directory contains shared code and utilities used across multiple
 - **Configuration** - Shared configuration utilities
 - **Testing utilities** - Common test helpers
 
-## ⚙️ Configuration Files
+## Configuration Files
 
 ### Project Configuration (`pika-config.ts`)
 
 The central configuration file for your entire Pika project.
+
+:::important[Protected Configuration]
+This file is protected from framework updates and will never be overwritten.
+:::
 
 **Purpose:**
 
@@ -205,8 +224,6 @@ export const pikaConfig: PikaConfig = {
     }
 };
 ```
-
-**Important:** This file is protected from framework updates and will never be overwritten.
 
 ### Sync Configuration (`.pika-sync.json`)
 
@@ -240,11 +257,13 @@ packages:
     - 'packages/*'
 ```
 
-## 🔒 Protected Areas
+## Protected Areas
 
 Pika Framework automatically protects certain areas from being overwritten during sync operations:
 
 ### Default Protected Areas
+
+<Expansion title="View all protected areas">
 
 - `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
 - `apps/pika-chat/src/lib/server/auth-provider/`
@@ -256,6 +275,8 @@ Pika Framework automatically protects certain areas from being overwritten durin
 - `.gitignore`, `package.json`, `pnpm-lock.yaml`
 - Any path that starts with `custom-` whether a file or directory
 
+</Expansion>
+
 ### Custom Protection
 
 You can add additional protected areas by editing `.pika-sync.json`:
@@ -266,49 +287,56 @@ You can add additional protected areas by editing `.pika-sync.json`:
 }
 ```
 
-## 🎯 Key Customization Points
+## Key Customization Points
 
-### 1. Project Configuration
+<Tabs activeName="Project Config">
+  <TabPanel name="Project Config">
+    **File:** `pika-config.ts`
+    
+    **Purpose:** Update project names and settings
+    
+    **Protected:** Yes
+  </TabPanel>
+  <TabPanel name="Message Tags">
+    **Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+    
+    **Purpose:** Add custom renderers for XML tags in LLM responses and metadata handlers
+    
+    **Protected:** Yes
+  </TabPanel>
+  <TabPanel name="Authentication">
+    **Location:** `apps/pika-chat/src/lib/server/auth-provider/`
+    
+    **Purpose:** Implement custom authentication flows
+    
+    **Protected:** Yes
+  </TabPanel>
+  <TabPanel name="Custom Apps">
+    **Location:** `apps/custom/`
+    
+    **Purpose:** Add new web applications
+    
+    **Protected:** Yes
+  </TabPanel>
+  <TabPanel name="Custom Services">
+    **Location:** `services/custom/`
+    
+    **Purpose:** Add new backend services
+    
+    **Protected:** Yes
+  </TabPanel>
+  <TabPanel name="Infrastructure">
+    **Locations:**
+    - `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
+    - `services/pika/lib/stacks/custom-stack-defs.ts`
+    
+    **Purpose:** Customize AWS infrastructure
+    
+    **Protected:** Yes (by default)
+  </TabPanel>
+</Tabs>
 
-**File:** `pika-config.ts`
-**Purpose:** Update project names and settings
-**Protected:** Yes
-
-### 2. Custom Message Tags
-
-**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
-**Purpose:** Add custom renderers for XML tags in LLM responses and metadata handlers
-**Protected:** Yes
-
-### 3. Authentication
-
-**Location:** `apps/pika-chat/src/lib/server/auth-provider/`
-**Purpose:** Implement custom authentication flows
-**Protected:** Yes
-
-### 4. Custom Applications
-
-**Location:** `apps/custom/`
-**Purpose:** Add new web applications
-**Protected:** Yes
-
-### 5. Custom Services
-
-**Location:** `services/custom/`
-**Purpose:** Add new backend services
-**Protected:** Yes
-
-### 6. Infrastructure Customization
-
-**Locations:**
-
-- `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
-- `services/pika/lib/stacks/custom-stack-defs.ts`
-
-**Purpose:** Customize AWS infrastructure
-**Protected:** Yes (by default)
-
-## 📚 Next Steps
+## Next Steps
 
 Now that you understand the project structure:
 

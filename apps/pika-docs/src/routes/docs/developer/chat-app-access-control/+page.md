@@ -4,8 +4,6 @@ description: Imported from docs/developer/chat-app-access-control.md
 outline: [2, 3]
 ---
 
-# Chat App Access Control
-
 This guide explains how chat app access control works in Pika, including all the rules and their precedence order. Understanding these rules is crucial for securing your chat applications and ensuring the right users have access to the right features.
 
 ## Overview

@@ -4,8 +4,6 @@ description: Imported from docs/developer/chat-disclaimer-notice-feature.md
 outline: [2, 3]
 ---
 
-# Chat Disclaimer Notice Feature
-
 The Chat Disclaimer Notice feature displays a disclaimer message to users before they interact with AI chat applications. This feature helps set appropriate expectations and provides legal protection by informing users about the limitations of AI-generated responses.
 
 ## Overview

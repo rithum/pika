@@ -4,8 +4,6 @@ description: Imported from docs/developer/entity-feature.md
 outline: [2, 3]
 ---
 
-# Entity Feature
-
 The Entity feature enables you to associate users with organizational entities (such as accounts, companies, or organizations) throughout the Pika framework. This foundational feature provides the infrastructure for entity-based access control, filtering, and display across various parts of the system.
 
 ## Overview

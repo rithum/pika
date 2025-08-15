@@ -1,18 +1,16 @@
 ---
-title: Aws Deployment
-description: Imported from docs/developer/aws-deployment.md
+title: AWS Deployment
+description: Complete guide to deploying your Pika Framework application to AWS for production use
 outline: [2, 3]
 ---
 
-# AWS Deployment
-
 This guide explains how to deploy your Pika application to AWS for production use.
 
-## 🚀 Overview
+## Overview
 
 Pika Framework uses AWS CDK for infrastructure as code, enabling consistent deployment across environments. The deployment process involves deploying multiple stacks in the correct order.
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before deploying to AWS, ensure you have:
 
@@ -44,33 +42,117 @@ If this is your first time using AWS CDK in your account/region:
 cdk bootstrap
 ```
 
-## 🏗️ Deployment Architecture
+## Deployment Architecture
 
 Pika uses a two-stack deployment model:
 
-### 1. Backend Infrastructure Stack
+<Tabs activeName="Backend Stack">
+  <TabPanel name="Backend Stack">
+    **Backend Infrastructure Stack**
+    
+    **Purpose:** Core agent infrastructure and management
+    
+    **Components:**
+    - AWS Bedrock integration
+    - Agent management infrastructure
+    - Tool orchestration
+    - Knowledge base integration
+    - API Gateway
+    - Lambda functions
+  </TabPanel>
+  <TabPanel name="Frontend Stack">
+    **Frontend Infrastructure Stack**
+    
+    **Purpose:** Web application hosting and delivery
+    
+    **Components:**
+    - CloudFront distribution
+    - Route 53 DNS configuration
+    - SSL certificate management
+    - Custom domain setup
+  </TabPanel>
+</Tabs>
 
-**Purpose:** Core agent infrastructure and management
-**Components:**
+## Security Checklist - Required for Production
 
-- AWS Bedrock integration
-- Agent management infrastructure
-- Tool orchestration
-- Knowledge base integration
-- API Gateway
-- Lambda functions
+:::warning[Critical Security Requirements]
+**DO NOT DEPLOY TO PRODUCTION WITHOUT COMPLETING THIS CHECKLIST**
+:::
 
-### 2. Frontend Infrastructure Stack
+Before deploying to production, verify each of these security requirements:
 
-**Purpose:** Web application hosting and delivery
-**Components:**
+### Authentication Security
 
-- CloudFront distribution
-- Route 53 DNS configuration
-- SSL certificate management
-- Custom domain setup
+- [ ] **Custom authentication provider implemented** (not using mock provider)
+- [ ] **All users assigned proper `userType`** (`internal-user` or `external-user`)
+- [ ] **Authentication tested** with real user accounts
+- [ ] **Session management** properly configured (timeouts, refresh tokens)
+- [ ] **HTTPS enforced** in production (SSL certificates configured)
 
-## 🔧 Step-by-Step Deployment
+### Chat App Access Control
+
+- [ ] **Review all chat apps** for proper `userTypesAllowed` configuration
+- [ ] **Internal-only chat apps** restricted to `['internal-user']`
+- [ ] **External-facing chat apps** restricted to `['external-user']` if needed
+- [ ] **Admin/debug chat apps** properly restricted
+- [ ] **Test access controls** with both internal and external user accounts
+
+### Infrastructure Security
+
+- [ ] **VPC configuration** reviewed and secured
+- [ ] **IAM roles** follow least-privilege principle
+- [ ] **Environment variables** contain no hardcoded secrets
+- [ ] **API Gateway** properly configured with authentication
+- [ ] **Lambda functions** have appropriate permissions
+
+### Security Risk Examples
+
+<Tabs activeName="Default Behavior">
+  <TabPanel name="Default Behavior">
+
+```js
+// Accessible by internal users only (default)
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools'
+    // Missing userTypesAllowed means chat app may only be accessed by internal users by default
+};
+```
+
+  </TabPanel>
+  <TabPanel name="Explicit Internal">
+
+```js
+// Accessible by internal users only (explicit)
+const adminChatApp: ChatApp = {
+    chatAppId: 'admin-tools',
+    title: 'Admin Tools',
+    userTypesAllowed: ['internal-user']
+};
+```
+
+  </TabPanel>
+  <TabPanel name="Both Types">
+
+```js
+// Accessible by both user types
+const supportChatApp: ChatApp = {
+    chatAppId: 'data-anyalytics',
+    title: 'Data Analytics',
+    userTypesAllowed: ['internal-user', 'external-user']
+};
+```
+
+  </TabPanel>
+</Tabs>
+
+:::info[Critical Reading]
+
+- [Authentication Guide](/docs/developer/authentication/) - Implementation details
+- [User Types and Access Control](/docs/developer/chat-app-access-control) - Security concepts
+  :::
+
+## Step-by-Step Deployment
 
 ### 1. Configure Project Settings
 
@@ -101,66 +183,6 @@ export const pikaConfig: PikaConfig = {
     }
 };
 ```
-
-## 🚨 SECURITY CHECKLIST - REQUIRED FOR PRODUCTION
-
-**⚠️ DO NOT DEPLOY TO PRODUCTION WITHOUT COMPLETING THIS CHECKLIST ⚠️**
-
-Before deploying to production, verify each of these security requirements:
-
-### ✅ Authentication Security
-
-- [ ] **Custom authentication provider implemented** (not using mock provider)
-- [ ] **All users assigned proper `userType`** (`internal-user` or `external-user`)
-- [ ] **Authentication tested** with real user accounts
-- [ ] **Session management** properly configured (timeouts, refresh tokens)
-- [ ] **HTTPS enforced** in production (SSL certificates configured)
-
-### ✅ Chat App Access Control
-
-- [ ] **Review all chat apps** for proper `userTypesAllowed` configuration
-- [ ] **Internal-only chat apps** restricted to `['internal-user']`
-- [ ] **External-facing chat apps** restricted to `['external-user']` if needed
-- [ ] **Admin/debug chat apps** properly restricted
-- [ ] **Test access controls** with both internal and external user accounts
-
-### ✅ Infrastructure Security
-
-- [ ] **VPC configuration** reviewed and secured
-- [ ] **IAM roles** follow least-privilege principle
-- [ ] **Environment variables** contain no hardcoded secrets
-- [ ] **API Gateway** properly configured with authentication
-- [ ] **Lambda functions** have appropriate permissions
-
-### Security Risk Examples
-
-```js
-// Accessible by internal users only
-const adminChatApp: ChatApp = {
-    chatAppId: 'admin-tools',
-    title: 'Admin Tools'
-    // Missing userTypesAllowed means chat app may only be accessed by internal users by default
-};
-
-// Accessible by internal users only
-const adminChatApp: ChatApp = {
-    chatAppId: 'admin-tools',
-    title: 'Admin Tools',
-    userTypesAllowed: ['internal-user']
-};
-
-// Accessible by both user types
-const supportChatApp: ChatApp = {
-    chatAppId: 'data-anyalytics',
-    title: 'Data Analytics',
-    userTypesAllowed: ['internal-user', 'external-user']
-};
-```
-
-**🔗 Critical Reading:**
-
-- [Authentication Guide](/docs/developer/authentication/) - Implementation details
-- [User Types and Access Control](/docs/developer/chat-app-access-control) - Security concepts
 
 ### 2. Set Up Authentication
 
@@ -211,21 +233,34 @@ export const customStackDefs = {
 
 Deploy the core backend infrastructure first:
 
-```bash
-# Navigate to the core Pika service
-cd services/pika
+<Tabs activeName="Core Service">
+  <TabPanel name="Core Service">
+    ```bash
+    # Navigate to the core Pika service
+    cd services/pika
 
-# Build the service
-pnpm build
+    # Build the service
+    pnpm build
 
-# Deploy to AWS (defaults to 'test' stage)
-pnpm run cdk:deploy
+    # Deploy to AWS (defaults to 'test' stage)
+    pnpm run cdk:deploy
 
-# Deploy to specific stage
-STAGE=prod pnpm run cdk:deploy
-STAGE=staging pnpm run cdk:deploy
-STAGE=dev pnpm run cdk:deploy
-```
+    # Deploy to specific stage
+    STAGE=prod pnpm run cdk:deploy
+    STAGE=staging pnpm run cdk:deploy
+    STAGE=dev pnpm run cdk:deploy
+    ```
+
+  </TabPanel>
+  <TabPanel name="What Gets Deployed">
+    **What gets deployed:**
+    - Agent management infrastructure
+    - AWS Bedrock integration
+    - API Gateway
+    - Core Lambda functions
+    - IAM roles and policies
+  </TabPanel>
+</Tabs>
 
 **Stage Configuration:**
 
@@ -234,43 +269,43 @@ STAGE=dev pnpm run cdk:deploy
 - Common stages: `dev`, `staging`, `prod`
 - The stage is used in resource naming and configuration
 
-**What gets deployed:**
-
-- Agent management infrastructure
-- AWS Bedrock integration
-- API Gateway
-- Core Lambda functions
-- IAM roles and policies
-
 ### 5. Deploy Sample Services
 
 Deploy the sample weather service:
 
-```bash
-# Navigate to the weather service
-cd services/samples/weather
+<Tabs activeName="Weather Service">
+  <TabPanel name="Weather Service">
+    ```bash
+    # Navigate to the weather service
+    cd services/samples/weather
 
-# Build the service
-pnpm build
+    # Build the service
+    pnpm build
 
-# Deploy to AWS (defaults to 'test' stage)
-pnpm run cdk:deploy
+    # Deploy to AWS (defaults to 'test' stage)
+    pnpm run cdk:deploy
 
-# Deploy to specific stage
-STAGE=prod pnpm run cdk:deploy
-STAGE=staging pnpm run cdk:deploy
-STAGE=dev pnpm run cdk:deploy
-```
+    # Deploy to specific stage
+    STAGE=prod pnpm run cdk:deploy
+    STAGE=staging pnpm run cdk:deploy
+    STAGE=dev pnpm run cdk:deploy
+    ```
 
-**What gets deployed:**
-
-- Weather agent definition
-- Weather tool Lambda function
-- Agent registration with the core service
+  </TabPanel>
+  <TabPanel name="What Gets Deployed">
+    **What gets deployed:**
+    - Weather agent definition
+    - Weather tool Lambda function
+    - Agent registration with the core service
+  </TabPanel>
+</Tabs>
 
 ### 6. Deploy Frontend Application
 
 Deploy the chat frontend:
+
+<Tabs activeName="Frontend Deployment">
+  <TabPanel name="Frontend Deployment">
 
 ```bash
 # Navigate to the chat application
@@ -288,13 +323,16 @@ STAGE=staging pnpm run cdk:deploy
 STAGE=dev pnpm run cdk:deploy
 ```
 
-**What gets deployed:**
-
-- S3 bucket for static assets
-- CloudFront distribution
-- Route 53 DNS records
-- SSL certificate (if configured)
-- Custom domain setup
+  </TabPanel>
+  <TabPanel name="What Gets Deployed">
+    **What gets deployed:**
+    - S3 bucket for static assets
+    - CloudFront distribution
+    - Route 53 DNS records
+    - SSL certificate (if configured)
+    - Custom domain setup
+  </TabPanel>
+</Tabs>
 
 ## Domain Configuration
 
@@ -315,7 +353,7 @@ export const customStackDefs = {
 };
 ```
 
-## 🔒 Security Configuration
+## Security Configuration
 
 ### IAM Roles and Policies
 
@@ -348,19 +386,30 @@ export const customStackDefs = {
 };
 ```
 
-## 📊 Monitoring and Logging
+## Monitoring and Logging
 
 ### CloudWatch Logs
 
 Monitor your application using CloudWatch:
 
+<Tabs activeName="Lambda Logs">
+  <TabPanel name="Lambda Logs">
+
 ```bash
 # View Lambda function logs
 aws logs tail /aws/lambda/mycompany-pika-service --follow
+```
 
+  </TabPanel>
+  <TabPanel name="API Gateway Logs">
+
+```bash
 # View API Gateway logs
 aws logs tail /aws/apigateway/mycompany-api --follow
 ```
+
+  </TabPanel>
+</Tabs>
 
 ### CloudWatch Metrics
 
@@ -389,7 +438,7 @@ import { Tracer } from '@aws-lambda-powertools/tracer';
 const tracer = new Tracer({ serviceName: 'mycompany-pika-service' });
 ```
 
-## 🔄 Deployment Workflow
+## Deployment Workflow
 
 ### Development Workflow
 
@@ -399,37 +448,13 @@ const tracer = new Tracer({ serviceName: 'mycompany-pika-service' });
 4. **Deploy to staging** (if you have a staging environment)
 5. **Deploy to production** with `pnpm run cdk:deploy`
 
-### CI/CD Integration
-
-For automated deployments, integrate with your CI/CD pipeline:
-
-```yaml
-# Example GitHub Actions workflow
-name: Deploy to AWS
-on:
-    push:
-        branches: [main]
-jobs:
-    deploy:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v3
-            - uses: actions/setup-node@v3
-              with:
-                  node-version: '22'
-            - run: pnpm install -g pnpm
-            - run: pnpm install
-            - run: pnpm build
-            - run: pnpm run cdk:deploy
-                  AWS_ACCESS_KEY_ID:  secrets.AWS_ACCESS_KEY_ID
-                  AWS_SECRET_ACCESS_KEY:  secrets.AWS_SECRET_ACCESS_KEY
-```
-
-## 🐛 Common Deployment Issues
+## Common Deployment Issues
 
 ### 1. CDK Bootstrap Required
 
+:::warning[Bootstrap Error]
 **Error:** "This stack uses assets, so the toolkit stack must be deployed to the environment"
+:::
 
 **Solution:**
 
@@ -439,7 +464,9 @@ cdk bootstrap
 
 ### 2. Insufficient IAM Permissions
 
+:::warning[Permission Error]
 **Error:** "User is not authorized to perform: cloudformation:CreateStack"
+:::
 
 **Solution:**
 
@@ -449,17 +476,28 @@ cdk bootstrap
 
 ### 3. Domain Configuration Issues
 
+:::warning[Domain Error]
 **Error:** "Certificate not found" or "Hosted zone not found"
+:::
 
 **Solution:**
 
-- Verify the certificate ARN is correct
-- Ensure the certificate is in the same region as your stack
-- Check that the hosted zone ID is correct
+<Tabs activeName="Certificate">
+  <TabPanel name="Certificate">
+    - Verify the certificate ARN is correct
+    - Ensure the certificate is in the same region as your stack
+  </TabPanel>
+  <TabPanel name="Hosted Zone">
+    - Check that the hosted zone ID is correct
+    - Verify the domain is properly configured
+  </TabPanel>
+</Tabs>
 
 ### 4. VPC Configuration Issues
 
+:::warning[VPC Error]
 **Error:** "VPC not found" or "Subnet not found"
+:::
 
 **Solution:**
 
@@ -489,7 +527,7 @@ cd ../services/pika
 pnpm run cdk:destroy
 ```
 
-## 📚 Next Steps
+## Next Steps
 
 After successful deployment:
 
@@ -499,7 +537,7 @@ After successful deployment:
 4. **Set up CI/CD** for automated deployments
 5. **Learn about the sync system** for framework updates
 
-## 🆘 Getting Help
+## Getting Help
 
 If you encounter deployment issues:
 

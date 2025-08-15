@@ -4,8 +4,6 @@ description: Imported from docs/developer/site-admin-feature.md
 outline: [2, 3]
 ---
 
-# Site Admin Feature
-
 The Site Admin feature provides a web-based interface for users with administrative privileges to manage chat app access control, entity-based restrictions, and override settings. This feature enables fine-grained control over who can access which chat applications without requiring code deployments.
 
 ## Overview

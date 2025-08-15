@@ -4,8 +4,6 @@ description: Imported from docs/developer/verify-response-feature.md
 outline: [2, 3]
 ---
 
-# Verify Response Feature
-
 The Verify Response feature automatically evaluates the accuracy and quality of AI responses using another LLM agent invocation, providing transparency into response reliability and enabling automatic correction of inaccurate answers.
 
 ## Overview

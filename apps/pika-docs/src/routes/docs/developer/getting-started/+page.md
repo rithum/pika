@@ -1,14 +1,12 @@
 ---
 title: Getting Started
-description: Imported from docs/developer/getting-started.md
+description: Complete guide to getting started with Pika Framework
 outline: [2, 3]
 ---
 
-# Getting Started with Pika Framework
-
 Welcome to Pika Framework! This guide will help you get up and running with your first AI-powered chat application in minutes.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -46,12 +44,9 @@ Create a new Pika application with a single command:
 pika create-app my-chat-app
 ```
 
-**Important Notes:**
-
-- This creates a **generic framework** for defining multiple chat applications and agents
-- You typically only need **one Pika installation per AWS account**
-- The framework provides the infrastructure to host and manage multiple chat apps
-- You'll define your specific chat apps and agents within this framework
+:::important[Important Notes]
+This creates a **generic framework** for defining multiple chat applications and agents. You typically only need **one Pika installation per AWS account**. The framework provides the infrastructure to host and manage multiple chat apps, and you'll define your specific chat apps and agents within this framework.
+:::
 
 This command will:
 
@@ -71,7 +66,7 @@ pnpm dev
 
 Your application will be available at `http://localhost:3000`!
 
-## 🎯 What You Get
+## What You Get
 
 When you create a Pika application, you receive a complete, production-ready chat application framework with:
 
@@ -93,11 +88,13 @@ When you create a Pika application, you receive a complete, production-ready cha
 - **User Education** - Chat disclaimer notices inform users about AI limitations
 - **Feature Overrides** - Customize features per chat app for specialized behavior
 
-## 🚨 CRITICAL: Security and Authentication
+## Critical Security and Authentication
 
-**⚠️ DO NOT DEPLOY TO PRODUCTION WITHOUT READING THIS SECTION ⚠️**
+:::warning[Security Warning]
+**DO NOT DEPLOY TO PRODUCTION WITHOUT READING THIS SECTION**
+:::
 
-### Default Mock Authentication - DEVELOPMENT ONLY
+### Default Mock Authentication - Development Only
 
 Pika Framework ships with a **mock authentication provider** that:
 
@@ -106,11 +103,12 @@ Pika Framework ships with a **mock authentication provider** that:
 - **Provides no real security** - anyone can access your chat applications
 - **Is intended for development and testing only**
 
-**🔒 PRODUCTION DEPLOYMENT REQUIREMENTS:**
+:::caution[Production Deployment Requirements]
 
 1. **Implement a custom authentication provider** before deploying publicly
 2. **Configure user types and chat app visibility** to prevent unauthorized access
 3. **Test your authentication thoroughly** in a staging environment
+   :::
 
 ### Understanding User Types and Chat App Security
 
@@ -128,17 +126,19 @@ Pika Framework uses a **two-tier security model** that you must understand:
 - **External-only**: Chat apps accessible only to `external-user` types
 - **Both**: Chat apps accessible to both user types (default if not specified)
 
-#### Security Risk Example
+#### Possible Risk Example
 
 ```js
 // Example without explicit user types
 const adminChatAppOpen: ChatApp = {
     chatAppId: 'admin-tools',
     title: 'Administrative Tools'
-    // No userTypesAllowed provided here
+    // No userTypesAllowed provided here, defaults to internal-user if not provided
 };
+```
 
-// ✅ SECURE - This chat app is restricted to internal users only
+```js
+// This chat app is restricted to internal users only
 const adminChatAppRestricted: ChatApp = {
     chatAppId: 'admin-tools',
     title: 'Administrative Tools',
@@ -146,13 +146,12 @@ const adminChatAppRestricted: ChatApp = {
 };
 ```
 
-**📖 Next Steps for Production:**
-
 1. Read the [Authentication Guide](/docs/developer/authentication/) to implement your auth provider
 2. Review [Chat App Access Control](/docs/developer/chat-app-access-control/) to configure proper access controls
 3. Test your setup in a staging environment before going live
+   :::
 
-## 🏗️ Project Structure
+## Project Structure
 
 Your Pika application follows a monorepo structure:
 
@@ -170,21 +169,25 @@ my-chat-app/
 └── .pika-sync.json        # Sync configuration
 ```
 
-## 🏢 Stack Management Best Practices
+## Stack Management Best Practices
 
 ### Understanding the Framework Architecture
 
 Pika Framework is designed to be a **single installation per AWS account** that can host multiple chat applications and agents. Here's how to think about it:
 
-#### **One Framework, Many Chat Apps**
+#### One Framework, Many Chat Apps
 
 - The core Pika service (`/services/pika`) provides the infrastructure for all your chat apps
 - Each chat app you create becomes a separate stack that registers with the core service
 - You can have multiple chat apps (weather, customer service, data analysis, etc.) all running from the same framework
 
-#### **Recommended Approach: Separate Repositories**
+#### Recommended Approach: Separate Repositories
 
-**Best Practice**: Create your own separate Git repository and copy the necessary components from the weather sample stack to define your chat app and agent:
+:::tip[Best Practice]
+Create your own separate Git repository and copy the necessary components from the weather sample stack to define your chat app and agent.
+:::
+
+**Steps:**
 
 1. **Create a new repository** for your chat app stack
 2. **Copy the weather sample structure** (`/services/samples/weather`) to your new repository
@@ -199,7 +202,7 @@ Pika Framework is designed to be a **single installation per AWS account** that 
 - Team autonomy for different chat apps
 - Easier maintenance and reusability
 
-#### **Alternative Approach: Custom Stacks in Monorepo**
+#### Alternative Approach: Custom Stacks in Monorepo
 
 You can also create new stacks in `/services/custom/`:
 
@@ -208,7 +211,9 @@ You can also create new stacks in `/services/custom/`:
 - **Use this approach** for rapid prototyping before creating separate repos
 - **Use this approach** if your team prefers to keep everything in one repository
 
-**Note**: The weather sample is provided as a reference - copy from it rather than modifying it directly. This keeps the framework clean and your chat app code separate.
+:::note[Framework Updates]
+The weather sample is provided as a reference - copy from it rather than modifying it directly. This keeps the framework clean and your chat app code separate.
+:::
 
 ### Stack Organization Examples
 
@@ -223,7 +228,7 @@ services/
     └── sales-assistant/    # Custom sales assistant chat app
 ```
 
-## 🔧 Next Steps
+## Next Steps
 
 After creating your application, you'll want to:
 
@@ -235,7 +240,7 @@ After creating your application, you'll want to:
 6. **Add Custom Message Tags** - Create custom renderers for XML tags in LLM responses
 7. **Deploy Your Services** - Deploy to AWS or run locally
 
-## 📚 Learn More
+## Learn More
 
 - **Installation Guide** - Detailed setup instructions
 - **Project Structure** - Understanding your Pika project
@@ -243,7 +248,7 @@ After creating your application, you'll want to:
 - **Local Development** - Running Pika locally
 - **AWS Deployment** - Deploying to AWS
 
-## 🆘 Need Help?
+## Need Help?
 
 - Check the [Troubleshooting Guide](/docs/developer/troubleshooting/) for common issues
 - Visit the [GitHub repository](https://github.com/rithum/pika) for issues and discussions

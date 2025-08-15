@@ -4,8 +4,6 @@ description: Imported from docs/developer/stack-management.md
 outline: [2, 3]
 ---
 
-# Stack Management Best Practices
-
 This guide explains how to effectively manage stacks in your Pika Framework project, including best practices for organizing your chat applications and agents.
 
 ## 🏗️ Framework Architecture Overview

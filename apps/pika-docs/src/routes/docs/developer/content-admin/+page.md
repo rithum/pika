@@ -4,8 +4,6 @@ description: Imported from docs/developer/content-admin.md
 outline: [2, 3]
 ---
 
-# Content Admin Feature
-
 The Content Admin feature allows designated super-admin users to view chat sessions and messages for any user in the system. This is primarily designed for debugging, troubleshooting, and customer support scenarios where administrators need to understand what users are experiencing.
 
 ## Overview

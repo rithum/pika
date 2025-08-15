@@ -4,8 +4,6 @@ description: Imported from docs/developer/overriding-features.md
 outline: [2, 3]
 ---
 
-# Overriding Features
-
 The Overriding Features system allows individual chat apps to customize site-level feature configurations, providing fine-grained control over how features behave in different contexts while maintaining consistent defaults across the application.
 
 ## Overview

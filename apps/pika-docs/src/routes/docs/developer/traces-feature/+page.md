@@ -4,8 +4,6 @@ description: Imported from docs/developer/traces-feature.md
 outline: [2, 3]
 ---
 
-# Traces Feature
-
 The Traces feature provides visibility into how the LLM (Large Language Model) processes and responds to user messages. When enabled, it displays detailed traces showing the reasoning process, tool invocations, and any failures that occur during message processing.
 
 ## Overview

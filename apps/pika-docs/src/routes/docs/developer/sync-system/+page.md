@@ -1,10 +1,8 @@
 ---
 title: Sync System
-description: Imported from docs/developer/sync-system.md
-outline: [2,3]
+description: Understanding and using the Pika Framework sync system to receive updates while preserving customizations
+outline: [2, 3]
 ---
-
-# Sync System
 
 The Pika Framework sync system allows you to receive updates from the main framework repository while preserving your customizations. This guide explains how the sync system works and how to use it effectively.
 
@@ -16,9 +14,12 @@ Your Pika project is a fork of the Pika framework that you can check into your o
 
 The sync system includes special handling for `package.json` files to intelligently merge dependencies and scripts:
 
+:::info[Smart Package.json Merging]
+
 - **Smart Dependency Merging**: Your added dependencies and scripts are preserved while framework updates are applied
 - **Selective Updates**: Only changed values are updated; your additions remain untouched
 - **Interactive Confirmation**: You're prompted to confirm each package.json change with detailed information about what will be updated
+  :::
 
 ## How It Works
 
@@ -48,17 +49,25 @@ Patterns use glob matching (minimatch) with options `dot: true` and `matchBase: 
 
 Supported pattern styles:
 
-1. **Directory Patterns**: End with `/` (or use `/**`) to protect the whole subtree
-
-    - Example: `services/custom/` or `services/custom/**`
-
-2. **Exact Path Patterns**: Contain `/` and point to a specific file
-
-    - Example: `apps/pika-chat/my-file.ts`
-
-3. **Filename Patterns**: No `/`; matched anywhere (basename match)
-    - Example: `cdk.context.json`
-    - Example: `.env` (all `.env` files anywhere)
+<Tabs activeName="Directory Patterns">
+  <TabPanel name="Directory Patterns">
+    **Directory Patterns**: End with `/` (or use `/**`) to protect the whole subtree
+    
+    Example: `services/custom/` or `services/custom/**`
+  </TabPanel>
+  <TabPanel name="Exact Path Patterns">
+    **Exact Path Patterns**: Contain `/` and point to a specific file
+    
+    Example: `apps/pika-chat/my-file.ts`
+  </TabPanel>
+  <TabPanel name="Filename Patterns">
+    **Filename Patterns**: No `/`; matched anywhere (basename match)
+    
+    Examples:
+    - `cdk.context.json`
+    - `.env` (all `.env` files anywhere)
+  </TabPanel>
+</Tabs>
 
 Globs are supported in all styles (e.g., `**/*.log`, `.env*`, `apps/**/+page.svelte`).
 
@@ -110,11 +119,13 @@ The `.pika-sync.json` file tracks your sync status and allows you to customize s
 
 ### Key Configuration Sections
 
-#### `protectedAreas`
+<Expansion title="protectedAreas">
 
 Framework-managed list of protected files. **Don't edit this section** - it's managed by the framework.
 
-#### `userProtectedAreas`
+</Expansion>
+
+<Expansion title="userProtectedAreas">
 
 Additional files you want to protect from framework updates. Supports glob patterns with the same semantics (minimatch with `dot: true`, `matchBase: true`):
 
@@ -128,7 +139,9 @@ Additional files you want to protect from framework updates. Supports glob patte
 ]
 ```
 
-#### `userUnprotectedAreas`
+</Expansion>
+
+<Expansion title="userUnprotectedAreas">
 
 Default protected files you want to allow updates for. Note: these entries remove matching strings from the default protected list during merge; they do not act as negative-globs. To unprotect a default, specify the exact protected pattern string (e.g., `"package.json"`). If you need finer control, remove the broad default and add narrower entries to `userProtectedAreas`.
 
@@ -139,6 +152,8 @@ Default protected files you want to allow updates for. Note: these entries remov
     "apps/pika-chat/specific.ts"    // Exact path pattern - allows updates to specific file only
 ]
 ```
+
+</Expansion>
 
 ## Default Protected Areas
 
@@ -160,6 +175,7 @@ The following areas are automatically protected from framework updates:
 
 ### Automatic Protection
 
+:::info[Automatic Custom Protection]
 Any path segment starting with "custom-" is automatically protected:
 
 - `custom-components/` - directory anywhere in project
@@ -167,6 +183,7 @@ Any path segment starting with "custom-" is automatically protected:
 - `custom-file.ts` - file anywhere in project
 - `apps/my-app/custom-config/` - subdirectory with custom- prefix
 - `services/api/custom-middleware.ts` - file with custom- prefix
+  :::
 
 ## Package.json Special Handling
 
@@ -259,10 +276,13 @@ The sync system handles sample applications intelligently:
 
 ### Sample Applications
 
+:::tip[Sample Management]
+
 - `services/samples/weather` and `apps/samples/enterprise-site` are sample applications
 - They will be synced automatically if you haven't modified them
 - If you modify a sample, your changes will be preserved during sync
 - If you delete a sample, it won't be restored (you can remove samples you don't want)
+  :::
 
 ### Learning from Samples
 
@@ -283,25 +303,37 @@ pika sync
 
 ### Sync Options
 
-```bash
-# Show what would be updated without applying changes
-pika sync --dry-run
+<Tabs activeName="Preview">
+  <TabPanel name="Preview">
+    ```bash
+    # Show what would be updated without applying changes
+    pika sync --dry-run
 
-# Show diffs for changed files
-pika sync --diff
+    # Show diffs for changed files
+    pika sync --diff
+    ```
 
-# Open diffs in your IDE visually (Cursor or VS Code)
-pika sync --visual-diff
+  </TabPanel>
+  <TabPanel name="Advanced">
+    ```bash
+    # Open diffs in your IDE visually (Cursor or VS Code)
+    pika sync --visual-diff
 
-# Enable detailed debug logging
-pika sync --debug
+    # Enable detailed debug logging
+    pika sync --debug
 
-# Sync from a specific branch
-pika sync --branch develop
+    # Sync from a specific branch
+    pika sync --branch develop
+    ```
 
-# Get help with sync options
-pika sync --help
-```
+  </TabPanel>
+  <TabPanel name="Help">
+    ```bash
+    # Get help with sync options
+    pika sync --help
+    ```
+  </TabPanel>
+</Tabs>
 
 ### Sync Workflow
 
@@ -372,10 +404,13 @@ Update `pika-config.ts` with your project names before making other changes.
 
 ### 3. Manage Dependencies Intelligently
 
+:::tip[Dependency Management]
+
 - **Add custom dependencies**: Add them to your package.json files - they'll be preserved during sync
 - **Add custom scripts**: Add them to your package.json files - they'll be preserved during sync
 - **Don't modify framework dependencies**: Let the framework manage its own dependencies
 - **Review package.json changes**: Always review what the sync system proposes to change
+  :::
 
 ### 4. Test After Sync
 
@@ -397,9 +432,12 @@ Add important custom files to `userProtectedAreas` if they're not in default pro
 
 ### Your Project is Standalone
 
+:::info[Standalone Repository]
+
 - Your project is a complete, standalone repository
 - You can commit it to your own Git repository
 - The sync system works independently of your source control
+  :::
 
 ### Framework Updates
 
@@ -431,7 +469,9 @@ git commit -m "Sync framework updates"
 
 #### 1. Sync Fails
 
+:::warning[Sync Failure]
 **Symptoms**: Sync command fails with network or GitHub errors
+:::
 
 **Solutions**:
 
@@ -439,7 +479,9 @@ git commit -m "Sync framework updates"
 
 #### 2. Unexpected File Overwrites
 
+:::warning[File Overwrites]
 **Symptoms**: Files you expected to be protected were overwritten
+:::
 
 **Solutions**:
 
@@ -449,7 +491,9 @@ git commit -m "Sync framework updates"
 
 #### 3. Merge Conflicts
 
+:::warning[Conflicts]
 **Symptoms**: Sync stops due to merge conflicts
+:::
 
 **Solutions**:
 
