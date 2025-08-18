@@ -20,9 +20,9 @@
                         <div class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium">
                             {session.title}
                         </div>
-                        <Button variant="ghost" size="icon" onclick={(event) => event.stopPropagation()}
+                        <!-- <Button variant="ghost" size="icon" onclick={(event) => event.stopPropagation()}
                             ><Ellipsis /></Button
-                        >
+                        > -->
                     </div>
                 {:else}
                     <Button
@@ -36,9 +36,9 @@
                         <div class="flex items-center w-full justify-between">
                             <div class="truncate text-ellipsis overflow-hidden flex-1 text-left">{session.title}</div>
                             {#if hoveredSessionId === session.sessionId}
-                                <Button variant="outline" size="icon" onclick={(event) => event.stopPropagation()}
+                                <!-- <Button variant="outline" size="icon" onclick={(event) => event.stopPropagation()}
                                     ><Ellipsis /></Button
-                                >
+                                > -->
                             {/if}
                         </div>
                     </Button>

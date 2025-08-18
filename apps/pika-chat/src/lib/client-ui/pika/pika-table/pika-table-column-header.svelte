@@ -51,7 +51,7 @@
         {/if}
 
         <div
-            class="flex-shrink-0 w-3 h-6 flex items-center justify-center {dropdownOpen
+            class="flex-shrink-0 w-3 h-6 flex items-center justify-between {dropdownOpen
                 ? 'visible'
                 : 'invisible'} group-hover:visible"
         >
@@ -61,7 +61,7 @@
                         <Button
                             {...props}
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             class="data-[state=open]:bg-blue-200 h-8 w-8 p-0 hover:bg-blue-200 {dropdownOpen
                                 ? 'bg-blue-200'
                                 : ''} "

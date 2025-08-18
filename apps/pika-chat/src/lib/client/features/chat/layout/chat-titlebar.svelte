@@ -6,6 +6,7 @@
     import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
+    import CopyButton from '$lib/client-ui/pika/copy-button/copy-button.svelte';
 
     const chat = getContext<ChatAppState>('chatAppState');
     const standalone = $derived(chat.mode === 'standalone');
@@ -145,6 +146,10 @@
                 <div class="flex flex-col p-2 bg-gray-100 rounded-md">
                     <div class="text-sm text-gray-500">User ID</div>
                     <div class="font-semibold">{chat.user.userId}</div>
+                </div>
+                <DropdownMenu.Separator />
+                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
+                    <CopyButton embedded={true}>{chat.currentSession.sessionId}</CopyButton>
                 </div>
                 <DropdownMenu.Separator />
             {/if}

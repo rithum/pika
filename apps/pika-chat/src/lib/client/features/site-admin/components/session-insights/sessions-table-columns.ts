@@ -59,6 +59,18 @@ export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
         size: 120
     },
 
+    //Agent 
+    {
+        accessorKey: 'agentId',
+        header: ({column}) => renderComponent(TableColumnHeader, {column, title: 'Agent'}),
+        cell: ({getValue}) => {
+            const agentId = getValue() as string;
+            return agentId || '-';
+        },
+        enableGlobalFilter: true,
+        size: 120
+    },
+
     // Session Title
     {
         accessorKey: 'title',
