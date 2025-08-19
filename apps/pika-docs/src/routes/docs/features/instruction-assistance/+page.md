@@ -20,7 +20,9 @@ When enabled, the Agent Instruction Assistance feature automatically adds an "Ou
 
 The instruction assistance system uses several powerful placeholders that get replaced with dynamic content:
 
-### {{tag-instructions}}
+### tag-instructions placeholder
+
+`{{tag-instructions-placeholder}}`
 
 When you enable the `includeInstructionsForTags` option, this placeholder gets replaced with detailed instructions for all tags that are available to your chat app. The system automatically:
 
@@ -28,7 +30,9 @@ When you enable the `includeInstructionsForTags` option, this placeholder gets r
 - Formats their LLM instructions according to Pika's structured format
 - Injects them at the placeholder location (or appends them if no placeholder exists)
 
-### {{complete-example-instruction-line}}
+### complete-example-instruction-line placeholder
+
+`{{complete-example-instruction-line}}`
 
 This placeholder provides a complete example showing proper tag usage structure:
 
@@ -40,7 +44,9 @@ Normal text and an <image>http://some.url</image> and some **bold text**
 
 The system intelligently excludes examples for tags that aren't enabled in your configuration.
 
-### {{json-only-imperative-instruction-line}}
+### json-only-imperative-instruction-line placeholder
+
+`{{json-only-imperative-instruction-line}}`
 
 Adds critical JSON validation instructions to prevent malformed data:
 
@@ -61,7 +67,7 @@ Agent Instruction Assistance works hand-in-hand with the [AI Driven UI (tags)](/
 
 ### Basic Enablement
 
-```typescript
+```js
 agentInstructionAssistance: {
     enabled: true;
 }
@@ -69,7 +75,7 @@ agentInstructionAssistance: {
 
 ### Advanced Configuration
 
-```typescript
+```js
 agentInstructionAssistance: {
     enabled: true,
     includeInstructionsForTags: true,
@@ -108,17 +114,19 @@ agentInstructionAssistance: {
 
 ### Automatic Placement
 
-By default, instruction assistance content is appended to the end of your prompt. For precise control, use the `{{prompt-assistance}` placeholder:
+By default, instruction assistance content is appended to the end of your prompt. For precise control, use the `{{prompt-assistance}}` placeholder:
 
 ```markdown
 You are a helpful assistant.
 
 Core instructions here...
 
-${prompt-assistance}
+{{prompt-assistance}}
 
 Additional context...
 ```
+
+For even more precise control, you can use fine-grained placeholders like `{{output-formatting-requirements}}`, `{{tag-instructions}}`, `{{complete-example-instruction-line}}`, and `{{json-only-imperative-instruction-line}}` to control exactly where each component is placed.
 
 ### Custom Integration
 

@@ -6,11 +6,22 @@ The Agent Instruction Assistance feature provides automatic injection of formatt
 
 The core feature is defined by the `AgentInstructionAssistanceFeature` interface:
 
-```typescript
+```js
 export interface AgentInstructionAssistanceFeature {
     /**
-     * If enabled, a markdown section titled Output Formatting Requirements will be added into your prompt.
-     * If you have a replacement placeholder titled `${prompt-assistance}` then the prompt assistance language will be added at the location of the placeholder, otherwise it will be appended to the end of the prompt.
+     * If enabled, a markdown section titled Output Formatting Requirements will be added into your prompt. You can control where the prompt assistance language is added in
+     * by using a replacement placeholder titled `{{prompt-assistance}}` in your prompt. If found, the prompt assistance language will be added at the location of the placeholder.
+     * The injected prompt assistance language will first add the output formatting requirements, then the instructions for tags,
+     * then the complete example instruction line, and finally the json only imperative instruction line.
+     *
+     * If `{{prompt-assistance}}` is not found, then we look for more fine-grained control by looking for these specific placeholder tags:
+     * `{{output-formatting-requirements}}`, `{{tag-instructions}}`, `{{complete-example-instruction-line}}` and `{{json-only-imperative-instruction-line}}`. Of course,
+     * if you haven't turned on the `includeInstructionsForTags` feature, then we will not inject the tag instructions.
+     *
+     * If neither `{{prompt-assistance}}` nor any of the specific placeholder tags are found, then the prompt assistance language will be appended to the end of the prompt
+     * in this order: output formatting requirements, tag instructions, complete example instruction line, and json only imperative instruction line. If `{{prompt-assistance}}`
+     * is not found and you did not specify all of the specific placeholder tags but you did turn on a feature that means we should inject instructions then we
+     * will add the corresponding instructions to the end of the prompt.
      */
     enabled: boolean;
 
@@ -44,7 +55,7 @@ export interface AgentInstructionAssistanceFeature {
 
 Configure the default behavior in your `pika-config.ts`:
 
-```typescript
+```js
 export const siteFeatures: SiteFeatures = {
     agentInstructionAssistance: {
         enabled: true,
@@ -65,7 +76,7 @@ export const siteFeatures: SiteFeatures = {
 
 Override settings for specific chat apps:
 
-```typescript
+```js
 const chatAppFeatures: ChatAppOverridableFeatures = {
     agentInstructionAssistance: {
         enabled: true,
@@ -85,36 +96,88 @@ const chatAppFeatures: ChatAppOverridableFeatures = {
 When enabled, the system injects this basic structure:
 
 ```markdown
-**Output Formatting Requirements:**
+{{output-formatting-requirements}}
 
-**Output Response Enclosure**: All response output MUST be completely enclosed within <answer></answer> tags, including supported custom tags.
-
-**Output Content Format**: All responses MUST be in Markdown with supported custom tags.
-
+// If includeInstructionsForTags is true
 {{tag-instructions}}
 
+// If completeExampleInstructionLine is true
 {{complete-example-instruction-line}}
 
+// If jsonOnlyImperativeInstructionLine is true
 {{json-only-imperative-instruction-line}}
 ```
 
 ### Placeholder Replacement
 
-#### ${prompt-assistance} Placeholder
+#### prompt-assistance Placeholder
 
-For precise control over where instructions appear in your prompt:
+For simple, complete control over where all instruction assistance content appears in your prompt:
 
-```typescript
+```js
 const myPrompt = `
 You are a specialized customer service agent.
 
-${prompt - assistance}
+{{prompt-assistance}}
 
 Remember to be helpful and friendly.
 `;
 ```
 
-#### {{tag-instructions}} Placeholder
+When `{{prompt-assistance}}` is found, the system injects all enabled instruction content in this order:
+
+1. Output formatting requirements
+2. Tag instructions (if `includeInstructionsForTags` is true)
+3. Complete example instruction line (if enabled)
+4. JSON validation instruction line (if enabled)
+
+#### Fine-Grained Placeholder Control
+
+For precise control over individual instruction components, use these specific placeholders:
+
+##### output-formatting-requirements Placeholder
+
+Controls where the basic output formatting requirements are injected:
+
+```js
+const myPrompt = `
+You are a customer service agent.
+
+{{output-formatting-requirements}}
+
+Additional context and instructions here.
+`;
+```
+
+##### complete-example-instruction-line Placeholder
+
+Controls where the complete example instruction is placed:
+
+```js
+const myPrompt = `
+Base instructions here...
+
+{{complete-example-instruction-line}}
+
+Additional guidance...
+`;
+```
+
+##### json-only-imperative-instruction-line Placeholder
+
+Controls where JSON validation instructions are placed:
+
+```js
+const myPrompt = `
+Your main instructions...
+
+{{json-only-imperative-instruction-line}}
+
+Final context...
+`;
+```
+
+##### tag-instructions Placeholder
 
 This placeholder gets replaced with structured instructions for all enabled tags:
 
@@ -125,6 +188,16 @@ This placeholder gets replaced with structured instructions for all enabled tags
     - **Example:** '<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12]}]}}</pika.chart>'
     - **Usage:** Include pika charts whenever they can visually represent data, trends, or comparisons effectively.
 ```
+
+#### Fallback Behavior
+
+The system uses a hierarchical approach to determine where to inject instruction content:
+
+1. **Primary Placeholder**: If `{{prompt-assistance}}` is found, all instruction content is injected at that location
+2. **Fine-Grained Placeholders**: If `{{prompt-assistance}}` is not found, the system looks for individual component placeholders (`{{output-formatting-requirements}}`, `{{tag-instructions}}`, etc.)
+3. **Automatic Append**: If neither `{{prompt-assistance}}` nor the specific placeholders are found, content is automatically appended to the end of the prompt in the standard order
+
+This approach provides maximum flexibility while ensuring instruction content is always included when the feature is enabled.
 
 ## Tag Instruction Integration
 
@@ -139,7 +212,7 @@ This placeholder gets replaced with structured instructions for all enabled tags
 
 Tag definitions include structured LLM instructions:
 
-```typescript
+```js
 const tagDefinition: TagDefinition<ChartWidgetTagDefinition> = {
     tag: 'chart',
     scope: 'builtin',
@@ -185,7 +258,7 @@ When an agent is invoked through the Pika chat app UI:
 
 For custom clients invoking agents directly:
 
-```typescript
+```js
 const instructionAssistance: AgentInstructionAssistanceFeature = {
     enabled: true,
     includeInstructionsForTags: false // Disable for direct API usage
@@ -201,7 +274,7 @@ await invokeAgent(prompt, instructionAssistance);
 
 Provide specific examples for your use case:
 
-```typescript
+```js
 completeExampleInstructionLine: {
     enabled: true,
     mdLine: "<answer>## Customer Service Response\nHere's your order status: <order-status>{'id': '12345', 'status': 'shipped'}</order-status>\nIs there anything else I can help with?</answer>"
@@ -212,7 +285,7 @@ completeExampleInstructionLine: {
 
 Tailor validation instructions to your domain:
 
-```typescript
+```js
 jsonOnlyImperativeInstructionLine: {
     enabled: true,
     line: "CRITICAL: All financial data JSON must be validated. Invalid JSON will cause regulatory compliance issues."
@@ -223,7 +296,7 @@ jsonOnlyImperativeInstructionLine: {
 
 Control which tags get instructions based on context:
 
-```typescript
+```js
 // In your chat app configuration
 const chatAppFeatures = {
     tags: {
@@ -319,7 +392,7 @@ When modifying instruction assistance settings:
 
 ### Integration Patterns
 
-- **Placeholder Usage**: Use `${prompt-assistance}` for precise control over instruction placement
+- **Placeholder Usage**: Use `{{prompt-assistance}}` for complete control or fine-grained placeholders for precise component placement
 - **Selective Enablement**: Only enable instruction assistance where it adds value
 - **Custom Examples**: Tailor example instruction lines to your specific use cases
 - **Validation Messages**: Customize JSON validation messages for your domain requirements

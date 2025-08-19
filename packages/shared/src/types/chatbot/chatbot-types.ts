@@ -2108,22 +2108,32 @@ export interface AgentInstructionAssistanceFeatureForChatApp extends Feature, Ag
  */
 export interface AgentInstructionAssistanceFeature {
     /**
-     * If enabled, a markdown section titled Output Formatting Requirements will be added into your prompt.
-     * If you have a replacement placeholder titled `${prompt-assistance}` then the prompt assistance language will be added at the location of the placeholder, otherwise it will be appended to the end of the prompt.
+     * If enabled, a markdown section titled Output Formatting Requirements will be added into your prompt.  You can control where the prompt assistance language is added in
+     * by using a replacement placeholder titled `{{prompt-assistance}}` in your prompt.  If found, the prompt assistance language will be added at the location of the placeholder.
+     * The injected prompt assistance language will first add the output formatting requirements, then the instructions for tags,
+     * then the complete example instruction line, and finally the json only imperative instruction line.
+     *
+     * If `{{prompt-assistance}}` is not found, then we look for more fine-grained control by looking for these specific placeholder tags:
+     * `{{output-formatting-requirements}}`, `{{tag-instructions}}`, `{{complete-example-instruction-line}}` and `{{json-only-imperative-instruction-line}}`.  Of course,
+     * if you haven't turned on the `includeInstructionsForTags` feature, then we will not inject the tag instructions.
+     *
+     * If neither `{{prompt-assistance}}` nor any of the specific placeholder tags are found, then the prompt assistance language will be appended to the end of the prompt
+     * in this order: output formatting requirements, tag instructions, complete example instruction line, and json only imperative instruction line.  If `{{prompt-assistance}}`
+     * is not found and you did not specify all of the specific placeholder tags but you did turn on a feature that means we should inject instructions then we
+     * will add the corresponding instructions to the end of the prompt.
      *
      * Here is what will be added to the prompt at a minimum:
      *
      * ```markdown
-     * **Output Formatting Requirements:**
+     * {{output-formatting-requirements}}
      *
-     * **Output Response Enclosure**: All response output MUST be completely enclosed within <answer></answer> tags, including supported custom tags.
-     *
-     * **Output Content Format**: All responses MUST be in Markdown with supported custom tags.
-     *
+     * // If includeInstructionsForTags is true
      * {{tag-instructions}}
      *
+     * // If completeExampleInstructionLine is true
      * {{complete-example-instruction-line}}
      *
+     * // If jsonOnlyImperativeInstructionLine is true
      * {{json-only-imperative-instruction-line}}
      *
      * ```
