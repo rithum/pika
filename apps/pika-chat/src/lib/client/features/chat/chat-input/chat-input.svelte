@@ -1,11 +1,12 @@
 <script lang="ts">
     import { Button } from '$ui/shadcn/button';
-    import { ArrowUp, Plus } from '$lib/icons/lucide';
+    import { ArrowUp, Paperclip } from '$icons/lucide';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import ChatFileAttachment from './chat-file-attachment.svelte';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
 
     interface Props {
         // Allows external components to get the height of the input region, we don't
@@ -134,9 +135,11 @@
                 <div class="absolute end-3 bottom-0 flex items-center gap-2">
                     <div class="ms-auto flex items-center gap-1.5">
                         {#if chat.enableFileUpload}
+                        <TooltipPlus tooltip="Upload File">
                             <Button variant="outline" class="w-9 h-9" onclick={openFileDialog}>
-                                <Plus style="width: 1.3rem; height: 1.3rem;" />
+                                <Paperclip style="width: 1.3rem; height: 1.3rem;" />
                             </Button>
+                        </TooltipPlus>
                         {/if}
                         <Button
                             variant="default"

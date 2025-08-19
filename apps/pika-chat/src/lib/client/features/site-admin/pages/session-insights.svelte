@@ -11,6 +11,8 @@
     import { X, Loader } from '$icons/lucide';
     import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
     import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import { Label } from '$ui/shadcn/label';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -41,16 +43,26 @@
     </Resizable.Pane>
     {#if sessionInsights.currentSession}
         <Resizable.Handle withHandle />
-        <Resizable.Pane defaultSize={50}>
+        <Resizable.Pane defaultSize={50} minSize={35}>
             <div class="h-full flex flex-col">
                 <!-- Header with controls -->
                 <div class="flex p-4">
                     <div class="flex w-full flex-col">
-                        <div class="text-sm text-muted-foreground">
-                            {sessionInsights.currentSession.sessionId}
+                        <div class="text-sm text-muted-foreground flex items-center gap-2">
+                            <Label>Session ID:</Label>
+                            <CopyButton embedded={true}>{sessionInsights.currentSession.sessionId}</CopyButton>
                         </div>
-                        <div class="text-sm text-muted-foreground">
+                        <div class="text-sm text-muted-foreground flex items-center gap-2">
+                            <Label>User ID:</Label>
+                            <CopyButton embedded={true}>{sessionInsights.currentSession.userId}</CopyButton>
+                        </div>
+                        <div class="text-sm text-muted-foreground flex items-center gap-2">
+                            <Label>Title:</Label>
                             {sessionInsights.currentSession.title}
+                        </div>
+                        <div class="text-sm text-muted-foreground flex items-center gap-2">
+                            <Label>Agent ID:</Label>
+                            {sessionInsights.currentSession.agentId}
                         </div>
                     </div>
 

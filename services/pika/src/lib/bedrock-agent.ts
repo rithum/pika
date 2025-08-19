@@ -231,7 +231,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
                     // Detect if we have been going too long and send a prompt to the user to continue
                     if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
-                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount);
+                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount); 
                     }
 
                     // // Trim the observation to just a preview.  Observations can be large
@@ -543,7 +543,7 @@ export async function invokeAgentToGetAnswer(
             responseStream.write(chunk);
             console.log(`Chunk ${chunkCount} written to response stream`);
             attribution?.citations?.forEach((citation) => {
-                let citationText = `[Citation ${++citationCount}](${citation?.retrievedReferences?.[0]?.location?.s3Location?.uri})`;
+                let citationText = `[Citation ${++citationCount}](${encodeURI(citation?.retrievedReferences?.[0]?.location?.s3Location?.uri!)})`;
                 responseMsg += citationText;
                 responseStream.write(citationText);
             });

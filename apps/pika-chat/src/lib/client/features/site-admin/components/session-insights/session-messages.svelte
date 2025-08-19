@@ -58,7 +58,7 @@
 
 {#if sessionInsights.retrievingMessages || (sessionInsights.currentSessionMessages && sessionInsights.currentSessionMessages.length > 0)}
     <!-- Scrollable area that spans full width with right-aligned scrollbar -->
-    <div class="inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto">
+    <div class="w-full inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto">
         <!-- Centered content container -->
         <div class="w-full max-w-[768px] mx-auto">
             <div class="pb-4 pt-10">
