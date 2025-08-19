@@ -6,7 +6,7 @@
     import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import CopyButton from '$lib/client-ui/pika/copy-button/copy-button.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
 
     const chat = getContext<ChatAppState>('chatAppState');
     const standalone = $derived(chat.mode === 'standalone');

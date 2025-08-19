@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Button } from '$ui/shadcn/button';
-    import { ArrowUp, Paperclip } from '$lib/icons/lucide';
+    import { ArrowUp, Paperclip } from '$icons/lucide';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';

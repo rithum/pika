@@ -11,7 +11,7 @@
     import { X, Loader } from '$icons/lucide';
     import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
     import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
-    import CopyButton from '$lib/client-ui/pika/copy-button/copy-button.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
     import { Label } from '$ui/shadcn/label';
 
     const appState = getContext<AppState>('appState');
