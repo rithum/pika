@@ -195,7 +195,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
         );
-        const postAgentProcessorFn = this.createAgentPostProcessorFunction(lambdaRole);
+        const agentPostProcessorFn = this.createAgentPostProcessorFunction(lambdaRole);
 
         const converseFn = this.createConverseFunction(
             converseFnLambdaRole,
@@ -206,7 +206,7 @@ export class PikaConstruct extends Construct {
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
             storageResources.pikaS3Bucket,
-            postAgentProcessorFn,
+            agentPostProcessorFn,
             openSearchDomain
         );
 
@@ -218,7 +218,7 @@ export class PikaConstruct extends Construct {
             chatAdminApiFn,
             chatAdminRestApi,
             converseFn,
-            postProcessorFn: postAgentProcessorFn,
+            agentPostProcessorFn,
             openSearchDomain
         };
     }
@@ -1546,7 +1546,7 @@ export class PikaConstruct extends Construct {
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
-        postProcessorFn: lambda.Function,
+        agentPostProcessorFn: lambda.Function,
         openSearchDomain?: opensearch.Domain
     ): lambda.Function {
         const converseFn = new nodejs.NodejsFunction(this, 'ConverseFunction', {
@@ -1568,7 +1568,7 @@ export class PikaConstruct extends Construct {
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
-                POST_PROCESSOR_FUNCTION_ARN: postProcessorFn.functionArn
+                POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn
             },
             bundling: {
                 minify: true,
