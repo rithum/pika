@@ -15,11 +15,25 @@ import type {
     GetChatUserPrefsResponse,
     RecordOrUndef,
     SetChatUserPrefsResponse,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
     UserPrefs
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
+import { hash } from 'crypto';
+import { LRUCache } from 'lru-cache';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
+
+const tagDefinitionsCache = new LRUCache({
+    max: 50,
+    maxSize: 25000,
+    ttl: 1000 * 60 * 10, // 10 minutes for tag definitions
+    ttlAutopurge: true,
+    sizeCalculation: (value, key) => {
+        return 1;
+    }
+});
 
 export async function getChatUser<T extends RecordOrUndef = undefined>(userId: string): Promise<ChatUser<T> | undefined> {
     const response = await invokeApi<ChatUserResponse<T>>({
@@ -185,4 +199,38 @@ export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: bo
     }
 
     return response.body.prefs!;
+}
+
+export async function searchTagDefinitions(userId: string, request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
+    // Generate cache key based on request parameters
+    const requestHash = hash('sha256', JSON.stringify(request));
+    const cacheKey = `search:chat:${requestHash}`;
+
+    // Check if any tag definition has dontCacheThis set to true
+    const cachedResponse = tagDefinitionsCache.get(cacheKey) as TagDefinitionSearchResponse | undefined;
+    if (cachedResponse && !cachedResponse.tagDefinitions.some((def) => def.dontCacheThis)) {
+        return cachedResponse;
+    }
+
+    const response = await invokeApi<TagDefinitionSearchResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/tagdef/search`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error searching tag definitions with status code: ${response.statusCode}`);
+    }
+
+    // Cache the response only if no tag definition has dontCacheThis set
+    if (!response.body.tagDefinitions.some((def) => def.dontCacheThis)) {
+        tagDefinitionsCache.set(cacheKey, response.body);
+    }
+
+    return response.body;
 }

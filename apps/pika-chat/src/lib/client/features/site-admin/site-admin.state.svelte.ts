@@ -17,6 +17,11 @@ import type {
     SiteAdminRequest,
     SiteAdminResponse,
     SiteFeatures,
+    TagDefinition,
+    TagDefinitionCreateOrUpdateResponse,
+    TagDefinitionDeleteResponse,
+    TagDefinitionSearchResponse,
+    TagDefinitionWidget,
     UpdateChatSessionFeedbackResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { type ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
@@ -34,6 +39,7 @@ export class SiteAdminState {
     #identity: IdentityState;
     #chatApps = $state<ChatApp[]>([]);
     #siteFeatures = $state<SiteFeatures>();
+    #tagDefinitions = $state<TagDefinition<TagDefinitionWidget>[]>([]);
     #nav = $state<SiteAdminNavState>() as SiteAdminNavState;
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
@@ -69,7 +75,10 @@ export class SiteAdminState {
         addChatSessionFeedback: false,
         updateChatSessionFeedback: false,
         sessionSearch: false,
-        getChatMessagesAsAdmin: false
+        getChatMessagesAsAdmin: false,
+        createOrUpdateTagDefinition: false,
+        deleteTagDefinition: false,
+        searchTagDefinitions: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -123,6 +132,10 @@ export class SiteAdminState {
 
     get siteFeatures() {
         return this.#siteFeatures;
+    }
+
+    get tagDefinitions() {
+        return this.#tagDefinitions;
     }
 
     get mode() {
@@ -285,6 +298,30 @@ export class SiteAdminState {
                 this.#sessionsPagination.hasNextPage = !!response.scrollId;
                 this.#sessionsPagination.isLoading = false;
                 this.#sessionsPagination.error = undefined;
+            } else if (request.command === 'createOrUpdateTagDefinition') {
+                const response = json as TagDefinitionCreateOrUpdateResponse;
+                if (response.success) {
+                    // Update or add the tag definition in our local state
+                    const existingIndex = this.#tagDefinitions.findIndex((def) => def.scope === response.tagDefinition.scope && def.tag === response.tagDefinition.tag);
+                    if (existingIndex !== -1) {
+                        this.#tagDefinitions[existingIndex] = response.tagDefinition;
+                    } else {
+                        this.#tagDefinitions.push(response.tagDefinition);
+                    }
+                }
+            } else if (request.command === 'deleteTagDefinition') {
+                const response = json as TagDefinitionDeleteResponse;
+                if (response.success) {
+                    // Remove the tag definition from our local state
+                    this.#tagDefinitions = this.#tagDefinitions.filter(
+                        (def) => !(def.scope === request.request.tagDefinition.scope && def.tag === request.request.tagDefinition.tag)
+                    );
+                }
+            } else if (request.command === 'searchTagDefinitions') {
+                const response = json as TagDefinitionSearchResponse;
+                if (response.success) {
+                    this.#tagDefinitions = response.tagDefinitions;
+                }
             }
         } catch (e) {
             console.error('Error sending content admin command', e);

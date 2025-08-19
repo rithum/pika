@@ -24,7 +24,8 @@
         data.userIsContentAdmin,
         data.features,
         data.customDataUiRepresentation,
-        data.mode
+        data.mode,
+        data.tagDefinitions
     );
 
     setContext('chatAppState', chatAppState);

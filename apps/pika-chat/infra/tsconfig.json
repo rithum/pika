@@ -6,15 +6,34 @@
         "inlineSources": true,
         "resolveJsonModule": true,
         "experimentalDecorators": true,
-        "types": ["node"],
+        "types": [
+            "node"
+        ],
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "target": "ES2022",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true
+        "forceConsistentCasingInFileNames": true,
+        "paths": {
+            "pika-shared/*": [
+                "../../../packages/shared/src/*"
+            ],
+            "pika-shared": [
+                "../../../packages/shared/src"
+            ]
+        }
     },
-    "include": ["src", "bin", "lib/stacks", "infra"],
-    "exclude": ["node_modules", "dist", "cdk.out"]
+    "include": [
+        "src",
+        "bin",
+        "lib/stacks",
+        "infra"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "cdk.out"
+    ]
 }

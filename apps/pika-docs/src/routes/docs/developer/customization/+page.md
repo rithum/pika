@@ -239,6 +239,18 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
             showUserRegionInLeftNav: false,
             showChatHistoryInStandaloneMode: true
+        },
+
+        // Enable AI-driven UI tags for dynamic widget rendering
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                { tag: 'chart', scope: 'builtin' },
+                { tag: 'table', scope: 'builtin' }
+            ],
+            tagsProhibited: [
+                // Define tags that should never be used
+            ]
         }
     }
 };
@@ -256,6 +268,7 @@ export const pikaConfig: PikaConfig = {
 | `suggestions`           | Show suggested prompts to users        | ✅ Custom suggestions            |
 | `promptInputFieldLabel` | Label above chat input field           | ✅ Custom label text             |
 | `uiCustomization`       | UI display customizations              | ✅ Display settings              |
+| `tags`                  | AI-driven UI components and widgets    | ✅ Custom tag selections         |
 | `userDataOverride`      | User data override UI availability     | ✅ Can disable per chat app      |
 
 **Key Principles:**
@@ -267,6 +280,8 @@ export const pikaConfig: PikaConfig = {
 
 :::info[Complete Override Documentation]
 See [Overriding Features Guide](/docs/developer/overriding-features/) for complete details on the override system.
+
+For detailed information about the Tags feature, see the [Tags Feature Guide](/docs/developer/tags-feature/).
 :::
 
 **Access Control:**

@@ -14,6 +14,14 @@ import type {
     RecordOrUndef,
     SessionSearchRequest,
     SessionSearchResponse,
+    TagDefinition,
+    TagDefinitionCreateOrUpdateRequest,
+    TagDefinitionCreateOrUpdateResponse,
+    TagDefinitionDeleteRequest,
+    TagDefinitionDeleteResponse,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
+    TagDefinitionWidget,
     UpdateChatSessionFeedbackResponse,
     UserChatAppRule
 } from 'pika-shared/types/chatbot/chatbot-types';
@@ -27,6 +35,16 @@ const lruCache = new LRUCache({
     max: 100,
     maxSize: 50000,
     ttl: 1000 * 60 * 5, // 5 minutes
+    ttlAutopurge: true,
+    sizeCalculation: (value, key) => {
+        return 1;
+    }
+});
+
+const tagDefinitionsCache = new LRUCache({
+    max: 50,
+    maxSize: 25000,
+    ttl: 1000 * 60 * 10, // 10 minutes for tag definitions
     ttlAutopurge: true,
     sizeCalculation: (value, key) => {
         return 1;
@@ -281,6 +299,97 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
 
     if (!response.body || !response.body.success) {
         throw new Error(`Error searching for sessions with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body;
+}
+
+export async function createOrUpdateTagDefinition(request: TagDefinitionCreateOrUpdateRequest): Promise<TagDefinitionCreateOrUpdateResponse> {
+    const response = await invokeApi<TagDefinitionCreateOrUpdateResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/tagdef`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error creating or updating tag definition with status code: ${response.statusCode}`);
+    }
+
+    // Invalidate cache for this tag definition
+    const cacheKey = `${request.tagDefinition.scope}:${request.tagDefinition.tag}`;
+    tagDefinitionsCache.delete(cacheKey);
+
+    // Also clear general search cache entries that might contain this tag
+    for (const key of tagDefinitionsCache.keys()) {
+        if (typeof key === 'string' && key.startsWith('search:')) {
+            tagDefinitionsCache.delete(key);
+        }
+    }
+
+    return response.body;
+}
+
+export async function deleteTagDefinition(request: TagDefinitionDeleteRequest): Promise<TagDefinitionDeleteResponse> {
+    const response = await invokeApi<TagDefinitionDeleteResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/tagdef`,
+        method: 'DELETE',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error deleting tag definition with status code: ${response.statusCode}`);
+    }
+
+    // Invalidate cache for this tag definition
+    const cacheKey = `${request.tagDefinition.scope}:${request.tagDefinition.tag}`;
+    tagDefinitionsCache.delete(cacheKey);
+
+    // Also clear general search cache entries that might contain this tag
+    for (const key of tagDefinitionsCache.keys()) {
+        if (typeof key === 'string' && key.startsWith('search:')) {
+            tagDefinitionsCache.delete(key);
+        }
+    }
+
+    return response.body;
+}
+
+export async function searchTagDefinitions(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
+    // Generate cache key based on request parameters
+    const requestHash = hash('sha256', JSON.stringify(request));
+    const cacheKey = `search:admin:${requestHash}`;
+
+    // Check if any tag definition has dontCacheThis set to true
+    const cachedResponse = tagDefinitionsCache.get(cacheKey) as TagDefinitionSearchResponse | undefined;
+    if (cachedResponse && !cachedResponse.tagDefinitions.some((def) => def.dontCacheThis)) {
+        return cachedResponse;
+    }
+
+    const response = await invokeApi<TagDefinitionSearchResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/tagdef/search`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error searching tag definitions with status code: ${response.statusCode}`);
+    }
+
+    // Cache the response only if no tag definition has dontCacheThis set
+    if (!response.body.tagDefinitions.some((def) => def.dontCacheThis)) {
+        tagDefinitionsCache.set(cacheKey, response.body);
     }
 
     return response.body;

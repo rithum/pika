@@ -1,7 +1,8 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
+import { searchTagDefinitions } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, TagDefinition, TagDefinitionWidget, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
@@ -71,6 +72,25 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
     const features = getOverridableFeatures(chatApp, locals.user);
     let customDataUiRepresentation: CustomDataUiRepresentation | undefined;
 
+    // Fetch all enabled tag definitions by paging through results
+    let tagDefinitions: TagDefinition<TagDefinitionWidget>[] = [];
+    try {
+        let paginationToken: Record<string, any> | undefined;
+        do {
+            const response = await searchTagDefinitions(locals.user.userId, {
+                includeInstructions: false, // We don't need instructions for frontend display
+                paginationToken
+            });
+
+            tagDefinitions.push(...response.tagDefinitions);
+            paginationToken = response.paginationToken;
+        } while (paginationToken);
+    } catch (e) {
+        // Log error but don't fail the entire page load
+        console.error('Error fetching tag definitions:', e);
+        tagDefinitions = [];
+    }
+
     if (authProvider.getCustomDataUiRepresentation) {
         customDataUiRepresentation = await authProvider.getCustomDataUiRepresentation(locals.user, chatApp.chatAppId);
         if (customDataUiRepresentation && (!customDataUiRepresentation.title || !customDataUiRepresentation.value)) {
@@ -84,6 +104,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals }) => {
         userIsContentAdmin,
         features,
         customDataUiRepresentation,
+        tagDefinitions,
         mode: (modeParam ?? 'standalone') as ChatAppMode
     };
 };

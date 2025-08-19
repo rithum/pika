@@ -21,6 +21,8 @@ import type {
     ChatUserLite,
     RecordOrUndef,
     SimpleAuthenticatedUser,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
     UserPrefs
 } from 'pika-shared/types/chatbot/chatbot-types';
 import type { BaseRequestData } from 'pika-shared/types/chatbot/chatbot-types';
@@ -44,6 +46,7 @@ import {
 } from './chat-ddb';
 import { UnauthorizedError } from './unauthorized-error';
 import { createSessionToken, getNextMessageId } from './utils';
+import { searchTagDefinitions } from './chat-admin-ddb';
 
 /**
  * Get all chat messages for a session.
@@ -362,4 +365,17 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
 export async function getChatSessionFeedback(sessionId: string): Promise<ChatSessionFeedback[]> {
     //TODO: do we need to check if the user is the one who created the feedback?
     return await getFeedbackBySessionId(sessionId);
+}
+
+/**
+ * Search for tag definitions with optional filtering and pagination
+ */
+export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
+    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request.tagsDesired, false, request.includeInstructions, request.paginationToken);
+
+    return {
+        success: true,
+        tagDefinitions,
+        paginationToken
+    };
 }

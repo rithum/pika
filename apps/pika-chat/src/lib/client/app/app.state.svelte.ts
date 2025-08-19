@@ -7,6 +7,8 @@ import type {
     ChatUser,
     CustomDataUiRepresentation,
     SiteFeatures,
+    TagDefinition,
+    TagDefinitionWidget,
     UserDataOverrideSettings
 } from 'pika-shared/types/chatbot/chatbot-types';
 import type { Page } from '@sveltejs/kit';
@@ -69,7 +71,8 @@ export class AppState {
         userIsContentAdmin: boolean,
         features: ChatAppOverridableFeatures,
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
-        mode: ChatAppMode
+        mode: ChatAppMode,
+        tagDefinitions: TagDefinition<TagDefinitionWidget>[]
     ): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
@@ -89,7 +92,8 @@ export class AppState {
                 userIsContentAdmin,
                 features,
                 customDataUiRepresentation,
-                mode
+                mode,
+                tagDefinitions
             );
         }
         return this.#chatApps[chatApp.chatAppId];

@@ -11,6 +11,8 @@
     import ConfigSection from '../../config-section.svelte';
 
     import type {
+        AgentInstructionAssistanceFeature,
+        AgentInstructionAssistanceFeatureForChatApp,
         ChatApp,
         ChatAppFeature,
         ChatDisclaimerNoticeFeatureForChatApp,
@@ -23,6 +25,7 @@
         SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
+        TagsFeatureForChatApp,
         TracesFeatureForChatApp,
         UiCustomizationFeature,
         UiCustomizationFeatureForChatApp,
@@ -37,10 +40,12 @@
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
     import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
+    import TagsFeatureRenderer from './tags-feature-renderer.svelte';
     import TracesFeatureRenderer from './traces-feature-renderer.svelte';
     import UiCustomizationFeatureRenderer from './ui-customization-feature-renderer.svelte';
     import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
     import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
+    import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -204,6 +209,7 @@
         traces: false,
         chatDisclaimerNotice: false,
         logout: false,
+        agentInstructionAssistance: false,
     } as Record<FeatureIdType, boolean>);
 
     function setExpandedOrCollapsed(expanded: boolean) {
@@ -586,6 +592,36 @@
                                 isOverridden={featureOverridden}
                                 {chatAppId}
                             />
+                        {:else if typedFeatureId === 'tags'}
+                            <TagsFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () => app.override?.features?.[typedFeatureId] as TagsFeatureForChatApp | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as TagsFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
                         {:else if typedFeatureId === 'uiCustomization'}
                             <UiCustomizationFeatureRenderer
                                 {featureEnabled}
@@ -749,6 +785,39 @@
                                 {chatAppId}
                                 setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
                             />
+                        {:else if typedFeatureId === 'agentInstructionAssistance'}
+                            <AgentInstructionAssistanceFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | AgentInstructionAssistanceFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as AgentInstructionAssistanceFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
                         {:else if typedFeatureId === 'userDataOverrides'}
                             <div>No additional configuration may be overridden for this feature.</div>
                         {/if}
@@ -778,6 +847,22 @@
             Suggestions appear as an expandable section above the chat input field allowing a user to click on a
             suggestion and have it added to the chat input field.
         </p>
+    {:else if featureId === 'tags'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Enable AI-driven UI components (tags) that can be dynamically rendered within chat responses. Tags allow
+                the LLM to create contextual, interactive user interfaces on-demand.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Tag definitions</span> must be created by site administrators before they can be
+                enabled for chat apps. Each tag specifies how to render interactive widgets like charts, forms, or custom
+                components.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                Once enabled, the LLM can include tags in its responses to display data visualizations, collect user
+                input, or render any custom UI component defined by the tag definition.
+            </p>
+        </div>
     {:else if featureId === 'uiCustomization'}
         <p class="text-xs text-muted-foreground">General UI customizations for the chat app.</p>
     {:else if featureId === 'verifyResponse'}
@@ -831,6 +916,24 @@
         <p class="text-xs text-muted-foreground">
             Whether to enable logout for the chat app. You must specify which users are allowed to logout.
         </p>
+    {:else if featureId === 'agentInstructionAssistance'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Automatically injects formatting instructions into agent prompts to ensure consistent response
+                structure. This feature streamlines prompt engineering by managing output formatting requirements and
+                tag-specific instructions.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Tag Integration:</span> When enabled with the Tags feature, automatically
+                injects instructions for all enabled tags into agent prompts using the <code>{'{{'}</code><code
+                    >tag-instructions</code
+                ><code>{'}}'}</code> placeholder.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Consistent Formatting:</span> Ensures all responses are properly wrapped in
+                <code>&lt;answer&gt;</code> tags and follow Pika's structured formatting standards.
+            </p>
+        </div>
     {:else}
         <p class="text-xs text-muted-foreground">Configure the {featureId} for the chat app.</p>
     {/if}
