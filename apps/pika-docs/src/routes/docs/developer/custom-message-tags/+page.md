@@ -6,9 +6,15 @@ outline: [2, 3]
 
 This guide explains how to create custom renderers for XML tags in LLM responses and metadata handlers for processing non-visual tags in your Pika chat application.
 
+:::tip[Evolution to Tags Feature]
+This document describes the current implementation of custom message tags using compiled-in renderers. Pika is evolving toward a more powerful [Tags Feature system](/docs/developer/tags-feature) that supports dynamic tag definitions, web components, and centralized management. The approach described here will continue to work and serves as the foundation for the new system.
+:::
+
 ## Overview
 
 When an LLM generates responses containing XML elements (e.g., `<image>`, `<download>`, `<chart>`), Pika's message rendering system uses the XML tag name to find and instantiate the appropriate renderer component. This system allows you to create rich, interactive chat experiences with custom UI components and data processing.
+
+This document covers the **current implementation** using compiled-in renderers that are registered directly in your application code. For the **evolved approach** using dynamic tag definitions and web components, see the [Tags Feature documentation](/docs/developer/tags-feature).
 
 :::info[Custom Message Tags Benefits]
 With custom message tags, you can create rich, interactive chat experiences that go far beyond simple text responses. The system is designed to be flexible and extensible, allowing you to build exactly the user experience your application needs.
@@ -454,6 +460,33 @@ Enable debug logging to see tag processing:
 ```js
 console.log('Processing tag:', segment.tagType, segment.rawContent);
 ```
+
+## Evolution to Tags Feature System
+
+The custom message tags system described in this document is evolving into the more powerful [Tags Feature system](/docs/developer/tags-feature). Here's how they relate:
+
+### Current System (This Document)
+
+- **Compiled-in renderers**: Components are registered in your application code
+- **Direct registration**: Uses `customRenderers` and `customMetadataHandlers` objects
+- **Code-based configuration**: Changes require code updates and redeployment
+
+### Evolved System (Tags Feature)
+
+- **Tag definitions**: Formal `TagDefinition` objects with metadata and instructions
+- **Multiple widget types**: Supports builtin, custom-compiled-in, web-component, and pass-through
+- **API management**: Create and update tag definitions via REST APIs
+- **LLM instructions**: Structured guidance for when and how LLMs should use tags
+
+### Migration Path
+
+The systems work together during transition:
+
+1. **Current custom renderers** continue to work as-is
+2. **Tag definitions** can reference existing custom renderers using `widget.type: 'custom-compiled-in'`
+3. **Future web components** will be loaded dynamically from S3 without code changes
+
+Your existing custom renderers become the foundation for the evolved system - they don't need to be rewritten, just formalized with tag definitions.
 
 ## Examples Repository
 

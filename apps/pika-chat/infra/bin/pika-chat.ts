@@ -18,14 +18,17 @@
  * 2. Add 'apps/pika-chat/infra/bin/pika-chat.ts' to the userUnprotectedAreas array
  */
 
-import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { getValueFromParameterStore } from './ssm.js';
-import { getLoggedInAccountIdFromSts } from './sts.js';
+import { TagDefinitionsJsonFile } from 'pika-shared/types/chatbot/chatbot-types.js';
+import 'source-map-support/register';
 import { PikaChatStack } from '../lib/stacks/pika-chat-stack.js';
+import { getLoggedInAccountIdFromSts } from './sts.js';
 
 // We are copying the root pika-config.ts file to a local build directory so that it can be imported by the pika-chat stack cleanly.
 import { pikaConfig } from '../build/pika-config.js';
+
+// Import the generated tag definitions
+import tagDefinitionsData from '../build/tag-definitions.json' with { type: 'json' };
 
 const app = new cdk.App();
 
@@ -43,7 +46,7 @@ async function main() {
 
     const env = {
         account: loggedInAccountId,
-        region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+        region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
     };
 
     //TODO: get these from an environment variable or something
@@ -70,6 +73,7 @@ async function main() {
         projNameKebabCase,
         projNameHuman,
         pikaServiceProjNameKebabCase,
+        tagDefinitions: tagDefinitionsData as TagDefinitionsJsonFile
     });
 }
 

@@ -32,6 +32,18 @@ export class ComponentRegistry {
     private renderers: Record<string, Component<any>> = {};
     private metadataHandlers: Record<string, MetadataTagHandler> = {};
 
+    //TODO: get this from dynamodb when we want to support web components
+    // private webComponents: Record<string, TagWebComponent> = {
+    //     prompt: {
+    //         s3Bucket: 'pika-chat-web-components',
+    //         s3Key: 'prompt-button-wc.js',
+    //         encoding: 'gzip+base64',
+    //         mediaType: 'application/javascript',
+    //         encodedSizeBytes: 0,
+    //         encodedSha256Base64: ''
+    //     }
+    // };
+
     private constructor() {}
 
     /** Create a ComponentRegistry with all default and custom renderers and metadata handlers registered */

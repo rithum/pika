@@ -26,6 +26,7 @@ export class AppConfigProxy implements AppConfig {
     private _issuer: string | undefined;
     private _pikaServiceProjNameKebabCase: string | undefined;
     private _pikaChatProjNameKebabCase: string | undefined;
+    private _tagDefinitionsTableName: string | undefined;
 
     // This is used to encrypt and decrypt user data when shared from the front end to the back end of the chatbot service
     // and not for authentication of the front end itself.
@@ -190,6 +191,15 @@ export class AppConfigProxy implements AppConfig {
                         throw new Error('CONVERSE_FUNCTION_URL is not set');
                     }
                 }
+            },
+            {
+                name: 'tagDefinitionsTableName',
+                setValue: async (_isLocal: boolean, _stage: string, _cache: Cache) => {
+                    this._tagDefinitionsTableName = env.TAG_DEFINITIONS_TABLE ?? process.env.TAG_DEFINITIONS_TABLE;
+                    if (!this._tagDefinitionsTableName) {
+                        throw new Error('TAG_DEFINITIONS_TABLE is not set');
+                    }
+                }
             }
         ];
     }
@@ -282,6 +292,11 @@ export class AppConfigProxy implements AppConfig {
     public get pikaChatProjNameKebabCase(): string {
         if (!this._pikaChatProjNameKebabCase) throw new Error('App config not initialized');
         return this._pikaChatProjNameKebabCase;
+    }
+
+    public get tagDefinitionsTableName(): string {
+        if (!this._tagDefinitionsTableName) throw new Error('App config not initialized');
+        return this._tagDefinitionsTableName;
     }
 }
 

@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import { TagDefinitionsJsonFile } from 'pika-shared/types/chatbot/chatbot-types.js';
 import { fileURLToPath } from 'url';
 import { CustomStackDefs } from './custom-stack-defs.js';
 import { PartialPikaChatConstructProps, PikaChatConstruct, PikaChatConstructProps } from './pika-chat-construct.js';
@@ -18,6 +19,7 @@ export interface PikaChatStackProps extends cdk.StackProps {
     projNameKebabCase: string; // Kebab case e.g. pika-chat
     projNameHuman: string; // Human readable e.g. Pika Chat
     pikaServiceProjNameKebabCase: string; // Kebab case for the pika service stack e.g. pika
+    tagDefinitions: TagDefinitionsJsonFile;
 }
 
 /**
@@ -39,14 +41,14 @@ export class PikaChatStack extends cdk.Stack {
             type: 'String',
             description: 'The stage/environment name (e.g., dev, staging, prod)',
             allowedPattern: '^[a-zA-Z0-9-]+$',
-            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
         });
 
         this.stageCappedParam = new cdk.CfnParameter(this, 'Stage', {
             type: 'String',
             description: 'The stage/environment name capitalized (e.g., Dev, Staging, Prod)',
             allowedPattern: '^[a-zA-Z0-9-]+$',
-            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens',
+            constraintDescription: 'Stage must contain only alphanumeric characters and hyphens'
         });
 
         const customStackDefs = new CustomStackDefs(this);
@@ -81,6 +83,7 @@ export class PikaChatStack extends cdk.Stack {
             projNameKebabCase: props.projNameKebabCase,
             projNameHuman: props.projNameHuman,
             pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
+            tagDefinitions: props.tagDefinitions
         };
 
         const pikaChatConstructProps: PikaChatConstructProps = customStackDefs.getPikaChatConstructProps(partialProps);

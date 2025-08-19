@@ -39,6 +39,7 @@ export interface PikaConstructOutputs {
     chatAppTable: dynamodb.Table;
     agentDefinitionsTable: dynamodb.Table;
     toolDefinitionsTable: dynamodb.Table;
+    tagDefinitionsTable: dynamodb.Table;
     archiveStagingTable: dynamodb.Table;
     chatbotApi: apigateway.RestApi;
     chatAdminApi: apigateway.RestApi;
@@ -92,6 +93,7 @@ export class PikaConstruct extends Construct {
             chatAppTable: storageResources.chatAppTable,
             agentDefinitionsTable: storageResources.agentDefinitionsTable,
             toolDefinitionsTable: storageResources.toolDefinitionsTable,
+            tagDefinitionsTable: storageResources.tagDefinitionsTable,
             chatbotApi: apiResources.chatbotApi,
             chatAdminApi: apiResources.chatAdminApi,
             converseFunctionUrl: apiResources.converseFunctionUrl,
@@ -116,6 +118,7 @@ export class PikaConstruct extends Construct {
         const chatAppTable = this.createChatAppTable();
         const agentDefinitionsTable = this.createAgentDefinitionsTable();
         const toolDefinitionsTable = this.createToolDefinitionsTable();
+        const tagDefinitionsTable = this.createTagDefinitionsTable();
 
         // Create the archive processor after tables are created
         this.createArchiveProcessor(archiveStagingTable, fileArchiveBucket, pikaS3Bucket);
@@ -130,7 +133,8 @@ export class PikaConstruct extends Construct {
             chatUserTable,
             chatAppTable,
             agentDefinitionsTable,
-            toolDefinitionsTable
+            toolDefinitionsTable,
+            tagDefinitionsTable
         };
     }
 
@@ -141,6 +145,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatMessagesTable,
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
+            storageResources.tagDefinitionsTable,
             bedrockChatRole,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
@@ -152,6 +157,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatMessagesTable,
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
+            storageResources.tagDefinitionsTable,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
         );
@@ -161,6 +167,7 @@ export class PikaConstruct extends Construct {
             storageResources.toolDefinitionsTable,
             storageResources.chatAppTable,
             storageResources.chatUserTable,
+            storageResources.tagDefinitionsTable,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
         );
@@ -168,6 +175,7 @@ export class PikaConstruct extends Construct {
         // Create custom resources
         this.createAgentCustomResource(chatAdminRestApi);
         this.createChatAppCustomResource(chatAdminRestApi);
+        this.createTagDefinitionCustomResource(chatAdminRestApi);
         const domainIndexCustomResourceLambda = this.createDomainIndexCustomResource();
 
         // Initialize OpenSearch domain indices if OpenSearch is enabled
@@ -940,6 +948,36 @@ export class PikaConstruct extends Construct {
         return toolDefinitionsTable;
     }
 
+    private createTagDefinitionsTable(): dynamodb.Table {
+        const tagDefinitionsTable = new dynamodb.Table(this, 'TagDefinitionsTable', {
+            partitionKey: {
+                name: 'scope',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'tag',
+                type: dynamodb.AttributeType.STRING
+            },
+            tableName: `pika-tag-def-${this.props.stackName}`,
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
+        });
+
+        new ssm.StringParameter(this, 'TagDefinitionsTableNameParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/pika_tag_def`,
+            stringValue: tagDefinitionsTable.tableName,
+            description: 'DynamoDB Table Name for Tag Definitions'
+        });
+
+        new ssm.StringParameter(this, 'TagDefinitionsTableArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/pika_tag_def_arn`,
+            stringValue: tagDefinitionsTable.tableArn,
+            description: 'DynamoDB Table ARN for Tag Definitions'
+        });
+
+        return tagDefinitionsTable;
+    }
+
     private createSessionRunnerMutexTable(): dynamodb.Table {
         const sessionRunnerMutexTable = new dynamodb.Table(this, 'SessionRunnerMutexTable', {
             partitionKey: {
@@ -1076,6 +1114,7 @@ export class PikaConstruct extends Construct {
         chatMessagesTable: dynamodb.Table,
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        tagDefinitionsTable: dynamodb.Table,
         bedrockChatRole: iam.Role,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain
@@ -1159,6 +1198,11 @@ export class PikaConstruct extends Construct {
                                 `${chatUserTable.tableArn}/index/*`,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
+                            resources: [tagDefinitionsTable.tableArn, `${tagDefinitionsTable.tableArn}/*`]
                         })
                     ]
                 })
@@ -1302,6 +1346,7 @@ export class PikaConstruct extends Construct {
         chatMessagesTable: dynamodb.Table,
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        tagDefinitionsTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain
     ): lambda.Function {
@@ -1316,6 +1361,7 @@ export class PikaConstruct extends Construct {
                 CHAT_MESSAGES_TABLE: chatMessagesTable.tableName,
                 CHAT_SESSION_TABLE: chatSessionTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
+                TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
@@ -1335,6 +1381,7 @@ export class PikaConstruct extends Construct {
         toolDefinitionsTable: dynamodb.Table,
         chatAppTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        tagDefinitionsTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain
     ): [lambda.Function, apigateway.RestApi] {
@@ -1374,6 +1421,8 @@ export class PikaConstruct extends Construct {
                                 agentDefinitionsTable.tableArn,
                                 toolDefinitionsTable.tableArn,
                                 chatAppTable.tableArn,
+                                tagDefinitionsTable.tableArn,
+                                `${tagDefinitionsTable.tableArn}/*`,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
                         }),
@@ -1416,6 +1465,7 @@ export class PikaConstruct extends Construct {
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
                 CHAT_APP_TABLE: chatAppTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
+                TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
                 STAGE: this.props.stage,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
@@ -1442,72 +1492,31 @@ export class PikaConstruct extends Construct {
             minCompressionSize: cdk.Size.mebibytes(1)
         });
 
+        // Use proxy integration to avoid policy size limits
         const apiResource = api.root.addResource('api');
         const chatAdmin = apiResource.addResource('chat-admin');
 
-        // Agent data endpoint
-        const agentData = chatAdmin.addResource('agent-data');
-        agentData.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn), {
-            authorizationType: apigateway.AuthorizationType.IAM
+        // Create a single proxy resource that handles all routes
+        const proxyResource = chatAdmin.addResource('{proxy+}');
+
+        // Single integration for all HTTP methods
+        const integration = new apigateway.LambdaIntegration(chatAdminApiFn, {
+            allowTestInvoke: false
         });
 
-        // Agent management endpoints
-        const agent = chatAdmin.addResource('agent');
-        agent.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-        agent.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
+        // Add methods for all HTTP verbs needed
+        proxyResource.addMethod('ANY', integration);
+        // proxyResource.addMethod('POST', integration);
+        // proxyResource.addMethod('PUT', integration);
+        // proxyResource.addMethod('DELETE', integration);
+        // NOTE: OPTIONS method is automatically handled by defaultCorsPreflightOptions
 
-        const agentById = agent.addResource('{agentId}');
-        agentById.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-        agentById.addMethod('PUT', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        // Tool management endpoints
-        const tool = chatAdmin.addResource('tool');
-        tool.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-        tool.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-        tool.addMethod('PUT', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        const toolSearch = tool.addResource('search');
-        toolSearch.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        const toolById = tool.addResource('{toolId}');
-        toolById.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        // Chat App management endpoints
-        const chatApp = chatAdmin.addResource('chat-app');
-        const chatAppData = chatAdmin.addResource('chat-app-data');
-        chatAppData.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn), {
-            authorizationType: apigateway.AuthorizationType.IAM
-        });
-
-        const chatAppByRules = chatAdmin.addResource('chat-app-by-rules');
-        chatAppByRules.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn), {
-            authorizationType: apigateway.AuthorizationType.IAM
-        });
-
-        chatApp.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-        chatApp.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        const chatAppById = chatApp.addResource('{chatAppId}');
-        chatAppById.addMethod('GET', new apigateway.LambdaIntegration(chatAdminApiFn));
-        chatAppById.addMethod('PUT', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        const chatAppOverride = chatAppById.addResource('override');
-        chatAppOverride.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-        chatAppOverride.addMethod('DELETE', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        // Session management endpoints
-        const session = chatAdmin.addResource('session');
-
-        // POST /api/chat-admin/session/search
-        const sessionSearch = session.addResource('search');
-        sessionSearch.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        // POST /api/chat-admin/session/feedback
-        const feedback = session.addResource('feedback');
-        feedback.addMethod('POST', new apigateway.LambdaIntegration(chatAdminApiFn));
-
-        // PUT /api/chat-admin/session/feedback
-        feedback.addMethod('PUT', new apigateway.LambdaIntegration(chatAdminApiFn));
+        // Handle the root chat-admin path (for routes without subpaths)
+        chatAdmin.addMethod('ANY', integration);
+        // chatAdmin.addMethod('POST', integration);
+        // chatAdmin.addMethod('PUT', integration);
+        // chatAdmin.addMethod('DELETE', integration);
+        // NOTE: OPTIONS method is automatically handled by defaultCorsPreflightOptions
 
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {
@@ -1675,6 +1684,60 @@ export class PikaConstruct extends Construct {
         });
     }
 
+    private createTagDefinitionCustomResource(chatAdminRestApi: apigateway.RestApi): void {
+        const tagDefinitionCustomResourceRole = new iam.Role(this, 'TagDefinitionCustomResourceRole', {
+            roleName: `tag-definition-custom-resource-role-${this.props.stackName}`,
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            inlinePolicies: {
+                TagDefinitionCustomResourcePolicy: new iam.PolicyDocument({
+                    statements: [
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+                            resources: ['arn:aws:logs:*:*:*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['execute-api:Invoke'],
+                            resources: [`arn:aws:execute-api:${this.props.region}:${this.props.account}:${chatAdminRestApi.restApiId}/${this.props.stage}/*/*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:GetCallerIdentity'],
+                            resources: ['*']
+                        })
+                    ]
+                })
+            }
+        });
+
+        const tagDefinitionCustomResourceLambda = new nodejs.NodejsFunction(this, 'TagDefinitionCustomResourceLambda', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            entry: 'src/lambda/tag-definition-resource/index.ts',
+            handler: 'handler',
+            timeout: cdk.Duration.minutes(15),
+            memorySize: 256,
+            role: tagDefinitionCustomResourceRole,
+            architecture: lambda.Architecture.ARM_64,
+            environment: {
+                CHAT_ADMIN_API_ID: chatAdminRestApi.restApiId,
+                STAGE: this.props.stage
+            },
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
+        });
+
+        new ssm.StringParameter(this, 'TagDefinitionCustomResourceArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/tag_definition_custom_resource_arn`,
+            stringValue: tagDefinitionCustomResourceLambda.functionArn,
+            description: 'ARN of the Tag Definition Custom Resource Lambda function'
+        });
+    }
+
     private createDomainIndexCustomResource(): lambda.Function {
         const domainIndexCustomResourceRole = new iam.Role(this, 'DomainIndexCustomResourceRole', {
             roleName: `domain-index-custom-resource-role-${this.props.stackName}`,
@@ -1794,6 +1857,13 @@ export class PikaConstruct extends Construct {
         // GET /api/chat/feedback/{sessionId}
         const feedbackBySessionId = feedback.addResource('{sessionId}');
         feedbackBySessionId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        // Tag Definition endpoints (non-admin)
+        const chatTagdef = chats.addResource('tagdef');
+
+        // POST /api/chat/tagdef/search
+        const chatTagdefSearch = chatTagdef.addResource('search');
+        chatTagdefSearch.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
 
         return api;
     }

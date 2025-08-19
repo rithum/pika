@@ -2,10 +2,13 @@ import {
     addChatSessionFeedback,
     clearChatAppCache,
     createOrUpdateChatAppOverride,
+    createOrUpdateTagDefinition,
     deleteChatAppOverride,
+    deleteTagDefinition,
     getAllChatApps,
     getChatApp,
     searchForSessions,
+    searchTagDefinitions,
     updateChatSessionFeedback
 } from '$lib/server/chat-admin-apis';
 import { getChatMessages, searchForUser } from '$lib/server/chat-apis';
@@ -195,6 +198,39 @@ export const POST: RequestHandler = async (event) => {
             messages: messages.messages
         };
         return json(result);
+    } else if (siteAdminReq.command === 'createOrUpdateTagDefinition') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        // Set the userId for the request to the current user
+        const requestWithUserId = {
+            ...siteAdminReq.request,
+            userId: user.userId
+        };
+
+        const response = await createOrUpdateTagDefinition(requestWithUserId);
+        return json(response);
+    } else if (siteAdminReq.command === 'deleteTagDefinition') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        // Set the userId for the request to the current user
+        const requestWithUserId = {
+            ...siteAdminReq.request,
+            userId: user.userId
+        };
+
+        const response = await deleteTagDefinition(requestWithUserId);
+        return json(response);
+    } else if (siteAdminReq.command === 'searchTagDefinitions') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        const response = await searchTagDefinitions(siteAdminReq.request);
+        return json(response);
     } else {
         return new Response('Invalid command', { status: 400 });
     }

@@ -22,6 +22,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Overview', to: '/docs/features/overview/' },
                         { title: 'Advanced Chat Apps', to: '/docs/features/advanced-chat-apps/' },
                         { title: 'Built on Amazon Web Services', to: '/docs/features/built-on-aws/' },
+                        { title: 'Enterprise Data Protection', to: '/docs/features/data-security/' },
                         { title: 'LLM-based Agents', to: '/docs/features/llm-based-agents/' },
                         { title: 'Agents as Config', to: '/docs/features/agents-as-config/' },
                         { title: 'Answer Reasoning', to: '/docs/features/answer-reasoning/' },
@@ -29,6 +30,8 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'LLM Generated Feedback', to: '/docs/features/llm-generated-feedback/' },
                         { title: 'Insights', to: '/docs/features/insights/' },
                         { title: 'Highly Customizable', to: '/docs/features/highly-customizable/' },
+                        { title: 'AI Driven UI Tags (BETA)', to: '/docs/features/ai-driven-ui/' },
+                        { title: 'Instruction Assistance', to: '/docs/features/instruction-assistance/' },
                         { title: 'Admin Site', to: '/docs/features/admin-site/' }
                     ]
                 },
@@ -59,6 +62,8 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Overriding User Data', to: '/docs/developer/overriding-user-data/' },
                         { title: 'Entity Feature', to: '/docs/developer/entity-feature/' },
                         { title: 'Custom Msg Tags', to: '/docs/developer/custom-message-tags/' },
+                        { title: 'AI Driven UI Tags (BETA)', to: '/docs/developer/tags-feature/' },
+                        { title: 'Instruction Assistance', to: '/docs/developer/instruction-assistance/' },
                         { title: 'Site Admin Feature', to: '/docs/developer/site-admin-feature/' },
                         { title: 'Content Admin', to: '/docs/developer/content-admin/' },
                         { title: 'Stack Management', to: '/docs/developer/stack-management/' },

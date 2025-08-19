@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite dev",
         "copy-pika-config": "mkdir -p infra/build && cp ../../pika-config.ts infra/build",
-        "build": "vite build && pnpm run copy-pika-config",
+        "build": "vite build && tsx tools/generate-tag-defs-for-build/index.ts && pnpm run copy-pika-config",
         "preview": "vite preview",
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

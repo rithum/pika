@@ -1,7 +1,14 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
-import type { ChatAppMode, ChatSessionFeedbackForCreate, RecordOrUndef, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    ChatAppMode,
+    ChatSessionFeedbackForCreate,
+    RecordOrUndef,
+    TagDefinition,
+    TagDefinitionWidget,
+    UserDataOverrideSettings
+} from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
     UserOverrideDataCommand,
@@ -157,6 +164,7 @@ export class ChatAppState {
     valuesForAutoCompleteForContentAdminDialog = $state<ChatUserLite[] | undefined>(undefined);
     #features = $state<ChatAppOverridableFeatures>() as ChatAppOverridableFeatures;
     #customDataUiRepresentation = $state<CustomDataUiRepresentation | undefined>(undefined);
+    #tagDefs = $state<TagDefinition<TagDefinitionWidget>[]>([]);
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -215,6 +223,10 @@ export class ChatAppState {
 
     get features() {
         return this.#features;
+    }
+
+    get tagDefs() {
+        return this.#tagDefs;
     }
 
     get userIsContentAdmin() {
@@ -397,7 +409,8 @@ export class ChatAppState {
         userIsContentAdmin: boolean,
         features: ChatAppOverridableFeatures,
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
-        mode: ChatAppMode
+        mode: ChatAppMode,
+        tagDefinitions: TagDefinition<TagDefinitionWidget>[]
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -411,6 +424,7 @@ export class ChatAppState {
         this.#userIsContentAdmin = userIsContentAdmin;
         this.#features = features;
         this.#customDataUiRepresentation = customDataUiRepresentation;
+        this.#tagDefs = tagDefinitions;
         this.#mode = mode;
         this.#userPrefs = new UserPrefsState(this.fetchz);
 

@@ -41,6 +41,16 @@ import type {
     ChatSession,
     SessionSearchRequest,
     SessionSearchResponse,
+    TagDefinition,
+    TagDefinitionWidget,
+    TagDefinitionCreateOrUpdateRequest,
+    TagDefinitionCreateOrUpdateResponse,
+    TagDefinitionDeleteRequest,
+    TagDefinitionDeleteResponse,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
+    TagDefinitionForCreateOrUpdate,
+    TagDefinitionLite,
     RecordOrUndef
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from 'pika-shared/types/chatbot/chatbot-types';
@@ -69,7 +79,12 @@ import {
     deleteChatAppOverrideDdb,
     addFeedback,
     updateFeedback,
-    getFeedbackById
+    getFeedbackById,
+    getAllTagDefinitions,
+    getTagDefinition,
+    createOrUpdateTagDefinition,
+    deleteTagDefinition,
+    searchTagDefinitions
 } from './chat-admin-ddb';
 import {
     agentsAreSame,
@@ -1257,4 +1272,46 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
     }
 
     return await queryForSessions<RecordOrUndef>(search);
+}
+
+// ===== TAG DEFINITION OPERATIONS =====
+
+/**
+ * Create or update a tag definition (idempotent operation)
+ */
+export async function createOrUpdateTagDefApi(request: TagDefinitionCreateOrUpdateRequest): Promise<TagDefinitionCreateOrUpdateResponse> {
+    const { tagDefinition, userId } = request;
+
+    const createdTagDef = await createOrUpdateTagDefinition(tagDefinition, userId);
+
+    return {
+        success: true,
+        tagDefinition: createdTagDef
+    };
+}
+
+/**
+ * Delete a tag definition
+ */
+export async function deleteTagDefApi(request: TagDefinitionDeleteRequest): Promise<TagDefinitionDeleteResponse> {
+    const { tagDefinition } = request;
+
+    await deleteTagDefinition(tagDefinition.scope, tagDefinition.tag);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * Search for tag definitions with optional filtering and pagination
+ */
+export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
+    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request.tagsDesired, true, request.includeInstructions, request.paginationToken);
+
+    return {
+        success: true,
+        tagDefinitions,
+        paginationToken
+    };
 }

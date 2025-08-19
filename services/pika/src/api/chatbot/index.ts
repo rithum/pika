@@ -21,6 +21,8 @@ import {
     GetChatUserPrefsResponse,
     SetChatUserPrefsRequest,
     SetChatUserPrefsResponse,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
     RecordOrUndef
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
@@ -38,7 +40,8 @@ import {
     getUserSessionsByChatAppId,
     searchForUsers,
     setUserPrefs,
-    updateSessionTitle
+    updateSessionTitle,
+    searchTagDefsApi
 } from '../../lib/chat-apis';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import { getValueFromParameterStore } from '../../lib/ssm';
@@ -99,6 +102,10 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     'GET:/api/chat/feedback/{sessionId}': {
         handler: handleGetFeedbackBySessionId,
         passUserObj: false
+    },
+    'POST:/api/chat/tagdef/search': {
+        handler: handleGetTagDefs,
+        passUserObj: false
     }
 };
 
@@ -109,7 +116,7 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
  * and they will be caught and formatted as a 500 error.  If you want to return a specific HTTP status code,
  * throw a HttpStatusError.
  */
-export async function handlerFn(event: APIGatewayProxyEventPika<ConverseRequest | ChatTitleUpdateRequest | ChatUser | BaseRequestData | void>) {
+export async function handlerFn(event: APIGatewayProxyEventPika<ConverseRequest | ChatTitleUpdateRequest | ChatUser | TagDefinitionSearchRequest | BaseRequestData | void>) {
     console.log('Event:', JSON.stringify(event, null, 2));
 
     if (!process.env.STAGE) {
@@ -424,6 +431,16 @@ async function handleGetFeedbackBySessionId(event: APIGatewayProxyEventPika<Base
         success: true,
         feedback: await getChatSessionFeedback(sessionId)
     };
+}
+
+/**
+ * POST:/api/chat/tagdef/search
+ */
+async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSearchRequest>, userId: string): Promise<TagDefinitionSearchResponse> {
+    const request = event.body || {};
+
+    // Non-admin API filters out disabled tag definitions
+    return await searchTagDefsApi(request);
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

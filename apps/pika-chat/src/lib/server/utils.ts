@@ -1,6 +1,6 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef, TagDefinitionLite } from 'pika-shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {
@@ -377,10 +377,10 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             detailedTraces: false
         },
         fileUpload: {
-            mimeTypesAllowed: []
+            mimeTypesAllowed: [] as string[]
         },
         suggestions: {
-            suggestions: [],
+            suggestions: [] as string[],
             randomize: false,
             randomizeAfter: 0,
             maxToShow: 5
@@ -401,6 +401,15 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         },
         siteAdmin: {
             websiteEnabled: false
+        },
+        tags: {
+            tagsEnabled: [] as TagDefinitionLite[]
+        },
+        agentInstructionAssistance: {
+            enabled: false,
+            includeInstructionsForTags: false,
+            completeExampleInstructionLine: undefined,
+            jsonOnlyImperativeInstructionLine: undefined
         }
     };
 
@@ -502,6 +511,29 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         })
     );
     result.chatDisclaimerNotice = disclaimerResult.notice;
+
+    // Handle tags feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveTagsFeature = chatApp.override?.features?.tags || chatApp.features?.tags;
+    result.tags = handleSimpleFeature('tags', effectiveTagsFeature, siteFeatures?.tags, result.tags, (feature) => ({
+        tagsEnabled: feature.tagsEnabled ?? []
+    }));
+
+    // Handle agentInstructionAssistance feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveAgentInstructionAssistanceFeature = chatApp.override?.features?.agentInstructionAssistance || chatApp.features?.agentInstructionAssistance;
+    result.agentInstructionAssistance = handleSimpleFeature(
+        'agentInstructionAssistance',
+        effectiveAgentInstructionAssistanceFeature,
+        siteFeatures?.agentInstructionAssistance,
+        result.agentInstructionAssistance,
+        (feature) => ({
+            enabled: feature.enabled ?? false,
+            includeInstructionsForTags: feature.includeInstructionsForTags ?? false,
+            completeExampleInstructionLine: feature.completeExampleInstructionLine ?? undefined,
+            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine ?? undefined
+        })
+    );
 
     return result;
 }

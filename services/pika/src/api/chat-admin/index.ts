@@ -1,10 +1,11 @@
 import {
+    AddChatSessionFeedbackRequest,
+    AddChatSessionFeedbackResponse,
     AgentDataRequest,
     AgentDataResponse,
     AgentDefinition,
     BaseRequestData,
     ChatApp,
-    ChatAppOverride,
     ChatAppDataRequest,
     ChatAppDataResponse,
     CreateAgentRequest,
@@ -16,55 +17,115 @@ import {
     DeleteChatAppOverrideResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
+    RecordOrUndef,
     SearchToolsRequest,
+    SessionSearchRequest,
+    SessionSearchResponse,
+    TagDefinitionCreateOrUpdateRequest,
+    TagDefinitionCreateOrUpdateResponse,
+    TagDefinitionDeleteRequest,
+    TagDefinitionDeleteResponse,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
     ToolDefinition,
     UpdateAgentRequest,
     UpdateChatAppRequest,
-    UpdateToolRequest,
-    UserChatAppRule,
-    ChatSession,
-    AddChatSessionFeedbackRequest,
-    AddChatSessionFeedbackResponse,
-    AddChatSessionFeedbackAdminRequest,
     UpdateChatSessionFeedbackRequest,
     UpdateChatSessionFeedbackResponse,
-    SessionSearchRequest,
-    SessionSearchResponse,
-    RecordOrUndef
+    UpdateToolRequest,
+    UserChatAppRule
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import {
+    addChatSessionFeedback,
     createAgentDefinition,
     createChatAppDefinition,
     createOrUpdateAgentIdempotently,
-    createOrUpdateChatAppOverride,
     createOrUpdateChatAppIdempotently,
+    createOrUpdateChatAppOverride,
+    createOrUpdateTagDefApi,
     createToolDefinition,
     deleteChatAppOverride,
+    deleteTagDefApi,
     getAgent,
     getAgents,
     getChatApp,
     getChatApps,
     getTool,
     getTools,
+    searchForSessions,
+    searchTagDefsApi,
     searchToolsByIds,
     updateAgentDefinition,
     updateChatAppDefinition,
+    updateChatSessionFeedback,
     updateToolDefinition,
     validateAgentDefinition,
     validateChatAppDefinition,
-    validateToolDefinition,
-    addChatSessionFeedback,
-    updateChatSessionFeedback,
-    searchForSessions
+    validateToolDefinition
 } from '../../lib/chat-admin-apis';
-import { addFeedback, getAgentById, getToolById } from '../../lib/chat-admin-ddb';
+import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
 import { getUser } from '../../lib/chat-apis';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 
 type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>) => Promise<U>;
+
+// Route matching utilities for proxy integration
+interface RouteMatch {
+    handler: userIdFnTypeHandler<any, any>;
+    pathParameters: Record<string, string>;
+}
+
+/**
+ * Convert a route template (e.g., "/api/chat-admin/agent/{agentId}") to a regex pattern
+ */
+function routeTemplateToRegex(template: string): RegExp {
+    // Escape special regex characters except for our parameter placeholders
+    const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Replace {paramName} with named capture groups
+    const withCaptures = escaped.replace(/\\{([^}]+)\\}/g, '(?<$1>[^/]+)');
+    return new RegExp(`^${withCaptures}$`);
+}
+
+/**
+ * Find a matching route handler for the given method and path
+ */
+function findMatchingRoute(method: string, path: string): RouteMatch | null {
+    const routeKey = `${method}:${path}`;
+
+    // First try exact match (for routes without parameters)
+    const exactMatch = routes[routeKey];
+    if (exactMatch) {
+        return {
+            handler: exactMatch.handler,
+            pathParameters: {}
+        };
+    }
+
+    // Try pattern matching for parameterized routes
+    for (const [template, routeConfig] of Object.entries(routes)) {
+        const [templateMethod, templatePath] = template.split(':');
+
+        if (templateMethod !== method) continue;
+
+        // Skip if this doesn't contain parameters
+        if (!templatePath.includes('{')) continue;
+
+        const regex = routeTemplateToRegex(templatePath);
+        const match = path.match(regex);
+
+        if (match && match.groups) {
+            return {
+                handler: routeConfig.handler,
+                pathParameters: match.groups
+            };
+        }
+    }
+
+    return null;
+}
 
 const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     'GET:/api/chat-admin/agent': {
@@ -129,6 +190,15 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/session/search': {
         handler: handleSearchSessions
+    },
+    'POST:/api/chat-admin/tagdef': {
+        handler: handleCreateOrUpdateTagDef
+    },
+    'DELETE:/api/chat-admin/tagdef': {
+        handler: handleDeleteTagDef
+    },
+    'POST:/api/chat-admin/tagdef/search': {
+        handler: handleGetTagDefs
     }
 };
 
@@ -152,23 +222,34 @@ export async function handlerFn(
         | GetChatAppsByRulesRequest
         | CreateOrUpdateChatAppOverrideRequest
         | DeleteChatAppOverrideRequest
+        | TagDefinitionCreateOrUpdateRequest
+        | TagDefinitionDeleteRequest
+        | TagDefinitionSearchRequest
         | BaseRequestData
         | void
     >
 ) {
     console.log('Event:', JSON.stringify(event, null, 2));
 
-    const { httpMethod, resource } = event;
+    const { httpMethod, path } = event;
 
-    console.log('resource', resource);
+    console.log('path', path);
 
-    const route = `${httpMethod}:${resource}`;
-    const routeHandler = routes[route];
-    if (!routeHandler) {
-        throw new HttpStatusError(`Unsupported route: ${httpMethod} ${resource}`, 404);
+    // Use dynamic route matching for proxy integration
+    const routeMatch = findMatchingRoute(httpMethod, path);
+    if (!routeMatch) {
+        throw new HttpStatusError(`Unsupported route: ${httpMethod} ${path}`, 404);
     }
 
-    return routeHandler.handler(event);
+    // Merge extracted path parameters with existing ones
+    if (Object.keys(routeMatch.pathParameters).length > 0) {
+        event.pathParameters = {
+            ...event.pathParameters,
+            ...routeMatch.pathParameters
+        };
+    }
+
+    return routeMatch.handler(event);
 }
 
 /**
@@ -747,4 +828,85 @@ async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearc
     return await searchForSessions(searchSessionsRequest);
 }
 
+/**
+ * POST:/api/chat-admin/tagdef
+ */
+async function handleCreateOrUpdateTagDef(event: APIGatewayProxyEventPika<TagDefinitionCreateOrUpdateRequest>): Promise<TagDefinitionCreateOrUpdateResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new Error('Request body is required');
+    }
+
+    if (!request.tagDefinition) {
+        throw new Error('Tag definition is required');
+    }
+
+    if (!request.userId) {
+        throw new Error('User ID is required');
+    }
+
+    return await createOrUpdateTagDefApi(request);
+}
+
+/**
+ * DELETE:/api/chat-admin/tagdef
+ */
+async function handleDeleteTagDef(event: APIGatewayProxyEventPika<TagDefinitionDeleteRequest>): Promise<TagDefinitionDeleteResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new Error('Request body is required');
+    }
+
+    if (!request.tagDefinition) {
+        throw new Error('Tag definition identifier is required');
+    }
+
+    if (!request.tagDefinition.scope) {
+        throw new Error('Tag definition scope is required');
+    }
+
+    if (!request.tagDefinition.tag) {
+        throw new Error('Tag definition tag is required');
+    }
+
+    return await deleteTagDefApi(request);
+}
+
+/**
+ * POST:/api/chat-admin/tagdef/search
+ */
+async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSearchRequest>): Promise<TagDefinitionSearchResponse> {
+    const request = event.body || {};
+    return await searchTagDefsApi(request);
+}
+
 export const handler = apiGatewayFunctionDecorator(handlerFn);
+
+// Test function to verify route matching works correctly
+// This can be removed after testing is complete
+function testRouteMatching() {
+    console.log('Testing route matching...');
+
+    // Test static routes
+    const staticTest = findMatchingRoute('GET', '/api/chat-admin/agent');
+    console.log('Static route test:', !!staticTest, staticTest?.pathParameters);
+
+    // Test parameterized routes
+    const paramTest1 = findMatchingRoute('GET', '/api/chat-admin/agent/abc123');
+    console.log('Param route test 1:', !!paramTest1, paramTest1?.pathParameters);
+
+    const paramTest2 = findMatchingRoute('PUT', '/api/chat-admin/chat-app/my-app-id');
+    console.log('Param route test 2:', !!paramTest2, paramTest2?.pathParameters);
+
+    const paramTest3 = findMatchingRoute('POST', '/api/chat-admin/chat-app/my-app/override');
+    console.log('Param route test 3:', !!paramTest3, paramTest3?.pathParameters);
+
+    // Test non-existent routes
+    const notFoundTest = findMatchingRoute('GET', '/api/chat-admin/nonexistent');
+    console.log('Not found test:', !!notFoundTest);
+
+    console.log('Route matching tests complete');
+}
+
+// Uncomment this line to run tests during deployment
+// testRouteMatching();

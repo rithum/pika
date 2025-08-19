@@ -100,6 +100,14 @@ export interface AppConfig {
     pikaChatProjNameKebabCase: string;
 
     /**
+     * Must be set in an environment variable.
+     * The DynamoDB table name for tag definitions
+     *
+     * env variable: TAG_DEFINITIONS_TABLE
+     */
+    tagDefinitionsTableName: string;
+
+    /**
      * Get an arbitrary config value from the environment or process.env
      * @param key - The key to get the value for
      * @returns The value of the key

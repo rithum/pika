@@ -2,10 +2,13 @@ import type { Component } from 'svelte';
 
 // Import all tag components
 import ChartComponent from './chart-renderer.svelte';
+import tagDefChart from './tag-definition-chart';
 import ChatComponent from './chat-renderer.svelte';
 import DownloadComponent from './download-renderer.svelte';
 import ImageComponent from './image-renderer.svelte';
+import imageDefChart from './tag-definition-image';
 import PromptComponent from './prompt.svelte';
+import promptDefChart from './tag-definition-prompt';
 
 // Import text renderer
 import type { MetadataTagHandler } from '../segment-types';
@@ -18,11 +21,14 @@ import { traceMetadataHandler } from './trace-metadata-handler';
  */
 export const defaultRenderers: Record<string, Component<any>> = {
     text: TextRenderer,
-    chart: ChartComponent,
+    [`${tagDefChart.scope}.${tagDefChart.tag}`]: ChartComponent,
+    ...(tagDefChart.legacyTagName ? { [tagDefChart.legacyTagName]: ChartComponent } : {}),
     chat: ChatComponent,
     download: DownloadComponent,
-    image: ImageComponent,
-    prompt: PromptComponent
+    [`${imageDefChart.scope}.${imageDefChart.tag}`]: ImageComponent,
+    ...(imageDefChart.legacyTagName ? { [imageDefChart.legacyTagName]: ImageComponent } : {}),
+    [`${promptDefChart.scope}.${promptDefChart.tag}`]: PromptComponent,
+    ...(promptDefChart.legacyTagName ? { [promptDefChart.legacyTagName]: PromptComponent } : {})
 };
 
 /**

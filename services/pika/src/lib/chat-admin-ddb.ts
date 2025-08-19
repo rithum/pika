@@ -8,6 +8,10 @@ import type {
     ChatSessionFeedbackForUpdate,
     ChatSessionLiteForUpdate,
     RecordOrUndef,
+    TagDefinition,
+    TagDefinitionWidget,
+    TagDefinitionForCreateOrUpdate,
+    TagDefinitionLite,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
@@ -17,7 +21,7 @@ import type {
 import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, type ScanOutput } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
@@ -63,6 +67,14 @@ function getChatAppTable(): string {
     const tableName = process.env.CHAT_APP_TABLE;
     if (!tableName) {
         throw new Error('CHAT_APP_TABLE environment variable is not set');
+    }
+    return tableName;
+}
+
+function getTagDefinitionsTable(): string {
+    const tableName = process.env.TAG_DEFINITIONS_TABLE;
+    if (!tableName) {
+        throw new Error('TAG_DEFINITIONS_TABLE environment variable is not set');
     }
     return tableName;
 }
@@ -1223,6 +1235,127 @@ async function executeUpdatesConcurrently(
     }
 
     return results;
+}
+
+// ===== TAG DEFINITION OPERATIONS =====
+
+/**
+ * Get all tag definitions with scan operation since no GSI is needed
+ */
+export async function getAllTagDefinitions(
+    includeDisabled: boolean = true,
+    includeInstructions: boolean = false,
+    paginationToken?: Record<string, any> | undefined
+): Promise<[TagDefinition<TagDefinitionWidget>[], Record<string, any> | undefined]> {
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    const result: ScanOutput = await ddbDocClient.scan({
+        TableName: getTagDefinitionsTable(),
+        ExclusiveStartKey: paginationToken,
+        FilterExpression: includeDisabled ? undefined : 'disabled = :disabled',
+        ExpressionAttributeValues: { ':disabled': false }
+    });
+    lastEvaluatedKey = result.LastEvaluatedKey;
+
+    let tagDefinitions = result.Items ? result.Items.map((item) => convertToCamelCase(item as unknown as SnakeCase<TagDefinition<TagDefinitionWidget>>)) : [];
+
+    // Filter out disabled definitions if requested
+    if (!includeDisabled) {
+        tagDefinitions = tagDefinitions.filter((tag) => !tag.disabled);
+    }
+
+    if (!includeInstructions) {
+        tagDefinitions = tagDefinitions.map((tag) => {
+            delete tag.llmInstructions;
+            return tag;
+        });
+    }
+
+    return [tagDefinitions, lastEvaluatedKey];
+}
+
+/**
+ * Get a specific tag definition by scope and tag
+ */
+export async function getTagDefinition(scope: string, tag: string): Promise<TagDefinition<TagDefinitionWidget> | null> {
+    const getParams = {
+        TableName: getTagDefinitionsTable(),
+        Key: {
+            scope,
+            tag
+        }
+    };
+
+    const result = await ddbDocClient.get(getParams);
+
+    if (!result.Item) {
+        return null;
+    }
+
+    return convertToCamelCase(result.Item as any) as TagDefinition<TagDefinitionWidget>;
+}
+
+/**
+ * Create or update a tag definition (idempotent operation)
+ */
+export async function createOrUpdateTagDefinition(tagDefinition: TagDefinitionForCreateOrUpdate, userId: string): Promise<TagDefinition<TagDefinitionWidget>> {
+    const now = new Date().toISOString();
+
+    // Check if the tag definition already exists
+    const existingTagDef = await getTagDefinition(tagDefinition.scope, tagDefinition.tag);
+
+    const tagDefToStore: TagDefinition<TagDefinitionWidget> = {
+        ...tagDefinition,
+        createdBy: existingTagDef?.createdBy ?? userId,
+        lastUpdatedBy: userId,
+        createDate: existingTagDef?.createDate ?? now,
+        lastUpdate: now
+    };
+
+    const putParams = {
+        TableName: getTagDefinitionsTable(),
+        Item: convertToSnakeCase(tagDefToStore)
+    };
+
+    await ddbDocClient.put(putParams);
+
+    return tagDefToStore;
+}
+
+/**
+ * Delete a tag definition
+ */
+export async function deleteTagDefinition(scope: string, tag: string): Promise<void> {
+    const deleteParams = {
+        TableName: getTagDefinitionsTable(),
+        Key: {
+            scope,
+            tag
+        }
+    };
+
+    await ddbDocClient.delete(deleteParams);
+}
+
+/**
+ * Search tag definitions with optional filtering
+ */
+export async function searchTagDefinitions(
+    tagsDesired?: TagDefinitionLite[],
+    includeDisabled: boolean = true,
+    includeInstructions: boolean = false,
+    paginationToken?: Record<string, any> | undefined
+): Promise<[TagDefinition<TagDefinitionWidget>[], Record<string, any> | undefined]> {
+    // Get all tag definitions first
+    let [allTagDefs, newPaginationToken] = await getAllTagDefinitions(includeDisabled, includeInstructions, paginationToken);
+
+    // If specific tags are desired, filter to only those
+    if (tagsDesired && tagsDesired.length > 0) {
+        const desiredSet = new Set(tagsDesired.map((t) => `${t.scope}.${t.tag}`));
+        allTagDefs = allTagDefs.filter((tagDef) => desiredSet.has(`${tagDef.scope}.${tagDef.tag}`));
+    }
+
+    return [allTagDefs, newPaginationToken];
 }
 
 /**

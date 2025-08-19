@@ -10,6 +10,15 @@
     const sessionInsights = appState.siteAdmin.sessionInsights;
 
     const features: ChatAppOverridableFeatures = {
+        tags: {
+            tagsEnabled: [],
+        },
+        agentInstructionAssistance: {
+            enabled: false,
+            includeInstructionsForTags: false,
+            completeExampleInstructionLine: undefined,
+            jsonOnlyImperativeInstructionLine: undefined,
+        },
         traces: {
             enabled: true,
             detailedTraces: true,
