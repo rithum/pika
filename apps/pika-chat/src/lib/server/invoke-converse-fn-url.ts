@@ -82,6 +82,9 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = name;
             process.env.TOOL_DEFINITIONS_TABLE = `tool-definitions-${name}-${stage}`;
             process.env.PIKA_S3_BUCKET = `pika-files-${name}-${stage}`;
+            if (process.env.POST_PROCESSOR_FUNCTION_ARN == null) {
+                process.env.POST_PROCESSOR_FUNCTION_ARN = `arn:aws:lambda:${process.env.AWS_REGION}:${appConfig.awsAccount}:function:${name}-${stage}-AgentPostProcessorFunction`;
+            }
 
             let r1: any, r2: any;
             let firstBytePromise: Promise<void> & {

@@ -388,6 +388,7 @@ async function converse(
         responseStream,
         agentAndTools,
         features,
+        process.env.POST_PROCESSOR_FUNCTION_ARN,
         conversationHistory
     );
     console.log('Agent response received:', {

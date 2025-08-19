@@ -1,6 +1,6 @@
 //TODO: make sure to turn on model invocation logging in aws
 
-import type { FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { AgentCollaboration, CollaboratorConfiguration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 
 export type CompanyType = 'retailer' | 'supplier';
 
@@ -1300,6 +1300,8 @@ export interface RolloutPolicy {
 export interface AgentDefinition {
     /** Unique agent identifier (e.g., 'weather-bot') */
     agentId: string;
+    /** Foundation model to use for this agent. */
+    foundationModel?: string;
     /** System prompt template (can be a handlebars template with placeholders like {{user.email}}) */
     basePrompt: string;
     /** List of access control rules with conditions.  If not provided, the agent will be accessible to all users. */
@@ -1310,6 +1312,17 @@ export interface AgentDefinition {
     rolloutPolicy?: RolloutPolicy;
     /** Cache configuration for testing and debugging, used in lambdas that create LRU caches for agent definitions */
     dontCacheThis?: boolean;
+
+    /** List of collaborator agent IDs that are used to orchestrate this agent. */
+    collaborators?: {
+        agentId: string;
+        instruction: string;
+        historyRelay: 'TO_COLLABORATOR' | 'TO_AGENT';
+    }[];
+
+    /** The collaboration type for this agent. */
+    agentCollaboration?: AgentCollaboration;
+
     /** List of tool definitions that this agent uses */
     toolIds: string[];
     /** A list of knowledge bases that are associated with this agent. */
@@ -1384,6 +1397,7 @@ export type ToolIdToLambdaArnMap = Record<string, string>;
 
 export interface AgentAndTools {
     agent: AgentDefinition;
+    collaborators?: AgentDefinition[];
     tools?: ToolDefinition[];
 }
 
@@ -1609,7 +1623,7 @@ export interface DeleteChatAppOverrideResponse {
     success: boolean;
 }
 
-export interface DeleteChatAppOverrideRequest {}
+export interface DeleteChatAppOverrideRequest { }
 
 export type ChatAppMode = 'standalone' | 'embedded';
 
@@ -2341,7 +2355,7 @@ export interface GetChatMessagesAsAdminResponse extends SiteAdminCommandResponse
     messages: ChatMessage[];
 }
 
-export interface ClearChatAppCacheResponse extends SiteAdminCommandResponseBase {}
+export interface ClearChatAppCacheResponse extends SiteAdminCommandResponseBase { }
 
 export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
@@ -2364,7 +2378,7 @@ export interface CreateOrUpdateChatAppOverrideResponse extends SiteAdminCommandR
     chatAppOverride: ChatAppOverride;
 }
 
-export interface DeleteChatAppOverrideResponse extends SiteAdminCommandResponseBase {}
+export interface DeleteChatAppOverrideResponse extends SiteAdminCommandResponseBase { }
 
 export type ContentAdminRequest = ViewContentForUserRequest | StopViewingContentForUserRequest | GetValuesForContentAdminAutoCompleteRequest;
 export type ContentAdminResponse = ViewContentForUserResponse | StopViewingContentForUserResponse | GetValuesForContentAdminAutoCompleteResponse;
@@ -2405,7 +2419,7 @@ export interface ViewContentForUserResponse extends ContentAdminCommandResponseB
     data: ChatUserLite | undefined;
 }
 
-export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase {}
+export interface StopViewingContentForUserResponse extends ContentAdminCommandResponseBase { }
 
 export interface GetViewingContentForUserResponse extends ContentAdminCommandResponseBase {
     data: ChatUserLite[] | undefined;
@@ -2458,7 +2472,7 @@ export interface SaveUserOverrideDataResponse extends UserOverrideDataCommandRes
     data: RecordOrUndef;
 }
 
-export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase {}
+export interface ClearUserOverrideDataResponse extends UserOverrideDataCommandResponseBase { }
 
 /**
  * This is the type used to persist the user data override data to a cookie if provided.

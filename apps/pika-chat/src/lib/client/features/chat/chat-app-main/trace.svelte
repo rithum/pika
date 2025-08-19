@@ -110,6 +110,22 @@
                         val.orchestrationTrace?.observation.actionGroupInvocationOutput.text,
                         'try-json'
                     );
+                } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.agentCollaboratorInvocationInput) {
+                    title = 'Parameters:';
+                    isCode = true;
+                    [md, rawText] = renderMarkdown(
+                        val.orchestrationTrace?.invocationInput.agentCollaboratorInvocationInput,
+                        'json'
+                    );
+                } else if (
+                    detailedTrace &&
+                    val.orchestrationTrace?.observation?.agentCollaboratorInvocationOutput?.output?.text
+                ) {
+                    title = 'Response:';
+                    isCode = true;
+                    [md, rawText] = renderMarkdown(
+                        val.orchestrationTrace?.observation.agentCollaboratorInvocationOutput.output.text
+                    );
                 }
                 return md
                     ? {
@@ -135,6 +151,13 @@
           }
         | {
               type: 'knowledgeBaseInvocation';
+              title: string;
+              id: string;
+              parameters?: { markdown: string; rawText: string };
+              response?: { markdown: string; rawText: string };
+          }
+        | {
+              type: 'collaboratorInvocation';
               title: string;
               id: string;
               parameters?: { markdown: string; rawText: string };
@@ -177,7 +200,7 @@
         const grouped: GroupedTrace[] = [];
         const toolInvocations = new Map<
             string,
-            GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' }
+            GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' }
         >();
         const verificationTraces: GroupedTrace[] = [];
 
@@ -218,6 +241,80 @@
                     markdown: md,
                     rawText,
                 });
+            } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.agentCollaboratorInvocationInput) {
+                // Parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.invocationInput.agentCollaboratorInvocationInput,
+                    'json'
+                );
+
+                // Use index as a key to group related parameters and responses
+                const key = `collaborator_${index}`;
+                let toolInvocation = dontGroupTraces ? null : toolInvocations.get(key);
+
+                if (!toolInvocation) {
+                    const functionName =
+                        val.orchestrationTrace?.invocationInput?.agentCollaboratorInvocationInput.agentCollaboratorName;
+                    const id = val.orchestrationTrace.invocationInput.traceId ?? functionName ?? uuidv4();
+                    toolInvocation = {
+                        id,
+                        type: 'collaboratorInvocation',
+                        title: functionName ? `Invoking collaborator: ${functionName}` : 'Invoking collaborator...',
+                    };
+                    if (dontGroupTraces) {
+                        grouped.push(toolInvocation);
+                    } else {
+                        toolInvocations.set(key, toolInvocation);
+                    }
+                }
+
+                toolInvocation.parameters = { markdown: md, rawText };
+            } else if (
+                detailedTrace &&
+                val.orchestrationTrace?.observation?.agentCollaboratorInvocationOutput?.output?.text
+            ) {
+                // Response trace - try to match with a previous parameters trace
+                const [md, rawText] = renderMarkdown(
+                    val.orchestrationTrace?.observation.agentCollaboratorInvocationOutput.output.text,
+                    'try-json'
+                );
+                const id = val.orchestrationTrace.observation.traceId ?? uuidv4();
+
+                // Look for a tool invocation that doesn't have a response yet
+                let matchedToolInvocation = null;
+
+                if (dontGroupTraces) {
+                    matchedToolInvocation = grouped[grouped.length - 1];
+                    if (matchedToolInvocation.type != 'collaboratorInvocation') {
+                        matchedToolInvocation = null;
+                    }
+                } else {
+                    for (const [key, toolInv] of toolInvocations) {
+                        if (!toolInv.response) {
+                            matchedToolInvocation = toolInv;
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedToolInvocation) {
+                    matchedToolInvocation.response = { markdown: md, rawText };
+                } else {
+                    // Create a new tool invocation for orphaned response
+                    const key = `collaborator_response_${index}`;
+                    const toolInvocation: GroupedTrace & { type: 'collaboratorInvocation' } = {
+                        id,
+                        type: 'collaboratorInvocation',
+                        title: 'Collaborator response',
+                        response: { markdown: md, rawText },
+                    };
+
+                    if (dontGroupTraces) {
+                        grouped.push(toolInvocation);
+                    } else {
+                        toolInvocations.set(key, toolInvocation);
+                    }
+                }
             } else if (detailedTrace && val.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
                 // Parameters trace
                 const [md, rawText] = renderMarkdown(
@@ -414,7 +511,7 @@
                         <div
                             class="prose prose-sm prose-gray flex-1 text-md text-gray-600 pt-1 relative left-[-2px] max-w-[42rem]"
                         >
-                            {#if trace.type === 'toolInvocation' || trace.type === 'knowledgeBaseInvocation'}
+                            {#if trace.type === 'toolInvocation' || trace.type === 'knowledgeBaseInvocation' || trace.type === 'collaboratorInvocation'}
                                 {@render toolInvocationTrace(trace)}
                             {:else if trace.type === 'verification'}
                                 {@render verificationTrace(trace)}
@@ -532,7 +629,9 @@
     </div>
 {/snippet}
 
-{#snippet toolInvocationTrace(trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' })}
+{#snippet toolInvocationTrace(
+    trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' }
+)}
     <div class="font-medium text-gray-700 mb-3">{trace.title}</div>
 
     {#if trace.parameters}
@@ -547,7 +646,7 @@
 {#snippet codeSection(
     title: string,
     content: { markdown: string; rawText: string },
-    trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' },
+    trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' },
     section: 'parameters' | 'response'
 )}
     <div class="mb-4">
