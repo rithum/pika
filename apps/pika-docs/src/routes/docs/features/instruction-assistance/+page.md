@@ -22,7 +22,7 @@ The instruction assistance system uses several powerful placeholders that get re
 
 ### tag-instructions placeholder
 
-`{{tag-instructions-placeholder}}`
+`{{tag-instructions}}`
 
 When you enable the `includeInstructionsForTags` option, this placeholder gets replaced with detailed instructions for all tags that are available to your chat app. The system automatically:
 
