@@ -1,4 +1,4 @@
-# AI Driven UI (tags)
+# AI Driven UI Tags (BETA)
 
 Pika includes advanced widgets that can render inline in the body of the chat response from the LLM. This revolutionary approach represents a shift away from canned UI experiences to UI experiences that materialize in the moment, guided by the LLM.
 

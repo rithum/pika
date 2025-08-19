@@ -1,6 +1,10 @@
-# Tags Feature
+# Tags Feature (BETA)
 
 The Tags feature enables AI-driven UI components that can be dynamically rendered within chat responses. This powerful system allows LLMs to create contextual, interactive user interfaces on-demand.
+
+:::info[Evolution of Custom Message Tags]
+This Tags Feature system is the evolution of Pika's [Custom Message Tags](/docs/developer/custom-message-tags) system. While the original system required compiled-in renderers registered directly in code, this new system introduces formal tag definitions, API management, and support for dynamic web components. Existing custom renderers continue to work and serve as the foundation for this evolved approach.
+:::
 
 ## Overview
 
@@ -12,7 +16,7 @@ Tags are special markup elements that the LLM can include in responses to render
 
 Enable the tags feature in your `pika-config.ts`:
 
-```typescript
+```js
 export const siteFeatures: SiteFeatures = {
     tags: {
         enabled: true,
@@ -33,7 +37,7 @@ export const siteFeatures: SiteFeatures = {
 
 Override tag settings for specific chat apps:
 
-```typescript
+```js
 const chatAppFeatures: ChatAppOverridableFeatures = {
     tags: {
         tagsEnabled: [
@@ -54,26 +58,29 @@ Built-in tags are provided by Pika and include common UI components:
 - **Image**: Shows images with captions
 - **Prompt**: Renders a button with a follow-up prompt recommended by the LLM
 
-### Svelte Custom Tags
+### Custom Compiled-in Tags
 
-Custom Svelte components defined in your application code:
+Custom Svelte components that are compiled into your application code. These leverage the existing [Custom Message Tags](/docs/developer/custom-message-tags) renderer system:
 
-```typescript
+```js
 {
   tag: 'product-form',
   scope: 'acme_company',
   widget: {
     type: 'custom-compiled-in',
-    // Component will be loaded from your custom components directory
+    // This references a renderer from your customRenderers registry
+    // in apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/
   }
 }
 ```
+
+The `custom-compiled-in` widget type bridges the gap between the legacy custom renderer system and the new tag definitions. Your existing custom renderers (registered in the `customRenderers` object) can be used with tag definitions by specifying this widget type.
 
 ### Web Component Tags
 
 Standalone web components that can be uploaded and dynamically loaded:
 
-```typescript
+```js
 {
   tag: 'advanced-calculator',
   scope: 'acme_company',
@@ -92,7 +99,7 @@ Standalone web components that can be uploaded and dynamically loaded:
 
 Tags that are passed through without UI rendering, useful for semantic markup:
 
-```typescript
+```js
 {
   tag: 'metadata',
   scope: 'system',
@@ -106,7 +113,7 @@ Tags that are passed through without UI rendering, useful for semantic markup:
 
 A complete tag definition includes:
 
-```typescript
+```js
 interface TagDefinition<T extends TagDefinitionWidget> {
     tag: string; // The tag name (e.g., 'chart')
     scope: string; // Namespace/scope (e.g., 'builtin', 'custom')
@@ -125,7 +132,7 @@ interface TagDefinition<T extends TagDefinitionWidget> {
 
 The `llmInstructions` field provides structured guidance to the LLM about when and how to use the tag:
 
-```typescript
+```js
 const instructions: TagInstructionForLlm[] = [
     {
         type: 'line',
@@ -207,7 +214,7 @@ customElements.define('calculator-widget', CalculatorWidget);
 
 ### Admin APIs (Full Access)
 
-```typescript
+```js
 // Create or update a tag definition
 POST /api/chat-admin/tagdef
 {
@@ -238,7 +245,7 @@ POST /api/chat-admin/tagdef/search
 
 ### Chat APIs (Read-only, Enabled Only)
 
-```typescript
+```js
 // Search enabled tag definitions only
 POST /api/chat/tagdef/search
 {
@@ -275,11 +282,80 @@ POST /api/chat/tagdef/search
 - Use Content Security Policy (CSP) headers appropriately
 - Avoid exposing sensitive data through tag attributes
 
+## Migration from Custom Message Tags
+
+If you have existing custom renderers using the [Custom Message Tags system](/docs/developer/custom-message-tags), you can easily integrate them with tag definitions:
+
+### Step 1: Create Tag Definition
+
+For an existing custom renderer registered as:
+
+```js
+// In customRenderers object
+export const customRenderers: Record<string, Component<any>> = {
+    'data-table': MyDataTableRenderer,
+    'order-form': OrderFormRenderer
+};
+```
+
+Create a corresponding tag definition:
+
+```js
+{
+  tag: 'data-table',
+  scope: 'custom',
+  widget: {
+    type: 'custom-compiled-in'
+  },
+  llmInstructions: [
+    {
+      type: 'line',
+      text: 'Use the data-table tag to display tabular data with headers and rows'
+    },
+    {
+      type: 'line',
+      text: 'Example: <data-table>{"headers":["Name","Age"],"rows":[["John","30"],["Jane","25"]]}</data-table>'
+    }
+  ],
+  enabled: true,
+  createdBy: 'admin',
+  lastUpdatedBy: 'admin',
+  createDate: new Date().toISOString(),
+  lastUpdate: new Date().toISOString()
+}
+```
+
+### Step 2: Register Tag Definition
+
+Use the Admin API to register your tag definition:
+
+```js
+POST /api/chat-admin/tagdef
+{
+  "tagDefinition": { /* your tag definition */ },
+  "userId": "admin-user"
+}
+```
+
+### Step 3: Enhanced LLM Instructions
+
+Your tag definition now provides structured instructions to the LLM about when and how to use your custom renderer, making it more discoverable and useful.
+
+### Future Web Component Migration
+
+When ready, you can evolve your custom-compiled-in tags to web components by:
+
+1. Converting your Svelte component to a web component
+2. Uploading it to S3
+3. Updating the tag definition to use `widget.type: 'web-component'`
+
+No changes to your existing renderer code are required during the transition period.
+
 ## Integration Examples
 
 ### Frontend Integration
 
-```typescript
+```js
 // In your chat app state
 const chatAppState = appState.addChatApp(
     chatApp,

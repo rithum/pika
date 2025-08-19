@@ -40,7 +40,7 @@ The agent functions as a **coordinator** that:
 
 Critical user and entity information is passed securely using **AWS Bedrock's session management system**:
 
-```typescript
+```js
 // This data is passed to tools via Bedrock sessionAttributes and the LLM cannot set it or modify it
 // and all tools ensure that LLM requests that attempt to provide such context is ignored in favor
 // of the canonical data in the session.
@@ -71,7 +71,7 @@ When the agent calls a tool (Lambda function), the tool receives:
 
 _Data Access Tool:_
 
-```typescript
+```js
 export async function handler(event: BedrockActionGroupLambdaEvent) {
     // Extract authenticated context (set by platform, not LLM)
     const userId = event.sessionAttributes.userId;
@@ -85,7 +85,7 @@ export async function handler(event: BedrockActionGroupLambdaEvent) {
 
 _User Identity Tool:_
 
-```typescript
+```js
 export async function whoAmIHandler(event: BedrockActionGroupLambdaEvent) {
     // Extract authenticated context (set by platform, not LLM)
     const userId = event.sessionAttributes.userId;
