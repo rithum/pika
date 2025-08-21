@@ -393,7 +393,7 @@ async function invokeAgentToVerifyAnswer(
 - C: Accurate but containing assumptions that are not in the response
 - F: Inaccurate or containing made up information
 
-Response with the classification Letter and Explanation as json in an <answer></answer> tag.  Example: <answer>{ "classification": "C", "explanation": "The answer made up data sales data for the year 2024." }</answer>`;
+Response with the the classification Letter and Explanation as json in an <answer></answer> tag.  Example: <answer>{ "classification": "C", "explanation": "The answer made up data sales data for the year 2024." }</answer>`;
     cmdInput.inputText = 'Classify your previous response';
 
     let invokeResponse = await invokeAgent(
@@ -451,9 +451,7 @@ export async function invokeAgentToGetAnswer(
     agentAndTools: AgentAndTools,
     features: ChatAppOverridableFeaturesForConverseFn,
     agentPostProcessorFnArn?: string,
-    conversationHistory?: ConversationHistory,
-    model?: string,
-    verificationModel?: string
+    conversationHistory?: ConversationHistory
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -528,7 +526,7 @@ export async function invokeAgentToGetAnswer(
     console.log('Building command input...');
     const cmdInput: InvokeInlineAgentCommandInput = {
         sessionId: chatSession.sessionId,
-        foundationModel: model ?? DEFAULT_ANTHROPIC_MODEL,
+        foundationModel: agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
         instruction: agentAndTools.agent.basePrompt,
         inputText: questionFromUser,
         enableTrace: true,
@@ -541,7 +539,7 @@ export async function invokeAgentToGetAnswer(
                 agentName: collaborator.agentId,
                 instruction: collaborator.basePrompt,
                 agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),// (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
-                foundationModel: collaborator.foundationModel ?? model ?? DEFAULT_ANTHROPIC_MODEL,
+                foundationModel: collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
                 actionGroups: collaborator.toolIds?.map(id => actionGroupsMap[id]),
                 knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
 
@@ -698,7 +696,7 @@ export async function invokeAgentToGetAnswer(
 
         if (features.verifyResponse.enabled) {
             console.log('Verifying response...');
-            let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput, verificationModel);
+            let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput, agentAndTools.agent.verificationFoundationModel);
             addUsage(verifyResponse.usage);
             if (verifyResponse.error) {
                 console.log('Error during Verification.  Proceeding w/o verification', verifyResponse.error);
@@ -752,7 +750,7 @@ export async function invokeAgentToGetAnswer(
                     if (correctionResponse.error) {
                         throw correctionResponse.error;
                     }
-                    let correctionVerifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
+                    let correctionVerifyResponse = await invokeAgentToVerifyAnswer(cmdInput, agentAndTools.agent.verificationFoundationModel);
                     addUsage(correctionVerifyResponse.usage);
                     if (correctionVerifyResponse.error) {
                         console.log('Error during Correction Verification.  Proceeding w/o verification', correctionVerifyResponse.error);
