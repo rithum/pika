@@ -1,37 +1,43 @@
-import type {
-    AddChatSessionFeedbackResponse,
-    AuthenticatedUser,
-    ChatApp,
-    ChatAppOverride,
-    ChatAppOverrideForCreateOrUpdate,
-    ChatSessionFeedback,
-    ChatSessionFeedbackForCreate,
-    ChatSessionFeedbackForUpdate,
-    CreateOrUpdateChatAppOverrideResponse,
-    DeleteChatAppOverrideResponse,
-    GetChatAppsByRulesRequest,
-    GetChatAppsByRulesResponse,
-    RecordOrUndef,
-    SessionSearchRequest,
-    SessionSearchResponse,
-    TagDefinition,
-    TagDefinitionCreateOrUpdateRequest,
-    TagDefinitionCreateOrUpdateResponse,
-    TagDefinitionDeleteRequest,
-    TagDefinitionDeleteResponse,
-    TagDefinitionSearchRequest,
-    TagDefinitionSearchResponse,
-    TagDefinitionWidget,
-    UpdateChatSessionFeedbackResponse,
-    UserChatAppRule
+import {
+    ClearSvelteKitCacheTypes,
+    type AddChatSessionFeedbackResponse,
+    type AgentDefinition,
+    type AuthenticatedUser,
+    type ChatApp,
+    type ChatAppOverride,
+    type ChatAppOverrideForCreateOrUpdate,
+    type ChatSessionFeedback,
+    type ChatSessionFeedbackForCreate,
+    type ChatSessionFeedbackForUpdate,
+    type ClearSvelteKitCacheType,
+    type CreateOrUpdateChatAppOverrideResponse,
+    type DeleteChatAppOverrideResponse,
+    type GetChatAppsByRulesRequest,
+    type GetChatAppsByRulesResponse,
+    type InstructionAssistanceConfig,
+    type RecordOrUndef,
+    type SessionSearchRequest,
+    type SessionSearchResponse,
+    type TagDefinition,
+    type TagDefinitionCreateOrUpdateRequest,
+    type TagDefinitionCreateOrUpdateResponse,
+    type TagDefinitionDeleteRequest,
+    type TagDefinitionDeleteResponse,
+    type TagDefinitionSearchRequest,
+    type TagDefinitionSearchResponse,
+    type TagDefinitionWidget,
+    type UpdateChatSessionFeedbackResponse,
+    type UserChatAppRule
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
 import { hash } from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
+import { getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
+import { getParametersByPath } from './ssm';
 
-const lruCache = new LRUCache({
+const chatAppCache = new LRUCache({
     max: 100,
     maxSize: 50000,
     ttl: 1000 * 60 * 5, // 5 minutes
@@ -45,6 +51,16 @@ const tagDefinitionsCache = new LRUCache({
     max: 50,
     maxSize: 25000,
     ttl: 1000 * 60 * 10, // 10 minutes for tag definitions
+    ttlAutopurge: true,
+    sizeCalculation: (value, key) => {
+        return 1;
+    }
+});
+
+const instructionAssistanceConfigCache = new LRUCache({
+    max: 1,
+    maxSize: 1,
+    ttl: 1000 * 60 * 60 * 1, // 1 hour
     ttlAutopurge: true,
     sizeCalculation: (value, key) => {
         return 1;
@@ -87,8 +103,60 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
     return response.body.chatApp;
 }
 
+export async function getAgent(agentId: string): Promise<AgentDefinition | undefined> {
+    const response = await invokeApi<{ success: boolean; agent?: AgentDefinition; error?: string }>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/agent/${agentId}`,
+        method: 'GET'
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error getting agent from chat database for agentId ${agentId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.agent;
+}
+
 export async function clearChatAppCache(chatAppId: string): Promise<void> {
-    lruCache.delete(`chatApp:${chatAppId}`);
+    chatAppCache.delete(`chatApp:${chatAppId}`);
+}
+
+export async function clearSvelteKitCache(cacheType: ClearSvelteKitCacheType, chatAppId?: string): Promise<{ clearedCount: number; cacheType: string }> {
+    let clearedCount = 0;
+
+    if (!ClearSvelteKitCacheTypes.includes(cacheType)) {
+        throw new Error(`Invalid cache type: ${cacheType}`);
+    }
+
+    if (cacheType === 'chatAppCache' || cacheType === 'all') {
+        if (chatAppId) {
+            // Clear specific chat app from chatAppCache
+            const hasKey = chatAppCache.has(`chatApp:${chatAppId}`);
+            if (hasKey) {
+                chatAppCache.delete(`chatApp:${chatAppId}`);
+                clearedCount++;
+            }
+        } else {
+            // Clear all chatAppCache entries
+            clearedCount += chatAppCache.size;
+            chatAppCache.clear();
+        }
+    }
+
+    if (cacheType === 'tagDefinitionsCache' || cacheType === 'all') {
+        clearedCount += tagDefinitionsCache.size;
+        tagDefinitionsCache.clear();
+    }
+
+    if (cacheType === 'instructionAssistanceConfigCache' || cacheType === 'all') {
+        clearedCount += instructionAssistanceConfigCache.size;
+        instructionAssistanceConfigCache.clear();
+    }
+
+    return {
+        clearedCount,
+        cacheType: cacheType === 'all' ? 'all caches' : cacheType
+    };
 }
 
 /**
@@ -136,10 +204,10 @@ export async function getMatchingChatApps(
 
     // Hash the request and see if it is in the cache
     const requestHash = hash('sha256', JSON.stringify(request));
-    const cachedResponse = lruCache.get(requestHash);
+    const cachedResponse = chatAppCache.get(requestHash);
     if (cachedResponse) {
         const chatAppIds = cachedResponse as string[];
-        const allAreCached = chatAppIds.every((chatAppId) => lruCache.has(`chatApp:${chatAppId}`));
+        const allAreCached = chatAppIds.every((chatAppId) => chatAppCache.has(`chatApp:${chatAppId}`));
         if (allAreCached) {
             const chatApps = (await Promise.all(chatAppIds.map((chatAppId) => getChatApp(chatAppId)))) as ChatApp[];
             console.log(
@@ -194,11 +262,11 @@ export async function getMatchingChatApps(
     if (response.body.chatApps.length > 0) {
         response.body.chatApps.forEach((chatApp) => {
             if (!chatApp.dontCacheThis) {
-                lruCache.set(`chatApp:${chatApp.chatAppId}`, chatApp.chatAppId);
+                chatAppCache.set(`chatApp:${chatApp.chatAppId}`, chatApp.chatAppId);
             }
         });
 
-        lruCache.set(
+        chatAppCache.set(
             requestHash,
             response.body.chatApps.map((chatApp) => chatApp.chatAppId)
         );
@@ -393,4 +461,17 @@ export async function searchTagDefinitions(request: TagDefinitionSearchRequest):
     }
 
     return response.body;
+}
+
+export async function getInstructionAssistanceConfigFromSsm(): Promise<InstructionAssistanceConfig> {
+    const cachedResponse = instructionAssistanceConfigCache.get('instruction-assistance-config') as InstructionAssistanceConfig | undefined;
+    if (cachedResponse) {
+        return cachedResponse;
+    }
+
+    const response = await getParametersByPath(`/stack/${appConfig.pikaServiceProjNameKebabCase}/${appConfig.stage}/instruction-assistance/`);
+    const config = getInstructionsAssistanceConfigFromRawSsmParams(response);
+    instructionAssistanceConfigCache.set('instruction-assistance-config', config);
+
+    return config;
 }

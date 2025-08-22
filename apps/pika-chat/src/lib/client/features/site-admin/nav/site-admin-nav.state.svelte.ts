@@ -1,10 +1,11 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
-import { Bot, ChartBar, Settings } from '$icons/lucide';
+import { Bot, ChartBar, FileBox, Settings } from '$icons/lucide';
 import type { Page } from '@sveltejs/kit';
+import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
+import Caches from '../pages/caches.svelte';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
-import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 
 const ITEMS: NavItem[] = [
     {
@@ -25,6 +26,12 @@ const ITEMS: NavItem[] = [
         icon: ChartBar,
         pageComponent: SessionInsights,
         enabled: (siteFeatures: SiteFeatures) => siteFeatures.sessionInsights?.enabled ?? false
+    },
+    {
+        title: 'Caches',
+        url: '/admin/caches',
+        icon: FileBox,
+        pageComponent: Caches
     }
 ];
 

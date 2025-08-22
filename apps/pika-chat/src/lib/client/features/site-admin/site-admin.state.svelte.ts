@@ -3,13 +3,19 @@ import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type {
     AddChatSessionFeedbackResponse,
+    AgentDefinition,
     ChatAppMode,
     ChatSession,
     ChatUserLite,
+    ClearConverseLambdaCacheResponse,
+    ClearSvelteKitCachesResponse,
     CreateOrUpdateChatAppOverrideResponse,
     DeleteChatAppOverrideResponse,
+    GetAgentResponse,
+    GetInstructionAssistanceConfigFromSsmResponse,
     GetValuesForEntityAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
+    InstructionAssistanceConfig,
     RefreshChatAppResponse,
     SessionSearchResponse,
     SimpleOption,
@@ -38,6 +44,7 @@ export class SiteAdminState {
     #appState: AppState;
     #identity: IdentityState;
     #chatApps = $state<ChatApp[]>([]);
+    #agents = $state<AgentDefinition[]>([]);
     #siteFeatures = $state<SiteFeatures>();
     #tagDefinitions = $state<TagDefinition<TagDefinitionWidget>[]>([]);
     #nav = $state<SiteAdminNavState>() as SiteAdminNavState;
@@ -63,6 +70,7 @@ export class SiteAdminState {
     valuesForExternalEntityAutoComplete = $state<SimpleOption[] | undefined>(undefined);
     valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
     #componentRegistry: ComponentRegistry;
+    #instructionAssistanceConfig = $state<InstructionAssistanceConfig | undefined>(undefined);
 
     siteAdminOperationInProgress: Record<SiteAdminCommand, boolean> = $state({
         getInitialData: false,
@@ -71,14 +79,17 @@ export class SiteAdminState {
         deleteChatAppOverride: false,
         getValuesForEntityAutoComplete: false,
         getValuesForUserAutoComplete: false,
-        clearChatAppCache: false,
+        clearConverseLambdaCache: false,
+        clearSvelteKitCaches: false,
         addChatSessionFeedback: false,
         updateChatSessionFeedback: false,
         sessionSearch: false,
         getChatMessagesAsAdmin: false,
         createOrUpdateTagDefinition: false,
         deleteTagDefinition: false,
-        searchTagDefinitions: false
+        searchTagDefinitions: false,
+        getAgent: false,
+        getInstructionAssistanceConfigFromSsm: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -130,12 +141,20 @@ export class SiteAdminState {
         return this.#chatApps;
     }
 
+    get agents() {
+        return this.#agents;
+    }
+
     get siteFeatures() {
         return this.#siteFeatures;
     }
 
     get tagDefinitions() {
         return this.#tagDefinitions;
+    }
+
+    get instructionAssistanceConfig() {
+        return this.#instructionAssistanceConfig;
     }
 
     get mode() {
@@ -252,14 +271,12 @@ export class SiteAdminState {
                     // Didn't find the chat app to delete the override for, so throw an error, shouldn't happen
                     throw new Error(`Chat app ${request.chatAppId} not found when deleting chat app override`);
                 }
-            } else if (request.command === 'clearChatAppCache') {
-                if (!request.chatAppId) {
-                    throw new Error('chatAppId is required for clearChatAppCache');
+            } else if (request.command === 'clearConverseLambdaCache') {
+                const response = json as ClearConverseLambdaCacheResponse;
+                if (response.success) {
+                    // Cache cleared successfully - could add a toast notification here
+                    console.log('Converse lambda cache cleared');
                 }
-                await this.sendSiteAdminCommand({
-                    command: 'refreshChatApp',
-                    chatAppId: request.chatAppId
-                });
             } else if (request.command === 'addChatSessionFeedback') {
                 const response = json as AddChatSessionFeedbackResponse;
                 const feedback = response.feedback;
@@ -321,6 +338,30 @@ export class SiteAdminState {
                 const response = json as TagDefinitionSearchResponse;
                 if (response.success) {
                     this.#tagDefinitions = response.tagDefinitions;
+                }
+            } else if (request.command === 'getAgent') {
+                const response = json as GetAgentResponse;
+                if (response.success) {
+                    const agent = response.agent;
+                    if (agent) {
+                        const idx = this.#agents.findIndex((a) => a.agentId === agent.agentId);
+                        if (idx !== -1) {
+                            this.#agents[idx] = agent;
+                        } else {
+                            this.#agents.push(agent);
+                        }
+                    }
+                }
+            } else if (request.command === 'getInstructionAssistanceConfigFromSsm') {
+                const response = json as GetInstructionAssistanceConfigFromSsmResponse;
+                if (response.success) {
+                    this.#instructionAssistanceConfig = response.config;
+                }
+            } else if (request.command === 'clearSvelteKitCaches') {
+                const response = json as ClearSvelteKitCachesResponse;
+                if (response.success) {
+                    // Cache cleared successfully - could add a toast notification here
+                    console.log(`Cleared ${response.cacheType} cache, count: ${response.clearedCount ?? 'unknown'}`);
                 }
             }
         } catch (e) {

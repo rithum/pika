@@ -1,19 +1,16 @@
 <script lang="ts">
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { assert } from '$lib/utils';
     import List from '$ui/pika/list/list.svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Input } from '$ui/shadcn/input';
     import { Label } from '$ui/shadcn/label';
-    import { Separator } from '$ui/shadcn/separator';
-    import { Trash2, Plus } from '$icons/lucide';
-    import { assert } from '$lib/utils';
     import type {
-        TagsFeatureForChatApp,
+        TagDefinition,
         TagDefinitionLite,
-        SiteAdminCommand,
+        TagDefinitionWidget,
+        TagsFeatureForChatApp,
     } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
-    import type { SiteAdminState } from '$lib/client/features/site-admin/site-admin.state.svelte';
 
     interface Props {
         overriddenFeature: TagsFeatureForChatApp | undefined;
@@ -35,7 +32,9 @@
         disabled,
     }: Props = $props();
 
-    const siteAdminState = getContext<SiteAdminState>('siteAdminState');
+    const appState = getContext<AppState>('appState');
+    const siteAdminState = appState.siteAdmin;
+    let selectedTag = $state<TagDefinition<TagDefinitionWidget> | undefined>(undefined);
 
     let validErrors = $derived.by(() => {
         // No validation errors for tags feature currently
@@ -47,11 +46,12 @@
     // Available tag definitions from the site admin state
     let availableTagDefinitions = $derived(siteAdminState.tagDefinitions || []);
 
-    // Track available scopes for the scope selector
-    let availableScopes = $derived.by(() => {
-        const scopes = new Set<string>();
-        availableTagDefinitions.forEach((def) => scopes.add(def.scope));
-        return Array.from(scopes).sort();
+    let tagsEnabled = $derived.by(() => {
+        const availableTags = availableTagDefinitions;
+        const enabledTags = featureToShow?.tagsEnabled || [];
+        return availableTags.filter((tag) =>
+            enabledTags.some((enabled) => enabled.scope === tag.scope && enabled.tag === tag.tag)
+        );
     });
 
     function ensureFeature(): TagsFeatureForChatApp {
@@ -83,46 +83,31 @@
         }
     });
 
-    // Load tag definitions when component mounts
+    // Load all tag definitions when component mounts
     $effect(() => {
         if (siteAdminState && (!siteAdminState.tagDefinitions || siteAdminState.tagDefinitions.length === 0)) {
-            // Load tag definitions from the server
-            siteAdminState.sendSiteAdminCommand({
-                command: 'searchTagDefinitions',
-                request: {
-                    includeInstructions: false, // We don't need instructions for the feature config
-                },
-            });
+            loadAllTagDefinitions();
         }
     });
 
-    function addEnabledTag() {
-        assert(isOverrideMode, 'isOverrideMode must be true');
-        const feature = ensureFeature();
-        feature.tagsEnabled = feature.tagsEnabled || [];
-        feature.tagsEnabled.push({ tag: '', scope: '' });
-    }
+    // Function to load all tag definitions with pagination
+    async function loadAllTagDefinitions() {
+        let allTagDefinitions: TagDefinition<TagDefinitionWidget>[] = [];
+        let paginationToken: Record<string, any> | undefined = undefined;
 
-    function removeEnabledTag(index: number) {
-        assert(isOverrideMode, 'isOverrideMode must be true');
-        const feature = ensureFeature();
-        if (feature.tagsEnabled && feature.tagsEnabled.length > index) {
-            feature.tagsEnabled.splice(index, 1);
-        }
-    }
+        do {
+            const response = await siteAdminState.sendSiteAdminCommand({
+                command: 'searchTagDefinitions',
+                request: {
+                    includeInstructions: true, // Include instructions as requested
+                    paginationToken,
+                },
+            });
 
-    // Function to get available tags for a given scope
-    function getTagsForScope(scope: string): string[] {
-        return availableTagDefinitions
-            .filter((def) => def.scope === scope)
-            .map((def) => def.tag)
-            .sort();
-    }
-
-    // Function to check if a tag combination is valid
-    function isValidTagCombination(tagLite: TagDefinitionLite): boolean {
-        if (!tagLite.tag || !tagLite.scope) return false;
-        return availableTagDefinitions.some((def) => def.tag === tagLite.tag && def.scope === tagLite.scope);
+            // The response will be processed by the site admin state and stored in tagDefinitions
+            // We need to break after the first call since the state handles the response
+            break;
+        } while (paginationToken);
     }
 </script>
 
@@ -131,142 +116,207 @@
         <p class="text-sm text-muted-foreground italic">
             This feature is not enabled at the site level and cannot be configured.
         </p>
-    {:else if featureToShow && !isOverrideMode}
-        <div class="space-y-4">
-            <div>
-                <Label class="text-sm font-medium">Enabled Tags:</Label>
-                {#if featureToShow.tagsEnabled && featureToShow.tagsEnabled.length > 0}
-                    <div class="mt-2 space-y-2">
-                        {#each featureToShow.tagsEnabled as tagLite}
-                            <div class="flex items-center gap-2 p-2 border rounded">
-                                <span class="font-mono text-sm">{tagLite.scope}:{tagLite.tag}</span>
-                                {#if !isValidTagCombination(tagLite)}
-                                    <span class="text-xs text-red-500">(Invalid - tag definition not found)</span>
-                                {/if}
-                            </div>
-                        {/each}
-                    </div>
-                {:else}
-                    <p class="text-sm text-muted-foreground mt-2">No tags are currently enabled for this chat app.</p>
-                {/if}
-            </div>
-        </div>
-    {:else if featureEnabled && isOverrideMode}
-        <div class="space-y-4">
-            {#if siteAdminState.siteAdminOperationInProgress.searchTagDefinitions}
-                <p class="text-sm text-muted-foreground">Loading available tag definitions...</p>
-            {:else if availableTagDefinitions.length === 0}
-                <div class="p-4 border rounded bg-yellow-50">
-                    <p class="text-sm text-yellow-800">
-                        No tag definitions are currently available. Tag definitions need to be created by a site
-                        administrator before they can be enabled for chat apps.
+    {:else}
+        <div class="flex items-center gap-2 mb-2">
+            <Label class="text-sm font-medium">Enabled Tags:</Label>
+            <PopupHelp popoverClasses="max-w-[500px] text-xs text-muted-foreground">
+                <div class="text-xs text-muted-foreground">
+                    <p class="mb-2">The Tags feature enables AI-driven UI components in chat responses.</p>
+                    <p class="mb-2">
+                        When enabled, the AI can use special tags in its responses to create interactive components like
+                        charts, images, prompts, and other rich UI elements.
                     </p>
+                    <p class="mb-2">
+                        Each tag definition has a scope (category) and tag name. You can enable specific tags that will
+                        be available to the AI for this chat app.
+                    </p>
+                    <p>Only enabled tags will be accessible - the AI cannot use tags that aren't in this list.</p>
                 </div>
-            {:else}
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <Label class="text-sm font-medium">Enabled Tags:</Label>
-                        <Button variant="outline" size="sm" onclick={addEnabledTag} {disabled}>
-                            <Plus class="w-4 h-4 mr-1" />
-                            Add Tag
-                        </Button>
-                    </div>
+            </PopupHelp>
+        </div>
 
-                    {#if overriddenFeature?.tagsEnabled && overriddenFeature.tagsEnabled.length > 0}
-                        <div class="space-y-3">
-                            {#each overriddenFeature.tagsEnabled as tagLite, index}
-                                <div class="flex items-center gap-2 p-3 border rounded">
-                                    <div class="flex-1 grid grid-cols-2 gap-2">
-                                        <div class="space-y-1">
-                                            <Label for="scope-{index}" class="text-xs">Scope:</Label>
-                                            <select
-                                                id="scope-{index}"
-                                                class="w-full h-8 px-2 text-sm border rounded"
-                                                bind:value={tagLite.scope}
-                                                onchange={() => {
-                                                    // Clear tag when scope changes
-                                                    tagLite.tag = '';
-                                                }}
-                                                {disabled}
-                                            >
-                                                <option value="">Select scope...</option>
-                                                {#each availableScopes as scope}
-                                                    <option value={scope}>{scope}</option>
-                                                {/each}
-                                            </select>
+        {#if siteAdminState.siteAdminOperationInProgress.searchTagDefinitions}
+            <p class="text-sm text-muted-foreground">Loading available tag definitions...</p>
+        {:else if availableTagDefinitions.length === 0}
+            <div class="p-4 border rounded bg-yellow-50">
+                <p class="text-sm text-yellow-800">
+                    No tag definitions are currently available. Tag definitions should be loaded into the database
+                    during deployment.
+                </p>
+            </div>
+        {:else}
+            <div class="flex gap-4">
+                <!-- List column -->
+                <div class="flex-shrink-0">
+                    <List
+                        classes="w-[300px] h-[300px]"
+                        items={tagsEnabled}
+                        mapping={{
+                            value: (item) => `${item.scope}:${item.tag}`,
+                            label: (item) => `${item.scope}:${item.tag}`,
+                        }}
+                        allowSelection={true}
+                        multiSelect={false}
+                        disabled={!isOverrideMode || disabled}
+                        bind:selectedItems={
+                            () => (selectedTag ? [selectedTag] : []),
+                            (value) => {
+                                if (!value || value.length === 0) {
+                                    selectedTag = undefined;
+                                } else {
+                                    selectedTag = value[0];
+                                }
+                            }
+                        }
+                        emptyMessage="No tags are currently enabled. Add tags to designate tags that are available for either the LLM or the tool to return."
+                        addRemove={{
+                            addItem: (tag) => {
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                const feature = ensureFeature();
+                                feature.tagsEnabled = feature.tagsEnabled || [];
+                                // Check if tag is already enabled
+                                const alreadyEnabled = feature.tagsEnabled.some(
+                                    (enabled) => enabled.scope === tag.scope && enabled.tag === tag.tag
+                                );
+                                if (!alreadyEnabled) {
+                                    feature.tagsEnabled.push({ tag: tag.tag, scope: tag.scope });
+                                }
+                            },
+                            removeItem: (tag) => {
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                const feature = ensureFeature();
+                                if (feature.tagsEnabled) {
+                                    feature.tagsEnabled = feature.tagsEnabled.filter(
+                                        (enabled) => !(enabled.scope === tag.scope && enabled.tag === tag.tag)
+                                    );
+                                }
+                            },
+                            predefinedOptions: {
+                                items: availableTagDefinitions,
+                                optionTypeName: 'Tag Definition',
+                                optionTypeNamePlural: 'Tag Definitions',
+                                mapping: {
+                                    value: (item) => `${item.scope}:${item.tag}`,
+                                    label: (item) => `${item.scope}:${item.tag}`,
+                                },
+                            },
+                        }}
+                    />
+                    <p class="text-xs text-muted-foreground mt-2">Click a tag to view details</p>
+                </div>
+
+                <!-- Details pane -->
+                <div class="flex-1 min-w-0">
+                    {#if selectedTag}
+                        <div class="border rounded-md p-4 space-y-4">
+                            <div class="border-b pb-2 mb-4">
+                                <h3 class="text-lg font-semibold">Tag Definition Details</h3>
+                            </div>
+
+                            <!-- Tag Name -->
+                            <div class="space-y-1">
+                                <Label class="text-sm font-medium">Tag Name</Label>
+                                <p class="text-sm font-mono bg-gray-50 p-2 rounded border">
+                                    {selectedTag.scope}.{selectedTag.tag}
+                                </p>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="space-y-1">
+                                <Label class="text-sm font-medium">Description</Label>
+                                <p class="text-sm text-gray-700">
+                                    {selectedTag.description}
+                                </p>
+                            </div>
+
+                            <!-- Tag Title -->
+                            <div class="space-y-1">
+                                <Label class="text-sm font-medium">Tag Title</Label>
+                                <p class="text-sm text-gray-700">
+                                    {selectedTag.tagTitle}
+                                </p>
+                            </div>
+
+                            <!-- Short Tag Example -->
+                            <div class="space-y-1">
+                                <Label class="text-sm font-medium">Tag Structure Example</Label>
+                                <p class="text-sm font-mono bg-gray-50 p-2 rounded border">
+                                    {selectedTag.shortTagEx}
+                                </p>
+                            </div>
+
+                            <!-- Boolean flags with help -->
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">Can be generated by LLM</Label>
+                                    <PopupHelp popoverClasses="w-60">
+                                        <div class="text-xs text-muted-foreground">
+                                            <p>
+                                                When enabled, this tag can be generated directly by the AI language
+                                                model in its responses.
+                                            </p>
                                         </div>
-
-                                        <div class="space-y-1">
-                                            <Label for="tag-{index}" class="text-xs">Tag:</Label>
-                                            <select
-                                                id="tag-{index}"
-                                                class="w-full h-8 px-2 text-sm border rounded"
-                                                bind:value={tagLite.tag}
-                                                disabled={disabled || !tagLite.scope}
-                                            >
-                                                <option value="">Select tag...</option>
-                                                {#each getTagsForScope(tagLite.scope) as tag}
-                                                    <option value={tag}>{tag}</option>
-                                                {/each}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onclick={() => removeEnabledTag(index)}
-                                        {disabled}
-                                        class="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    </PopupHelp>
+                                    <span
+                                        class="text-sm px-2 py-1 rounded-md {selectedTag.canBeGeneratedByLlm
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-gray-100 text-gray-600'}"
                                     >
-                                        <Trash2 class="w-4 h-4" />
-                                    </Button>
+                                        {selectedTag.canBeGeneratedByLlm ? 'Yes' : 'No'}
+                                    </span>
                                 </div>
 
-                                {#if tagLite.tag && tagLite.scope && !isValidTagCombination(tagLite)}
-                                    <div class="text-xs text-red-500 ml-3">
-                                        Warning: The tag definition "{tagLite.scope}:{tagLite.tag}" was not found in the
-                                        available tag definitions.
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">Can be generated by Tool</Label>
+                                    <PopupHelp popoverClasses="w-60">
+                                        <div class="text-xs text-muted-foreground">
+                                            <p>
+                                                When enabled, this tag can be generated by agent tools and functions
+                                                during execution.
+                                            </p>
+                                        </div>
+                                    </PopupHelp>
+                                    <span
+                                        class="text-sm px-2 py-1 rounded-md {selectedTag.canBeGeneratedByTool
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-gray-100 text-gray-600'}"
+                                    >
+                                        {selectedTag.canBeGeneratedByTool ? 'Yes' : 'No'}
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">Disabled</Label>
+                                    <span
+                                        class="text-sm px-2 py-1 rounded-md {selectedTag.disabled
+                                            ? 'bg-red-100 text-red-800'
+                                            : 'bg-green-100 text-green-800'}"
+                                    >
+                                        {selectedTag.disabled ? 'Yes' : 'No'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- LLM Instructions (raw markdown) -->
+                            {#if selectedTag.llmInstructionsMd}
+                                <div class="space-y-1">
+                                    <Label class="text-sm font-medium">LLM Instructions (Markdown)</Label>
+                                    <div
+                                        class="text-sm font-mono bg-gray-50 p-3 rounded border max-h-40 overflow-auto whitespace-pre-wrap"
+                                    >
+                                        {selectedTag.llmInstructionsMd}
                                     </div>
-                                {/if}
-                            {/each}
+                                </div>
+                            {/if}
                         </div>
                     {:else}
-                        <p class="text-sm text-muted-foreground">
-                            No tags are currently enabled. Add tags to allow the LLM to use AI-driven UI components.
-                        </p>
+                        <div class="border rounded-md p-4 text-center text-muted-foreground">
+                            <p class="text-sm">Select a tag from the list to view its details</p>
+                        </div>
                     {/if}
                 </div>
-
-                <Separator />
-
-                <div class="space-y-2">
-                    <Label class="text-sm font-medium"
-                        >Available Tag Definitions ({availableTagDefinitions.length}):</Label
-                    >
-                    <div class="max-h-48 overflow-y-auto border rounded p-2">
-                        {#if availableTagDefinitions.length > 0}
-                            <div class="space-y-1">
-                                {#each availableTagDefinitions as def}
-                                    <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                                        <span class="font-mono text-sm">{def.scope}:{def.tag}</span>
-                                        <span class="text-xs text-muted-foreground">
-                                            {overriddenFeature?.tagsEnabled?.some(
-                                                (enabled) => enabled.scope === def.scope && enabled.tag === def.tag
-                                            )
-                                                ? 'Enabled'
-                                                : 'Available'}
-                                        </span>
-                                    </div>
-                                {/each}
-                            </div>
-                        {:else}
-                            <p class="text-sm text-muted-foreground">No tag definitions available.</p>
-                        {/if}
-                    </div>
-                </div>
-            {/if}
-        </div>
+            </div>
+        {/if}
     {/if}
 
     {#if validErrors.length > 0}

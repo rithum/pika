@@ -1,4 +1,4 @@
-import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { GetParameterCommand, GetParametersByPathCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { appConfig } from './config';
 
 let ssm: SSMClient | undefined;
@@ -23,6 +23,42 @@ export async function getValueFromParameterStore(parameterName: string, region?:
         return response.Parameter?.Value;
     } catch (error) {
         console.error(`Error getting value from parameter store for ${parameterName}`, error);
+        throw error;
+    }
+}
+
+export async function getParametersByPath(path: string): Promise<Record<string, string>> {
+    try {
+        const ssm = getSsmClient();
+        const parameters: Record<string, string> = {};
+        let nextToken: string | undefined;
+
+        do {
+            const command = new GetParametersByPathCommand({
+                Path: path,
+                Recursive: true,
+                WithDecryption: true,
+                NextToken: nextToken
+            });
+
+            const response = await ssm.send(command);
+
+            if (response.Parameters) {
+                for (const parameter of response.Parameters) {
+                    if (parameter.Name && parameter.Value) {
+                        // Extract the key name from the full path (last segment after the last '/')
+                        const keyName = parameter.Name.split('/').pop() || parameter.Name;
+                        parameters[keyName] = parameter.Value;
+                    }
+                }
+            }
+
+            nextToken = response.NextToken;
+        } while (nextToken);
+
+        return parameters;
+    } catch (error) {
+        console.error(`Error getting parameters by path from parameter store for ${path}`, error);
         throw error;
     }
 }

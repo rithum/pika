@@ -794,16 +794,30 @@ export interface ChatAppOverridableFeatures {
         showChatHistoryInStandaloneMode: boolean;
     };
 
-    tags: {
-        tagsEnabled: TagDefinitionLite[];
-    };
+    tags: TagsChatAppOverridableFeature;
 
-    agentInstructionAssistance: {
-        enabled: boolean;
-        includeInstructionsForTags: boolean;
-        completeExampleInstructionLine?: string;
-        jsonOnlyImperativeInstructionLine?: string;
-    };
+    agentInstructionAssistance: AgentInstructionChatAppOverridableFeature;
+}
+
+export interface AgentInstructionChatAppOverridableFeature {
+    enabled: boolean;
+    includeOutputFormattingRequirements: boolean;
+    includeInstructionsForTags: boolean;
+    completeExampleInstructionEnabled: boolean;
+    completeExampleInstructionLine?: string;
+    jsonOnlyImperativeInstructionEnabled: boolean;
+    jsonOnlyImperativeInstructionLine?: string;
+}
+
+export interface InstructionAssistanceConfig {
+    outputFormattingRequirements: string;
+    tagInstructions?: string;
+    completeExampleInstructionLine: string;
+    jsonOnlyImperativeInstructionLine: string;
+}
+
+export interface TagsChatAppOverridableFeature {
+    tagsEnabled: TagDefinitionLite[];
 }
 
 export type ChatAppOverridableFeaturesForConverseFn = Omit<
@@ -894,11 +908,14 @@ export interface BaseRequestData {
 }
 
 export interface ConverseRequestWithCommand {
-    command: 'clearChatAppCache';
-    chatAppId?: string;
+    command: 'clearConverseLambdaCache';
+    cacheType: ClearConverseLambdaCacheType;
     agentId?: string;
     userId: string;
 }
+
+export const ClearConverseLambdaCacheTypes = ['agent', 'tagDefinitions', 'instructionAssistanceConfig', 'all'] as const;
+export type ClearConverseLambdaCacheType = (typeof ClearConverseLambdaCacheTypes)[number];
 
 export interface ConverseRequest extends BaseRequestData {
     message: string;
@@ -945,6 +962,17 @@ export interface UpdateChatSessionFeedbackAdminRequest {
 export interface SessionSearchAdminRequest {
     command: 'sessionSearch';
     search: SessionSearchRequest<RecordOrUndef>;
+}
+
+export interface GetAgentRequest {
+    command: 'getAgent';
+    agentId: string;
+}
+
+export interface GetAgentResponse {
+    success: boolean;
+    agent: AgentDefinition | undefined;
+    error?: string;
 }
 
 export interface GetChatSessionFeedbackResponse {
@@ -2125,15 +2153,16 @@ export interface AgentInstructionAssistanceFeature {
      * Here is what will be added to the prompt at a minimum:
      *
      * ```markdown
+     * // If includeOutputFormattingRequirements.enabled is true
      * {{output-formatting-requirements}}
      *
-     * // If includeInstructionsForTags is true
+     * // If includeInstructionsForTags.enabled is true
      * {{tag-instructions}}
      *
-     * // If completeExampleInstructionLine is true
+     * // If completeExampleInstructionLine.enabled is true
      * {{complete-example-instruction-line}}
      *
-     * // If jsonOnlyImperativeInstructionLine is true
+     * // If jsonOnlyImperativeInstructionLine.enabled is true
      * {{json-only-imperative-instruction-line}}
      *
      * ```
@@ -2141,10 +2170,21 @@ export interface AgentInstructionAssistanceFeature {
     enabled: boolean;
 
     /**
-     * If true, then the instructions for tags that are available for the agent will be injected into the prompt at
+     * If enabled, basic output formatting requirements will be injected into the prompt at
+     * `{{output-formatting-requirements}}` if found in the prompt. If not found, then the requirements will be appended to the end of the prompt.
+     * This provides foundational formatting guidance for the agent's responses.
+     */
+    includeOutputFormattingRequirements?: {
+        enabled: boolean;
+    };
+
+    /**
+     * If enabled, then the instructions for tags that are available for the agent will be injected into the prompt at
      * `{{tag-instructions}}` if found in the prompt.  If not found, then the instructions will be appended to the end of the prompt.
      */
-    includeInstructionsForTags?: boolean;
+    includeInstructionsForTags?: {
+        enabled: boolean;
+    };
 
     /**
      * If true, a line will be added to the prompt assistance language that instructs the agent to include a complete example of the tag structure.
@@ -2171,7 +2211,7 @@ export interface AgentInstructionAssistanceFeature {
      */
     jsonOnlyImperativeInstructionLine?: {
         enabled: boolean;
-        line: string;
+        line?: string;
     };
 }
 
@@ -2222,36 +2262,42 @@ export interface TextMessageSegment extends MessageSegmentBase {
 export type MessageSegment = TagMessageSegment | TextMessageSegment;
 
 export type SiteAdminRequest =
+    | GetAgentRequest
     | GetInitialDataRequest
     | RefreshChatAppRequest
     | CreateOrUpdateChatAppOverrideRequest
     | DeleteChatAppOverrideRequest
     | GetValuesForEntityAutoCompleteRequest
     | GetValuesForUserAutoCompleteRequest
-    | ClearChatAppCacheRequest
+    | ClearConverseLambdaCacheRequest
+    | ClearSvelteKitCachesRequest
     | AddChatSessionFeedbackAdminRequest
     | UpdateChatSessionFeedbackAdminRequest
     | SessionSearchAdminRequest
     | GetChatMessagesAsAdminRequest
     | CreateOrUpdateTagDefinitionAdminRequest
     | DeleteTagDefinitionAdminRequest
-    | SearchTagDefinitionsAdminRequest;
+    | SearchTagDefinitionsAdminRequest
+    | GetInstructionAssistanceConfigFromSsmRequest;
 
 export const SiteAdminCommand = [
+    'getAgent',
     'getInitialData',
     'refreshChatApp',
     'createOrUpdateChatAppOverride',
     'deleteChatAppOverride',
     'getValuesForEntityAutoComplete',
     'getValuesForUserAutoComplete',
-    'clearChatAppCache',
+    'clearConverseLambdaCache',
+    'clearSvelteKitCaches',
     'addChatSessionFeedback',
     'updateChatSessionFeedback',
     'sessionSearch',
     'getChatMessagesAsAdmin',
     'createOrUpdateTagDefinition',
     'deleteTagDefinition',
-    'searchTagDefinitions'
+    'searchTagDefinitions',
+    'getInstructionAssistanceConfigFromSsm'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
@@ -2313,24 +2359,45 @@ export interface DeleteChatAppOverrideRequest extends SiteAdminCommandRequestBas
     chatAppId: string;
 }
 
-export interface ClearChatAppCacheRequest extends SiteAdminCommandRequestBase {
-    command: 'clearChatAppCache';
+export interface ClearConverseLambdaCacheRequest extends SiteAdminCommandRequestBase {
+    command: 'clearConverseLambdaCache';
+    cacheType: ClearConverseLambdaCacheType;
     chatAppId?: string;
     agentId?: string;
 }
 
+export interface ClearSvelteKitCachesRequest extends SiteAdminCommandRequestBase {
+    command: 'clearSvelteKitCaches';
+    cacheType: ClearSvelteKitCacheType;
+    chatAppId?: string; // Only used for chatAppCache when clearing specific chat app
+}
+
+export const ClearSvelteKitCacheTypes = ['chatAppCache', 'tagDefinitionsCache', 'instructionAssistanceConfigCache', 'all'] as const;
+export type ClearSvelteKitCacheType = (typeof ClearSvelteKitCacheTypes)[number];
+
+export interface GetInstructionAssistanceConfigFromSsmRequest extends SiteAdminCommandRequestBase {
+    command: 'getInstructionAssistanceConfigFromSsm';
+}
+
+export interface GetInstructionAssistanceConfigFromSsmResponse extends SiteAdminCommandResponseBase {
+    config: InstructionAssistanceConfig;
+}
+
 export type SiteAdminResponse =
+    | GetAgentResponse
     | GetInitialDataResponse
     | RefreshChatAppResponse
     | CreateOrUpdateChatAppOverrideResponse
     | DeleteChatAppOverrideResponse
     | GetValuesForEntityAutoCompleteResponse
     | GetValuesForUserAutoCompleteResponse
-    | ClearChatAppCacheResponse
+    | ClearConverseLambdaCacheResponse
+    | ClearSvelteKitCachesResponse
     | AddChatSessionFeedbackResponse
     | UpdateChatSessionFeedbackResponse
     | SessionSearchResponse
-    | GetChatMessagesAsAdminResponse;
+    | GetChatMessagesAsAdminResponse
+    | GetInstructionAssistanceConfigFromSsmResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
@@ -2341,7 +2408,12 @@ export interface GetChatMessagesAsAdminResponse extends SiteAdminCommandResponse
     messages: ChatMessage[];
 }
 
-export interface ClearChatAppCacheResponse extends SiteAdminCommandResponseBase {}
+export interface ClearConverseLambdaCacheResponse extends SiteAdminCommandResponseBase {}
+
+export interface ClearSvelteKitCachesResponse extends SiteAdminCommandResponseBase {
+    clearedCount?: number;
+    cacheType: string;
+}
 
 export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
@@ -3173,7 +3245,9 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
     /**
      * This should be a short example of the tag structure.  It may be used in the prompt assistance language injected into your prompt in a quick list of tags available for the LLM to generate.
      *
-     * For example, the chart tag structure example is `<chart></chart>`.  The prompt tag structure example is `<prompt></prompt>`.  The image tag structure example is `<image></image>`.
+     * For example, the chart tag structure example is `<pika.chart></pika.chart>`.  The prompt tag structure example is `<pika.prompt></pika.prompt>`.  The image tag structure example is `<pika.image></pika.image>`.
+     *
+     * Be sure that you use `${scope}.` in front of the tag name.
      *
      * Do not use markdown in this example and don't surround with backticks, just the tag structure itself.  Don't include a body to the tag, even if it has one.
      */
@@ -3207,90 +3281,29 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
      * If `canBeGeneratedByLlm` is true, you must provide instructions for the LLM to generate the tag since chat app/agent builders can choose
      * to have the instructions injected into the agent instructions prompt for a given tag.
      *
-     * In order for us to be able to inject instructions coherently into your agent instructions prompts, we must have consistency in formatting.
-     * As such, we have created a data structure that ensures we don't get inconsistency in formatting and confuse the LLM.
-     *
-     * Brevity in instructions is important due to context window limitations and ability for the LLM to understand the instructions.
-     * At the same time, we have spent a lot of time experimenting and researching best practices.  We do expect that these standards will change
-     * as LLM capabilities improve and so your conformity to our standards will be important so we can write scripts to help us all move forward
-     * on the pika platform.
-     *
-     * Regardless, if you are going to use the agent instruction assistance feature, you must follow conform to the following:
-     *
-     * 1. We expect that your instructions are markdown.
-     * 2. We expect that you use a simple bold style to delineate the few major sections that may exist in your instructions: `**Core Directives:**`
-     * 3. For expect that you are using two spaces for indentation (not four) for each level of nesting for things like lists, blocks, etc.
-     *
-     *
      * When we inject your instructions into the agent instructions prompt, we will do the following:
      *
-     * 1. We will use the `tagTitle` and `shortTagEx` to create a line in a tag summary bullet list.  Our current thinking is that when you have a very specific set of things
-     *    that you want to make the LLM remember, you first list them in summary style and then provide more detail below and correlate the titles used in the summary to the description.
-     * 2. We will use the `tagTitle` as the bullet title for the details of your tag instructions: `- **tagTitle:**`
-     * 3. We will then add each line of instructions indented as bullets under that bullet title block.
-     * 4. When you declare a new block, we will indent again and add the block title as a bullet point.
+     * 1. We will use the `tagTitle` as the bullet title for your tag instructions: `- **tagTitle:**`
+     * 2. We will wrap your markdown instructions in XML tags to prevent formatting conflicts with the rest of the injected instructions
      *
-     * Here's a complete example of what we will generate for you given a set of instructions:
+     * Here's a complete example of what we will generate for you:
      *
      * ```markdown
+     * - **Charts:**
+     * <tag-instructions type="chart">
+     * To include a pika chart, use the `<pika.chart></pika.chart>` tags.
+     * The content within the tags MUST be valid Chart.js version 4 JSON, including `type` and `data` properties.
      *
-     * - **Pika Charts:**
-     *   - To include a pika chart, use the `<pika.chart></pika.chart>` tags.
-     *   - The content within the tags MUST be valid Chart.js version 4 JSON, including `type` and `data` properties.
-     *   - **Example:** `<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12],"backgroundColor":"rgba(255,159,64,0.2)","borderColor":"rgba(255,159,64,1)","borderWidth": 1}]}}</pika.chart>`
-     *   - **Usage:** Include pika charts whenever they can visually represent data, trends, or comparisons effectively. This greatly enhances user experience.
-     *   - **Presentation**
-     *     - **Timeframes**: For any data or insights provided over a period, you MUST explicitly state the timeframe or time range of the data.
-     *     - **Timezones**: IMPORTANT: Display time in users timezone when possible.
+     * **Example:** `<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12]}]}}</pika.chart>`
      *
+     * **Usage:** Include pika charts whenever they can visually represent data, trends, or comparisons effectively.
+     * </tag-instructions>
      * ```
      *
-     * We insert the first block for you (`- **Pika Charts:**`) so you should start with one or more `TagInstructionLineForLlm` entries not a block.
-     * Note that you can have a line that starts with a title and then instructions on that line by adding  title to a `TagInstructionLineForLlm`.
-     * Also, if there is only one line of instructions in a block, then we treat it similarly: just add a single line with a title and not a new block.
-     *
-     * Here's how we generated the above instructions (assume that the `tagTitle` is `Pika Charts` and the `shortTagEx` is `<pika.chart></pika.chart>`):
-     *
-     * ```typescript
-     *
-     * const instructions: TagInstruction[] = [
-     *     {
-     *         type: 'line',
-     *         mdLine: 'To include a chart, use the `<pika.chart></pika.chart>` tags.'
-     *     },
-     *     {
-     *         type: 'line',
-     *         mdLine: 'The content within the tags MUST be valid Chart.js version 4 JSON, including `type` and `data` properties.'
-     *     },
-     *     {
-     *         type: 'line',
-     *         title: 'Example',
-     *         mdLine: '`<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12],"backgroundColor":"rgba(255,159,64,0.2)","borderColor":"rgba(255,159,64,1)","borderWidth": 1}]}}</pika.chart>`'
-     *     },
-     *     {
-     *         type: 'line',
-     *         title: 'Usage',
-     *         mdLine: 'Include charts whenever they can visually represent data, trends, or comparisons effectively. This greatly enhances user experience.'
-     *     },
-     *     {
-     *         type: 'block',
-     *         title: 'Presentation',
-     *         lines: [
-     *             {
-     *                 type: 'line',
-     *                 title: 'Timeframes',
-     *                 mdLine: 'For any data or insights provided over a period, you MUST explicitly state the timeframe or time range of the data.'
-     *             },
-     *             {
-     *                 type: 'line',
-     *                 title: 'Timezones',
-     *                 mdLine: 'IMPORTANT: Display time in users timezone when possible.'
-     *     }
-     * ];
-     *
-     * ```
+     * The markdown you provide should be well-formatted and can use any standard markdown features (lists, bold, code blocks, etc.).
+     * The XML wrapper ensures that your formatting doesn't interfere with the overall instruction structure.
      */
-    llmInstructions?: TagInstructionForLlm[];
+    llmInstructionsMd?: string;
 
     /** The user id of the user who created the tag definition */
     createdBy: string;
@@ -3368,39 +3381,6 @@ export interface TagDefinitionWebComponent {
     encodedSha256Base64: string;
 }
 
-export type TagInstructionForLlm = TagInstructionLineForLlm | TagInstructionBlockForLlm;
-
-/**
- * A line of instructions for the LLM to generate a tag.
- * If the title is provided, it will be used as the bullet title for the details of your tag instructions: `- **tagTitle:**`
- * If there is no title, the line will be added as is as a bullet point.
- */
-export interface TagInstructionLineForLlm {
-    type: 'line';
-    title?: string;
-    mdLine: string;
-}
-
-/**
- * A block of instructions for the LLM to generate a tag.
- * The title will be used as the bullet title for the block.
- * The lines will be indented as bullets under the provided title.
- * We will add a colon to the end of the block title unless it already has one.
- *
- * - **block title:**
- *   - line 1
- *   - line 2
- *   - line 3
- *   - **block title:**
- *     - line 4
- *     - line 5
- */
-export interface TagInstructionBlockForLlm {
-    type: 'block';
-    title: string;
-    lines: TagInstructionForLlm[];
-}
-
 export interface TagDefinitionCreateOrUpdateRequest {
     tagDefinition: TagDefinitionForCreateOrUpdate;
 
@@ -3467,5 +3447,5 @@ export interface TagDefinitionsJsonFile {
 export interface TagDefInJsonFile {
     tag: string;
     scope: string;
-    gzippedHexEncodedString: string;
+    gzippedBase64EncodedString: string;
 }

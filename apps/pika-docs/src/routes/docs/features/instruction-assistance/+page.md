@@ -18,7 +18,7 @@ When enabled, the Agent Instruction Assistance feature automatically adds an "Ou
 
 ## Placeholder System
 
-The instruction assistance system uses several powerful placeholders that get replaced with dynamic content:
+The instruction assistance system uses several placeholders that get replaced with dynamic content:
 
 ### tag-instructions placeholder
 
@@ -65,6 +65,8 @@ Agent Instruction Assistance works hand-in-hand with the [AI Driven UI (tags)](/
 
 ## Configuration Options
 
+The Agent Instruction Assistance feature uses an opt-in approach - simply enabling the main feature does not automatically activate all sub-features. You must explicitly enable each instruction type you want to use, providing precise control over your agent's behavior.
+
 ### Basic Enablement
 
 ```js
@@ -78,7 +80,12 @@ agentInstructionAssistance: {
 ```js
 agentInstructionAssistance: {
     enabled: true,
-    includeInstructionsForTags: true,
+    includeOutputFormattingRequirements: {
+        enabled: true
+    },
+    includeInstructionsForTags: {
+        enabled: true
+    },
     completeExampleInstructionLine: {
         enabled: true,
         mdLine: "Custom example: <answer>Your content here</answer>"
@@ -160,8 +167,10 @@ Ensures proper formatting for financial data, calculators, and compliance inform
 
 ## Getting Started
 
+**NOTE:** To use the Agent Instruction Assistance feature, it must first be enabled in your site-wide `pika-config.ts` file. Without this enablement, chat apps cannot use instruction assistance regardless of their individual configuration.
+
 1. **Enable the Feature**: Add `agentInstructionAssistance: { enabled: true }` to your site configuration
-2. **Configure Tag Integration**: Set `includeInstructionsForTags: true` to automatically include tag instructions
+2. **Configure Sub-Features**: Enable specific instruction types like `includeOutputFormattingRequirements: { enabled: true }` and `includeInstructionsForTags: { enabled: true }`
 3. **Test Your Agent**: Verify that responses follow the expected formatting
 4. **Customize as Needed**: Override default instructions for specific chat apps
 

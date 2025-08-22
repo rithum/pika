@@ -27,3 +27,7 @@ After a session completes, an LLM reviews it and writes objective feedback. You 
 :::note[Non-blocking]
 Feedback is asynchronous and never slows down end‑user chats.
 :::
+
+:::warning[Configuration Required]
+The LLM Generated Feedback (Verify Response) feature must be enabled in your site-wide `pika-config.ts` file before chat apps can use it. Without this enablement, feedback generation will not be available regardless of individual chat app settings.
+:::

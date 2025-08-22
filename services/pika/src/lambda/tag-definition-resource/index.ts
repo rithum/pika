@@ -1,15 +1,12 @@
+import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
 import type {
     TagDefinitionCreateOrUpdateRequest,
     TagDefinitionCreateOrUpdateResponse,
     TagDefinitionDeleteRequest,
-    TagDefinitionDeleteResponse,
-    TagDefinitionForCreateOrUpdate,
-    TagDefinitionWidgetPikaCompiledIn,
-    TagDefinitionWidgetCustomCompiledIn
+    TagDefinitionDeleteResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
-import { createMakeRequestFn, getStackNameFromStackId, MakeRequestFn, parseTagDefinitionCustomResourceProperties, sendCustomResourceResponse } from './util';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
+import { createMakeRequestFn, getStackNameFromStackId, MakeRequestFn, parseTagDefinitionCustomResourceProperties, sendCustomResourceResponse } from './util';
 
 /**
  * This lambda is used to create, update, or delete tag definitions in a single operation.  You create a custom cloudformation resource
