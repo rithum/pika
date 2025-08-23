@@ -12,7 +12,7 @@ import {
     AgentCollaboration,
     RelayConversationHistory,
     CreationMode,
-    Collaborator,
+    type Collaborator,
     PromptState
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -31,7 +31,7 @@ import {
     Unclassified,
     type VerifyResponseClassification,
     VerifyResponseClassifications,
-    KnowledgeBase as AgentDefinitionKnowledgeBase
+    type KnowledgeBase as AgentDefinitionKnowledgeBase
 } from 'pika-shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
@@ -41,30 +41,29 @@ import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './u
 
 export const MODELS = {
     ANTHROPIC: {
-        Claude3Haiku: { name: "Claude3Haiku", id: "anthropic.claude-3-haiku-20240307-v1:0" },
-        Claude3Sonnet: { name: "Claude3Sonnet", id: "anthropic.claude-3-sonnet-20240229-v1:0" },
-        Claude3Opus: { name: "Claude3Opus", id: "anthropic.claude-3-opus-20240229-v1:0" },
-        Claude3_5Haiku: { name: "Claude3_5Haiku", id: "us.anthropic.claude-3-5-haiku-20241022-v1:0" },
-        Claude3_5SonnetV2: { name: "Claude3_5SonnetV2", id: "us.anthropic.claude-3-5-sonnet-20241022-v2:0" },
-        Claude3_7Sonnet: { name: "Claude3_7Sonnet", id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0" },
-        Claude4Sonnet: { name: "Claude4Sonnet", id: "us.anthropic.claude-sonnet-4-20250514-v1:0" },
-        Claude4Opus: { name: "Claude4Opus", id: "us.anthropic.claude-opus-4-20250514-v1:0" },
-        Claude4_1Opus: { name: "Claude4_1Opus", id: "us.anthropic.claude-opus-4-1-20250805-v1:0" },
+        Claude3Haiku: { name: 'Claude3Haiku', id: 'anthropic.claude-3-haiku-20240307-v1:0' },
+        Claude3Sonnet: { name: 'Claude3Sonnet', id: 'anthropic.claude-3-sonnet-20240229-v1:0' },
+        Claude3Opus: { name: 'Claude3Opus', id: 'anthropic.claude-3-opus-20240229-v1:0' },
+        Claude3_5Haiku: { name: 'Claude3_5Haiku', id: 'us.anthropic.claude-3-5-haiku-20241022-v1:0' },
+        Claude3_5SonnetV2: { name: 'Claude3_5SonnetV2', id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0' },
+        Claude3_7Sonnet: { name: 'Claude3_7Sonnet', id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' },
+        Claude4Sonnet: { name: 'Claude4Sonnet', id: 'us.anthropic.claude-sonnet-4-20250514-v1:0' },
+        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0' },
+        Claude4_1Opus: { name: 'Claude4_1Opus', id: 'us.anthropic.claude-opus-4-1-20250805-v1:0' }
     },
     AMAZON: {
-        NovaLite: { name: "NovaLite", id: "amazon.nova-lite-v1:0" },
-        NovaPremier: { name: "NovaPremier", id: "amazon.nova-premier-v1:0" },
-        NovaPro: { name: "NovaPro", id: "amazon.nova-pro-v1:0" },
-        NovaMicro: { name: "NovaMicro", id: "amazon.nova-micro-v1:0" },
+        NovaLite: { name: 'NovaLite', id: 'amazon.nova-lite-v1:0' },
+        NovaPremier: { name: 'NovaPremier', id: 'amazon.nova-premier-v1:0' },
+        NovaPro: { name: 'NovaPro', id: 'amazon.nova-pro-v1:0' },
+        NovaMicro: { name: 'NovaMicro', id: 'amazon.nova-micro-v1:0' }
     },
     META: {
-        Llama3_2_1B_Instruct: { name: "Llama3_2_1B_Instruct", id: "meta.llama3-2-1b-instruct-v1:0" },
-        Llama3_2_11B_Instruct: { name: "Llama3_2_11B_Instruct", id: "meta.llama3-2-11b-instruct-v1:0" },
-        Llama3_2_90B_Instruct: { name: "Llama3_2_90B_Instruct", id: "meta.llama3-2-90b-instruct-v1:0" },
-        Llama3_3_70B_Instruct: { name: "Llama3_3_70B_Instruct", id: "meta.llama3-3-70b-instruct-v1:0" },
+        Llama3_2_1B_Instruct: { name: 'Llama3_2_1B_Instruct', id: 'meta.llama3-2-1b-instruct-v1:0' },
+        Llama3_2_11B_Instruct: { name: 'Llama3_2_11B_Instruct', id: 'meta.llama3-2-11b-instruct-v1:0' },
+        Llama3_2_90B_Instruct: { name: 'Llama3_2_90B_Instruct', id: 'meta.llama3-2-90b-instruct-v1:0' },
+        Llama3_3_70B_Instruct: { name: 'Llama3_3_70B_Instruct', id: 'meta.llama3-3-70b-instruct-v1:0' }
     }
-}
-
+};
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
@@ -84,7 +83,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => { };
+                let set = (key: any, value: any) => {};
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -119,15 +118,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-            content: {
-                traceId?: string;
-                input?: unknown;
-                text: string;
-                type?: string;
-                name?: string;
-            }[];
-            traceId: string;
-        }
+              content: {
+                  traceId?: string;
+                  input?: unknown;
+                  text: string;
+                  type?: string;
+                  name?: string;
+              }[];
+              traceId: string;
+          }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -370,7 +369,7 @@ async function invokeAgentToVerifyAnswer(
     usage: ChatMessageUsage;
     error?: any;
     explanation: string;
-    classification: VerifyResponseClassification
+    classification: VerifyResponseClassification;
 }> {
     let cmdInput = cloneDeep(cmdInput1);
 
@@ -497,7 +496,7 @@ export async function invokeAgentToGetAnswer(
             functionSchema: {
                 functions: tool.functionSchema
             }
-        }
+        };
     }
 
     function toKnowledgeBase(kb: AgentDefinitionKnowledgeBase): KnowledgeBase {
@@ -506,13 +505,13 @@ export async function invokeAgentToGetAnswer(
             description: kb.description,
             ...(kb.filter || kb.numberOfResults
                 ? {
-                    retrievalConfiguration: {
-                        vectorSearchConfiguration: {
-                            filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
-                            ...(kb.numberOfResults ? { numberOfResults: kb.numberOfResults } : {})
-                        }
-                    }
-                }
+                      retrievalConfiguration: {
+                          vectorSearchConfiguration: {
+                              filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
+                              ...(kb.numberOfResults ? { numberOfResults: kb.numberOfResults } : {})
+                          }
+                      }
+                  }
                 : {})
         };
     }
@@ -533,32 +532,32 @@ export async function invokeAgentToGetAnswer(
         streamingConfigurations: {
             streamFinalResponse: true
         },
-        actionGroups: agentAndTools.agent.toolIds.map(id => actionGroupsMap[id]),
+        actionGroups: agentAndTools.agent.toolIds.map((id) => actionGroupsMap[id]),
         collaborators: agentAndTools.collaborators?.map((collaborator) => {
             let col: Collaborator = {
                 agentName: collaborator.agentId,
                 instruction: collaborator.basePrompt,
-                agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),// (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
+                agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), // (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
                 foundationModel: collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
-                actionGroups: collaborator.toolIds?.map(id => actionGroupsMap[id]),
+                actionGroups: collaborator.toolIds?.map((id) => actionGroupsMap[id]),
                 knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
 
-                collaboratorConfigurations: collaborator.collaborators?.map(subCollaborator => {
+                collaboratorConfigurations: collaborator.collaborators?.map((subCollaborator) => {
                     return {
                         collaboratorName: subCollaborator.agentId,
                         collaboratorInstruction: subCollaborator.instruction,
                         relayConversationHistory: subCollaborator.historyRelay as RelayConversationHistory
-                    }
+                    };
                 })
-            }
+            };
             return col;
         }),
-        collaboratorConfigurations: agentAndTools.agent.collaborators?.map(collaborator => {
+        collaboratorConfigurations: agentAndTools.agent.collaborators?.map((collaborator) => {
             return {
                 collaboratorName: collaborator.agentId,
                 collaboratorInstruction: collaborator.instruction,
                 relayConversationHistory: collaborator.historyRelay as RelayConversationHistory
-            }
+            };
         }),
         agentCollaboration: agentAndTools.agent.agentCollaboration ?? (agentAndTools.agent.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
         knowledgeBases,
@@ -589,29 +588,33 @@ export async function invokeAgentToGetAnswer(
         console.log('Adding post-processing collaborator...');
         let postProcessor = {
             overrideLambda: agentPostProcessorFnArn,
-            promptConfigurations: [{
-                promptType: PromptType.POST_PROCESSING,
-                promptCreationMode: CreationMode.OVERRIDDEN,
-                promptState: PromptState.ENABLED,
-                basePromptTemplate: JSON.stringify({
-                    anthropic_version: "bedrock-2023-05-31",
-                    system: "",
-                    messages: [
-                        {
-                            role: "user",
-                            content: [{
-                                type: "text",
-                                text: `
+            promptConfigurations: [
+                {
+                    promptType: PromptType.POST_PROCESSING,
+                    promptCreationMode: CreationMode.OVERRIDDEN,
+                    promptState: PromptState.ENABLED,
+                    basePromptTemplate: JSON.stringify({
+                        anthropic_version: 'bedrock-2023-05-31',
+                        system: '',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: `
                         Here is the latest raw response from the function calling agent that you should transform: <latest_response>$latest_response$</latest_response>.
                         Please output your transformed response within <final_response></final_response> XML tags.
                         `
-                            }]
-                        }
-                    ]
-                }),
-                //inferenceConfiguration: undefined,
-                parserMode: CreationMode.OVERRIDDEN
-            }]
+                                    }
+                                ]
+                            }
+                        ]
+                    }),
+                    //inferenceConfiguration: undefined,
+                    parserMode: CreationMode.OVERRIDDEN
+                }
+            ]
         };
 
         if (cmdInput.promptOverrideConfiguration == null) {

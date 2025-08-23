@@ -18,6 +18,9 @@
             includeInstructionsForTags: false,
             completeExampleInstructionLine: undefined,
             jsonOnlyImperativeInstructionLine: undefined,
+            includeOutputFormattingRequirements: false,
+            completeExampleInstructionEnabled: false,
+            jsonOnlyImperativeInstructionEnabled: false,
         },
         traces: {
             enabled: true,
