@@ -131,13 +131,34 @@ export async function getAgent(agentId: string): Promise<AgentDefinition | undef
 }
 
 export async function getAgentAndTools(agentId: string): Promise<AgentAndTools | undefined> {
-    const agentDefinition = await getAgent(agentId);
-    if (!agentDefinition) {
+    let agents: Record<string, AgentDefinition> = {};
+    let allTools: Set<string> = new Set();
+    let agentsToGet = [agentId];
+
+    while (agentsToGet.length > 0) {
+        const agentId = agentsToGet.shift()!;
+        const agentDefinition = await getAgent(agentId);
+        if (agentDefinition) {
+            agents[agentId] = agentDefinition;
+            (agentDefinition.collaborators ?? []).forEach(collaborator => {
+                if (!agents[collaborator.agentId]) {
+                    agentsToGet.push(collaborator.agentId);
+                }
+            });
+            (agentDefinition.toolIds ?? []).forEach(toolId => allTools.add(toolId));
+        }
+    }
+
+    if (!agents[agentId]) {
         return undefined;
     }
-    const tools = await getToolsByIds(agentDefinition.toolIds ?? []);
+
+    const tools = await getToolsByIds(Array.from(allTools));
+    let agent = agents[agentId];
+    delete agents[agentId]; // TODO: Can you have circular collaborations?
     return {
-        agent: agentDefinition,
+        agent: agent,
+        collaborators: Object.values(agents),
         tools: tools.map((tool) => {
             if ('ttl' in tool) {
                 delete tool.ttl;

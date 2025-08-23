@@ -7,7 +7,13 @@ import {
     type KnowledgeBase,
     type Trace,
     type RetrievalFilter,
-    type Attribution
+    type Attribution,
+    PromptType,
+    AgentCollaboration,
+    RelayConversationHistory,
+    CreationMode,
+    Collaborator,
+    PromptState
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
@@ -24,13 +30,41 @@ import {
     type SimpleAuthenticatedUser,
     Unclassified,
     type VerifyResponseClassification,
-    VerifyResponseClassifications
+    VerifyResponseClassifications,
+    KnowledgeBase as AgentDefinitionKnowledgeBase
 } from 'pika-shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 // import { Trace } from './bedrock-types';
+
+export const MODELS = {
+    ANTHROPIC: {
+        Claude3Haiku: { name: "Claude3Haiku", id: "anthropic.claude-3-haiku-20240307-v1:0" },
+        Claude3Sonnet: { name: "Claude3Sonnet", id: "anthropic.claude-3-sonnet-20240229-v1:0" },
+        Claude3Opus: { name: "Claude3Opus", id: "anthropic.claude-3-opus-20240229-v1:0" },
+        Claude3_5Haiku: { name: "Claude3_5Haiku", id: "us.anthropic.claude-3-5-haiku-20241022-v1:0" },
+        Claude3_5SonnetV2: { name: "Claude3_5SonnetV2", id: "us.anthropic.claude-3-5-sonnet-20241022-v2:0" },
+        Claude3_7Sonnet: { name: "Claude3_7Sonnet", id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0" },
+        Claude4Sonnet: { name: "Claude4Sonnet", id: "us.anthropic.claude-sonnet-4-20250514-v1:0" },
+        Claude4Opus: { name: "Claude4Opus", id: "us.anthropic.claude-opus-4-20250514-v1:0" },
+        Claude4_1Opus: { name: "Claude4_1Opus", id: "us.anthropic.claude-opus-4-1-20250805-v1:0" },
+    },
+    AMAZON: {
+        NovaLite: { name: "NovaLite", id: "amazon.nova-lite-v1:0" },
+        NovaPremier: { name: "NovaPremier", id: "amazon.nova-premier-v1:0" },
+        NovaPro: { name: "NovaPro", id: "amazon.nova-pro-v1:0" },
+        NovaMicro: { name: "NovaMicro", id: "amazon.nova-micro-v1:0" },
+    },
+    META: {
+        Llama3_2_1B_Instruct: { name: "Llama3_2_1B_Instruct", id: "meta.llama3-2-1b-instruct-v1:0" },
+        Llama3_2_11B_Instruct: { name: "Llama3_2_11B_Instruct", id: "meta.llama3-2-11b-instruct-v1:0" },
+        Llama3_2_90B_Instruct: { name: "Llama3_2_90B_Instruct", id: "meta.llama3-2-90b-instruct-v1:0" },
+        Llama3_3_70B_Instruct: { name: "Llama3_3_70B_Instruct", id: "meta.llama3-3-70b-instruct-v1:0" },
+    }
+}
+
 
 const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
 //const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
@@ -50,7 +84,7 @@ if (global.awslambda == null) {
         },
         HttpResponseStream: class HttpResponseStream {
             static from(underlyingStream: any, prelude: any) {
-                let set = (key: any, value: any) => {};
+                let set = (key: any, value: any) => { };
                 if (underlyingStream.set) {
                     set = underlyingStream.set.bind(underlyingStream);
                 } else if (underlyingStream.headers) {
@@ -85,15 +119,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     let lastModelInvocationOutputTraceContent:
         | {
-              content: {
-                  traceId?: string;
-                  input?: unknown;
-                  text: string;
-                  type?: string;
-                  name?: string;
-              }[];
-              traceId: string;
-          }
+            content: {
+                traceId?: string;
+                input?: unknown;
+                text: string;
+                type?: string;
+                name?: string;
+            }[];
+            traceId: string;
+        }
         | undefined;
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -185,6 +219,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                     // Tool & KB Invocations
                     trace.orchestrationTrace?.invocationInput ||
                     trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+                    trace.orchestrationTrace?.observation?.agentCollaboratorInvocationOutput ||
                     trace.orchestrationTrace?.observation?.knowledgeBaseLookupOutput ||
                     // Usage
                     trace.orchestrationTrace?.modelInvocationOutput ||
@@ -230,8 +265,9 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                     }
 
                     // Detect if we have been going too long and send a prompt to the user to continue
-                    if (trace.failureTrace?.failureReason === 'Max iterations exceeded') {
-                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount); 
+                    // Only do this for the root agent, not for collaborator agents
+                    if (chunk.trace.callerChain?.length == 1 && trace.failureTrace?.failureReason === 'Max iterations exceeded') {
+                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount);
                     }
 
                     // // Trim the observation to just a preview.  Observations can be large
@@ -327,18 +363,29 @@ const verificationReprompts: Record<VerifyResponseClassification, string | null>
 };
 
 async function invokeAgentToVerifyAnswer(
-    cmdInput1: InvokeInlineAgentCommandInput
-): Promise<{ message: string; usage: ChatMessageUsage; error?: any; classification: VerifyResponseClassification }> {
+    cmdInput1: InvokeInlineAgentCommandInput,
+    model?: string
+): Promise<{
+    message: string;
+    usage: ChatMessageUsage;
+    error?: any;
+    explanation: string;
+    classification: VerifyResponseClassification
+}> {
     let cmdInput = cloneDeep(cmdInput1);
 
     // Use the verification model
-    cmdInput.foundationModel = DEFAULT_VERIFICATION_MODEL;
+    cmdInput.foundationModel = model ?? DEFAULT_VERIFICATION_MODEL;
 
-    // Remove tools and kb for verification data
+    // Remove tools, kb, and collaborators for verification data
     delete cmdInput.inlineSessionState?.conversationHistory;
     delete cmdInput.streamingConfigurations;
     delete cmdInput.actionGroups;
     delete cmdInput.knowledgeBases;
+    delete cmdInput.collaborators;
+    delete cmdInput.collaboratorConfigurations;
+    delete cmdInput.agentCollaboration;
+    delete cmdInput.promptOverrideConfiguration;
 
     cmdInput.instruction = `You are a classification agent.  Classifications are:
 - A: Factually accurate
@@ -346,7 +393,7 @@ async function invokeAgentToVerifyAnswer(
 - C: Accurate but containing assumptions that are not in the response
 - F: Inaccurate or containing made up information
 
-Response with ONLY the classification Letter inside an <answer></answer> tag.  Example: <answer>A</answer>`;
+Response with the classification Letter and Explanation as json in an <answer></answer> tag.  Example: <answer>{ "classification": "C", "explanation": "The answer made up data sales data for the year 2024." }</answer>`;
     cmdInput.inputText = 'Classify your previous response';
 
     let invokeResponse = await invokeAgent(
@@ -371,12 +418,15 @@ Response with ONLY the classification Letter inside an <answer></answer> tag.  E
         'VERIFICATION:'
     );
 
-    let classificationLetter = invokeResponse.message.replace(/<\/? *answer>/g, '');
-    let classification = VerifyResponseClassifications.find((e) => e == classificationLetter);
+    let rawJson = invokeResponse.message.replace(/<\/? *answer>/g, '');
+    let jsonResponse = JSON.parse(rawJson);
+
+    let classification = VerifyResponseClassifications.find((e) => e == jsonResponse.classification);
 
     return {
         ...invokeResponse,
-        classification: classification ?? Accurate
+        classification: classification ?? Accurate,
+        explanation: jsonResponse.explanation
     };
 }
 
@@ -400,7 +450,10 @@ export async function invokeAgentToGetAnswer(
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
     features: ChatAppOverridableFeaturesForConverseFn,
-    conversationHistory?: ConversationHistory
+    agentPostProcessorFnArn?: string,
+    conversationHistory?: ConversationHistory,
+    model?: string,
+    verificationModel?: string
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -415,7 +468,7 @@ export async function invokeAgentToGetAnswer(
         features
     });
 
-    const actionGroups: AgentActionGroup[] = [];
+    const actionGroupsMap: Record<string, AgentActionGroup> = {};
     for (const tool of agentAndTools.tools ?? []) {
         if (!tool.executionType.includes('lambda')) {
             console.error('Tool execution type is not lambda it is:', tool.executionType, 'for tool:', tool.toolId);
@@ -437,7 +490,7 @@ export async function invokeAgentToGetAnswer(
             throw new Error(`Tool ${tool.toolId} has no function schema`);
         }
 
-        actionGroups.push({
+        actionGroupsMap[tool.name] = {
             actionGroupName: tool.name,
             description: tool.description,
             actionGroupExecutor: {
@@ -446,25 +499,27 @@ export async function invokeAgentToGetAnswer(
             functionSchema: {
                 functions: tool.functionSchema
             }
-        });
+        }
     }
 
-    const knowledgeBases: KnowledgeBase[] = (agentAndTools.agent.knowledgeBases ?? []).map((kb) => {
+    function toKnowledgeBase(kb: AgentDefinitionKnowledgeBase): KnowledgeBase {
         return {
             knowledgeBaseId: kb.id,
             description: kb.description,
             ...(kb.filter || kb.numberOfResults
                 ? {
-                      retrievalConfiguration: {
-                          vectorSearchConfiguration: {
-                              filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
-                              ...(kb.numberOfResults ? { numberOfResults: kb.numberOfResults } : {})
-                          }
-                      }
-                  }
+                    retrievalConfiguration: {
+                        vectorSearchConfiguration: {
+                            filter: kb.filter ? replaceTemplateValues(kb.filter, simpleUser.customUserData) : undefined,
+                            ...(kb.numberOfResults ? { numberOfResults: kb.numberOfResults } : {})
+                        }
+                    }
+                }
                 : {})
         };
-    });
+    }
+
+    const knowledgeBases: KnowledgeBase[] = (agentAndTools.agent.knowledgeBases ?? []).map(toKnowledgeBase);
 
     console.log('Knowledge bases:', JSON.stringify(knowledgeBases, null, 2));
 
@@ -473,14 +528,41 @@ export async function invokeAgentToGetAnswer(
     console.log('Building command input...');
     const cmdInput: InvokeInlineAgentCommandInput = {
         sessionId: chatSession.sessionId,
-        foundationModel: DEFAULT_ANTHROPIC_MODEL,
+        foundationModel: model ?? DEFAULT_ANTHROPIC_MODEL,
         instruction: agentAndTools.agent.basePrompt,
         inputText: questionFromUser,
         enableTrace: true,
         streamingConfigurations: {
             streamFinalResponse: true
         },
-        actionGroups: actionGroups,
+        actionGroups: agentAndTools.agent.toolIds.map(id => actionGroupsMap[id]),
+        collaborators: agentAndTools.collaborators?.map((collaborator) => {
+            let col: Collaborator = {
+                agentName: collaborator.agentId,
+                instruction: collaborator.basePrompt,
+                agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),// (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
+                foundationModel: collaborator.foundationModel ?? model ?? DEFAULT_ANTHROPIC_MODEL,
+                actionGroups: collaborator.toolIds?.map(id => actionGroupsMap[id]),
+                knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
+
+                collaboratorConfigurations: collaborator.collaborators?.map(subCollaborator => {
+                    return {
+                        collaboratorName: subCollaborator.agentId,
+                        collaboratorInstruction: subCollaborator.instruction,
+                        relayConversationHistory: subCollaborator.historyRelay as RelayConversationHistory
+                    }
+                })
+            }
+            return col;
+        }),
+        collaboratorConfigurations: agentAndTools.agent.collaborators?.map(collaborator => {
+            return {
+                collaboratorName: collaborator.agentId,
+                collaboratorInstruction: collaborator.instruction,
+                relayConversationHistory: collaborator.historyRelay as RelayConversationHistory
+            }
+        }),
+        agentCollaboration: agentAndTools.agent.agentCollaboration ?? (agentAndTools.agent.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
         knowledgeBases,
         inlineSessionState: {
             // Include the conversation history if we need to reattach to the session
@@ -504,6 +586,48 @@ export async function invokeAgentToGetAnswer(
             }
         }
     };
+
+    if (cmdInput.collaborators?.length && agentPostProcessorFnArn != null) {
+        console.log('Adding post-processing collaborator...');
+        let postProcessor = {
+            overrideLambda: agentPostProcessorFnArn,
+            promptConfigurations: [{
+                promptType: PromptType.POST_PROCESSING,
+                promptCreationMode: CreationMode.OVERRIDDEN,
+                promptState: PromptState.ENABLED,
+                basePromptTemplate: JSON.stringify({
+                    anthropic_version: "bedrock-2023-05-31",
+                    system: "",
+                    messages: [
+                        {
+                            role: "user",
+                            content: [{
+                                type: "text",
+                                text: `
+                        Here is the latest raw response from the function calling agent that you should transform: <latest_response>$latest_response$</latest_response>.
+                        Please output your transformed response within <final_response></final_response> XML tags.
+                        `
+                            }]
+                        }
+                    ]
+                }),
+                //inferenceConfiguration: undefined,
+                parserMode: CreationMode.OVERRIDDEN
+            }]
+        };
+
+        if (cmdInput.promptOverrideConfiguration == null) {
+            cmdInput.promptOverrideConfiguration = {
+                promptConfigurations: []
+            };
+        }
+        cmdInput.promptOverrideConfiguration.overrideLambda = postProcessor.overrideLambda;
+
+        if (cmdInput.promptOverrideConfiguration.promptConfigurations == null) {
+            cmdInput.promptOverrideConfiguration.promptConfigurations = [];
+        }
+        cmdInput.promptOverrideConfiguration.promptConfigurations.push(...postProcessor.promptConfigurations);
+    }
 
     let error: unknown;
     let startingTime = Date.now();
@@ -566,7 +690,6 @@ export async function invokeAgentToGetAnswer(
         main: Unclassified
     };
     try {
-        console.log('Verifying response...');
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
         addUsage(mainResponse.usage);
         if (mainResponse.error) {
@@ -574,7 +697,8 @@ export async function invokeAgentToGetAnswer(
         }
 
         if (features.verifyResponse.enabled) {
-            let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput);
+            console.log('Verifying response...');
+            let verifyResponse = await invokeAgentToVerifyAnswer(cmdInput, verificationModel);
             addUsage(verifyResponse.usage);
             if (verifyResponse.error) {
                 console.log('Error during Verification.  Proceeding w/o verification', verifyResponse.error);
@@ -607,11 +731,13 @@ export async function invokeAgentToGetAnswer(
                         }
                     });
                     hooks.onChunk('\n\n### Corrections\n', 100);
+                    reprompt += `\n\nReason: ${verifyResponse.explanation}`;
+
                     console.log('Classification requires reprompt:', verifyResponse.classification, reprompt);
                     // Delete history as it was already saturated with the main prompt
                     delete cmdInput.inlineSessionState?.conversationHistory;
 
-                    cmdInput.inputText = reprompt;
+                    cmdInput.inputText = reprompt!;
                     let correctionResponse = await invokeAgent(
                         cmdInput,
                         {

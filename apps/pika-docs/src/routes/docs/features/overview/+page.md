@@ -12,6 +12,7 @@ Pika helps teams ship capable, governed AI chat apps fast. Below is a quick tour
 - **Built on AWS**: Bedrock, Lambda, DynamoDB, OpenSearch, and EventBridge—secure and scalable by default.
 - **LLM-based Agents**: Bedrock inline agents with typed tools and streaming.
 - **Agents as Config**: Define chat apps, agents, and tools declaratively; deploy with CDK.
+- **Multi Agent Collaboration**: Multi-agent workflows where specialists collaborate to handle complex tasks.
 - **Self Correcting**: Independent verifier grades answers and can auto-reprompt.
 - **LLM-generated Feedback**: Automatic critique of finished sessions for tuning.
 - **Insights**: Session metrics, sentiment, goal completion, and more.
@@ -24,6 +25,7 @@ Pika helps teams ship capable, governed AI chat apps fast. Below is a quick tour
 - <Link to="/docs/features/built-on-aws" label="Built on AWS" />
 - <Link to="/docs/features/llm-based-agents" label="LLM-based Agents" />
 - <Link to="/docs/features/agents-as-config" label="Agents as Config" />
+- <Link to="/docs/features/multi-agent-collaboration" label="Multi Agent Collaboration" />
 - <Link to="/docs/features/self-correcting" label="Self Correcting" />
 - <Link to="/docs/features/llm-generated-feedback" label="LLM-generated Feedback" />
 - <Link to="/docs/features/insights" label="Insights" />

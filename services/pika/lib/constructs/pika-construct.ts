@@ -196,6 +196,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
         );
+        const agentPostProcessorFn = this.createAgentPostProcessorFunction(lambdaRole);
 
         const converseFn = this.createConverseFunction(
             converseFnLambdaRole,
@@ -207,6 +208,7 @@ export class PikaConstruct extends Construct {
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
             storageResources.pikaS3Bucket,
+            agentPostProcessorFn,
             openSearchDomain
         );
 
@@ -218,6 +220,7 @@ export class PikaConstruct extends Construct {
             chatAdminApiFn,
             chatAdminRestApi,
             converseFn,
+            agentPostProcessorFn,
             openSearchDomain
         };
     }
@@ -635,12 +638,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                  new iam.PolicyStatement({
-                                      effect: iam.Effect.ALLOW,
-                                      actions: ['es:*'],
-                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                  })
-                              ]
+                                new iam.PolicyStatement({
+                                    effect: iam.Effect.ALLOW,
+                                    actions: ['es:*'],
+                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                })
+                            ]
                             : [])
                     ]
                 })
@@ -745,12 +748,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                  new iam.PolicyStatement({
-                                      effect: iam.Effect.ALLOW,
-                                      actions: ['es:*'],
-                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                  })
-                              ]
+                                new iam.PolicyStatement({
+                                    effect: iam.Effect.ALLOW,
+                                    actions: ['es:*'],
+                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                })
+                            ]
                             : [])
                     ]
                 })
@@ -1182,12 +1185,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                  new iam.PolicyStatement({
-                                      effect: iam.Effect.ALLOW,
-                                      actions: ['es:*'],
-                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                  })
-                              ]
+                                new iam.PolicyStatement({
+                                    effect: iam.Effect.ALLOW,
+                                    actions: ['es:*'],
+                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                })
+                            ]
                             : []),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -1353,12 +1356,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                  new iam.PolicyStatement({
-                                      effect: iam.Effect.ALLOW,
-                                      actions: ['es:*'],
-                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                  })
-                              ]
+                                new iam.PolicyStatement({
+                                    effect: iam.Effect.ALLOW,
+                                    actions: ['es:*'],
+                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                })
+                            ]
                             : [])
                     ]
                 })
@@ -1469,12 +1472,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                  new iam.PolicyStatement({
-                                      effect: iam.Effect.ALLOW,
-                                      actions: ['es:*'],
-                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                  })
-                              ]
+                                new iam.PolicyStatement({
+                                    effect: iam.Effect.ALLOW,
+                                    actions: ['es:*'],
+                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                })
+                            ]
                             : [])
                     ]
                 })
@@ -1572,6 +1575,7 @@ export class PikaConstruct extends Construct {
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
+        agentPostProcessorFn: lambda.Function,
         openSearchDomain?: opensearch.Domain
     ): lambda.Function {
         const converseFn = new nodejs.NodejsFunction(this, 'ConverseFunction', {
@@ -1593,7 +1597,8 @@ export class PikaConstruct extends Construct {
                 PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
-                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
+                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
+                POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn
             },
             bundling: {
                 minify: true,
@@ -1605,6 +1610,34 @@ export class PikaConstruct extends Construct {
 
         return converseFn;
     }
+    private createAgentPostProcessorFunction(role: iam.Role): lambda.Function {
+        const postProcessorFn = new nodejs.NodejsFunction(this, 'AgentPostProcessorFunction', {
+            entry: 'src/lambda/agent-post-processor/index.ts',
+            handler: 'handler',
+            runtime: lambda.Runtime.NODEJS_22_X,
+            functionName: `${this.props.stackName}-AgentPostProcessorFunction`,
+            role: role,
+            timeout: cdk.Duration.seconds(30),
+            memorySize: 512,
+            architecture: lambda.Architecture.ARM_64,
+            environment: {
+            },
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
+        });
+
+        postProcessorFn.addPermission("AgentsInvokeFunction", {
+            action: "lambda:invokeFunction",
+            principal: new iam.ArnPrincipal("bedrock.amazonaws.com"),
+        });
+
+        return postProcessorFn;
+    }
+
 
     private createAgentCustomResource(chatAdminRestApi: apigateway.RestApi): void {
         const agentCustomResourceRole = new iam.Role(this, 'AgentCustomResourceRole', {
@@ -1941,16 +1974,16 @@ export class PikaConstruct extends Construct {
 
                 ...(config.dedicatedMasterEnabled
                     ? {
-                          masterNodeInstanceType: config.masterNodeInstanceType,
-                          masterNodes: config.dedicatedMasterCount ?? 0
-                      }
+                        masterNodeInstanceType: config.masterNodeInstanceType,
+                        masterNodes: config.dedicatedMasterCount ?? 0
+                    }
                     : {})
             },
             zoneAwareness: config.zoneAwarenessEnabled
                 ? {
-                      enabled: true,
-                      availabilityZoneCount: config.availabilityZoneCount ?? 2
-                  }
+                    enabled: true,
+                    availabilityZoneCount: config.availabilityZoneCount ?? 2
+                }
                 : { enabled: false }
         });
 
