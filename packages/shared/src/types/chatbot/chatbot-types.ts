@@ -1330,6 +1330,8 @@ export interface AgentDefinition {
     agentId: string;
     /** Foundation model to use for this agent. */
     foundationModel?: string;
+    /** Foundation model to use for verifying the response of this agent. */
+    verificationFoundationModel?: string;
     /** System prompt template (can be a handlebars template with placeholders like {{user.email}}) */
     basePrompt: string;
     /** List of access control rules with conditions.  If not provided, the agent will be accessible to all users. */
