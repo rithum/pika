@@ -36,7 +36,7 @@
     let selectedChatAppValid = $state(true);
     let selectedChatAppForEditing = $state<ChatApp | undefined>(undefined);
     let isSaving = $state(false);
-    let isClearingChatAppCache = $derived(siteAdmin.siteAdminOperationInProgress.clearChatAppCache);
+    let isClearingChatAppCache = $derived(siteAdmin.siteAdminOperationInProgress.clearConverseLambdaCache);
 
     let isDirty = $derived.by(() => {
         const original = selectedChatApp;
@@ -109,6 +109,13 @@
     $effect(() => {
         if (selectedChatApp) {
             selectedChatAppForEditing = JSON.parse(JSON.stringify(selectedChatApp));
+            siteAdmin.sendSiteAdminCommand({
+                command: 'getInstructionAssistanceConfigFromSsm',
+            });
+            siteAdmin.sendSiteAdminCommand({
+                command: 'getAgent',
+                agentId: selectedChatApp.agentId,
+            });
         } else {
             selectedChatAppForEditing = undefined;
         }
@@ -183,8 +190,8 @@
 
         if (selectedChatApp) {
             siteAdmin.sendSiteAdminCommand({
-                command: 'clearChatAppCache',
-                chatAppId: selectedChatApp.chatAppId,
+                command: 'clearConverseLambdaCache',
+                cacheType: 'agent',
                 agentId: selectedChatApp.agentId,
             });
         }
@@ -303,6 +310,9 @@
                     <Features
                         bind:chatApp={selectedChatAppForEditing}
                         chatAppOriginal={selectedChatApp}
+                        agent={!selectedChatApp
+                            ? undefined
+                            : siteAdmin.agents.find((a) => a.agentId === selectedChatApp?.agentId)}
                         {isOverrideMode}
                         featuresExpanded={expandedSections.features}
                         onToggleFeaturesSection={() => toggleSection('features')}

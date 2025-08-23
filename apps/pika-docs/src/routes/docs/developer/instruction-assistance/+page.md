@@ -26,13 +26,24 @@ export interface AgentInstructionAssistanceFeature {
     enabled: boolean;
 
     /**
-     * If true, then the instructions for tags that are available for the agent will be injected into the prompt at
-     * `{{tag-instructions}}` if found in the prompt. If not found, then the instructions will be appended to the end of the prompt.
+     * If enabled, basic output formatting requirements will be injected into the prompt at
+     * `{{output-formatting-requirements}}` if found in the prompt. If not found, then the requirements will be appended to the end of the prompt.
+     * This provides foundational formatting guidance for the agent's responses.
      */
-    includeInstructionsForTags?: boolean;
+    includeOutputFormattingRequirements?: {
+        enabled: boolean;
+    };
 
     /**
-     * If true, a line will be added to the prompt assistance language that instructs the agent to include a complete example of the tag structure.
+     * If enabled, then the instructions for tags that are available for the agent will be injected into the prompt at
+     * `{{tag-instructions}}` if found in the prompt. If not found, then the instructions will be appended to the end of the prompt.
+     */
+    includeInstructionsForTags?: {
+        enabled: boolean;
+    };
+
+    /**
+     * If enabled, a line will be added to the prompt assistance language that instructs the agent to include a complete example of the tag structure.
      */
     completeExampleInstructionLine?: {
         enabled: boolean;
@@ -40,7 +51,7 @@ export interface AgentInstructionAssistanceFeature {
     };
 
     /**
-     * If true, a line will be added to the prompt assistance language that instructs the agent to only respond with valid JSON.
+     * If enabled, a line will be added to the prompt assistance language that instructs the agent to only respond with valid JSON.
      */
     jsonOnlyImperativeInstructionLine?: {
         enabled: boolean;
@@ -51,6 +62,8 @@ export interface AgentInstructionAssistanceFeature {
 
 ## Configuration Hierarchy
 
+The Agent Instruction Assistance feature uses an opt-in approach for each sub-feature. Simply enabling the main feature (`enabled: true`) does not automatically activate all sub-features - you must explicitly enable each one you want to use. This provides granular control over exactly which instruction assistance behaviors are active.
+
 ### Site-wide Configuration
 
 Configure the default behavior in your `pika-config.ts`:
@@ -59,7 +72,12 @@ Configure the default behavior in your `pika-config.ts`:
 export const siteFeatures: SiteFeatures = {
     agentInstructionAssistance: {
         enabled: true,
-        includeInstructionsForTags: true,
+        includeOutputFormattingRequirements: {
+            enabled: true
+        },
+        includeInstructionsForTags: {
+            enabled: true
+        },
         completeExampleInstructionLine: {
             enabled: true
         },
@@ -80,6 +98,7 @@ Override settings for specific chat apps:
 const chatAppFeatures: ChatAppOverridableFeatures = {
     agentInstructionAssistance: {
         enabled: true,
+        includeOutputFormattingRequirements: true,
         includeInstructionsForTags: false, // Disable tag instructions for this app
         completeExampleInstructionLine: {
             enabled: true,
@@ -96,15 +115,16 @@ const chatAppFeatures: ChatAppOverridableFeatures = {
 When enabled, the system injects this basic structure:
 
 ```markdown
+// If includeOutputFormattingRequirements.enabled is true
 {{output-formatting-requirements}}
 
-// If includeInstructionsForTags is true
+// If includeInstructionsForTags.enabled is true
 {{tag-instructions}}
 
-// If completeExampleInstructionLine is true
+// If completeExampleInstructionLine.enabled is true
 {{complete-example-instruction-line}}
 
-// If jsonOnlyImperativeInstructionLine is true
+// If jsonOnlyImperativeInstructionLine.enabled is true
 {{json-only-imperative-instruction-line}}
 ```
 
@@ -126,10 +146,10 @@ Remember to be helpful and friendly.
 
 When `{{prompt-assistance}}` is found, the system injects all enabled instruction content in this order:
 
-1. Output formatting requirements
-2. Tag instructions (if `includeInstructionsForTags` is true)
-3. Complete example instruction line (if enabled)
-4. JSON validation instruction line (if enabled)
+1. Output formatting requirements (if `includeOutputFormattingRequirements.enabled` is true)
+2. Tag instructions (if `includeInstructionsForTags.enabled` is true)
+3. Complete example instruction line (if `completeExampleInstructionLine.enabled` is true)
+4. JSON validation instruction line (if `jsonOnlyImperativeInstructionLine.enabled` is true)
 
 #### Fine-Grained Placeholder Control
 
@@ -148,6 +168,8 @@ You are a customer service agent.
 Additional context and instructions here.
 `;
 ```
+
+This placeholder is only populated when `includeOutputFormattingRequirements.enabled` is set to `true`. It provides foundational formatting guidance that ensures consistent response structure across all agents.
 
 ##### complete-example-instruction-line Placeholder
 
@@ -179,14 +201,18 @@ Final context...
 
 ##### tag-instructions Placeholder
 
-This placeholder gets replaced with structured instructions for all enabled tags:
+This placeholder gets replaced with instructions for all enabled tags, wrapped in XML tags:
 
 ```markdown
 - **Pika Charts:**
-    - To include a pika chart, use the '<pika.chart></pika.chart>' tags.
-    - The content within the tags MUST be valid Chart.js version 4 JSON, including 'type' and 'data' properties.
-    - **Example:** '<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12]}]}}</pika.chart>'
-    - **Usage:** Include pika charts whenever they can visually represent data, trends, or comparisons effectively.
+  <tag-instructions type="chart">
+  To include a pika chart, use the `<pika.chart></pika.chart>` tags.
+  The content within the tags MUST be valid Chart.js version 4 JSON, including `type` and `data` properties.
+
+**Example:** `<pika.chart>{"type":"line","data":{"labels":["May","June","July","August"],"datasets":[{"label":"Avg Temperature (°C)","data":[2,3,7,12]}]}}</pika.chart>`
+
+**Usage:** Include pika charts whenever they can visually represent data, trends, or comparisons effectively.
+</tag-instructions>
 ```
 
 #### Fallback Behavior
@@ -204,40 +230,26 @@ This approach provides maximum flexibility while ensuring instruction content is
 ### How Tag Instructions Are Generated
 
 1. **Retrieve Enabled Tags**: System queries all tag definitions enabled for the current chat app
-2. **Extract LLM Instructions**: Pulls the `llmInstructions` field from each tag definition
-3. **Format According to Standards**: Converts structured instructions to markdown format
+2. **Extract LLM Instructions**: Pulls the `llmInstructionsMd` field from each tag definition
+3. **Format with XML Wrapper**: Wraps the markdown content in XML tags for consistent formatting
 4. **Inject into Prompt**: Replaces the `{{tag-instructions}}` placeholder or appends to prompt
 
 ### Tag Instruction Structure
 
-Tag definitions include structured LLM instructions:
+Tag definitions now include simple markdown instructions:
 
 ```js
 const tagDefinition: TagDefinition<ChartWidgetTagDefinition> = {
     tag: 'chart',
     scope: 'builtin',
-    llmInstructions: [
-        {
-            type: 'line',
-            mdLine: 'To include a chart, use the `<chart></chart>` tags.'
-        },
-        {
-            type: 'line',
-            title: 'Example',
-            mdLine: '`<chart>{"type":"bar","data":{"labels":["A","B"],"datasets":[{"data":[1,2]}]}}</chart>`'
-        },
-        {
-            type: 'block',
-            title: 'Chart Types',
-            lines: [
-                {
-                    type: 'line',
-                    title: 'Bar Charts',
-                    mdLine: 'Use for comparing categories or discrete data points'
-                }
-            ]
-        }
-    ]
+    llmInstructionsMd: `To include a chart, use the \`<chart></chart>\` tags.
+
+**Example:** \`<chart>{"type":"bar","data":{"labels":["A","B"],"datasets":[{"data":[1,2]}]}}</chart>\`
+
+**Chart Types:**
+- **Bar Charts:** Use for comparing categories or discrete data points
+- **Line Charts:** Best for showing trends over time
+- **Pie Charts:** Effective for showing proportional data`
     // ... other properties
 };
 ```
@@ -261,7 +273,8 @@ For custom clients invoking agents directly:
 ```js
 const instructionAssistance: AgentInstructionAssistanceFeature = {
     enabled: true,
-    includeInstructionsForTags: false // Disable for direct API usage
+    includeOutputFormattingRequirements: { enabled: true },
+    includeInstructionsForTags: { enabled: false } // Disable for direct API usage
 };
 
 // Pass to your agent invocation
@@ -308,7 +321,8 @@ const chatAppFeatures = {
     },
     agentInstructionAssistance: {
         enabled: true,
-        includeInstructionsForTags: true // Only includes instructions for enabled tags
+        includeOutputFormattingRequirements: { enabled: true },
+        includeInstructionsForTags: { enabled: true } // Only includes instructions for enabled tags
     }
 };
 ```
@@ -329,8 +343,8 @@ To see what instructions are being generated:
 **Missing Tag Instructions**:
 
 - Verify tags are enabled in your chat app configuration
-- Check that tag definitions include `llmInstructions` field
-- Ensure `includeInstructionsForTags` is set to `true`
+- Check that tag definitions include `llmInstructionsMd` field
+- Ensure `includeInstructionsForTags.enabled` is set to `true`
 
 **Instruction Formatting Problems**:
 
@@ -362,9 +376,9 @@ Long instruction sets can impact context window usage:
 
 When updating tag definitions:
 
-1. Update the `llmInstructions` field in your tag definitions
+1. Update the `llmInstructionsMd` field in your tag definitions with well-formatted markdown
 2. Cache invalidation happens automatically for admin-updated tags
-3. Test agent responses to ensure proper instruction following
+3. Test agent responses to ensure proper instruction followin
 
 ### Feature Configuration Changes
 
@@ -379,9 +393,10 @@ When modifying instruction assistance settings:
 ### Instruction Design
 
 - **Keep Instructions Concise**: LLMs perform better with clear, brief instructions
-- **Use Consistent Formatting**: Follow Pika's structured instruction patterns
-- **Include Clear Examples**: Provide working examples for complex tags
+- **Use Standard Markdown**: Write your instructions in well-formatted markdown - the system handles the XML wrapping
+- **Include Clear Examples**: Provide working examples for complex tags using code blocks
 - **Test Thoroughly**: Validate that LLMs follow the generated instructions
+- **Leverage Markdown Features**: Use headers, lists, bold text, and code blocks for better readability
 
 ### Configuration Management
 

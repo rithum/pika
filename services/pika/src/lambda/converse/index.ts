@@ -10,17 +10,24 @@ import type {
     ConverseRequest,
     ConverseRequestWithCommand,
     RecordOrUndef,
-    SimpleAuthenticatedUser
+    SimpleAuthenticatedUser,
+    TagDefinition,
+    TagDefinitionLite,
+    TagDefinitionWidget,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
+    InstructionAssistanceConfig
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
+import { generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams, applyInstructionAssistance } from 'pika-shared/util/instruction-assistance-utils';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
 import { LRUCache } from 'lru-cache';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
-import { getAgentAndTools } from '../../lib/chat-admin-apis';
+import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
-import { getValueFromParameterStore } from '../../lib/ssm';
+import { getValueFromParameterStore, getParametersByPath } from '../../lib/ssm';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
@@ -32,8 +39,11 @@ const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way thr
 // only need to get it once until the lambda is restarted
 let jwtSecret: string | undefined;
 
+// Instruction assistance configuration cached from SSM
+let instructionAssistanceConfig: InstructionAssistanceConfig | undefined;
+
 // We are creating this out here so it can be used across invocations since it is stored in the lambda context
-const lruCache = new LRUCache({
+const agentAndToolCache = new LRUCache<string, AgentAndTools>({
     max: 100,
     maxSize: 50000,
     ttl: 1000 * 60 * 5, // 5 minutes
@@ -41,6 +51,13 @@ const lruCache = new LRUCache({
     sizeCalculation: (value, key) => {
         return 1;
     }
+});
+
+// Cache for tag definitions to avoid re-fetching them repeatedly
+const tagDefinitionCache = new LRUCache<string, TagDefinition<TagDefinitionWidget>[]>({
+    max: 50,
+    ttl: 1000 * 60 * 10, // 10 minutes
+    ttlAutopurge: true
 });
 
 /**
@@ -66,10 +83,24 @@ export const handler = enhancedStreamifyResponse(
             throw new Error('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE is not set in the environment variables');
         }
 
+        const tagDefinitionsTable = process.env.TAG_DEFINITIONS_TABLE;
+        // if (!tagDefinitionsTable) {
+        //     throw new Error('TAG_DEFINITIONS_TABLE is not set in the environment variables, cannot converse without tag definitions');
+        // }
+        console.log('Tag definitions table:', tagDefinitionsTable);
+
         if (!jwtSecret) {
             console.log('JWT secret not cached, fetching from SSM...');
             jwtSecret = await getValueFromParameterStore(`/stack/${process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE}/${process.env.STAGE}/jwt-secret`);
             console.log('JWT secret fetched:', !!jwtSecret);
+        }
+
+        if (!instructionAssistanceConfig) {
+            console.log('Instruction assistance config not cached, fetching from SSM...');
+            instructionAssistanceConfig = getInstructionsAssistanceConfigFromRawSsmParams(
+                await getParametersByPath(`/stack/${process.env.PIKA_SERVICE_PROJ_NAME_KEBAB_CASE}/${process.env.STAGE}/instruction-assistance/`)
+            );
+            console.log('Instruction assistance config fetched:', Object.keys(instructionAssistanceConfig ?? {}));
         }
 
         try {
@@ -106,8 +137,8 @@ export const handler = enhancedStreamifyResponse(
 
             // Handle commands first, before conversation logic
             if ('command' in event.body) {
-                if (event.body.command === 'clearChatAppCache') {
-                    console.log('Processing clearChatAppCache command');
+                if (event.body.command === 'clearConverseLambdaCache') {
+                    console.log('Processing clearConverseLambdaCache command');
                     await handleClearCacheCommand(event.body as ConverseRequestWithCommand, responseStream);
                     return;
                 } else {
@@ -228,26 +259,34 @@ export const handler = enhancedStreamifyResponse(
 );
 
 async function handleClearCacheCommand(request: ConverseRequestWithCommand, responseStream: EnhancedResponseStream) {
-    console.log('Clearing chat app cache:', request.chatAppId);
+    console.log('Clearing cache:', request.cacheType);
 
-    if (request.chatAppId && request.agentId) {
-        // Clear specific chat app from cache
-        let deleted = lruCache.delete(request.chatAppId);
-        console.log(`Cache entry for chatAppId ${request.chatAppId} deleted:`, deleted);
-
-        // Clear specific agent from cache
-        deleted = lruCache.delete(request.agentId);
-        console.log(`Cache entry for agentId ${request.agentId} deleted:`, deleted);
-    } else {
-        // Clear all cache entries
-        lruCache.clear();
+    if (request.cacheType === 'agent') {
+        if (request.agentId) {
+            const deleted = agentAndToolCache.delete(request.agentId);
+            console.log(`Cache entry for agentId ${request.agentId} deleted:`, deleted);
+        } else {
+            throw new Error('agentId is required when clearing agent cache');
+        }
+    } else if (request.cacheType === 'tagDefinitions') {
+        tagDefinitionCache.clear();
+        console.log(`Cache entry for tagDefinitions deleted`);
+    } else if (request.cacheType === 'instructionAssistanceConfig') {
+        instructionAssistanceConfig = undefined;
+        console.log(`Cache entry for instructionAssistanceConfig deleted`);
+    } else if (request.cacheType === 'all') {
+        agentAndToolCache.clear();
+        tagDefinitionCache.clear();
+        instructionAssistanceConfig = undefined;
         console.log('All cache entries cleared');
+    } else {
+        throw new Error(`Unknown cache type: ${request.cacheType}`);
     }
 
     // Stream back a simple success response
     const response = {
         success: true,
-        message: request.chatAppId ? `Cache cleared for chat app: ${request.chatAppId}` : 'All cache entries cleared'
+        message: `Cache cleared for ${request.cacheType}`
     };
 
     responseStream.write(JSON.stringify(response));
@@ -255,7 +294,7 @@ async function handleClearCacheCommand(request: ConverseRequestWithCommand, resp
 }
 
 async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndTools> {
-    let result = lruCache.get(agentId) as AgentAndTools | undefined;
+    let result = agentAndToolCache.get(agentId);
     if (result) {
         return result;
     }
@@ -265,8 +304,54 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
         throw new Error(`Agent definition not found for agentId: ${agentId}`);
     }
     if (!result.agent.dontCacheThis) {
-        lruCache.set(agentId, result);
+        agentAndToolCache.set(agentId, result);
     }
+    return result;
+}
+
+/**
+ * Get tag definitions from cache or fetch from API
+ */
+async function getTagDefinitionsFromCacheOrApi(tagsEnabled: TagDefinitionLite[]): Promise<TagDefinition<TagDefinitionWidget>[]> {
+    if (!tagsEnabled || tagsEnabled.length === 0) {
+        return [];
+    }
+
+    // Create cache key from sorted tag identifiers
+    const cacheKey = tagsEnabled
+        .map((tag) => `${tag.scope}.${tag.tag}`)
+        .sort()
+        .join(',');
+
+    let result = tagDefinitionCache.get(cacheKey);
+    if (result) {
+        console.log('Tag definitions retrieved from cache:', { cacheKey, count: result.length });
+        return result;
+    }
+
+    console.log('Fetching tag definitions from API:', { tagsEnabled, cacheKey });
+    const searchRequest: TagDefinitionSearchRequest = {
+        tagsDesired: tagsEnabled,
+        includeInstructions: true
+    };
+
+    const response: TagDefinitionSearchResponse = await searchTagDefsApi(searchRequest);
+    if (!response.success) {
+        console.error('Failed to fetch tag definitions');
+        return [];
+    }
+
+    result = response.tagDefinitions;
+
+    // Only cache if no tag has dontCacheThis set to true
+    const shouldCache = result.every((tagDef) => !tagDef.dontCacheThis);
+    if (shouldCache) {
+        tagDefinitionCache.set(cacheKey, result);
+        console.log('Tag definitions cached:', { cacheKey, count: result.length });
+    } else {
+        console.log('Tag definitions not cached due to dontCacheThis flag');
+    }
+
     return result;
 }
 
@@ -379,6 +464,35 @@ async function converse(
         questionLength: questionFromUser.length
     });
 
+    // Apply instruction assistance to the agent prompt if enabled
+    console.log('Applying instruction assistance to agent prompt...');
+    const tagDefinitions = await getTagDefinitionsFromCacheOrApi(features.tags.tagsEnabled);
+    const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
+    const originalPrompt = agentAndTools.agent.basePrompt;
+    const enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);
+
+    console.log('Agent prompt enhancement:', {
+        originalPromptLength: originalPrompt.length,
+        enhancedPromptLength: enhancedPrompt.length,
+        wasModified: originalPrompt !== enhancedPrompt
+    });
+
+    // Log the enhanced prompt for debugging (truncated if too long)
+    if (originalPrompt !== enhancedPrompt) {
+        console.log('=== ENHANCED AGENT PROMPT ===');
+        console.log(enhancedPrompt.length > 3000 ? enhancedPrompt.substring(0, 3000) + '... (truncated)' : enhancedPrompt);
+        console.log('=== END ENHANCED AGENT PROMPT ===');
+    }
+
+    // Create a modified agentAndTools with the enhanced prompt
+    const enhancedAgentAndTools = {
+        ...agentAndTools,
+        agent: {
+            ...agentAndTools.agent,
+            basePrompt: enhancedPrompt
+        }
+    };
+
     console.log('Invoking agent for answer');
     const assistantMessageForCreate = await invokeAgentToGetAnswer(
         chatSession,
@@ -386,7 +500,7 @@ async function converse(
         userMessage.messageId,
         questionFromUser,
         responseStream,
-        agentAndTools,
+        enhancedAgentAndTools,
         features,
         process.env.POST_PROCESSOR_FUNCTION_ARN,
         conversationHistory

@@ -27,3 +27,7 @@ Filter by app, grade, sentiment, or timeframe. Drill down to the exact turn, tra
 :::tip[Iterate with evidence]
 Use insights to decide whether to adjust prompts, add a tool, or change routing—then measure the impact.
 :::
+
+:::warning[Configuration Required]
+The Insights feature must be enabled in your site-wide `pika-config.ts` file (`sessionInsights.enabled: true`) before insights will be generated and made available in the Admin Site.
+:::

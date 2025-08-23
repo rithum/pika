@@ -85,6 +85,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             if (process.env.POST_PROCESSOR_FUNCTION_ARN == null) {
                 process.env.POST_PROCESSOR_FUNCTION_ARN = `arn:aws:lambda:${process.env.AWS_REGION}:${appConfig.awsAccount}:function:${name}-${stage}-AgentPostProcessorFunction`;
             }
+            process.env.TAG_DEFINITIONS_TABLE = `pika-tag-def-${name}-${stage}`;
 
             let r1: any, r2: any;
             let firstBytePromise: Promise<void> & {

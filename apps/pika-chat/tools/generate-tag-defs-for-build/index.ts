@@ -4,7 +4,7 @@
  * This script generates tag definitions for the build process by:
  * 1. Finding all tag definition files in default-components and custom-components directories
  * 2. Extracting the JSON definitions from each file
- * 3. Compressing and hex-encoding the JSON data
+ * 3. Compressing and base64-encoding the JSON data
  * 4. Creating a tag-definitions.json file in the infra/build directory
  */
 
@@ -28,11 +28,20 @@ const infraBuildPath = path.resolve(__dirname, '../../infra/build');
 interface TagDefInJsonFile {
     tag: string;
     scope: string;
-    gzippedHexEncodedString: string;
+    gzippedBase64EncodedString: string;
 }
 
 interface TagDefinitionsJsonFile {
     tagDefs: TagDefInJsonFile[];
+}
+
+/**
+ * Gzip and base64 encode a string (copied from pika-shared/util/server-utils)
+ */
+function gzipAndBase64EncodeString(string: string): string {
+    const gzippedHexEncodedString = gzipSync(string).toString('hex');
+    const gzippedBase64EncodedString = Buffer.from(gzippedHexEncodedString, 'hex').toString('base64');
+    return gzippedBase64EncodedString;
 }
 
 /**
@@ -46,15 +55,6 @@ function findTagDefinitionFiles(dirPath: string): string[] {
 
     const files = fs.readdirSync(dirPath);
     return files.filter((file) => file.startsWith('tag-definition') && file.endsWith('.ts')).map((file) => path.resolve(dirPath, file));
-}
-
-/**
- * Gzip compresses and hex encodes a string
- */
-function gzipAndHexEncode(data: string): string {
-    const buffer = Buffer.from(data, 'utf8');
-    const compressed = gzipSync(buffer);
-    return compressed.toString('hex');
 }
 
 /**
@@ -80,12 +80,12 @@ async function extractTagDefinition(filePath: string): Promise<TagDefInJsonFile 
         }
 
         const jsonString = JSON.stringify(tagDefinition);
-        const gzippedHexEncodedString = gzipAndHexEncode(jsonString);
+        const gzippedBase64EncodedString = gzipAndBase64EncodeString(jsonString);
 
         return {
             tag: tagDefinition.tag,
             scope: tagDefinition.scope,
-            gzippedHexEncodedString
+            gzippedBase64EncodedString
         };
     } catch (error) {
         console.error(`Error processing ${filePath}:`, error);
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
     const outputPath = path.resolve(infraBuildPath, 'tag-definitions.json');
     fs.writeFileSync(outputPath, JSON.stringify(tagDefinitionsJsonFile, null, 2));
 
-    console.log(`✓ Created ${outputPath} with ${tagDefs.length} tag definitions`);
+    console.log(`Created ${outputPath} with ${tagDefs.length} tag definitions`);
     console.log('Tag definitions generation complete!');
 }
 

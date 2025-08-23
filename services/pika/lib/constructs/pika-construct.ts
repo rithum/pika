@@ -190,6 +190,7 @@ export class PikaConstruct extends Construct {
             chatAdminRestApi,
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
+            storageResources.tagDefinitionsTable,
             storageResources.pikaS3Bucket,
             storageResources.chatAppTable,
             storageResources.chatSessionFeedbackTable,
@@ -202,6 +203,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatMessagesTable,
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
+            storageResources.tagDefinitionsTable,
             chatAdminRestApi,
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
@@ -328,6 +330,29 @@ export class PikaConstruct extends Construct {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/api/execution_arn`,
             stringValue: apiResources.chatbotApi.arnForExecuteApi(),
             description: 'Execution ARN for the chatbot API Gateway'
+        });
+
+        // Instruction Assistance configuration parameters
+        new ssm.StringParameter(this, 'InstructionAssistanceOutputFormattingParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/instruction-assistance/output-formatting-requirements`,
+            stringValue: `**Output Formatting Requirements:**
+
+- **Output Response Enclosure**: All response output MUST be completely enclosed within <answer></answer> tags, including supported custom tags.
+- **Output Content Format:** All responses MUST be in Markdown with supported custom tags.`,
+            description: 'Default output formatting requirements for instruction assistance'
+        });
+
+        new ssm.StringParameter(this, 'InstructionAssistanceCompleteExampleParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/instruction-assistance/default-complete-example-line`,
+            stringValue: `- **Complete Example Output:**
+  \`<answer>##Example markdown\\nNormal text and an <pika.image>http://some.url</pika.image> and some **bold text**\\n<pika.chart>(...)</pika.chart></answer>\``,
+            description: 'Default complete example instruction line for instruction assistance'
+        });
+
+        new ssm.StringParameter(this, 'InstructionAssistanceJsonValidationParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/instruction-assistance/default-json-validation-line`,
+            stringValue: 'BE ABSOLUTELY CERTAIN ANY JSON INCLUDED IS 100% VALID (especially for charts). Invalid JSON will break the user experience.',
+            description: 'Default JSON validation instruction line for instruction assistance'
         });
     }
 
@@ -1169,7 +1194,7 @@ export class PikaConstruct extends Construct {
                             : []),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
                             resources: [`arn:aws:ssm:${this.props.region}:${this.props.account}:parameter/*`]
                         }),
                         new iam.PolicyStatement({
@@ -1226,6 +1251,7 @@ export class PikaConstruct extends Construct {
         chatAdminRestApi: apigateway.RestApi,
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
+        tagDefinitionsTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
         chatAppTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
@@ -1282,13 +1308,15 @@ export class PikaConstruct extends Construct {
                                 `${chatUserTable.tableArn}/index/*`,
                                 agentDefinitionsTable.tableArn,
                                 toolDefinitionsTable.tableArn,
+                                tagDefinitionsTable.tableArn,
+                                `${tagDefinitionsTable.tableArn}/*`,
                                 chatAppTable.tableArn,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
                             resources: [`arn:aws:ssm:${this.props.region}:${this.props.account}:parameter/*`]
                         }),
                         new iam.PolicyStatement({
@@ -1401,7 +1429,7 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
                             resources: [`arn:aws:ssm:${this.props.region}:${this.props.account}:parameter/*`]
                         }),
                         new iam.PolicyStatement({
@@ -1542,6 +1570,7 @@ export class PikaConstruct extends Construct {
         chatMessagesTable: dynamodb.Table,
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        tagDefinitionsTable: dynamodb.Table,
         chatAdminRestApi: apigateway.RestApi,
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
@@ -1564,6 +1593,7 @@ export class PikaConstruct extends Construct {
                 CHAT_ADMIN_API_ID: chatAdminRestApi.restApiId,
                 AGENT_DEFINITIONS_TABLE: agentDefinitionsTable.tableName,
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
+                TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
                 PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,

@@ -31,3 +31,7 @@ Traces help you understand why an agent gave a particular answer, making it easi
 :::note[Privacy control]
 You can enable traces for specific user roles (like content admins) while keeping them hidden from regular users.
 :::
+
+:::warning[Configuration Required]
+The Answer Reasoning (Traces) feature must be enabled in your site-wide `pika-config.ts` file before chat apps can use it. Without this enablement, traces will not be available regardless of individual chat app settings.
+:::

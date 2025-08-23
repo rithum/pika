@@ -85,6 +85,8 @@ This creates a fluid experience where the UI adapts to serve the user's needs in
 
 ## Getting Started
 
+**NOTE:** To use the AI Driven UI (Tags) feature, it must first be enabled in your site-wide `pika-config.ts` file. Without this enablement, chat apps cannot use tags regardless of their individual configuration.
+
 To start using AI Driven UI in your chat app:
 
 1. Enable the tags feature in your site-wide configuration

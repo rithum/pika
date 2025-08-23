@@ -407,8 +407,11 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         },
         agentInstructionAssistance: {
             enabled: false,
+            includeOutputFormattingRequirements: false,
             includeInstructionsForTags: false,
+            completeExampleInstructionEnabled: false,
             completeExampleInstructionLine: undefined,
+            jsonOnlyImperativeInstructionEnabled: false,
             jsonOnlyImperativeInstructionLine: undefined
         }
     };
@@ -529,9 +532,12 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         result.agentInstructionAssistance,
         (feature) => ({
             enabled: feature.enabled ?? false,
-            includeInstructionsForTags: feature.includeInstructionsForTags ?? false,
-            completeExampleInstructionLine: feature.completeExampleInstructionLine ?? undefined,
-            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine ?? undefined
+            includeOutputFormattingRequirements: feature.includeOutputFormattingRequirements?.enabled ?? false,
+            includeInstructionsForTags: feature.includeInstructionsForTags?.enabled ?? false,
+            completeExampleInstructionEnabled: feature.completeExampleInstructionLine?.enabled ?? false,
+            completeExampleInstructionLine: feature.completeExampleInstructionLine?.mdLine ?? undefined,
+            jsonOnlyImperativeInstructionEnabled: feature.jsonOnlyImperativeInstructionLine?.enabled ?? false,
+            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine?.line ?? undefined
         })
     );
 

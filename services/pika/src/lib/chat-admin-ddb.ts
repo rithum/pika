@@ -1249,12 +1249,17 @@ export async function getAllTagDefinitions(
 ): Promise<[TagDefinition<TagDefinitionWidget>[], Record<string, any> | undefined]> {
     let lastEvaluatedKey: Record<string, any> | undefined;
 
-    const result: ScanOutput = await ddbDocClient.scan({
+    const scanParams: any = {
         TableName: getTagDefinitionsTable(),
-        ExclusiveStartKey: paginationToken,
-        FilterExpression: includeDisabled ? undefined : 'disabled = :disabled',
-        ExpressionAttributeValues: { ':disabled': false }
-    });
+        ExclusiveStartKey: paginationToken
+    };
+
+    if (!includeDisabled) {
+        scanParams.FilterExpression = 'disabled = :disabled';
+        scanParams.ExpressionAttributeValues = { ':disabled': false };
+    }
+
+    const result: ScanOutput = await ddbDocClient.scan(scanParams);
     lastEvaluatedKey = result.LastEvaluatedKey;
 
     let tagDefinitions = result.Items ? result.Items.map((item) => convertToCamelCase(item as unknown as SnakeCase<TagDefinition<TagDefinitionWidget>>)) : [];
@@ -1266,7 +1271,7 @@ export async function getAllTagDefinitions(
 
     if (!includeInstructions) {
         tagDefinitions = tagDefinitions.map((tag) => {
-            delete tag.llmInstructions;
+            delete tag.llmInstructionsMd;
             return tag;
         });
     }

@@ -106,6 +106,30 @@ export const pikaConfig: PikaConfig = {
         },
         sessionInsights: {
             enabled: true
+        },
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                {
+                    scope: 'pika',
+                    tag: 'chart'
+                },
+                {
+                    scope: 'pika',
+                    tag: 'prompt'
+                },
+                {
+                    scope: 'pika',
+                    tag: 'image'
+                },
+                {
+                    scope: 'pika',
+                    tag: 'download'
+                }
+            ]
+        },
+        agentInstructionAssistance: {
+            enabled: true
         }
     }
 };

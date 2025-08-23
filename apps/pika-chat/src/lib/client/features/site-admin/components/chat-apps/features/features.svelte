@@ -11,6 +11,7 @@
     import ConfigSection from '../../config-section.svelte';
 
     import type {
+        AgentDefinition,
         AgentInstructionAssistanceFeature,
         AgentInstructionAssistanceFeatureForChatApp,
         ChatApp,
@@ -25,6 +26,7 @@
         SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
+        TagDefinitionLite,
         TagsFeatureForChatApp,
         TracesFeatureForChatApp,
         UiCustomizationFeature,
@@ -50,6 +52,7 @@
     interface Props {
         chatApp: ChatApp;
         chatAppOriginal: ChatApp;
+        agent: AgentDefinition | undefined;
         isOverrideMode: boolean;
         featuresExpanded: boolean;
         onToggleFeaturesSection: () => void;
@@ -61,6 +64,7 @@
     let {
         chatApp = $bindable(),
         chatAppOriginal,
+        agent,
         isOverrideMode,
         featuresExpanded,
         onToggleFeaturesSection,
@@ -72,6 +76,23 @@
     const appState = getContext<AppState>('appState');
 
     const featureValid = $state<Partial<Record<FeatureIdType, boolean>>>({});
+
+    const tagsToUse = $derived.by(() => {
+        const tags: TagDefinitionLite[] = [];
+
+        const originalTagsFeature = chatApp.features?.tags as TagsFeatureForChatApp | undefined;
+        const overriddenTagsFeature = chatApp.override?.features?.tags as TagsFeatureForChatApp | undefined;
+        const isEnabled = isOverrideMode ? overriddenTagsFeature?.enabled : originalTagsFeature?.enabled;
+
+        if (isEnabled) {
+            const tagsEnabled = isOverrideMode ? overriddenTagsFeature?.tagsEnabled : originalTagsFeature?.tagsEnabled;
+            if (tagsEnabled) {
+                tags.push(...tagsEnabled);
+            }
+        }
+
+        return tags;
+    });
 
     // Phase 2: Site-level feature status tracking
     const siteFeatureStatus = $derived.by(() => {
@@ -789,6 +810,8 @@
                             <AgentInstructionAssistanceFeatureRenderer
                                 {featureEnabled}
                                 {disabled}
+                                {agent}
+                                {tagsToUse}
                                 bind:overriddenFeature={
                                     () =>
                                         app.override?.features?.[typedFeatureId] as
@@ -924,10 +947,11 @@
                 tag-specific instructions.
             </p>
             <p class="text-xs text-muted-foreground">
-                <span class="font-bold">Tag Integration:</span> When enabled with the Tags feature, automatically
-                injects instructions for all enabled tags into agent prompts using the <code>{'{{'}</code><code
-                    >tag-instructions</code
-                ><code>{'}}'}</code> placeholder.
+                <span class="font-bold">Placeholder Options:</span> Use <code>{'{{'}</code><code>prompt-assistance</code
+                ><code>{'}}'}</code> for all instruction content in one place, or individual placeholders like
+                <code>{'{{'}</code><code>tag-instructions</code><code>{'}}'}</code>, <code>{'{{'}</code><code
+                    >output-formatting-requirements</code
+                ><code>{'}}'}</code>, etc. for fine-grained control.
             </p>
             <p class="text-xs text-muted-foreground">
                 <span class="font-bold">Consistent Formatting:</span> Ensures all responses are properly wrapped in

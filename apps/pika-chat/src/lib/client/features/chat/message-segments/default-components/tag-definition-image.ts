@@ -13,20 +13,14 @@ const tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompi
     description: 'An image as in a png, jpg, or gif.',
     canBeGeneratedByLlm: true,
     canBeGeneratedByTool: true,
-    shortTagEx: '<image></image>',
+    shortTagEx: '<pika.image></pika.image>',
     widget: {
         type: 'pika-compiled-in'
     },
-    llmInstructions: [
-        {
-            type: 'line',
-            mdLine: 'Include images as it enhances responses'
-        },
-        {
-            type: 'line',
-            mdLine: 'Wrap the URL in an image tag as in <image>http://some.url</image>'
-        }
-    ]
+    llmInstructionsMd: `  - To include an image, use the \`<pika.image></pika.image>\` tags.
+  - Wrap the URL in an image tag as in <pika.image>http://some.url</pika.image>
+  - **Example:** \`<pika.image>https://example.com/image.png</pika.image>\`
+  - **Usage:** Include images as it enhances responses`
 };
 
 export default tagDefinition;

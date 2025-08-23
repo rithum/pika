@@ -21,6 +21,14 @@
         allowSelection?: boolean;
         // If true, the user can select multiple items from the list.
         multiSelect?: boolean;
+        // If you want to detect when items are selected pass this in as a bound variable.  TODO: support initializing selected items from this list passed in.
+        selectedItems?: T[];
+
+        // Originally, the list had a use case where the UX was better when you require the user to first select
+        // an entry in the dropdown and then volitionally click the add button to add it to the list.
+        // However, this is an extra unnecessary step for the user.  So, if you want to add the item to the list
+        // when the user selects an item from the list, set this to true.
+        addOnSelect?: boolean;
 
         // Allow the user to add and remove items from the list instead of just showing a list of items.
         // You the developer are responsible for ensuring that the items are unique and that the user cannot add the same item twice.
@@ -85,6 +93,8 @@
         disabled = false,
         allowSelection = false,
         multiSelect = false,
+        selectedItems = $bindable<T[]>([]),
+        addOnSelect = false,
     }: Props = $props();
 
     const getValue = (item: T) => mapping?.value(item) ?? '';
@@ -118,21 +128,29 @@
     const effectiveAllowSelection = $derived(allowSelection || addRemove?.removeItem !== undefined);
 
     function toggleSelection(value: string) {
+        let changed = false;
         if (multiSelect) {
             // Multi-select: toggle the individual item
             if (selectedValues.has(value)) {
                 selectedValues.delete(value);
+                changed = true;
             } else {
                 selectedValues.add(value);
+                changed = true;
             }
         } else {
             // Single-select: clear all and select this one, or deselect if already selected
             if (selectedValues.has(value)) {
                 selectedValues.delete(value);
+                changed = true;
             } else {
                 selectedValues.clear();
                 selectedValues.add(value);
+                changed = true;
             }
+        }
+        if (changed) {
+            selectedItems = items.filter((item) => selectedValues.has(getValue(item)));
         }
     }
 
@@ -160,11 +178,12 @@
     function handleRemoveSelectedItems() {
         if (addRemove?.removeItem && selectedValues.size > 0) {
             // Find and remove all selected items from the actual list
-            const selectedItems = items.filter((item) => selectedValues.has(getValue(item)));
-            selectedItems.forEach((item) => {
+            const selectedItemsToRemove = items.filter((item) => selectedValues.has(getValue(item)));
+            selectedItemsToRemove.forEach((item) => {
                 addRemove.removeItem!(item);
             });
             selectedValues.clear(); // Clear selection after removing
+            selectedItems = [];
         }
     }
 </script>
@@ -176,7 +195,13 @@
                 {#if addRemove.search}
                     <div class="flex-1 min-w-0">
                         <Combobox
-                            bind:value={selectedDropdownItem}
+                            bind:value={
+                                () => selectedDropdownItem,
+                                (val) => {
+                                    selectedDropdownItem = val;
+                                    handleAddFromDropdown();
+                                }
+                            }
                             mapping={searchMapping}
                             options={availableSearchOptions}
                             onSearchValueChanged={addRemove.search.onSearchValueChanged}
@@ -191,15 +216,17 @@
                         />
                     </div>
                     <div class="flex items-center flex-shrink-0">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="w-6 h-7"
-                            disabled={disabled || !selectedDropdownItem}
-                            onclick={handleAddFromDropdown}
-                        >
-                            <Plus />
-                        </Button>
+                        {#if !addOnSelect}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                class="w-6 h-7"
+                                disabled={disabled || !selectedDropdownItem}
+                                onclick={handleAddFromDropdown}
+                            >
+                                <Plus />
+                            </Button>
+                        {/if}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -213,7 +240,13 @@
                 {:else if addRemove.predefinedOptions && predefinedItems.length > 0 && predefinedMapping}
                     <div class="flex-1 min-w-0">
                         <SimpleDropdown
-                            bind:value={selectedDropdownItem}
+                            bind:value={
+                                () => selectedDropdownItem,
+                                (val) => {
+                                    selectedDropdownItem = val;
+                                    handleAddFromDropdown();
+                                }
+                            }
                             mapping={predefinedMapping}
                             options={availablePredefinedOptions}
                             optionTypeName={addRemove.predefinedOptions.optionTypeName || 'option'}
@@ -226,15 +259,17 @@
                         />
                     </div>
                     <div class="flex items-center flex-shrink-0">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="w-6 h-7"
-                            disabled={disabled || !selectedDropdownItem}
-                            onclick={handleAddFromDropdown}
-                        >
-                            <Plus />
-                        </Button>
+                        {#if !addOnSelect}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                class="w-6 h-7"
+                                disabled={disabled || !selectedDropdownItem}
+                                onclick={handleAddFromDropdown}
+                            >
+                                <Plus />
+                            </Button>
+                        {/if}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -255,7 +290,7 @@
                         onkeydown={(e) => {
                             if (
                                 e.key === 'Enter' &&
-                                addRemove.triggerAddOnEnter &&
+                                (addRemove.triggerAddOnEnter || addOnSelect) &&
                                 addRemove.allowArbitraryValues &&
                                 addRemove.addItem &&
                                 addValueInput.trim().length > 0

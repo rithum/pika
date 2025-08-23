@@ -13,42 +13,17 @@ const tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompi
     description: 'A prompt is a recommended follow-up query that the user may click on to continue the conversation.',
     canBeGeneratedByLlm: true,
     canBeGeneratedByTool: true,
-    shortTagEx: '<image></image>',
+    shortTagEx: '<pika.prompt></pika.prompt>',
     widget: {
         type: 'pika-compiled-in'
     },
-    llmInstructions: [
-        {
-            type: 'line',
-            mdLine: 'To suggest follow-up questions, use the `<prompt></prompt>` tag for EACH suggestion.'
-        },
-        {
-            type: 'line',
-            mdLine: "The text within the tag should be phrased as a command from the user's perspective and must be in the imperative voice, as if it were a command."
-        },
-        {
-            type: 'line',
-            mdLine: 'You can include multiple `<prompt/>` tags in your response.'
-        },
-        {
-            type: 'line',
-            mdLine: 'Include them directly within the response answer.'
-        },
-        {
-            type: 'block',
-            title: 'Examples',
-            lines: [
-                {
-                    type: 'line',
-                    mdLine: '<prompt>Compare the weather at this time last year also.</prompt>'
-                },
-                {
-                    type: 'line',
-                    mdLine: '<prompt>Explain the sales guide for this product.</prompt>'
-                }
-            ]
-        }
-    ]
+    llmInstructionsMd: `  - To suggest follow-up questions, use the \`<pika.prompt></pika.prompt>\` tag for EACH suggestion.
+  - The text within the tag should be phrased as a command from the user's perspective and must be in the imperative voice, as if it were a command.
+  - You can include multiple \`<pika.prompt/>\` tags in your response.
+  - Include them directly within the response answer.
+  - **Examples:**
+    - \`<pika.prompt>Compare the weather at this time last year also.</pika.prompt>\`
+    - \`<pika.prompt>Explain the sales guide for this product.</pika.prompt>\``
 };
 
 export default tagDefinition;

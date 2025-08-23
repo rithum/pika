@@ -92,7 +92,7 @@ function routeTemplateToRegex(template: string): RegExp {
 /**
  * Find a matching route handler for the given method and path
  */
-function findMatchingRoute(method: string, path: string): RouteMatch | null {
+function findMatchingRoute(method: string, path: string): RouteMatch | undefined {
     const routeKey = `${method}:${path}`;
 
     // First try exact match (for routes without parameters)
@@ -124,7 +124,7 @@ function findMatchingRoute(method: string, path: string): RouteMatch | null {
         }
     }
 
-    return null;
+    return undefined;
 }
 
 const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
@@ -266,7 +266,7 @@ async function handleGetAgents(_event: APIGatewayProxyEventPika<void>): Promise<
 /**
  * GET:/api/chat-admin/agent/{agentId}
  */
-async function handleGetAgent(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; agent: AgentDefinition | null }> {
+async function handleGetAgent(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; agent: AgentDefinition | undefined }> {
     const agentId = event.pathParameters?.agentId;
     if (!agentId) {
         throw new Error('Agent ID is required');
@@ -275,7 +275,7 @@ async function handleGetAgent(event: APIGatewayProxyEventPika<void>): Promise<{ 
     const agent = await getAgent(agentId);
     return {
         success: true,
-        agent: agent || null
+        agent: agent || undefined
     };
 }
 
@@ -881,32 +881,3 @@ async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSea
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);
-
-// Test function to verify route matching works correctly
-// This can be removed after testing is complete
-function testRouteMatching() {
-    console.log('Testing route matching...');
-
-    // Test static routes
-    const staticTest = findMatchingRoute('GET', '/api/chat-admin/agent');
-    console.log('Static route test:', !!staticTest, staticTest?.pathParameters);
-
-    // Test parameterized routes
-    const paramTest1 = findMatchingRoute('GET', '/api/chat-admin/agent/abc123');
-    console.log('Param route test 1:', !!paramTest1, paramTest1?.pathParameters);
-
-    const paramTest2 = findMatchingRoute('PUT', '/api/chat-admin/chat-app/my-app-id');
-    console.log('Param route test 2:', !!paramTest2, paramTest2?.pathParameters);
-
-    const paramTest3 = findMatchingRoute('POST', '/api/chat-admin/chat-app/my-app/override');
-    console.log('Param route test 3:', !!paramTest3, paramTest3?.pathParameters);
-
-    // Test non-existent routes
-    const notFoundTest = findMatchingRoute('GET', '/api/chat-admin/nonexistent');
-    console.log('Not found test:', !!notFoundTest);
-
-    console.log('Route matching tests complete');
-}
-
-// Uncomment this line to run tests during deployment
-// testRouteMatching();

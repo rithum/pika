@@ -212,7 +212,7 @@ export class PikaChatConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
                             resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/*`]
                         }),
                         new iam.PolicyStatement({
@@ -374,7 +374,7 @@ export class PikaChatConstruct extends Construct {
             new cdk.CustomResource(this, `TagDefinitionCustomResource-${tagDef.scope}-${tagDef.tag}`, {
                 serviceToken: tagDefinitionCustomResourceArn,
                 properties: {
-                    TagDefData: tagDef.gzippedHexEncodedString,
+                    TagDefData: tagDef.gzippedBase64EncodedString,
                     Stage: stage,
 
                     // This ensures that we always call the custom resource lambda

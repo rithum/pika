@@ -33,3 +33,7 @@ Operate with confidence. The Admin Site lets authorized users manage access, rev
 :::important[Role‑gated]
 Admin capabilities require roles like `pika:site-admin` or `pika:content-admin`.
 :::
+
+:::warning[Configuration Required]
+The Admin Site feature must be enabled in your site-wide `pika-config.ts` file (`siteAdmin.websiteEnabled: true`) before it can be accessed. Without this enablement, the admin interface will not be available.
+:::
