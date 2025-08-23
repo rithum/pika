@@ -183,6 +183,10 @@ export class WeatherStack extends cdk.Stack {
                         suggestions: weatherSuggestions,
                         randomize: true,
                         maxToShow: 5
+                    },
+                    agentInstructionAssistance: {
+                        featureId: 'agentInstructionAssistance',
+                        enabled: true
                     }
                 },
                 enabled: true
