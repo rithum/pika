@@ -638,12 +638,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                new iam.PolicyStatement({
-                                    effect: iam.Effect.ALLOW,
-                                    actions: ['es:*'],
-                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                })
-                            ]
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
                             : [])
                     ]
                 })
@@ -748,12 +748,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                new iam.PolicyStatement({
-                                    effect: iam.Effect.ALLOW,
-                                    actions: ['es:*'],
-                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                })
-                            ]
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
                             : [])
                     ]
                 })
@@ -1185,12 +1185,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                new iam.PolicyStatement({
-                                    effect: iam.Effect.ALLOW,
-                                    actions: ['es:*'],
-                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                })
-                            ]
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
                             : []),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -1356,12 +1356,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                new iam.PolicyStatement({
-                                    effect: iam.Effect.ALLOW,
-                                    actions: ['es:*'],
-                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                })
-                            ]
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
                             : [])
                     ]
                 })
@@ -1472,12 +1472,12 @@ export class PikaConstruct extends Construct {
                         }),
                         ...(openSearchDomain
                             ? [
-                                new iam.PolicyStatement({
-                                    effect: iam.Effect.ALLOW,
-                                    actions: ['es:*'],
-                                    resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
-                                })
-                            ]
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
                             : [])
                     ]
                 })
@@ -1620,8 +1620,7 @@ export class PikaConstruct extends Construct {
             timeout: cdk.Duration.seconds(30),
             memorySize: 512,
             architecture: lambda.Architecture.ARM_64,
-            environment: {
-            },
+            environment: {},
             bundling: {
                 minify: true,
                 sourceMap: true,
@@ -1630,14 +1629,13 @@ export class PikaConstruct extends Construct {
             }
         });
 
-        postProcessorFn.addPermission("AgentsInvokeFunction", {
-            action: "lambda:invokeFunction",
-            principal: new iam.ArnPrincipal("bedrock.amazonaws.com"),
+        postProcessorFn.addPermission('AgentsInvokeFunction', {
+            action: 'lambda:invokeFunction',
+            principal: new iam.ServicePrincipal('bedrock.amazonaws.com')
         });
 
         return postProcessorFn;
     }
-
 
     private createAgentCustomResource(chatAdminRestApi: apigateway.RestApi): void {
         const agentCustomResourceRole = new iam.Role(this, 'AgentCustomResourceRole', {
@@ -1974,16 +1972,16 @@ export class PikaConstruct extends Construct {
 
                 ...(config.dedicatedMasterEnabled
                     ? {
-                        masterNodeInstanceType: config.masterNodeInstanceType,
-                        masterNodes: config.dedicatedMasterCount ?? 0
-                    }
+                          masterNodeInstanceType: config.masterNodeInstanceType,
+                          masterNodes: config.dedicatedMasterCount ?? 0
+                      }
                     : {})
             },
             zoneAwareness: config.zoneAwarenessEnabled
                 ? {
-                    enabled: true,
-                    availabilityZoneCount: config.availabilityZoneCount ?? 2
-                }
+                      enabled: true,
+                      availabilityZoneCount: config.availabilityZoneCount ?? 2
+                  }
                 : { enabled: false }
         });
 
