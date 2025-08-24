@@ -1630,7 +1630,7 @@ export class PikaConstruct extends Construct {
         });
 
         postProcessorFn.addPermission('AgentsInvokeFunction', {
-            action: 'lambda:invokeFunction',
+            action: 'lambda:InvokeFunction',
             principal: new iam.ServicePrincipal('bedrock.amazonaws.com')
         });
 
