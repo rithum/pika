@@ -1634,6 +1634,8 @@ export class PikaConstruct extends Construct {
             principal: new iam.ServicePrincipal('bedrock.amazonaws.com')
         });
 
+        cdk.Tags.of(postProcessorFn).add('agent-tool', 'true');
+        
         return postProcessorFn;
     }
 

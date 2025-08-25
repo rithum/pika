@@ -466,7 +466,7 @@ async function converse(
 
     // Apply instruction assistance to the agent prompt if enabled
     console.log('Applying instruction assistance to agent prompt...');
-    const tagDefinitions = await getTagDefinitionsFromCacheOrApi(features.tags.tagsEnabled);
+    const tagDefinitions = await getTagDefinitionsFromCacheOrApi(features.tags?.tagsEnabled ?? []);
     const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
     const originalPrompt = agentAndTools.agent.basePrompt;
     const enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);
