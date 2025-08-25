@@ -794,7 +794,7 @@ export interface ChatAppOverridableFeatures {
         showChatHistoryInStandaloneMode: boolean;
     };
 
-    tags: TagsChatAppOverridableFeature;
+    tags?: TagsChatAppOverridableFeature;
 
     agentInstructionAssistance: AgentInstructionChatAppOverridableFeature;
 }
