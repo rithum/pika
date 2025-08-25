@@ -1,10 +1,20 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
+    import { Loader, MessageSquarePlus, ThumbsDown, ThumbsUp } from '$icons/lucide';
     import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import type {
+        ChatMessage,
+        ChatSessionFeedbackForCreate,
+        SessionFeedbackType,
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
+    import { v7 as uuidv7 } from 'uuid';
     import { formatDateTime } from '../../../../utils';
     import { ChatAppState } from '../chat-app.state.svelte';
+    import ChatFeedbackDialog from '../chat-feedback/chat-feedback.svelte';
     import ChatFileDisplay from '../chat-input/chat-file-display.svelte';
     import ChatInput from '../chat-input/chat-input.svelte';
     import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
@@ -12,7 +22,6 @@
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
-
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
@@ -29,6 +38,7 @@
     let userScrollOffOfBottom = $state(false);
     let hasTriedToScrollToBottom = $state(false);
     let isProgrammaticallyScrolling = $state(false);
+    let chatMessageForFeedback = $state<ChatMessage | undefined>();
 
     // Track previous values to detect actual changes
     let previousSession = $state<any>(undefined);
@@ -190,6 +200,32 @@
             }
         }, 1);
     }
+
+    async function addFeedback(
+        chatMessage: ChatMessage,
+        sessionFeedbackType: SessionFeedbackType,
+        userComment?: string
+    ) {
+        const sessionFeedback: ChatSessionFeedbackForCreate = {
+            feedbackId: uuidv7(),
+            sessionId: chat.currentSession.sessionId,
+            type: sessionFeedbackType,
+            userComment: userComment,
+            reportedByHuman: true,
+            createdByCustomer: chatMessage.userId === appState.identity.user.userId,
+            status: 'open',
+            severity: 'medium',
+            userId: appState.identity.user.userId,
+            messageId: chatMessage.messageId,
+        };
+
+        await chat.addFeedback(sessionFeedback);
+
+        toast.success('Feedback added. Thanks!', {
+            duration: 1000,
+            position: 'top-right',
+        });
+    }
 </script>
 
 <!-- Fullwidth outer container with drag and drop handlers -->
@@ -267,8 +303,52 @@
                                     {/if}
 
                                     {#if !chat.isStreamingResponseNow}
-                                        <div class="assistant timestamp">
-                                            {formatDateTime(message.timestamp)}
+                                        <div class="flex items-center mt-2">
+                                            {#if !chat.isInterimSession}
+                                                {#if chat.addingFeedback}
+                                                    <Loader class="h-4 w-4 animate-spin" />
+                                                {:else}
+                                                    <div class="flex items-center">
+                                                        <TooltipPlus tooltip="Good response">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onclick={() => {
+                                                                    addFeedback(message, 'user_thumbs_up');
+                                                                }}
+                                                            >
+                                                                <ThumbsUp class="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipPlus>
+                                                        <TooltipPlus tooltip="Bad response">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onclick={() => {
+                                                                    addFeedback(message, 'user_thumbs_down');
+                                                                }}
+                                                            >
+                                                                <ThumbsDown class="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipPlus>
+                                                        <TooltipPlus tooltip="Give feedback">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onclick={() => {
+                                                                    chatMessageForFeedback = message;
+                                                                    chat.feedbackDialogOpen = true;
+                                                                }}
+                                                            >
+                                                                <MessageSquarePlus class="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipPlus>
+                                                    </div>
+                                                {/if}
+                                            {/if}
+                                            <div class="assistant timestamp ml-2">
+                                                {formatDateTime(message.timestamp)}
+                                            </div>
                                         </div>
                                     {/if}
                                 </div>
@@ -338,6 +418,10 @@
 
 {#if chat.userIsContentAdmin}
     <ContentAdminDialog />
+{/if}
+
+{#if chatMessageForFeedback}
+    <ChatFeedbackDialog bind:open={chat.feedbackDialogOpen} {chatMessageForFeedback} />
 {/if}
 
 <style>

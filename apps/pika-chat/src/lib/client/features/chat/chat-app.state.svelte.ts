@@ -2,6 +2,7 @@ import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
 import type {
+    AddChatSessionFeedbackRequest,
     ChatAppMode,
     ChatSessionFeedbackForCreate,
     RecordOrUndef,
@@ -117,6 +118,8 @@ export class ChatAppState {
     #userDataOverrideSettings = $state<UserDataOverrideSettings>() as UserDataOverrideSettings;
     #userDataOverrideDialogOpen = $state(false);
     #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
+    #addingFeedback = $state<boolean>(false);
+    #feedbackDialogOpen = $state<boolean>(false);
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
@@ -205,6 +208,18 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get addingFeedback() {
+        return this.#addingFeedback;
+    }
+
+    get feedbackDialogOpen() {
+        return this.#feedbackDialogOpen;
+    }
+
+    set feedbackDialogOpen(value: boolean) {
+        this.#feedbackDialogOpen = value;
+    }
 
     /**
      * The user prefs for the current user for this chat app.
@@ -553,16 +568,24 @@ export class ChatAppState {
     }
 
     async addFeedback(feedback: ChatSessionFeedbackForCreate) {
-        const response = await this.fetchz('/api/session-feedback', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(feedback)
-        });
+        this.#addingFeedback = true;
+        try {
+            const req: AddChatSessionFeedbackRequest = {
+                feedback: feedback
+            };
+            const response = await this.fetchz('/api/session-feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(req)
+            });
 
-        if (!response.ok) {
-            throw new Error('Failed to add feedback');
+            if (!response.ok) {
+                throw new Error('Failed to add feedback');
+            }
+        } finally {
+            this.#addingFeedback = false;
         }
     }
 

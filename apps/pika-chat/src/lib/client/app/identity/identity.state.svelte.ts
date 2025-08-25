@@ -4,6 +4,7 @@ export class IdentityState {
     #user = $state<ChatUser<RecordOrUndef>>() as ChatUser<RecordOrUndef>;
     #isInternalUser = $derived(this.#user && this.#user.userType === 'internal-user');
     #isSiteAdmin = $derived(this.#user && this.#user.roles?.includes('pika:site-admin'));
+    #isContentAdmin = $derived(this.#user && this.#user.roles?.includes('pika:content-admin'));
     fullName = $derived.by(() => {
         return this.#user.firstName && this.#user.lastName ? `${this.#user.firstName} ${this.#user.lastName}` : 'YOU';
     });
@@ -26,6 +27,10 @@ export class IdentityState {
 
     get isInternalUser() {
         return this.#isInternalUser;
+    }
+
+    get isContentAdmin() {
+        return this.#isContentAdmin;
     }
 
     updateUserOverrideData(chatAppId: string, data: RecordOrUndef) {

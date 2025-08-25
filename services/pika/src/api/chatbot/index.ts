@@ -402,11 +402,19 @@ async function handleAddFeedback(event: APIGatewayProxyEventPika<AddChatSessionF
         throw new Error('Feedback must be an object');
     }
 
-    if (!('feedbackId' in request)) {
+    if (!('feedback' in request)) {
+        throw new Error('Feedback is required');
+    }
+
+    if (typeof request.feedback !== 'object') {
+        throw new Error('Feedback must be an object');
+    }
+
+    if (!('feedbackId' in request.feedback)) {
         throw new Error('Feedback ID is required and must be a V7 UUID');
     }
 
-    if (!('sessionId' in request)) {
+    if (!('sessionId' in request.feedback)) {
         throw new Error('Session ID is required');
     }
     return {
