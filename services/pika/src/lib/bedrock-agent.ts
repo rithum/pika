@@ -487,7 +487,7 @@ export async function invokeAgentToGetAnswer(
             throw new Error(`Tool ${tool.toolId} has no function schema`);
         }
 
-        actionGroupsMap[tool.name] = {
+        actionGroupsMap[tool.toolId] = {
             actionGroupName: tool.name,
             description: tool.description,
             actionGroupExecutor: {
