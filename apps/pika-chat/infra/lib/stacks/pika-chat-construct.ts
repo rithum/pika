@@ -292,7 +292,7 @@ export class PikaChatConstruct extends Construct {
         });
 
         // Create tag definition custom resources
-        this.createTagDefinitionCustomResources(props.tagDefinitions, props.stage);
+        this.createTagDefinitionCustomResources(props.tagDefinitions, props.stage, props.pikaServiceProjNameKebabCase);
 
         // Create the Fargate service
         this.service = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${props.projNameTitleCase}FargateService`, {
@@ -365,9 +365,12 @@ export class PikaChatConstruct extends Construct {
         });
     }
 
-    private createTagDefinitionCustomResources(tagDefinitions: TagDefinitionsJsonFile, stage: string): void {
+    private createTagDefinitionCustomResources(tagDefinitions: TagDefinitionsJsonFile, stage: string, pikaServiceProjNameKebabCase: string): void {
         // Get the tag definition custom resource lambda ARN from SSM parameter
-        const tagDefinitionCustomResourceArn = ssm.StringParameter.valueFromLookup(this, `/stack/pika/${stage}/lambda/tag_definition_custom_resource_arn`);
+        const tagDefinitionCustomResourceArn = ssm.StringParameter.valueFromLookup(
+            this,
+            `/stack/${pikaServiceProjNameKebabCase}/${stage}/lambda/tag_definition_custom_resource_arn`
+        );
 
         // Create a custom resource for each tag definition
         tagDefinitions.tagDefs.forEach((tagDef, index) => {
