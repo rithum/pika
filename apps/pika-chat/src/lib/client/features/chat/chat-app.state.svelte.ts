@@ -739,6 +739,7 @@ export class ChatAppState {
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
                 features: {} as ChatAppOverridableFeatures, // This will be set server side
+                timezone: this.#currentSession.sessionAttributes?.timezone,
                 ...(files && { files })
             };
             // Send the message to the server and stream the response
