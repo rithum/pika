@@ -1,6 +1,7 @@
 {
-    "name": "pika-shared",
-    "version": "1.1.0",
+    "name": "pika-serverless",
+    "version": "1.0.0",
+    "description": "Serverless Framework plugin for Pika chat apps, agents, and tools",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.ts",
@@ -10,25 +11,26 @@
             "import": "./dist/index.mjs",
             "require": "./dist/index.js"
         },
-        "./types/*": {
-            "types": "./dist/types/*.d.ts",
-            "import": "./dist/types/*.mjs",
-            "require": "./dist/types/*.js"
+        "./types": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/types/index.mjs",
+            "require": "./dist/types/index.js"
         },
-        "./util/*": {
-            "types": "./dist/util/*.d.ts",
-            "import": "./dist/util/*.mjs",
-            "require": "./dist/util/*.js"
+        "./utils": {
+            "types": "./dist/utils/index.d.ts",
+            "import": "./dist/utils/index.mjs",
+            "require": "./dist/utils/index.js"
         }
     },
     "scripts": {
         "build": "tsup",
         "dev": "tsup --watch",
+        "test": "jest",
         "lint": "eslint src/",
-        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+        "clean": "rm -rf dist",
         "check-types": "tsc --noEmit",
         "prepack": "pnpm run build",
-        "prepublishOnly": "echo 'Publishing pika-app...' && pnpm run build",
+        "prepublishOnly": "echo 'Publishing pika-serverless...' && pnpm run build",
         "version:patch": "pnpm version patch --git-tag-version=true",
         "version:minor": "pnpm version minor --git-tag-version=true",
         "version:major": "pnpm version major --git-tag-version=true",
@@ -37,36 +39,39 @@
         "release:major": "pnpm run version:major && pnpm publish && git push && git push --tags",
         "release:dry": "pnpm publish --dry-run"
     },
-    "devDependencies": {
-        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
-        "@pika/typescript-config": "workspace:*",
-        "@types/aws-lambda": "catalog:",
-        "@types/jsonwebtoken": "catalog:",
-        "@types/node": "catalog:",
-        "aws-lambda": "catalog:",
-        "eslint": "catalog:",
-        "tsup": "catalog:",
-        "typescript": "catalog:"
-    },
     "keywords": [
+        "serverless",
+        "plugin",
         "pika",
         "chatbot",
         "agent",
         "ai",
         "chatapp"
     ],
-    "files": [
-        "dist/**"
-    ],
     "dependencies": {
-        "camelcase-keys": "catalog:",
-        "jsonwebtoken": "catalog:",
-        "snakecase-keys": "catalog:"
+        "pika-shared": "workspace:*"
+    },
+    "devDependencies": {
+        "@serverless/typescript": "^3.38.0",
+        "@types/serverless": "^3.12.14",
+        "serverless": "^3.39.0",
+        "typescript": "catalog:",
+        "@types/node": "catalog:",
+        "eslint": "catalog:",
+        "tsup": "catalog:",
+        "@pika/typescript-config": "workspace:*",
+        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "jest": "catalog:",
+        "@types/jest": "catalog:",
+        "ts-jest": "catalog:"
+    },
+    "engines": {
+        "node": ">=22.0.0"
     },
     "repository": {
         "type": "git",
         "url": "https://github.com/rithum/pika.git",
-        "directory": "packages/pika-cli"
+        "directory": "packages/pika-serverless"
     },
     "bugs": {
         "url": "https://github.com/rithum/pika/issues"
@@ -75,5 +80,9 @@
     "publishConfig": {
         "access": "public",
         "registry": "https://registry.npmjs.org/"
-    }
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }
