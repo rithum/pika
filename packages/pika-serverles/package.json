@@ -11,20 +11,21 @@
             "import": "./dist/index.mjs",
             "require": "./dist/index.js"
         },
-        "./types/*": {
-            "types": "./dist/types/*.d.ts",
-            "import": "./dist/types/*.mjs",
-            "require": "./dist/types/*.js"
+        "./types": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/types/index.mjs",
+            "require": "./dist/types/index.js"
         },
-        "./util/*": {
-            "types": "./dist/util/*.d.ts",
-            "import": "./dist/util/*.mjs",
-            "require": "./dist/util/*.js"
+        "./utils": {
+            "types": "./dist/utils/index.d.ts",
+            "import": "./dist/utils/index.mjs",
+            "require": "./dist/utils/index.js"
         }
     },
     "scripts": {
         "build": "tsup",
         "dev": "tsup --watch",
+        "test": "jest",
         "lint": "eslint src/",
         "clean": "rm -rf dist",
         "check-types": "tsc --noEmit",
@@ -59,7 +60,10 @@
         "eslint": "catalog:",
         "tsup": "catalog:",
         "@pika/typescript-config": "workspace:*",
-        "@aws-sdk/client-bedrock-agent-runtime": "catalog:"
+        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "jest": "catalog:",
+        "@types/jest": "catalog:",
+        "ts-jest": "catalog:"
     },
     "engines": {
         "node": ">=22.0.0"

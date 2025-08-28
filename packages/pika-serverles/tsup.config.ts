@@ -1,13 +1,13 @@
 import { defineConfig } from 'tsup';
 import * as fs from 'fs';
 import * as path from 'path';
-// import { fileURLToPath } from 'url';
-
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-    entry: ['src/**/*.ts'],
+    entry: {
+        index: 'src/index.ts',
+        'types/index': 'src/types.ts',
+        'utils/index': 'src/utils.ts'
+    },
     format: ['cjs', 'esm'],
     dts: true,
     clean: true,
@@ -19,7 +19,8 @@ export default defineConfig({
     target: 'node22',
     outDir: 'dist',
     bundle: true,
-    skipNodeModulesBundle: false,
+    skipNodeModulesBundle: true, // Don't bundle dependencies like pika-shared
+    external: ['pika-shared', 'serverless', '@aws-sdk/client-bedrock-agent-runtime'],
 
     // Add this to help IDEs find source files
     esbuildOptions(options) {
@@ -33,7 +34,7 @@ export default defineConfig({
     },
     async onSuccess() {
         // Read package.json using ESM-compatible path resolution
-        const pkgPath = path.join(__dirname, 'package.json');
+        const pkgPath = path.join(process.cwd(), 'package.json');
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
         // Generate build info
@@ -47,16 +48,18 @@ export default defineConfig({
         };
 
         // Write build info
-        fs.writeFileSync(path.join(__dirname, 'dist', 'build-info.json'), JSON.stringify(buildInfo, null, 2));
+        fs.writeFileSync(path.join(process.cwd(), 'dist', 'build-info.json'), JSON.stringify(buildInfo, null, 2));
 
         // Copy static files
-        const filesToCopy = ['LICENSE', 'README.md'];
+        const filesToCopy = ['../../LICENSE', 'README.md'];
         for (const file of filesToCopy) {
             try {
-                fs.copyFileSync(path.join(__dirname, file), path.join(__dirname, 'dist', file));
+                fs.copyFileSync(path.join(process.cwd(), file), path.join(process.cwd(), 'dist', file));
             } catch (error) {
                 console.warn(`Failed to copy ${file}:`, error);
             }
         }
+
+        console.log('Pika Serverless Plugin built successfully');
     }
 });

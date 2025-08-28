@@ -1,126 +1,93 @@
-import { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
+import {
+    AgentDataRequest,
+    AgentDefinitionForIdempotentCreateOrUpdate,
+    ChatAppDataRequest,
+    ToolDefinitionForIdempotentCreateOrUpdate
+} from 'pika-shared/types/chatbot/chatbot-types';
+import Serverless from 'serverless';
 
 /**
- * Configuration for a chat app feature
+ * Tool definition that references a lambda function by its logical ID
  */
-export interface ChatAppFeatureConfig {
-    featureId: string;
-    enabled: boolean;
-    [key: string]: any;
+export interface PikaToolWithLambdaRef extends Omit<ToolDefinitionForIdempotentCreateOrUpdate, 'lambdaArn'> {
+    /**
+     * The logical ID of the lambda function that backs this tool
+     * This should match a function name defined in the functions section
+     */
+    lambdaFunctionLogicalId: string;
 }
 
 /**
- * Configuration for file upload feature
- */
-export interface FileUploadFeatureConfig extends ChatAppFeatureConfig {
-    featureId: 'fileUpload';
-    mimeTypesAllowed: string[];
-}
-
-/**
- * Configuration for prompt input field label feature
- */
-export interface PromptInputFieldLabelFeatureConfig extends ChatAppFeatureConfig {
-    featureId: 'promptInputFieldLabel';
-    promptInputFieldLabel: string;
-}
-
-/**
- * Configuration for suggestions feature
- */
-export interface SuggestionsFeatureConfig extends ChatAppFeatureConfig {
-    featureId: 'suggestions';
-    suggestions: string[];
-    randomize?: boolean;
-    maxToShow?: number;
-}
-
-/**
- * Configuration for agent instruction assistance feature
- */
-export interface AgentInstructionAssistanceFeatureConfig extends ChatAppFeatureConfig {
-    featureId: 'agentInstructionAssistance';
-}
-
-/**
- * All possible feature configurations
- */
-export type PikaChatAppFeature = FileUploadFeatureConfig | PromptInputFieldLabelFeatureConfig | SuggestionsFeatureConfig | AgentInstructionAssistanceFeatureConfig;
-
-/**
- * Configuration for a Pika tool
- */
-export interface PikaToolConfig {
-    toolId: string;
-    name: string;
-    displayName: string;
-    description: string;
-    executionType: 'lambda';
-    functionSchema: FunctionDefinition[];
-    supportedAgentFrameworks: ['bedrock'];
-}
-
-/**
- * Configuration for a Pika agent
- */
-export interface PikaAgentConfig {
-    agentId: string;
-    basePrompt: string;
-    tools?: PikaToolConfig[];
-}
-
-/**
- * Configuration for a Pika chat app
- */
-export interface PikaChatAppConfig {
-    chatAppId: string;
-    modesSupported: ('standalone' | 'embedded')[];
-    dontCacheThis?: boolean;
-    title: string;
-    description: string;
-    userTypes: string[];
-    agentId?: string;
-    features?: Record<string, PikaChatAppFeature>;
-    enabled: boolean;
-}
-
-/**
- * Configuration that can be added to a lambda function in serverless.ts
- */
-export interface PikaLambdaConfig {
-    pikaAgent?: PikaAgentConfig;
-    pikaChatApp?: PikaChatAppConfig;
-}
-
-/**
- * Serverless service configuration with Pika extensions
+ * New Pika configuration format for custom.pika section
  */
 export interface PikaServerlessConfig {
-    pikaServiceProjNameKebabCase: string;
-    projNameL: string;
-    projNameKebabCase: string;
-    projNameTitleCase: string;
-    projNameCamel: string;
-    projNameHuman: string;
+    // Custom resource ARNs
+    agentCustomResourceArn?: string;
+    chatAppCustomResourceArn?: string;
+
+    // Agent definitions
+    agents?: AgentDefinitionWithToolRefs[];
+
+    // Chat app definitions
+    chatApps?: ChatAppDataRequest[];
+
+    // Standalone tool definitions (for tools that may be used by external agents)
+    tools?: PikaToolWithLambdaRef[];
 }
 
-/**
- * Internal data structures that match the CDK types
- */
-export interface AgentDataRequest {
-    userId: string;
-    agent: {
-        agentId: string;
-        basePrompt: string;
-    };
-    tools: Array<{
-        toolId: string;
-        name: string;
-        displayName: string;
-        description: string;
-        executionType: 'lambda';
-        lambdaArn: string;
-        functionSchema: FunctionDefinition[];
-        supportedAgentFrameworks: ['bedrock'];
-    }>;
+export interface AgentDefinitionWithToolRefs extends Omit<AgentDataRequest, 'agent' | 'tools'> {
+    agent: AgentDefinitionForIdempotentCreateOrUpdate;
+    tools?: PikaToolWithLambdaRef[];
+}
+
+// /**
+//  * Serverless Framework types
+//  */
+// export interface ServerlessInstance  extends Serverless {
+//     service: {
+//         service: string;
+//         provider: {
+//             name: string;
+//             stage: string;
+//             region: string;
+//             compiledCloudFormationTemplate: {
+//                 Resources: { [key: string]: any };
+//                 Outputs?: { [key: string]: any };
+//             };
+//         };
+//         functions: { [key: string]: PikaFunction };
+//         custom?: {
+//             pika?: PikaServerlessConfig;
+//             [key: string]: any;
+//         };
+//         resources?: {
+//             Resources?: { [key: string]: any };
+//         };
+//     };
+//     cli: {
+//         log: (message: string) => void;
+//         consoleLog: (message: string) => void;
+//     };
+//     configSchemaHandler?: {
+//         defineFunctionProperties: (provider: string, properties: any) => void;
+//     };
+//     providers: {
+//         aws: {
+//             naming: {
+//                 getLambdaLogicalId: (functionName: string) => string;
+//                 getNormalizedFunctionName: (functionName: string) => string;
+//             };
+//         };
+//     };
+// }
+
+// export interface ServerlessOptions {
+//     stage?: string;
+//     region?: string;
+// }
+
+export interface CloudFormationResource {
+    Type: string;
+    Properties: { [key: string]: any };
+    DependsOn?: string[];
 }

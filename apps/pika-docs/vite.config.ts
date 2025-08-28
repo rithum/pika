@@ -69,6 +69,8 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Site Admin Feature', to: '/docs/developer/site-admin-feature/' },
                         { title: 'Content Admin', to: '/docs/developer/content-admin/' },
                         { title: 'Stack Management', to: '/docs/developer/stack-management/' },
+                        { title: 'Serverless Plugin', to: '/docs/developer/serverless/' },
+                        { title: 'Shared Types', to: '/docs/developer/shared-types/' },
                         { title: 'AWS Deployment', to: '/docs/developer/aws-deployment/' },
                         { title: 'Troubleshooting', to: '/docs/developer/troubleshooting/' }
                     ]

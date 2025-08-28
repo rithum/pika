@@ -1,0 +1,226 @@
+# Complete Pika Configuration Reference
+# This file shows all possible configuration options for the Pika Serverless Plugin
+
+service: comprehensive-pika-example
+
+frameworkVersion: '3'
+
+plugins:
+    - '@pika/pika-serverless'
+
+provider:
+    name: aws
+    runtime: nodejs22.x
+    region: us-east-1
+    stage: ${opt:stage, 'dev'}
+
+custom:
+    pika:
+        # Custom resource ARNs (resolved at deploy time using CloudFormation)
+        agentCustomResourceArn: '{{resolve:ssm:/stack/pika/${self:provider.stage}/lambda/agent_custom_resource_arn}}'
+        chatAppCustomResourceArn: '{{resolve:ssm:/stack/pika/${self:provider.stage}/lambda/chat_app_custom_resource_arn}}'
+
+        # Multiple agent configurations
+        agents:
+            # Weather Agent
+            - userId: 'cloudformation/${self:service}'
+              agent:
+                  agentId: 'weather-agent'
+                  basePrompt: |
+                      You are WeatherInsightAgent, a highly skilled weather assistant.
+                      Your goal is to provide accurate weather information with helpful context.
+
+                      Core Directives:
+                      1. Accuracy and Detail: Provide precise weather data
+                      2. User-Centricity: Make information easily understandable
+                      3. Proactive Assistance: Suggest relevant follow-up questions
+              tools:
+                  - toolId: 'weather-tool'
+                    name: 'weather-tool'
+                    displayName: 'Weather Information Tool'
+                    description: 'Comprehensive weather data including current conditions, forecasts, and historical data'
+                    executionType: 'lambda'
+                    lambdaFunctionLogicalId: 'weatherFunction'
+                    functionSchema:
+                        - name: 'getCurrentWeather'
+                          description: 'Get current weather conditions'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  latitude:
+                                      type: 'number'
+                                      description: 'Latitude in decimal degrees'
+                                  longitude:
+                                      type: 'number'
+                                      description: 'Longitude in decimal degrees'
+                                  timezone:
+                                      type: 'string'
+                                      description: 'Timezone for the data'
+                              required: ['latitude', 'longitude']
+                        - name: 'getWeatherForecast'
+                          description: 'Get weather forecast for multiple days'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  latitude:
+                                      type: 'number'
+                                      description: 'Latitude in decimal degrees'
+                                  longitude:
+                                      type: 'number'
+                                      description: 'Longitude in decimal degrees'
+                                  startDate:
+                                      type: 'string'
+                                      description: 'Start date in ISO 8601 format'
+                                  endDate:
+                                      type: 'string'
+                                      description: 'End date in ISO 8601 format'
+                              required: ['latitude', 'longitude']
+                        - name: 'getGeocoding'
+                          description: 'Convert location names to coordinates'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  name:
+                                      type: 'string'
+                                      description: 'Location name to search'
+                                  count:
+                                      type: 'integer'
+                                      description: 'Maximum number of results'
+                              required: ['name']
+                    supportedAgentFrameworks: ['bedrock']
+
+            # Multi-purpose Agent
+            - userId: 'cloudformation/${self:service}'
+              agent:
+                  agentId: 'multi-purpose-agent-${self:provider.stage}'
+                  basePrompt: |
+                      You are a versatile assistant that can help with weather information and calculations.
+
+                      For weather queries, use the weather tool.
+                      For mathematical questions, use the calculator tool.
+
+                      Always be helpful and provide clear, accurate information.
+              tools:
+                  - toolId: 'weather-tool-${self:provider.stage}'
+                    name: 'weather-tool'
+                    displayName: 'Weather Tool'
+                    description: 'Weather information and forecasts'
+                    executionType: 'lambda'
+                    lambdaFunctionLogicalId: 'weatherFunction'
+                    functionSchema:
+                        - name: 'getCurrentWeather'
+                          description: 'Get current weather'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  latitude:
+                                      type: 'number'
+                                      description: 'Latitude'
+                                  longitude:
+                                      type: 'number'
+                                      description: 'Longitude'
+                              required: ['latitude', 'longitude']
+                    supportedAgentFrameworks: ['bedrock']
+                  - toolId: 'calculator-tool-${self:provider.stage}'
+                    name: 'calculator-tool'
+                    displayName: 'Calculator Tool'
+                    description: 'Mathematical calculations'
+                    executionType: 'lambda'
+                    lambdaFunctionLogicalId: 'calculatorFunction'
+                    functionSchema:
+                        - name: 'calculate'
+                          description: 'Perform mathematical calculations'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  expression:
+                                      type: 'string'
+                                      description: 'Mathematical expression to evaluate'
+                              required: ['expression']
+                    supportedAgentFrameworks: ['bedrock']
+
+        # Multiple chat app configurations
+        chatApps:
+            # Weather Chat App
+            - userId: 'cloudformation/${self:service}'
+              chatApp:
+                  chatAppId: 'weather-chat'
+                  modesSupported: ['standalone', 'embedded']
+                  dontCacheThis: true # For development
+                  title: 'Weather Assistant'
+                  description: 'Get comprehensive weather information through natural conversation'
+                  userTypes: ['internal-user']
+                  agentId: 'weather-agent-${self:provider.stage}'
+                  features:
+                      fileUpload:
+                          featureId: 'fileUpload'
+                          enabled: true
+                          mimeTypesAllowed: ['text/csv', 'application/json']
+                      promptInputFieldLabel:
+                          featureId: 'promptInputFieldLabel'
+                          enabled: true
+                          promptInputFieldLabel: 'Ask about weather conditions...'
+                      suggestions:
+                          featureId: 'suggestions'
+                          enabled: true
+                          suggestions:
+                              - "What's the weather in Tokyo?"
+                              - 'Will it rain in London this weekend?'
+                              - "What's the current weather in New York City?"
+                              - 'Show me the forecast for Sydney for the next week'
+                              - "What's the air quality index in Beijing today?"
+                          randomize: true
+                          maxToShow: 3
+                      agentInstructionAssistance:
+                          featureId: 'agentInstructionAssistance'
+                          enabled: true
+                  enabled: true
+
+            # Multi-Purpose Chat App
+            - userId: 'cloudformation/${self:service}'
+              chatApp:
+                  chatAppId: 'multi-purpose-chat'
+                  modesSupported: ['standalone', 'embedded']
+                  dontCacheThis: false # Production ready
+                  title: 'Multi-Purpose Assistant'
+                  description: 'A versatile assistant for weather information and calculations'
+                  userTypes: ['internal-user', 'external-user']
+                  agentId: 'multi-purpose-agent-${self:provider.stage}'
+                  features:
+                      fileUpload:
+                          featureId: 'fileUpload'
+                          enabled: true
+                          mimeTypesAllowed: ['text/csv', 'application/json', 'text/plain']
+                      promptInputFieldLabel:
+                          featureId: 'promptInputFieldLabel'
+                          enabled: true
+                          promptInputFieldLabel: 'Ask me about weather or math...'
+                      suggestions:
+                          featureId: 'suggestions'
+                          enabled: true
+                          suggestions:
+                              - "What's the weather like today?"
+                              - 'Calculate 15% tip on $85.50'
+                              - 'Will it rain tomorrow?'
+                              - "What's 2 + 2?"
+                              - 'Show me the forecast for this week'
+                              - 'Calculate compound interest'
+                          randomize: true
+                          maxToShow: 4
+                      agentInstructionAssistance:
+                          featureId: 'agentInstructionAssistance'
+                          enabled: true
+                  enabled: true
+
+functions:
+    weatherFunction:
+        handler: src/lambda/weather/index.handler
+        timeout: 30
+        memorySize: 256
+        environment:
+            PIKA_S3_BUCKET: '${ssm:/stack/pika/${self:provider.stage}/s3/pika_bucket_name}'
+
+    calculatorFunction:
+        handler: src/lambda/calculator/index.handler
+        timeout: 15
+        memorySize: 128
