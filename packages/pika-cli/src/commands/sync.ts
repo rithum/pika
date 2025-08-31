@@ -975,6 +975,7 @@ function shouldSkipDirectory(dirPath: string): boolean {
         '**/.svelte-kit/**',
         '**/cdk.out/**',
         'packages/pika-cli/**',
+        'packages/pika-serverless/**',
         'apps/pika-docs/**',
         '**/future-changes/**',
         '**/.pika-temp/**',

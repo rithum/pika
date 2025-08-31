@@ -8,7 +8,7 @@
         "test": "turbo run test",
         "format": "prettier --write .",
         "check-types": "turbo check-types",
-        "clean": "rm -rf node_modules && rm -rf .turbo && rm -rf dist && rm -rf build && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -name 'build' -type d -prune -exec rm -rf '{}' +",
+        "clean": "rm -rf node_modules && rm -rf .turbo && rm -rf dist && rm -rf build && find . -path './.github' -prune -o -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -path './.github' -prune -o -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -path './.github' -prune -o -name 'build' -type d -prune -exec rm -rf '{}' +",
         "deploy": "turbo run deploy"
     },
     "devDependencies": {

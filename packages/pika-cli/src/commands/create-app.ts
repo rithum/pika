@@ -247,6 +247,11 @@ async function removeCLIPackage(projectPath: string): Promise<void> {
     if (await fileManager.exists(cliPackagePath)) {
         await fileManager.removeDirectory(cliPackagePath);
     }
+
+    const serverlessPackagePath = path.join(projectPath, 'packages/pika-serverless');
+    if (await fileManager.exists(serverlessPackagePath)) {
+        await fileManager.removeDirectory(serverlessPackagePath);
+    }
 }
 
 async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
