@@ -1,6 +1,6 @@
 {
     "name": "pika-app",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "CLI tool for creating and managing Pika framework chat applications",
     "type": "module",
     "main": "dist/index.js",
