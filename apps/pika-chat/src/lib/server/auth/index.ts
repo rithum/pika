@@ -25,7 +25,9 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
 
     // Validate the provider
     if (!authProvider) {
-        console.log('Auth provider is undefined, using default mock authentication');
+        console.log(
+            'WARNING!! ACHTUNG!! ATTENTION!! Auth provider is undefined so using INSECURE default mock authentication.  If not intentional, see docs at http://pika.tools.'
+        );
         return new DefaultAuthProvider(appConfig.stage);
     }
 

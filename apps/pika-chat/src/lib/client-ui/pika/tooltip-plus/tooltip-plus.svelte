@@ -16,7 +16,7 @@
     const { tooltip, hotKey, children, delayDuration, allowHoverOverTooltip = false }: Props = $props();
 
     const appState = getContext<AppState>('appState');
-    let hideTooltip = $derived(appState.settings.data.hidePikaTooltips);
+    let hideTooltip = $derived(appState.settings.data.hideTooltips);
 </script>
 
 {#if !hideTooltip}

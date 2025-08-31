@@ -61,6 +61,14 @@ export class IdentityState {
         delete this.#user.viewingContentFor[chatAppId];
     }
 
+    /**
+     * Updates the user data reactively when server-side changes are detected
+     */
+    updateUser(newUser: ChatUser<RecordOrUndef>) {
+        // console.log('[Identity] User updated:', { userId: newUser.userId, firstName: newUser.firstName });
+        this.#user = newUser;
+    }
+
     async logout() {
         //TODO: Implement logout
     }

@@ -9,9 +9,10 @@ import {
     deserializeUserOverrideDataFromCookies,
     serializeAuthenticatedUserToCookies
 } from '$lib/server/cookies';
-import { addSecurityHeaders, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
-import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { addSecurityHeaders, arraysEqual, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
+import deepEqual from 'deep-equal';
+import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 
@@ -71,6 +72,157 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Try to deserialize user from cookies
     user = deserializeAuthenticatedUserFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
 
+    // ===== ChatUser Refresh Logic =====
+    let needsSerializationDueToChatUserChanges = false;
+
+    if (user) {
+        // If we have a user from cookies, refresh their ChatUser data periodically
+        const now = Date.now();
+        // Internal users we refresh every 30 seconds, external users we refresh once every 5 minutes
+        let userRefreshIntervalMs = user.userType === 'internal-user' ? 30 * 1000 : 5 * 60 * 1000;
+
+        // Check if we need to refresh ChatUser data
+        let shouldRefreshChatUser = false;
+        const lastChatUserRefresh = user.lastChatUserRefresh ? new Date(user.lastChatUserRefresh).getTime() : 0;
+
+        if (now - lastChatUserRefresh > userRefreshIntervalMs) {
+            shouldRefreshChatUser = true;
+            // console.log('[Hooks] ChatUser refresh needed:', {
+            //     userId: user.userId,
+            //     lastRefreshAgo: Math.floor((now - lastChatUserRefresh) / 1000),
+            //     intervalSeconds: Math.floor(userRefreshIntervalMs / 1000)
+            // });
+        }
+
+        if (shouldRefreshChatUser) {
+            try {
+                // Get current ChatUser data from DynamoDB
+                const currentChatUser = await getChatUser(user.userId);
+                // console.log('[Hooks Debug] Raw ChatUser from database:', {
+                //     userId: user.userId,
+                //     fullChatUser: currentChatUser,
+                //     hasRolesField: 'roles' in (currentChatUser || {}),
+                //     rolesValue: currentChatUser?.roles,
+                //     rolesType: typeof currentChatUser?.roles
+                // });
+
+                if (!currentChatUser) {
+                    // ChatUser should exist if we have a valid cookie user - something is wrong
+                    console.error('[Hooks] ChatUser not found for authenticated user - clearing cookies and forcing re-login:', {
+                        userId: user.userId
+                    });
+                    clearAllCookies(event);
+                    return redirect(302, '/login');
+                }
+
+                // Detect if core user data controlled by Pika has changed
+                let coreDataChanged = false;
+
+                const firstNameChanged = user.firstName !== currentChatUser.firstName;
+                const lastNameChanged = user.lastName !== currentChatUser.lastName;
+                const userTypeChanged = user.userType !== currentChatUser.userType;
+                const rolesChanged = !arraysEqual(user.roles, currentChatUser.roles);
+                const viewingContentForChanged = !deepEqual(user.viewingContentFor, currentChatUser.viewingContentFor);
+
+                // console.log('[Hooks Debug] Individual field comparisons:', {
+                //     userId: user.userId,
+                //     firstName: {
+                //         cookie: user.firstName,
+                //         chatUser: currentChatUser.firstName,
+                //         changed: firstNameChanged
+                //     },
+                //     lastName: {
+                //         cookie: user.lastName,
+                //         chatUser: currentChatUser.lastName,
+                //         changed: lastNameChanged
+                //     },
+                //     userType: {
+                //         cookie: user.userType,
+                //         chatUser: currentChatUser.userType,
+                //         changed: userTypeChanged
+                //     },
+                //     roles: {
+                //         cookie: user.roles,
+                //         chatUser: currentChatUser.roles,
+                //         changed: rolesChanged
+                //     },
+                //     viewingContentFor: {
+                //         cookie: user.viewingContentFor,
+                //         chatUser: currentChatUser.viewingContentFor,
+                //         changed: viewingContentForChanged
+                //     }
+                // });
+
+                if (firstNameChanged || lastNameChanged || userTypeChanged || rolesChanged || viewingContentForChanged) {
+                    coreDataChanged = true;
+                    // console.log('[Hooks] Core user data changed in ChatUser:', {
+                    //     userId: user.userId,
+                    //     cookieData: {
+                    //         firstName: user.firstName,
+                    //         lastName: user.lastName,
+                    //         userType: user.userType,
+                    //         roles: user.roles,
+                    //         viewingContentFor: user.viewingContentFor
+                    //     },
+                    //     chatUserData: {
+                    //         firstName: currentChatUser.firstName,
+                    //         lastName: currentChatUser.lastName,
+                    //         userType: currentChatUser.userType,
+                    //         roles: currentChatUser.roles,
+                    //         viewingContentFor: currentChatUser.viewingContentFor
+                    //     }
+                    // });
+                }
+
+                // Check if custom data has changed
+                const cookieCustomData = JSON.stringify(user.customData || {});
+                const chatUserCustomData = JSON.stringify(currentChatUser.customData || {});
+                const customDataChanged = cookieCustomData !== chatUserCustomData;
+
+                // if (customDataChanged) {
+                //     console.log('[Hooks] Custom data changed in ChatUser:', {
+                //         userId: user.userId,
+                //         cookieCustomData: user.customData,
+                //         chatUserCustomData: currentChatUser.customData
+                //     });
+                // }
+
+                // Merge ChatUser data into the cookie user
+                if (coreDataChanged || customDataChanged) {
+                    user = {
+                        ...user,
+                        firstName: currentChatUser.firstName || user.firstName,
+                        lastName: currentChatUser.lastName || user.lastName,
+                        userType: currentChatUser.userType || user.userType,
+                        roles: currentChatUser.roles || user.roles,
+                        viewingContentFor: currentChatUser.viewingContentFor || user.viewingContentFor,
+                        customData: currentChatUser.customData || user.customData
+                    };
+
+                    needsSerializationDueToChatUserChanges = true;
+                    // console.log('[Hooks] Merged ChatUser data into cookie user - cookie will be updated');
+                }
+
+                // Update lastChatUserRefresh timestamp
+                user.lastChatUserRefresh = new Date().toISOString();
+                // Always update cookie if we performed a refresh to update the timestamp
+                if (!needsSerializationDueToChatUserChanges) {
+                    needsSerializationDueToChatUserChanges = true;
+                    // Mark this as a timestamp-only update for accurate logging
+                    (user as any)._timestampOnlyUpdate = true;
+                }
+            } catch (error) {
+                console.error('[Hooks] Error refreshing ChatUser data:', error);
+                // Don't fail the request, just log the error and continue
+                // Update timestamp anyway to prevent repeated failures
+                user.lastChatUserRefresh = new Date().toISOString();
+                needsSerializationDueToChatUserChanges = true;
+                // Mark this as a timestamp-only update for accurate logging
+                (user as any)._timestampOnlyUpdate = true;
+            }
+        }
+    }
+
     if (!user) {
         // No user cookie - attempt initial authentication
         try {
@@ -88,10 +240,30 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // Clone and get rid of the auth data which should not be stored in the chat database
                     const newChatUser = { ...user } as any;
                     delete newChatUser.authData;
+                    // console.log('[Hooks Debug] Creating new ChatUser with data:', {
+                    //     userId: user.userId,
+                    //     newChatUserRoles: newChatUser.roles,
+                    //     originalUserRoles: user.roles
+                    // });
                     chatUser = await createChatUser(newChatUser);
+                    // console.log('[Hooks Debug] Created ChatUser result:', {
+                    //     userId: user.userId,
+                    //     createdChatUserRoles: chatUser?.roles,
+                    //     success: !!chatUser
+                    // });
                 } else {
+                    // console.log('[Hooks Debug] Found existing ChatUser, merging roles:', {
+                    //     userId: user.userId,
+                    //     existingChatUserRoles: chatUser.roles,
+                    //     userRoles: user.roles
+                    // });
                     // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
                     mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
+                    // console.log('[Hooks Debug] After merging roles:', {
+                    //     userId: user.userId,
+                    //     mergedUserRoles: user.roles,
+                    //     chatUserRoles: chatUser.roles
+                    // });
                 }
 
                 // Serialize the user to cookies (handles large data automatically)
@@ -120,6 +292,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
 
     // Give the auth provider a chance to validate/refresh the user's authentication
+    let needsSerializationDueToAuthProvider = false;
+
     if (authProvider.validateUser && user) {
         try {
             // Only validate if needed (let the provider decide based on time/expiry)
@@ -128,9 +302,8 @@ export const handle: Handle = async ({ event, resolve }) => {
             if (validationResult) {
                 // Provider returned updated user with refreshed tokens
                 user = validationResult;
-
-                // Update the user cookies with the refreshed data
-                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+                needsSerializationDueToAuthProvider = true;
+                // console.log('[Hooks] Auth provider returned updated user - cookie needs updating');
             }
             // If validationResult is undefined, no action needed
         } catch (error) {
@@ -142,6 +315,32 @@ export const handle: Handle = async ({ event, resolve }) => {
             // Re-throw other errors
             throw error;
         }
+    }
+
+    // Update cookies if needed (either from auth provider changes or ChatUser changes)
+    if (needsSerializationDueToAuthProvider || needsSerializationDueToChatUserChanges) {
+        const reasons = [];
+        if (needsSerializationDueToAuthProvider) reasons.push('auth provider updates');
+        if (needsSerializationDueToChatUserChanges) {
+            // Check if this is just a timestamp update or actual data changes
+            if ((user as any)._timestampOnlyUpdate) {
+                reasons.push('ChatUser timestamp refresh');
+            } else {
+                reasons.push('ChatUser data changes');
+            }
+        }
+
+        // Only log if there are actual data changes (not just timestamp updates)
+        if (!(user as any)._timestampOnlyUpdate) {
+            console.log('[Hooks] Updating user cookies due to:', reasons.join(' and '));
+        }
+        // Uncomment the line below if you want to debug timestamp-only updates
+        // console.log('[Hooks] Updating user cookies due to:', reasons.join(' and '));
+
+        // Clean up the temporary flag
+        delete (user as any)._timestampOnlyUpdate;
+
+        serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
     }
 
     // If the user is allowed to use the user data overrides feature, we need to deserialize the user override data from cookies

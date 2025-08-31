@@ -6,7 +6,13 @@ import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, TagDefinition, T
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ params, url, locals }) => {
+export const load: LayoutServerLoad = async ({ params, url, locals, depends }) => {
+    // Add dependency for user data invalidation - this ensures parent layout reloads
+    // when invalidate('app:user-data') is called from child routes
+    depends('app:user-data');
+
+    // console.log('[Chat Layout.server] Child layout server function running for chatAppId:', params.chatAppId);
+
     const { chatAppId } = params;
     const modeParam = url.searchParams.get('mode') || undefined;
     let chatApp: ChatApp | undefined;

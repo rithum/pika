@@ -598,3 +598,20 @@ export function checkUserAccessToFeature(user: AuthenticatedUser<RecordOrUndef, 
         return userTypeMatches || userRoleMatches;
     }
 }
+
+/**
+ * Compare two arrays of strings for equality.  The arrays are the same if they have the same length and the same values
+ * whether they are in the same order or not.
+ *
+ * @param a - The first array to compare
+ * @param b - The second array to compare
+ * @returns True if the arrays are equal, false otherwise
+ */
+export function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+    if (a === b) return true;
+    if (!a || !b) return a === b;
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((val, i) => val === sortedB[i]);
+}

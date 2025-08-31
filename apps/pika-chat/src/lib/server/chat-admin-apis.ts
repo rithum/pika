@@ -191,16 +191,16 @@ export async function getMatchingChatApps(
         customDataFieldPathToMatchUsersEntity
     };
 
-    console.log('🔍 getMatchingChatApps called with:', {
-        userId: user.userId,
-        userType: user.userType,
-        userRoles: user.roles,
-        chatAppsForHomePage,
-        homePageFilterRules,
-        chatAppId,
-        customDataFieldPathToMatchUsersEntity,
-        userCustomData: user.customData
-    });
+    // console.log('getMatchingChatApps called with:', {
+    //     userId: user.userId,
+    //     userType: user.userType,
+    //     userRoles: user.roles,
+    //     chatAppsForHomePage,
+    //     homePageFilterRules,
+    //     chatAppId,
+    //     customDataFieldPathToMatchUsersEntity,
+    //     userCustomData: user.customData
+    // });
 
     // Hash the request and see if it is in the cache
     const requestHash = hash('sha256', JSON.stringify(request));
@@ -218,7 +218,7 @@ export async function getMatchingChatApps(
         }
     }
 
-    console.log('Making API call to chat-admin/chat-app-by-rules with request:', request);
+    // console.log('Making API call to chat-admin/chat-app-by-rules with request:', request);
 
     const response = await invokeApi<GetChatAppsByRulesResponse>({
         apiId: appConfig.chatAdminApiId,
@@ -231,7 +231,7 @@ export async function getMatchingChatApps(
         }
     });
 
-    console.log('API response received:', {
+    console.log('API response received for getMatchingChatApps:', {
         statusCode: response.statusCode,
         success: response.body?.success,
         chatAppsCount: response.body?.chatApps?.length,
@@ -247,17 +247,17 @@ export async function getMatchingChatApps(
         throw new Error(`Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
     }
 
-    console.log(
-        'Chat apps received from API:',
-        response.body.chatApps.map((app) => ({
-            chatAppId: app.chatAppId,
-            title: app.title,
-            enabled: app.enabled,
-            userTypes: app.userTypes,
-            userRoles: app.userRoles,
-            agentId: app.agentId
-        }))
-    );
+    // console.log(
+    //     'Chat apps received from API:',
+    //     response.body.chatApps.map((app) => ({
+    //         chatAppId: app.chatAppId,
+    //         title: app.title,
+    //         enabled: app.enabled,
+    //         userTypes: app.userTypes,
+    //         userRoles: app.userRoles,
+    //         agentId: app.agentId
+    //     }))
+    // );
 
     if (response.body.chatApps.length > 0) {
         response.body.chatApps.forEach((chatApp) => {
@@ -272,10 +272,10 @@ export async function getMatchingChatApps(
         );
     }
 
-    console.log(
-        'getMatchingChatApps final result:',
-        response.body.chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
-    );
+    // console.log(
+    //     'getMatchingChatApps final result:',
+    //     response.body.chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
+    // );
     return response.body.chatApps;
 }
 
