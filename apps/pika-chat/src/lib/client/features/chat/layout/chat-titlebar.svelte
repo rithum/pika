@@ -1,13 +1,14 @@
 <script lang="ts">
     import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
     import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
 
+    const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
     const standalone = $derived(chat.mode === 'standalone');
     let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
@@ -17,7 +18,30 @@
         const userNeedsToProvideDataOverrides = settings.userNeedsToProvideDataOverrides;
         return enabled && userNeedsToProvideDataOverrides;
     });
-    let showLogoutDialog = $state(false);
+
+    let userInfo = $derived.by(() => {
+        const internalUser = appState.identity.user.userType === 'internal-user';
+        const customDataUiRepresentation = appState.customDataUiRepresentation;
+        const userId = appState.identity.user.userId;
+        const firstName = appState.identity.user.firstName;
+        const lastName = appState.identity.user.lastName;
+        let result: { title: string; value: string }[] = [];
+
+        if (internalUser && customDataUiRepresentation) {
+            result.push({ title: customDataUiRepresentation.title, value: customDataUiRepresentation.value });
+        }
+        if (internalUser) {
+            result.push({ title: 'User ID', value: userId });
+        }
+        if (firstName || lastName) {
+            result.push({ title: 'User', value: `${firstName} ${lastName}` });
+        }
+        if (internalUser) {
+            result.push({ title: 'Session ID', value: chat.currentSession.sessionId });
+        }
+
+        return result.length > 0 ? result : undefined;
+    });
 
     // const appSideBarHotKey: HotKey = createHotKey({
     //     key: 'b',
@@ -111,7 +135,7 @@
                     tellParentToClose();
                 }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
             >
-        {:else if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin}
+        {:else}
             {@render settingsDropdown(false)}
         {/if}
         {#if chat.pageHeaderRight}{@render chat.pageHeaderRight()}{/if}
@@ -135,21 +159,16 @@
             </div>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content>
-            {#if chat.user.userType === 'internal-user' && chat.customDataUiRepresentation}
+            {#if userInfo}
                 <div class="flex flex-col p-2 bg-gray-100 rounded-md">
-                    <div class="text-sm text-gray-500">{chat.customDataUiRepresentation.title}</div>
-                    <div class="font-semibold">{chat.customDataUiRepresentation.value}</div>
-                </div>
-                <DropdownMenu.Separator />
-            {/if}
-            {#if chat.user.userType === 'internal-user'}
-                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
-                    <div class="text-sm text-gray-500">User ID</div>
-                    <div class="font-semibold">{chat.user.userId}</div>
-                </div>
-                <DropdownMenu.Separator />
-                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
-                    <CopyButton embedded={true}>{chat.currentSession.sessionId}</CopyButton>
+                    {#each userInfo as info}
+                        <div class="mb-2">
+                            <div class="text-sm text-gray-500">{info.title}</div>
+                            <div class="font-semibold">
+                                <CopyButton embedded={true}>{info.value}</CopyButton>
+                            </div>
+                        </div>
+                    {/each}
                 </div>
                 <DropdownMenu.Separator />
             {/if}
@@ -202,7 +221,7 @@
                     <DropdownMenu.Separator />
                     <DropdownMenu.Item
                         onclick={() => {
-                            showLogoutDialog = true;
+                            appState.showLogoutDialog = true;
                         }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
                     >
                 {/if}
@@ -224,32 +243,3 @@
         >
     </TooltipPlus>
 {/snippet}
-
-<Dialog.Root
-    bind:open={showLogoutDialog}
-    onOpenChange={() => {
-        if (!showLogoutDialog) {
-            showLogoutDialog = false;
-        }
-    }}
->
-    <Dialog.Content>
-        <Dialog.Title>{chat.features.logout.dialogTitle}</Dialog.Title>
-
-        {chat.features.logout.dialogDescription}
-        <Dialog.Footer>
-            <Button
-                variant="default"
-                onclick={() => {
-                    window.location.href = '/logout-now';
-                }}>{chat.features.logout.dialogTitle}</Button
-            >
-            <Button
-                variant="outline"
-                onclick={() => {
-                    showLogoutDialog = false;
-                }}>Cancel</Button
-            >
-        </Dialog.Footer>
-    </Dialog.Content>
-</Dialog.Root>

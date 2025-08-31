@@ -7,42 +7,63 @@
     import type { ChatAppLite } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import type { PageData } from './$types';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
 
     const appState = getContext<AppState>('appState');
-    const { data }: { data: PageData } = $props();
 
     const internalApps = $derived(
-        data.chatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('internal-user'))
+        appState.allChatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('internal-user'))
     );
     const externalApps = $derived(
-        data.chatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('external-user'))
+        appState.allChatApps.filter((app) => (app.userTypes ?? ['internal-user']).includes('external-user'))
     );
+
+    let userInfo = $derived.by(() => {
+        const internalUser = appState.identity.user.userType === 'internal-user';
+        const customDataUiRepresentation = appState.customDataUiRepresentation;
+        const userId = appState.identity.user.userId;
+        const firstName = appState.identity.user.firstName;
+        const lastName = appState.identity.user.lastName;
+        let result: { title: string; value: string }[] = [];
+
+        if (internalUser && customDataUiRepresentation) {
+            result.push({ title: customDataUiRepresentation.title, value: customDataUiRepresentation.value });
+        }
+        if (internalUser) {
+            result.push({ title: 'User ID', value: userId });
+        }
+        if (firstName || lastName) {
+            result.push({ title: 'User', value: `${firstName} ${lastName}` });
+        }
+
+        return result.length > 0 ? result : undefined;
+    });
 
     // New derived values for cleaner organization
     const bothApps = $derived(
-        data.chatApps.filter((app) => {
+        appState.allChatApps.filter((app) => {
             const userTypes = app.userTypes ?? ['internal-user'];
             return userTypes.includes('internal-user') && userTypes.includes('external-user');
         })
     );
     const internalOnlyApps = $derived(
-        data.chatApps.filter((app) => {
+        appState.allChatApps.filter((app) => {
             const userTypes = app.userTypes ?? ['internal-user'];
             return userTypes.includes('internal-user') && !userTypes.includes('external-user');
         })
     );
     const externalOnlyApps = $derived(
-        data.chatApps.filter((app) => {
+        appState.allChatApps.filter((app) => {
             const userTypes = app.userTypes ?? ['internal-user'];
             return !userTypes.includes('internal-user') && userTypes.includes('external-user');
         })
     );
 
-    const pageTitle = $derived(data.homePageTitle ?? 'Chat Apps');
-    const welcomeMessage = $derived(data.welcomeMessage ?? 'Welcome to the chatbot app');
+    const pageTitle = $derived(appState.homePageSiteFeature?.homePageTitle ?? 'Chat Apps');
+    const welcomeMessage = $derived(appState.homePageSiteFeature?.welcomeMessage ?? 'Welcome to the chatbot app');
 </script>
 
-{#if data.chatApps && data.chatApps.length === 0}
+{#if appState.allChatApps && appState.allChatApps.length === 0}
     <div class="flex flex-col items-center justify-center min-h-screen p-8">
         <h1 class="text-4xl font-bold text-gray-900 mb-4">{pageTitle}</h1>
         <h2 class="text-2xl font-bold">{welcomeMessage}</h2>
@@ -54,28 +75,7 @@
         <div class="bg-white border-b border-gray-200">
             <div class="container mx-auto px-6 py-8 max-w-7xl flex justify-between items-center">
                 <h1 class="text-4xl font-bold text-gray-900">{pageTitle}</h1>
-                {#if appState.identity.isSiteAdmin}
-                    <DropdownMenu.Root>
-                        <DropdownMenu.Trigger>
-                            <div class="relative">
-                                <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
-                                    ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
-                                >
-                            </div>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Content>
-                            <DropdownMenu.Group>
-                                <DropdownMenu.Item
-                                    onclick={() => {
-                                        goto('/admin');
-                                    }}
-                                >
-                                    Site Administration
-                                </DropdownMenu.Item>
-                            </DropdownMenu.Group>
-                        </DropdownMenu.Content>
-                    </DropdownMenu.Root>
-                {/if}
+                {@render settingsDropdown()}
             </div>
         </div>
 
@@ -190,4 +190,40 @@
             </Button>
         </div>
     </div>
+{/snippet}
+
+{#snippet settingsDropdown()}
+    <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+            <div class="relative">
+                <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                    ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                >
+            </div>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content class="min-w-48">
+            {#if userInfo}
+                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
+                    {#each userInfo as info}
+                        <div class="mb-2">
+                            <div class="text-sm text-gray-500">{info.title}</div>
+                            <div class="font-semibold">
+                                <CopyButton embedded={true}>{info.value}</CopyButton>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+            {#if appState.logoutSiteFeature?.enabled}
+                <DropdownMenu.Group>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            appState.showLogoutDialog = true;
+                        }}>{appState.logoutSiteFeature?.menuItemTitle ?? 'Logout'}</DropdownMenu.Item
+                    >
+                </DropdownMenu.Group>
+            {/if}
+        </DropdownMenu.Content>
+    </DropdownMenu.Root>
 {/snippet}

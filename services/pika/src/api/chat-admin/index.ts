@@ -546,13 +546,13 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         throw new Error('userId is required');
     }
 
-    console.log('🔍 handleGetChatAppByRules called with request:', {
-        userId: requestBody.userId,
-        chatAppId: requestBody.chatAppId,
-        chatAppsForHomePage: requestBody.chatAppsForHomePage,
-        homePageFilterRules: requestBody.homePageFilterRules,
-        customDataFieldPathToMatchUsersEntity: requestBody.customDataFieldPathToMatchUsersEntity
-    });
+    // console.log('🔍 handleGetChatAppByRules called with request:', {
+    //     userId: requestBody.userId,
+    //     chatAppId: requestBody.chatAppId,
+    //     chatAppsForHomePage: requestBody.chatAppsForHomePage,
+    //     homePageFilterRules: requestBody.homePageFilterRules,
+    //     customDataFieldPathToMatchUsersEntity: requestBody.customDataFieldPathToMatchUsersEntity
+    // });
 
     let response: GetChatAppsByRulesResponse = {
         success: true,
@@ -614,7 +614,7 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         );
     }
 
-    console.log('🔧 Calling getMatchingChatApps with parameters:', {
+    console.log('Calling getMatchingChatApps with parameters:', {
         userInfo: {
             userId: user.userId,
             userType: user.userType,

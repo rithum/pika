@@ -692,6 +692,8 @@ export interface ChatUserLite {
  */
 export interface AuthenticatedUser<T extends RecordOrUndef = undefined, U extends RecordOrUndef = undefined> extends ChatUser<U> {
     authData?: T;
+    /** ISO 8601 timestamp of when ChatUser data was last refreshed from DynamoDB (the pikaframework sets this) */
+    lastChatUserRefresh?: string;
 }
 
 /**

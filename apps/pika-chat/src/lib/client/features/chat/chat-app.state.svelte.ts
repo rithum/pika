@@ -152,6 +152,8 @@ export class ChatAppState {
         // If the user has override data for this chat app, we need to merge it with the user object.
         const user = this.#appState.identity.user;
 
+        // console.log('[ChatAppState] User derived.by running:', { userId: user.userId, firstName: user.firstName });
+
         // You don't get to override data if you are viewing content for another user.
         if (!this.#isViewingContentForAnotherUser) {
             const userOverrideData = user.overrideData?.[this.chatApp.chatAppId];

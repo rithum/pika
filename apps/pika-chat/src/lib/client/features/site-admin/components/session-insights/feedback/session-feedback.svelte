@@ -13,13 +13,13 @@
     } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import { Badge } from '$ui/shadcn/badge';
     import { Button } from '$ui/shadcn/button';
     import { Card } from '$ui/shadcn/card';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import { ScrollArea } from '$ui/shadcn/scroll-area';
     import { Separator } from '$ui/shadcn/separator';
-    import * as Tooltip from '$ui/shadcn/tooltip';
     import type { ChatSessionFeedback, ChatSessionFeedbackForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
@@ -180,44 +180,29 @@
                                         <div class="flex justify-between gap-2">
                                             <div class="flex flex-col">
                                                 <div class="flex items-center gap-2">
-                                                    <Tooltip.Root>
-                                                        <Tooltip.Trigger>
-                                                            <Badge variant="outline">
-                                                                <CircleDot class="w-3 h-3 mr-1" />
-                                                                {getName(SESSION_FEEDBACK_STATUS_VALUES, item.status)}
-                                                            </Badge>
-                                                        </Tooltip.Trigger>
-                                                        <Tooltip.Content>Status</Tooltip.Content>
-                                                    </Tooltip.Root>
+                                                    <TooltipPlus tooltip="Status">
+                                                        <Badge variant="outline">
+                                                            <CircleDot class="w-3 h-3 mr-1" />
+                                                            {getName(SESSION_FEEDBACK_STATUS_VALUES, item.status)}
+                                                        </Badge>
+                                                    </TooltipPlus>
 
-                                                    <Tooltip.Root>
-                                                        <Tooltip.Trigger>
-                                                            <Badge variant="outline">
-                                                                <TriangleAlert class="w-3 h-3 mr-1" />
-                                                                {getName(
-                                                                    SESSION_FEEDBACK_SEVERITY_VALUES,
-                                                                    item.severity
-                                                                )}
-                                                            </Badge>
-                                                        </Tooltip.Trigger>
-                                                        <Tooltip.Content>Severity</Tooltip.Content>
-                                                    </Tooltip.Root>
+                                                    <TooltipPlus tooltip="Severity">
+                                                        <Badge variant="outline">
+                                                            <TriangleAlert class="w-3 h-3 mr-1" />
+                                                            {getName(SESSION_FEEDBACK_SEVERITY_VALUES, item.severity)}
+                                                        </Badge>
+                                                    </TooltipPlus>
 
-                                                    <Tooltip.Root>
-                                                        <Tooltip.Trigger>
-                                                            <Badge variant="outline">
-                                                                <Tag class="w-3 h-3 mr-1" />
-                                                                {getName(SESSION_FEEDBACK_TYPE_VALUES, item.type)}
-                                                            </Badge>
-                                                        </Tooltip.Trigger>
-                                                        <Tooltip.Content>
-                                                            {#if getDesc(SESSION_FEEDBACK_TYPE_VALUES, item.type)}
-                                                                {getDesc(SESSION_FEEDBACK_TYPE_VALUES, item.type)}
-                                                            {:else}
-                                                                Type
-                                                            {/if}
-                                                        </Tooltip.Content>
-                                                    </Tooltip.Root>
+                                                    <TooltipPlus
+                                                        tooltip={getDesc(SESSION_FEEDBACK_TYPE_VALUES, item.type) ??
+                                                            'Type'}
+                                                    >
+                                                        <Badge variant="outline">
+                                                            <Tag class="w-3 h-3 mr-1" />
+                                                            {getName(SESSION_FEEDBACK_TYPE_VALUES, item.type)}
+                                                        </Badge>
+                                                    </TooltipPlus>
                                                 </div>
                                                 <div class="text-[11px] text-muted-foreground">
                                                     User: {item.userId}

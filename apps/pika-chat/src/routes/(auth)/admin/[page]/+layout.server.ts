@@ -4,7 +4,10 @@ import { isUserAllowedToUseSessionInsights, isUserSiteAdmin } from '$lib/server/
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals, url, depends }) => {
+    // Add dependency for user data invalidation - ensures this layout reloads when user data changes
+    depends('app:user-data');
+
     if (!locals.user) {
         error(401, 'Unauthorized');
     }

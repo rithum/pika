@@ -2,10 +2,13 @@ import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import type {
     ChatApp,
+    ChatAppLite,
     ChatAppMode,
     ChatAppOverridableFeatures,
     ChatUser,
     CustomDataUiRepresentation,
+    HomePageSiteFeature,
+    LogoutFeature,
     SiteFeatures,
     TagDefinition,
     TagDefinitionWidget,
@@ -21,10 +24,18 @@ import type { FetchZ, HotKey } from './types';
 
 export class AppState {
     #settings: AppSettingsState | undefined;
-    #chatApps: Record<string, ChatAppState> = {};
+    #chatApps = $state<Record<string, ChatAppState>>({});
     #identity: IdentityState;
     #siteAdmin: SiteAdminState | undefined;
+    showLogoutDialog = $state<boolean>(false);
 
+    #homePageSiteFeature = $state<HomePageSiteFeature | undefined>(undefined);
+    #logoutSiteFeature = $state<LogoutFeature | undefined>(undefined);
+    #allChatApps = $state<ChatAppLite[]>([]);
+
+    // This is a site-wide version of this setting, if in a chat app, it will have a version
+    // that may be specific to the chat app
+    #customDataUiRepresentation: CustomDataUiRepresentation | undefined;
     #page: Page | undefined;
     #isMobile: IsMobile;
     #hotKeys: Record<string, HotKey> = {};
@@ -58,10 +69,18 @@ export class AppState {
 
     constructor(
         private readonly fetchz: FetchZ,
-        user: ChatUser
+        user: ChatUser,
+        customDataUiRepresentation: CustomDataUiRepresentation | undefined,
+        homePageSiteFeature: HomePageSiteFeature | undefined,
+        logoutSiteFeature: LogoutFeature | undefined,
+        allChatApps: ChatAppLite[]
     ) {
         this.#isMobile = new IsMobile();
         this.#identity = new IdentityState(user);
+        this.#customDataUiRepresentation = customDataUiRepresentation;
+        this.#homePageSiteFeature = homePageSiteFeature;
+        this.#logoutSiteFeature = logoutSiteFeature;
+        this.#allChatApps = allChatApps;
     }
 
     addChatApp(
@@ -70,6 +89,8 @@ export class AppState {
         userDataOverrideSettings: UserDataOverrideSettings,
         userIsContentAdmin: boolean,
         features: ChatAppOverridableFeatures,
+        // Note we are passing this in here and not using the global one because we want to be able to
+        // override the custom data ui representation for a specific chat app
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
         tagDefinitions: TagDefinition<TagDefinitionWidget>[]
@@ -134,8 +155,35 @@ export class AppState {
         return this.#settings;
     }
 
+    get customDataUiRepresentation() {
+        return this.#customDataUiRepresentation;
+    }
+
+    set customDataUiRepresentation(value: CustomDataUiRepresentation | undefined) {
+        this.#customDataUiRepresentation = value;
+    }
+
     set page(page: Page) {
         this.#page = page;
+    }
+
+    get homePageSiteFeature() {
+        return this.#homePageSiteFeature;
+    }
+
+    get logoutSiteFeature() {
+        return this.#logoutSiteFeature;
+    }
+
+    get allChatApps() {
+        return this.#allChatApps;
+    }
+
+    /**
+     * Updates the user data across all relevant state objects when server-side changes are detected
+     */
+    updateUser(newUser: ChatUser) {
+        this.#identity.updateUser(newUser);
     }
 
     // closeAllFloatingSidebars() {
