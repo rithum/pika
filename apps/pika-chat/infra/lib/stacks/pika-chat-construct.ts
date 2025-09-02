@@ -5,12 +5,21 @@ import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns';
 import { ApplicationProtocol, SslPolicy } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { HostedZone } from 'aws-cdk-lib/aws-route53';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 import { TagDefinitionsJsonFile } from 'pika-shared/types/chatbot/chatbot-types.js';
+import { generateKmsKeyAliasName } from '../../../src/lib/server/encryption/kms-utils';
+
+const COOKIE_MAX_AGE_HOURS = 12;
+const KEY_ROTATION_INTERVAL_HOURS = 12;
+const KEY_REFRESH_INTERVAL_HOURS = 1;
+const MAX_KEY_VERSIONS = '3';
 
 export interface PikaChatConstructProps {
     /**
@@ -186,6 +195,192 @@ export class PikaChatConstruct extends Construct {
         // Param comes from the pika service stack
         const tagDefinitionsTableName = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/ddb_table/pika_tag_def`);
 
+        // ===== COOKIE ENCRYPTION INFRASTRUCTURE =====
+
+        // IAM role for key rotation Lambda
+        const rotationFunctionRole = new iam.Role(this, `${props.projNameTitleCase}KeyRotationRole`, {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
+            inlinePolicies: {
+                KeyRotationPolicy: new iam.PolicyDocument({
+                    statements: [
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath', 'ssm:PutParameter', 'ssm:DeleteParameter'],
+                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+                            resources: ['*'],
+                            conditions: {
+                                StringEquals: {
+                                    'aws:ResourceTag/Project': props.projNameKebabCase,
+                                    'aws:ResourceTag/Stage': props.stage,
+                                    'aws:ResourceTag/Purpose': 'CookieEncryption'
+                                }
+                            }
+                        })
+                    ]
+                })
+            }
+        });
+
+        // Lambda function for key rotation (scheduled and invoked by initializer)
+        const rotationFunction = new lambda.Function(this, `${props.projNameTitleCase}KeyRotationFunction`, {
+            functionName: `${props.projNameTitleCase}KeyRotationFunction-${props.stage}`,
+            runtime: lambda.Runtime.NODEJS_22_X,
+            handler: 'index.handler',
+            code: lambda.Code.fromAsset('infra/lambda/cookie-key-rotation'),
+            timeout: cdk.Duration.seconds(60),
+            memorySize: 256,
+            environment: {
+                NODE_OPTIONS: '--enable-source-maps',
+                STAGE: props.stage,
+                SSM_PARAMETER_PREFIX: `/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption`,
+                KMS_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
+                MAX_KEY_VERSIONS: MAX_KEY_VERSIONS
+            },
+            role: rotationFunctionRole
+        });
+
+        // IAM role for KMS key initializer Lambda (Custom Resource)
+        // This Lambda only creates KMS keys and SSM key alias parameters
+        const keyInitializerFunctionRole = new iam.Role(this, `${props.projNameTitleCase}KeyInitializerRole`, {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
+            inlinePolicies: {
+                KeyInitializerPolicy: new iam.PolicyDocument({
+                    statements: [
+                        // SSM permissions for storing key alias
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['ssm:PutParameter', 'ssm:DeleteParameter', 'ssm:GetParameter', 'ssm:GetParametersByPath'],
+                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/kms/*`]
+                        }),
+                        // SSM permissions for cookie encryption parameters (needed for rotateKeys call)
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath', 'ssm:PutParameter', 'ssm:DeleteParameter'],
+                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`]
+                        }),
+                        // KMS CreateKey with key specification conditions
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:CreateKey'],
+                            resources: ['*'],
+                            conditions: {
+                                StringEquals: {
+                                    'kms:KeySpec': 'SYMMETRIC_DEFAULT',
+                                    'kms:KeyUsage': 'ENCRYPT_DECRYPT'
+                                }
+                            }
+                        }),
+                        // KMS alias operations with alias name restrictions
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:CreateAlias', 'kms:DeleteAlias'],
+                            resources: ['*'],
+                            conditions: {
+                                StringLike: {
+                                    'kms:AliasName': `alias/${props.projNameKebabCase}-*`
+                                }
+                            }
+                        }),
+
+                        // KMS key operations - restricted to keys with specific tags
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'kms:DescribeKey',
+                                'kms:ScheduleKeyDeletion',
+                                'kms:CancelKeyDeletion', // In case deletion needs to be cancelled
+                                'kms:EnableKey', // In case key gets disabled
+                                'kms:TagResource'
+                            ],
+                            resources: [`arn:aws:kms:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:key/*`],
+                            conditions: {
+                                StringEquals: {
+                                    'aws:ResourceTag/Project': props.projNameKebabCase,
+                                    'aws:ResourceTag/Stage': props.stage,
+                                    'aws:ResourceTag/Purpose': 'CookieEncryption'
+                                }
+                            }
+                        }),
+
+                        // KMS ListAliases (requires * and no conditions work reliably)
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:ListAliases'],
+                            resources: ['*']
+                        }),
+                        // KMS data key operations for key rotation (needed for rotateKeys call)
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:GenerateDataKey', 'kms:Decrypt'],
+                            resources: ['*'],
+                            conditions: {
+                                StringEquals: {
+                                    'aws:ResourceTag/Project': props.projNameKebabCase,
+                                    'aws:ResourceTag/Stage': props.stage,
+                                    'aws:ResourceTag/Purpose': 'CookieEncryption'
+                                }
+                            }
+                        }),
+                        // STS permissions for getting account ID
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:GetCallerIdentity'],
+                            resources: ['*']
+                        })
+                    ]
+                })
+            }
+        });
+
+        // Lambda function for KMS key initialization (Custom Resource)
+        // This only creates KMS keys, not the encryption key rotation
+        const keyInitializerFunction = new lambda.Function(this, `${props.projNameTitleCase}KeyInitializerFunction`, {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            handler: 'index.handler',
+            code: lambda.Code.fromAsset('infra/lambda/cookie-key-initializer'),
+            timeout: cdk.Duration.seconds(300), // Increased timeout for KMS operations
+            memorySize: 512, // Increased memory for AWS SDK operations
+            environment: {
+                NODE_OPTIONS: '--enable-source-maps',
+                STAGE: props.stage,
+                SSM_PARAMETER_PREFIX: `/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption`,
+                KMS_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
+                MAX_KEY_VERSIONS: MAX_KEY_VERSIONS
+            },
+            role: keyInitializerFunctionRole
+        });
+
+        // EventBridge rule for scheduled rotation (every 12 hours)
+        new events.Rule(this, `${props.projNameTitleCase}KeyRotationRule`, {
+            schedule: events.Schedule.rate(cdk.Duration.hours(KEY_ROTATION_INTERVAL_HOURS)),
+            targets: [
+                new targets.LambdaFunction(rotationFunction, {
+                    event: events.RuleTargetInput.fromObject({
+                        // Using environment variables for scheduled invocations
+                        // forceRotation is not set, so it will check if rotation is needed
+                    })
+                })
+            ]
+        });
+
+        // Custom resource for KMS key initialization
+        // This will create KMS keys and invoke rotation function for initial key setup
+        const keyInitializerCustomResource = new cdk.CustomResource(this, `${props.projNameTitleCase}KeyInitializerCustomResource`, {
+            serviceToken: keyInitializerFunction.functionArn,
+            properties: {
+                // Add timestamp to ensure custom resource runs on every deployment
+                Timestamp: Date.now().toString(),
+                Stage: props.stage,
+                ProjectName: props.projNameKebabCase
+            }
+        });
+
         // Create task role with necessary permissions
         this.taskRole = new iam.Role(this, `${props.projNameTitleCase}TaskRole`, {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -214,6 +409,18 @@ export class PikaChatConstruct extends Construct {
                             effect: iam.Effect.ALLOW,
                             actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
                             resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:Decrypt'], // Webapp only needs to decrypt existing keys
+                            resources: ['*'],
+                            conditions: {
+                                StringEquals: {
+                                    'aws:ResourceTag/Project': props.projNameKebabCase,
+                                    'aws:ResourceTag/Stage': props.stage,
+                                    'aws:ResourceTag/Purpose': 'CookieEncryption'
+                                }
+                            }
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -276,7 +483,12 @@ export class PikaChatConstruct extends Construct {
             CONVERSE_FUNCTION_URL: converseFnUrl,
             TAG_DEFINITIONS_TABLE: tagDefinitionsTableName,
             PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: props.pikaServiceProjNameKebabCase,
-            PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase
+            PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase,
+            // Cookie key rotation configuration - will be created by infrastructure manager
+            KMS_COOKIE_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
+            KEY_REFRESH_INTERVAL_HOURS: String(KEY_REFRESH_INTERVAL_HOURS),
+            MAX_KEY_VERSIONS: String(MAX_KEY_VERSIONS),
+            COOKIE_MAX_AGE_HOURS: String(COOKIE_MAX_AGE_HOURS)
         };
 
         const environmentVariables = {
@@ -337,6 +549,9 @@ export class PikaChatConstruct extends Construct {
             loadBalancerName: `${props.projNameTitleCase}LoadBalancer-${props.stage}`,
             minHealthyPercent: 50
         });
+
+        // Ensure ECS service depends on key initialization custom resource
+        this.service.node.addDependency(keyInitializerCustomResource);
 
         // Configure health check
         this.service.targetGroup.configureHealthCheck({

@@ -1,7 +1,7 @@
-import type { AgentAndTools, AgentDataRequest, AgentDataResponse, KnowledgeBase, ToolIdToLambdaArnMap } from 'pika-shared/types/chatbot/chatbot-types';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
-import { createMakeRequestFn, MakeRequestFn, parseAgentCustomResourceProperties, sendCustomResourceResponse } from './util';
+import type { AgentAndTools, ToolIdToLambdaArnMap } from 'pika-shared/types/chatbot/chatbot-types';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
+import { createMakeRequestFn, MakeRequestFn, parseAgentCustomResourceProperties, sendCustomResourceResponse } from './util';
 
 /**
  * This lambda is used to create or update an agent and its tools in a single operation.  You create a custom cloudformation resource

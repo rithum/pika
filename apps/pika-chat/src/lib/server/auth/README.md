@@ -1,3 +1,3 @@
 # Custom Authentication
 
-Reference the [AuthenticationGuide](../../../../../../docs/developer/authentication.md)
+Reference the [AuthenticationGuide](https://pika.tools/docs/developer/authentication)

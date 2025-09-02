@@ -1,3 +1,5 @@
+import { hash } from 'crypto';
+import { LRUCache } from 'lru-cache';
 import {
     ClearSvelteKitCacheTypes,
     type AddChatSessionFeedbackResponse,
@@ -18,23 +20,20 @@ import {
     type RecordOrUndef,
     type SessionSearchRequest,
     type SessionSearchResponse,
-    type TagDefinition,
     type TagDefinitionCreateOrUpdateRequest,
     type TagDefinitionCreateOrUpdateResponse,
     type TagDefinitionDeleteRequest,
     type TagDefinitionDeleteResponse,
     type TagDefinitionSearchRequest,
     type TagDefinitionSearchResponse,
-    type TagDefinitionWidget,
     type UpdateChatSessionFeedbackResponse,
     type UserChatAppRule
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { convertToJwtString } from 'pika-shared/util/jwt';
-import { hash } from 'crypto';
-import { LRUCache } from 'lru-cache';
-import { appConfig } from './config';
-import { invokeApi } from './invoke-api';
 import { getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
+import { convertToJwtString } from 'pika-shared/util/jwt';
+import { appConfig } from './config';
+import { KeyManagerFactory } from './encryption/KeyManagerFactory';
+import { invokeApi } from './invoke-api';
 import { getParametersByPath } from './ssm';
 
 const chatAppCache = new LRUCache({
@@ -151,6 +150,21 @@ export async function clearSvelteKitCache(cacheType: ClearSvelteKitCacheType, ch
     if (cacheType === 'instructionAssistanceConfigCache' || cacheType === 'all') {
         clearedCount += instructionAssistanceConfigCache.size;
         instructionAssistanceConfigCache.clear();
+    }
+
+    if (cacheType === 'encryptionKeysCache' || cacheType === 'all') {
+        try {
+            if (KeyManagerFactory.hasInstance()) {
+                const keyManager = KeyManagerFactory.getInstance();
+                const refreshSuccess = await keyManager.forceRefresh();
+                if (refreshSuccess) {
+                    clearedCount++;
+                }
+            }
+        } catch (error) {
+            console.error('[clearSvelteKitCache] Failed to refresh encryption keys:', error);
+            throw new Error(`Failed to refresh encryption keys: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     return {

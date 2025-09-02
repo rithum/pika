@@ -84,31 +84,16 @@
     });
 
     // Load all tag definitions when component mounts
+    let tagDefinitionsLoaded = $state(false);
+
     $effect(() => {
-        if (siteAdminState && (!siteAdminState.tagDefinitions || siteAdminState.tagDefinitions.length === 0)) {
-            loadAllTagDefinitions();
+        // Only load if we haven't tried loading before AND tagDefinitions is null/undefined
+        // Don't reload just because the array is empty (that's a valid response)
+        if (siteAdminState && !tagDefinitionsLoaded && !siteAdminState.tagDefinitions) {
+            tagDefinitionsLoaded = true; // Mark as attempted BEFORE calling API
+            siteAdminState.loadTagDefinitions();
         }
     });
-
-    // Function to load all tag definitions with pagination
-    async function loadAllTagDefinitions() {
-        let allTagDefinitions: TagDefinition<TagDefinitionWidget>[] = [];
-        let paginationToken: Record<string, any> | undefined = undefined;
-
-        do {
-            const response = await siteAdminState.sendSiteAdminCommand({
-                command: 'searchTagDefinitions',
-                request: {
-                    includeInstructions: true, // Include instructions as requested
-                    paginationToken,
-                },
-            });
-
-            // The response will be processed by the site admin state and stored in tagDefinitions
-            // We need to break after the first call since the state handles the response
-            break;
-        } while (paginationToken);
-    }
 </script>
 
 <div class="space-y-4">

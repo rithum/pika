@@ -36,7 +36,11 @@ export const POST: RequestHandler = async (event) => {
         user.viewingContentFor = viewingContentFor;
         locals.user = user;
 
-        serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        if (locals.keyManager) {
+            serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, locals.keyManager);
+        } else {
+            throw new Error('KeyManager not available for cookie serialization');
+        }
         return json({
             success: true
         });
@@ -53,7 +57,11 @@ export const POST: RequestHandler = async (event) => {
         user.viewingContentFor = viewingContentFor;
         locals.user = user;
 
-        serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        if (locals.keyManager) {
+            serializeContentAdminDataToCookies(event, { data: user.viewingContentFor }, locals.keyManager);
+        } else {
+            throw new Error('KeyManager not available for cookie serialization');
+        }
         return json({
             success: true
         });

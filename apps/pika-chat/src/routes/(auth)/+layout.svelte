@@ -200,7 +200,7 @@
 
 <Toaster position="top-center" richColors closeButton />
 
-{#if appState && appState.features && appState.features.logout.enabled}
+{#if appState && appState.logoutSiteFeature && appState.logoutSiteFeature.enabled}
     <Dialog.Root
         bind:open={appState.showLogoutDialog}
         onOpenChange={() => {
@@ -210,15 +210,15 @@
         }}
     >
         <Dialog.Content>
-            <Dialog.Title>{appState.features.logout.dialogTitle}</Dialog.Title>
+            <Dialog.Title>{appState.logoutSiteFeature.dialogTitle}</Dialog.Title>
 
-            {appState.features.logout.dialogDescription}
+            {appState.logoutSiteFeature.dialogDescription}
             <Dialog.Footer>
                 <Button
                     variant="default"
                     onclick={() => {
                         window.location.href = '/logout-now';
-                    }}>{appState.features.logout.dialogTitle}</Button
+                    }}>{appState.logoutSiteFeature.dialogTitle}</Button
                 >
                 <Button
                     variant="outline"

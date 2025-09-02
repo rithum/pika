@@ -1,6 +1,7 @@
 import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from 'pika-shared/types/chatbot/chatbot-types';
 import { type RequestEvent } from '@sveltejs/kit';
-import crypto from 'crypto';
+import { KeyManager } from './encryption/KeyManager';
+import { CookieEncryption } from './encryption/CookieEncryption';
 
 // Cookie size limit (4KB = 4096 bytes)
 const COOKIE_SIZE_LIMIT = 4096;
@@ -8,7 +9,9 @@ const AUTH_USER_COOKIE_NAME_PREFIX = 'au';
 const USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX = 'uod'; // User Override Data
 const CONTENT_ADMIN_COOKIE_NAME_PREFIX = 'cad'; // Content Admin
 const COOKIE_PART_SEPARATOR = '_part_';
-const ALGORITHM = 'aes-256-cbc';
+
+// Cookie expiration: 12 hours in seconds
+const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60; // 12 hours
 
 const cookieTypes = ['AUTH_USER', 'USER_OVERRIDE_DATA', 'CONTENT_ADMIN'] as const;
 type CookieType = (typeof cookieTypes)[number];
@@ -18,39 +21,6 @@ const cookieTypeToCookieNamePrefix: Record<CookieType, string> = {
     USER_OVERRIDE_DATA: USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX,
     CONTENT_ADMIN: CONTENT_ADMIN_COOKIE_NAME_PREFIX
 };
-
-export function serializeAuthenticatedUserToCookies(
-    event: RequestEvent,
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): void {
-    serializeToCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>('AUTH_USER', event, user, masterCookieKey, masterCookieInitVector);
-}
-
-export function serializeUserOverrideDataToCookies(event: RequestEvent, data: UserOverrideData, masterCookieKey: string, masterCookieInitVector: string): void {
-    serializeToCookies<UserOverrideData>('USER_OVERRIDE_DATA', event, data, masterCookieKey, masterCookieInitVector);
-}
-
-export function serializeContentAdminDataToCookies(event: RequestEvent, data: ContentAdminData, masterCookieKey: string, masterCookieInitVector: string): void {
-    serializeToCookies<ContentAdminData>('CONTENT_ADMIN', event, data, masterCookieKey, masterCookieInitVector);
-}
-
-export function deserializeAuthenticatedUserFromCookies(
-    event: RequestEvent,
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined {
-    return deserializeFromCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>('AUTH_USER', event, masterCookieKey, masterCookieInitVector);
-}
-
-export function deserializeUserOverrideDataFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): UserOverrideData | undefined {
-    return deserializeFromCookies<UserOverrideData>('USER_OVERRIDE_DATA', event, masterCookieKey, masterCookieInitVector);
-}
-
-export function deserializeContentAdminDataFromCookies(event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): ContentAdminData | undefined {
-    return deserializeFromCookies<ContentAdminData>('CONTENT_ADMIN', event, masterCookieKey, masterCookieInitVector);
-}
 
 export function clearAuthenticatedUserCookies(event: RequestEvent): void {
     clearCookies('AUTH_USER', event);
@@ -71,87 +41,108 @@ export function clearAllCookies(event: RequestEvent): void {
 }
 
 /**
- * Serializes cookie data to one or more cookies
- * If the serialized data exceeds 4KB, it will be split across multiple cookies
+ * Deserializes cookie data from cookies with versioned encryption support
+ * Handles both single-cookie and multi-cookie scenarios + versioned encryption
  */
-export function serializeToCookies<T>(cookieType: CookieType, event: RequestEvent, data: T, masterCookieKey: string, masterCookieInitVector: string): void {
-    const dataJson = JSON.stringify(data);
-    const encryptedData = encryptCookieString(dataJson, masterCookieKey, masterCookieInitVector);
-    const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
-
-    // Check if the encrypted data fits in a single cookie
-    if (encryptedData.length <= COOKIE_SIZE_LIMIT) {
-        // Single cookie approach
-        event.cookies.set(cookieNamePrefix, encryptedData, {
-            path: '/',
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax'
-        });
-    } else {
-        // Multi-cookie approach - split the encrypted data
-        const chunks = splitStringIntoChunks(encryptedData, COOKIE_SIZE_LIMIT);
-
-        // Set the main cookie with metadata
-        const metadata = {
-            totalParts: chunks.length,
-            totalSize: encryptedData.length,
-            timestamp: Date.now()
-        };
-
-        event.cookies.set(cookieNamePrefix, JSON.stringify(metadata), {
-            path: '/',
-            httpOnly: true,
-            secure: true,
-            sameSite: 'lax'
-        });
-
-        // Set each chunk as a separate cookie
-        chunks.forEach((chunk, index) => {
-            const cookieName = `${cookieNamePrefix}${COOKIE_PART_SEPARATOR}${index}`;
-            event.cookies.set(cookieName, chunk, {
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax'
-            });
-        });
-    }
-}
-
-/**
- * Deserializes cookie data from cookies
- * Handles both single-cookie and multi-cookie scenarios (multiple cookies for large data)
- */
-export function deserializeFromCookies<T>(cookieType: CookieType, event: RequestEvent, masterCookieKey: string, masterCookieInitVector: string): T | undefined {
+export function deserializeFromCookies<T>(cookieType: CookieType, event: RequestEvent, keyManager: KeyManager): T | undefined {
     const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
     const mainCookie = event.cookies.get(cookieNamePrefix);
 
     if (!mainCookie) {
+        console.log(`[Cookies] No ${cookieType} cookie found`);
         return undefined;
     }
 
-    try {
-        // Try to parse as metadata first (multi-cookie scenario)
-        const metadata = JSON.parse(mainCookie);
+    const cookieEncryption = new CookieEncryption();
 
-        if (metadata.totalParts && metadata.totalSize) {
-            // Multi-cookie scenario
-            return deserializeFromMultipleCookies<T>(event, metadata, masterCookieKey, masterCookieInitVector);
-        } else {
-            // Single cookie scenario (small data)
-            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
-            return JSON.parse(decryptedData);
-        }
-    } catch (error) {
-        // If JSON.parse fails, it might be a single encrypted cookie
+    try {
+        // First, check if this looks like multi-cookie metadata (JSON parseable)
+        let metadata: any;
+        let isMultiCookie = false;
+
         try {
-            const decryptedData = decryptCookieString(mainCookie, masterCookieKey, masterCookieInitVector);
-            return JSON.parse(decryptedData);
-        } catch (decryptError) {
-            console.error(`Failed to deserialize user from cookies for cookie type ${cookieType}:`, error);
+            metadata = JSON.parse(mainCookie);
+            // If it parsed successfully and has multi-cookie structure, it's multi-cookie
+            if (metadata && typeof metadata === 'object' && metadata.totalParts && metadata.totalSize) {
+                isMultiCookie = true;
+            }
+        } catch {
+            // Not JSON, continue to check if it's a single versioned cookie
+        }
+
+        if (!isMultiCookie) {
+            // Check if this is a single versioned cookie
+            if (cookieEncryption.isVersionedCookie(mainCookie)) {
+                console.log(`[Cookies] Found single versioned ${cookieType} cookie, attempting decryption`);
+
+                // Get key cache from KeyManager
+                const keyCache = keyManager.getKeyCache();
+
+                // Try single cookie decryption
+                const decryptedData = cookieEncryption.decrypt(mainCookie, keyCache);
+
+                if (decryptedData) {
+                    console.log(`[Cookies] Successfully decrypted single versioned ${cookieType} cookie`);
+                    return JSON.parse(decryptedData);
+                } else {
+                    console.warn(`[Cookies] Failed to decrypt single versioned ${cookieType} cookie - clearing stale cookies`);
+                    // Clear the bad cookie to prevent infinite retry loops
+                    clearCookies(cookieType, event);
+                    return undefined;
+                }
+            }
+
+            // Cookie is not versioned - force reauthentication
+            console.warn(`[Cookies] ${cookieType} cookie is not versioned - clearing stale cookies and forcing reauthentication`);
+            clearCookies(cookieType, event);
             return undefined;
         }
+
+        // Handle multi-cookie scenario (we know isMultiCookie is true here)
+        console.log(`[Cookies] Found multi-cookie ${cookieType} metadata: ${metadata.totalParts} parts, ${metadata.totalSize} bytes`);
+
+        // Reconstruct data from multiple cookies
+        const chunks: string[] = [];
+        for (let i = 0; i < metadata.totalParts; i++) {
+            const cookieName = `${cookieNamePrefix}${COOKIE_PART_SEPARATOR}${i}`;
+            const chunk = event.cookies.get(cookieName);
+            if (!chunk) {
+                console.warn(`[Cookies] Missing chunk ${i} for multi-cookie ${cookieType} data`);
+                return undefined;
+            }
+            chunks.push(chunk);
+        }
+
+        const reconstructedData = chunks.join('');
+
+        // Check if reconstructed data is versioned
+        if (cookieEncryption.isVersionedCookie(reconstructedData)) {
+            console.log(`[Cookies] Reconstructed ${cookieType} data is versioned, attempting decryption`);
+
+            const keyCache = keyManager.getKeyCache();
+
+            const decryptedData = cookieEncryption.decrypt(reconstructedData, keyCache);
+
+            if (decryptedData) {
+                console.log(`[Cookies] Successfully decrypted multi-cookie versioned ${cookieType} data`);
+                return JSON.parse(decryptedData);
+            } else {
+                console.warn(`[Cookies] Failed to decrypt multi-cookie versioned ${cookieType} data - clearing stale cookies`);
+                // Clear the bad cookies to prevent infinite retry loops
+                clearCookies(cookieType, event);
+                return undefined;
+            }
+        } else {
+            // Multi-cookie data is not versioned - force reauthentication
+            console.warn(`[Cookies] Multi-cookie ${cookieType} data is not versioned - clearing stale cookies and forcing reauthentication`);
+            clearCookies(cookieType, event);
+            return undefined;
+        }
+    } catch (error) {
+        console.error(`[Cookies] Error during ${cookieType} cookie deserialization - clearing stale cookies:`, error);
+        // Clear potentially corrupted cookies on any deserialization error
+        clearCookies(cookieType, event);
+        return undefined;
     }
 }
 
@@ -161,13 +152,19 @@ export function deserializeFromCookies<T>(cookieType: CookieType, event: Request
 export function clearCookies(cookieType: CookieType, event: RequestEvent): void {
     const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
     // Clear the main cookie
-    event.cookies.delete(cookieNamePrefix, { path: '/' });
+    event.cookies.delete(cookieNamePrefix, {
+        path: '/',
+        maxAge: 0 // Force immediate expiration
+    });
 
     // Clear any part cookies (for multi-cookie scenarios)
     const allCookies = event.cookies.getAll();
     allCookies.forEach((cookie) => {
         if (cookie.name.startsWith(`${cookieNamePrefix}${COOKIE_PART_SEPARATOR}`)) {
-            event.cookies.delete(cookie.name, { path: '/' });
+            event.cookies.delete(cookie.name, {
+                path: '/',
+                maxAge: 0 // Force immediate expiration
+            });
         }
     });
 }
@@ -183,97 +180,243 @@ function splitStringIntoChunks(str: string, chunkSize: number): string[] {
     return chunks;
 }
 
+// ===== COOKIE VERSION VALIDATION =====
+
 /**
- * Deserializes user data from multiple cookies
+ * Cookie validation result types
  */
-function deserializeFromMultipleCookies<T>(
+export type CookieValidationResult = 'not_found' | 'version_mismatch' | 'valid' | 'error';
+
+/**
+ * Checks if a cookie exists and if its version is supported by current keys
+ * This is a lightweight check that doesn't fully deserialize the data
+ * @param cookieType - Type of cookie to check
+ * @param event - SvelteKit request event
+ * @param keyManager - KeyManager instance for version validation
+ * @returns Validation result indicating cookie status
+ */
+export function checkCookieVersionCompatibility(cookieType: CookieType, event: RequestEvent, keyManager: KeyManager): CookieValidationResult {
+    const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
+    const mainCookie = event.cookies.get(cookieNamePrefix);
+
+    if (!mainCookie) {
+        return 'not_found';
+    }
+
+    const cookieEncryption = new CookieEncryption();
+    const keyCache = keyManager.getKeyCache();
+
+    try {
+        // Check if this looks like multi-cookie metadata
+        let isMultiCookie = false;
+        let dataToCheck = mainCookie;
+
+        try {
+            const metadata = JSON.parse(mainCookie);
+            if (metadata && typeof metadata === 'object' && metadata.totalParts && metadata.totalSize) {
+                isMultiCookie = true;
+
+                // Reconstruct data from multiple cookies for version checking
+                const chunks: string[] = [];
+                for (let i = 0; i < metadata.totalParts; i++) {
+                    const cookieName = `${cookieNamePrefix}${COOKIE_PART_SEPARATOR}${i}`;
+                    const chunk = event.cookies.get(cookieName);
+                    if (!chunk) {
+                        return 'error'; // Missing chunk
+                    }
+                    chunks.push(chunk);
+                }
+                dataToCheck = chunks.join('');
+            }
+        } catch {
+            // Not JSON, continue with single cookie check
+        }
+
+        // Check if the data is versioned
+        if (!cookieEncryption.isVersionedCookie(dataToCheck)) {
+            return 'version_mismatch'; // Unversioned cookies are incompatible
+        }
+
+        // Extract version and check if key exists
+        const version = cookieEncryption.extractVersionFromCookie(dataToCheck);
+        if (version === undefined) {
+            return 'error';
+        }
+
+        // Check if we have a key for this version
+        if (keyCache.get(version)) {
+            return 'valid';
+        } else {
+            return 'version_mismatch';
+        }
+    } catch (error) {
+        console.error(`[Cookies] Error checking ${cookieType} cookie version compatibility:`, error);
+        return 'error';
+    }
+}
+
+/**
+ * Checks all cookie types for version compatibility
+ * If ANY cookie has version issues, returns the problematic result
+ * This enables atomic "all-or-nothing" authentication state management
+ * @param event - SvelteKit request event
+ * @param keyManager - KeyManager instance for version validation
+ * @returns Object with overall status and per-cookie details
+ */
+export function validateAllCookieVersions(
     event: RequestEvent,
-    metadata: { totalParts: number; totalSize: number; timestamp: number },
-    masterCookieKey: string,
-    masterCookieInitVector: string
-): T {
-    // Collect all parts
-    const parts: string[] = [];
-    for (let i = 0; i < metadata.totalParts; i++) {
-        const cookieName = `${AUTH_USER_COOKIE_NAME_PREFIX}${COOKIE_PART_SEPARATOR}${i}`;
-        const part = event.cookies.get(cookieName);
+    keyManager: KeyManager
+): {
+    overallStatus: 'all_valid' | 'version_mismatch' | 'error' | 'no_auth_cookie';
+    details: Record<CookieType, CookieValidationResult>;
+} {
+    const details: Record<CookieType, CookieValidationResult> = {
+        AUTH_USER: checkCookieVersionCompatibility('AUTH_USER', event, keyManager),
+        USER_OVERRIDE_DATA: checkCookieVersionCompatibility('USER_OVERRIDE_DATA', event, keyManager),
+        CONTENT_ADMIN: checkCookieVersionCompatibility('CONTENT_ADMIN', event, keyManager)
+    };
 
-        if (!part) {
-            throw new Error(`Missing cookie part ${i}`);
+    // If AUTH_USER doesn't exist, user isn't authenticated
+    if (details.AUTH_USER === 'not_found') {
+        return { overallStatus: 'no_auth_cookie', details };
+    }
+
+    // If AUTH_USER has version issues, we have a problem
+    if (details.AUTH_USER === 'version_mismatch' || details.AUTH_USER === 'error') {
+        return { overallStatus: 'version_mismatch', details };
+    }
+
+    // If ANY other cookie exists but has version issues, we have inconsistent state
+    const otherCookieResults = [details.USER_OVERRIDE_DATA, details.CONTENT_ADMIN];
+    const hasVersionMismatch = otherCookieResults.some((result) => result === 'version_mismatch');
+    const hasError = otherCookieResults.some((result) => result === 'error');
+
+    if (hasVersionMismatch || hasError) {
+        return { overallStatus: 'version_mismatch', details };
+    }
+
+    // All existing cookies are valid
+    return { overallStatus: 'all_valid', details };
+}
+
+// ===== VERSIONED COOKIE FUNCTIONS =====
+
+/**
+ * Serialize data to versioned encrypted cookies (generic)
+ * Uses the current key version from KeyManager for encryption
+ * @param cookieType - Type of cookie to serialize
+ * @param event - SvelteKit request event
+ * @param data - Data to serialize
+ * @param keyManager - KeyManager instance for getting current keys
+ */
+export function serializeToCookies<T>(cookieType: CookieType, event: RequestEvent, data: T, keyManager: KeyManager): void {
+    const cookieEncryption = new CookieEncryption();
+
+    try {
+        // Get current version and key from KeyManager
+        const currentVersion = keyManager.getCurrentVersion();
+        const currentKey = keyManager.getCurrentKey();
+
+        console.log(`[Cookies] Encrypting ${cookieType} data with key version ${currentVersion}`);
+
+        // Serialize data to JSON
+        const dataJson = JSON.stringify(data);
+
+        // Encrypt with versioned format (IV generated automatically)
+        const encryptedData = cookieEncryption.encrypt(dataJson, currentVersion, currentKey);
+
+        const cookieNamePrefix = cookieTypeToCookieNamePrefix[cookieType];
+
+        // Check if the encrypted data fits in a single cookie
+        if (encryptedData.length <= COOKIE_SIZE_LIMIT) {
+            // Single cookie approach with versioned data
+            event.cookies.set(cookieNamePrefix, encryptedData, {
+                path: '/',
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+                maxAge: COOKIE_MAX_AGE_SECONDS
+            });
+        } else {
+            // Multi-cookie approach - split the encrypted versioned data
+            const chunks = splitStringIntoChunks(encryptedData, COOKIE_SIZE_LIMIT);
+
+            // Set the main cookie with metadata
+            const metadata = {
+                totalParts: chunks.length,
+                totalSize: encryptedData.length,
+                timestamp: Date.now(),
+                version: currentVersion // Include version in metadata for debugging
+            };
+
+            event.cookies.set(cookieNamePrefix, JSON.stringify(metadata), {
+                path: '/',
+                httpOnly: true,
+                secure: true,
+                sameSite: 'lax',
+                maxAge: COOKIE_MAX_AGE_SECONDS
+            });
+
+            // Set each chunk as a separate cookie
+            chunks.forEach((chunk, index) => {
+                const cookieName = `${cookieNamePrefix}${COOKIE_PART_SEPARATOR}${index}`;
+                event.cookies.set(cookieName, chunk, {
+                    path: '/',
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'lax',
+                    maxAge: COOKIE_MAX_AGE_SECONDS
+                });
+            });
         }
 
-        parts.push(part);
+        console.log(`[Cookies] Successfully serialized ${cookieType} cookies with version ${currentVersion}`);
+    } catch (error) {
+        console.error(`[Cookies] Failed to serialize ${cookieType} versioned cookies:`, error);
+        throw new Error(`Failed to serialize ${cookieType} versioned cookies: ${error instanceof Error ? error.message : String(error)}`);
     }
+}
 
-    // Reconstruct the encrypted data
-    const encryptedData = parts.join('');
+// ===== CONVENIENCE FUNCTIONS FOR SPECIFIC COOKIE TYPES =====
 
-    // Verify the size matches
-    if (encryptedData.length !== metadata.totalSize) {
-        throw new Error('Cookie data size mismatch');
-    }
-
-    // Decrypt and parse
-    const decryptedData = decryptCookieString(encryptedData, masterCookieKey, masterCookieInitVector);
-    return JSON.parse(decryptedData);
+/**
+ * Serialize authenticated user to versioned encrypted cookies
+ */
+export function serializeAuthenticatedUserToCookies(event: RequestEvent, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, keyManager: KeyManager): void {
+    serializeToCookies('AUTH_USER', event, user, keyManager);
 }
 
 /**
- * Encrypts a plaintext string using AES-256-CBC.
- *
- * @param plainTextCookieString The string to encrypt.
- * @param masterKeyHex The master encryption key (32 bytes) as a hexadecimal string.
- * @returns The encrypted string (ciphertext) as a hexadecimal string.
- * @throws Error if encryption fails or if the IV is not configured.
+ * Serialize user override data to versioned encrypted cookies
  */
-export function encryptCookieString(plainTextCookieString: string, masterKeyHex: string, masterCookieInitVector: string): string {
-    try {
-        const key = Buffer.from(masterKeyHex, 'hex');
-        const iv = Buffer.from(masterCookieInitVector, 'hex');
-
-        if (key.length !== 32) {
-            throw new Error('Invalid masterKey length. Must be a 32-byte hex string (64 characters).');
-        }
-        if (iv.length !== 16) {
-            throw new Error('Invalid IV length. Must be a 16-byte hex string (32 characters).');
-        }
-
-        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-        let encrypted = cipher.update(plainTextCookieString, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        return encrypted;
-    } catch (e) {
-        console.error('Encryption failed:', e);
-        throw new Error(`Encryption failed: ${e instanceof Error ? e.message : e}`);
-    }
+export function serializeUserOverrideDataToCookies(event: RequestEvent, data: UserOverrideData, keyManager: KeyManager): void {
+    serializeToCookies('USER_OVERRIDE_DATA', event, data, keyManager);
 }
 
 /**
- * Decrypts an AES-256-CBC encrypted hexadecimal string.
- *
- * @param encryptedCookieStringHex The encrypted string (ciphertext) as a hexadecimal string.
- * @param masterKeyHex The master encryption key (32 bytes) as a hexadecimal string.
- * @returns The decrypted plaintext string.
- * @throws Error if decryption fails or if the IV is not configured.
+ * Serialize content admin data to versioned encrypted cookies
  */
-export function decryptCookieString(encryptedCookieStringHex: string, masterKeyHex: string, masterCookieInitVector: string): string {
-    try {
-        const key = Buffer.from(masterKeyHex, 'hex');
-        const iv = Buffer.from(masterCookieInitVector, 'hex');
+export function serializeContentAdminDataToCookies(event: RequestEvent, data: ContentAdminData, keyManager: KeyManager): void {
+    serializeToCookies('CONTENT_ADMIN', event, data, keyManager);
+}
 
-        if (key.length !== 32) {
-            throw new Error('Invalid masterKey length. Must be a 32-byte hex string (64 characters).');
-        }
-        if (iv.length !== 16) {
-            throw new Error('Invalid IV length. Must be a 16-byte hex string (32 characters).');
-        }
+/**
+ * Deserialize authenticated user from versioned encrypted cookies
+ */
+export function deserializeAuthenticatedUserFromCookies(event: RequestEvent, keyManager: KeyManager): AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined {
+    return deserializeFromCookies<AuthenticatedUser<RecordOrUndef, RecordOrUndef>>('AUTH_USER', event, keyManager);
+}
 
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-        let decrypted = decipher.update(encryptedCookieStringHex, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    } catch (e) {
-        console.error('Decryption failed:', e);
-        throw new Error(`Decryption failed: ${e instanceof Error ? e.message : e}`);
-    }
+/**
+ * Deserialize user override data from versioned encrypted cookies
+ */
+export function deserializeUserOverrideDataFromCookies(event: RequestEvent, keyManager: KeyManager): UserOverrideData | undefined {
+    return deserializeFromCookies<UserOverrideData>('USER_OVERRIDE_DATA', event, keyManager);
+}
+
+/**
+ * Deserialize content admin data from versioned encrypted cookies
+ */
+export function deserializeContentAdminDataFromCookies(event: RequestEvent, keyManager: KeyManager): ContentAdminData | undefined {
+    return deserializeFromCookies<ContentAdminData>('CONTENT_ADMIN', event, keyManager);
 }

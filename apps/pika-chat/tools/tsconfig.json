@@ -1,0 +1,17 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "module": "ESNext",
+        "target": "ES2022"
+    },
+    "include": [
+        "./**/*",
+        "../src/lib/server/encryption/**/*",
+        "../../../../pika-config.ts"
+    ],
+    "exclude": [
+        "./dist/**/*",
+        "./node_modules/**/*"
+    ]
+}

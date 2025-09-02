@@ -1,20 +1,30 @@
 # Local Development
 
-This guide explains how to run your Pika application locally for development and testing.
+This guide explains how to run your Pika application locally for development and testing with the minimum setup required.
 
-## 📋 Prerequisites
+This project is designed to be cloned using the `pika create-app` CLI tool, which creates a copy of this monorepo ready for customization. This guide covers the minimum steps to get everything running locally without implementing authentication, so you can test the framework quickly before adding real auth and other customizations.
 
-Before running locally, make sure you have:
+## Prerequisites
+
+Before starting, make sure you have:
 
 1. **Node.js 22+** installed
 2. **pnpm** package manager
-3. **AWS CLI** useful for aws config/auth
+3. **AWS CLI** configured
 4. **AWS CDK** installed globally
+5. **An AWS account** with appropriate permissions
 
-### Install AWS CDK
+### Install Required Tools
 
 ```bash
+# Install pnpm (if not already installed)
+npm install -g pnpm
+
+# Install AWS CDK
 pnpm install -g aws-cdk
+
+# Install Pika CLI
+pnpm install -g pika-app
 ```
 
 ### Configure AWS CLI
@@ -25,312 +35,324 @@ aws configure
 
 Enter your AWS access key, secret key, region, and output format.
 
-## 🏗️ Local Development Architecture
+## Architecture Overview
 
-When running locally, Pika uses a hybrid approach:
+The Pika framework consists of three main components:
 
-- **Frontend**: Runs locally on your machine
-- **Backend Services**: Deployed to AWS (required for functionality)
-- **Sample Services**: Deployed to AWS for testing
+- **Global Config** (`pika-config.ts`) - Project naming and configuration
+- **Backend Stack** (`services/pika/`) - Core chat infrastructure "the backend service" (must be deployed to AWS)
+- **Frontend Stack** (`apps/pika-chat/`) - Chat interface "the frontend webapp" (runs locally, requires backend deployed first)
+- **Sample Weather Stack** (`services/samples/weather/`) - Example chat app for testing
 
-This approach ensures you're testing against the same infrastructure you'll use in production.
+## Quick Start Guide
 
-## 🔧 Step-by-Step Local Setup
-
-### 1. Configure Your Project
-
-First, update your project configuration:
+### Step 1: Create Your Project
 
 ```bash
-# Edit pika-config.ts to update project names (used for stack/resource names)
-# This is recommended to avoid conflicts with other projects
+# Create a new Pika application
+pika create-app my-chat-app
+
+# Navigate to your project
+cd my-chat-app
 ```
 
-**Example configuration:**
+### Step 2: Configure Project Names (Recommended)
 
-```typescript
+**Important**: Change the project names to avoid conflicts with existing deployments.
+
+Edit `pika-config.ts` and update the project names (here I renamed pika to acmechat and pika-chat to achmechatui):
+
+```js
 export const pikaConfig: PikaConfig = {
     pika: {
-        projNameL: 'mycompany',
-        projNameKebabCase: 'mycompany',
-        projNameTitleCase: 'MyCompany',
-        projNameCamel: 'mycompany',
-        projNameHuman: 'My Company'
+        projNameL: 'acmechat',           // Change from 'pika'
+        projNameKebabCase: 'acme-chat',   // Change from 'pika'
+        projNameTitleCase: 'AcmeChat',    // Change from 'Pika'
+        projNameCamel: 'acmeChat',        // Change from 'pika'
+        projNameHuman: 'Acme Chat'        // Change from 'Pika'
     },
     pikaChat: {
-        projNameL: 'mycompanychat',
-        projNameKebabCase: 'mycompany-chat',
-        projNameTitleCase: 'MyCompanyChat',
-        projNameCamel: 'myCompanyChat',
-        projNameHuman: 'My Company Chat'
+        projNameL: 'acmechatui',          // Change from 'pikachat'
+        projNameKebabCase: 'acme-chat-ui', // Change from 'pika-chat'
+        projNameTitleCase: 'AcmeChatUI',   // Change from 'PikaChat'
+        projNameCamel: 'acmeChatUI',       // Change from 'pikaChat'
+        projNameHuman: 'Acme Chat UI'      // Change from 'Pika Chat'
+    },
+    weather: {
+        projNameL: 'acmeweather',         // Change from 'weather' if desired
+        projNameKebabCase: 'acme-weather', // Change from 'weather' if desired
+        projNameTitleCase: 'AcmeWeather',  // Change from 'Weather' if desired
+        projNameCamel: 'acmeWeather',      // Change from 'weather' if desired
+        projNameHuman: 'Acme Weather'      // Change from 'Weather' if desired
     }
 };
 ```
 
-### 2. Deploy Backend Services
+### Step 3: Deploy Backend Stack (Required)
 
-The frontend depends on the backend services, so you need to deploy them first:
+The backend stack must be deployed to AWS even for local development. The frontend depends on these services.
 
-#### Deploy Core Backend Service
+#### Prerequisites for Backend Deployment
+
+Before deploying the backend, you need to set up a JWT secret:
 
 ```bash
-# Navigate to the core Pika backend service
+# Navigate to the backend service
 cd services/pika
+
+# Generate a JWT secret
+pnpm run jwt-secret
+```
+
+This command will output a 64-character string. Copy this value and create an SSM parameter:
+
+```bash
+# Replace 'acme-chat' with your projNameKebabCase from pika-config.ts
+# Replace 'test' with your desired stage (dev, test, prod, etc.)
+aws ssm put-parameter \
+  --name "/stack/acme-chat/test/jwt-secret" \
+  --value "YOUR_64_CHARACTER_JWT_SECRET_HERE" \
+  --type "SecureString"
+```
+
+#### Deploy the Backend Service
+
+```bash
+# Still in services/pika directory
+# Install dependencies
+pnpm install
 
 # Build the service
 pnpm build
 
-# Deploy to AWS (make sure you are AWS local config is set to where you want to deploy)
-pnpm run cdk:deploy
+# Bootstrap CDK (only needed once per account/region)
+pnpm run cdk:bootstrap
+
+# Deploy to AWS
+STAGE=test pnpm run cdk:deploy
 ```
 
-#### Deploy Sample Weather Service
+**Note**: Replace `test` with your desired stage name. This will create all the necessary AWS resources (DynamoDB tables, Lambda functions, API Gateway, etc.).
+
+### Step 4: Deploy Weather Service Stack (Recommended for Testing)
+
+Deploy the sample weather service to have a working chat app to test with or the chat app will be very empty:
 
 ```bash
 # Navigate to the weather service
-cd services/weather
+cd ../../services/samples/weather
+
+# Install dependencies
+pnpm install
 
 # Build the service
 pnpm build
 
 # Deploy to AWS
-pnpm run cdk:deploy
+STAGE=test pnpm run cdk:deploy
 ```
 
-### 3. Start the Frontend
+### Step 5: Set Up Cookie Encryption (Required for Frontend)
+
+The frontend requires cookie encryption infrastructure. Since you're running locally (not deploying the frontend stack to AWS), you need to set this up manually:
 
 ```bash
-# Navigate to the chat application
+# Navigate to the chat app
+cd ../../apps/pika-chat
+
+# Check if encryption infrastructure exists
+pnpm run encryption:setup -- status
+
+# Set up encryption infrastructure for local development
+pnpm run encryption:setup -- setup
+```
+
+This creates the necessary KMS keys and SSM parameters for cookie encryption without deploying the full CloudFormation stack. Don't worry, you can still deploy for real later (all of this is idempotent).
+
+### Step 6: Configure Frontend Environment Variables
+
+Create a `.env.local` file in `apps/pika-chat/` with the required environment variables:
+
+```bash
+# Create the environment file
 cd apps/pika-chat
-
-# Build the application
-pnpm build
-
-# Start the development server
-pnpm run dev
+touch .env.local
 ```
 
-### 4. Access Your Application
-
-- **Main Chat Interface**: `http://localhost:3000`
-- **Weather Chat App**: `http://localhost:3000/chat/weather`
-- **Sample Enterprise Site**: `http://localhost:3000/samples/enterprise-site`
-
-### 5. Start the Enterprise Site Front End
-
-Make sure the main chat interface is running (see #4).
+Add the following to `.env.local`:
 
 ```bash
-# Navigate to the chat application
-cd apps/samples/enterprise-site
+# Basic configuration
+WEBAPP_URL=http://localhost:3000
 
-# Build the application
-pnpm build
+# Change to whatever you used when you deployed the back end
+STAGE=test
+
+# Legacy values (keep as-is)
+PLATFORM_API_BASE_URL=leave-with-this-bogus-value
+OAUTH_URL=leave-with-this-bogus-value
+TOKEN_URL=leave-with-this-bogus-value
+CLIENT_ID=leave-with-this-bogus-value
+
+# Project names (match your pika-config.ts)
+PIKA_SERVICE_PROJ_NAME_KEBAB_CASE=acme-chat
+PIKA_CHAT_PROJ_NAME_KEBAB_CASE=acme-chat-ui
+
+# AWS Region (set to your deployment region)
+AWS_REGION=us-east-1
+
+# Values from AWS Parameter Store (you'll need to fetch these, see below)
+PIKA_S3_BUCKET=
+CHAT_API_ID=
+CHAT_ADMIN_API_ID=
+CONVERSE_FUNCTION_URL=
+TAG_DEFINITIONS_TABLE=
+```
+
+#### Get Values from AWS Parameter Store
+
+You need to fetch the following values from AWS Parameter Store. Replace `acme-chat` with your `projNameKebabCase` and `test` with your stage:
+
+```bash
+# Get S3 bucket name
+aws ssm get-parameter --name "/stack/acme-chat/test/s3/pika_bucket_name" --query "Parameter.Value" --output text
+
+# Get Chat API ID
+aws ssm get-parameter --name "/stack/acme-chat/test/api/id" --query "Parameter.Value" --output text
+
+# Get Chat Admin API ID
+aws ssm get-parameter --name "/stack/acme-chat/test/api/chat_admin_id" --query "Parameter.Value" --output text
+
+# Get Converse Function URL
+aws ssm get-parameter --name "/stack/acme-chat/test/function/converse_url" --query "Parameter.Value" --output text
+
+# Get Tag Definitions Table
+aws ssm get-parameter --name "/stack/acme-chat/test/ddb_table/pika_tag_def" --query "Parameter.Value" --output text
+```
+
+Update your `.env.local` file with these values:
+
+```bash
+# Example with actual values (yours will be different)
+PIKA_S3_BUCKET=pika-files-acme-chat-test
+CHAT_API_ID=abcd123456
+CHAT_ADMIN_API_ID=efgh789012
+CONVERSE_FUNCTION_URL=https://xyz123.lambda-url.us-east-1.on.aws/
+TAG_DEFINITIONS_TABLE=pika-tag-def-acme-chat-test
+```
+
+### Step 7: Start the Frontend
+
+```bash
+# Still in apps/pika-chat directory
+# Install dependencies
+pnpm install
 
 # Start the development server
 pnpm run dev
 ```
 
-Then access it with `http://localhost:5173`. Click the AI icon top right to show the pika chat front end embedded in an iframe.
+Your application will be available at `http://localhost:3000`!
 
-## 🎯 What You Can Test Locally
+## Testing Your Setup
 
-### 1. Generic Chat Interface
+### 1. Main Chat Interface
 
-The main chat interface at `http://localhost:3000` provides:
+Visit `http://localhost:3000` to access:
 
-- User authentication
+- Generic chat interface that can render any chat app
+- User authentication (basic no-op auth for testing)
 - Chat history management
 - File upload capabilities
-- Custom component rendering
 
-### 2. Weather Chat Application
+### 2. Weather Chat App
 
 Visit `http://localhost:3000/chat/weather` to test:
 
-- Agent-based weather queries
+- Weather-related queries (e.g., "What's the weather in New York?")
+- Agent-based responses
 - Tool orchestration
 - Dynamic response generation
-- Rich media rendering
 
-### 3. Embedded Chat Mode
+### 3. Sample Enterprise Site (Optional)
 
-Visit `http://localhost:5173` to test. The sample enterprise site demonstrates:
-
-- Iframe integration
-- Embedded chat functionality
-- Cross-origin communication
-- Responsive design
-
-## 🔧 Development Workflow
-
-### Making Changes
-
-1. **Custom Components**: Add components in the custom-markdown-tag-components directory
-2. **Frontend Stack Changes**: Use `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` to customize stack
-3. **Authentication**: Modify the auth-provider directory
-4. **Backend Stack Changes**: Use `services/pika/lib/stacks/custom-stack-defs.ts` to customize stack
-
-### Hot Reloading
-
-The frontend development server supports hot reloading:
-
-- Changes to Svelte components reload automatically
-- TypeScript compilation happens in real-time
-- CSS changes are applied immediately
-
-### Debugging
-
-#### Frontend Debugging
+Start the sample embedded chat application:
 
 ```bash
-# Start with debugging enabled
-pnpm run dev -- --debug
+# Navigate to the enterprise site sample
+cd ../samples/enterprise-site
 
-# Check browser console for errors
-# Use browser dev tools for component inspection
-```
-
-#### Backend Debugging
-
-```bash
-# Check CloudWatch logs for Lambda functions
-aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/mycompany"
-
-# View specific function logs
-aws logs tail /aws/lambda/mycompany-weather-function --follow
-```
-
-## 🐛 Common Issues
-
-### 1. Backend Services Not Deployed
-
-**Symptoms:**
-
-- Frontend loads but chat doesn't work
-- 404 errors when trying to send messages
-- "Service unavailable" errors
-
-**Solution:**
-
-```bash
-# Deploy the backend services first
-cd services/pika && pnpm build && pnpm run cdk:deploy
-cd services/weather && pnpm build && pnpm run cdk:deploy
-```
-
-### 2. AWS Credentials Not Configured
-
-**Symptoms:**
-
-- CDK deployment fails
-- "Unable to locate credentials" errors
-
-**Solution:**
-
-```bash
-# Configure AWS CLI
-aws configure
-
-# Or set environment variables
-export AWS_ACCESS_KEY_ID=your-access-key
-export AWS_SECRET_ACCESS_KEY=your-secret-key
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-### 3. Port Already in Use
-
-**Symptoms:**
-
-- "Port 3000 is already in use" error
-
-**Solution:**
-
-```bash
-# Kill the process using port 3000
-lsof -ti:3000 | xargs kill -9
-
-# Or use a different port
-pnpm run dev -- --port 3001
-```
-
-### 4. Build Errors
-
-**Symptoms:**
-
-- TypeScript compilation errors
-- Missing dependencies
-
-**Solution:**
-
-```bash
-# Clean and reinstall dependencies
-pnpm clean
+# Install dependencies
 pnpm install
 
-# Rebuild the project
-pnpm build
+# Start the development server
+pnpm run dev
 ```
 
-## 🔄 Development Tips
+Visit `http://localhost:5173` and click the AI icon in the top right to see the chat embedded in an iframe.
 
-### 1. Use Environment Variables
+## Common Environment Variable Patterns
 
-Create a `.env.local` file for local development:
+The SSM parameter paths follow this pattern:
 
 ```bash
-# .env.local
-VITE_API_URL=http://localhost:3000
-VITE_AUTH_PROVIDER=local
-VITE_DEBUG=true
+# S3 Bucket
+/stack/{projNameKebabCase}/{stage}/s3/pika_bucket_name
+
+# APIs
+/stack/{projNameKebabCase}/{stage}/api/id
+/stack/{projNameKebabCase}/{stage}/api/chat_admin_id
+
+# Functions
+/stack/{projNameKebabCase}/{stage}/function/converse_url
+
+# Tables
+/stack/{projNameKebabCase}/{stage}/ddb_table/pika_tag_def
 ```
 
-### 2. Monitor AWS Costs
+Where:
 
-Local development still uses AWS resources:
+- `{projNameKebabCase}` = The `projNameKebabCase` from your pika config (e.g., `acme-chat`)
+- `{stage}` = Your deployment stage (e.g., `test`, `dev`, `prod`)
 
-- Monitor your AWS billing dashboard
-- Use AWS Cost Explorer to track expenses
-- Consider using AWS Free Tier for development
+## Troubleshooting
 
-### 3. Use AWS CloudWatch
+### Backend Deployment Issues
 
-Monitor your deployed services:
+- Make sure your AWS credentials are configured correctly
+- Ensure you have the necessary IAM permissions
+- Check that the JWT secret SSM parameter exists before deploying
+- Verify your region is set correctly
 
-```bash
-# View recent logs
-aws logs tail /aws/lambda/mycompany-pika-service --follow
+### Frontend Issues
 
-# Check metrics
-aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration
-```
+- Double-check all environment variables in `.env.local`
+- Make sure the backend services are deployed and running
+- Verify cookie encryption setup completed successfully
+- Check that AWS region matches between backend and frontend config
 
-### 4. Test Different Scenarios
+### Can't Connect to Backend Services
 
-- **Authentication flows**: Test login/logout
-- **File uploads**: Test document processing
-- **Custom components**: Test your custom UI components
-- **Error handling**: Test various error scenarios
+- Verify the backend stack deployed successfully
+- Check that API Gateway endpoints are accessible
+- Ensure your local AWS credentials can access the deployed resources
 
-## 📚 Next Steps
+## Next Steps
 
-Now that you can run Pika locally:
+Once you have the basic setup running:
 
-1. **Customize your application** - Read the [Customization Guide](./customization.md)
-2. **Set up authentication** - Follow the [Authentication Setup](./authentication.md)
-3. **Deploy to production** - Check out [AWS Deployment](./aws-deployment.md)
-4. **Learn about the sync system** - Read [Sync System](./sync-system.md)
+1. **Implement Authentication** - Replace the no-op auth provider with your real authentication
+2. **Customize the UI** - Modify the chat interface to match your branding
+3. **Create Custom Chat Apps** - Build your own chat applications beyond the weather example
+4. **Deploy to Production** - Follow the AWS deployment guide to deploy the full stack
 
-## 🆘 Getting Help
+## Additional Resources
 
-If you encounter issues:
-
-1. **Check the troubleshooting guide** for common solutions
-2. **Review AWS CloudWatch logs** for backend errors
-3. **Check browser console** for frontend errors
-4. **Search existing issues** on the [GitHub repository](https://github.com/rithum/pika)
-5. **Create a new issue** with detailed error information
+- [Project Structure Guide](./project-structure.md) - Understanding the codebase organization
+- [Customization Guide](./customization.md) - How to customize Pika for your needs
+- [AWS Deployment Guide](./aws-deployment.md) - Deploy to production
+- [Troubleshooting Guide](./troubleshooting.md) - Common issues and solutions
 
 ---
 
-**Ready to customize your application?** Check out the [Customization Guide](./customization.md) to start building your own features!
+**Ready to start building?** You now have a complete Pika setup running locally with a working weather chat app to test with!

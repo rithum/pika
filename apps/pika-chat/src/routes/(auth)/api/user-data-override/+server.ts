@@ -58,7 +58,11 @@ export const POST: RequestHandler = async (event) => {
         user.overrideData[chatApp.chatAppId] = savedData;
         locals.user = user;
 
-        serializeUserOverrideDataToCookies(event, { data: user.overrideData }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        if (locals.keyManager) {
+            serializeUserOverrideDataToCookies(event, { data: user.overrideData }, locals.keyManager);
+        } else {
+            throw new Error('KeyManager not available for cookie serialization');
+        }
 
         return json({
             success: true,
@@ -69,7 +73,12 @@ export const POST: RequestHandler = async (event) => {
             delete user.overrideData[chatApp.chatAppId];
         }
         locals.user = user;
-        serializeUserOverrideDataToCookies(event, { data: user.overrideData ?? {} }, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+
+        if (locals.keyManager) {
+            serializeUserOverrideDataToCookies(event, { data: user.overrideData ?? {} }, locals.keyManager);
+        } else {
+            throw new Error('KeyManager not available for cookie serialization');
+        }
         return json({
             success: true
         });
