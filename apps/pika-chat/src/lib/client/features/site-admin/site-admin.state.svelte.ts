@@ -213,6 +213,65 @@ export class SiteAdminState {
         return this.#appState.isMobile && this.#appSidebarOpen;
     }
 
+    /**
+     * Load tag definitions from the server
+     * Uses sendSiteAdminCommand to maintain consistency with existing patterns
+     *
+     * TODO: Currently only loads first page due to sendSiteAdminCommand architecture limitation
+     * (it doesn't return raw response with paginationToken). To support full pagination,
+     * we'd need to modify sendSiteAdminCommand to optionally return raw response data.
+     */
+    async loadTagDefinitions(): Promise<void> {
+        let paginationToken: Record<string, any> | undefined = undefined;
+        let tagDefinitions: TagDefinition<TagDefinitionWidget>[] = [];
+
+        try {
+            do {
+                this.siteAdminOperationInProgress['searchTagDefinitions'] = true;
+                const response = await this.fetchz('/api/site-admin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        command: 'searchTagDefinitions',
+                        request: {
+                            includeInstructions: true,
+                            paginationToken
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    //TODO: handle error
+                    throw new Error('Failed to send site admin command');
+                }
+
+                const json: SiteAdminResponse = await response.json();
+                if (!json) {
+                    throw new Error('Invalid response for site admin command');
+                } else if ('success' in json && json.success === false) {
+                    //TODO: throw a toast
+                    throw new Error(json.error);
+                } else {
+                    const response = json as TagDefinitionSearchResponse;
+                    if (response.success) {
+                        paginationToken = response.paginationToken;
+                        if (response.tagDefinitions) {
+                            tagDefinitions.push(...response.tagDefinitions);
+                        }
+                    }
+                }
+            } while (paginationToken);
+            this.#tagDefinitions = tagDefinitions;
+        } catch (e) {
+            console.error('Error loading tag definitions', e);
+            throw e;
+        } finally {
+            this.siteAdminOperationInProgress['searchTagDefinitions'] = false;
+        }
+    }
+
     async sendSiteAdminCommand(request: SiteAdminRequest) {
         try {
             this.siteAdminOperationInProgress[request.command] = true;

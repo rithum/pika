@@ -1,20 +1,18 @@
 <script lang="ts">
-    import { Construction, FileCode2, Loader, MessageSquareText, RefreshCw, Server, Trash2 } from '$icons/lucide';
+    import { Construction, FileCode2, Key, MessageSquareText, RefreshCw, Trash2 } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
     import { PikaBadge } from '$ui/pika/pika-badge';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import * as PikaTabs from '$ui/pika/pika-tabs';
     import { Badge } from '$ui/shadcn/badge';
     import { Button } from '$ui/shadcn/button';
     import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$ui/shadcn/card';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import * as PikaTabs from '$ui/pika/pika-tabs';
+    import type {
+        ClearConverseLambdaCacheType,
+        ClearSvelteKitCacheType,
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
-    import type {
-        ClearConverseLambdaCacheRequest,
-        ClearSvelteKitCacheType,
-        ClearConverseLambdaCacheType,
-    } from 'pika-shared/types/chatbot/chatbot-types';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -50,6 +48,14 @@
             ttl: '1 hour',
             icon: Construction,
             maxSize: 1,
+        },
+        {
+            name: 'Encryption Keys',
+            type: 'encryptionKeysCache' as ClearSvelteKitCacheType,
+            description: 'Forces refresh of encrypted cookie keys from SSM and KMS for the webapp',
+            ttl: '1 hour (auto)',
+            icon: Key,
+            maxSize: 3,
         },
     ];
 

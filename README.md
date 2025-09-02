@@ -6,7 +6,7 @@ The name "Pika" (ピカ) in Japanese means "spark" or "flash of electricity," sy
 
 ## Documentation
 
-**[Visit the complete documentation and guide website →](http://pika.tools)**
+**[Visit the complete documentation and guide website →](https://pika.tools)**
 
 For detailed guides, tutorials, and API references, visit our dedicated documentation site.
 

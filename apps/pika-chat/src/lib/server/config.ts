@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { generateKmsKeyAliasName, generateSsmParamPrefix } from './encryption/kms-utils';
 import type { AppConfig } from './server-types';
 import { getValueFromParameterStore } from './ssm';
 import { getLoggedInAccountFromSts } from './sts';
@@ -18,8 +19,6 @@ export class AppConfigProxy implements AppConfig {
     private _pikaS3Bucket: string | undefined;
     private _stage: string | undefined;
     private _isLocal: boolean | undefined;
-    private _masterCookieKey: string | undefined;
-    private _masterCookieInitVector: string | undefined;
     private _chatApiId: string | undefined;
     private _converseFnUrl: string | undefined;
     private _chatAdminApiId: string | undefined;
@@ -27,6 +26,13 @@ export class AppConfigProxy implements AppConfig {
     private _pikaServiceProjNameKebabCase: string | undefined;
     private _pikaChatProjNameKebabCase: string | undefined;
     private _tagDefinitionsTableName: string | undefined;
+
+    // Cookie key rotation configuration
+    private _kmsKeyAlias: string | undefined;
+    private _ssmParameterPrefix: string | undefined;
+    private _keyRefreshIntervalHours: number | undefined;
+    private _maxKeyVersions: number | undefined;
+    private _cookieMaxAgeHours: number | undefined;
 
     // This is used to encrypt and decrypt user data when shared from the front end to the back end of the chatbot service
     // and not for authentication of the front end itself.
@@ -147,18 +153,6 @@ export class AppConfigProxy implements AppConfig {
                 }
             },
             {
-                name: 'masterCookieKey',
-                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
-                    this._masterCookieKey = await getValueFromParameterStore(`/stack/${pikaChatProjNameKebabCase}/${stage}/auth/master-cookie-key`, region);
-                }
-            },
-            {
-                name: 'masterCookieInitVector',
-                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
-                    this._masterCookieInitVector = await getValueFromParameterStore(`/stack/${pikaChatProjNameKebabCase}/${stage}/auth/master-cookie-init-vector`, region);
-                }
-            },
-            {
                 name: 'chatApiId',
                 setValue: async (_isLocal: boolean, stage: string, _cache: Cache) => {
                     const result = env.CHAT_API_ID ?? process.env.CHAT_API_ID;
@@ -199,6 +193,36 @@ export class AppConfigProxy implements AppConfig {
                     if (!this._tagDefinitionsTableName) {
                         throw new Error('TAG_DEFINITIONS_TABLE is not set');
                     }
+                }
+            },
+            {
+                name: 'kmsKeyAlias',
+                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
+                    this._kmsKeyAlias = generateKmsKeyAliasName(pikaChatProjNameKebabCase, stage);
+                }
+            },
+            {
+                name: 'ssmParameterPrefix',
+                setValue: async (_isLocal: boolean, stage: string, _cache: Cache, region: string, _pikaServiceProjNameKebabCase: string, pikaChatProjNameKebabCase: string) => {
+                    this._ssmParameterPrefix = generateSsmParamPrefix(pikaChatProjNameKebabCase, stage);
+                }
+            },
+            {
+                name: 'keyRefreshIntervalHours',
+                setValue: async () => {
+                    this._keyRefreshIntervalHours = parseInt((env.KEY_REFRESH_INTERVAL_HOURS ?? process.env.KEY_REFRESH_INTERVAL_HOURS) || '1');
+                }
+            },
+            {
+                name: 'maxKeyVersions',
+                setValue: async () => {
+                    this._maxKeyVersions = parseInt((env.MAX_KEY_VERSIONS ?? process.env.MAX_KEY_VERSIONS) || '3');
+                }
+            },
+            {
+                name: 'cookieMaxAgeHours',
+                setValue: async () => {
+                    this._cookieMaxAgeHours = parseInt((env.COOKIE_MAX_AGE_HOURS ?? process.env.COOKIE_MAX_AGE_HOURS) || '12');
                 }
             }
         ];
@@ -249,16 +273,6 @@ export class AppConfigProxy implements AppConfig {
         return this._isLocal;
     }
 
-    public get masterCookieKey(): string {
-        if (!this._masterCookieKey) throw new Error('App config not initialized');
-        return this._masterCookieKey;
-    }
-
-    public get masterCookieInitVector(): string {
-        if (!this._masterCookieInitVector) throw new Error('App config not initialized');
-        return this._masterCookieInitVector;
-    }
-
     public get chatApiId(): string {
         if (!this._chatApiId) throw new Error('App config not initialized');
         return this._chatApiId;
@@ -297,6 +311,31 @@ export class AppConfigProxy implements AppConfig {
     public get tagDefinitionsTableName(): string {
         if (!this._tagDefinitionsTableName) throw new Error('App config not initialized');
         return this._tagDefinitionsTableName;
+    }
+
+    public get kmsKeyAlias(): string {
+        if (!this._kmsKeyAlias) throw new Error('App config not initialized');
+        return this._kmsKeyAlias;
+    }
+
+    public get ssmParameterPrefix(): string {
+        if (!this._ssmParameterPrefix) throw new Error('App config not initialized');
+        return this._ssmParameterPrefix;
+    }
+
+    public get keyRefreshIntervalHours(): number {
+        if (this._keyRefreshIntervalHours === undefined) throw new Error('App config not initialized');
+        return this._keyRefreshIntervalHours;
+    }
+
+    public get maxKeyVersions(): number {
+        if (this._maxKeyVersions === undefined) throw new Error('App config not initialized');
+        return this._maxKeyVersions;
+    }
+
+    public get cookieMaxAgeHours(): number {
+        if (this._cookieMaxAgeHours === undefined) throw new Error('App config not initialized');
+        return this._cookieMaxAgeHours;
     }
 }
 

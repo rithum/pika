@@ -2390,7 +2390,7 @@ export interface ClearSvelteKitCachesRequest extends SiteAdminCommandRequestBase
     chatAppId?: string; // Only used for chatAppCache when clearing specific chat app
 }
 
-export const ClearSvelteKitCacheTypes = ['chatAppCache', 'tagDefinitionsCache', 'instructionAssistanceConfigCache', 'all'] as const;
+export const ClearSvelteKitCacheTypes = ['chatAppCache', 'tagDefinitionsCache', 'instructionAssistanceConfigCache', 'encryptionKeysCache', 'all'] as const;
 export type ClearSvelteKitCacheType = (typeof ClearSvelteKitCacheTypes)[number];
 
 export interface GetInstructionAssistanceConfigFromSsmRequest extends SiteAdminCommandRequestBase {

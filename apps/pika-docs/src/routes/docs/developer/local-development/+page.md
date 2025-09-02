@@ -84,16 +84,17 @@ The frontend depends on the backend services, so you need to deploy them first.
 
 <Tabs activeName="Core Service">
   <TabPanel name="Core Service">
-    ```bash
-    # Navigate to the core Pika backend service
-    cd services/pika
 
-    # Build the service
-    pnpm build
+```bash
+# Navigate to the core Pika backend service
+cd services/pika
 
-    # Deploy to AWS (make sure you are AWS local config is set to where you want to deploy)
-    pnpm run cdk:deploy
-    ```
+# Build the service
+pnpm build
+
+# Deploy to AWS (make sure you are AWS local config is set to where you want to deploy)
+pnpm run cdk:deploy
+```
 
   </TabPanel>
 </Tabs>

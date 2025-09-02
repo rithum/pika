@@ -4,24 +4,47 @@ import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import {
     clearAllCookies,
+    serializeAuthenticatedUserToCookies,
     deserializeAuthenticatedUserFromCookies,
-    deserializeContentAdminDataFromCookies,
     deserializeUserOverrideDataFromCookies,
-    serializeAuthenticatedUserToCookies
+    deserializeContentAdminDataFromCookies,
+    validateAllCookieVersions
 } from '$lib/server/cookies';
+import { KeyManager } from '$lib/server/encryption/KeyManager';
+import { KeyManagerFactory } from '$lib/server/encryption/KeyManagerFactory';
 import { addSecurityHeaders, arraysEqual, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 import deepEqual from 'deep-equal';
 import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
+let keyManager: KeyManager | undefined;
 
 // Initialize server configuration
 export const init: ServerInit = async () => {
     await appConfig.init();
+
+    // Initialize KeyManager for cookie encryption
+    keyManager = new KeyManager(appConfig.ssmParameterPrefix, appConfig.kmsKeyAlias, appConfig.awsRegion, appConfig.keyRefreshIntervalHours, appConfig.maxKeyVersions);
+    await keyManager.initialize();
+
+    // Set the instance in the factory for admin access
+    KeyManagerFactory.setInstance(keyManager);
 };
 
 export const handle: Handle = async ({ event, resolve }) => {
+    // ===== Key Management =====
+
+    // Refresh keys if needed (resilient to failures)
+    if (keyManager) {
+        try {
+            await keyManager.refreshKeysIfNeeded();
+        } catch (error) {
+            console.warn('[Hooks] Key refresh failed, continuing with cached keys:', error);
+            // Continue with existing cached keys - don't fail the request
+        }
+    }
+
     // ===== Special Route Handlers =====
 
     // Handle Chrome DevTools protocol for local development
@@ -69,8 +92,37 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // ===== Protected Routes (Auth Required) =====
 
-    // Try to deserialize user from cookies
-    user = deserializeAuthenticatedUserFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+    // Validate all cookie versions upfront for atomic authentication state management
+    if (keyManager) {
+        const validationResult = validateAllCookieVersions(event, keyManager);
+
+        switch (validationResult.overallStatus) {
+            case 'all_valid':
+                // All cookies are compatible - proceed with normal deserialization
+                user = deserializeAuthenticatedUserFromCookies(event, keyManager);
+                break;
+
+            case 'no_auth_cookie':
+                // No AUTH_USER cookie - user needs to authenticate
+                user = undefined;
+                break;
+
+            case 'version_mismatch':
+            case 'error':
+                // Cookie version issues detected - clear all cookies atomically
+                console.warn('[Hooks] Cookie version compatibility issues detected - clearing all cookies and forcing reauthentication', {
+                    overallStatus: validationResult.overallStatus,
+                    cookieDetails: validationResult.details
+                });
+                clearAllCookies(event);
+                user = undefined;
+                break;
+        }
+    } else {
+        // KeyManager unavailable - force reauthentication for pilot phase
+        console.warn('[Hooks] KeyManager unavailable - forcing reauthentication');
+        user = undefined;
+    }
 
     // ===== ChatUser Refresh Logic =====
     let needsSerializationDueToChatUserChanges = false;
@@ -266,8 +318,13 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // });
                 }
 
-                // Serialize the user to cookies (handles large data automatically)
-                serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+                // Serialize the user to cookies using versioned approach
+                if (keyManager) {
+                    serializeAuthenticatedUserToCookies(event, user, keyManager);
+                } else {
+                    console.error('[Hooks] KeyManager unavailable - cannot serialize cookies');
+                    throw new Error('KeyManager required for cookie serialization');
+                }
             }
 
             if (authResult.redirectTo) {
@@ -296,8 +353,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     if (authProvider.validateUser && user) {
         try {
-            // Only validate if needed (let the provider decide based on time/expiry)
-            const validationResult = await authProvider.validateUser(event, user);
+            // Pass the cookie max age (12 hours in milliseconds) for server-side validation
+            const maxCookieAgeMs = appConfig.cookieMaxAgeHours * 60 * 60 * 1000; // Convert hours to milliseconds
+            const validationResult = await authProvider.validateUser(event, user, maxCookieAgeMs);
 
             if (validationResult) {
                 // Provider returned updated user with refreshed tokens
@@ -340,29 +398,45 @@ export const handle: Handle = async ({ event, resolve }) => {
         // Clean up the temporary flag
         delete (user as any)._timestampOnlyUpdate;
 
-        serializeAuthenticatedUserToCookies(event, user, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
+        // Update cookies using versioned approach
+        if (keyManager) {
+            serializeAuthenticatedUserToCookies(event, user, keyManager);
+        } else {
+            console.error('[Hooks] KeyManager unavailable - cannot serialize cookies');
+            throw new Error('KeyManager required for cookie serialization');
+        }
     }
 
     // If the user is allowed to use the user data overrides feature, we need to deserialize the user override data from cookies
     // and merge it with the user object.
     if (isUserAllowedToUseUserDataOverrides(user)) {
-        const userOverrideData = deserializeUserOverrideDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
-        if (userOverrideData) {
-            user.overrideData = userOverrideData.data;
+        if (keyManager) {
+            const userOverrideData = deserializeUserOverrideDataFromCookies(event, keyManager);
+            if (userOverrideData) {
+                user.overrideData = userOverrideData.data;
+            }
+            // Note: No need for individual cookie clearing here since we validate all cookies upfront
+        } else {
+            console.warn('[Auth] KeyManager not available for user override data deserialization');
         }
     }
 
     // If the user is allowed to use the content admin feature, we need to deserialize the content admin data from cookies
     // and merge it with the user object.
     if (isUserContentAdmin(user)) {
-        const contentAdminData = deserializeContentAdminDataFromCookies(event, appConfig.masterCookieKey, appConfig.masterCookieInitVector);
-        if (contentAdminData) {
-            user.viewingContentFor = contentAdminData.data;
+        if (keyManager) {
+            const contentAdminData = deserializeContentAdminDataFromCookies(event, keyManager);
+            if (contentAdminData) {
+                user.viewingContentFor = contentAdminData.data;
+            }
+            // Note: No need for individual cookie clearing here since we validate all cookies upfront
+        } else {
+            console.warn('[Auth] KeyManager not available for content admin data deserialization');
         }
     }
 
-    // Set user and config in locals for server-side use
-    event.locals = { user, appConfig, authProvider };
+    // Set user, config, and keyManager in locals for server-side use
+    event.locals = { user, appConfig, authProvider, keyManager };
 
     await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
 

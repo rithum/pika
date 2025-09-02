@@ -29,16 +29,6 @@ export interface AppConfig {
     /**
      * Don't set this in an environment variable.  It will be ignored.  It is retrieved at run time from SSM.
      */
-    masterCookieKey: string;
-
-    /**
-     * Don't set this in an environment variable.  It will be ignored.  It is retrieved at run time from SSM.
-     */
-    masterCookieInitVector: string;
-
-    /**
-     * Don't set this in an environment variable.  It will be ignored.  It is retrieved at run time from SSM.
-     */
     jwtSecret: string;
 
     /**
@@ -106,6 +96,42 @@ export interface AppConfig {
      * env variable: TAG_DEFINITIONS_TABLE
      */
     tagDefinitionsTableName: string;
+
+    /**
+     * Don't set this in an environment variable. It will be ignored. It is constructed from other config values.
+     * The KMS key alias for cookie encryption key rotation.
+     */
+    kmsKeyAlias: string;
+
+    /**
+     * Don't set this in an environment variable. It will be ignored. It is constructed from other config values.
+     * The SSM parameter prefix for cookie encryption key storage.
+     */
+    ssmParameterPrefix: string;
+
+    /**
+     * Optional environment variable for key refresh interval.
+     * Default: 1 hour
+     *
+     * env variable: KEY_REFRESH_INTERVAL_HOURS
+     */
+    keyRefreshIntervalHours: number;
+
+    /**
+     * Optional environment variable for maximum number of key versions to keep.
+     * Default: 3 versions
+     *
+     * env variable: MAX_KEY_VERSIONS
+     */
+    maxKeyVersions: number;
+
+    /**
+     * Optional environment variable for cookie max age in hours.
+     * Default: 12 hours
+     *
+     * env variable: COOKIE_MAX_AGE_HOURS
+     */
+    cookieMaxAgeHours: number;
 
     /**
      * Get an arbitrary config value from the environment or process.env

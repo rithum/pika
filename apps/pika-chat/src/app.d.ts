@@ -1,5 +1,7 @@
 // import type { Session } from '@auth/sveltekit';
 import type { AppConfig } from '$lib/server/server-types';
+import type { AuthProvider } from '$lib/server/auth/types';
+import type { KeyManager } from '$lib/server/encryption/KeyManager';
 import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 // Type declarations for unplugin-icons virtual modules
@@ -13,6 +15,7 @@ declare global {
             appConfig: AppConfig;
             customData?: Record<string, unknown> | undefined;
             authProvider: AuthProvider<RecordOrUndef, RecordOrUndef>;
+            keyManager?: KeyManager;
         }
         // interface PageData {
         //     session?: Session | null;

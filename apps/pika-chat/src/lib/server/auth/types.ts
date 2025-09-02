@@ -65,12 +65,20 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * 2. Refresh tokens if needed
      * 3. Return the appropriate result
      *
+     * The maxCookieAgeMs parameter allows your auth provider to validate that cookies
+     * haven't been tampered with on the client side. Use this to reject cookies that
+     * claim to be valid longer than your server allows.
+     *
      * Returns:
      * - undefined: No action needed, user is still valid
      * - AuthenticatedUser: Updated user with refreshed tokens (will replace cookie)
      * - Throws ForceUserToReauthenticateError: User must re-authenticate
+     *
+     * @param event - The request event
+     * @param user - The authenticated user from cookie
+     * @param maxCookieAgeMs - Maximum allowed cookie age in milliseconds (configured server-side)
      */
-    validateUser?(event: RequestEvent, user: AuthenticatedUser<T, U>): Promise<AuthenticatedUser<T, U> | undefined>;
+    validateUser?(event: RequestEvent, user: AuthenticatedUser<T, U>, maxCookieAgeMs: number): Promise<AuthenticatedUser<T, U> | undefined>;
 
     /**
      * Add a value to the locals for the route.  This is useful for adding values to the locals for the route that are not part of the

@@ -2,7 +2,7 @@
 
 Welcome to Pika Framework! This guide will help you get up and running with your first AI-powered chat application in minutes.
 
-[Visit Pika documentation and guide website](http://pika.tools)
+[Visit Pika documentation and guide website](https://pika.tools)
 
 ## 🚀 Quick Start
 
@@ -56,18 +56,29 @@ This command will:
 - Install all dependencies
 - Configure the project for your use case
 
-### Start Development
+### Set Up for Local Development
 
-Navigate to your new project and start the development server:
+Navigate to your new project and follow the complete setup guide:
 
 ```bash
 cd my-chat-app
-pnpm dev
 ```
 
-Your application will be available at `http://localhost:3000`!
+**Important**: Before you can run locally, you need to deploy backend services to AWS and configure your environment. The frontend runs locally but depends on backend services deployed to AWS.
 
-## 🎯 What You Get
+**Follow the complete setup guide**: [Local Development Guide](./local-development.md)
+
+The local development guide will walk you through:
+
+1. Configuring project names to avoid conflicts
+2. Deploying the required backend services to AWS
+3. Setting up cookie encryption infrastructure
+4. Configuring environment variables
+5. Running the frontend locally
+
+Once set up, your application will be available at `http://localhost:3000` with a working weather chat app for testing!
+
+## What You Get
 
 When you create a Pika application, you receive a complete, production-ready chat application framework with:
 
@@ -89,9 +100,9 @@ When you create a Pika application, you receive a complete, production-ready cha
 - **User Education** - Chat disclaimer notices inform users about AI limitations
 - **Feature Overrides** - Customize features per chat app for specialized behavior
 
-## 🚨 CRITICAL: Security and Authentication
+## CRITICAL: Security and Authentication
 
-**⚠️ DO NOT DEPLOY TO PRODUCTION WITHOUT READING THIS SECTION ⚠️**
+**DO NOT DEPLOY TO PRODUCTION WITHOUT READING THIS SECTION**
 
 ### Default Mock Authentication - DEVELOPMENT ONLY
 
@@ -102,7 +113,7 @@ Pika Framework ships with a **mock authentication provider** that:
 - **Provides no real security** - anyone can access your chat applications
 - **Is intended for development and testing only**
 
-**🔒 PRODUCTION DEPLOYMENT REQUIREMENTS:**
+**PRODUCTION DEPLOYMENT REQUIREMENTS:**
 
 1. **Implement a custom authentication provider** before deploying publicly
 2. **Configure user types and chat app visibility** to prevent unauthorized access
@@ -133,7 +144,7 @@ const adminChatApp: ChatApp = {
     // No userTypesAllowed means we restrict the app to internal users only
 };
 
-// ✅ SECURE - This chat app is restricted to internal users only
+// SECURE - This chat app is restricted to internal users only
 const adminChatApp: ChatApp = {
     chatAppId: 'admin-tools',
     title: 'Administrative Tools',
@@ -141,13 +152,13 @@ const adminChatApp: ChatApp = {
 };
 ```
 
-**📖 Next Steps for Production:**
+**Next Steps for Production:**
 
 1. Read the [Authentication Guide](./authentication.md) to implement your auth provider
 2. Review [Chat App Access Control](./chat-app-access-control.md) to configure proper access controls
 3. Test your setup in a staging environment before going live
 
-## 🏗️ Project Structure
+## Project Structure
 
 Your Pika application follows a monorepo structure:
 
@@ -165,7 +176,7 @@ my-chat-app/
 └── .pika-sync.json        # Sync configuration
 ```
 
-## 🏢 Stack Management Best Practices
+## Stack Management Best Practices
 
 ### Understanding the Framework Architecture
 
@@ -220,25 +231,34 @@ services/
 
 ## 🔧 Next Steps
 
-After creating your application, you'll want to:
+After creating your application, here's your recommended path:
 
-1. **Configure Your Project** - Update project names used for AWS stack/resources names in `pika-config.ts`
-2. **Choose Your Stack Approach** - Decide whether to modify existing stacks or create custom ones
-3. **Define Your First Chat App** - Modify the weather sample or create a new stack for your first chat app
-4. **Configure Site Features** - Set up site-wide features like home page chat app links for different user types
-5. **Customize Authentication** - Set up your authentication provider
+### Immediate Next Steps (Required)
+
+1. **[Start with Local Development](./local-development.md)** - **Start here!** Complete step-by-step guide to get everything running locally
+2. **Configure Your Project** - Update project names in `pika-config.ts` to avoid deployment conflicts
+
+### Once Running Locally
+
+3. **Define Your First Chat App** - Modify the weather sample or create a new stack for your specific use case
+4. **Customize Authentication** - Replace the no-op auth provider with your real authentication system
+5. **Configure Site Features** - Set up site-wide features like home page chat app links for different user types
+
+### Advanced Customization
+
 6. **Add Custom Message Tags** - Create custom renderers for XML tags in LLM responses
-7. **Deploy Your Services** - Deploy to AWS or run locally
+7. **Choose Your Stack Approach** - Decide whether to modify existing stacks or create custom ones
+8. **Deploy to Production** - Follow the AWS deployment guide for production deployment
 
-## 📚 Learn More
+## Learn More
 
-- **Installation Guide** - Detailed setup instructions
-- **Project Structure** - Understanding your Pika project
-- **Customization Guide** - How to customize Pika for your needs
-- **Local Development** - Running Pika locally
-- **AWS Deployment** - Deploying to AWS
+- **[Local Development](./local-development.md)** - **Complete setup guide (start here!)**
+- **[Installation Guide](./installation.md)** - Additional setup details
+- **[Project Structure](./project-structure.md)** - Understanding your Pika project
+- **[Customization Guide](./customization.md)** - How to customize Pika for your needs
+- **[AWS Deployment](./aws-deployment.md)** - Deploying to production
 
-## 🆘 Need Help?
+## Need Help?
 
 - Check the [Troubleshooting Guide](./troubleshooting.md) for common issues
 - Visit the [GitHub repository](https://github.com/rithum/pika) for issues and discussions

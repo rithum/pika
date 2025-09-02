@@ -1,4 +1,5 @@
 {
+    "extends": "@pika/typescript-config/base.json",
     "compilerOptions": {
         "outDir": "dist",
         "declaration": true,
@@ -6,12 +7,7 @@
         "inlineSources": true,
         "resolveJsonModule": true,
         "experimentalDecorators": true,
-        "types": [
-            "node"
-        ],
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "target": "ES2022",
+        "baseUrl": ".",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -29,7 +25,9 @@
         "src",
         "bin",
         "lib/stacks",
-        "infra"
+        "../../../packages/shared/src",
+        "infra",
+        "lambda",
     ],
     "exclude": [
         "node_modules",

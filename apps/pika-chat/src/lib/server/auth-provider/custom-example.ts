@@ -231,12 +231,27 @@ export default class CustomAuthProvider extends AuthProvider<CustomAuthData, Cus
         return redirect(302, loginRedirectUrl);
     }
 
-    async validateUser(event: RequestEvent, user: AuthenticatedUser<CustomAuthData, CustomUserData>): Promise<AuthenticatedUser<CustomAuthData, CustomUserData> | undefined> {
+    async validateUser(
+        event: RequestEvent,
+        user: AuthenticatedUser<CustomAuthData, CustomUserData>,
+        maxCookieAgeMs: number
+    ): Promise<AuthenticatedUser<CustomAuthData, CustomUserData> | undefined> {
         if (!user.authData) {
             throw new Error('User authData is missing in validateUser');
         }
 
-        console.log(`[Custom Auth Provider] Validating user session for user: ${user.userId}, userId: ${user.authData.userId}`);
+        console.log(`[Custom Auth Provider] Validating user session for user: ${user.userId}, maxCookieAge: ${maxCookieAgeMs}ms`);
+
+        // Server-side cookie age validation
+        if (user.authData.lastValidated) {
+            const lastValidatedTime = new Date(user.authData.lastValidated).getTime();
+            const cookieAge = Date.now() - lastValidatedTime;
+
+            if (cookieAge > maxCookieAgeMs) {
+                console.warn(`[Custom Auth Provider] Cookie age (${cookieAge}ms) exceeds server limit (${maxCookieAgeMs}ms)`);
+                throw new ForceUserToReauthenticateError('Cookie age exceeds server limit');
+            }
+        }
 
         // Time-based validation - only validate every 5 minutes
         const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes

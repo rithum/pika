@@ -1,31 +1,80 @@
-# Chatbot Web App
+# Pika Chat Web App - Local Development
 
-### Local environment variables
+## Quick Start for Local Development
 
-Create a file in apps/chatbot named `.env.local`
+### Prerequisites
 
-You will need an entry for everything in [AppConfig](src/lib//server/server-types.ts) except for these
+- Node.js 22+
+- pnpm package manager
+- AWS CLI configured with credentials
 
-- isLocal: we detect this and will oerwrite whatever you put here
-- awsAccount: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
-- awsRegion: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
+### 1. Environment Variables
+
+Create a file named `.env.local` in the `apps/pika-chat` directory.
+
+You will need an entry for everything in [AppConfig](src/lib//server/server-types.ts) except for these auto-detected values:
+
+- `isLocal`: we detect this and will override whatever you put here
+- `awsAccount`: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
+- `awsRegion`: set it if you want it hardcoded, otherwise we will pull it from logged in AWS info using STS
 
 [See config](src/lib/server/config.ts)
+
+### 2. Cookie Encryption Setup
+
+**If the stack hasn't yet been deployed to AWS and you want to run locally, you must first set up cookie encryption infrastructure:**
+
+```bash
+# Check if encryption infrastructure exists
+pnpm run encryption:setup -- status
+
+# Set up encryption infrastructure for local development
+pnpm run encryption:setup -- setup
+```
+
+This creates the necessary KMS keys and SSM parameters without deploying the full CloudFormation stack.
+
+**Alternative:** If you want to test with the full infrastructure, deploy the complete stack:
+
+```bash
+pnpm run cdk:deploy
+```
+
+### 3. Start Development Server
+
+```bash
+pnpm run dev
+```
+
+## Troubleshooting
+
+### "Cookie encryption infrastructure is not set up" Error
+
+If you see this error when starting the dev server, run:
+
+```bash
+pnpm run encryption:setup -- setup
+```
+
+### Check Infrastructure Status
+
+```bash
+pnpm run encryption:setup -- status
+```
+
+### Clean Up Infrastructure
+
+```bash
+pnpm run encryption:setup -- cleanup --force
+```
+
+** Warning:** This deletes all encryption infrastructure and cannot be undone!
 
 ### Prerequisites for Deploying to CloudFormation
 
 ### Client ID
 
 You must have an encrypted ssm param named `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/client-id` whose value is the client ID for chat to auth.
-
-### Master Cookie Key && Mater Cookie Init Vector
-
-Today we encrypt all cookies in browser sessions with a master key. Use this tool to generate one: `pnpm run master-key:generate`.
-
-Then create two SSM params named:
-
-- `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/master-cookie-key` and put the AES-256 key that was generated in it and make sure to select `SecureString` as the type.
-- `/stack/${chat-app-proj-name-kebab-case}/${stage}/auth/master-cookie-init-vector` and put the Initialization Vector that was generated in it and make sure to select `SecureString` as the type.
 
 ## Docker
 
