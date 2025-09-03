@@ -30,8 +30,19 @@ export class KMSProvider {
      */
     async generateDataKey(): Promise<{ plaintextKey: Buffer; encryptedKey: string }> {
         try {
+            // First, ensure the alias is available by waiting for it to show up
+            console.log('[KMSProvider] Waiting for alias to be available before generating data key...');
+            const keyId = await this.getTargetAliasKeyIdWithRetry(20, 250);
+
+            if (!keyId) {
+                throw new Error(`Alias ${this.keyAlias} is not available after waiting for eventual consistency`);
+            }
+
+            console.log(`[KMSProvider] Alias is available, using key ID ${keyId} to generate data key`);
+
+            // Use the key ID directly instead of alias to avoid eventual consistency issues
             const command = new GenerateDataKeyCommand({
-                KeyId: this.keyAlias,
+                KeyId: keyId, // Use key ID instead of alias
                 KeySpec: 'AES_256'
             });
 
