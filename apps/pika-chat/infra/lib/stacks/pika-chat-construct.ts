@@ -9,6 +9,7 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { HostedZone } from 'aws-cdk-lib/aws-route53';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
@@ -207,7 +208,10 @@ export class PikaChatConstruct extends Construct {
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath', 'ssm:PutParameter', 'ssm:DeleteParameter'],
-                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`]
+                            resources: [
+                                `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption`,
+                                `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`
+                            ]
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -227,11 +231,11 @@ export class PikaChatConstruct extends Construct {
         });
 
         // Lambda function for key rotation (scheduled and invoked by initializer)
-        const rotationFunction = new lambda.Function(this, `${props.projNameTitleCase}KeyRotationFunction`, {
+        const rotationFunction = new nodejs.NodejsFunction(this, `${props.projNameTitleCase}KeyRotationFunction`, {
             functionName: `${props.projNameTitleCase}KeyRotationFunction-${props.stage}`,
             runtime: lambda.Runtime.NODEJS_22_X,
-            handler: 'index.handler',
-            code: lambda.Code.fromAsset('infra/lambda/cookie-key-rotation'),
+            entry: 'infra/lambda/cookie-key-rotation/index.ts',
+            handler: 'handler',
             timeout: cdk.Duration.seconds(60),
             memorySize: 256,
             environment: {
@@ -241,7 +245,13 @@ export class PikaChatConstruct extends Construct {
                 KMS_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
                 MAX_KEY_VERSIONS: MAX_KEY_VERSIONS
             },
-            role: rotationFunctionRole
+            role: rotationFunctionRole,
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
         });
 
         // IAM role for KMS key initializer Lambda (Custom Resource)
@@ -262,7 +272,12 @@ export class PikaChatConstruct extends Construct {
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath', 'ssm:PutParameter', 'ssm:DeleteParameter'],
-                            resources: [`arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`]
+                            resources: [
+                                // Parent path permission (required for GetParametersByPath)
+                                `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption`,
+                                // Child parameters permission
+                                `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:parameter/stack/${props.projNameKebabCase}/${props.stage}/cookie-encryption/*`
+                            ]
                         }),
                         // KMS CreateKey with key specification conditions
                         new iam.PolicyStatement({
@@ -276,16 +291,17 @@ export class PikaChatConstruct extends Construct {
                                 }
                             }
                         }),
-                        // KMS alias operations with alias name restrictions
+                        // KMS key policy management (unrestricted for key creation)
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['kms:PutKeyPolicy', 'kms:GetKeyPolicy'],
+                            resources: [`arn:aws:kms:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:key/*`]
+                        }),
+                        // KMS alias operations (unrestricted for key infrastructure setup)
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['kms:CreateAlias', 'kms:DeleteAlias'],
-                            resources: ['*'],
-                            conditions: {
-                                StringLike: {
-                                    'kms:AliasName': `alias/${props.projNameKebabCase}-*`
-                                }
-                            }
+                            resources: [`arn:aws:kms:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:alias/*`]
                         }),
 
                         // KMS key operations - restricted to keys with specific tags
@@ -296,7 +312,9 @@ export class PikaChatConstruct extends Construct {
                                 'kms:ScheduleKeyDeletion',
                                 'kms:CancelKeyDeletion', // In case deletion needs to be cancelled
                                 'kms:EnableKey', // In case key gets disabled
-                                'kms:TagResource'
+                                'kms:TagResource',
+                                'kms:CreateAlias', // Needed on key resource when creating alias
+                                'kms:DeleteAlias' // Needed on key resource when deleting alias
                             ],
                             resources: [`arn:aws:kms:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:key/*`],
                             conditions: {
@@ -340,10 +358,10 @@ export class PikaChatConstruct extends Construct {
 
         // Lambda function for KMS key initialization (Custom Resource)
         // This only creates KMS keys, not the encryption key rotation
-        const keyInitializerFunction = new lambda.Function(this, `${props.projNameTitleCase}KeyInitializerFunction`, {
+        const keyInitializerFunction = new nodejs.NodejsFunction(this, `${props.projNameTitleCase}KeyInitializerFunction`, {
             runtime: lambda.Runtime.NODEJS_22_X,
-            handler: 'index.handler',
-            code: lambda.Code.fromAsset('infra/lambda/cookie-key-initializer'),
+            entry: 'infra/lambda/cookie-key-initializer/index.ts',
+            handler: 'handler',
             timeout: cdk.Duration.seconds(300), // Increased timeout for KMS operations
             memorySize: 512, // Increased memory for AWS SDK operations
             environment: {
@@ -353,7 +371,13 @@ export class PikaChatConstruct extends Construct {
                 KMS_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
                 MAX_KEY_VERSIONS: MAX_KEY_VERSIONS
             },
-            role: keyInitializerFunctionRole
+            role: keyInitializerFunctionRole,
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
         });
 
         // EventBridge rule for scheduled rotation (every 12 hours)

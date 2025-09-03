@@ -83,6 +83,7 @@
         "deep-equal": "catalog:",
         "dompurify": "catalog:",
         "embla-carousel-svelte": "catalog:",
+        "esbuild": "catalog:",
         "eslint": "catalog:",
         "file-type": "catalog:",
         "glob": "catalog:",
