@@ -6,7 +6,7 @@ outline: [2, 3]
 
 This guide explains how to effectively manage stacks in your Pika Framework project, including best practices for organizing your chat applications and agents.
 
-## 🏗️ Framework Architecture Overview
+## Framework Architecture Overview
 
 ### One Framework, Many Chat Apps
 
@@ -21,7 +21,7 @@ Pika Framework is designed as a **single installation per AWS account** that can
 - **Multiple chat apps** can run simultaneously from the same framework
 - **One installation** per AWS account is typically sufficient
 
-## 🎯 Recommended Approach: Separate Repositories
+## Recommended Approach: Separate Repositories
 
 ### Why This Approach?
 
@@ -29,12 +29,12 @@ Pika Framework is designed as a **single installation per AWS account** that can
 
 #### **Benefits:**
 
-- ✅ **Clean Separation**: Your chat app code is separate from the framework
-- ✅ **Independent Development**: You can develop and deploy your chat apps independently
-- ✅ **Better Version Control**: Your chat app has its own Git history and release cycle
-- ✅ **Team Autonomy**: Different teams can work on different chat apps
-- ✅ **Easier Maintenance**: Your code isn't mixed with framework code
-- ✅ **Reusability**: You can reuse your chat app code in other projects
+- **Clean Separation**: Your chat app code is separate from the framework
+- **Independent Development**: You can develop and deploy your chat apps independently
+- **Better Version Control**: Your chat app has its own Git history and release cycle
+- **Team Autonomy**: Different teams can work on different chat apps
+- **Easier Maintenance**: Your code isn't mixed with framework code
+- **Reusability**: You can reuse your chat app code in other projects
 
 #### **How to Do It:**
 
@@ -148,7 +148,7 @@ Pika Framework is designed as a **single installation per AWS account** that can
 - **Environment variables** - Update with your API keys and configuration
 - **Stack name** - Change from "WeatherStack" to your app name
 
-## 🔧 Alternative Approach: Custom Stacks in Monorepo
+## Alternative Approach: Custom Stacks in Monorepo
 
 ### When to Use This Approach
 
@@ -261,7 +261,7 @@ export class CustomerServiceStack extends cdk.Stack {
 }
 ```
 
-## 📁 Stack Organization Strategies
+## Stack Organization Strategies
 
 ### Strategy 1: Separate Repositories (Recommended)
 
@@ -329,7 +329,7 @@ services/
 - All developers need access to the full monorepo
 - Less separation of concerns
 
-## 🔄 Deployment Workflow
+## Deployment Workflow
 
 ### Recommended Deployment Order
 
@@ -373,9 +373,9 @@ services/
 - Use different regions for global distribution
 - Implement proper CI/CD pipelines
 
-## 🎯 Best Practices Summary
+## Best Practices Summary
 
-### Do's ✅
+### Do's
 
 - **Create separate repositories** for your chat apps (recommended)
 - **Copy from the weather sample** to get started quickly
@@ -385,7 +385,7 @@ services/
 - **Use environment variables** for configuration
 - **Document your stack modifications** for team members
 
-### Don'ts ❌
+### Don'ts
 
 - **Don't modify the weather sample directly** - copy it instead
 - **Don't create new stacks** unless you have a specific need
@@ -394,7 +394,7 @@ services/
 - **Don't deploy without testing** locally first
 - **Don't hardcode sensitive information** in stack definitions
 
-## 📚 Related Documentation
+## Related Documentation
 
 - [Project Structure](/docs/developer/project-structure/) - Understanding your Pika project
 - [AWS Deployment](/docs/developer/aws-deployment/) - Deploying to AWS

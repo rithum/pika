@@ -12,7 +12,7 @@ npm install --save-dev pika-serverless
 
 Add the plugin to your `serverless.yml`:
 
-```yaml {:.no-twoslash}
+```
 service: my-service
 
 plugins:
@@ -81,7 +81,7 @@ We provide complete working examples:
 
 Define AI agents that can use your Lambda functions as tools:
 
-```yaml
+```
 agents:
     - userId: 'cloudformation/${self:service}'
       agent:
@@ -102,7 +102,7 @@ agents:
 
 Create chat interfaces for your agents:
 
-```yaml
+```
 chatApps:
     - userId: 'cloudformation/${self:service}'
       chatApp:
@@ -127,7 +127,7 @@ chatApps:
 
 Your Lambda functions should return responses in Bedrock agent format:
 
-```typescript
+```js
 export const handler = async (event, context) => {
     const { function: functionName, parameters } = event;
 
