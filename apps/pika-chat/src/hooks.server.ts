@@ -366,9 +366,26 @@ export const handle: Handle = async ({ event, resolve }) => {
             // If validationResult is undefined, no action needed
         } catch (error) {
             if (error instanceof ForceUserToReauthenticateError) {
-                // Clear cookies and redirect to login
+                // Clear cookies
                 clearAllCookies(event);
-                return redirect(302, '/login');
+
+                // Check if this error allows retry (e.g., idle timeout)
+                if (error.allowRetry) {
+                    const url = new URL(event.url);
+                    if (url.searchParams.has('auth_retry')) {
+                        // Already tried once - circuit breaker activated
+                        console.log('[Hooks] Auth retry failed, redirecting to login');
+                        return redirect(302, '/login');
+                    }
+                    // First retry attempt - add parameter and redirect to same URL
+                    url.searchParams.set('auth_retry', '1');
+                    console.log('[Hooks] Retrying authentication due to idle timeout, redirecting to:', url.pathname + url.search);
+                    return redirect(302, url.pathname + url.search);
+                } else {
+                    // Security violation - go directly to login
+                    console.log('[Hooks] Security violation detected, redirecting to login');
+                    return redirect(302, '/login');
+                }
             }
             // Re-throw other errors
             throw error;
@@ -437,6 +454,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Set user, config, and keyManager in locals for server-side use
     event.locals = { user, appConfig, authProvider, keyManager };
+
+    // Clean up auth_retry parameter if authentication was successful
+    if (user) {
+        const url = new URL(event.url);
+        if (url.searchParams.has('auth_retry')) {
+            console.log('[Hooks] Authentication successful, cleaning up auth_retry parameter');
+            url.searchParams.delete('auth_retry');
+            // Redirect to clean URL - this removes the parameter
+            return redirect(302, url.pathname + url.search);
+        }
+    }
 
     await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
 
