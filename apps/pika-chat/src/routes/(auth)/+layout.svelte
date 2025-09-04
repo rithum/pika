@@ -210,15 +210,15 @@
         }}
     >
         <Dialog.Content>
-            <Dialog.Title>{appState.logoutSiteFeature.dialogTitle}</Dialog.Title>
+            <Dialog.Title>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Dialog.Title>
 
-            {appState.logoutSiteFeature.dialogDescription}
+            {appState.logoutSiteFeature.dialogDescription ?? 'Are you sure you want to logout?'}
             <Dialog.Footer>
                 <Button
                     variant="default"
                     onclick={() => {
                         window.location.href = '/logout-now';
-                    }}>{appState.logoutSiteFeature.dialogTitle}</Button
+                    }}>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Button
                 >
                 <Button
                     variant="outline"
