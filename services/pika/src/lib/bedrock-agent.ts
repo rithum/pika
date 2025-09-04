@@ -13,7 +13,12 @@ import {
     RelayConversationHistory,
     CreationMode,
     type Collaborator,
-    PromptState
+    PromptState,
+    type InlineAgentReturnControlPayload,
+    ResponseState,
+    InvocationInputMember,
+    CustomControlMethod,
+    type ActionGroupInvocationInput
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import {
@@ -31,12 +36,19 @@ import {
     Unclassified,
     type VerifyResponseClassification,
     VerifyResponseClassifications,
-    type KnowledgeBase as AgentDefinitionKnowledgeBase
+    type KnowledgeBase as AgentDefinitionKnowledgeBase,
+    type ToolDefinition,
+    type McpToolDefinition
 } from 'pika-shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
+import { processMcpActionGroup as processMcpTool } from './mcp';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { jsonparse } from './jsonparse';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 // import { Trace } from './bedrock-types';
 
 export const MODELS = {
@@ -74,6 +86,23 @@ const DEFAULT_VERIFICATION_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 
+// This is a map of toolId to local endpoint
+let localActionGroupEndpoints: Record<string, string> = {};
+if (process.env.LOCAL_TOOLS != null) {
+    try {
+        // Read the local action group endpoints from the file
+        let path = resolve(process.cwd(), process.env.LOCAL_TOOLS);
+        if (existsSync(path)) {
+            localActionGroupEndpoints = JSON.parse(readFileSync(path, 'utf8'));
+            console.log('Local action group endpoints:', localActionGroupEndpoints);
+        } else {
+            console.error('Error reading custom-local-action-group-endpoints.json:', path);
+        }
+    } catch (e) {
+        console.error('Error reading custom-local-action-group-endpoints.json:', e);
+    }
+}
+
 // This code helps when running locally.  It's not needed for production.
 if (global.awslambda == null) {
     global.awslambda = {
@@ -104,12 +133,18 @@ if (global.awslambda == null) {
     };
 }
 
+export interface ReturnControlContext {
+    sessionId: string;
+    invokeCommand: InvokeInlineAgentCommandInput;
+}
+
 interface InvokeAgentHooks {
     onStart: () => void;
     onChunk: (chunk: string, chunkIndex: number, attribution?: Attribution) => void;
     onTrace: (trace: Trace) => void;
     onEnd: (usage: ChatMessageUsage) => void;
     onError: (error: any) => void;
+    returnControlHandlers?: Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
 }
 async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string) {
     let error: unknown;
@@ -148,7 +183,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
         console.log(label, 'InvokeInlineAgentCommand:', JSON.stringify(cmd, null, 2));
 
         console.log(label, 'Sending command to Bedrock Agent Runtime...');
-        const response = await bedrockAgentClient.send(cmd);
+        let response = await bedrockAgentClient.send(cmd);
         console.log(label, 'Bedrock Agent Runtime response received');
         console.log(label, 'InvokeInlineAgentCommandResponse', response);
 
@@ -161,123 +196,216 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
         console.log(label, 'Processing completion stream...');
         let chunkCount = 0;
-        for await (const chunk of response.completion) {
-            chunkCount++;
-            console.log(label, `Processing chunk ${chunkCount}:`, {
-                hasChunkBytes: !!chunk.chunk?.bytes,
-                hasTrace: !!chunk.trace?.trace,
-                chunkBytesLength: chunk.chunk?.bytes?.length
-            });
 
-            if (chunk.chunk?.bytes) {
-                const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes);
-                console.log(label, `Chunk ${chunkCount} decoded:`, {
-                    length: decodedChunk.length,
-                    preview: decodedChunk.substring(0, 100)
+        while (response.completion) {
+            let returnControl: InlineAgentReturnControlPayload | undefined;
+            for await (const chunk of response.completion) {
+                chunkCount++;
+                console.log(label, `Processing chunk ${chunkCount}:`, {
+                    hasChunkBytes: !!chunk.chunk?.bytes,
+                    hasTrace: !!chunk.trace?.trace,
+                    chunkBytesLength: chunk.chunk?.bytes?.length
                 });
-                responseMsg += decodedChunk;
 
-                hooks.onChunk(decodedChunk, chunkCount, chunk.chunk.attribution);
-                console.log(label, `Chunk ${chunkCount} written to response stream`);
+                if (chunk.chunk?.bytes) {
+                    const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes);
+                    console.log(label, `Chunk ${chunkCount} decoded:`, {
+                        length: decodedChunk.length,
+                        preview: decodedChunk.substring(0, 100)
+                    });
+                    responseMsg += decodedChunk;
+
+                    hooks.onChunk(decodedChunk, chunkCount, chunk.chunk.attribution);
+                    console.log(label, `Chunk ${chunkCount} written to response stream`);
+                }
+
+                if (chunk.trace?.trace) {
+                    const trace = chunk.trace.trace as Trace;
+                    console.log(label, `Processing trace for chunk ${chunkCount}`);
+                    console.log(label, `Trace:`, JSON.stringify(trace, null, 2));
+
+                    /*
+                       The trace variable in the case of an error will have this and not trace.orchestrationTrace and the
+                       check below detects it's not there and skips it.  An error results elsewhere and we will get into the 
+                       the catch block.
+    
+                        {
+                            "failureTrace": {
+                                "failureCode": 400,
+                                "failureReason": "Invocation of model ID anthropic.claude-3-5-haiku-20241022-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model.",
+                                "metadata": {
+                                    "clientRequestId": "6e6f3e88-b9f9-4bcb-b98e-1e3cd0115fad",
+                                    "endTime": "2025-05-29T16:15:42.822380245Z",
+                                    "operationTotalTimeMs": 92,
+                                    "startTime": "2025-05-29T16:15:42.775346536Z",
+                                    "totalTimeMs": 47
+                                },
+                                "traceId": "62c56285-5b5b-45f3-b634-8a3f4db30aca-0"
+                            }
+                        }
+                    */
+
+                    // Add null check for orchestrationTrace
+                    if (!trace.orchestrationTrace && !trace.failureTrace) {
+                        console.log(label, `Chunk ${chunkCount} trace has no orchestrationTrace, skipping`);
+                        continue;
+                    }
+
+                    //TODO: check type when done
+                    if (
+                        // Tool & KB Invocations
+                        trace.orchestrationTrace?.invocationInput ||
+                        trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
+                        trace.orchestrationTrace?.observation?.agentCollaboratorInvocationOutput ||
+                        trace.orchestrationTrace?.observation?.knowledgeBaseLookupOutput ||
+                        // Usage
+                        trace.orchestrationTrace?.modelInvocationOutput ||
+                        // Thinking & Errors
+                        trace.orchestrationTrace?.rationale ||
+                        trace.failureTrace
+                    ) {
+                        const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
+                        const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
+
+                        usage.inputTokens += inputTokens;
+                        usage.outputTokens += outputTokens;
+
+                        console.log(label, `Usage updated from trace:`, {
+                            chunkInputTokens: inputTokens,
+                            chunkOutputTokens: outputTokens,
+                            totalInputTokens: usage.inputTokens,
+                            totalOutputTokens: usage.outputTokens
+                        });
+
+                        if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
+                            let content = trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!;
+                            if (typeof content === 'string' && content.match(/^{.*}$/)) {
+                                lastModelInvocationOutputTraceContent = JSON.parse(content);
+                            } else {
+                                lastModelInvocationOutputTraceContent = {
+                                    content: [
+                                        {
+                                            text: content
+                                        }
+                                    ],
+                                    traceId: ''
+                                };
+                            }
+                            //TODO: check type when done
+                            if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
+                                lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
+                            } else {
+                                throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
+                            }
+                            // Don't keep the raw response in the trace
+                            delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
+                        }
+
+                        // Detect if we have been going too long and send a prompt to the user to continue
+                        // Only do this for the root agent, not for collaborator agents
+                        if (chunk.trace.callerChain?.length == 1 && trace.failureTrace?.failureReason === 'Max iterations exceeded') {
+                            hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount);
+                        }
+
+                        // // Trim the observation to just a preview.  Observations can be large
+                        // let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
+                        // if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
+                        //     trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
+                        //         trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
+                        // }
+                        traces.push(trace);
+                        hooks.onTrace(trace);
+                    }
+                }
+                if (chunk.returnControl) {
+                    returnControl = chunk.returnControl;
+                }
             }
 
-            if (chunk.trace?.trace) {
-                const trace = chunk.trace.trace as Trace;
-                console.log(label, `Processing trace for chunk ${chunkCount}`);
-                console.log(label, `Trace:`, JSON.stringify(trace, null, 2));
+            delete response.completion;
+            if (returnControl != null) {
+                console.log(label, 'Processing return control:', JSON.stringify(returnControl, null, 2));
+                let responses = await Promise.all(
+                    returnControl.invocationInputs!.map(async (fnCmd) => {
+                        let response;
+                        let startTime = new Date();
+                        try {
+                            let handler = hooks.returnControlHandlers?.[fnCmd.functionInvocationInput!.actionGroup!];
+                            if (!handler) {
+                                throw new Error(`No return control handler found for action group: ${fnCmd.functionInvocationInput!.actionGroup}`);
+                            }
 
-                /*
-                   The trace variable in the case of an error will have this and not trace.orchestrationTrace and the
-                   check below detects it's not there and skips it.  An error results elsewhere and we will get into the 
-                   the catch block.
+                            // Invoke the local action group endpoint
+                            let result = await handler(fnCmd, {
+                                sessionId: cmdInput.sessionId!,
+                                invokeCommand: cmdInput
+                            });
 
-                    {
-                        "failureTrace": {
-                            "failureCode": 400,
-                            "failureReason": "Invocation of model ID anthropic.claude-3-5-haiku-20241022-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model.",
-                            "metadata": {
-                                "clientRequestId": "6e6f3e88-b9f9-4bcb-b98e-1e3cd0115fad",
-                                "endTime": "2025-05-29T16:15:42.822380245Z",
-                                "operationTotalTimeMs": 92,
-                                "startTime": "2025-05-29T16:15:42.775346536Z",
-                                "totalTimeMs": 47
-                            },
-                            "traceId": "62c56285-5b5b-45f3-b634-8a3f4db30aca-0"
-                        }
-                    }
-                */
-
-                // Add null check for orchestrationTrace
-                if (!trace.orchestrationTrace && !trace.failureTrace) {
-                    console.log(label, `Chunk ${chunkCount} trace has no orchestrationTrace, skipping`);
-                    continue;
-                }
-
-                //TODO: check type when done
-                if (
-                    // Tool & KB Invocations
-                    trace.orchestrationTrace?.invocationInput ||
-                    trace.orchestrationTrace?.observation?.actionGroupInvocationOutput ||
-                    trace.orchestrationTrace?.observation?.agentCollaboratorInvocationOutput ||
-                    trace.orchestrationTrace?.observation?.knowledgeBaseLookupOutput ||
-                    // Usage
-                    trace.orchestrationTrace?.modelInvocationOutput ||
-                    // Thinking & Errors
-                    trace.orchestrationTrace?.rationale ||
-                    trace.failureTrace
-                ) {
-                    const inputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.inputTokens ?? 0;
-                    const outputTokens = trace.orchestrationTrace?.modelInvocationOutput?.metadata?.usage?.outputTokens ?? 0;
-
-                    usage.inputTokens += inputTokens;
-                    usage.outputTokens += outputTokens;
-
-                    console.log(label, `Usage updated from trace:`, {
-                        chunkInputTokens: inputTokens,
-                        chunkOutputTokens: outputTokens,
-                        totalInputTokens: usage.inputTokens,
-                        totalOutputTokens: usage.outputTokens
-                    });
-
-                    if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
-                        let content = trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!;
-                        if (typeof content === 'string' && content.match(/^{.*}$/)) {
-                            lastModelInvocationOutputTraceContent = JSON.parse(content);
-                        } else {
-                            lastModelInvocationOutputTraceContent = {
-                                content: [
-                                    {
-                                        text: content
+                            // Return the result
+                            response = {
+                                functionResult: {
+                                    actionGroup: fnCmd.functionInvocationInput!.actionGroup,
+                                    function: fnCmd.functionInvocationInput!.function,
+                                    responseBody: {
+                                        TEXT: {
+                                            body: typeof result === 'string' ? result : JSON.stringify(result)
+                                        }
                                     }
-                                ],
-                                traceId: ''
+                                }
+                            };
+                        } catch (error) {
+                            // If there is an error, return a reprompt
+                            response = {
+                                functionResult: {
+                                    responseState: ResponseState.REPROMPT,
+                                    actionGroup: fnCmd.functionInvocationInput!.actionGroup,
+                                    function: fnCmd.functionInvocationInput!.function,
+                                    responseBody: {
+                                        TEXT: {
+                                            body: JSON.stringify(
+                                                error,
+                                                Object.getOwnPropertyNames(error).filter((f) => f != 'stack')
+                                            )
+                                        }
+                                    }
+                                }
                             };
                         }
-                        //TODO: check type when done
-                        if (trace.orchestrationTrace.modelInvocationOutput.traceId) {
-                            lastModelInvocationOutputTraceContent!.traceId = trace.orchestrationTrace.modelInvocationOutput.traceId;
-                        } else {
-                            throw new Error(`No traceId found in modelInvocationOutput for chunk ${chunkCount} and trace: ${JSON.stringify(trace, null, 2)}`);
-                        }
-                        // Don't keep the raw response in the trace
-                        delete trace.orchestrationTrace?.modelInvocationOutput?.rawResponse;
-                    }
 
-                    // Detect if we have been going too long and send a prompt to the user to continue
-                    // Only do this for the root agent, not for collaborator agents
-                    if (chunk.trace.callerChain?.length == 1 && trace.failureTrace?.failureReason === 'Max iterations exceeded') {
-                        hooks.onChunk(`This one is taking me awhile to think.<prompt>Continue</prompt>`, chunkCount);
-                    }
+                        let endTime = new Date();
+                        let duration = endTime.getTime() - startTime.getTime();
 
-                    // // Trim the observation to just a preview.  Observations can be large
-                    // let truncateSize = 30000; // TODO: THIS NEEDS TO BE A CONFIGURABLE
-                    // if (trace.orchestrationTrace?.observation && (trace.orchestrationTrace.observation.actionGroupInvocationOutput?.text?.length ?? 0) > truncateSize) {
-                    //     trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text =
-                    //         trace.orchestrationTrace.observation.actionGroupInvocationOutput!.text!.substring(0, truncateSize) + ' ...';
-                    // }
-                    traces.push(trace);
-                    hooks.onTrace(trace);
-                }
+                        // Manually add the trace for the action group invocation output
+                        // The framework doesn't create one because it returned control
+                        hooks.onTrace({
+                            orchestrationTrace: {
+                                observation: {
+                                    traceId: lastModelInvocationOutputTraceContent!.traceId,
+                                    type: 'ACTION_GROUP',
+                                    actionGroupInvocationOutput: {
+                                        text: response.functionResult.responseBody.TEXT.body,
+                                        metadata: {
+                                            totalTimeMs: duration,
+                                            startTime: startTime,
+                                            endTime: endTime
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        return response;
+                    })
+                );
+
+                // Set the return control invocation results
+                cmdInput.inlineSessionState!.invocationId = returnControl.invocationId!;
+                cmdInput.inlineSessionState!.returnControlInvocationResults = responses;
+
+                // Begin the next invocation with the response from the return control
+                let cmd = new InvokeInlineAgentCommand({
+                    ...cmdInput
+                });
+                response = await bedrockAgentClient.send(cmd);
             }
         }
         console.log(label, 'Completion stream processing finished:', {
@@ -385,6 +513,8 @@ async function invokeAgentToVerifyAnswer(
     delete cmdInput.collaboratorConfigurations;
     delete cmdInput.agentCollaboration;
     delete cmdInput.promptOverrideConfiguration;
+    delete cmdInput.inlineSessionState?.returnControlInvocationResults;
+    delete cmdInput.inlineSessionState?.invocationId;
 
     cmdInput.instruction = `You are a classification agent.  Classifications are:
 - A: Factually accurate
@@ -429,6 +559,125 @@ Response with the the classification Letter and Explanation as json in an <answe
     };
 }
 
+export interface ToolContext {
+    getInstructions?: (toolIds: string[]) => string;
+    getActionGroups: (tools: string[]) => AgentActionGroup[];
+    getReturnControlHandlers?: () => Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
+    initialize?: (sessionId: string) => Promise<void>;
+    end?: (sessionId: string) => Promise<void>;
+}
+
+function convertInvokeEventToActionGroupEvent(event: InvocationInputMember, context: ReturnControlContext): ActionGroupInvocationInput {
+    return {
+        messageVersion: '1.0',
+        function: event.functionInvocationInput!.function,
+        parameters: event.functionInvocationInput!.parameters,
+        inputText: context.invokeCommand.inputText ?? '',
+        sessionId: context.sessionId,
+        agent: {
+            name: 'INLINE_AGENT',
+            version: 'INLINE_AGENT',
+            id: 'INLINE_AGENT',
+            alias: 'TSTALIASID'
+        },
+        actionGroup: event.functionInvocationInput!.actionGroup,
+        sessionAttributes: context.invokeCommand.inlineSessionState!.sessionAttributes ?? {},
+        promptSessionAttributes: context.invokeCommand.inlineSessionState!.promptSessionAttributes ?? {}
+    } as ActionGroupInvocationInput;
+}
+
+async function invokeActionGroupLambdaFunction(lambda: LambdaClient, functionName: string, returnControl: InvocationInputMember, context: ReturnControlContext) {
+    // Invoke Lambda function directly via local endpoint
+    console.log('Invoking Lambda function directly via local endpoint:', functionName);
+    let response = await lambda.send(
+        new InvokeCommand({
+            FunctionName: functionName,
+            Payload: JSON.stringify(convertInvokeEventToActionGroupEvent(returnControl, context))
+        })
+    );
+    let payload = JSON.parse(Buffer.from(response.Payload!).toString());
+
+    // Check for errors
+    if (response.FunctionError || payload.errorMessage) {
+        throw new Error(`Function ${functionName} error: ${payload.errorMessage || response.FunctionError || 'Unknown error'}`);
+    } else {
+        if (payload.response.functionResponse.responseState == null || payload.response.functionResponse.responseState === 'SUCCESS') {
+            // Return the response body
+            return payload.response.functionResponse.responseBody.TEXT.body;
+        } else {
+            // Return the error message
+            let error = payload.response.functionResponse.responseBody.TEXT.body;
+            if (typeof error === 'string' && error.startsWith('{') && error.endsWith('}')) {
+                error = jsonparse(error);
+            }
+            throw new Error(error.message ?? error);
+        }
+    }
+}
+
+class ActionGroupToolContext implements ToolContext {
+    actionGroups: Record<string, AgentActionGroup> = {};
+    returnControlHandlers: Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>> = {};
+    lambdaClientsByEndpoint: Record<string, LambdaClient> = {};
+    // toolToLocalFunction: Record<string, {
+    //     functionName: string;
+    //     endpoint: string;
+    // }> = {};
+
+    getActionGroups(tools: string[]) {
+        return tools.map((tool) => this.actionGroups[tool]).filter((a) => a != null);
+    }
+
+    add(tool: ToolDefinition) {
+        if (tool.executionType !== 'lambda') {
+            throw new Error(`Expected lambda tool, got ${tool.executionType}`);
+        }
+
+        this.actionGroups[tool.toolId] = {
+            actionGroupName: tool.name,
+            description: tool.description,
+            actionGroupExecutor: {
+                lambda: tool.lambdaArn
+            },
+            functionSchema: {
+                functions: tool.functionSchema!
+            }
+        };
+
+        // Override the action group executor to use a local endpoint if one is provided
+        let localEndpoint = localActionGroupEndpoints[tool.toolId];
+        if (localEndpoint) {
+            // Set the action group executor to return control
+            this.actionGroups[tool.toolId].actionGroupExecutor = { customControl: CustomControlMethod.RETURN_CONTROL };
+
+            let functionName = tool.lambdaArn.split(':')[6];
+
+            // Add the return control handler for the tool
+            this.returnControlHandlers[tool.toolId] = async (returnControl: InvocationInputMember, context: ReturnControlContext) => {
+                let lambda = this.lambdaClientsByEndpoint[localEndpoint];
+                if (!lambda) {
+                    lambda = new LambdaClient({ region: getRegion(), endpoint: localEndpoint });
+                    this.lambdaClientsByEndpoint[localEndpoint] = lambda;
+                }
+
+                return await invokeActionGroupLambdaFunction(lambda, functionName, returnControl, context);
+            };
+        }
+    }
+    getReturnControlHandlers(): Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>> {
+        return this.returnControlHandlers;
+    }
+}
+
+function processActionGroupTool(tool: ToolDefinition, toolContext: Record<string, ToolContext>) {
+    let actionGroupManager = toolContext.actionGroupManager as ActionGroupToolContext;
+    if (!actionGroupManager) {
+        actionGroupManager = new ActionGroupToolContext();
+        toolContext.actionGroupManager = actionGroupManager;
+    }
+    actionGroupManager.add(tool);
+}
+
 /**
  * Invokes the Bedrock Inline Agent to generate a response to the user's message.
  * @param chatSession The chat session to invoke the agent on.
@@ -465,39 +714,41 @@ export async function invokeAgentToGetAnswer(
         features
     });
 
-    const actionGroupsMap: Record<string, AgentActionGroup> = {};
-    for (const tool of agentAndTools.tools ?? []) {
-        if (!tool.executionType.includes('lambda')) {
-            console.error('Tool execution type is not lambda it is:', tool.executionType, 'for tool:', tool.toolId);
-            throw new Error(`Tool ${tool.toolId} execution type is not lambda, it is ${tool.executionType}`);
-        }
+    const toolContext: Record<string, ToolContext> = {};
 
+    for (const tool of agentAndTools.tools ?? []) {
         if (!tool.name) {
             console.error('Tool has no name:', tool.toolId);
             throw new Error(`Tool ${tool.toolId} has no name`);
         }
 
-        if (!tool.lambdaArn) {
-            console.error('Tool has no lambda ARN:', tool.toolId);
-            throw new Error(`Tool ${tool.toolId} has no lambda ARN`);
-        }
-
-        if (!tool.functionSchema) {
-            console.error('Tool has no function schema:', tool.toolId);
-            throw new Error(`Tool ${tool.toolId} has no function schema`);
-        }
-
-        actionGroupsMap[tool.toolId] = {
-            actionGroupName: tool.name,
-            description: tool.description,
-            actionGroupExecutor: {
-                lambda: tool.lambdaArn
-            },
-            functionSchema: {
-                functions: tool.functionSchema
+        if (tool.executionType === 'mcp') {
+            console.log('Tool is an MCP tool:', tool.toolId);
+            processMcpTool(tool as McpToolDefinition, toolContext, {
+                sessionAttributes: chatSession.sessionAttributes,
+                promptSessionAttributes: chatSession.sessionAttributes
+            });
+        } else if (tool.executionType === 'lambda') {
+            if (!tool.lambdaArn) {
+                console.error('Tool has no lambda ARN:', tool.toolId);
+                throw new Error(`Tool ${tool.toolId} has no lambda ARN`);
             }
-        };
+
+            if (!tool.functionSchema) {
+                console.error('Tool has no function schema:', tool.toolId);
+                throw new Error(`Tool ${tool.toolId} has no function schema`);
+            }
+            console.log('Tool is an Action Group tool:', tool.toolId);
+            processActionGroupTool(tool, toolContext);
+        } else {
+            // This should be exhaustive, but adding explicit never check for type safety
+            const _exhaustiveCheck: never = tool;
+            console.error('Tool execution type is not supported:', (_exhaustiveCheck as ToolDefinition).executionType, 'for tool:', (_exhaustiveCheck as ToolDefinition).toolId);
+            throw new Error(`Tool ${(_exhaustiveCheck as ToolDefinition).toolId} execution type is not supported, it is ${(_exhaustiveCheck as ToolDefinition).executionType}`);
+        }
     }
+
+    let toolContexts = Object.values(toolContext);
 
     function toKnowledgeBase(kb: AgentDefinitionKnowledgeBase): KnowledgeBase {
         return {
@@ -526,20 +777,20 @@ export async function invokeAgentToGetAnswer(
     const cmdInput: InvokeInlineAgentCommandInput = {
         sessionId: chatSession.sessionId,
         foundationModel: agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
-        instruction: agentAndTools.agent.basePrompt,
+        instruction: [agentAndTools.agent.basePrompt, ...toolContexts.map((context) => context.getInstructions?.(agentAndTools.agent.toolIds)).filter((a) => a != null)].join('\n'),
         inputText: questionFromUser,
         enableTrace: true,
         streamingConfigurations: {
             streamFinalResponse: true
         },
-        actionGroups: agentAndTools.agent.toolIds.map((id) => actionGroupsMap[id]),
+        actionGroups: toolContexts.map((context) => context.getActionGroups(agentAndTools.agent.toolIds)).flat(),
         collaborators: agentAndTools.collaborators?.map((collaborator) => {
             let col: Collaborator = {
                 agentName: collaborator.agentId,
-                instruction: collaborator.basePrompt,
+                instruction: [collaborator.basePrompt, ...toolContexts.map((context) => context.getInstructions?.(collaborator.toolIds ?? [])).filter((a) => a != null)].join('\n'),
                 agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), // (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
                 foundationModel: collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
-                actionGroups: collaborator.toolIds?.map((id) => actionGroupsMap[id]),
+                actionGroups: toolContexts.map((context) => context.getActionGroups(collaborator.toolIds ?? [])).flat(),
                 knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
 
                 collaboratorConfigurations: collaborator.collaborators?.map((subCollaborator) => {
@@ -655,6 +906,10 @@ export async function invokeAgentToGetAnswer(
 
     let citationCount = 0;
     let hooks: InvokeAgentHooks = {
+        returnControlHandlers: Object.values(toolContext).reduce((acc, context) => {
+            return Object.assign(acc, context.getReturnControlHandlers?.() ?? {});
+        }, {}),
+
         onStart: function (): void {
             console.log('Setting up HTTP response stream...');
             awslambda.HttpResponseStream.from(responseStream, {
@@ -691,6 +946,9 @@ export async function invokeAgentToGetAnswer(
         main: Unclassified
     };
     try {
+        console.log(`Initializing tool contexts (${toolContexts.length})...`);
+        await Promise.all(toolContexts.map((context) => context.initialize?.(chatSession.sessionId)));
+
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
         addUsage(mainResponse.usage);
         if (mainResponse.error) {
@@ -777,6 +1035,9 @@ export async function invokeAgentToGetAnswer(
         error = e;
         responseStream.write(msg);
         console.log('Error message written to response stream');
+    } finally {
+        console.log('Ending tool contexts...');
+        await Promise.all(toolContexts.map((context) => context.end?.(chatSession.sessionId)));
     }
 
     console.log('Building assistant message response...');

@@ -32,6 +32,9 @@ export default defineConfig(async () => {
                 }
             })
         },
+        watch: {
+            ignored: ['**/oauth-tokens/**']
+        },
         preview: {
             // Use custom config if available, otherwise use defaults
             host: viteConfig?.preview?.host ?? 'localhost',

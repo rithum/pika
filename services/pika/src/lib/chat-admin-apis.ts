@@ -140,12 +140,12 @@ export async function getAgentAndTools(agentId: string): Promise<AgentAndTools |
         const agentDefinition = await getAgent(agentId);
         if (agentDefinition) {
             agents[agentId] = agentDefinition;
-            (agentDefinition.collaborators ?? []).forEach(collaborator => {
+            (agentDefinition.collaborators ?? []).forEach((collaborator) => {
                 if (!agents[collaborator.agentId]) {
                     agentsToGet.push(collaborator.agentId);
                 }
             });
-            (agentDefinition.toolIds ?? []).forEach(toolId => allTools.add(toolId));
+            (agentDefinition.toolIds ?? []).forEach((toolId) => allTools.add(toolId));
         }
     }
 
@@ -339,7 +339,34 @@ async function handleToolsIdempotent(
 
                     // Handle optional fields that can be updated or removed
                     handleOptionalFieldUpdate(requestedTool.executionTimeout, existingTool.executionTimeout, 'executionTimeout', fieldsToUpdate, fieldsToRemove);
-                    handleOptionalFieldUpdate(requestedTool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
+
+                    // Handle lambda-specific fields
+                    if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'lambda') {
+                        handleOptionalFieldUpdate(requestedTool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
+                    } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'mcp') {
+                        // Changing from MCP to lambda
+                        if (requestedTool.lambdaArn) {
+                            fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
+                        }
+                        // Remove MCP-specific fields
+                        fieldsToRemove.push('url');
+                        if ('auth' in existingTool) fieldsToRemove.push('auth');
+                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'lambda') {
+                        // Changing from lambda to MCP
+                        if (requestedTool.url) {
+                            fieldsToUpdate.url = requestedTool.url;
+                        }
+                        if (requestedTool.auth) {
+                            fieldsToUpdate.auth = requestedTool.auth;
+                        }
+                        // Remove lambda-specific field
+                        fieldsToRemove.push('lambdaArn');
+                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'mcp') {
+                        // Both MCP tools
+                        handleOptionalFieldUpdate(requestedTool.url, existingTool.url, 'url', fieldsToUpdate, fieldsToRemove);
+                        handleOptionalFieldUpdate(requestedTool.auth, existingTool.auth, 'auth', fieldsToUpdate, fieldsToRemove);
+                    }
+
                     handleObjectFieldUpdate(requestedTool.functionSchema, existingTool.functionSchema, 'functionSchema', fieldsToUpdate, fieldsToRemove, true);
                     handleObjectFieldUpdate(requestedTool.tags, existingTool.tags, 'tags', fieldsToUpdate, fieldsToRemove, true);
                     handleObjectFieldUpdate(requestedTool.lifecycle, existingTool.lifecycle, 'lifecycle', fieldsToUpdate, fieldsToRemove, true);
@@ -536,6 +563,18 @@ export async function createToolDefinition(toolData: ToolDefinitionForCreate, us
     const ttl = toolData.test ? calculateTTL(1) : undefined;
 
     const now = new Date().toISOString();
+
+    // Validate that required fields for the specific execution type are present
+    if (toolData.executionType === 'mcp') {
+        if (!toolData.url) {
+            throw new Error('MCP tools require a url field');
+        }
+    } else if (toolData.executionType === 'lambda') {
+        if (!toolData.lambdaArn) {
+            throw new Error('Lambda tools require a lambdaArn field');
+        }
+    }
+
     const tool: ToolDefinition = {
         ...toolData,
         toolId: toolData.toolId ?? uuidv7(),
@@ -579,7 +618,34 @@ export async function updateToolDefinition(request: UpdateToolRequest): Promise<
 
     // Handle optional fields that can be updated or removed
     handleOptionalFieldUpdate(request.tool.executionTimeout, existingTool.executionTimeout, 'executionTimeout', fieldsToUpdate, fieldsToRemove);
-    handleOptionalFieldUpdate(request.tool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
+
+    // Handle execution-type specific fields based on current and requested types
+    if (request.tool.executionType === 'lambda' && existingTool.executionType === 'lambda') {
+        handleOptionalFieldUpdate(request.tool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
+    } else if (request.tool.executionType === 'lambda' && existingTool.executionType === 'mcp') {
+        // Changing from MCP to lambda
+        if (request.tool.lambdaArn) {
+            fieldsToUpdate.lambdaArn = request.tool.lambdaArn;
+        }
+        // Remove MCP-specific fields
+        fieldsToRemove.push('url');
+        if ('auth' in existingTool) fieldsToRemove.push('auth');
+    } else if (request.tool.executionType === 'mcp' && existingTool.executionType === 'lambda') {
+        // Changing from lambda to MCP
+        if (request.tool.url) {
+            fieldsToUpdate.url = request.tool.url;
+        }
+        if (request.tool.auth) {
+            fieldsToUpdate.auth = request.tool.auth;
+        }
+        // Remove lambda-specific field
+        fieldsToRemove.push('lambdaArn');
+    } else if (request.tool.executionType === 'mcp' && existingTool.executionType === 'mcp') {
+        // Both MCP tools
+        handleOptionalFieldUpdate(request.tool.url, existingTool.url, 'url', fieldsToUpdate, fieldsToRemove);
+        handleOptionalFieldUpdate(request.tool.auth, existingTool.auth, 'auth', fieldsToUpdate, fieldsToRemove);
+    }
+
     handleObjectFieldUpdate(request.tool.functionSchema, existingTool.functionSchema, 'functionSchema', fieldsToUpdate, fieldsToRemove, true);
     handleObjectFieldUpdate(request.tool.tags, existingTool.tags, 'tags', fieldsToUpdate, fieldsToRemove, true);
     handleObjectFieldUpdate(request.tool.lifecycle, existingTool.lifecycle, 'lifecycle', fieldsToUpdate, fieldsToRemove, true);

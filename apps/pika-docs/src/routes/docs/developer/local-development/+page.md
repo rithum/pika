@@ -387,6 +387,35 @@ aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Durati
 - **Custom components**: Test your custom UI components
 - **Error handling**: Test various error scenarios
 
+## Local Lambda Tool Development
+
+For local Lambda tool development, you can redirect Lambda tools to run on local endpoints instead of calling deployed Lambda functions. This is useful when developing and testing custom Lambda tools.
+
+### Configuration
+
+Create a `custom-local-action-group-endpoints.json` file in your project root:
+
+```json
+{
+    "oa_elasticsearch": "http://localhost:3002",
+    "oa_account_data": "http://localhost:3002",
+    "oa_order_data": "http://localhost:3002"
+}
+```
+
+Set the environment variable to use this file:
+
+```bash
+export LOCAL_TOOLS="./custom-local-action-group-endpoints.json"
+```
+
+### How It Works
+
+- Maps tool IDs to local endpoint URLs where your Lambda functions are running locally
+- When an agent tries to call a tool, it redirects to the local endpoint instead of AWS Lambda
+- Useful for development and testing of Lambda tools without deploying to AWS
+- Only affects Lambda tools (not MCP tools, which connect to remote MCP servers)
+
 ## Next Steps
 
 Now that you can run Pika locally:

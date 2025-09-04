@@ -55,6 +55,7 @@ Icon
 *.pem
 config.local.js
 config.local.json
+apps/pika-chat/oauth-tokens/**
 
 # Logs
 logs
