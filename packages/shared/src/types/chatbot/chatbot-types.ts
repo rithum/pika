@@ -1452,7 +1452,7 @@ export type AgentDefinitionForIdempotentCreateOrUpdate = Omit<AgentDefinition, '
 /**
  * Execution type for tool definitions.  Right now, only lambda is supported.
  */
-export type ExecutionType = 'lambda' | 'http' | 'inline';
+export type ExecutionType = 'lambda' | 'http' | 'inline' | 'mcp';
 
 /**
  * Lifecycle status for tool definitions
@@ -1493,7 +1493,10 @@ export interface ToolLifecycle {
 /**
  * Tool definition representing a callable function/service
  */
-export interface ToolDefinition {
+export interface ToolDefinitionBase {
+    /** Type of execution (lambda, http, inline) */
+    executionType: ExecutionType;
+
     /** Unique tool name/version (e.g., 'weather-basic@1') */
     toolId: string;
     /** Friendly display name */
@@ -1502,15 +1505,8 @@ export interface ToolDefinition {
     name: string;
     /** Description for LLM consumption. MUST BE LESS THAN 500 CHARACTERS */
     description: string;
-    /** Type of execution (lambda, http, inline) */
-    executionType: ExecutionType;
     /** Timeout in seconds (default: 30) */
     executionTimeout?: number;
-    /**
-     * If executionType is 'lambda', this is the required ARN of the Lambda function.
-     * Note that the Lambda function must have an 'agent-tool' tag set to 'true'.
-     */
-    lambdaArn?: string;
     /**
      * List of agent frameworks that this tool supports
      *
@@ -1540,24 +1536,39 @@ export interface ToolDefinition {
     test?: boolean;
 }
 
-export type UpdateableToolDefinitionFields = Extract<
-    keyof ToolDefinition,
-    | 'name'
-    | 'displayName'
-    | 'description'
-    | 'executionType'
-    | 'executionTimeout'
-    | 'lambdaArn'
-    | 'supportedAgentFrameworks'
-    | 'functionSchema'
-    | 'tags'
-    | 'lifecycle'
-    | 'accessRules'
->;
+export interface LambdaToolDefinition extends ToolDefinitionBase {
+    executionType: 'lambda';
+    /**
+     * If executionType is 'lambda', this is the required ARN of the Lambda function.
+     * Note that the Lambda function must have an 'agent-tool' tag set to 'true'.
+     */
+    lambdaArn: string;
+}
 
-export type ToolDefinitionForCreate = Omit<ToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
-    toolId?: ToolDefinition['toolId'];
-};
+export interface McpToolDefinition extends ToolDefinitionBase {
+    executionType: 'mcp';
+    url: string;
+    auth?: OAuth;
+}
+
+export type ToolDefinition = LambdaToolDefinition | McpToolDefinition;
+
+export type UpdateableToolDefinitionFields =
+    | Extract<
+          keyof ToolDefinitionBase,
+          'name' | 'displayName' | 'description' | 'executionType' | 'executionTimeout' | 'supportedAgentFrameworks' | 'functionSchema' | 'tags' | 'lifecycle' | 'accessRules'
+      >
+    | 'lambdaArn'
+    | 'url'
+    | 'auth';
+
+export type ToolDefinitionForCreate =
+    | (Omit<LambdaToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
+          toolId?: ToolDefinition['toolId'];
+      })
+    | (Omit<McpToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
+          toolId?: ToolDefinition['toolId'];
+      });
 
 export type ToolDefinitionForIdempotentCreateOrUpdate = Omit<ToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
     lambdaArn: string;
@@ -1565,9 +1576,23 @@ export type ToolDefinitionForIdempotentCreateOrUpdate = Omit<ToolDefinition, 've
     supportedAgentFrameworks: ['bedrock'];
 };
 
-export type ToolDefinitionForUpdate = Partial<Omit<ToolDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy'>> & {
-    toolId: string;
-};
+export interface OAuth {
+    clientId: string;
+    clientSecret: string;
+    tokenUrl: string;
+    token?: {
+        accessToken: string;
+        expires: number;
+    };
+}
+
+export type ToolDefinitionForUpdate =
+    | (Partial<Omit<LambdaToolDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy'>> & {
+          toolId: string;
+      })
+    | (Partial<Omit<McpToolDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy'>> & {
+          toolId: string;
+      });
 
 export type AgentFramework = 'bedrock';
 

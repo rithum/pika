@@ -33,6 +33,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Highly Customizable', to: '/docs/features/highly-customizable/' },
                         { title: 'AI Driven UI Tags (BETA)', to: '/docs/features/ai-driven-ui/' },
                         { title: 'Instruction Assistance', to: '/docs/features/instruction-assistance/' },
+                        { title: 'Model Context Protocol (MCP)', to: '/docs/features/mcp/' },
                         { title: 'Admin Site', to: '/docs/features/admin-site/' }
                     ]
                 },
@@ -71,6 +72,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Stack Management', to: '/docs/developer/stack-management/' },
                         { title: 'Serverless Plugin', to: '/docs/developer/serverless/' },
                         { title: 'Shared Types', to: '/docs/developer/shared-types/' },
+                        { title: 'Model Context Protocol (MCP)', to: '/docs/developer/mcp/' },
                         { title: 'AWS Deployment', to: '/docs/developer/aws-deployment/' },
                         { title: 'Troubleshooting', to: '/docs/developer/troubleshooting/' }
                     ]
