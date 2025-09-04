@@ -13,11 +13,19 @@ export class NotAuthenticatedError extends Error {
 
 /**
  * Custom exception for forcing user to re-authenticate (e.g., token expired)
+ *
+ * By default, this exception will cause the user to be redirected to the login page.
+ * If you want to allow the retry of the automatic authentication process, set the allowRetry flag to true.
+ * This will cause the deletion of cookies and a redirect to the same URL with the auth_retry parameter set to 1.
+ * If auth fails again while auth_retry query param is set to 1, the user will be redirected to the login page.
  */
 export class ForceUserToReauthenticateError extends Error {
-    constructor(message: string = 'User must re-authenticate') {
+    allowRetry?: boolean;
+
+    constructor(message: string = 'User must re-authenticate', options?: { allowRetry?: boolean }) {
         super(message);
         this.name = 'ForceUserToReauthenticateError';
+        this.allowRetry = options?.allowRetry;
     }
 }
 
