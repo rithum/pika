@@ -2,7 +2,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { buildModelInvokeBody, getModelResponse, MODELS } from './model-types-utils';
 import { jsonparse } from './jsonparse';
 import { getBedrockClient } from './bedrock-agent';
-import { InvocationScopes, SemanticDirective, SemanticDirectiveScope, InstructionAugmentationScopeType } from 'pika-shared/types/chatbot/chatbot-types';
+import { type InvocationScopes, type SemanticDirective, type SemanticDirectiveScope, type InstructionAugmentationScopeType } from 'pika-shared/types/chatbot/chatbot-types';
 import { searchSemanticDirectives } from './chat-admin-ddb';
 
 export async function getAdditionalUserPromptInstructions(

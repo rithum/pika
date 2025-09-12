@@ -48,7 +48,14 @@ import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponse
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { jsonparse } from './jsonparse';
 import { processMcpActionGroup as processMcpTool } from './mcp';
-import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_ANTHROPIC_VERSION, DEFAULT_VERIFICATION_MODEL, InvokeAgentHooks, ReturnControlContext, ToolContext } from './model-types-utils';
+import {
+    DEFAULT_ANTHROPIC_MODEL,
+    DEFAULT_ANTHROPIC_VERSION,
+    DEFAULT_VERIFICATION_MODEL,
+    type InvokeAgentHooks,
+    type ReturnControlContext,
+    type ToolContext
+} from './model-types-utils';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
