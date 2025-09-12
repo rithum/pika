@@ -9,6 +9,7 @@ Pika helps teams ship capable, governed AI chat apps fast. Below is a quick tour
 ## Core capabilities
 
 - **Advanced Chat Apps**: Session memory, tool-using agents, rich UI, standalone or embedded.
+- **Direct Agent Invocation**: Call agents programmatically via API without chat app overhead.
 - **Built on AWS**: Bedrock, Lambda, DynamoDB, OpenSearch, and EventBridge—secure and scalable by default.
 - **LLM-based Agents**: Bedrock inline agents with typed tools and streaming.
 - **Agents as Config**: Define chat apps, agents, and tools declaratively; deploy with CDK.
@@ -22,6 +23,7 @@ Pika helps teams ship capable, governed AI chat apps fast. Below is a quick tour
 ## Explore features
 
 - <Link to="/docs/features/advanced-chat-apps" label="Advanced Chat Apps" />
+- <Link to="/docs/features/direct-agent-invocation" label="Direct Agent Invocation" />
 - <Link to="/docs/features/built-on-aws" label="Built on AWS" />
 - <Link to="/docs/features/llm-based-agents" label="LLM-based Agents" />
 - <Link to="/docs/features/agents-as-config" label="Agents as Config" />

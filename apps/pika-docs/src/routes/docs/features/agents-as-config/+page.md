@@ -18,6 +18,11 @@ Define your agents in your CDK/CloudFormation stack. The configuration gets stor
 
 This approach decouples your agent definitions from Pika's core infrastructure, letting you manage agents within your own microservices and deployment pipelines.
 
+You can define agents for use in two ways:
+
+- **Chat apps**: Rich user interfaces with session management and UI features
+- **Direct invocation**: API-based access for headless workflows and system integrations
+
 ## Simple config example
 
 ```js
