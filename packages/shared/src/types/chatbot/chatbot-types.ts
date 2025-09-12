@@ -45,6 +45,8 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     chatAppId: string;
     /** Unique identifier for the user's identity */
     identityId: string;
+    /** Mode of the invocation of the agent */
+    invocationMode: ConverseInvocationMode;
     /** Title or name of the chat session */
     title?: string;
     /** ID of the most recent message in the session */
@@ -905,9 +907,6 @@ export interface BaseRequestData {
     sessionId?: string;
     chatAppId?: string;
     agentId?: string;
-    agentAliasId?: string;
-    companyId?: string;
-    companyType?: CompanyType;
     timezone?: string;
 }
 
@@ -944,7 +943,24 @@ export interface ConverseRequest extends BaseRequestData {
      * @see pika-config.ts#siteFeatures.entity.attributeName
      */
     entityAttributeNameInUserCustomData?: string;
+
+    /**
+     * If provided, this will be used to determine the invocation mode of the converse request.
+     *
+     * If 'chat-app', then the converse request is a chat app request.
+     * If 'direct-agent-invoke', then the converse request is a direct agent invoke request and is not
+     * in the context of a chat app.  Since we are adding mode after the fact, if mode is provided
+     * and it doesn't match what we expect, we will throw an error (chat-app requires that chatAppId is provided
+     * and direct-agent-invoke requires that chatAppId is not provided).
+     *
+     * If invocationMode is not provided, uses the presence or absence of chatAppId to determine the mode (if chatAppId
+     * is provided, then it's a chat app request, otherwise it's a direct agent invoke request).
+     */
+    invocationMode?: ConverseInvocationMode;
 }
+
+export const ConverseInvocationModes = ['chat-app', 'direct-agent-invoke'] as const;
+export type ConverseInvocationMode = (typeof ConverseInvocationModes)[number];
 
 export interface ChatTitleUpdateRequest extends BaseRequestData {
     /** If provided, this will be used as the title for the session */

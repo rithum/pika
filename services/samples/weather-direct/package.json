@@ -1,0 +1,62 @@
+{
+    "name": "@pika/weather-direct",
+    "version": "0.0.1",
+    "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc -w",
+        "test": "jest",
+        "lint": "eslint src/",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist && rm -rf cdk.out",
+        "check-types": "tsc --noEmit",
+        "cdk": "cdk",
+        "cdk:synth": "cdk synth -c stage=${STAGE:-test}",
+        "cdk:deploy": "cdk deploy -c stage=${STAGE:-test}",
+        "cdk:diff": "cdk diff",
+        "cli": "tsx bin/cli.ts",
+        "cli-help": "tsx bin/cli.ts --help",
+        "cli:build": "tsc && node dist/bin/cli.js"
+    },
+    "devDependencies": {
+        "@aws-sdk/client-s3": "catalog:",
+        "@aws-sdk/client-ssm": "catalog:",
+        "@aws-sdk/client-sts": "catalog:",
+        "@pika/typescript-config": "workspace:*",
+        "@types/aws-lambda": "catalog:",
+        "@types/jest": "catalog:",
+        "@types/jsonwebtoken": "catalog:",
+        "@types/node": "catalog:",
+        "@types/papaparse": "catalog:",
+        "aws-cdk": "catalog:",
+        "aws-cdk-lib": "catalog:",
+        "aws-lambda": "catalog:",
+        "constructs": "catalog:",
+        "esbuild": "catalog:",
+        "eslint": "catalog:",
+        "jest": "catalog:",
+        "papaparse": "catalog:",
+        "pika-shared": "workspace:^",
+        "ts-jest": "catalog:",
+        "ts-node": "catalog:",
+        "tsx": "catalog:",
+        "typescript": "catalog:"
+    },
+    "dependencies": {
+        "@aws-crypto/sha256-js": "catalog:",
+        "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
+        "@aws-sdk/client-bedrock-runtime": "catalog:",
+        "@aws-sdk/client-lambda": "catalog:",
+        "@aws-sdk/client-ssm": "catalog:",
+        "@aws-sdk/client-sts": "catalog:",
+        "@aws-sdk/credential-provider-node": "catalog:",
+        "@smithy/signature-v4": "catalog:",
+        "commander": "catalog:",
+        "jsonwebtoken": "catalog:",
+        "source-map-support": "catalog:"
+    },
+    "files": [
+        "dist/**"
+    ]
+}

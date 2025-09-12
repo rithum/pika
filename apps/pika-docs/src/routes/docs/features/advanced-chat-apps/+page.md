@@ -39,3 +39,7 @@ Expose your app in standalone or iframe modes. Surface only the apps relevant to
 :::tip[Configure once, specialize per app]
 Define site‑wide defaults and override them per chat app. Admins can apply stricter, temporary overrides without redeploying.
 :::
+
+:::note[Need API access instead?]
+Chat apps provide rich user interfaces and session management. If you need programmatic access to agents for system integrations, see [Direct Agent Invocation](/docs/features/direct-agent-invocation/).
+:::

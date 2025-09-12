@@ -19,6 +19,7 @@ import type {
     ChatTitleUpdateRequest,
     ChatUser,
     ChatUserLite,
+    ConverseInvocationMode,
     RecordOrUndef,
     SimpleAuthenticatedUser,
     TagDefinitionSearchRequest,
@@ -123,14 +124,16 @@ export async function ensureChatSession(
     requestData: BaseRequestData,
     agentId: string,
     chatAppId: string,
-    simpleUser: SimpleAuthenticatedUser<RecordOrUndef>
+    simpleUser: SimpleAuthenticatedUser<RecordOrUndef>,
+    invocationMode: ConverseInvocationMode
 ): Promise<[ChatSession<RecordOrUndef>, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
         sessionId: requestData.sessionId,
         agentId,
         chatAppId,
-        simpleUser
+        simpleUser,
+        invocationMode
     });
 
     let isNewSession = false;
@@ -149,6 +152,7 @@ export async function ensureChatSession(
             chatAppId,
             agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
             agentAliasId: agentId, //'weather-agent-alias',//requestData.agentAliasId ?? getAgentAliasId(),
+            invocationMode,
             sessionAttributes: {
                 ...(user.customData ? user.customData : {}),
                 ...(simpleUser.customUserData ? simpleUser.customUserData : {}),

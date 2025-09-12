@@ -17,7 +17,8 @@ import type {
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
     InstructionAssistanceConfig,
-    InvocationScopes
+    InvocationScopes,
+    ConverseInvocationMode
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 import { generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams, applyInstructionAssistance } from 'pika-shared/util/instruction-assistance-utils';
@@ -33,7 +34,7 @@ import { getValueFromParameterStore, getParametersByPath } from '../../lib/ssm';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
-import { getEntityFromCustomData } from '../../lib/utils';
+import { getEffectiveChatAppId, getEntityFromCustomData } from '../../lib/utils';
 
 const SESSION_TIMEOUT_MS = 1000 * 60 * 10; // 10 minutes
 const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way through the session
@@ -159,24 +160,36 @@ export const handler = enhancedStreamifyResponse(
                 }
             };
 
-            //TODO: check for chatbot_enabled feature flag set for this companyId and if not set, return a 404
-            const chatbotEnabled = true;
-            if (!chatbotEnabled) {
-                // TODO: Implement proper formatResponse or use responseStream
-                throw new UnauthorizedError('Chatbot is not enabled for this company');
-            }
-
             // event.body was already parsed by the convertFunctionUrlEventToStandardApiGatewayEvent function
             let converseRequest: ConverseRequest = requestBody;
+            let invocationMode: ConverseInvocationMode;
+
+            if (converseRequest.invocationMode) {
+                if (converseRequest.invocationMode === 'chat-app' && !converseRequest.chatAppId) {
+                    console.error('Missing chatAppId in request despite mode explicitly set to chat-app');
+                    throw new HttpStatusError('chatAppId is required', 400);
+                }
+                if (converseRequest.invocationMode === 'direct-agent-invoke' && converseRequest.chatAppId) {
+                    console.error('chatAppId is not allowed in direct-agent-invoke mode despite mode explicitly set to direct-agent-invoke');
+                    throw new HttpStatusError('chatAppId is not allowed in direct-agent-invoke mode', 400);
+                }
+                invocationMode = converseRequest.invocationMode;
+            } else {
+                if (converseRequest.chatAppId) {
+                    invocationMode = 'chat-app';
+                } else {
+                    invocationMode = 'direct-agent-invoke';
+                }
+            }
+
             console.log('Converse request:', {
                 hasMessage: !!converseRequest.message,
                 messageLength: converseRequest.message?.length,
                 userId: converseRequest.userId,
                 sessionId: converseRequest.sessionId,
-                companyId: converseRequest.companyId,
-                companyType: converseRequest.companyType,
                 agentId: converseRequest.agentId,
                 chatAppId: converseRequest.chatAppId,
+                invocationMode: converseRequest.invocationMode,
                 features: features
             });
 
@@ -217,13 +230,10 @@ export const handler = enhancedStreamifyResponse(
                 throw new HttpStatusError('agentId is required', 400);
             }
 
-            if (!converseRequest.chatAppId) {
-                console.error('Missing chatAppId in request');
-                throw new HttpStatusError('chatAppId is required', 400);
-            }
+            const effectiveChatAppId = getEffectiveChatAppId(converseRequest.chatAppId, converseRequest.agentId, invocationMode);
 
             console.log('Ensuring chat session...');
-            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, converseRequest.chatAppId, simpleUser);
+            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, effectiveChatAppId, simpleUser, invocationMode);
             console.log('Chat session ensured:', {
                 sessionId: chatSession.sessionId,
                 isNewSession,
@@ -240,7 +250,7 @@ export const handler = enhancedStreamifyResponse(
                 : undefined;
 
             const scopes: InvocationScopes = {
-                ...(converseRequest.chatAppId ? { chatapp: [converseRequest.chatAppId] } : {}),
+                ...(invocationMode === 'chat-app' ? { chatapp: [converseRequest.chatAppId!] } : {}),
                 ...(agentAndTools.agent.agentId ? { agent: [agentAndTools.agent.agentId] } : {}),
                 ...(agentAndTools.tools.length > 0 ? { tool: agentAndTools.tools.map((tool) => tool.toolId) } : {}),
                 ...(entityValue ? { entity: [entityValue] } : {}),
@@ -248,7 +258,19 @@ export const handler = enhancedStreamifyResponse(
             };
 
             console.log('Starting conversation...');
-            await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, scopes, converseRequest.files);
+            await converse(
+                chatSession,
+                isNewSession,
+                user,
+                simpleUser,
+                converseRequest.message,
+                responseStream,
+                agentAndTools,
+                features,
+                scopes,
+                invocationMode,
+                converseRequest.files
+            );
             console.log('Conversation completed successfully');
         } catch (e) {
             console.error('=== CONVERSE HANDLER ERROR ===');
@@ -394,6 +416,7 @@ async function converse(
     agentAndTools: AgentAndTools,
     features: ChatAppOverridableFeaturesForConverseFn,
     scopes: InvocationScopes,
+    mode: ConverseInvocationMode,
     files?: ChatMessageFile[]
 ) {
     console.log('=== CONVERSE FUNCTION START ===');

@@ -1,6 +1,6 @@
 import type { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
-import type { ChatSession, ChatUser, RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ChatSession, ChatUser, ConverseInvocationMode, RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { type ChatSessionOs } from './opensearch/types';
 
@@ -305,4 +305,8 @@ export function getEntityFromCustomData(customData: Record<string, any> | undefi
     }
 
     return undefined;
+}
+
+export function getEffectiveChatAppId(chatAppId: string | undefined, agentId: string, mode: ConverseInvocationMode): string {
+    return mode === 'direct-agent-invoke' ? `direct-agent-${agentId}` : chatAppId!;
 }
