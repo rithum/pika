@@ -16,6 +16,6 @@
     truncateAfter={12}
     embedded={true}
     linkCallbackFn={() => appState.siteAdmin.sessionInsights.openSession(sessionId)}
+    value={sessionId}
 >
-    {sessionId}
 </CopyButton>

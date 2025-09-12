@@ -5,7 +5,7 @@
 
     interface Props {
         children?: Snippet<[]>;
-
+        value?: string;
         /** When embedded in other elements, like a table, we don't want borders */
         embedded?: boolean;
 
@@ -19,7 +19,7 @@
         linkCallbackFn?: () => void;
     }
 
-    const { children, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn }: Props = $props();
+    const { children, value: propValue, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn }: Props = $props();
 
     let hiddenRef: HTMLElement;
     let value: string | undefined = $state(undefined);
@@ -27,7 +27,11 @@
     let showCheckmark = $state(false);
 
     $effect(() => {
-        if (children) {
+        if (propValue !== undefined) {
+            value = propValue;
+            updateTruncatedValue();
+        } else if (children) {
+            // Fall back to extracting from children
             extractValue().catch((e) => {
                 throw new Error(
                     `Failed to extract value: ${e instanceof Error ? e.message + ' ' + e.stack : String(e)}`
@@ -44,10 +48,13 @@
 
         // Extract text content
         value = (hiddenRef.textContent || '').trim();
+        updateTruncatedValue();
+    }
+
+    function updateTruncatedValue() {
         if (!value) {
             throw new Error('Did not find any text in the hidden container of ValueToCopy');
         }
-
         if (truncateAfter && truncateAfter > 0 && value.length > truncateAfter) {
             // Check if there are enough characters to make the "start...end" format worthwhile
             // We need at least truncateAfter + 7 characters (3 for "..." + 4 for end)
@@ -87,11 +94,12 @@
         }
     }
 </script>
-
+{#if !propValue}
 <pre
     class="hidden-container"
     bind:this={hiddenRef}
     style="display: none; position: absolute; left: -9999px;">{#if children}{@render children()}{/if}</pre>
+{/if}
 
 <span class="inline-flex w-fit items-center {embedded ? '' : 'border border-gray-200 rounded-sm'}">
     {#if showTextAsLink}

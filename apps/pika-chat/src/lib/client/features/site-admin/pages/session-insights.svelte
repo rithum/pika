@@ -50,11 +50,11 @@
                     <div class="flex w-full flex-col">
                         <div class="text-sm text-muted-foreground flex items-center gap-2">
                             <Label>Session ID:</Label>
-                            <CopyButton embedded={true}>{sessionInsights.currentSession.sessionId}</CopyButton>
+                            <CopyButton embedded={true} value={sessionInsights.currentSession.sessionId} />
                         </div>
                         <div class="text-sm text-muted-foreground flex items-center gap-2">
                             <Label>User ID:</Label>
-                            <CopyButton embedded={true}>{sessionInsights.currentSession.userId}</CopyButton>
+                            <CopyButton embedded={true} value={sessionInsights.currentSession.userId} />
                         </div>
                         <div class="text-sm text-muted-foreground flex items-center gap-2">
                             <Label>Title:</Label>
