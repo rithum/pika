@@ -130,6 +130,10 @@ export const pikaConfig: PikaConfig = {
         },
         agentInstructionAssistance: {
             enabled: true
+        },
+        instructionAugmentation: {
+            enabled: true,
+            type: 'llm-semantic-directive-search'
         }
     }
 };

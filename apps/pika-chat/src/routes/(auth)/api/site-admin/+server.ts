@@ -3,13 +3,18 @@ import {
     clearSvelteKitCache,
     createOrUpdateChatAppOverride,
     createOrUpdateTagDefinition,
+    createOrUpdateSemanticDirective,
     deleteChatAppOverride,
     deleteTagDefinition,
+    deleteSemanticDirective,
     getAgent,
+    getAllAgents,
     getAllChatApps,
+    getAllTools,
     getChatApp,
     getInstructionAssistanceConfigFromSsm,
     searchForSessions,
+    searchSemanticDirectives,
     searchTagDefinitions,
     updateChatSessionFeedback
 } from '$lib/server/chat-admin-apis';
@@ -269,6 +274,39 @@ export const POST: RequestHandler = async (event) => {
 
         const response = await searchTagDefinitions(siteAdminReq.request);
         return json(response);
+    } else if (siteAdminReq.command === 'createOrUpdateSemanticDirective') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        // Set the userId for the request to the current user
+        const requestWithUserId = {
+            ...siteAdminReq.request,
+            userId: user.userId
+        };
+
+        const response = await createOrUpdateSemanticDirective(requestWithUserId);
+        return json(response);
+    } else if (siteAdminReq.command === 'deleteSemanticDirective') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        // Set the userId for the request to the current user
+        const requestWithUserId = {
+            ...siteAdminReq.request,
+            userId: user.userId
+        };
+
+        const response = await deleteSemanticDirective(requestWithUserId);
+        return json(response);
+    } else if (siteAdminReq.command === 'searchSemanticDirectives') {
+        if (!('request' in siteAdminReq)) {
+            return new Response('request is required', { status: 400 });
+        }
+
+        const response = await searchSemanticDirectives(siteAdminReq.request);
+        return json(response);
     } else if (siteAdminReq.command === 'getAgent') {
         if (!('agentId' in siteAdminReq)) {
             return new Response('agentId is required', { status: 400 });
@@ -284,6 +322,24 @@ export const POST: RequestHandler = async (event) => {
         return json({
             success: true,
             config
+        });
+    } else if (siteAdminReq.command === 'getAllChatApps') {
+        const chatApps = await getAllChatApps();
+        return json({
+            success: true,
+            chatApps
+        });
+    } else if (siteAdminReq.command === 'getAllAgents') {
+        const agents = await getAllAgents();
+        return json({
+            success: true,
+            agents
+        });
+    } else if (siteAdminReq.command === 'getAllTools') {
+        const tools = await getAllTools();
+        return json({
+            success: true,
+            tools
         });
     } else {
         return new Response('Invalid command', { status: 400 });

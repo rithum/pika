@@ -1,11 +1,12 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
-import { Bot, ChartBar, FileBox, Settings } from '$icons/lucide';
+import { Bot, ChartBar, FileBox, Settings, Zap } from '$icons/lucide';
 import type { Page } from '@sveltejs/kit';
 import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import Caches from '../pages/caches.svelte';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
+import InstructionAugmentation from '../pages/instruction-augmentation.svelte';
 
 const ITEMS: NavItem[] = [
     {
@@ -19,6 +20,13 @@ const ITEMS: NavItem[] = [
         url: '/admin/chat-apps',
         icon: Bot,
         pageComponent: ChatApps
+    },
+    {
+        title: 'Instruction Augmentation',
+        url: '/admin/instruction-augmentation',
+        icon: Zap,
+        pageComponent: InstructionAugmentation,
+        enabled: (siteFeatures: SiteFeatures) => siteFeatures.instructionAugmentation?.enabled ?? false
     },
     {
         title: 'Session Insights',

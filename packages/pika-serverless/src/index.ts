@@ -1,4 +1,10 @@
-import { AgentDataRequest, AgentDefinition, AgentDefinitionForIdempotentCreateOrUpdate, ChatAppDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    AgentDataRequest,
+    AgentDefinition,
+    AgentDefinitionForIdempotentCreateOrUpdate,
+    ChatAppDataRequest,
+    SemanticDirectiveDataRequest
+} from 'pika-shared/types/chatbot/chatbot-types';
 import Plugin from 'serverless/classes/Plugin';
 import AwsProvider from 'serverless/plugins/aws/provider/awsProvider';
 import { AgentDefinitionWithToolRefs, CloudFormationResource, PikaServerlessConfig, PikaToolWithLambdaRef } from './types';
@@ -79,17 +85,10 @@ class PikaServerlessPlugin implements Plugin {
         }
 
         // Check for new custom.pika configuration
-        if (customPika && this.isNewPikaFormat(customPika)) {
+        if (customPika) {
             await this.processCustomPikaConfig(customPika);
             return;
         }
-    }
-
-    /**
-     * Check if the pika config uses the new custom.pika format
-     */
-    private isNewPikaFormat(pikaConfig: any): boolean {
-        return pikaConfig && (pikaConfig.agents || pikaConfig.chatApps || pikaConfig.tools);
     }
 
     /**
@@ -172,6 +171,15 @@ class PikaServerlessPlugin implements Plugin {
             for (const chatAppDef of pikaConfig.chatApps) {
                 if (pikaConfig.chatAppCustomResourceArn) {
                     this.addChatAppCustomResourceFromCustomConfig(chatAppDef, pikaConfig.chatAppCustomResourceArn);
+                }
+            }
+        }
+
+        // Process semantic directives
+        if (pikaConfig.semanticDirectives) {
+            for (const semanticDirectiveDef of pikaConfig.semanticDirectives) {
+                if (pikaConfig.semanticDirectiveCustomResourceArn) {
+                    this.addSemanticDirectiveCustomResourceFromCustomConfig(semanticDirectiveDef, pikaConfig.semanticDirectiveCustomResourceArn);
                 }
             }
         }
@@ -319,6 +327,31 @@ class PikaServerlessPlugin implements Plugin {
                 ServiceToken: resolveCustomResourceArn(customResourceArn),
                 Stage: this.serverless.service.provider.stage,
                 ChatAppData: chatAppDataCompressed,
+                Timestamp: generateTimestamp() // Ensures custom resource runs on every deploy
+            }
+        };
+
+        template.Resources[resourceLogicalId] = customResource;
+    }
+
+    /**
+     * Add semantic directive custom resource from custom.pika configuration
+     */
+    private addSemanticDirectiveCustomResourceFromCustomConfig(semanticDirectiveDef: SemanticDirectiveDataRequest, customResourceArn: string): void {
+        const template = this.serverless.service.provider.compiledCloudFormationTemplate;
+        // Generate a unique logical ID based on user ID and directive count
+        const directiveCount = semanticDirectiveDef.semanticDirectives?.length || 0;
+        const resourceLogicalId = generateLogicalId(`${semanticDirectiveDef.userId}-${directiveCount}-directives`, 'SemanticDirective');
+
+        // Compress and encode the semantic directive data (matching CDK approach)
+        const semanticDirectiveDataCompressed = gzipAndBase64EncodeString(JSON.stringify(semanticDirectiveDef));
+
+        const customResource: CloudFormationResource = {
+            Type: 'AWS::CloudFormation::CustomResource',
+            Properties: {
+                ServiceToken: resolveCustomResourceArn(customResourceArn),
+                Stage: this.serverless.service.provider.stage,
+                SemanticDirectiveData: semanticDirectiveDataCompressed,
                 Timestamp: generateTimestamp() // Ensures custom resource runs on every deploy
             }
         };

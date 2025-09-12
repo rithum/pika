@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { IncomingMessage, ServerResponse } from 'http';
 import { type McpToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
-import { type ReturnControlContext, type ToolContext } from './bedrock-agent';
+import { type ReturnControlContext, type ToolContext } from './model-types-utils';
 import { jsonparse } from './jsonparse';
 import { parsers } from './tool-input-parser';
 

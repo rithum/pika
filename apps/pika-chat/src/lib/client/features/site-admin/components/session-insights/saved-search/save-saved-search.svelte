@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Button } from '$lib/client-ui/shadcn/button';
+    import { Button } from '$ui/shadcn/button';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import * as Dialog from '$ui/shadcn/dialog';
     import { Input } from '$ui/shadcn/input';

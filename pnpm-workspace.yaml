@@ -138,6 +138,7 @@ catalog:
   file-type: ^21.0.0
   jsonrepair: ^3.13.0
   '@modelcontextprotocol/sdk': ^1.17.5
+  'sass-embedded': ^1.92.1
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'

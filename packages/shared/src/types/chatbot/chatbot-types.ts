@@ -1,6 +1,6 @@
 //TODO: make sure to turn on model invocation logging in aws
 
-import type { AgentCollaboration, CollaboratorConfiguration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { AgentCollaboration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 
 export type CompanyType = 'retailer' | 'supplier';
 
@@ -799,6 +799,8 @@ export interface ChatAppOverridableFeatures {
     tags?: TagsChatAppOverridableFeature;
 
     agentInstructionAssistance: AgentInstructionChatAppOverridableFeature;
+
+    instructionAugmentation: InstructionAugmentationFeature;
 }
 
 export interface AgentInstructionChatAppOverridableFeature {
@@ -934,6 +936,14 @@ export interface ConverseRequest extends BaseRequestData {
      * It allows us to dynamically change the agent used for the conversation.
      */
     agentId: string;
+
+    /**
+     * This is the attribute name in the user's custom data that is used to match against the entity access control lists.
+     * This is only used if the entity feature is enabled and the user has an entity associated with them.
+     *
+     * @see pika-config.ts#siteFeatures.entity.attributeName
+     */
+    entityAttributeNameInUserCustomData?: string;
 }
 
 export interface ChatTitleUpdateRequest extends BaseRequestData {
@@ -1472,25 +1482,6 @@ export interface ToolLifecycle {
 }
 
 /**
- * JSON Schema definition
- */
-// export interface JsonSchema {
-//     type: string;
-//     properties?: Record<string, any>;
-//     required?: string[];
-//     [key: string]: any;
-// }
-
-/**
- * Bedrock function schema definition
- */
-// export interface BedrockFunctionSchema {
-//     name: string;
-//     description: string;
-//     parameters: JsonSchema;
-// }
-
-/**
  * Tool definition representing a callable function/service
  */
 export interface ToolDefinitionBase {
@@ -1878,7 +1869,8 @@ export type ChatAppFeature =
     | SessionInsightsFeatureForChatApp
     | UserDataOverrideFeatureForChatApp
     | TagsFeatureForChatApp
-    | AgentInstructionAssistanceFeatureForChatApp;
+    | AgentInstructionAssistanceFeatureForChatApp
+    | InstructionAugmentationFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1904,7 +1896,8 @@ export const FeatureIdList = [
     'sessionInsights',
     'userDataOverrides',
     'tags',
-    'agentInstructionAssistance'
+    'agentInstructionAssistance',
+    'instructionAugmentation'
 ] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
@@ -1923,7 +1916,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     sessionInsights: 'Session Insights',
     userDataOverrides: 'User Data Override',
     tags: 'Tags',
-    agentInstructionAssistance: 'Agent Instruction Assistance'
+    agentInstructionAssistance: 'Agent Instruction Assistance',
+    instructionAugmentation: 'Instruction Augmentation'
 };
 
 export interface SiteAdminFeature {
@@ -2157,6 +2151,10 @@ export interface AgentInstructionAssistanceFeatureForChatApp extends Feature, Ag
     featureId: 'agentInstructionAssistance';
 }
 
+export interface InstructionAugmentationFeatureForChatApp extends InstructionAugmentationFeature, Feature {
+    featureId: 'instructionAugmentation';
+}
+
 /**
  * The prompt instruction assistance feature is used to add a markdown section to the prompt that instructs the agent on how to format its response.
  *
@@ -2321,7 +2319,13 @@ export type SiteAdminRequest =
     | CreateOrUpdateTagDefinitionAdminRequest
     | DeleteTagDefinitionAdminRequest
     | SearchTagDefinitionsAdminRequest
-    | GetInstructionAssistanceConfigFromSsmRequest;
+    | SearchSemanticDirectivesAdminRequest
+    | SemanticDirectiveCreateOrUpdateAdminRequest
+    | SemanticDirectiveDeleteAdminRequest
+    | GetInstructionAssistanceConfigFromSsmRequest
+    | GetAllChatAppsAdminRequest
+    | GetAllAgentsAdminRequest
+    | GetAllToolsAdminRequest;
 
 export const SiteAdminCommand = [
     'getAgent',
@@ -2340,7 +2344,13 @@ export const SiteAdminCommand = [
     'createOrUpdateTagDefinition',
     'deleteTagDefinition',
     'searchTagDefinitions',
-    'getInstructionAssistanceConfigFromSsm'
+    'searchSemanticDirectives',
+    'createOrUpdateSemanticDirective',
+    'deleteSemanticDirective',
+    'getInstructionAssistanceConfigFromSsm',
+    'getAllChatApps',
+    'getAllAgents',
+    'getAllTools'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
@@ -2369,6 +2379,42 @@ export interface SearchTagDefinitionsAdminRequest extends SiteAdminCommandReques
     command: 'searchTagDefinitions';
     request: TagDefinitionSearchRequest;
 }
+
+export interface SearchSemanticDirectivesAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'searchSemanticDirectives';
+    request: SearchSemanticDirectivesRequest;
+}
+
+export interface SemanticDirectiveCreateOrUpdateAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'createOrUpdateSemanticDirective';
+    request: SemanticDirectiveCreateOrUpdateRequest;
+}
+
+export interface SemanticDirectiveDeleteAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'deleteSemanticDirective';
+    request: SemanticDirectiveDeleteRequest;
+}
+
+export interface GetAllChatAppsAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getAllChatApps';
+}
+
+export interface GetAllAgentsAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getAllAgents';
+}
+
+export interface GetAllToolsAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getAllTools';
+}
+
+/**
+ * Request format for semantic directive data passed to custom CloudFormation resource
+ */
+export type SemanticDirectiveDataRequest = {
+    userId: string;
+    groupId: string;
+    semanticDirectives: SemanticDirectiveForCreateOrUpdate[];
+};
 
 export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandRequestBase {
     command: 'getValuesForEntityAutoComplete';
@@ -2426,6 +2472,18 @@ export interface GetInstructionAssistanceConfigFromSsmResponse extends SiteAdmin
     config: InstructionAssistanceConfig;
 }
 
+export interface GetAllChatAppsAdminResponse extends SiteAdminCommandResponseBase {
+    chatApps: ChatApp[];
+}
+
+export interface GetAllAgentsAdminResponse extends SiteAdminCommandResponseBase {
+    agents: AgentDefinition[];
+}
+
+export interface GetAllToolsAdminResponse extends SiteAdminCommandResponseBase {
+    tools: ToolDefinition[];
+}
+
 export type SiteAdminResponse =
     | GetAgentResponse
     | GetInitialDataResponse
@@ -2440,7 +2498,10 @@ export type SiteAdminResponse =
     | UpdateChatSessionFeedbackResponse
     | SessionSearchResponse
     | GetChatMessagesAsAdminResponse
-    | GetInstructionAssistanceConfigFromSsmResponse;
+    | GetInstructionAssistanceConfigFromSsmResponse
+    | GetAllChatAppsAdminResponse
+    | GetAllAgentsAdminResponse
+    | GetAllToolsAdminResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
@@ -2902,6 +2963,333 @@ export interface SiteFeatures {
 
     /** Configure whether the agent instruction assistance feature is enabled. */
     agentInstructionAssistance?: AgentInstructionAssistanceFeature;
+
+    /** Configure whether the instruction augmentation feature is enabled. */
+    instructionAugmentation?: InstructionAugmentationFeature;
+}
+
+/**
+ * Sometimes you need to augment the prompt you will give to the LLM with additional information.
+ * Currently, only one type of augmentation is supported: llm semantic search.  This uses the scope of the
+ * agent invocation (chat app ID, agent ID, entity ID) to search for semantic directives in a database
+ * of canned semantic directives that match the scope of the agent invocation.  Then, those semantic
+ * directives are added to the prompt to be used by the LLM.  The LLM then takes the end user's message
+ * and the semantic directives and uses them to determine if any of the semantic directives should be
+ * included in the prompt.  If they should be included, then the semantic directive instruction is added to the prompt.
+ *
+ * Note that by default the feature is turned off.  To turn it on, you must set the `enabled` property to `true` or
+ * it will not be turned on.  Then, all agents will have the type of augmentation chosen.
+ *
+ * Setting this as a site wide feature sets the default instruction augmentation type used, if turned on.  Individual chat apps
+ * may override this behavior, turning off the feature or changing the augmentation type.
+ *
+ * Note that today we only support one type of augmentation: llm semantic directive search.  This is a light-weight
+ * approach with a good balance of engineer velocity (don't have to ingest and index embeddings into a knowledge base),
+ * performance and cost.
+ */
+export interface InstructionAugmentationFeature {
+    enabled: boolean;
+    type?: InstructionAugmentationType;
+}
+
+export const InstructionAugmentationTypes = ['llm-semantic-directive-search'] as const;
+export type InstructionAugmentationType = (typeof InstructionAugmentationTypes)[number];
+
+export const InstructionAugmentationTypeDisplayNames = {
+    'llm-semantic-directive-search': 'LLM Semantic Directive Search'
+} as const;
+export type InstructionAugmentationTypeDisplayName = (typeof InstructionAugmentationTypeDisplayNames)[keyof typeof InstructionAugmentationTypeDisplayNames];
+
+export const InstructionAugmentationScopeTypes = ['chatapp', 'agent', 'tool', 'entity', 'agent-entity'] as const;
+export type InstructionAugmentationScopeType = (typeof InstructionAugmentationScopeTypes)[number];
+
+export const InstructionAugmentationScopeTypeDisplayNames = {
+    chatapp: 'Chat App',
+    agent: 'Agent',
+    tool: 'Tool',
+    entity: 'Entity',
+    'agent-entity': 'Agent and Entity'
+} as const;
+export type InstructionAugmentationScopeTypeDisplayName = (typeof InstructionAugmentationScopeTypeDisplayNames)[keyof typeof InstructionAugmentationScopeTypeDisplayNames];
+
+/**
+ * This is used to take the actual chatapp, agent, tools, and entity values used in a given agent invocation and use them
+ * to go search for the matching semantic directives in the database.
+ */
+export type InvocationScopes = Partial<Record<InstructionAugmentationScopeType, (string | number | Record<string, string | number>)[] | undefined>>;
+
+/**
+ * A semantic directive is a special case or additional instruction paragraph that you might want the LLM to have included
+ * in its context when responding to a user's question but that doesn't belong in the main prompt.  So, the LLM will
+ * be given the semantic directives in the context of the user's question and will decide if any of them should be
+ * included in the prompt.  If they should be included, then the semantic directive instruction is added to the prompt.
+ *
+ * One of the main use cases for this is when you have a tool with certain inputs and most of the time the LLM can
+ * craft the correct inputs to your tool based on the question from an end user.  But, occasionally, you might wish to give
+ * the LLM special instructions on certain details that are specific to a certain situation.
+ *
+ * Semantic directives are stored in a database and are associated with a scope.  The scope is used to narrow down which
+ * directives we will give to the light-weight LLM to consider for inclusion in your prompt.  We first search the
+ * database based on chat app, agent, tool and entity to get the set of directives that match the scope and then have the
+ * LLM tell us if we should include them in the prompt.
+ *
+ * IMPORTANT: when you see us refer to 'entity' in a scope, it means that the entity is the entity that is associated with the user,
+ * assuming you have turned on the entity feature. The value of the entity is entityFeature.attributeName.
+ *
+ * In your pika-config.ts file, you can turn on the entity feature by setting the entity feature to true.
+ */
+export interface SemanticDirective {
+    /**
+     * You don't set this value directly.  Instead, you set the scopeType and scopeValue from which we will construct the scope.
+     *
+     * Remember that we might have a database full of these semantic directives.  The scope then narrows down which
+     * directives we will give to the light-weight LLM to consider for inclusion in your prompt.  We first search the
+     * database based on chat app, agent, tool and entity to get the set of directives that match the scope and then have the
+     * LLM tell us if we should include them in the prompt.
+     *
+     * We support the following scopes at present:
+     * - chatapp: The ID of the chat app this semantic directive is associated with.
+     * - agent: The ID of the agent this semantic directive is associated with.
+     * - tool: the ID of the tool this semantic directive is associated with.
+     * - entity: The ID of the entity this semantic directive is associated with.  Of course, if your pika instance
+     *           doesn't turn on the uses of entities, then this scope will not be used.
+     *
+     * We support only the following compound scopes at present:
+     * - agent#{agent-id}#entity#{entity-id}
+     *
+     * Examples:
+     *
+     * - `chatapp#weather-chat-app`
+     * - `agent#weather-agent`
+     * - `tool#weather-tool`
+     * - `entity#account-123`
+     * - `agent#weather-agent#entity#account-123` // matches only for queries by account-123 to the weather agent
+     */
+    scope: string;
+
+    /**
+     * The type of scope this semantic directive is associated with.  This tells us what
+     * the value in `scopeValue` is.
+     */
+    scopeType: InstructionAugmentationScopeType;
+
+    /**
+     * The value of the scope this semantic directive is associated with.  This is a string or an object
+     * depending on the value of `scopeType`.
+     *
+     * If `scopeType` is `agent` then this will be the agent ID.
+     * If `scopeType` is `tool` then this will be the tool ID.
+     * If `scopeType` is `entity` then this will be the entity ID (entityFeature.attributeName from user.customData).
+     * If `scopeType` is `agent-entity` then this will be {agent: string, entity: string}.
+     */
+    scopeValue: string | number | Record<string, string | number>;
+
+    /**
+     * This plus scope must be unique across all semantic directives.
+     *
+     * Just a human-readable ID for the semantic directive.  Consider it a variable name: may use dashes and underscores
+     * and should start with a letter (no spaces or special characters).  E.g. "account-details", "customer-support", "order-status", etc.
+     * Used for db queries and to help engineers identify the semantic directive easily in a UI or DB.
+     */
+    id: string;
+
+    /**
+     * Used internally to group semantic directives created by a custom cloudformation resource. You shouldn't use this.
+     * For example, a specific agent in a given stack may include CDK to define its semantic directives.  Pika needs to
+     * know the complete set of semantic directives that exist for that group so that the agent author can have the
+     * freedom to modify semantic directive scope values. This groupId then is how the pika platform will be able
+     * to query for all the semantic directives created as a "group" by the agent author and know which semantic directives
+     * should be deleted because they are no longer present in the CDK stack.
+     *
+     * Don't set this value directly.  Instead, let the custom cloudformation resource set it for you using the
+     * `event.StackName` of the stack that created the semantic directive.
+     */
+    groupId?: string;
+
+    /**
+     * This is what the light-weight LLM will use to decide if the question asked by the end user means that
+     * this semantic directive should be included in the prompt to ensure the final LLM gives a correct response.
+     */
+    description: string;
+
+    /**
+     * If the light-weight LLM determines that this semantic directive should be included in the prompt, then these
+     * instructions will be included in the final prompt to the final LLM to guide its response.
+     */
+    instructions: string;
+
+    /** If true, the semantic directive will not be used to augment the prompt. */
+    disabled?: boolean;
+
+    /** ISO 8601 formatted timestamp of when the semantic directive was created */
+    createDate: string;
+
+    /** User who created the semantic directive */
+    createdBy: string;
+
+    /** User who last updated the semantic directive */
+    lastUpdatedBy: string;
+
+    /** ISO 8601 formatted timestamp of the last semantic directive update */
+    lastUpdate: string;
+}
+
+export interface SemanticDirectiveForCreateOrUpdate extends Omit<SemanticDirective, 'scope' | 'createDate' | 'lastUpdate'> {
+    createdBy: string;
+    lastUpdatedBy: string;
+}
+
+export interface SemanticDirectiveCreateOrUpdateRequest {
+    semanticDirective: SemanticDirectiveForCreateOrUpdate;
+
+    /**
+     * If you are creating one of these objects through the CloudFormation custom resource, then you should set this
+     * to be something that is tied to the stack that did the creation/update and we ask that you prepend it with 'cloudformation/'
+     * so we understand it was created/updated by cloudformation as in 'cloudformation/my-stack-name'.
+     */
+    userId: string;
+}
+
+export interface SemanticDirectiveCreateOrUpdateResponse {
+    success: boolean;
+    semanticDirective: SemanticDirective;
+}
+
+export interface SemanticDirectiveScope {
+    scopeType: InstructionAugmentationScopeType;
+    scopeValue: string | number | Record<string, string | number>;
+}
+
+/**
+ * Search request for semantic directives. Supports multiple search patterns based on our DynamoDB table design:
+ * - If findOne is provided, then we will return the first directive that matches the scopeType, scopeValue and id.
+ * - Query by specific scopes (main table access pattern)
+ * - Query by creator and date range (GSI1: createdBy + createDate)
+ * - Query by directive ID(s) across scopes (GSI2: id + scope)
+ * - Date range filtering (created or updated)
+ *
+ * If no search criteria provided, returns all directives with pagination.
+ */
+export interface SearchSemanticDirectivesRequest {
+    findOne?: {
+        scopeType: InstructionAugmentationScopeType;
+        scopeValue: string | number | Record<string, string | number>;
+        id: string;
+    };
+
+    /**
+     * Search for directives within specific scopes.
+     * Uses parallel DynamoDB queries against the main table (PK = scope).
+     */
+    scopes?: SemanticDirectiveScope[];
+
+    /** Will be used by the custom cloudformation resource to query for all semantic directives created as a "group" by the agent author. */
+    groupId?: string;
+
+    /**
+     * Search for directives created by a specific user.
+     * When provided, results are automatically sorted by createDate (newest first by default).
+     *
+     * Uses GSI1: createdBy + createDate
+     */
+    createdBy?: string;
+
+    /**
+     * Search for directives by specific IDs.
+     * Returns directives matching any of the provided IDs across all scopes.
+     *
+     * Uses GSI2: id + scope
+     */
+    directiveIds?: string[];
+
+    /**
+     * Filter directives created after this ISO 8601 timestamp.
+     * Can be combined with other filters.
+     * Example: "2024-01-15T00:00:00Z"
+     */
+    createdAfter?: string;
+
+    /**
+     * Filter directives created before this ISO 8601 timestamp.
+     * Can be combined with other filters.
+     * Example: "2024-01-31T23:59:59Z"
+     */
+    createdBefore?: string;
+
+    /**
+     * Filter directives updated after this ISO 8601 timestamp.
+     * Can be combined with other filters.
+     */
+    updatedAfter?: string;
+
+    /**
+     * Filter directives updated before this ISO 8601 timestamp.
+     * Can be combined with other filters.
+     */
+    updatedBefore?: string;
+
+    /**
+     * Sort order for results when using createdBy search or no specific search criteria.
+     * - 'asc': Oldest first
+     * - 'desc': Newest first (default)
+     */
+    sortOrder?: 'asc' | 'desc';
+
+    /**
+     * Maximum number of directives to return per page.
+     * Default: 50, Max: 100
+     */
+    limit?: number;
+
+    /**
+     * Pagination token from previous search response.
+     * Include your original search criteria when using pagination.
+     */
+    paginationToken?: Record<string, any>;
+
+    /**
+     * If true, includes the full directive instructions in response.
+     * If false, returns directive metadata only (scope, id, description, dates, etc).
+     * Default: false (to save bandwidth)
+     */
+    includeInstructions?: boolean;
+
+    /**
+     * If true, excludes disabled directives in the response.
+     * Default: false
+     */
+    excludeDisabled?: boolean;
+}
+
+export interface SearchSemanticDirectivesResponse {
+    success: boolean;
+
+    /** Array of semantic directives matching the search criteria */
+    semanticDirectives: SemanticDirective[];
+
+    /** Total count of directives found (may be larger than returned array due to pagination) */
+    totalCount?: number;
+
+    /** If present, there are more results available. Pass this token back in the next request. */
+    paginationToken?: Record<string, any>;
+}
+
+export interface SemanticDirectiveDeleteRequest {
+    semanticDirective: {
+        scope: string;
+        id: string;
+    };
+
+    /**
+     * If you are deleting one of these objects through the CloudFormation custom resource, then you should set this
+     * to be something that is tied to the stack that did the deletion and we ask that you prepend it with 'cloudformation/'
+     * so we understand it was deleted by cloudformation as in 'cloudformation/my-stack-name'.
+     */
+    userId: string;
+}
+
+export interface SemanticDirectiveDeleteResponse {
+    success: boolean;
 }
 
 export interface TagsSiteFeature {

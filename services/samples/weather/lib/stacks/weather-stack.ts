@@ -1,4 +1,5 @@
-import type { AgentDataRequest, ChatAppForIdempotentCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AgentDataRequest, ChatAppForIdempotentCreateOrUpdate, SemanticDirectiveForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+
 import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -201,6 +202,62 @@ export class WeatherStack extends cdk.Stack {
             properties: {
                 Stage: this.stage,
                 ChatAppData: chatAppDataCompressed,
+                // This makes sure that the custom resource is called every time the stack is deployed since it changes each time
+                Timestamp: String(Date.now())
+            }
+        });
+
+        // Get the semantic directive custom resource ARN
+        const semanticDirectiveCustomResourceArn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/lambda/semantic_directive_custom_resource_arn`
+        );
+
+        // Create semantic directives for the weather chat app
+        const semanticDirectiveData: { userId: string; groupId: string; semanticDirectives: SemanticDirectiveForCreateOrUpdate[] } = {
+            userId: `cloudformation/${this.stackName}`,
+            groupId: `${this.stackName}#WeatherSemanticDirectives`,
+            semanticDirectives: [
+                {
+                    scopeType: 'chatapp',
+                    scopeValue: 'weather',
+                    id: 'temperature-format',
+                    description: 'Guidelines for temperature reporting format',
+                    instructions: 'Always include both Celsius and Fahrenheit when reporting temperatures. Format as "XX°C (XX°F)" for better user experience.',
+                    createdBy: `cloudformation/${this.stackName}`,
+                    lastUpdatedBy: `cloudformation/${this.stackName}`
+                },
+                {
+                    scopeType: 'chatapp',
+                    scopeValue: 'weather',
+                    id: 'location-clarity',
+                    description: 'Location specification requirements',
+                    instructions:
+                        'When a user asks about weather without specifying a location, politely ask them to provide a specific city or region. Avoid making assumptions about their location.',
+                    createdBy: `cloudformation/${this.stackName}`,
+                    lastUpdatedBy: `cloudformation/${this.stackName}`
+                },
+                {
+                    scopeType: 'chatapp',
+                    scopeValue: 'weather',
+                    id: 'severe-weather-alerts',
+                    description: 'Handling of severe weather conditions',
+                    instructions:
+                        'When reporting severe weather conditions (storms, hurricanes, extreme temperatures), always emphasize safety precautions and recommend checking local authorities for emergency guidance.',
+                    createdBy: `cloudformation/${this.stackName}`,
+                    lastUpdatedBy: `cloudformation/${this.stackName}`
+                }
+            ]
+        };
+
+        // Compress and encode the semantic directive data
+        const semanticDirectiveDataCompressed = gzipAndBase64EncodeString(JSON.stringify(semanticDirectiveData));
+
+        new cdk.CustomResource(this, `${props.projNameTitleCase}SemanticDirectiveCustomResource`, {
+            serviceToken: semanticDirectiveCustomResourceArn,
+            properties: {
+                Stage: this.stage,
+                SemanticDirectiveData: semanticDirectiveDataCompressed,
                 // This makes sure that the custom resource is called every time the stack is deployed since it changes each time
                 Timestamp: String(Date.now())
             }

@@ -28,6 +28,10 @@ import type {
     TagDefinitionDeleteResponse,
     TagDefinitionSearchResponse,
     TagDefinitionWidget,
+    SemanticDirective,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteResponse,
+    SearchSemanticDirectivesResponse,
     UpdateChatSessionFeedbackResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { type ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
@@ -39,6 +43,7 @@ import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 import type { ComponentRegistry } from '../chat/message-segments/component-registry';
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
+import { InstructionAugmentationState } from './components/instruction-augmentation/instruction-augmentation.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -47,12 +52,14 @@ export class SiteAdminState {
     #agents = $state<AgentDefinition[]>([]);
     #siteFeatures = $state<SiteFeatures>();
     #tagDefinitions = $state<TagDefinition<TagDefinitionWidget>[]>([]);
+    #semanticDirectives = $state<SemanticDirective[]>([]);
     #nav = $state<SiteAdminNavState>() as SiteAdminNavState;
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
     #chatSessions = $state<ChatSession[]>([]);
     #sessionInsights = $state<SessionInsightsState>() as SessionInsightsState;
+    #instructionAugmentation = $state<InstructionAugmentationState>() as InstructionAugmentationState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #sessionsPagination = $state<ServerSideTableState>({
         pageIndex: 0,
@@ -88,8 +95,14 @@ export class SiteAdminState {
         createOrUpdateTagDefinition: false,
         deleteTagDefinition: false,
         searchTagDefinitions: false,
+        searchSemanticDirectives: false,
+        createOrUpdateSemanticDirective: false,
+        deleteSemanticDirective: false,
         getAgent: false,
-        getInstructionAssistanceConfigFromSsm: false
+        getInstructionAssistanceConfigFromSsm: false,
+        getAllChatApps: false,
+        getAllAgents: false,
+        getAllTools: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -125,6 +138,13 @@ export class SiteAdminState {
         return this.#sessionInsights;
     }
 
+    get instructionAugmentation() {
+        if (!this.#instructionAugmentation) {
+            this.#instructionAugmentation = new InstructionAugmentationState(this.fetchz, this.#userPrefs, this.#identity);
+        }
+        return this.#instructionAugmentation;
+    }
+
     get userPrefs() {
         return this.#userPrefs;
     }
@@ -151,6 +171,10 @@ export class SiteAdminState {
 
     get tagDefinitions() {
         return this.#tagDefinitions;
+    }
+
+    get semanticDirectives() {
+        return this.#semanticDirectives;
     }
 
     get instructionAssistanceConfig() {
@@ -397,6 +421,32 @@ export class SiteAdminState {
                 const response = json as TagDefinitionSearchResponse;
                 if (response.success) {
                     this.#tagDefinitions = response.tagDefinitions;
+                }
+            } else if (request.command === 'createOrUpdateSemanticDirective') {
+                const response = json as SemanticDirectiveCreateOrUpdateResponse;
+                if (response.success) {
+                    // Update or add the semantic directive in our local state
+                    const existingIndex = this.#semanticDirectives.findIndex(
+                        (directive) => directive.scope === response.semanticDirective.scope && directive.id === response.semanticDirective.id
+                    );
+                    if (existingIndex !== -1) {
+                        this.#semanticDirectives[existingIndex] = response.semanticDirective;
+                    } else {
+                        this.#semanticDirectives.push(response.semanticDirective);
+                    }
+                }
+            } else if (request.command === 'deleteSemanticDirective') {
+                const response = json as SemanticDirectiveDeleteResponse;
+                if (response.success) {
+                    // Remove the semantic directive from our local state
+                    this.#semanticDirectives = this.#semanticDirectives.filter(
+                        (directive) => !(directive.scope === request.request.semanticDirective.scope && directive.id === request.request.semanticDirective.id)
+                    );
+                }
+            } else if (request.command === 'searchSemanticDirectives') {
+                const response = json as SearchSemanticDirectivesResponse;
+                if (response.success) {
+                    this.#semanticDirectives = response.semanticDirectives;
                 }
             } else if (request.command === 'getAgent') {
                 const response = json as GetAgentResponse;

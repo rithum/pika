@@ -51,6 +51,14 @@ import type {
     TagDefinitionSearchResponse,
     TagDefinitionForCreateOrUpdate,
     TagDefinitionLite,
+    SemanticDirective,
+    SemanticDirectiveCreateOrUpdateRequest,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteRequest,
+    SemanticDirectiveDeleteResponse,
+    SearchSemanticDirectivesRequest,
+    SearchSemanticDirectivesResponse,
+    SemanticDirectiveForCreateOrUpdate,
     RecordOrUndef
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from 'pika-shared/types/chatbot/chatbot-types';
@@ -84,7 +92,10 @@ import {
     getTagDefinition,
     createOrUpdateTagDefinition,
     deleteTagDefinition,
-    searchTagDefinitions
+    searchTagDefinitions,
+    createOrUpdateSemanticDirective,
+    deleteSemanticDirective,
+    searchSemanticDirectives
 } from './chat-admin-ddb';
 import {
     agentsAreSame,
@@ -1399,6 +1410,48 @@ export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Pro
     return {
         success: true,
         tagDefinitions,
+        paginationToken
+    };
+}
+
+// ===== SEMANTIC DIRECTIVE OPERATIONS =====
+
+/**
+ * Create or update a semantic directive (idempotent operation)
+ */
+export async function createOrUpdateSemanticDirectiveApi(request: SemanticDirectiveCreateOrUpdateRequest): Promise<SemanticDirectiveCreateOrUpdateResponse> {
+    const { semanticDirective, userId } = request;
+
+    const createdSemanticDirective = await createOrUpdateSemanticDirective(semanticDirective, userId);
+
+    return {
+        success: true,
+        semanticDirective: createdSemanticDirective
+    };
+}
+
+/**
+ * Delete a semantic directive
+ */
+export async function deleteSemanticDirectiveApi(request: SemanticDirectiveDeleteRequest): Promise<SemanticDirectiveDeleteResponse> {
+    const { semanticDirective } = request;
+
+    await deleteSemanticDirective(semanticDirective.scope, semanticDirective.id);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * Search for semantic directives with optional filtering and pagination
+ */
+export async function searchSemanticDirectivesApi(request: SearchSemanticDirectivesRequest & { groupId?: string }): Promise<SearchSemanticDirectivesResponse> {
+    let [semanticDirectives, paginationToken] = await searchSemanticDirectives(request);
+
+    return {
+        success: true,
+        semanticDirectives,
         paginationToken
     };
 }

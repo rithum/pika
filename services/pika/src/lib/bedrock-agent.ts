@@ -1,87 +1,55 @@
 import {
+    type ActionGroupInvocationInput,
     type AgentActionGroup,
+    AgentCollaboration,
+    type Attribution,
     BedrockAgentRuntimeClient,
+    type Collaborator,
     type ConversationHistory,
+    CreationMode,
+    CustomControlMethod,
+    type InlineAgentReturnControlPayload,
+    InvocationInputMember,
     InvokeInlineAgentCommand,
     type InvokeInlineAgentCommandInput,
     type KnowledgeBase,
-    type Trace,
-    type RetrievalFilter,
-    type Attribution,
-    PromptType,
-    AgentCollaboration,
-    RelayConversationHistory,
-    CreationMode,
-    type Collaborator,
     PromptState,
-    type InlineAgentReturnControlPayload,
+    PromptType,
+    RelayConversationHistory,
     ResponseState,
-    InvocationInputMember,
-    CustomControlMethod,
-    type ActionGroupInvocationInput
+    type RetrievalFilter,
+    type Trace
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { existsSync, readFileSync } from 'fs';
+import cloneDeep from 'lodash.clonedeep';
+import { resolve } from 'path';
 import {
     Accurate,
     AccurateWithStatedAssumptions,
     AccurateWithUnstatedAssumptions,
     type AgentAndTools,
+    type KnowledgeBase as AgentDefinitionKnowledgeBase,
     type ChatAppOverridableFeaturesForConverseFn,
     type ChatMessageForCreate,
     type ChatMessageUsage,
     type ChatSession,
     Inaccurate,
+    type McpToolDefinition,
     type RecordOrUndef,
     type SimpleAuthenticatedUser,
+    type ToolDefinition,
     Unclassified,
     type VerifyResponseClassification,
-    VerifyResponseClassifications,
-    type KnowledgeBase as AgentDefinitionKnowledgeBase,
-    type ToolDefinition,
-    type McpToolDefinition
+    VerifyResponseClassifications
 } from 'pika-shared/types/chatbot/chatbot-types';
-import cloneDeep from 'lodash.clonedeep';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
 import { modelPricing } from '../lambda/converse/model-pricing';
-import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
-import { processMcpActionGroup as processMcpTool } from './mcp';
-import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { jsonparse } from './jsonparse';
-import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
-// import { Trace } from './bedrock-types';
-
-export const MODELS = {
-    ANTHROPIC: {
-        Claude3Haiku: { name: 'Claude3Haiku', id: 'anthropic.claude-3-haiku-20240307-v1:0' },
-        Claude3Sonnet: { name: 'Claude3Sonnet', id: 'anthropic.claude-3-sonnet-20240229-v1:0' },
-        Claude3Opus: { name: 'Claude3Opus', id: 'anthropic.claude-3-opus-20240229-v1:0' },
-        Claude3_5Haiku: { name: 'Claude3_5Haiku', id: 'us.anthropic.claude-3-5-haiku-20241022-v1:0' },
-        Claude3_5SonnetV2: { name: 'Claude3_5SonnetV2', id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0' },
-        Claude3_7Sonnet: { name: 'Claude3_7Sonnet', id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' },
-        Claude4Sonnet: { name: 'Claude4Sonnet', id: 'us.anthropic.claude-sonnet-4-20250514-v1:0' },
-        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0' },
-        Claude4_1Opus: { name: 'Claude4_1Opus', id: 'us.anthropic.claude-opus-4-1-20250805-v1:0' }
-    },
-    AMAZON: {
-        NovaLite: { name: 'NovaLite', id: 'amazon.nova-lite-v1:0' },
-        NovaPremier: { name: 'NovaPremier', id: 'amazon.nova-premier-v1:0' },
-        NovaPro: { name: 'NovaPro', id: 'amazon.nova-pro-v1:0' },
-        NovaMicro: { name: 'NovaMicro', id: 'amazon.nova-micro-v1:0' }
-    },
-    META: {
-        Llama3_2_1B_Instruct: { name: 'Llama3_2_1B_Instruct', id: 'meta.llama3-2-1b-instruct-v1:0' },
-        Llama3_2_11B_Instruct: { name: 'Llama3_2_11B_Instruct', id: 'meta.llama3-2-11b-instruct-v1:0' },
-        Llama3_2_90B_Instruct: { name: 'Llama3_2_90B_Instruct', id: 'meta.llama3-2-90b-instruct-v1:0' },
-        Llama3_3_70B_Instruct: { name: 'Llama3_3_70B_Instruct', id: 'meta.llama3-3-70b-instruct-v1:0' }
-    }
-};
-
-const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
-//const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
-const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
-
-const DEFAULT_VERIFICATION_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'amazon.nova-micro-v1:0';
+import { processMcpActionGroup as processMcpTool } from './mcp';
+import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_ANTHROPIC_VERSION, DEFAULT_VERIFICATION_MODEL, InvokeAgentHooks, ReturnControlContext, ToolContext } from './model-types-utils';
+import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
@@ -133,19 +101,14 @@ if (global.awslambda == null) {
     };
 }
 
-export interface ReturnControlContext {
-    sessionId: string;
-    invokeCommand: InvokeInlineAgentCommandInput;
+export function getBedrockAgentClient(): BedrockAgentRuntimeClient {
+    return bedrockAgentClient;
 }
 
-interface InvokeAgentHooks {
-    onStart: () => void;
-    onChunk: (chunk: string, chunkIndex: number, attribution?: Attribution) => void;
-    onTrace: (trace: Trace) => void;
-    onEnd: (usage: ChatMessageUsage) => void;
-    onError: (error: any) => void;
-    returnControlHandlers?: Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
+export function getBedrockClient(): BedrockRuntimeClient {
+    return bedrockClient;
 }
+
 async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string) {
     let error: unknown;
     let startingTime = Date.now();
@@ -557,14 +520,6 @@ Response with the the classification Letter and Explanation as json in an <answe
         classification: classification ?? Accurate,
         explanation: jsonResponse.explanation
     };
-}
-
-export interface ToolContext {
-    getInstructions?: (toolIds: string[]) => string;
-    getActionGroups: (tools: string[]) => AgentActionGroup[];
-    getReturnControlHandlers?: () => Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
-    initialize?: (sessionId: string) => Promise<void>;
-    end?: (sessionId: string) => Promise<void>;
 }
 
 function convertInvokeEventToActionGroupEvent(event: InvocationInputMember, context: ReturnControlContext): ActionGroupInvocationInput {
@@ -1221,37 +1176,3 @@ function replaceTemplateValues(filter: RetrievalFilter, userData: any): Retrieva
     // Return the filter unchanged if it doesn't match any known types
     return filter;
 }
-
-//TODO: We found the actual type for the SDK and are using it.  Leaving this here for now
-// since there is some confusion as to whether it is correct, although according to TS compiler, it is.
-// interface CustomOrchestrationTraceMember {
-//     failureTrace?: {
-//         failureReason: string;
-//     };
-//     orchestrationTrace?: CustomOrchestrationTrace & {
-//         rationale?: {
-//             text: string;
-//         };
-//         modelInvocationInput?: {
-//             foundationModel: string;
-//         };
-//         modelInvocationOutput?: {
-//             traceId: string;
-//             rawResponse?: any;
-//             metadata?: {
-//                 usage?: {
-//                     inputTokens: number;
-//                     outputTokens: number;
-//                 };
-//             };
-//         };
-
-//         invocationInput?: {};
-//         observation?: {
-//             actionGroupInvocationOutput?: {
-//                 text: string;
-//                 metadata?: {};
-//             };
-//         };
-//     };
-// }

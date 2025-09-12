@@ -1,0 +1,83 @@
+<script lang="ts">
+    import { ChevronLeft, ChevronRight, ListFilter, ListRestart } from '$icons/lucide';
+    import { Button } from '$ui/shadcn/button';
+    import { Separator } from '$ui/shadcn/separator';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import * as Popover from '$ui/shadcn/popover';
+    import { getContext } from 'svelte';
+    import ChatAppsFilter from './filters/chatapps-filter.svelte';
+    import { createDefaultSearchQuery } from './utils';
+    import ToolsFilter from './filters/tools-filter.svelte';
+    import AgentsFilter from './filters/agents-filter.svelte';
+    import EntityFilter from './filters/entity-filter.svelte';
+    import AgentEntityFilter from './filters/agent-entity-filter.svelte';
+    import DirectiveIdFilter from './filters/directive-id-filter.svelte';
+
+    const appState = getContext<AppState>('appState');
+    const siteAdmin = appState.siteAdmin;
+    const iaState = siteAdmin.instructionAugmentation;
+    let advancedOpen = $state(false);
+</script>
+
+<Popover.Root>
+    <Popover.Trigger>
+        {#snippet child({ props })}
+            <Button {...props} variant="outline" size="sm" class="h-8">
+                <ListFilter class="w-4 h-4" />
+            </Button>
+        {/snippet}
+    </Popover.Trigger>
+    <Popover.Content class="p-0 {advancedOpen ? 'w-[800px]' : 'w-[400px]'}">
+        <div class="flex flex-row">
+            <div class="flex flex-col w-[400px]">
+                <div class="pl-4 pr-1 flex items-center justify-between pt-1">
+                    <div class="text-sm font-medium">Scope Filters</div>
+                    <div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-8"
+                            onclick={() => {
+                                iaState.searchQuery = createDefaultSearchQuery();
+                            }}
+                        >
+                            <ListRestart class="w-3 h-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-8 {advancedOpen ? 'bg-gray-50' : ''}"
+                            onclick={() => (advancedOpen = !advancedOpen)}
+                        >
+                            {#if advancedOpen}
+                                <ChevronLeft class="w-3 h-4 text-blue-500" />
+                            {:else}
+                                <ChevronRight class="w-3 h-4" />
+                            {/if}
+                        </Button>
+                    </div>
+                </div>
+                <Separator />
+                <div class="p-4 pr-2 flex flex-col gap-4">
+                    <ChatAppsFilter />
+                    <AgentsFilter />
+                    <ToolsFilter />
+                    <EntityFilter />
+                    <AgentEntityFilter />
+                </div>
+            </div>
+            {#if advancedOpen}
+                <div class="p-0 m-0 h-auto bg-border" style="width: 1px;"></div>
+                <div class="flex flex-col w-[400px]">
+                    <div class="pl-4 pr-1 flex items-center justify-between pt-1 h-9">
+                        <div class="text-sm font-medium">Other Filters</div>
+                    </div>
+                    <Separator />
+                    <div class="p-4 pr-2 flex flex-col gap-4">
+                        <DirectiveIdFilter />
+                    </div>
+                </div>
+            {/if}
+        </div>
+    </Popover.Content>
+</Popover.Root>

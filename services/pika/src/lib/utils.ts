@@ -268,3 +268,41 @@ export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef =
 
     return converted as ChatSession<T>;
 }
+
+/**
+ * Extracts a value from custom data using a dot-notation path.
+ * Supports nested object traversal like "account.company.id".
+ *
+ * @param customData - The custom data object to extract from
+ * @param customDataFieldPathToMatchUsersEntity - Dot-notation path to the field (e.g., "account.company.id")
+ * @returns The value at the specified path, or undefined if not found
+ */
+export function getEntityFromCustomData(customData: Record<string, any> | undefined, customDataFieldPathToMatchUsersEntity: string): string | undefined {
+    if (!customData) {
+        console.log(
+            `[getEntityFromCustomData] No customData attribute found on user, so returning undefined.  This could be a bug in the Pika config since we only call this when we want to find the user's entity.`
+        );
+        return undefined;
+    }
+
+    // Split the path by dots to handle nested properties
+    const pathSegments = customDataFieldPathToMatchUsersEntity.split('.');
+    let current: any = customData;
+
+    // Traverse the nested path
+    for (const segment of pathSegments) {
+        if (current == null || typeof current !== 'object') {
+            return undefined;
+        }
+        current = current[segment];
+    }
+
+    // Return the value if it's a string, or convert to string if it's a primitive
+    if (typeof current === 'string') {
+        return current;
+    } else if (typeof current === 'number' || typeof current === 'boolean') {
+        return String(current);
+    }
+
+    return undefined;
+}

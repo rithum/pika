@@ -2,7 +2,9 @@ import {
     AgentDataRequest,
     AgentDefinitionForIdempotentCreateOrUpdate,
     ChatAppDataRequest,
-    ToolDefinitionForIdempotentCreateOrUpdate
+    ToolDefinitionForIdempotentCreateOrUpdate,
+    SemanticDirectiveDataRequest,
+    SemanticDirectiveForCreateOrUpdate
 } from 'pika-shared/types/chatbot/chatbot-types';
 import Serverless from 'serverless';
 
@@ -24,12 +26,16 @@ export interface PikaServerlessConfig {
     // Custom resource ARNs
     agentCustomResourceArn?: string;
     chatAppCustomResourceArn?: string;
+    semanticDirectiveCustomResourceArn?: string;
 
     // Agent definitions
     agents?: AgentDefinitionWithToolRefs[];
 
     // Chat app definitions
     chatApps?: ChatAppDataRequest[];
+
+    // Semantic directive definitions
+    semanticDirectives?: SemanticDirectiveDataRequest[];
 
     // Standalone tool definitions (for tools that may be used by external agents)
     tools?: PikaToolWithLambdaRef[];

@@ -12,14 +12,19 @@ import type {
     TagDefinitionWidget,
     TagDefinitionForCreateOrUpdate,
     TagDefinitionLite,
+    SemanticDirective,
+    SemanticDirectiveForCreateOrUpdate,
+    SearchSemanticDirectivesRequest,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
     UpdateableChatAppOverrideFields,
-    UpdateableToolDefinitionFields
+    UpdateableToolDefinitionFields,
+    SemanticDirectiveScope
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
+import { constructScope } from 'pika-shared/util/server-client-utils';
 
 import { DynamoDBClient, type ScanOutput } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -75,6 +80,14 @@ function getTagDefinitionsTable(): string {
     const tableName = process.env.TAG_DEFINITIONS_TABLE;
     if (!tableName) {
         throw new Error('TAG_DEFINITIONS_TABLE environment variable is not set');
+    }
+    return tableName;
+}
+
+function getSemanticDirectiveTable(): string {
+    const tableName = process.env.SEMANTIC_DIRECTIVE_TABLE;
+    if (!tableName) {
+        throw new Error('SEMANTIC_DIRECTIVE_TABLE environment variable is not set');
     }
     return tableName;
 }
@@ -1255,7 +1268,7 @@ export async function getAllTagDefinitions(
     };
 
     if (!includeDisabled) {
-        scanParams.FilterExpression = 'disabled = :disabled';
+        scanParams.FilterExpression = 'attribute_not_exists(disabled) OR disabled = :disabled';
         scanParams.ExpressionAttributeValues = { ':disabled': false };
     }
 
@@ -1475,4 +1488,414 @@ function isRetryableError(error: any): boolean {
     // Conservative approach: default to retryable for truly unknown errors
     // This ensures we don't miss retrying legitimate transient failures
     return true;
+}
+
+// ===== SEMANTIC DIRECTIVE OPERATIONS =====
+
+/**
+ * Create or update a semantic directive (idempotent operation).  If you pass in the scope value, we ignore it and construct it ourselves.
+ */
+export async function createOrUpdateSemanticDirective(semanticDirective: SemanticDirectiveForCreateOrUpdate, userId: string): Promise<SemanticDirective> {
+    const now = new Date().toISOString();
+
+    const scope = constructScope(semanticDirective.scopeType, semanticDirective.scopeValue);
+
+    // Check if the semantic directive already exists
+    const existingSemanticDirective = await getSemanticDirective(scope, semanticDirective.id);
+
+    const semanticDirectiveToStore: SemanticDirective = {
+        ...semanticDirective,
+        scope,
+        createdBy: existingSemanticDirective?.createdBy ?? userId,
+        lastUpdatedBy: userId,
+        createDate: existingSemanticDirective?.createDate ?? now,
+        lastUpdate: now
+    };
+
+    const putParams = {
+        TableName: getSemanticDirectiveTable(),
+        Item: convertToSnakeCase(semanticDirectiveToStore)
+    };
+
+    try {
+        await ddbDocClient.put(putParams);
+    } catch (error) {
+        console.error(`Error creating/updating semantic directive ${scope}/${semanticDirective.id}:`, error);
+        throw error;
+    }
+
+    return semanticDirectiveToStore;
+}
+
+/**
+ * Get a specific semantic directive by scope and id
+ */
+export async function getSemanticDirective(scope: string, id: string): Promise<SemanticDirective | undefined> {
+    const getParams = {
+        TableName: getSemanticDirectiveTable(),
+        Key: {
+            scope,
+            id
+        }
+    };
+
+    try {
+        const result = await ddbDocClient.get(getParams);
+
+        if (!result.Item) {
+            return undefined;
+        }
+
+        return convertToCamelCase(result.Item as any) as SemanticDirective;
+    } catch (error) {
+        console.error(`Error getting semantic directive ${scope}/${id}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Delete a semantic directive
+ */
+export async function deleteSemanticDirective(scope: string, id: string): Promise<void> {
+    const deleteParams = {
+        TableName: getSemanticDirectiveTable(),
+        Key: {
+            scope,
+            id
+        }
+    };
+
+    await ddbDocClient.delete(deleteParams);
+}
+
+/**
+ * Get semantic directives by groupId using GSI3
+ */
+export async function getSemanticDirectivesByGroupId(
+    groupId: string,
+    limit?: number,
+    paginationToken?: Record<string, any>
+): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    const effectiveLimit = Math.min(limit || 100, 100);
+
+    const params: any = {
+        TableName: getSemanticDirectiveTable(),
+        IndexName: 'GSI3_byGroupId',
+        KeyConditionExpression: 'group_id = :groupId',
+        ExpressionAttributeValues: {
+            ':groupId': groupId
+        },
+        Limit: effectiveLimit,
+        ScanIndexForward: false, // Most recent first
+        ExclusiveStartKey: paginationToken
+    };
+
+    const result = await ddbDocClient.query(params);
+    const convertedItems = (result.Items || []).map((item: any) => convertToCamelCase(item as any) as SemanticDirective);
+
+    return [convertedItems, result.LastEvaluatedKey];
+}
+
+/**
+ * Search semantic directives with complex filtering and multiple access patterns
+ */
+export async function searchSemanticDirectives(request: SearchSemanticDirectivesRequest & { groupId?: string }): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    const { scopes, createdBy, directiveIds, groupId, createdAfter, createdBefore, updatedAfter, updatedBefore, sortOrder = 'desc', limit = 50, paginationToken } = request;
+
+    // Validate limit
+    const effectiveLimit = Math.min(limit || 50, 100);
+
+    let allResults: SemanticDirective[] = [];
+    let newPaginationToken: Record<string, any> | undefined;
+
+    // Strategy 0: Query by findOne
+    if (request.findOne) {
+        const scope = constructScope(request.findOne.scopeType, request.findOne.scopeValue);
+        const existingSemanticDirective = await getSemanticDirective(scope, request.findOne.id);
+        if (existingSemanticDirective) {
+            allResults.push(existingSemanticDirective);
+        }
+        newPaginationToken = undefined;
+    }
+    // Strategy 1: Query by groupId (uses GSI3)
+    else if (groupId) {
+        [allResults, newPaginationToken] = await getSemanticDirectivesByGroupId(groupId, effectiveLimit, paginationToken);
+    }
+    // Strategy 2: Query by specific scopes
+    else if (scopes && scopes.length > 0) {
+        [allResults, newPaginationToken] = await searchByScopes(scopes, effectiveLimit, paginationToken);
+    }
+    // Strategy 3: Query by creator (uses GSI1)
+    else if (createdBy) {
+        [allResults, newPaginationToken] = await searchByCreator(createdBy, sortOrder, effectiveLimit, paginationToken);
+    }
+    // Strategy 4: Query by directive IDs (uses GSI2)
+    else if (directiveIds && directiveIds.length > 0) {
+        [allResults, newPaginationToken] = await searchByDirectiveIds(directiveIds, effectiveLimit, paginationToken);
+    }
+    // Strategy 5: Scan all (fallback)
+    else {
+        [allResults, newPaginationToken] = await scanAllSemanticDirectives(effectiveLimit, paginationToken);
+    }
+
+    // Apply date filters if specified
+    allResults = applyDateFilters(allResults, {
+        createdAfter,
+        createdBefore,
+        updatedAfter,
+        updatedBefore
+    });
+
+    // Filter out disabled directives if requested
+    if (request.excludeDisabled) {
+        allResults = allResults.filter((directive) => !directive.disabled);
+        if (allResults.length === 0 && newPaginationToken) {
+            // Let's go ahead and get the next page of results
+            request.paginationToken = newPaginationToken;
+            [allResults, newPaginationToken] = await searchSemanticDirectives(request);
+        }
+    }
+
+    return [allResults, newPaginationToken];
+}
+
+/**
+ * Search semantic directives by specific scopes using main table
+ */
+async function searchByScopes(
+    scopes: SemanticDirectiveScope[],
+    limit: number,
+    paginationToken?: Record<string, any>
+): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    // For instruction augmentation, we don't support pagination across multiple scopes
+    // as it's conceptually problematic and unnecessary for this use case
+    if (scopes.length > 1 && paginationToken) {
+        console.warn('Pagination not supported when querying multiple scopes - ignoring pagination token');
+    }
+
+    const allResults: SemanticDirective[] = [];
+    const batchSize = Math.ceil(limit / scopes.length);
+
+    const scopeKeys = scopes.map((scope) => constructScope(scope.scopeType, scope.scopeValue));
+
+    // Execute queries with concurrency control and retry logic
+    const executeQueryWithRetry = async (scopeKey: string, index: number) => {
+        return await pRetry(
+            async (attemptNumber) => {
+                const params: any = {
+                    TableName: getSemanticDirectiveTable(),
+                    KeyConditionExpression: '#scope = :scope',
+                    ExpressionAttributeNames: {
+                        '#scope': 'scope'
+                    },
+                    ExpressionAttributeValues: {
+                        ':scope': scopeKey
+                    },
+                    Limit: batchSize,
+                    ScanIndexForward: false // Most recent first by default
+                };
+
+                // Only use pagination token for single scope queries
+                if (scopes.length === 1 && paginationToken) {
+                    params.ExclusiveStartKey = paginationToken;
+                }
+
+                const result = await ddbDocClient.query(params);
+                return {
+                    items: result.Items || [],
+                    lastEvaluatedKey: result.LastEvaluatedKey,
+                    scopeKey
+                };
+            },
+            {
+                retries: 3,
+                factor: 2,
+                minTimeout: 100,
+                maxTimeout: 1000,
+                onFailedAttempt: (error) => {
+                    console.warn(`Query scope ${scopeKey} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left:`, error.message);
+
+                    // Don't retry on non-retryable errors
+                    if (!isRetryableError(error)) {
+                        throw new AbortError(error.message);
+                    }
+                }
+            }
+        );
+    };
+
+    // Process in chunks of 3 to avoid overwhelming DynamoDB
+    const CONCURRENCY_LIMIT = 3;
+    const results: Awaited<ReturnType<typeof executeQueryWithRetry>>[] = [];
+
+    for (let i = 0; i < scopeKeys.length; i += CONCURRENCY_LIMIT) {
+        const chunk = scopeKeys.slice(i, i + CONCURRENCY_LIMIT);
+        const chunkResults = await Promise.allSettled(chunk.map((scopeKey, chunkIndex) => executeQueryWithRetry(scopeKey, i + chunkIndex)));
+
+        // Handle results and log any failures
+        for (let j = 0; j < chunkResults.length; j++) {
+            const result = chunkResults[j];
+            if (result.status === 'fulfilled') {
+                results.push(result.value);
+            } else {
+                console.error(`Failed to query scope ${chunk[j]} after retries:`, result.reason);
+                // Continue with other scopes rather than failing completely
+            }
+        }
+    }
+
+    // Combine and convert results
+    for (const result of results) {
+        const convertedItems = result.items.map((item: any) => convertToCamelCase(item as any) as SemanticDirective);
+        allResults.push(...convertedItems);
+    }
+
+    // For single scope queries, return the pagination token
+    const newPaginationToken = scopes.length === 1 && results.length > 0 ? results[0].lastEvaluatedKey : undefined;
+
+    // Sort by createDate and limit results
+    allResults.sort((a, b) => new Date(b.createDate).getTime() - new Date(a.createDate).getTime());
+    const limitedResults = allResults.slice(0, limit);
+
+    return [limitedResults, newPaginationToken];
+}
+
+/**
+ * Search semantic directives by creator using GSI1
+ */
+async function searchByCreator(
+    createdBy: string,
+    sortOrder: 'asc' | 'desc',
+    limit: number,
+    paginationToken?: Record<string, any>
+): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    const params: any = {
+        TableName: getSemanticDirectiveTable(),
+        IndexName: 'GSI1_byCreatedByDate',
+        KeyConditionExpression: 'created_by = :createdBy',
+        ExpressionAttributeValues: {
+            ':createdBy': createdBy
+        },
+        Limit: limit,
+        ScanIndexForward: sortOrder === 'asc',
+        ExclusiveStartKey: paginationToken
+    };
+
+    const result = await ddbDocClient.query(params);
+    const convertedItems = (result.Items || []).map((item: any) => convertToCamelCase(item as any) as SemanticDirective);
+
+    return [convertedItems, result.LastEvaluatedKey];
+}
+
+/**
+ * Search semantic directives by directive IDs using GSI2
+ */
+async function searchByDirectiveIds(
+    directiveIds: string[],
+    limit: number,
+    paginationToken?: Record<string, any>,
+    includeInstructions: boolean = false
+): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    const allResults: SemanticDirective[] = [];
+    const batchSize = Math.ceil(limit / directiveIds.length);
+
+    // Execute queries in parallel for each directive ID
+    const queries = directiveIds.map(async (id, index) => {
+        const params: any = {
+            TableName: getSemanticDirectiveTable(),
+            IndexName: 'GSI2_byId',
+            KeyConditionExpression: 'id = :id',
+            ExpressionAttributeValues: {
+                ':id': id
+            },
+            Limit: batchSize
+        };
+
+        // Add pagination token for first directive ID only (simplified pagination)
+        if (paginationToken && index === 0) {
+            params.ExclusiveStartKey = paginationToken;
+        }
+
+        const result = await ddbDocClient.query(params);
+        return {
+            items: result.Items || [],
+            lastEvaluatedKey: result.LastEvaluatedKey,
+            id
+        };
+    });
+
+    const results = await Promise.all(queries);
+
+    // Combine and convert results
+    for (const result of results) {
+        const convertedItems = result.items.map((item: any) => convertToCamelCase(item as any) as SemanticDirective);
+        allResults.push(...convertedItems);
+    }
+
+    // Use the last evaluated key from the first directive ID for pagination
+    const firstDirectiveResult = results.find((r) => r.id === directiveIds[0]);
+    const newPaginationToken = firstDirectiveResult?.lastEvaluatedKey;
+
+    // Sort by createDate and limit results
+    allResults.sort((a, b) => new Date(b.createDate).getTime() - new Date(a.createDate).getTime());
+    let limitedResults = allResults.slice(0, limit);
+
+    // Filter out instructions if not requested
+    if (!includeInstructions) {
+        limitedResults = limitedResults.map((directive) => {
+            const { instructions, ...directiveWithoutInstructions } = directive;
+            return directiveWithoutInstructions as SemanticDirective;
+        });
+    }
+
+    return [limitedResults, newPaginationToken];
+}
+
+/**
+ * Scan all semantic directives (fallback when no specific criteria)
+ */
+async function scanAllSemanticDirectives(limit: number, paginationToken?: Record<string, any>): Promise<[SemanticDirective[], Record<string, any> | undefined]> {
+    const params: any = {
+        TableName: getSemanticDirectiveTable(),
+        Limit: limit,
+        ExclusiveStartKey: paginationToken
+    };
+
+    const result = await ddbDocClient.scan(params);
+    const convertedItems = (result.Items || []).map((item: any) => convertToCamelCase(item as any) as SemanticDirective);
+
+    // Sort by createDate (newest first)
+    convertedItems.sort((a, b) => new Date(b.createDate).getTime() - new Date(a.createDate).getTime());
+
+    return [convertedItems, result.LastEvaluatedKey];
+}
+
+/**
+ * Apply date filters to results
+ */
+function applyDateFilters(
+    results: SemanticDirective[],
+    filters: {
+        createdAfter?: string;
+        createdBefore?: string;
+        updatedAfter?: string;
+        updatedBefore?: string;
+    }
+): SemanticDirective[] {
+    const { createdAfter, createdBefore, updatedAfter, updatedBefore } = filters;
+
+    return results.filter((directive) => {
+        const createDate = new Date(directive.createDate);
+        const updateDate = new Date(directive.lastUpdate);
+
+        // Apply created date filters
+        if (createdAfter && createDate <= new Date(createdAfter)) return false;
+        if (createdBefore && createDate >= new Date(createdBefore)) return false;
+
+        // Apply updated date filters
+        if (updatedAfter && updateDate <= new Date(updatedAfter)) return false;
+        if (updatedBefore && updateDate >= new Date(updatedBefore)) return false;
+
+        return true;
+    });
 }

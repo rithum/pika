@@ -23,6 +23,7 @@
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
         PromptInputFieldLabelFeatureForChatApp,
+        InstructionAugmentationFeatureForChatApp,
         SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
@@ -41,6 +42,7 @@
     import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
+    import InstructionAugmentationFeatureRenderer from './instruction-augmentation-feature-renderer.svelte';
     import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
     import TagsFeatureRenderer from './tags-feature-renderer.svelte';
     import TracesFeatureRenderer from './traces-feature-renderer.svelte';
@@ -224,6 +226,7 @@
     let expandedFeatures = $state<Record<FeatureIdType, boolean>>({
         fileUpload: false,
         promptInputFieldLabel: false,
+        instructionAugmentation: false,
         suggestions: false,
         uiCustomization: false,
         verifyResponse: false,
@@ -580,6 +583,39 @@
                                 isOverridden={featureOverridden}
                                 {chatAppId}
                             />
+                        {:else if typedFeatureId === 'instructionAugmentation'}
+                            <InstructionAugmentationFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | InstructionAugmentationFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as InstructionAugmentationFeatureForChatApp}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
                         {:else if typedFeatureId === 'suggestions'}
                             <SuggestionsFeatureRenderer
                                 {featureEnabled}
@@ -865,6 +901,23 @@
             above the chat input field, bringing balance to the visual appearance and a welcoming message to get them
             going.
         </p>
+    {:else if featureId === 'instructionAugmentation'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Automatically augments prompts sent to agents with additional contextual information to improve response
+                quality and relevance.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">LLM Semantic Directive Search:</span> Uses the scope of the agent invocation (chat
+                app ID, agent ID, entity ID) to search for semantic directives in a database of canned semantic directives
+                that match the invocation scope. The LLM then evaluates the user's message against these directives to determine
+                which should be included in the prompt.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                This feature helps ensure that agents have access to relevant contextual instructions and guidelines
+                specific to the current chat app and entity context.
+            </p>
+        </div>
     {:else if featureId === 'suggestions'}
         <p class="text-xs text-muted-foreground">
             Suggestions appear as an expandable section above the chat input field allowing a user to click on a

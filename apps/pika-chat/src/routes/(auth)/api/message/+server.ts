@@ -59,9 +59,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         let chatApp: ChatApp | undefined;
+        let customDataFieldPathToMatchUsersEntity: string | undefined;
         try {
-            let customDataFieldPathToMatchUsersEntity: string | undefined;
-
             if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
                 customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
             }
@@ -79,13 +78,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             throw e;
         }
 
-        // Don't trust the features passed in the request and don't send traces and chatDisclaimerNotice to the converse function
+        // Don't trust the features passed in the request and don't send UI-only features to the converse function
         const { chatDisclaimerNotice, traces, logout, fileUpload, suggestions, promptInputFieldLabel, uiCustomization, ...featuresForConverse } = getOverridableFeatures(
             chatApp,
             locals.user
         );
         params.features = featuresForConverse;
         console.log('featuresForConverse', featuresForConverse);
+
+        if (customDataFieldPathToMatchUsersEntity) {
+            params.entityAttributeNameInUserCustomData = customDataFieldPathToMatchUsersEntity;
+        }
 
         // Invoke the Lambda Function URL
         const lambdaResponse = await invokeConverseFunctionUrl<typeof user.customData>(params, simpleUser);
