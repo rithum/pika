@@ -13,8 +13,8 @@
 </script>
 
 <!-- Left Sidebar - Chat Apps List -->
-<div class="w-80 border-r bg-muted/20">
-    <ScrollArea class="h-[calc(100vh-12rem)]">
+<div class="w-80 border-r bg-muted/20 min-h-full">
+    <ScrollArea class="h-full">
         <div class="p-2">
             {#each chatApps as chatApp (chatApp.chatAppId)}
                 <button

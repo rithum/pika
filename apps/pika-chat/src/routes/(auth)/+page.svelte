@@ -80,7 +80,7 @@
         </div>
 
         <!-- Main Content -->
-        <div class="container mx-auto p-6 max-w-7xl">
+        <div class="container mx-auto p-6 max-w-7xl pb-12">
             {#if appState.identity.isInternalUser}
                 {#if bothApps.length > 0}
                     <div class="mb-12">

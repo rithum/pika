@@ -264,7 +264,7 @@
     });
 </script>
 
-<div class="flex h-full">
+<div class="flex min-h-full">
     <LeftNav {chatApps} {selectedChatApp} onSelectChatApp={(chatApp) => (selectedChatApp = chatApp)} />
 
     <!-- Right Panel - Configuration -->
