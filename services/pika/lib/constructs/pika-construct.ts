@@ -1,21 +1,18 @@
-import { SessionInsightsFeature, SessionInsightsOpenSearchConfig } from 'pika-shared/types/chatbot/chatbot-types';
 import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { DynamoEventSource, SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
-import { CustomResource } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as path from 'path';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { Construct } from 'constructs';
+import { SessionInsightsFeature, SessionInsightsOpenSearchConfig } from 'pika-shared/types/chatbot/chatbot-types';
 
 export interface PikaConstructProps {
     stage: string;
@@ -40,6 +37,7 @@ export interface PikaConstructOutputs {
     agentDefinitionsTable: dynamodb.Table;
     toolDefinitionsTable: dynamodb.Table;
     tagDefinitionsTable: dynamodb.Table;
+    semanticDirectiveTable: dynamodb.Table;
     archiveStagingTable: dynamodb.Table;
     chatbotApi: apigateway.RestApi;
     chatAdminApi: apigateway.RestApi;
@@ -94,6 +92,7 @@ export class PikaConstruct extends Construct {
             agentDefinitionsTable: storageResources.agentDefinitionsTable,
             toolDefinitionsTable: storageResources.toolDefinitionsTable,
             tagDefinitionsTable: storageResources.tagDefinitionsTable,
+            semanticDirectiveTable: storageResources.semanticDirectiveTable,
             chatbotApi: apiResources.chatbotApi,
             chatAdminApi: apiResources.chatAdminApi,
             converseFunctionUrl: apiResources.converseFunctionUrl,
@@ -119,6 +118,7 @@ export class PikaConstruct extends Construct {
         const agentDefinitionsTable = this.createAgentDefinitionsTable();
         const toolDefinitionsTable = this.createToolDefinitionsTable();
         const tagDefinitionsTable = this.createTagDefinitionsTable();
+        const semanticDirectiveTable = this.createSemanticDirectiveTable();
 
         // Create the archive processor after tables are created
         this.createArchiveProcessor(archiveStagingTable, fileArchiveBucket, pikaS3Bucket);
@@ -134,7 +134,8 @@ export class PikaConstruct extends Construct {
             chatAppTable,
             agentDefinitionsTable,
             toolDefinitionsTable,
-            tagDefinitionsTable
+            tagDefinitionsTable,
+            semanticDirectiveTable
         };
     }
 
@@ -168,6 +169,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatAppTable,
             storageResources.chatUserTable,
             storageResources.tagDefinitionsTable,
+            storageResources.semanticDirectiveTable,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain
         );
@@ -175,6 +177,7 @@ export class PikaConstruct extends Construct {
         // Create custom resources
         this.createAgentCustomResource(chatAdminRestApi);
         this.createChatAppCustomResource(chatAdminRestApi);
+        this.createSemanticDirectiveCustomResource(chatAdminRestApi);
         this.createTagDefinitionCustomResource(chatAdminRestApi);
         const domainIndexCustomResourceLambda = this.createDomainIndexCustomResource();
 
@@ -191,6 +194,7 @@ export class PikaConstruct extends Construct {
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
             storageResources.tagDefinitionsTable,
+            storageResources.semanticDirectiveTable,
             storageResources.pikaS3Bucket,
             storageResources.chatAppTable,
             storageResources.chatSessionFeedbackTable,
@@ -204,6 +208,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
             storageResources.tagDefinitionsTable,
+            storageResources.semanticDirectiveTable,
             chatAdminRestApi,
             storageResources.agentDefinitionsTable,
             storageResources.toolDefinitionsTable,
@@ -1006,6 +1011,78 @@ export class PikaConstruct extends Construct {
         return tagDefinitionsTable;
     }
 
+    private createSemanticDirectiveTable(): dynamodb.Table {
+        const semanticDirectiveTable = new dynamodb.Table(this, 'SemanticDirectiveTable', {
+            partitionKey: {
+                name: 'scope',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'id',
+                type: dynamodb.AttributeType.STRING
+            },
+            tableName: `semantic-directive-${this.props.stackName}`,
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
+        });
+
+        // GSI1: Query by createdBy and sort by createDate
+        semanticDirectiveTable.addGlobalSecondaryIndex({
+            indexName: 'GSI1_byCreatedByDate',
+            partitionKey: {
+                name: 'created_by',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'create_date',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        // GSI2: Query by id when scope is unknown
+        semanticDirectiveTable.addGlobalSecondaryIndex({
+            indexName: 'GSI2_byId',
+            partitionKey: {
+                name: 'id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'scope',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        // GSI3: Query by groupId and sort by createDate for CloudFormation custom resource
+        semanticDirectiveTable.addGlobalSecondaryIndex({
+            indexName: 'GSI3_byGroupId',
+            partitionKey: {
+                name: 'group_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'create_date',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        new ssm.StringParameter(this, 'SemanticDirectiveTableNameParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/semantic_directive`,
+            stringValue: semanticDirectiveTable.tableName,
+            description: 'DynamoDB Table Name for Semantic Directive'
+        });
+
+        new ssm.StringParameter(this, 'SemanticDirectiveTableArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/semantic_directive_arn`,
+            stringValue: semanticDirectiveTable.tableArn,
+            description: 'DynamoDB Table ARN for Semantic Directive'
+        });
+
+        return semanticDirectiveTable;
+    }
+
     private createSessionRunnerMutexTable(): dynamodb.Table {
         const sessionRunnerMutexTable = new dynamodb.Table(this, 'SessionRunnerMutexTable', {
             partitionKey: {
@@ -1252,6 +1329,7 @@ export class PikaConstruct extends Construct {
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
+        semanticDirectiveTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
         chatAppTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
@@ -1310,6 +1388,8 @@ export class PikaConstruct extends Construct {
                                 toolDefinitionsTable.tableArn,
                                 tagDefinitionsTable.tableArn,
                                 `${tagDefinitionsTable.tableArn}/*`,
+                                semanticDirectiveTable.tableArn,
+                                `${semanticDirectiveTable.tableArn}/*`,
                                 chatAppTable.tableArn,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
@@ -1413,6 +1493,7 @@ export class PikaConstruct extends Construct {
         chatAppTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
+        semanticDirectiveTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain
     ): [lambda.Function, apigateway.RestApi] {
@@ -1454,6 +1535,8 @@ export class PikaConstruct extends Construct {
                                 chatAppTable.tableArn,
                                 tagDefinitionsTable.tableArn,
                                 `${tagDefinitionsTable.tableArn}/*`,
+                                semanticDirectiveTable.tableArn,
+                                `${semanticDirectiveTable.tableArn}/*`,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
                         }),
@@ -1497,6 +1580,7 @@ export class PikaConstruct extends Construct {
                 CHAT_APP_TABLE: chatAppTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
                 TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
+                SEMANTIC_DIRECTIVE_TABLE: semanticDirectiveTable.tableName,
                 STAGE: this.props.stage,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
@@ -1571,6 +1655,7 @@ export class PikaConstruct extends Construct {
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
+        semanticDirectiveTable: dynamodb.Table,
         chatAdminRestApi: apigateway.RestApi,
         agentDefinitionsTable: dynamodb.Table,
         toolDefinitionsTable: dynamodb.Table,
@@ -1594,6 +1679,7 @@ export class PikaConstruct extends Construct {
                 AGENT_DEFINITIONS_TABLE: agentDefinitionsTable.tableName,
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
                 TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
+                SEMANTIC_DIRECTIVE_TABLE: semanticDirectiveTable.tableName,
                 PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
@@ -1635,7 +1721,7 @@ export class PikaConstruct extends Construct {
         });
 
         cdk.Tags.of(postProcessorFn).add('agent-tool', 'true');
-        
+
         return postProcessorFn;
     }
 
@@ -1744,6 +1830,60 @@ export class PikaConstruct extends Construct {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/chat_app_custom_resource_arn`,
             stringValue: chatAppCustomResourceLambda.functionArn,
             description: 'ARN of the Chat App Custom Resource Lambda function'
+        });
+    }
+
+    private createSemanticDirectiveCustomResource(chatAdminRestApi: apigateway.RestApi): void {
+        const semanticDirectiveCustomResourceRole = new iam.Role(this, 'SemanticDirectiveCustomResourceRole', {
+            roleName: `semantic-directive-custom-resource-role-${this.props.stackName}`,
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            inlinePolicies: {
+                SemanticDirectiveCustomResourcePolicy: new iam.PolicyDocument({
+                    statements: [
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+                            resources: ['arn:aws:logs:*:*:*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['execute-api:Invoke'],
+                            resources: [`arn:aws:execute-api:${this.props.region}:${this.props.account}:${chatAdminRestApi.restApiId}/${this.props.stage}/*/*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:GetCallerIdentity'],
+                            resources: ['*']
+                        })
+                    ]
+                })
+            }
+        });
+
+        const semanticDirectiveCustomResourceLambda = new nodejs.NodejsFunction(this, 'SemanticDirectiveCustomResourceLambda', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            entry: 'src/lambda/semantic-directive-custom-resource/index.ts',
+            handler: 'handler',
+            timeout: cdk.Duration.minutes(15),
+            memorySize: 256,
+            role: semanticDirectiveCustomResourceRole,
+            architecture: lambda.Architecture.ARM_64,
+            environment: {
+                CHAT_ADMIN_API_ID: chatAdminRestApi.restApiId,
+                STAGE: this.props.stage
+            },
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
+        });
+
+        new ssm.StringParameter(this, 'SemanticDirectiveCustomResourceArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/semantic_directive_custom_resource_arn`,
+            stringValue: semanticDirectiveCustomResourceLambda.functionArn,
+            description: 'ARN of the Semantic Directive Custom Resource Lambda function'
         });
     }
 

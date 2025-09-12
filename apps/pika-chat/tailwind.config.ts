@@ -1,8 +1,8 @@
-import { fontFamily } from 'tailwindcss/defaultTheme';
+import defaultTheme from 'tailwindcss/defaultTheme';
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-    darkMode: ['class'],
+    darkMode: 'class',
     content: ['./src/**/*.{html,js,svelte,ts}'],
     safelist: ['dark'],
     theme: {
@@ -15,7 +15,7 @@ const config: Config = {
         },
         extend: {
             fontFamily: {
-                sans: [...fontFamily.sans]
+                sans: [...defaultTheme.fontFamily.sans]
             },
             keyframes: {
                 'accordion-down': {

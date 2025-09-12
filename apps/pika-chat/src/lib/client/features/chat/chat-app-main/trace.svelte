@@ -1,16 +1,13 @@
 <script lang="ts">
-    import { ChevronRight, CircleCheck } from '$icons/lucide';
+    import { Copy } from '$icons/ci';
+    import { ChevronRight, CircleCheck, Expand, Shrink } from '$icons/lucide';
     import TextWaveShimmer from '$ui/pika/text-wave-shimmer/text-wave-shimmer.svelte';
     import { Button } from '$ui/shadcn/button';
-    import { Copy } from '$lib/icons/ci';
-    import { Expand, Shrink } from '$icons/lucide';
-    import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
-    import { getContext } from 'svelte';
+    import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
     import { toast } from 'svelte-sonner';
-    import { ChatAppState } from '../chat-app.state.svelte';
     import { v4 as uuidv4 } from 'uuid';
 
     interface Props {
@@ -56,6 +53,47 @@
     });
 
     /**
+     * Recursively traverses an object and parses strings that start and end with {} as JSON
+     * @param obj
+     */
+    function traverseAndParseStrings<T>(obj: T): T {
+        // Handle null or undefined
+        if (obj === null || obj === undefined) {
+            return obj;
+        }
+        // Handle arrays
+        if (Array.isArray(obj)) {
+            return obj.map((item) => traverseAndParseStrings(item)) as T;
+        }
+        // Handle objects
+        if (typeof obj === 'object') {
+            const result = {} as T;
+            for (const [key, value] of Object.entries(obj)) {
+                (result as any)[key] = traverseAndParseStrings(value);
+            }
+            return result;
+        }
+        // Handle strings that start and end with {}
+        if (typeof obj === 'string') {
+            const trimmed = obj.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                try {
+                    // Parse the JSON string
+                    const parsed = JSON.parse(trimmed);
+                    // Recursively traverse the parsed object in case it contains more nested strings
+                    return traverseAndParseStrings(parsed) as T;
+                } catch (error) {
+                    // If parsing fails, return the original string
+                    //console.warn(`Failed to parse JSON string: ${trimmed}`, error);
+                    return obj;
+                }
+            }
+        }
+        // Return primitive values as-is
+        return obj;
+    }
+
+    /**
      * @returns [markdown, rawText]
      */
     function renderMarkdown(text: string | object, lang?: string): [string, string] {
@@ -76,7 +114,7 @@
 
         if (typeof text == 'object') {
             lang = 'json';
-            textString = JSON.stringify(text, null, 2);
+            textString = JSON.stringify(traverseAndParseStrings(text), null, 2);
         } else {
             textString = text;
         }

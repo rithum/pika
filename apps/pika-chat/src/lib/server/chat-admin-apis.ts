@@ -26,8 +26,15 @@ import {
     type TagDefinitionDeleteResponse,
     type TagDefinitionSearchRequest,
     type TagDefinitionSearchResponse,
+    type SemanticDirectiveCreateOrUpdateRequest,
+    type SemanticDirectiveCreateOrUpdateResponse,
+    type SemanticDirectiveDeleteRequest,
+    type SemanticDirectiveDeleteResponse,
+    type SearchSemanticDirectivesRequest,
+    type SearchSemanticDirectivesResponse,
     type UpdateChatSessionFeedbackResponse,
-    type UserChatAppRule
+    type UserChatAppRule,
+    type ToolDefinition
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { convertToJwtString } from 'pika-shared/util/jwt';
@@ -82,6 +89,42 @@ export async function getAllChatApps(): Promise<ChatApp[]> {
     }
 
     return response.body.chatApps;
+}
+
+export async function getAllAgents(): Promise<AgentDefinition[]> {
+    const response = await invokeApi({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/agent`,
+        method: 'GET',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error getting all agents from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.agents;
+}
+
+export async function getAllTools(): Promise<ToolDefinition[]> {
+    const response = await invokeApi({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/tool`,
+        method: 'GET',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error getting all tools from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
+    }
+
+    return response.body.tools;
 }
 
 export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined> {
@@ -488,4 +531,58 @@ export async function getInstructionAssistanceConfigFromSsm(): Promise<Instructi
     instructionAssistanceConfigCache.set('instruction-assistance-config', config);
 
     return config;
+}
+
+export async function createOrUpdateSemanticDirective(request: SemanticDirectiveCreateOrUpdateRequest): Promise<SemanticDirectiveCreateOrUpdateResponse> {
+    const response = await invokeApi<SemanticDirectiveCreateOrUpdateResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/semantic-directive`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error creating or updating semantic directive with status code: ${response.statusCode}`);
+    }
+
+    return response.body;
+}
+
+export async function deleteSemanticDirective(request: SemanticDirectiveDeleteRequest): Promise<SemanticDirectiveDeleteResponse> {
+    const response = await invokeApi<SemanticDirectiveDeleteResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/semantic-directive`,
+        method: 'DELETE',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error deleting semantic directive with status code: ${response.statusCode}`);
+    }
+
+    return response.body;
+}
+
+export async function searchSemanticDirectives(request: SearchSemanticDirectivesRequest): Promise<SearchSemanticDirectivesResponse> {
+    const response = await invokeApi<SearchSemanticDirectivesResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/semantic-directive/search`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error searching semantic directives with status code: ${response.statusCode}`);
+    }
+
+    return response.body;
 }

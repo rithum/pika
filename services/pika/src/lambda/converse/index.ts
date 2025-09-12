@@ -16,7 +16,8 @@ import type {
     TagDefinitionWidget,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    InstructionAssistanceConfig
+    InstructionAssistanceConfig,
+    InvocationScopes
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 import { generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams, applyInstructionAssistance } from 'pika-shared/util/instruction-assistance-utils';
@@ -25,12 +26,14 @@ import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
 import { LRUCache } from 'lru-cache';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
+import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
 import { getValueFromParameterStore, getParametersByPath } from '../../lib/ssm';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
+import { getEntityFromCustomData } from '../../lib/utils';
 
 const SESSION_TIMEOUT_MS = 1000 * 60 * 10; // 10 minutes
 const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way through the session
@@ -232,8 +235,20 @@ export const handler = enhancedStreamifyResponse(
 
             agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
 
+            const entityValue = converseRequest.entityAttributeNameInUserCustomData
+                ? getEntityFromCustomData(user.customData, converseRequest.entityAttributeNameInUserCustomData)
+                : undefined;
+
+            const scopes: InvocationScopes = {
+                ...(converseRequest.chatAppId ? { chatapp: [converseRequest.chatAppId] } : {}),
+                ...(agentAndTools.agent.agentId ? { agent: [agentAndTools.agent.agentId] } : {}),
+                ...(agentAndTools.tools.length > 0 ? { tool: agentAndTools.tools.map((tool) => tool.toolId) } : {}),
+                ...(entityValue ? { entity: [entityValue] } : {}),
+                ...(agentAndTools.agent.agentId && entityValue ? { 'agent-entity': [{ agent: agentAndTools.agent.agentId, entity: entityValue }] } : {})
+            };
+
             console.log('Starting conversation...');
-            await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, converseRequest.files);
+            await converse(chatSession, isNewSession, user, simpleUser, converseRequest.message, responseStream, agentAndTools, features, scopes, converseRequest.files);
             console.log('Conversation completed successfully');
         } catch (e) {
             console.error('=== CONVERSE HANDLER ERROR ===');
@@ -378,6 +393,7 @@ async function converse(
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
     features: ChatAppOverridableFeaturesForConverseFn,
+    scopes: InvocationScopes,
     files?: ChatMessageFile[]
 ) {
     console.log('=== CONVERSE FUNCTION START ===');
@@ -457,7 +473,9 @@ async function converse(
         }
     }
 
-    const questionFromUser = `${instructions}${message}${filesStr}`;
+    const additionalUserPromptInstructions = features.instructionAugmentation?.enabled ? await getAdditionalUserPromptInstructions(scopes, message) : '';
+
+    const questionFromUser = `${instructions}${additionalUserPromptInstructions}${message}${filesStr}`;
     console.log('Question from user:', questionFromUser);
     console.log('Prepared question for agent:', {
         hasInstructions: !!instructions,

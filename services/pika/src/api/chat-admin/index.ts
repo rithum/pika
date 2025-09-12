@@ -27,6 +27,12 @@ import {
     TagDefinitionDeleteResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
+    SemanticDirectiveCreateOrUpdateRequest,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteRequest,
+    SemanticDirectiveDeleteResponse,
+    SearchSemanticDirectivesRequest,
+    SearchSemanticDirectivesResponse,
     ToolDefinition,
     UpdateAgentRequest,
     UpdateChatAppRequest,
@@ -46,9 +52,11 @@ import {
     createOrUpdateChatAppIdempotently,
     createOrUpdateChatAppOverride,
     createOrUpdateTagDefApi,
+    createOrUpdateSemanticDirectiveApi,
     createToolDefinition,
     deleteChatAppOverride,
     deleteTagDefApi,
+    deleteSemanticDirectiveApi,
     getAgent,
     getAgents,
     getChatApp,
@@ -56,6 +64,7 @@ import {
     getTool,
     getTools,
     searchForSessions,
+    searchSemanticDirectivesApi,
     searchTagDefsApi,
     searchToolsByIds,
     updateAgentDefinition,
@@ -199,6 +208,15 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/tagdef/search': {
         handler: handleGetTagDefs
+    },
+    'POST:/api/chat-admin/semantic-directive': {
+        handler: handleCreateOrUpdateSemanticDirective
+    },
+    'DELETE:/api/chat-admin/semantic-directive': {
+        handler: handleDeleteSemanticDirective
+    },
+    'POST:/api/chat-admin/semantic-directive/search': {
+        handler: handleSearchSemanticDirectives
     }
 };
 
@@ -225,6 +243,9 @@ export async function handlerFn(
         | TagDefinitionCreateOrUpdateRequest
         | TagDefinitionDeleteRequest
         | TagDefinitionSearchRequest
+        | SemanticDirectiveCreateOrUpdateRequest
+        | SemanticDirectiveDeleteRequest
+        | SearchSemanticDirectivesRequest
         | BaseRequestData
         | void
     >
@@ -421,9 +442,6 @@ async function handleUpdateAgent(event: APIGatewayProxyEventPika<UpdateAgentRequ
  * GET:/api/chat-admin/tool
  */
 async function handleGetTools(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; tools: ToolDefinition[] }> {
-    // Check for query parameters to filter tools
-    const queryParams = event.queryStringParameters || {};
-
     const tools = await getTools();
     return {
         success: true,
@@ -878,6 +896,58 @@ async function handleDeleteTagDef(event: APIGatewayProxyEventPika<TagDefinitionD
 async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSearchRequest>): Promise<TagDefinitionSearchResponse> {
     const request = event.body || {};
     return await searchTagDefsApi(request);
+}
+
+/**
+ * POST:/api/chat-admin/semantic-directive
+ */
+async function handleCreateOrUpdateSemanticDirective(event: APIGatewayProxyEventPika<SemanticDirectiveCreateOrUpdateRequest>): Promise<SemanticDirectiveCreateOrUpdateResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new Error('Request body is required');
+    }
+
+    if (!request.semanticDirective) {
+        throw new Error('Semantic directive is required');
+    }
+
+    if (!request.userId) {
+        throw new Error('User ID is required');
+    }
+
+    return await createOrUpdateSemanticDirectiveApi(request);
+}
+
+/**
+ * DELETE:/api/chat-admin/semantic-directive
+ */
+async function handleDeleteSemanticDirective(event: APIGatewayProxyEventPika<SemanticDirectiveDeleteRequest>): Promise<SemanticDirectiveDeleteResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new Error('Request body is required');
+    }
+
+    if (!request.semanticDirective) {
+        throw new Error('Semantic directive identifier is required');
+    }
+
+    if (!request.semanticDirective.scope) {
+        throw new Error('Semantic directive scope is required');
+    }
+
+    if (!request.semanticDirective.id) {
+        throw new Error('Semantic directive id is required');
+    }
+
+    return await deleteSemanticDirectiveApi(request);
+}
+
+/**
+ * POST:/api/chat-admin/semantic-directive/search
+ */
+async function handleSearchSemanticDirectives(event: APIGatewayProxyEventPika<SearchSemanticDirectivesRequest>): Promise<SearchSemanticDirectivesResponse> {
+    const request = event.body || {};
+    return await searchSemanticDirectivesApi(request);
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

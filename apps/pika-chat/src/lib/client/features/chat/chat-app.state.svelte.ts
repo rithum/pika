@@ -1,6 +1,6 @@
 import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
-import type { SidebarState } from '$lib/client-ui/shadcn/sidebar/context.svelte';
+import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type {
     AddChatSessionFeedbackRequest,
     ChatAppMode,

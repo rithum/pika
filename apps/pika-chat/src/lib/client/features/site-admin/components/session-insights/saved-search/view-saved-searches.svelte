@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Trash2 } from '$icons/lucide';
-    import { Button } from '$lib/client-ui/shadcn/button';
+    import { Button } from '$ui/shadcn/button';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { formatDateTime } from '$lib/utils';
     import * as Dialog from '$ui/shadcn/dialog';

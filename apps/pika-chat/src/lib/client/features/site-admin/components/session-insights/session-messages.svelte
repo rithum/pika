@@ -56,6 +56,9 @@
             showUserRegionInLeftNav: true,
             showChatHistoryInStandaloneMode: true,
         },
+        instructionAugmentation: {
+            enabled: true,
+        },
     };
 </script>
 

@@ -413,6 +413,10 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             completeExampleInstructionLine: undefined,
             jsonOnlyImperativeInstructionEnabled: false,
             jsonOnlyImperativeInstructionLine: undefined
+        },
+        instructionAugmentation: {
+            enabled: false,
+            type: undefined
         }
     };
 
@@ -538,6 +542,20 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             completeExampleInstructionLine: feature.completeExampleInstructionLine?.mdLine ?? undefined,
             jsonOnlyImperativeInstructionEnabled: feature.jsonOnlyImperativeInstructionLine?.enabled ?? false,
             jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine?.line ?? undefined
+        })
+    );
+
+    // Handle instructionAugmentation feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveInstructionAugmentationFeature = chatApp.override?.features?.instructionAugmentation || chatApp.features?.instructionAugmentation;
+    result.instructionAugmentation = handleSimpleFeature(
+        'instructionAugmentation',
+        effectiveInstructionAugmentationFeature,
+        siteFeatures?.instructionAugmentation,
+        result.instructionAugmentation,
+        (feature) => ({
+            enabled: feature.enabled ?? false,
+            type: feature.type ?? 'llm-semantic-directive-search'
         })
     );
 

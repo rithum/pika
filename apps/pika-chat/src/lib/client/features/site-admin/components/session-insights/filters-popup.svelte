@@ -1,7 +1,7 @@
 <script lang="ts">
     import { ChevronLeft, ChevronRight, ListFilter, ListRestart, SlidersVertical } from '$icons/lucide';
-    import { Button } from '$lib/client-ui/shadcn/button';
-    import { Separator } from '$lib/client-ui/shadcn/separator';
+    import { Button } from '$ui/shadcn/button';
+    import { Separator } from '$ui/shadcn/separator';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import * as Popover from '$ui/shadcn/popover';
     import { getContext } from 'svelte';

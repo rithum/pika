@@ -33,10 +33,10 @@
         "@auth/sveltekit": "catalog:",
         "@aws-crypto/sha256-js": "catalog:",
         "@aws-sdk/client-dynamodb": "catalog:",
+        "@aws-sdk/client-kms": "catalog:",
         "@aws-sdk/client-lambda": "catalog:",
         "@aws-sdk/client-s3": "catalog:",
         "@aws-sdk/client-ssm": "catalog:",
-        "@aws-sdk/client-kms": "catalog:",
         "@aws-sdk/client-sts": "catalog:",
         "@aws-sdk/credential-provider-node": "catalog:",
         "@aws-sdk/lib-dynamodb": "catalog:",
@@ -47,7 +47,6 @@
         "@internationalized/date": "catalog:",
         "@lucide/svelte": "^0.482.0",
         "@opensearch-project/opensearch": "catalog:",
-        "pika-shared": "workspace:*",
         "@pika/typescript-config": "workspace:*",
         "@smithy/node-http-handler": "catalog:",
         "@smithy/signature-v4": "catalog:",
@@ -100,10 +99,12 @@
         "mode-watcher": "catalog:",
         "paneforge": "1.0.0-next.6",
         "path": "catalog:",
+        "pika-shared": "workspace:*",
         "plur": "catalog:",
         "prettier": "catalog:",
         "prettier-plugin-svelte": "catalog:",
         "prettier-plugin-tailwindcss": "catalog:",
+        "sass-embedded": "catalog:",
         "seroval": "catalog:",
         "source-map-support": "catalog:",
         "svelte": "catalog:",
@@ -119,5 +120,9 @@
         "unplugin-icons": "catalog:",
         "uuid": "catalog:",
         "vite": "catalog:"
+    },
+    "dependencies": {
+        "@cartamd/plugin-code": "^4.2.0",
+        "carta-md": "^4.11.1"
     }
 }

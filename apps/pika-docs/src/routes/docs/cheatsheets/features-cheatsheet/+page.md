@@ -80,6 +80,18 @@ outline: [2, 3]
     - Set `notice` text at site (or per-app via override).
     - See: `docs/developer/chat-disclaimer-notice-feature.md`, `docs/developer/overriding-features.md`.
 
+- instructionAugmentation
+
+    - Enable semantic directives for dynamic prompt enhancement.
+    - Enables context-aware instruction injection based on scope (chatapp, agent, tool, entity).
+    - See: `docs/features/instructino-augmentation.md`, `docs/developer/instruction-augmentation.md`.
+
+- agentInstructionAssistance
+
+    - Auto-inject formatting instructions and tag guidance into agent prompts.
+    - Enable sub-features like `includeOutputFormattingRequirements` and `includeInstructionsForTags`.
+    - See: `docs/features/instruction-assistance.md`, `docs/developer/instruction-assistance.md`.
+
 - logout, fileUpload, suggestions, promptInputFieldLabel, uiCustomization, userDataOverrides, entity, siteAdmin, contentAdmin
     - Enable in `pika-config.ts` → optional per-app override (complete config).
     - Role-gated features: `siteAdmin` requires `pika:site-admin`; `contentAdmin` requires `pika:content-admin`.
