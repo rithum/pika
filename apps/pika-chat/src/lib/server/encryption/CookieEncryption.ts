@@ -1,22 +1,30 @@
 import crypto from 'crypto';
 
-const ALGORITHM = 'aes-256-cbc';
+const ALGORITHM = 'aes-256-gcm';
+const LEGACY_ALGORITHM = 'aes-256-cbc';
+const NONCE_SIZE = 12; // 12 bytes optimal for GCM
+const IV_SIZE = 16; // 16 bytes for legacy CBC
+const AUTH_TAG_SIZE = 16; // 16 bytes for GCM auth tag
 
 /**
- * Handles versioned cookie encryption and decryption.
+ * Handles versioned cookie encryption and decryption using AES-256-GCM.
  *
- * Cookie format: "{version}:{iv_hex}:{encrypted_data}"
+ * New cookie format: "{version}:gcm:{nonce_hex}:{encrypted_data}:{auth_tag_hex}"
+ * Legacy cookie format: "{version}:{iv_hex}:{encrypted_data}" (AES-256-CBC)
+ *
  * - Version: Integer version number (1-100)
- * - IV: 16-byte random initialization vector (hex encoded)
- * - Encrypted data: AES-256-CBC encrypted JSON using versioned key and unique IV
+ * - Algorithm: 'gcm' for new cookies, omitted for legacy CBC cookies
+ * - Nonce: 12-byte random nonce for GCM (hex encoded)
+ * - Encrypted data: AES-256-GCM encrypted JSON using versioned key and unique nonce
+ * - Auth tag: 16-byte authentication tag from GCM (hex encoded)
  */
 export class CookieEncryption {
     /**
-     * Encrypt data with a versioned key (generates unique IV per operation)
+     * Encrypt data with a versioned key using AES-256-GCM (generates unique nonce per operation)
      * @param data - Plain text data to encrypt
      * @param version - Key version number
      * @param key - 32-byte encryption key
-     * @returns Versioned encrypted string: "{version}:{iv_hex}:{encrypted_hex}"
+     * @returns Versioned encrypted string: "{version}:gcm:{nonce_hex}:{encrypted_hex}:{auth_tag_hex}"
      */
     encrypt(data: string, version: number, key: Buffer): string {
         try {
@@ -33,17 +41,21 @@ export class CookieEncryption {
                 throw new Error(`Invalid key length: ${key.length}. Must be 32 bytes`);
             }
 
-            // Generate a unique IV for this encryption operation
-            const iv = crypto.randomBytes(16);
+            // Generate a unique nonce for this GCM encryption operation
+            const nonce = crypto.randomBytes(NONCE_SIZE);
 
-            // Perform AES-256-CBC encryption
-            const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+            // Perform AES-256-GCM encryption
+            const cipher = crypto.createCipheriv(ALGORITHM, key, nonce);
             let encrypted = cipher.update(data, 'utf8', 'hex');
             encrypted += cipher.final('hex');
 
-            // Return versioned format with IV: "version:iv_hex:encrypted_data"
-            const ivHex = iv.toString('hex');
-            return `${version}:${ivHex}:${encrypted}`;
+            // Get the authentication tag from GCM
+            const authTag = cipher.getAuthTag();
+
+            // Return versioned format with algorithm indicator: "version:gcm:nonce_hex:encrypted_data:auth_tag_hex"
+            const nonceHex = nonce.toString('hex');
+            const authTagHex = authTag.toString('hex');
+            return `${version}:gcm:${nonceHex}:${encrypted}:${authTagHex}`;
         } catch (error) {
             throw new Error(`Cookie encryption failed: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -62,18 +74,95 @@ export class CookieEncryption {
                 return undefined;
             }
 
-            // Parse format: "version:iv_hex:encrypted_data"
+            // Parse format - detect legacy (3-part) vs new (5-part)
             const parts = encryptedCookie.split(':');
-            if (parts.length !== 3) {
-                console.warn('[CookieEncryption] Invalid cookie format: expected version:iv:data');
+
+            if (parts.length === 3) {
+                // Legacy CBC format: "version:iv_hex:encrypted_data"
+                return this.decryptLegacyCBC(parts, keyCache);
+            } else if (parts.length === 5) {
+                // New GCM format: "version:gcm:nonce_hex:encrypted_data:auth_tag_hex"
+                return this.decryptGCM(parts, keyCache);
+            } else {
+                console.warn(`[CookieEncryption] Invalid cookie format: expected 3 or 5 parts, got ${parts.length}`);
+                return undefined;
+            }
+        } catch (error) {
+            console.warn(`[CookieEncryption] Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
+            return undefined;
+        }
+    }
+
+    /**
+     * Decrypt GCM format cookie: "version:gcm:nonce_hex:encrypted_data:auth_tag_hex"
+     * @private
+     */
+    private decryptGCM(parts: string[], keyCache: Map<number, Buffer>): string | undefined {
+        try {
+            const [versionStr, algorithm, nonceHex, encryptedData, authTagHex] = parts;
+            const version = parseInt(versionStr, 10);
+
+            if (isNaN(version)) {
+                console.warn('[CookieEncryption] Invalid version in GCM cookie');
                 return undefined;
             }
 
+            if (algorithm !== 'gcm') {
+                console.warn(`[CookieEncryption] Unsupported algorithm in cookie: ${algorithm}`);
+                return undefined;
+            }
+
+            // Get key for this version
+            const key = keyCache.get(version);
+            if (!key) {
+                console.warn(`[CookieEncryption] No key found for version ${version}. Available versions: ${Array.from(keyCache.keys()).join(', ')}`);
+                return undefined;
+            }
+
+            // Convert nonce and auth tag from hex back to Buffer
+            const nonce = Buffer.from(nonceHex, 'hex');
+            const authTag = Buffer.from(authTagHex, 'hex');
+
+            // Validate key, nonce, and auth tag sizes
+            if (key.length !== 32) {
+                console.error(`[CookieEncryption] Invalid key length for version ${version}: ${key.length} bytes`);
+                return undefined;
+            }
+
+            if (nonce.length !== NONCE_SIZE) {
+                console.error(`[CookieEncryption] Invalid nonce length: ${nonce.length} bytes, expected ${NONCE_SIZE}`);
+                return undefined;
+            }
+
+            if (authTag.length !== AUTH_TAG_SIZE) {
+                console.error(`[CookieEncryption] Invalid auth tag length: ${authTag.length} bytes, expected ${AUTH_TAG_SIZE}`);
+                return undefined;
+            }
+
+            // Perform AES-256-GCM decryption
+            const decipher = crypto.createDecipheriv(ALGORITHM, key, nonce);
+            decipher.setAuthTag(authTag);
+            let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+
+            return decrypted;
+        } catch (error) {
+            console.warn(`[CookieEncryption] GCM decryption failed: ${error instanceof Error ? error.message : String(error)}`);
+            return undefined;
+        }
+    }
+
+    /**
+     * Decrypt legacy CBC format cookie: "version:iv_hex:encrypted_data"
+     * @private
+     */
+    private decryptLegacyCBC(parts: string[], keyCache: Map<number, Buffer>): string | undefined {
+        try {
             const [versionStr, ivHex, encryptedData] = parts;
             const version = parseInt(versionStr, 10);
 
             if (isNaN(version)) {
-                console.warn('[CookieEncryption] Invalid version in cookie');
+                console.warn('[CookieEncryption] Invalid version in legacy CBC cookie');
                 return undefined;
             }
 
@@ -93,26 +182,28 @@ export class CookieEncryption {
                 return undefined;
             }
 
-            if (iv.length !== 16) {
-                console.error(`[CookieEncryption] Invalid IV length: ${iv.length} bytes`);
+            if (iv.length !== IV_SIZE) {
+                console.error(`[CookieEncryption] Invalid IV length: ${iv.length} bytes, expected ${IV_SIZE}`);
                 return undefined;
             }
 
             // Perform AES-256-CBC decryption
-            const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+            const decipher = crypto.createDecipheriv(LEGACY_ALGORITHM, key, iv);
             let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
             decrypted += decipher.final('utf8');
 
             return decrypted;
         } catch (error) {
-            console.warn(`[CookieEncryption] Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
+            console.warn(`[CookieEncryption] Legacy CBC decryption failed: ${error instanceof Error ? error.message : String(error)}`);
             return undefined;
         }
     }
 
     /**
-     * Extract version number from versioned cookie
-     * @param cookie - Versioned cookie string: "{version}:{iv_hex}:{encrypted_data}"
+     * Extract version number from versioned cookie (supports both formats)
+     * @param cookie - Versioned cookie string:
+     *   New format: "{version}:gcm:{nonce_hex}:{encrypted_data}:{auth_tag_hex}"
+     *   Legacy format: "{version}:{iv_hex}:{encrypted_data}"
      * @returns Version number, or undefined if extraction fails
      */
     extractVersionFromCookie(cookie: string): number | undefined {
@@ -122,7 +213,8 @@ export class CookieEncryption {
             }
 
             const parts = cookie.split(':');
-            if (parts.length !== 3) {
+            // Support both 3-part (legacy CBC) and 5-part (new GCM) formats
+            if (parts.length !== 3 && parts.length !== 5) {
                 return undefined;
             }
 
@@ -140,12 +232,41 @@ export class CookieEncryption {
     }
 
     /**
-     * Check if a cookie string appears to be versioned
+     * Check if a cookie string appears to be versioned (supports both formats)
      * @param cookie - Cookie string to check
-     * @returns True if cookie has version format
+     * @returns True if cookie has version format (either GCM or legacy CBC)
      */
     isVersionedCookie(cookie: string): boolean {
         return this.extractVersionFromCookie(cookie) !== undefined;
+    }
+
+    /**
+     * Detect the encryption algorithm used in a cookie
+     * @param cookie - Cookie string to analyze
+     * @returns 'gcm', 'cbc', or undefined if format is invalid
+     */
+    detectAlgorithm(cookie: string): 'gcm' | 'cbc' | undefined {
+        try {
+            if (!cookie || typeof cookie !== 'string') {
+                return undefined;
+            }
+
+            const parts = cookie.split(':');
+
+            if (parts.length === 3) {
+                // Legacy CBC format
+                return 'cbc';
+            } else if (parts.length === 5) {
+                // New format with explicit algorithm
+                const algorithm = parts[1];
+                return algorithm === 'gcm' ? 'gcm' : undefined;
+            }
+
+            return undefined;
+        } catch (error) {
+            console.warn(`[CookieEncryption] Failed to detect algorithm: ${error instanceof Error ? error.message : String(error)}`);
+            return undefined;
+        }
     }
 
     /**
@@ -155,7 +276,7 @@ export class CookieEncryption {
      */
     validateCache(keyCache: Map<number, Buffer>): boolean {
         // Validate key sizes
-        for (const [version, key] of keyCache) {
+        for (const [version, key] of keyCache.entries()) {
             if (key.length !== 32) {
                 console.error(`[CookieEncryption] Invalid key length for version ${version}: ${key.length} bytes`);
                 return false;
@@ -168,17 +289,21 @@ export class CookieEncryption {
     /**
      * Get statistics about cache contents (for debugging/monitoring)
      * @param keyCache - Map of version to key
-     * @returns Object with cache statistics
+     * @returns Object with cache statistics including supported algorithms
      */
     getCacheStats(keyCache: Map<number, Buffer>): {
         keyCount: number;
         versions: number[];
         valid: boolean;
+        primaryAlgorithm: 'gcm';
+        legacySupport: boolean;
     } {
         return {
             keyCount: keyCache.size,
             versions: Array.from(keyCache.keys()).sort((a, b) => b - a), // Newest first
-            valid: this.validateCache(keyCache)
+            valid: this.validateCache(keyCache),
+            primaryAlgorithm: 'gcm',
+            legacySupport: true // Always supports legacy CBC decryption
         };
     }
 }
