@@ -22,7 +22,7 @@ const STREAMABLE_HTTP_HEADERS_PASSTHROUGH = ['authorization', 'mcp-session-id', 
 async function fetchAccessToken(client_id: string, client_secret: string, token_url: string): Promise<{ accessToken: string; expires: number }> {
     let hash = createHash('sha256').update(`${token_url}:${client_secret}:${client_id}`).digest('hex');
 
-    let tokenDir = process.env.AWS_FUNCTION_NAME ? '/tmp/oauth-tokens' : './oauth-tokens';
+    let tokenDir = process.env.AWS_LAMBDA_FUNCTION_NAME ? '/tmp/oauth-tokens' : './oauth-tokens';
     let tokenPath = `${tokenDir}/${hash}.json`;
     if (existsSync(tokenPath)) {
         let data = JSON.parse(readFileSync(tokenPath, 'utf8'));
