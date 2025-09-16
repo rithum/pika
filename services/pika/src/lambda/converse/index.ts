@@ -1,40 +1,45 @@
 import { type ConversationHistory, ConversationRole } from '@aws-sdk/client-bedrock-agent-runtime';
-import type {
-    AgentAndTools,
-    ChatAppOverridableFeaturesForConverseFn,
-    ChatMessage,
-    ChatMessageFile,
-    ChatMessageForCreate,
-    ChatSession,
-    ChatUser,
-    ConverseRequest,
-    ConverseRequestWithCommand,
-    RecordOrUndef,
-    SimpleAuthenticatedUser,
-    TagDefinition,
-    TagDefinitionLite,
-    TagDefinitionWidget,
-    TagDefinitionSearchRequest,
-    TagDefinitionSearchResponse,
-    InstructionAssistanceConfig,
-    InvocationScopes,
-    ConverseInvocationMode
+import { LRUCache } from 'lru-cache';
+import {
+    type AgentAndTools,
+    type ChatAppOverridableFeaturesForConverseFn,
+    type ChatMessage,
+    type ChatMessageFile,
+    type ChatMessageForCreate,
+    type ChatSession,
+    type ChatUser,
+    type ConverseInvocationMode,
+    type ConverseRequest,
+    type ConverseRequestWithCommand,
+    DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
+    DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+    DEFAULT_MEMORY_STRATEGIES,
+    type InstructionAssistanceConfig,
+    type InvocationScopes,
+    type RecordOrUndef,
+    type SimpleAuthenticatedUser,
+    type TagDefinition,
+    type TagDefinitionLite,
+    type TagDefinitionSearchRequest,
+    type TagDefinitionSearchResponse,
+    type TagDefinitionWidget,
+    type UserMemoryFeatureWithMemoryInfo
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
-import { generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams, applyInstructionAssistance } from 'pika-shared/util/instruction-assistance-utils';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
+import { applyInstructionAssistance, generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
-import { LRUCache } from 'lru-cache';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
-import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
-import { getValueFromParameterStore, getParametersByPath } from '../../lib/ssm';
+import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
+import { getMemoryInstructions } from '../../lib/memory';
+import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
 import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { getEffectiveChatAppId, getEntityFromCustomData, getMemoryId } from '../../lib/utils';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
-import { getEffectiveChatAppId, getEntityFromCustomData } from '../../lib/utils';
 
 const SESSION_TIMEOUT_MS = 1000 * 60 * 10; // 10 minutes
 const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way through the session
@@ -426,7 +431,8 @@ async function converse(
         userId: user.userId,
         messageLength: message.length,
         lastUpdate: chatSession.lastUpdate,
-        agentId: agentAndTools.agent.agentId
+        agentId: agentAndTools.agent.agentId,
+        mode
     });
 
     const msSinceLastUpdate = Date.now() - (chatSession.lastUpdate ? new Date(chatSession.lastUpdate).getTime() : 0);
@@ -437,6 +443,13 @@ async function converse(
     });
 
     let conversationHistory: ConversationHistory | undefined;
+    const memoryFeature: UserMemoryFeatureWithMemoryInfo = {
+        enabled: features.userMemory?.enabled ?? false,
+        maxMemoryRecordsPerPrompt: features.userMemory?.maxMemoryRecordsPerPrompt ?? DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+        maxKMatchesPerStrategy: features.userMemory?.maxKMatchesPerStrategy ?? DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
+        memoryId: !!features.userMemory?.enabled ? getMemoryId() : '',
+        strategies: DEFAULT_MEMORY_STRATEGIES
+    };
     let instructions = '';
 
     if (!isNewSession && msSinceLastUpdate >= TIMEOUT_AFTER_MS) {
@@ -461,8 +474,21 @@ async function converse(
         });
     } else {
         console.log('Using new session or non-expired session');
-        // It's a new session, just save off the instructions if they exist
-        instructions = `${user.features?.instruction?.instruction}\n\n` || '';
+
+        // Add the user's global instructions if they exist.
+        if (!!user.features?.instruction?.instruction) {
+            instructions = `${user.features.instruction.instruction}\n\n`;
+        }
+
+        // Add the memory instructions if they exist and we are in a new session and the memory feature is enabled.
+        // We don't add memory instructions everytime, just for the first message in a new session.
+        if (isNewSession && memoryFeature.enabled) {
+            const memoryInstructions = await getMemoryInstructions(simpleUser, memoryFeature, message, memoryFeature.maxKMatchesPerStrategy);
+            if (!!memoryInstructions) {
+                instructions = `${instructions}${memoryInstructions}\n\n`;
+            }
+        }
+
         console.log('Instructions for new session:', {
             hasInstructions: !!instructions,
             instructionLength: instructions.length
@@ -543,6 +569,7 @@ async function converse(
         responseStream,
         enhancedAgentAndTools,
         features,
+        memoryFeature,
         process.env.POST_PROCESSOR_FUNCTION_ARN,
         conversationHistory
     );
@@ -553,6 +580,7 @@ async function converse(
 
     console.log('Adding assistant message to chat');
     await addChatMessage(assistantMessageForCreate, chatSession, questionFromUser, assistantMessageForCreate.message);
+
     console.log('=== CONVERSE FUNCTION END ===');
 }
 

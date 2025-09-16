@@ -18,7 +18,7 @@
  * 2. Add 'services/pika/bin/pika.ts' to the userUnprotectedAreas array
  */
 
-import { SessionInsightsFeature } from 'pika-shared/types/chatbot/chatbot-types';
+import { DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT, SessionInsightsFeature, UserMemoryFeature } from 'pika-shared/types/chatbot/chatbot-types';
 import * as cdk from 'aws-cdk-lib';
 import 'source-map-support/register';
 import { pikaConfig } from '../../../pika-config.js';
@@ -52,6 +52,8 @@ async function main() {
     const projNameHuman = pika.projNameHuman;
 
     const sessionInsightsFeature = pikaConfig.siteFeatures?.sessionInsights ?? ({ enabled: false } as SessionInsightsFeature);
+    const userMemoryFeature =
+        pikaConfig.siteFeatures?.userMemory ?? ({ enabled: false, strategies: [], maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT } as UserMemoryFeature);
 
     // Create the Pika stack
     new PikaStack(app, `${projNameKebabCase}-${stage}`, {
@@ -63,7 +65,8 @@ async function main() {
         projNameTitleCase,
         projNameCamel,
         projNameHuman,
-        sessionInsightsFeature
+        sessionInsightsFeature,
+        userMemoryFeature
     });
 }
 

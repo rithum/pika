@@ -34,7 +34,13 @@ import {
     type SearchSemanticDirectivesResponse,
     type UpdateChatSessionFeedbackResponse,
     type UserChatAppRule,
-    type ToolDefinition
+    type ToolDefinition,
+    type UserMemoryStrategy,
+    type SearchAllMyMemoryRecordsRequest,
+    type SearchAllMemoryRecordsResponse,
+    type SearchAllMemoryRecordsRequest,
+    type GetInstructionsAddedForUserMemoryRequest,
+    type GetInstructionsAddedForUserMemoryResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { convertToJwtString } from 'pika-shared/util/jwt';
@@ -582,6 +588,49 @@ export async function searchSemanticDirectives(request: SearchSemanticDirectives
 
     if (!response.body || !response.body.success) {
         throw new Error(`Error searching semantic directives with status code: ${response.statusCode}`);
+    }
+
+    return response.body;
+}
+
+/**
+ * Get user memory records
+ */
+export async function getUserMemoriesForStrategy(userId: string, strategy: UserMemoryStrategy, nextToken?: string): Promise<SearchAllMemoryRecordsResponse> {
+    const request: SearchAllMemoryRecordsRequest = {
+        userId,
+        strategy,
+        nextToken
+    };
+
+    const response = await invokeApi<SearchAllMemoryRecordsResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/memory/record/search`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error retrieving user memory with status code: ${response.statusCode}`);
+    }
+
+    return response.body;
+}
+
+export async function getInstructionsAddedForUserMemory(request: GetInstructionsAddedForUserMemoryRequest): Promise<GetInstructionsAddedForUserMemoryResponse> {
+    const response = await invokeApi<GetInstructionsAddedForUserMemoryResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/memory/instructions`,
+        method: 'POST',
+        body: request
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error retrieving instructions added for user memory with status code: ${response.statusCode}`);
     }
 
     return response.body;

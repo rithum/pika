@@ -6,12 +6,15 @@ import type {
     ChatAppMode,
     ChatSessionFeedbackForCreate,
     RecordOrUndef,
+    RetrievedMemoryRecordSummary,
+    SearchAllMyMemoryRecordsResponse,
     TagDefinition,
     TagDefinitionWidget,
     UserDataOverrideSettings
 } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
+    DEFAULT_MEMORY_STRATEGIES,
     UserOverrideDataCommand,
     type ChatApp,
     type ChatAppOverridableFeatures,
@@ -120,6 +123,12 @@ export class ChatAppState {
     #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
     #addingFeedback = $state<boolean>(false);
     #feedbackDialogOpen = $state<boolean>(false);
+    #allMemoryRecords = $state<RetrievedMemoryRecordSummary[]>([]);
+    #allMemoryRecordsSorted = $derived.by(() => {
+        return this.#allMemoryRecords.sort((a, b) => {
+            return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+        });
+    });
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
@@ -272,6 +281,10 @@ export class ChatAppState {
 
     get user() {
         return this.#user;
+    }
+
+    get allMemoryRecordsSorted() {
+        return this.#allMemoryRecordsSorted;
     }
 
     get sortedChatSessions() {
@@ -542,10 +555,10 @@ export class ChatAppState {
             this.#currentSession = {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
                 userId: this.#user.userId,
-                agentAliasId: 'interim-agent-alias-id',
                 chatAppId: this.#chatApp.chatAppId,
                 agentId: 'interim-agent-id',
                 identityId: this.#user.userId,
+                invocationMode: 'chat-app',
                 sessionAttributes: {
                     token: 'interim-token',
                     firstName: this.#user.firstName,
@@ -659,6 +672,31 @@ export class ChatAppState {
             console.error('Error refreshing messages for current session', e);
         } finally {
             this.#retrievingMessages = false;
+        }
+    }
+
+    async loadAllMemoryRecords() {
+        const strategies = DEFAULT_MEMORY_STRATEGIES;
+        this.#allMemoryRecords = [];
+        for (const strategy of strategies) {
+            let nextToken: string | undefined = undefined;
+            do {
+                const response = await this.fetchz('/api/memory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ strategy, nextToken })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get memory records');
+                }
+
+                const json = (await response.json()) as SearchAllMyMemoryRecordsResponse;
+                this.#allMemoryRecords.push(...json.results.records);
+                nextToken = json.results.nextToken;
+            } while (nextToken);
         }
     }
 

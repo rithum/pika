@@ -6,7 +6,7 @@
 
 ### ChatSession
 
-A single conversation thread, typically created by a user, where each message in the conversation thread alternates by turns: the user asks a question, then it's the assistant's turn who responds, etc. A ChatSession contains metadata such as sessionId, userId, agentId, agentAliasId, identityId, title, and various tracking information like costs and token usage.
+A single conversation thread, typically created by a user, where each message in the conversation thread alternates by turns: the user asks a question, then it's the assistant's turn who responds, etc. A ChatSession contains metadata such as sessionId, userId, agentId, identityId, title, and various tracking information like costs and token usage.
 
 ### ChatMessage
 

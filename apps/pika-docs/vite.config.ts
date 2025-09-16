@@ -21,6 +21,7 @@ export default defineConfig(async ({ mode }) => {
                     items: [
                         { title: 'Overview', to: '/docs/features/overview/' },
                         { title: 'Advanced Chat Apps', to: '/docs/features/advanced-chat-apps/' },
+                        { title: 'User Memory', to: '/docs/features/user-memory/' },
                         { title: 'Built on Amazon Web Services', to: '/docs/features/built-on-aws/' },
                         { title: 'Enterprise Data Protection', to: '/docs/features/data-security/' },
                         { title: 'LLM-based Agents', to: '/docs/features/llm-based-agents/' },
@@ -68,6 +69,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Entity Feature', to: '/docs/developer/entity-feature/' },
                         { title: 'Custom Msg Tags', to: '/docs/developer/custom-message-tags/' },
                         { title: 'AI Driven UI Tags (BETA)', to: '/docs/developer/tags-feature/' },
+                        { title: 'User Memory Feature', to: '/docs/developer/user-memory-feature/' },
                         { title: 'Instruction Assistance', to: '/docs/developer/instruction-assistance/' },
                         { title: 'Instruction Augmentation', to: '/docs/developer/instruction-augmentation/' },
                         { title: 'Direct Agent Invocation', to: '/docs/developer/direct-agent-invocation/' },

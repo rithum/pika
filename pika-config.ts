@@ -134,6 +134,11 @@ export const pikaConfig: PikaConfig = {
         instructionAugmentation: {
             enabled: true,
             type: 'llm-semantic-directive-search'
+        },
+        userMemory: {
+            enabled: true,
+            maxMemoryRecordsPerPrompt: 25,
+            maxKMatchesPerStrategy: 5
         }
     }
 };

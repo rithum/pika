@@ -1,10 +1,10 @@
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { ConverseRequest, ConverseRequestWithCommand, RecordOrUndef, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { PassThrough } from 'stream';
-import { handler } from '../../../../../services/pika/src/lambda/converse';
 import { appConfig } from './config';
 
 interface ConverseFunctionResponse {
@@ -88,6 +88,25 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             }
             process.env.TAG_DEFINITIONS_TABLE = `pika-tag-def-${name}-${stage}`;
 
+            // Try to get MEMORY_ID from SSM parameter store
+            try {
+                const ssmClient = new SSMClient({
+                    region: process.env.AWS_REGION,
+                    credentials: defaultProvider()
+                });
+                const memoryIdSsmPath = `/stack/${name}/${stage}/memory/memory_id`;
+                const getParameterCommand = new GetParameterCommand({
+                    Name: memoryIdSsmPath
+                });
+                const response = await ssmClient.send(getParameterCommand);
+                if (response.Parameter?.Value) {
+                    process.env.MEMORY_ID = response.Parameter.Value;
+                }
+            } catch (error) {
+                // Don't error out if the parameter doesn't exist or can't be retrieved
+                console.log('Could not retrieve MEMORY_ID from SSM parameter store:', error instanceof Error ? error.message : String(error));
+            }
+
             let r1: any, r2: any;
             let firstBytePromise: Promise<void> & {
                 finished: boolean;
@@ -110,6 +129,9 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
                 }
             });
             response = new Response(passThrough as any);
+
+            // Import here so that all the environment variables are set
+            let { handler } = await import('../../../../../services/pika/src/lambda/converse');
             handler(
                 {
                     body: request,

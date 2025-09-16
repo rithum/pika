@@ -16,7 +16,9 @@ import {
     searchForSessions,
     searchSemanticDirectives,
     searchTagDefinitions,
-    updateChatSessionFeedback
+    updateChatSessionFeedback,
+    getUserMemoriesForStrategy,
+    getInstructionsAddedForUserMemory
 } from '$lib/server/chat-admin-apis';
 import { getChatMessages, searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
@@ -341,6 +343,12 @@ export const POST: RequestHandler = async (event) => {
             success: true,
             tools
         });
+    } else if (siteAdminReq.command === 'getAllMemoryRecords') {
+        const memoryRecords = await getUserMemoriesForStrategy(user.userId, siteAdminReq.request.strategy, siteAdminReq.request.nextToken);
+        return json(memoryRecords);
+    } else if (siteAdminReq.command === 'getInstructionsAddedForUserMemory') {
+        const instructions = await getInstructionsAddedForUserMemory(siteAdminReq.request);
+        return json(instructions);
     } else {
         return new Response('Invalid command', { status: 400 });
     }

@@ -1,8 +1,14 @@
 //TODO: make sure to turn on model invocation logging in aws
 
-import type { AgentCollaboration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { ActionGroupInvocationInput, AgentCollaboration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
+import type { Role } from '@aws-sdk/client-bedrock-agentcore';
 
 export type CompanyType = 'retailer' | 'supplier';
+
+export const DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT = 25;
+export const DEFAULT_MAX_K_MATCHES_PER_STRATEGY = 5;
+export const DEFAULT_MEMORY_STRATEGIES: UserMemoryStrategy[] = ['preferences', 'semantic'];
+export const DEFAULT_EVENT_EXPIRY_DURATION = 7;
 
 /**
  * Data persisted by Bedrock Agent for each session, set
@@ -37,8 +43,6 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     sessionId: string;
     /** Unique identifier of the user participating in the session */
     userId: string;
-    /** Identifier for the agent alias being used */
-    agentAliasId: string;
     /** Identifier for the specific agent instance */
     agentId: string;
     /** Identifier for the chat app */
@@ -803,6 +807,8 @@ export interface ChatAppOverridableFeatures {
     agentInstructionAssistance: AgentInstructionChatAppOverridableFeature;
 
     instructionAugmentation: InstructionAugmentationFeature;
+
+    userMemory: UserMemoryFeature;
 }
 
 export interface AgentInstructionChatAppOverridableFeature {
@@ -1558,7 +1564,13 @@ export interface McpToolDefinition extends ToolDefinitionBase {
     auth?: OAuth;
 }
 
-export type ToolDefinition = LambdaToolDefinition | McpToolDefinition;
+export interface InlineToolDefinition extends ToolDefinitionBase {
+    executionType: 'inline';
+    code: string; // This is the code to execute.  It is a stringified function.
+    handler?: (event: ActionGroupInvocationInput, params: Record<string, any>) => Promise<unknown>;
+}
+
+export type ToolDefinition = LambdaToolDefinition | McpToolDefinition | InlineToolDefinition;
 
 export type UpdateableToolDefinitionFields =
     | Extract<
@@ -1567,7 +1579,8 @@ export type UpdateableToolDefinitionFields =
       >
     | 'lambdaArn'
     | 'url'
-    | 'auth';
+    | 'auth'
+    | 'code';
 
 export type ToolDefinitionForCreate =
     | (Omit<LambdaToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
@@ -1886,7 +1899,8 @@ export type ChatAppFeature =
     | UserDataOverrideFeatureForChatApp
     | TagsFeatureForChatApp
     | AgentInstructionAssistanceFeatureForChatApp
-    | InstructionAugmentationFeatureForChatApp;
+    | InstructionAugmentationFeatureForChatApp
+    | UserMemoryFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1913,7 +1927,8 @@ export const FeatureIdList = [
     'userDataOverrides',
     'tags',
     'agentInstructionAssistance',
-    'instructionAugmentation'
+    'instructionAugmentation',
+    'userMemory'
 ] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
@@ -1933,7 +1948,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     userDataOverrides: 'User Data Override',
     tags: 'Tags',
     agentInstructionAssistance: 'Agent Instruction Assistance',
-    instructionAugmentation: 'Instruction Augmentation'
+    instructionAugmentation: 'Instruction Augmentation',
+    userMemory: 'User Memory'
 };
 
 export interface SiteAdminFeature {
@@ -2171,6 +2187,10 @@ export interface InstructionAugmentationFeatureForChatApp extends InstructionAug
     featureId: 'instructionAugmentation';
 }
 
+export interface UserMemoryFeatureForChatApp extends UserMemoryFeature, Feature {
+    featureId: 'userMemory';
+}
+
 /**
  * The prompt instruction assistance feature is used to add a markdown section to the prompt that instructs the agent on how to format its response.
  *
@@ -2341,7 +2361,9 @@ export type SiteAdminRequest =
     | GetInstructionAssistanceConfigFromSsmRequest
     | GetAllChatAppsAdminRequest
     | GetAllAgentsAdminRequest
-    | GetAllToolsAdminRequest;
+    | GetAllToolsAdminRequest
+    | GetAllMemoryRecordsAdminRequest
+    | GetInstructionsAddedForUserMemoryAdminRequest;
 
 export const SiteAdminCommand = [
     'getAgent',
@@ -2366,7 +2388,9 @@ export const SiteAdminCommand = [
     'getInstructionAssistanceConfigFromSsm',
     'getAllChatApps',
     'getAllAgents',
-    'getAllTools'
+    'getAllTools',
+    'getAllMemoryRecords',
+    'getInstructionsAddedForUserMemory'
 ] as const;
 export type SiteAdminCommand = (typeof SiteAdminCommand)[number];
 
@@ -2421,6 +2445,16 @@ export interface GetAllAgentsAdminRequest extends SiteAdminCommandRequestBase {
 
 export interface GetAllToolsAdminRequest extends SiteAdminCommandRequestBase {
     command: 'getAllTools';
+}
+
+export interface GetAllMemoryRecordsAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getAllMemoryRecords';
+    request: SearchAllMemoryRecordsRequest;
+}
+
+export interface GetInstructionsAddedForUserMemoryAdminRequest extends SiteAdminCommandRequestBase {
+    command: 'getInstructionsAddedForUserMemory';
+    request: GetInstructionsAddedForUserMemoryRequest;
 }
 
 /**
@@ -2500,6 +2534,14 @@ export interface GetAllToolsAdminResponse extends SiteAdminCommandResponseBase {
     tools: ToolDefinition[];
 }
 
+export interface GetAllMemoryRecordsAdminResponse extends SiteAdminCommandResponseBase {
+    memoryRecords: PagedRecordsResult;
+}
+
+export interface GetInstructionsAddedForUserMemoryAdminResponse extends SiteAdminCommandResponseBase {
+    instructions: string;
+}
+
 export type SiteAdminResponse =
     | GetAgentResponse
     | GetInitialDataResponse
@@ -2517,7 +2559,9 @@ export type SiteAdminResponse =
     | GetInstructionAssistanceConfigFromSsmResponse
     | GetAllChatAppsAdminResponse
     | GetAllAgentsAdminResponse
-    | GetAllToolsAdminResponse;
+    | GetAllToolsAdminResponse
+    | GetAllMemoryRecordsAdminResponse
+    | GetInstructionsAddedForUserMemoryAdminResponse;
 
 export interface SiteAdminCommandResponseBase {
     success: boolean;
@@ -2982,6 +3026,132 @@ export interface SiteFeatures {
 
     /** Configure whether the instruction augmentation feature is enabled. */
     instructionAugmentation?: InstructionAugmentationFeature;
+
+    /** Configure whether the user memory feature is enabled. */
+    userMemory?: UserMemoryFeature;
+}
+
+/**
+ * Configure whether the user memory feature is enabled.
+ *
+ * When turned on, we will create a global memory space that will be used to store the user's memory
+ * and then we will automatically store memory evnents based on the strategies turned on and the
+ * queries made by the user.  Then, we will query the memory to augment the prompt given to the LLM.
+ */
+export interface UserMemoryFeature {
+    enabled: boolean;
+
+    /** The maximum number of memory recrods to enrich a single prompt with.  Defaults to 25. */
+    maxMemoryRecordsPerPrompt?: number;
+
+    /** The maximum number of top matches to consider per strategy.  Defaults to 5. */
+    maxKMatchesPerStrategy?: number;
+}
+
+export interface UserMemoryFeatureWithMemoryInfo extends UserMemoryFeature {
+    memoryId: string;
+    strategies: UserMemoryStrategy[];
+    maxMemoryRecordsPerPrompt: number;
+    maxKMatchesPerStrategy: number;
+}
+
+export const UserMemoryStrategies = ['preferences', 'semantic', 'summary'] as const;
+export type UserMemoryStrategy = (typeof UserMemoryStrategies)[number];
+
+// Define the types of content we store in memory
+export interface UserMessageContent {
+    type: 'user_message';
+    text: string;
+}
+
+export interface AssistantMessageContent {
+    type: 'assistant_message';
+    text: string;
+}
+
+export interface AssistantRationaleContent {
+    type: 'assistant_rationale';
+    text: string;
+}
+
+export interface ToolInvocationContent {
+    type: 'tool_invocation';
+    invocation: {
+        actionGroupInvocationInput?: any;
+        knowledgeBaseLookupInput?: any;
+        agentCollaboratorInvocationInput?: any;
+        codeInterpreterInvocationInput?: any;
+    };
+}
+
+// Union type for all possible memory content
+export type MemoryContent = UserMessageContent | AssistantMessageContent | AssistantRationaleContent | ToolInvocationContent;
+
+export type TypedContentWithRole = { content: MemoryContent; role: Role };
+
+export interface MemoryQueryOptions {
+    /** natural-language query for semantic search, default to '*' if not sure what to provide */
+    query: string;
+    /** how many highest-scoring hits to consider (server-side); we still cap with `maxResults` */
+    maxResults: number;
+    /** if you are paging, you can provide the nextToken from the previous response */
+    nextToken?: string;
+    /** how many highest-scoring hits to consider (server-side); we still cap with `maxResults` */
+    topK?: number;
+}
+
+// What we get back when retrieving memory (either parsed JSON or raw text)
+export type RetrievedMemoryContent = MemoryContent | string;
+
+// Memory record summary with parsed content
+export interface RetrievedMemoryRecordSummary {
+    memoryRecordId: string | undefined;
+    content: RetrievedMemoryContent | undefined;
+    memoryStrategyId: string | undefined;
+    namespaces: string[] | undefined;
+    createdAt: Date | undefined;
+    score?: number | undefined;
+}
+
+export type PagedRecordsResult = {
+    records: RetrievedMemoryRecordSummary[];
+    nextToken?: string;
+};
+
+export interface SearchAllMyMemoryRecordsRequest {
+    strategy: UserMemoryStrategy;
+    nextToken?: string;
+}
+
+export interface SearchAllMyMemoryRecordsResponse {
+    success: boolean;
+    error?: string;
+    results: PagedRecordsResult;
+}
+
+export interface SearchAllMemoryRecordsRequest {
+    userId: string;
+    strategy: UserMemoryStrategy;
+    nextToken?: string;
+}
+
+export interface SearchAllMemoryRecordsResponse {
+    success: boolean;
+    error?: string;
+    results: PagedRecordsResult;
+}
+
+export interface GetInstructionsAddedForUserMemoryRequest {
+    userId: string;
+    strategies: UserMemoryStrategy[];
+    maxMemoryRecordsPerPrompt: number;
+    maxKMatchesPerStrategy: number;
+    prompt: string;
+}
+export interface GetInstructionsAddedForUserMemoryResponse {
+    success: boolean;
+    error?: string;
+    instructions: string;
 }
 
 /**

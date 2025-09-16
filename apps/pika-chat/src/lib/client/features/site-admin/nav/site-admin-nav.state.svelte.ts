@@ -1,5 +1,5 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
-import { Bot, ChartBar, FileBox, Settings, Zap } from '$icons/lucide';
+import { Bot, ChartBar, Cpu, FileBox, Settings, Zap } from '$icons/lucide';
 import type { Page } from '@sveltejs/kit';
 import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import Caches from '../pages/caches.svelte';
@@ -7,6 +7,7 @@ import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
 import InstructionAugmentation from '../pages/instruction-augmentation.svelte';
+import Memory from '../pages/memory.svelte';
 
 const ITEMS: NavItem[] = [
     {
@@ -34,6 +35,12 @@ const ITEMS: NavItem[] = [
         icon: ChartBar,
         pageComponent: SessionInsights,
         enabled: (siteFeatures: SiteFeatures) => siteFeatures.sessionInsights?.enabled ?? false
+    },
+    {
+        title: 'Memory',
+        url: '/admin/memory',
+        icon: Cpu,
+        pageComponent: Memory
     },
     {
         title: 'Caches',

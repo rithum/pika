@@ -60,6 +60,28 @@ export const MODELS = {
     }
 };
 
+export interface ReturnControlContext {
+    sessionId: string;
+    invokeCommand: InvokeInlineAgentCommandInput;
+}
+
+export interface InvokeAgentHooks {
+    onStart: () => void;
+    onChunk: (chunk: string, chunkIndex: number, attribution?: Attribution) => void;
+    onTrace: (trace: Trace) => void;
+    onEnd: (usage: ChatMessageUsage) => void;
+    onError: (error: any) => void;
+    returnControlHandlers?: Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
+}
+
+export interface ToolContext {
+    getInstructions?: (toolIds: string[]) => string;
+    getActionGroups: (tools: string[]) => AgentActionGroup[];
+    getReturnControlHandlers?: () => Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
+    initialize?: (sessionId: string) => Promise<void>;
+    end?: (sessionId: string) => Promise<void>;
+}
+
 // Map of model id to model
 export const MODEL_ID_TO_MODEL = Object.values(MODELS)
     .map((provider) => Object.values(provider))
@@ -184,24 +206,13 @@ function parseModelResponseMeta(responseBody: string) {
     }
 }
 
-export interface ReturnControlContext {
-    sessionId: string;
-    invokeCommand: InvokeInlineAgentCommandInput;
-}
-
-export interface InvokeAgentHooks {
-    onStart: () => void;
-    onChunk: (chunk: string, chunkIndex: number, attribution?: Attribution) => void;
-    onTrace: (trace: Trace) => void;
-    onEnd: (usage: ChatMessageUsage) => void;
-    onError: (error: any) => void;
-    returnControlHandlers?: Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
-}
-
-export interface ToolContext {
-    getInstructions?: (toolIds: string[]) => string;
-    getActionGroups: (tools: string[]) => AgentActionGroup[];
-    getReturnControlHandlers?: () => Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>>;
-    initialize?: (sessionId: string) => Promise<void>;
-    end?: (sessionId: string) => Promise<void>;
+export function tryParseIntoJson(text: string | undefined) {
+    if (text == null) {
+        return text;
+    }
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        return text;
+    }
 }

@@ -17,7 +17,10 @@ import type {
     SetChatUserPrefsResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    UserPrefs
+    UserPrefs,
+    UserMemoryStrategy,
+    SearchAllMyMemoryRecordsRequest,
+    SearchAllMyMemoryRecordsResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
 import { hash } from 'crypto';
@@ -230,6 +233,33 @@ export async function searchTagDefinitions(userId: string, request: TagDefinitio
     // Cache the response only if no tag definition has dontCacheThis set
     if (!response.body.tagDefinitions.some((def) => def.dontCacheThis)) {
         tagDefinitionsCache.set(cacheKey, response.body);
+    }
+
+    return response.body;
+}
+
+/**
+ * Get user memory records
+ */
+export async function getUserMemoriesForStrategy(userId: string, strategy: UserMemoryStrategy, nextToken?: string): Promise<SearchAllMyMemoryRecordsResponse> {
+    const request: SearchAllMyMemoryRecordsRequest = {
+        strategy,
+        nextToken
+    };
+
+    const response = await invokeApi<SearchAllMyMemoryRecordsResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/memory/record/search`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        }
+    });
+
+    if (!response.body || !response.body.success) {
+        throw new Error(`Error retrieving user memory with status code: ${response.statusCode}`);
     }
 
     return response.body;

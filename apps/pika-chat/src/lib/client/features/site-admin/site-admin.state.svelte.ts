@@ -1,6 +1,10 @@
 import type { FetchZ } from '$client/app/types';
+import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import type { AppState } from '$lib/client/app/app.state.svelte';
+import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
+import type { ServerSideTableState } from '$ui/pika/pika-table/types';
 import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
+import type { Page } from '@sveltejs/kit';
 import type {
     AddChatSessionFeedbackResponse,
     AgentDefinition,
@@ -17,6 +21,10 @@ import type {
     GetValuesForUserAutoCompleteResponse,
     InstructionAssistanceConfig,
     RefreshChatAppResponse,
+    SearchSemanticDirectivesResponse,
+    SemanticDirective,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteResponse,
     SessionSearchResponse,
     SimpleOption,
     SiteAdminCommand,
@@ -28,22 +36,15 @@ import type {
     TagDefinitionDeleteResponse,
     TagDefinitionSearchResponse,
     TagDefinitionWidget,
-    SemanticDirective,
-    SemanticDirectiveCreateOrUpdateResponse,
-    SemanticDirectiveDeleteResponse,
-    SearchSemanticDirectivesResponse,
     UpdateChatSessionFeedbackResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { type ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
-import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
-import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
-import type { ServerSideTableState } from '$ui/pika/pika-table/types';
-import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
-import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 import type { ComponentRegistry } from '../chat/message-segments/component-registry';
-import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 import { InstructionAugmentationState } from './components/instruction-augmentation/instruction-augmentation.state.svelte';
+import { MemoryState } from './components/memory/memory.state.svelte';
+import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
+import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -60,6 +61,7 @@ export class SiteAdminState {
     #chatSessions = $state<ChatSession[]>([]);
     #sessionInsights = $state<SessionInsightsState>() as SessionInsightsState;
     #instructionAugmentation = $state<InstructionAugmentationState>() as InstructionAugmentationState;
+    #memory = $state<MemoryState>() as MemoryState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #sessionsPagination = $state<ServerSideTableState>({
         pageIndex: 0,
@@ -102,7 +104,9 @@ export class SiteAdminState {
         getInstructionAssistanceConfigFromSsm: false,
         getAllChatApps: false,
         getAllAgents: false,
-        getAllTools: false
+        getAllTools: false,
+        getAllMemoryRecords: false,
+        getInstructionsAddedForUserMemory: false
     });
 
     #appSidebarState: SidebarState | undefined;
@@ -143,6 +147,13 @@ export class SiteAdminState {
             this.#instructionAugmentation = new InstructionAugmentationState(this.fetchz, this.#userPrefs, this.#identity);
         }
         return this.#instructionAugmentation;
+    }
+
+    get memory() {
+        if (!this.#memory) {
+            this.#memory = new MemoryState(this.fetchz, this.#userPrefs, this.#identity);
+        }
+        return this.#memory;
     }
 
     get userPrefs() {

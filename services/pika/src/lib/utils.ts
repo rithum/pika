@@ -1,8 +1,14 @@
 import type { DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
-import type { ChatSession, ChatUser, ConverseInvocationMode, RecordOrUndef, SessionDataWithChatUserCustomDataSpreadIn } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    ChatSession,
+    ChatUser,
+    ConverseInvocationMode,
+    RecordOrUndef,
+    SessionDataWithChatUserCustomDataSpreadIn,
+    UserMemoryStrategy
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
-import { type ChatSessionOs } from './opensearch/types';
 
 export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')
@@ -28,6 +34,8 @@ export function getFromEnv(key: string, defaultValue?: string) {
     }
     return value;
 }
+
+let memoryStrategies: Partial<Record<UserMemoryStrategy, string>> | undefined;
 
 export function getEnv(): string {
     return getFromEnv('stage');
@@ -57,6 +65,17 @@ export function getPikaDomainEndpoint(): string {
     return getFromEnv('PIKA_DOMAIN_ENDPOINT');
 }
 
+export function getMemoryId(): string {
+    return getFromEnv('MEMORY_ID');
+}
+
+export function getMemoryStrategies(): Partial<Record<UserMemoryStrategy, string>> {
+    if (!memoryStrategies) {
+        memoryStrategies = JSON.parse(getFromEnv('MEMORY_STRATEGIES')) as Partial<Record<UserMemoryStrategy, string>>;
+    }
+    return memoryStrategies;
+}
+
 export function isDevLikeEnv(): boolean {
     const stage = getEnv();
     return stage.includes('dev') || stage.includes('test');
@@ -64,10 +83,6 @@ export function isDevLikeEnv(): boolean {
 
 // export function getAgentId(): string {
 //     return getFromEnv('AGENT_ID');
-// }
-
-// export function getAgentAliasId(): string {
-//     return getFromEnv('AGENT_ALIAS_ID');
 // }
 
 /**
@@ -309,4 +324,13 @@ export function getEntityFromCustomData(customData: Record<string, any> | undefi
 
 export function getEffectiveChatAppId(chatAppId: string | undefined, agentId: string, mode: ConverseInvocationMode): string {
     return mode === 'direct-agent-invoke' ? `direct-agent-${agentId}` : chatAppId!;
+}
+
+export function getMemoryNamespaceForStrategy(strategy: UserMemoryStrategy): string {
+    return `/strategies/${strategy}/actors/{actorId}`;
+}
+
+export function getMemoryNamespaceForStrategyAndUserId(strategy: UserMemoryStrategy, userId: string): string {
+    const namespace = getMemoryNamespaceForStrategy(strategy);
+    return namespace.replace('{actorId}', userId);
 }

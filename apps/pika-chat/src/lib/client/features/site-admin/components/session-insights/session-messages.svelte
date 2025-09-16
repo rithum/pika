@@ -3,7 +3,11 @@
     import ChatFileDisplay from '$lib/client/features/chat/chat-input/chat-file-display.svelte';
     import MessageRenderer from '$lib/client/features/chat/message-segments/message-renderer.svelte';
     import { formatDateTime } from '$lib/utils';
-    import type { ChatAppOverridableFeatures } from 'pika-shared/types/chatbot/chatbot-types';
+    import {
+        DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
+        DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+        type ChatAppOverridableFeatures,
+    } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');
@@ -58,6 +62,11 @@
         },
         instructionAugmentation: {
             enabled: true,
+        },
+        userMemory: {
+            enabled: true,
+            maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+            maxKMatchesPerStrategy: DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
         },
     };
 </script>

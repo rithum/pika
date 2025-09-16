@@ -32,6 +32,8 @@
         TracesFeatureForChatApp,
         UiCustomizationFeature,
         UiCustomizationFeatureForChatApp,
+        UserMemoryFeature,
+        UserMemoryFeatureForChatApp,
         VerifyResponseFeatureForChatApp,
     } from 'pika-shared/types/chatbot/chatbot-types';
     // Import individual feature components
@@ -50,6 +52,7 @@
     import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
     import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
     import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
+    import UserMemoryFeatureRenderer from './user-memory-feature-renderer.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -234,6 +237,7 @@
         chatDisclaimerNotice: false,
         logout: false,
         agentInstructionAssistance: false,
+        userMemory: false,
     } as Record<FeatureIdType, boolean>);
 
     function setExpandedOrCollapsed(expanded: boolean) {
@@ -877,6 +881,39 @@
                                 isOverridden={featureOverridden}
                                 setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
                             />
+                        {:else if typedFeatureId === 'userMemory'}
+                            <UserMemoryFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | UserMemoryFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as UserMemoryFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
                         {:else if typedFeatureId === 'userDataOverrides'}
                             <div>No additional configuration may be overridden for this feature.</div>
                         {/if}
@@ -1009,6 +1046,29 @@
             <p class="text-xs text-muted-foreground">
                 <span class="font-bold">Consistent Formatting:</span> Ensures all responses are properly wrapped in
                 <code>&lt;answer&gt;</code> tags and follow Pika's structured formatting standards.
+            </p>
+        </div>
+    {:else if featureId === 'userMemory'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Automatically stores and retrieves contextual information about users to personalize their experience.
+                Uses AWS Bedrock Agent Core Memory to maintain persistent user context across sessions.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Memory Strategies:</span> Choose which types of information to remember:
+            </p>
+            <ul class="list-disc list-inside ml-2 text-xs text-muted-foreground space-y-1">
+                <li><span class="font-bold">Preferences:</span> User settings, choices, and explicit preferences</li>
+                <li>
+                    <span class="font-bold">Semantic:</span> Understanding of user context, interests, and domain knowledge
+                </li>
+                <li>
+                    <span class="font-bold">Summary:</span> Key insights and conversation summaries from past interactions
+                </li>
+            </ul>
+            <p class="text-xs text-muted-foreground">
+                Stored memories are automatically retrieved and injected into LLM requests to provide more personalized
+                and contextually relevant responses.
             </p>
         </div>
     {:else}

@@ -287,6 +287,9 @@ class McpServerManager implements ToolContext {
                     delete args.flags;
                     if (flags.has('AG_PROXY')) {
                         let [actionGroup, functionName] = params.name.split('___');
+                        if (actionGroup == null || functionName == null) {
+                            throw new Error(`Invalid tool name: ${params.name}`);
+                        }
                         Array.from(flags).forEach((f) => {
                             let [a, b] = f.split('=>');
                             if (a && b) {

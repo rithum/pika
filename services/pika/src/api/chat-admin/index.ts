@@ -17,8 +17,18 @@ import {
     DeleteChatAppOverrideResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
+    GetInstructionsAddedForUserMemoryRequest,
+    GetInstructionsAddedForUserMemoryResponse,
     RecordOrUndef,
+    SearchAllMemoryRecordsRequest,
+    SearchAllMemoryRecordsResponse,
+    SearchSemanticDirectivesRequest,
+    SearchSemanticDirectivesResponse,
     SearchToolsRequest,
+    SemanticDirectiveCreateOrUpdateRequest,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteRequest,
+    SemanticDirectiveDeleteResponse,
     SessionSearchRequest,
     SessionSearchResponse,
     TagDefinitionCreateOrUpdateRequest,
@@ -27,22 +37,17 @@ import {
     TagDefinitionDeleteResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    SemanticDirectiveCreateOrUpdateRequest,
-    SemanticDirectiveCreateOrUpdateResponse,
-    SemanticDirectiveDeleteRequest,
-    SemanticDirectiveDeleteResponse,
-    SearchSemanticDirectivesRequest,
-    SearchSemanticDirectivesResponse,
     ToolDefinition,
     UpdateAgentRequest,
     UpdateChatAppRequest,
     UpdateChatSessionFeedbackRequest,
     UpdateChatSessionFeedbackResponse,
     UpdateToolRequest,
-    UserChatAppRule
+    UserChatAppRule,
+    UserMemoryFeatureWithMemoryInfo,
+    UserMemoryStrategies
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
-
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import {
     addChatSessionFeedback,
@@ -51,12 +56,12 @@ import {
     createOrUpdateAgentIdempotently,
     createOrUpdateChatAppIdempotently,
     createOrUpdateChatAppOverride,
-    createOrUpdateTagDefApi,
     createOrUpdateSemanticDirectiveApi,
+    createOrUpdateTagDefApi,
     createToolDefinition,
     deleteChatAppOverride,
-    deleteTagDefApi,
     deleteSemanticDirectiveApi,
+    deleteTagDefApi,
     getAgent,
     getAgents,
     getChatApp,
@@ -78,6 +83,8 @@ import {
 import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
 import { getUser } from '../../lib/chat-apis';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
+import { getAllMemoryRecords, getMemoryInstructions } from '../../lib/memory';
+import { getMemoryId } from '../../lib/utils';
 
 type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>) => Promise<U>;
 
@@ -217,6 +224,12 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/semantic-directive/search': {
         handler: handleSearchSemanticDirectives
+    },
+    'POST:/api/chat-admin/memory/record/search': {
+        handler: handleSearchAllMemoryRecords
+    },
+    'POST:/api/chat-admin/memory/instructions': {
+        handler: handleGetInstructionsAddedForUserMemory
     }
 };
 
@@ -246,6 +259,7 @@ export async function handlerFn(
         | SemanticDirectiveCreateOrUpdateRequest
         | SemanticDirectiveDeleteRequest
         | SearchSemanticDirectivesRequest
+        | SearchAllMemoryRecordsRequest
         | BaseRequestData
         | void
     >
@@ -581,14 +595,14 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
     const chatAppsForHomePage = requestBody.chatAppsForHomePage ?? false;
     const customDataFieldPathToMatchUsersEntity = requestBody.customDataFieldPathToMatchUsersEntity;
 
-    console.log('👤 Looking up user:', requestBody.userId);
+    console.log('Looking up user:', requestBody.userId);
     const user = await getUser(requestBody.userId);
     if (!user) {
-        console.error('❌ User not found:', requestBody.userId);
+        console.error('User not found:', requestBody.userId);
         throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
     }
 
-    console.log('✅ User found:', {
+    console.log('User found:', {
         userId: user.userId,
         userType: user.userType,
         roles: user.roles,
@@ -599,13 +613,13 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
 
     let chatApps: ChatApp[] = [];
     if (requestBody.chatAppId) {
-        console.log('🎯 Looking for specific chat app:', requestBody.chatAppId);
+        console.log('Looking for specific chat app:', requestBody.chatAppId);
         const chatApp = await getChatApp(requestBody.chatAppId);
         if (!chatApp) {
-            console.log(`❌ Chat App ${requestBody.chatAppId} not found, returning empty list`);
+            console.log(`Chat App ${requestBody.chatAppId} not found, returning empty list`);
             return response;
         }
-        console.log('✅ Chat app found:', {
+        console.log('Chat app found:', {
             chatAppId: chatApp.chatAppId,
             title: chatApp.title,
             enabled: chatApp.enabled,
@@ -616,10 +630,10 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         });
         chatApps.push(chatApp);
     } else {
-        console.log('📋 Getting all chat apps');
+        console.log('Getting all chat apps');
         chatApps = await getChatApps();
         console.log(
-            `✅ Found ${chatApps.length} total chat apps:`,
+            `Found ${chatApps.length} total chat apps:`,
             chatApps.map((app) => ({
                 chatAppId: app.chatAppId,
                 title: app.title,
@@ -646,7 +660,7 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
 
     response.chatApps = getMatchingChatApps(user, chatAppsForHomePage, homePageFilterRules, chatApps, customDataFieldPathToMatchUsersEntity);
 
-    console.log('✅ Final filtered result:', {
+    console.log('Final filtered result:', {
         originalCount: chatApps.length,
         filteredCount: response.chatApps.length,
         filteredApps: response.chatApps.map((app) => ({
@@ -948,6 +962,111 @@ async function handleDeleteSemanticDirective(event: APIGatewayProxyEventPika<Sem
 async function handleSearchSemanticDirectives(event: APIGatewayProxyEventPika<SearchSemanticDirectivesRequest>): Promise<SearchSemanticDirectivesResponse> {
     const request = event.body || {};
     return await searchSemanticDirectivesApi(request);
+}
+
+/**
+ * POST:/api/chat-admin/memory/record/search
+ *
+ * Returns all memory records for a user for a given strategy, paged.
+ */
+async function handleSearchAllMemoryRecords(event: APIGatewayProxyEventPika<SearchAllMemoryRecordsRequest>): Promise<SearchAllMemoryRecordsResponse> {
+    const requestBody = event.body;
+    if (!requestBody) {
+        throw new Error('Request body is required');
+    }
+
+    if (!requestBody.userId) {
+        throw new Error('userId is required');
+    }
+
+    if (!requestBody.strategy) {
+        throw new Error('strategy is required');
+    }
+
+    if (!UserMemoryStrategies.includes(requestBody.strategy)) {
+        throw new Error(`Invalid strategy: ${requestBody.strategy}`);
+    }
+
+    let response: SearchAllMemoryRecordsResponse = {
+        success: true,
+        results: {
+            records: [],
+            nextToken: undefined
+        }
+    };
+
+    console.log('Looking up user:', requestBody.userId);
+    const user = await getUser(requestBody.userId);
+    if (!user) {
+        console.error('User not found:', requestBody.userId);
+        throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
+    }
+
+    response.results = await getAllMemoryRecords(requestBody.userId, getMemoryId(), requestBody.strategy, requestBody.nextToken);
+
+    return response;
+}
+
+/**
+ * POST:/api/chat-admin/memory/instructions
+ *
+ * Returns all memory records for a user for a given strategy, paged.
+ */
+async function handleGetInstructionsAddedForUserMemory(
+    event: APIGatewayProxyEventPika<GetInstructionsAddedForUserMemoryRequest>
+): Promise<GetInstructionsAddedForUserMemoryResponse> {
+    const requestBody = event.body;
+    if (!requestBody) {
+        throw new Error('Request body is required');
+    }
+
+    if (!requestBody.userId) {
+        throw new Error('userId is required');
+    }
+
+    if (!requestBody.prompt) {
+        throw new Error('prompt is required');
+    }
+
+    if (!requestBody.strategies) {
+        throw new Error('strategies is required');
+    }
+
+    if (!requestBody.strategies.every((strategy) => UserMemoryStrategies.includes(strategy))) {
+        throw new Error(`Invalid strategy found in strategies: ${requestBody.strategies}`);
+    }
+
+    if (!requestBody.maxMemoryRecordsPerPrompt) {
+        throw new Error('maxMemoryRecordsPerPrompt is required');
+    }
+
+    if (!requestBody.maxKMatchesPerStrategy) {
+        throw new Error('maxKMatchesPerStrategy is required');
+    }
+
+    const userMemoryFeature: UserMemoryFeatureWithMemoryInfo = {
+        enabled: true,
+        strategies: requestBody.strategies,
+        maxMemoryRecordsPerPrompt: requestBody.maxMemoryRecordsPerPrompt,
+        maxKMatchesPerStrategy: requestBody.maxKMatchesPerStrategy,
+        memoryId: getMemoryId()
+    };
+
+    let response: GetInstructionsAddedForUserMemoryResponse = {
+        success: true,
+        instructions: ''
+    };
+
+    console.log('Looking up user:', requestBody.userId);
+    const user = await getUser(requestBody.userId);
+    if (!user) {
+        console.error('User not found:', requestBody.userId);
+        throw new HttpStatusError(`User ${requestBody.userId} not found`, 404);
+    }
+
+    response.instructions = await getMemoryInstructions(user, userMemoryFeature, requestBody.prompt, requestBody.maxKMatchesPerStrategy);
+
+    return response;
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

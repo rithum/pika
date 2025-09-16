@@ -17,14 +17,40 @@
 
         /** If showTextAsLink is true, this function will be called when the link is clicked */
         linkCallbackFn?: () => void;
+
+        /** When provided, this is the title of the button */
+        title?: string;
     }
 
-    const { children, value: propValue, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn }: Props = $props();
+    const {
+        children,
+        value: propValue,
+        embedded = false,
+        truncateAfter = 0,
+        showTextAsLink = false,
+        linkCallbackFn,
+        title,
+    }: Props = $props();
 
-    let hiddenRef: HTMLElement;
+    let hiddenRef = $state<HTMLElement>() as HTMLElement;
     let value: string | undefined = $state(undefined);
     let truncatedValue: string | undefined = $state(undefined);
     let showCheckmark = $state(false);
+
+    let buttonTitle = $derived.by(() => {
+        const t = title;
+        const tv = truncatedValue;
+        const v = value;
+        if (t) {
+            return t;
+        } else if (tv) {
+            return tv;
+        } else if (v) {
+            return v;
+        } else {
+            return 'Copy';
+        }
+    });
 
     $effect(() => {
         if (propValue !== undefined) {
@@ -94,18 +120,19 @@
         }
     }
 </script>
+
 {#if !propValue}
-<pre
-    class="hidden-container"
-    bind:this={hiddenRef}
-    style="display: none; position: absolute; left: -9999px;">{#if children}{@render children()}{/if}</pre>
+    <pre
+        class="hidden-container"
+        bind:this={hiddenRef}
+        style="display: none; position: absolute; left: -9999px;">{#if children}{@render children()}{/if}</pre>
 {/if}
 
 <span class="inline-flex w-fit items-center {embedded ? '' : 'border border-gray-200 rounded-sm'}">
     {#if showTextAsLink}
-        <Button class="p-0" variant="link" onclick={() => linkCallbackFn?.()}>{truncatedValue || value}</Button>
+        <Button class="p-0" variant="link" onclick={() => linkCallbackFn?.()}>{buttonTitle}</Button>
     {:else}
-        <span class={embedded ? '' : 'border-r border-gray-200 px-2'}>{truncatedValue || value}</span>
+        <span class={embedded ? '' : 'border-r border-gray-200 px-2'}>{buttonTitle}</span>
     {/if}
     <span class="w-6 h-6 flex items-center justify-center">
         {#if showCheckmark}

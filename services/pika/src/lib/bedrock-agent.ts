@@ -36,11 +36,13 @@ import {
     type ChatMessageUsage,
     type ChatSession,
     Inaccurate,
+    type InlineToolDefinition,
     type McpToolDefinition,
     type RecordOrUndef,
     type SimpleAuthenticatedUser,
     type ToolDefinition,
     Unclassified,
+    type UserMemoryFeatureWithMemoryInfo,
     type VerifyResponseClassification,
     VerifyResponseClassifications
 } from 'pika-shared/types/chatbot/chatbot-types';
@@ -48,6 +50,7 @@ import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponse
 import { modelPricing } from '../lambda/converse/model-pricing';
 import { jsonparse } from './jsonparse';
 import { processMcpActionGroup as processMcpTool } from './mcp';
+import { buildTypedMemoryContents, createTypedMemoryEvent } from './memory';
 import {
     DEFAULT_ANTHROPIC_MODEL,
     DEFAULT_ANTHROPIC_VERSION,
@@ -56,6 +59,7 @@ import {
     type ReturnControlContext,
     type ToolContext
 } from './model-types-utils';
+import { parsers } from './tool-input-parser';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
@@ -78,9 +82,10 @@ if (process.env.LOCAL_TOOLS != null) {
     }
 }
 
-// This code helps when running locally.  It's not needed for production.
-if (global.awslambda == null) {
+if (global.awslambda?.HttpResponseStream?.from == null) {
+    console.log('DEBUG: Setting up HttpResponseStream because it is missing');
     global.awslambda = {
+        ...global.awslambda, // Keep any existing setup from lambda-stream
         streamifyResponse: (handler) => {
             //handler = streamifyResponseOrig(handler);
             return (event: any, context: any) => handler(event, context.responseStream, context);
@@ -106,7 +111,16 @@ if (global.awslambda == null) {
             }
         } as any
     };
+} else {
+    console.log('DEBUG: HttpResponseStream.from already exists, skipping setup');
 }
+
+console.log('DEBUG: global.awslambda after setup:', {
+    exists: !!global.awslambda,
+    HttpResponseStream: global.awslambda?.HttpResponseStream,
+    hasFrom: !!global.awslambda?.HttpResponseStream?.from,
+    keys: global.awslambda ? Object.keys(global.awslambda) : null
+});
 
 export function getBedrockAgentClient(): BedrockAgentRuntimeClient {
     return bedrockAgentClient;
@@ -586,6 +600,19 @@ class ActionGroupToolContext implements ToolContext {
     //     endpoint: string;
     // }> = {};
 
+    instructions: Record<string, string> = {};
+
+    getInstructions(toolIds: string[]) {
+        return toolIds
+            .map((toolId) => this.instructions[toolId])
+            .filter((i) => i != null)
+            .join('\n');
+    }
+
+    addInstruction(toolId: string, instruction: string) {
+        this.instructions[toolId] = instruction;
+    }
+
     getActionGroups(tools: string[]) {
         return tools.map((tool) => this.actionGroups[tool]).filter((a) => a != null);
     }
@@ -626,6 +653,21 @@ class ActionGroupToolContext implements ToolContext {
             };
         }
     }
+    addWithHandler(tool: ToolDefinition, handler: (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<any>) {
+        this.actionGroups[tool.toolId] = {
+            actionGroupName: tool.name,
+            description: tool.description,
+            actionGroupExecutor: {
+                customControl: CustomControlMethod.RETURN_CONTROL
+            },
+            functionSchema: {
+                functions: tool.functionSchema!
+            }
+        };
+
+        // Add the return control handler for the tool
+        this.returnControlHandlers[tool.toolId] = handler;
+    }
     getReturnControlHandlers(): Record<string, (returnControl: InvocationInputMember, context: ReturnControlContext) => Promise<unknown>> {
         return this.returnControlHandlers;
     }
@@ -638,6 +680,36 @@ function processActionGroupTool(tool: ToolDefinition, toolContext: Record<string
         toolContext.actionGroupManager = actionGroupManager;
     }
     actionGroupManager.add(tool);
+}
+
+function processInlineTool(tool: InlineToolDefinition, toolContext: Record<string, ToolContext>) {
+    let actionGroupManager = toolContext.actionGroupManager as ActionGroupToolContext;
+    if (!actionGroupManager) {
+        actionGroupManager = new ActionGroupToolContext();
+        toolContext.actionGroupManager = actionGroupManager;
+    }
+    if (tool.code && !tool.handler) {
+        let fn = eval(`(${tool.code})`);
+        tool.handler = fn;
+    } else if (tool.handler == null) {
+        throw new Error('Inline tool has no handler');
+    }
+    actionGroupManager.addWithHandler(tool, (returnControl, context) => {
+        let event = convertInvokeEventToActionGroupEvent(returnControl, context);
+        let rawParams = event.parameters;
+        let params: Record<string, unknown> = (rawParams ?? []).reduce(
+            (p, c) => ({ ...p, [c.name!]: (parsers[c.type!] ?? parsers.identity)(c.value!) }),
+            {} as Record<string, unknown>
+        );
+
+        // Parse any json inputs
+        Object.entries(params).forEach(([key, value]) => {
+            if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+                params[key] = jsonparse(value);
+            }
+        });
+        return tool.handler!(event, params);
+    });
 }
 
 /**
@@ -660,6 +732,7 @@ export async function invokeAgentToGetAnswer(
     responseStream: EnhancedResponseStream,
     agentAndTools: AgentAndTools,
     features: ChatAppOverridableFeaturesForConverseFn,
+    memoryFeature: UserMemoryFeatureWithMemoryInfo,
     agentPostProcessorFnArn?: string,
     conversationHistory?: ConversationHistory
 ): Promise<ChatMessageForCreate> {
@@ -702,6 +775,9 @@ export async function invokeAgentToGetAnswer(
             }
             console.log('Tool is an Action Group tool:', tool.toolId);
             processActionGroupTool(tool, toolContext);
+        } else if (tool.executionType === 'inline') {
+            console.log('Tool is an Inline tool:', tool.toolId);
+            processInlineTool(tool, toolContext);
         } else {
             // This should be exhaustive, but adding explicit never check for type safety
             const _exhaustiveCheck: never = tool;
@@ -709,6 +785,98 @@ export async function invokeAgentToGetAnswer(
             throw new Error(`Tool ${(_exhaustiveCheck as ToolDefinition).toolId} execution type is not supported, it is ${(_exhaustiveCheck as ToolDefinition).executionType}`);
         }
     }
+
+    //TODO:Clint - can we remove this block now?
+    // if (false && memoryFeature.enabled) {
+    //     let [userPreferences, userSemantics] = await Promise.all([
+    //         getMemoryEvent(simpleUser.userId, memoryFeature.memoryId, memoryFeature.maxMemoryRecordsPerPrompt, 'preferences', '*'),
+    //         getMemoryEvent(simpleUser.userId, memoryFeature.memoryId, memoryFeature.maxMemoryRecordsPerPrompt, 'semantic', '*')
+    //     ]);
+
+    //     if (userPreferences.length > 0 || userSemantics.length > 0) {
+    //         console.log('User Preferences:', userPreferences);
+    //         console.log('User Semantics:', userSemantics);
+    //         toolContext.memoryToolContext = {
+    //             getActionGroups: (toolIds: string[]) => [],
+    //             getInstructions: (toolIds: string[]) => {
+    //                 return `<user-preferences>\n\t${userPreferences.map((p) => (typeof p === 'string' ? p : JSON.stringify(p))).join('\n\t')}\n</user-preferences><user-semantics>\n\t${userSemantics.map((p) => (typeof p === 'string' ? p : JSON.stringify(p))).join('\n\t')}\n</user-semantics>`;
+    //             }
+    //         };
+    /*
+                        let memoryToolId = "pika_user_memory";
+            
+                        // Add an inline tool to retrieve the user's memory and preferences
+                        processInlineTool({
+                            executionType: 'inline',
+                            toolId: memoryToolId,
+                            name: memoryToolId,
+                            description: 'Retrieves the user\'s memory and preferences',
+                            functionSchema: [
+                                {
+                                    name: 'get-memories',
+                                    description: 'Retrieve the user\'s memory and preferences',
+                                    parameters: {
+                                        strategy: {
+                                            type: 'string',
+                                            description: Object.keys(MEMORY.strategies ?? {}).join(', '),
+                                            required: true
+                                        },
+                                        query: {
+                                            type: 'string',
+                                            description: 'The query to use to retrieve the user\'s memory and preferences',
+                                            required: true
+                                        },
+                                        nextToken: {
+                                            type: 'string',
+                                            description: 'The next token to use to retrieve the user\'s memory and preferences, if any',
+                                            required: false
+                                        }
+                                    },
+                                    requireConfirmation: 'DISABLED'
+                                }
+                            ],
+                            code: "", // Not used for this tool
+                            displayName: 'UserMemory',
+                            supportedAgentFrameworks: [],
+                            version: 1,
+                            createdBy: simpleUser.userId,
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            lastModifiedBy: simpleUser.userId,
+                            handler: async (event: ActionGroupInvocationInput) => {
+                                let rawParams = event.parameters;
+                                let params: GetMemoryArgs = (rawParams ?? []).reduce(
+                                    (p, c) => ({ ...p, [c.name!]: (parsers[c.type!] ?? parsers.identity)(c.value!) }),
+                                    {} as GetMemoryArgs
+                                );
+            
+                                // Parse any json inputs
+                                Object.entries(params).forEach(([key, value]) => {
+                                    if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+                                        params[key as keyof GetMemoryArgs] = jsonparse(value);
+                                    }
+                                });
+            
+            
+            
+                                return await getMemoryEvent(
+                                    MEMORY,
+                                    simpleUser.userId,
+                                    params
+                                );
+                            }
+                        }, toolContext);
+            
+                        // Add the tool to the agent and collaborators so they can use it
+                        agentAndTools.agent.toolIds.push(memoryToolId);
+                        agentAndTools.collaborators?.forEach((collaborator) => {
+                            collaborator.toolIds?.push(memoryToolId);
+                        });
+                        
+                        //   (toolContext.actionGroupManager as ActionGroupToolContext).addInstruction(memoryToolId, `Before generating your response, use the ${memoryToolId} tool to retrieve the user's memory and preferences.`);
+                        */
+    //     }
+    // }
 
     let toolContexts = Object.values(toolContext);
 
@@ -1001,6 +1169,17 @@ export async function invokeAgentToGetAnswer(
     } finally {
         console.log('Ending tool contexts...');
         await Promise.all(toolContexts.map((context) => context.end?.(chatSession.sessionId)));
+    }
+
+    try {
+        if (memoryFeature.enabled) {
+            // Build typed memory content array using the memory.ts buildTypedMemoryContents function
+            const memoryContents = buildTypedMemoryContents(questionFromUser, responseMsg, traces);
+            let memory = await createTypedMemoryEvent(memoryFeature.memoryId, simpleUser.userId, chatSession.sessionId, memoryContents);
+            console.log('Memory event created:', memory);
+        }
+    } catch (e) {
+        console.error('Error creating memory event:', e);
     }
 
     console.log('Building assistant message response...');
