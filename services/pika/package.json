@@ -59,6 +59,8 @@
         "typescript": "catalog:"
     },
     "dependencies": {
+        "@aws-sdk/client-bedrock-agentcore": "catalog:",
+        "@aws-sdk/client-bedrock-agentcore-control": "catalog:",
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
         "@aws-sdk/client-bedrock-runtime": "catalog:",
         "@aws-sdk/client-dynamodb": "catalog:",

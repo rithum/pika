@@ -1,13 +1,10 @@
 import {
-    BaseRequestData,
     AddChatSessionFeedbackRequest,
     AddChatSessionFeedbackResponse,
-    ChatMessage,
+    BaseRequestData,
     ChatMessageForCreate,
     ChatMessageResponse,
     ChatMessagesResponse,
-    ChatSessionFeedback,
-    ChatSessionFeedbackForCreate,
     ChatSessionsResponse,
     ChatTitleUpdateRequest,
     ChatUser,
@@ -16,19 +13,19 @@ import {
     ChatUserSearchResponse,
     ConverseRequest,
     GetChatSessionFeedbackResponse,
-    PikaUserRoles,
-    UserType,
     GetChatUserPrefsResponse,
+    SearchAllMyMemoryRecordsRequest,
+    SearchAllMyMemoryRecordsResponse,
     SetChatUserPrefsRequest,
     SetChatUserPrefsResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    RecordOrUndef
+    UserMemoryStrategies
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
-import { addFeedback, addUser, getFeedbackBySessionId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
+import { extractFromJwtString } from 'pika-shared/util/jwt';
 import {
     addChatMessage,
     addChatSessionFeedback,
@@ -39,13 +36,15 @@ import {
     getUserSessions,
     getUserSessionsByChatAppId,
     searchForUsers,
+    searchTagDefsApi,
     setUserPrefs,
-    updateSessionTitle,
-    searchTagDefsApi
+    updateSessionTitle
 } from '../../lib/chat-apis';
-import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
+import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { extractFromJwtString } from 'pika-shared/util/jwt';
+import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { getMemoryId } from '../../lib/utils';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted
@@ -106,6 +105,10 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     'POST:/api/chat/tagdef/search': {
         handler: handleGetTagDefs,
         passUserObj: false
+    },
+    'POST:/api/chat/memory/record/search': {
+        handler: handleSearchAllMemoryRecords,
+        passUserObj: true
     }
 };
 
@@ -449,6 +452,37 @@ async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSea
 
     // Non-admin API filters out disabled tag definitions
     return await searchTagDefsApi(request);
+}
+
+/**
+ * POST:/api/chat-admin/memory/record/search
+ *
+ * Returns all memory records for a user for a given strategy, paged.
+ */
+async function handleSearchAllMemoryRecords(event: APIGatewayProxyEventPika<SearchAllMyMemoryRecordsRequest>, userId: string): Promise<SearchAllMyMemoryRecordsResponse> {
+    const requestBody = event.body;
+    if (!requestBody) {
+        throw new Error('Request body is required');
+    }
+
+    if (!requestBody.strategy) {
+        throw new Error('strategy is required');
+    }
+
+    if (!UserMemoryStrategies.includes(requestBody.strategy)) {
+        throw new Error(`Invalid strategy: ${requestBody.strategy}`);
+    }
+    let response: SearchAllMyMemoryRecordsResponse = {
+        success: true,
+        results: {
+            records: [],
+            nextToken: undefined
+        }
+    };
+
+    response.results = await getAllMemoryRecords(userId, getMemoryId(), requestBody.strategy, requestBody.nextToken);
+
+    return response;
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

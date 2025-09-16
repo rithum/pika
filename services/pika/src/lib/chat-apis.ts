@@ -151,7 +151,6 @@ export async function ensureChatSession(
             userId: user.userId,
             chatAppId,
             agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
-            agentAliasId: agentId, //'weather-agent-alias',//requestData.agentAliasId ?? getAgentAliasId(),
             invocationMode,
             sessionAttributes: {
                 ...(user.customData ? user.customData : {}),
@@ -171,8 +170,7 @@ export async function ensureChatSession(
             sessionId: chatSession.sessionId,
             userId: chatSession.userId,
             chatAppId: chatSession.chatAppId,
-            agentId: chatSession.agentId,
-            agentAliasId: chatSession.agentAliasId
+            agentId: chatSession.agentId
         });
 
         isNewSession = true;

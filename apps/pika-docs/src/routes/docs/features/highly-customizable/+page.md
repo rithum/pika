@@ -14,7 +14,7 @@ Adapt authentication, access, UI, and behaviors to fit your organization—witho
 
 ## Feature flags and overrides
 
-- Site‑wide defaults in config (traces, verifyResponse, suggestions, file upload, disclaimers, etc.).
+- Site‑wide defaults in config (traces, verifyResponse, suggestions, file upload, disclaimers, user memory, etc.).
 - Per‑chatapp overrides replace the defaults for that chat app.
 - Admin overrides can restrict or target specific users or entities—no redeploy required.
 

@@ -1,6 +1,16 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import type { AccessRules, AuthenticatedUser, ChatApp, ChatAppOverridableFeatures, ChatUser, RecordOrUndef, TagDefinitionLite } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
+    DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+    type AccessRules,
+    type AuthenticatedUser,
+    type ChatApp,
+    type ChatAppOverridableFeatures,
+    type ChatUser,
+    type RecordOrUndef,
+    type TagDefinitionLite
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { json } from '@sveltejs/kit';
 
 export function getErrorResponse(status: number, error: string): Response {
@@ -417,6 +427,11 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
         instructionAugmentation: {
             enabled: false,
             type: undefined
+        },
+        userMemory: {
+            enabled: false,
+            maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+            maxKMatchesPerStrategy: DEFAULT_MAX_K_MATCHES_PER_STRATEGY
         }
     };
 
@@ -558,6 +573,15 @@ export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser
             type: feature.type ?? 'llm-semantic-directive-search'
         })
     );
+
+    // Handle userMemory feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveUserMemoryFeature = chatApp.override?.features?.userMemory || chatApp.features?.userMemory;
+    result.userMemory = handleSimpleFeature('userMemory', effectiveUserMemoryFeature, siteFeatures?.userMemory, result.userMemory, (feature) => ({
+        enabled: feature.enabled ?? false,
+        maxMemoryRecordsPerPrompt: feature.maxMemoryRecordsPerPrompt ?? DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
+        maxKMatchesPerStrategy: feature.maxKMatchesPerStrategy ?? DEFAULT_MAX_K_MATCHES_PER_STRATEGY
+    }));
 
     return result;
 }

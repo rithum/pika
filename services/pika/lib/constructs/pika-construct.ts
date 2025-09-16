@@ -12,7 +12,14 @@ import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
-import { SessionInsightsFeature, SessionInsightsOpenSearchConfig } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    DEFAULT_EVENT_EXPIRY_DURATION,
+    DEFAULT_MEMORY_STRATEGIES,
+    SessionInsightsFeature,
+    SessionInsightsOpenSearchConfig,
+    UserMemoryFeature,
+    UserMemoryStrategy
+} from 'pika-shared/types/chatbot/chatbot-types';
 
 export interface PikaConstructProps {
     stage: string;
@@ -25,6 +32,7 @@ export interface PikaConstructProps {
     projNameCamel: string; // Camel case e.g. pika
     projNameHuman: string; // Human readable e.g. Pika
     sessionInsightsFeature: SessionInsightsFeature;
+    userMemoryFeature: UserMemoryFeature;
 }
 
 export interface PikaConstructOutputs {
@@ -59,6 +67,14 @@ export class PikaConstruct extends Construct {
             openSearchDomain = this.createOpenSearchDomain(this.props.stage, this.props.sessionInsightsFeature.openSearchConfig);
         }
 
+        // Create memory custom resource if user memory feature is enabled
+        let memoryCustomResourceLambda: lambda.Function | undefined;
+        let memoryId: string | undefined;
+        let memoryStrategies: Partial<Record<UserMemoryStrategy, string>> | undefined;
+        if (this.props.userMemoryFeature.enabled) {
+            memoryCustomResourceLambda = this.createMemoryCustomResource();
+        }
+
         // Create storage resources
         const storageResources = this.createStorageResources(openSearchDomain);
 
@@ -72,11 +88,19 @@ export class PikaConstruct extends Construct {
             );
         }
 
+        // Create memory custom resource instance if enabled
+
+        if (this.props.userMemoryFeature.enabled && memoryCustomResourceLambda) {
+            const [newMemoryId, newMemoryStrategies] = this.createMemoryCustomResourceInstance(memoryCustomResourceLambda);
+            memoryId = newMemoryId;
+            memoryStrategies = newMemoryStrategies;
+        }
+
         // Create compute resources
-        const computeResources = this.createComputeResources(storageResources, openSearchDomain);
+        const computeResources = this.createComputeResources(storageResources, openSearchDomain, memoryId, memoryStrategies);
 
         // Create API resources
-        const apiResources = this.createApiResources(storageResources, computeResources);
+        const apiResources = this.createApiResources(storageResources, computeResources, this.props.userMemoryFeature.enabled);
 
         // Create SSM parameters
         this.createSsmParameters(storageResources, computeResources, apiResources);
@@ -139,7 +163,7 @@ export class PikaConstruct extends Construct {
         };
     }
 
-    private createComputeResources(storageResources: any, openSearchDomain?: opensearch.Domain) {
+    private createComputeResources(storageResources: any, openSearchDomain?: opensearch.Domain, memoryId?: string, memoryStrategies?: Partial<Record<UserMemoryStrategy, string>>) {
         // Create IAM roles
         const bedrockChatRole = this.createBedrockChatRoleForInlineAgent();
         const lambdaRole = this.createChatLambdaRole(
@@ -160,7 +184,8 @@ export class PikaConstruct extends Construct {
             storageResources.chatUserTable,
             storageResources.tagDefinitionsTable,
             storageResources.chatSessionFeedbackTable,
-            openSearchDomain
+            openSearchDomain,
+            memoryId
         );
 
         const [chatAdminApiFn, chatAdminRestApi] = this.createChatAdminApiFunction(
@@ -171,7 +196,9 @@ export class PikaConstruct extends Construct {
             storageResources.tagDefinitionsTable,
             storageResources.semanticDirectiveTable,
             storageResources.chatSessionFeedbackTable,
-            openSearchDomain
+            openSearchDomain,
+            memoryId,
+            memoryStrategies
         );
 
         // Create custom resources
@@ -214,7 +241,8 @@ export class PikaConstruct extends Construct {
             storageResources.toolDefinitionsTable,
             storageResources.pikaS3Bucket,
             agentPostProcessorFn,
-            openSearchDomain
+            openSearchDomain,
+            memoryId
         );
 
         return {
@@ -230,7 +258,7 @@ export class PikaConstruct extends Construct {
         };
     }
 
-    private createApiResources(storageResources: any, computeResources: any) {
+    private createApiResources(storageResources: any, computeResources: any, userMemoryFeatureEnabled?: boolean) {
         // Create Function URL for converse function
         const converseUrl = computeResources.converseFn.addFunctionUrl({
             invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
@@ -245,7 +273,7 @@ export class PikaConstruct extends Construct {
         });
 
         // Create main API Gateway
-        const chatbotApi = this.createChatbotApi(computeResources.chatbotApiFn);
+        const chatbotApi = this.createChatbotApi(computeResources.chatbotApiFn, userMemoryFeatureEnabled);
 
         return {
             chatbotApi,
@@ -1308,6 +1336,22 @@ export class PikaConstruct extends Construct {
                             effect: iam.Effect.ALLOW,
                             actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
                             resources: [tagDefinitionsTable.tableArn, `${tagDefinitionsTable.tableArn}/*`]
+                        }),
+                        // Memory permissions
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock-agentcore:CreateEvent',
+                                'bedrock-agentcore:GetEvent',
+                                'bedrock-agentcore:DeleteEvent',
+                                'bedrock-agentcore:RetrieveMemoryRecords',
+                                'bedrock-agentcore:ListMemoryRecords',
+                                'bedrock-agentcore-control:ListMemories',
+                                'bedrock-agentcore-control:GetMemory',
+                                'bedrock-agentcore-control:CreateMemory',
+                                'bedrock-agentcore-control:ListMemories'
+                            ],
+                            resources: ['*']
                         })
                     ]
                 })
@@ -1434,6 +1478,22 @@ export class PikaConstruct extends Construct {
                             actions: ['s3:GetObject'],
                             resources: [`arn:aws:s3:::${pikaS3Bucket.bucketName}/*`]
                         }),
+                        // Memory permissions
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock-agentcore:CreateEvent',
+                                'bedrock-agentcore:GetEvent',
+                                'bedrock-agentcore:DeleteEvent',
+                                'bedrock-agentcore:RetrieveMemoryRecords',
+                                'bedrock-agentcore:ListMemoryRecords',
+                                'bedrock-agentcore-control:ListMemories',
+                                'bedrock-agentcore-control:GetMemory',
+                                'bedrock-agentcore-control:CreateMemory',
+                                'bedrock-agentcore-control:ListMemories'
+                            ],
+                            resources: ['*']
+                        }),
                         ...(openSearchDomain
                             ? [
                                   new iam.PolicyStatement({
@@ -1459,7 +1519,8 @@ export class PikaConstruct extends Construct {
         chatUserTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
-        openSearchDomain?: opensearch.Domain
+        openSearchDomain?: opensearch.Domain,
+        memoryId?: string
     ): lambda.Function {
         return new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
             entry: 'src/api/chatbot/index.ts',
@@ -1476,7 +1537,8 @@ export class PikaConstruct extends Construct {
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
-                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
+                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
+                ...(memoryId ? { MEMORY_ID: memoryId } : {})
             },
             bundling: {
                 minify: true,
@@ -1495,7 +1557,9 @@ export class PikaConstruct extends Construct {
         tagDefinitionsTable: dynamodb.Table,
         semanticDirectiveTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
-        openSearchDomain?: opensearch.Domain
+        openSearchDomain?: opensearch.Domain,
+        memoryId?: string,
+        memoryStrategies?: Partial<Record<UserMemoryStrategy, string>>
     ): [lambda.Function, apigateway.RestApi] {
         const lambdaRole = new iam.Role(this, 'ChatAdminApiLambdaRole', {
             roleName: `chat-admin-api-lambda-role-${this.props.stackName}`,
@@ -1553,6 +1617,22 @@ export class PikaConstruct extends Construct {
                             ],
                             resources: [chatUserTable.tableArn, `${chatUserTable.tableArn}/index/*`]
                         }),
+                        // Memory permissions
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock-agentcore:CreateEvent',
+                                'bedrock-agentcore:GetEvent',
+                                'bedrock-agentcore:DeleteEvent',
+                                'bedrock-agentcore:RetrieveMemoryRecords',
+                                'bedrock-agentcore:ListMemoryRecords',
+                                'bedrock-agentcore-control:ListMemories',
+                                'bedrock-agentcore-control:GetMemory',
+                                'bedrock-agentcore-control:CreateMemory',
+                                'bedrock-agentcore-control:ListMemories'
+                            ],
+                            resources: ['*']
+                        }),
                         ...(openSearchDomain
                             ? [
                                   new iam.PolicyStatement({
@@ -1583,7 +1663,9 @@ export class PikaConstruct extends Construct {
                 SEMANTIC_DIRECTIVE_TABLE: semanticDirectiveTable.tableName,
                 STAGE: this.props.stage,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
-                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
+                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
+                ...(memoryId ? { MEMORY_ID: memoryId } : {}),
+                ...(memoryStrategies ? { MEMORY_STRATEGIES: JSON.stringify(memoryStrategies) } : {})
             },
             bundling: {
                 minify: true,
@@ -1661,7 +1743,8 @@ export class PikaConstruct extends Construct {
         toolDefinitionsTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
         agentPostProcessorFn: lambda.Function,
-        openSearchDomain?: opensearch.Domain
+        openSearchDomain?: opensearch.Domain,
+        memoryId?: string
     ): lambda.Function {
         const converseFn = new nodejs.NodejsFunction(this, 'ConverseFunction', {
             entry: 'src/lambda/converse/index.ts',
@@ -1684,7 +1767,8 @@ export class PikaConstruct extends Construct {
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
-                POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn
+                POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn,
+                ...(memoryId ? { MEMORY_ID: memoryId } : {})
             },
             bundling: {
                 minify: true,
@@ -1996,7 +2080,105 @@ export class PikaConstruct extends Construct {
         return domainIndexCustomResourceLambda;
     }
 
-    private createChatbotApi(chatbotApiFn: lambda.Function): apigateway.RestApi {
+    private createMemoryCustomResource(): lambda.Function {
+        const memoryCustomResourceRole = new iam.Role(this, 'MemoryCustomResourceRole', {
+            roleName: `memory-custom-resource-role-${this.props.stackName}`,
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            inlinePolicies: {
+                MemoryCustomResourcePolicy: new iam.PolicyDocument({
+                    statements: [
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+                            resources: ['arn:aws:logs:*:*:*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock-agentcore:CreateEvent',
+                                'bedrock-agentcore:GetEvent',
+                                'bedrock-agentcore:DeleteEvent',
+                                'bedrock-agentcore:RetrieveMemoryRecords',
+                                'bedrock-agentcore:ListMemoryRecords',
+                                'bedrock-agentcore:CreateMemory',
+                                'bedrock-agentcore:GetMemory',
+                                'bedrock-agentcore-control:ListMemories',
+                                'bedrock-agentcore-control:GetMemory',
+                                'bedrock-agentcore-control:CreateMemory',
+                                'bedrock-agentcore-control:ListMemories'
+                            ],
+                            resources: ['*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['ssm:GetParameter', 'ssm:PutParameter', 'ssm:GetParameters'],
+                            resources: [`arn:aws:ssm:${this.props.region}:${this.props.account}:parameter/*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:GetCallerIdentity'],
+                            resources: ['*']
+                        })
+                    ]
+                })
+            }
+        });
+
+        const memoryCustomResourceLambda = new nodejs.NodejsFunction(this, 'MemoryCustomResourceLambda', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            entry: 'src/lambda/memory-custom-resource/index.ts',
+            handler: 'handler',
+            timeout: cdk.Duration.minutes(15),
+            memorySize: 256,
+            role: memoryCustomResourceRole,
+            architecture: lambda.Architecture.ARM_64,
+            environment: {
+                STAGE: this.props.stage
+            },
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
+        });
+
+        new ssm.StringParameter(this, 'MemoryCustomResourceArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/memory_custom_resource_arn`,
+            stringValue: memoryCustomResourceLambda.functionArn,
+            description: 'ARN of the Memory Custom Resource Lambda function'
+        });
+
+        return memoryCustomResourceLambda;
+    }
+
+    private createMemoryCustomResourceInstance(memoryCustomResourceLambda: lambda.Function): [string, Partial<Record<UserMemoryStrategy, string>>] {
+        // Create custom resource to create/manage the memory
+        const memoryCustomResource = new cdk.CustomResource(this, 'MemoryCustomResource', {
+            serviceToken: memoryCustomResourceLambda.functionArn,
+            properties: {
+                MemoryName: this.sanitizeMemoryName(`${this.props.stackName}_user_memory`),
+                Stage: this.props.stage,
+                ProjNameKebabCase: this.props.projNameKebabCase,
+                EventExpiryDuration: DEFAULT_EVENT_EXPIRY_DURATION,
+                Strategies: DEFAULT_MEMORY_STRATEGIES,
+                Timestamp: Date.now() // Forces update on every deploy
+            }
+        });
+
+        const memoryId = memoryCustomResource.getAttString('MemoryId');
+
+        // Extract strategy IDs from the custom resource response
+        const strategiesRecord: Partial<Record<UserMemoryStrategy, string>> = {};
+        for (const strategy of DEFAULT_MEMORY_STRATEGIES) {
+            const strategyId = memoryCustomResource.getAttString(`StrategyId${strategy}`);
+            strategiesRecord[strategy] = strategyId;
+        }
+
+        return [memoryId, strategiesRecord];
+    }
+
+    private createChatbotApi(chatbotApiFn: lambda.Function, userMemoryFeatureEnabled?: boolean): apigateway.RestApi {
         const api = new apigateway.RestApi(this, 'ChatbotApi', {
             restApiName: `chatbot-${this.props.stage}`,
             description: 'API for chatbot interactions',
@@ -2067,6 +2249,14 @@ export class PikaConstruct extends Construct {
         // POST /api/chat/tagdef/search
         const chatTagdefSearch = chatTagdef.addResource('search');
         chatTagdefSearch.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
+
+        if (userMemoryFeatureEnabled) {
+            // POST /api/chat/memory/record/search
+            const chatMemory = chats.addResource('memory');
+            const chatMemoryRecord = chatMemory.addResource('record');
+            const chatMemoryRecordSearch = chatMemoryRecord.addResource('search');
+            chatMemoryRecordSearch.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
+        }
 
         return api;
     }
@@ -2363,5 +2553,28 @@ export class PikaConstruct extends Construct {
         chatSessionTable.grantReadWriteData(sessionInsightsRunnerLambda);
         chatSessionFeedbackTable.grantReadWriteData(sessionInsightsRunnerLambda);
         pikaS3Bucket.grantReadWrite(sessionInsightsRunnerLambda, 'session-insights/*');
+    }
+
+    /**
+     * Sanitizes a memory name to meet AWS Bedrock memory naming requirements:
+     * - Must start with a letter (a-z, A-Z)
+     * - Can only contain letters, numbers, and underscores
+     * - Maximum length of 48 characters
+     */
+    private sanitizeMemoryName(name: string): string {
+        // Replace any character that's not a letter, number, or underscore with underscore
+        let sanitized = name.replace(/[^a-zA-Z0-9_]/g, '_');
+
+        // Ensure it starts with a letter
+        if (!/^[a-zA-Z]/.test(sanitized)) {
+            sanitized = 'Memory_' + sanitized;
+        }
+
+        // Truncate to 48 characters if necessary
+        if (sanitized.length > 48) {
+            sanitized = sanitized.substring(0, 48);
+        }
+
+        return sanitized;
     }
 }

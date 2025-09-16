@@ -33,7 +33,7 @@ This file is protected from framework updates and will never be overwritten when
 ```js
 export const pikaConfig: PikaConfig = {
     pika: {
-        projNameL: 'mycompany', // All lowercase: mycompany
+        projNameL: '**   mycompany**', // All lowercase: mycompany
         projNameKebabCase: 'mycompany', // Kebab case: mycompany
         projNameTitleCase: 'MyCompany', // Title case: MyCompany
         projNameCamel: 'mycompany', // Camel case: mycompany
@@ -258,18 +258,19 @@ export const pikaConfig: PikaConfig = {
 
 **Feature Overview:**
 
-| Feature                 | Purpose                                | Can Chat Apps Override?          |
-| ----------------------- | -------------------------------------- | -------------------------------- |
-| `traces`                | Show AI reasoning and tool invocations | ✅ Access rules                  |
-| `verifyResponse`        | Verify and improve AI response quality | ✅ Quality thresholds and access |
-| `chatDisclaimerNotice`  | Display disclaimer text to users       | ✅ Custom disclaimer text        |
-| `logout`                | Enable logout functionality            | ✅ Custom text and access rules  |
-| `fileUpload`            | Allow file uploads to chat             | ✅ Restrict file types           |
-| `suggestions`           | Show suggested prompts to users        | ✅ Custom suggestions            |
-| `promptInputFieldLabel` | Label above chat input field           | ✅ Custom label text             |
-| `uiCustomization`       | UI display customizations              | ✅ Display settings              |
-| `tags`                  | AI-driven UI components and widgets    | ✅ Custom tag selections         |
-| `userDataOverride`      | User data override UI availability     | ✅ Can disable per chat app      |
+| Feature                 | Purpose                                 | Can Chat Apps Override?       |
+| ----------------------- | --------------------------------------- | ----------------------------- |
+| `traces`                | Show AI reasoning and tool invocations  | Access rules                  |
+| `verifyResponse`        | Verify and improve AI response quality  | Quality thresholds and access |
+| `chatDisclaimerNotice`  | Display disclaimer text to users        | Custom disclaimer text        |
+| `logout`                | Enable logout functionality             | Custom text and access rules  |
+| `fileUpload`            | Allow file uploads to chat              | Restrict file types           |
+| `suggestions`           | Show suggested prompts to users         | Custom suggestions            |
+| `promptInputFieldLabel` | Label above chat input field            | Custom label text             |
+| `uiCustomization`       | UI display customizations               | Display settings              |
+| `tags`                  | AI-driven UI components and widgets     | Custom tag selections         |
+| `userMemory`            | Persistent user context and preferences | Memory limits                 |
+| `userDataOverride`      | User data override UI availability      | Can disable per chat app      |
 
 **Key Principles:**
 
