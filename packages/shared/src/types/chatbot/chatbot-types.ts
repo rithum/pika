@@ -1590,11 +1590,19 @@ export type ToolDefinitionForCreate =
           toolId?: ToolDefinition['toolId'];
       });
 
-export type ToolDefinitionForIdempotentCreateOrUpdate = Omit<ToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
-    lambdaArn: string;
-    functionSchema: FunctionDefinition[];
-    supportedAgentFrameworks: ['bedrock'];
-};
+export type ToolDefinitionForIdempotentCreateOrUpdate =
+    | (Omit<LambdaToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
+          functionSchema: FunctionDefinition[];
+          supportedAgentFrameworks: ['bedrock'];
+      })
+    | (Omit<InlineToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
+          functionSchema: FunctionDefinition[];
+          supportedAgentFrameworks: ['bedrock'];
+      })
+    | (Omit<McpToolDefinition, 'version' | 'createdAt' | 'updatedAt' | 'lastModifiedBy' | 'createdBy'> & {
+          functionSchema: FunctionDefinition[];
+          supportedAgentFrameworks: ['bedrock'];
+      });
 
 export interface OAuth {
     clientId: string;

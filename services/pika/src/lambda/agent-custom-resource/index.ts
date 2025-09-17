@@ -1,5 +1,5 @@
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
-import type { AgentAndTools, ToolIdToLambdaArnMap } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AgentAndTools, ToolIdToLambdaArnMap, ToolDefinitionForIdempotentCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
 import { createMakeRequestFn, MakeRequestFn, parseAgentCustomResourceProperties, sendCustomResourceResponse } from './util';
 
@@ -72,14 +72,28 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
         let agentData = parseAgentCustomResourceProperties(agentDataStr);
         console.log('Successfully parsed AgentData for agent:', agentData.agent.agentId);
 
+        // Helper function to check if a tool is a lambda tool (has lambdaArn property)
+        const isLambdaTool = (tool: ToolDefinitionForIdempotentCreateOrUpdate): tool is ToolDefinitionForIdempotentCreateOrUpdate & { lambdaArn: string } => {
+            // If executionType is explicitly set, check if it's 'lambda'
+            if ('executionType' in tool && tool.executionType) {
+                return tool.executionType === 'lambda';
+            }
+            // If no executionType is provided, default to lambda (backward compatibility)
+            // Check if the tool has lambdaArn property to determine if it's a lambda tool
+            return 'lambdaArn' in tool;
+        };
+
         // If the toolIdToLambdaArnMap is provided, then we need to replace the lambdaArn with the actual arn of the lambda function
         let toolIdToLambdaArnMap = event.ResourceProperties.ToolIdToLambdaArnMap as ToolIdToLambdaArnMap | undefined;
         if (toolIdToLambdaArnMap) {
             console.log('ToolIdToLambdaArnMap provided, replacing lambdaArns with actual arns', toolIdToLambdaArnMap);
             agentData.tools?.forEach((tool) => {
-                if (toolIdToLambdaArnMap[tool.toolId]) {
+                if (toolIdToLambdaArnMap[tool.toolId] && isLambdaTool(tool)) {
                     console.log(`Replacing lambdaArn for tool ${tool.toolId} from ${tool.lambdaArn} to ${toolIdToLambdaArnMap[tool.toolId]}`);
                     tool.lambdaArn = toolIdToLambdaArnMap[tool.toolId];
+                } else if (toolIdToLambdaArnMap[tool.toolId] && !isLambdaTool(tool)) {
+                    const executionType = 'executionType' in tool ? tool.executionType : 'unknown';
+                    console.log(`Skipping mapping lambdaArn for tool ${tool.toolId} - not a lambda tool (executionType: ${executionType})`);
                 }
             });
         }
@@ -97,10 +111,15 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
         // Log the lambda ARN to verify it's resolved correctly
         if (agentData.tools && agentData.tools.length > 0) {
             agentData.tools.forEach((tool, index) => {
-                console.log(`Tool ${index} (${tool.toolId}) lambdaArn:`, tool.lambdaArn);
-                // Validate that the ARN looks correct
-                if (tool.lambdaArn && tool.lambdaArn.includes('${Token[')) {
-                    throw new Error(`Tool ${tool.toolId} has unresolved CDK token in lambdaArn: ${tool.lambdaArn}`);
+                if (isLambdaTool(tool)) {
+                    console.log(`Tool ${index} (${tool.toolId}) lambdaArn:`, tool.lambdaArn);
+                    // Validate that the ARN looks correct
+                    if (tool.lambdaArn && tool.lambdaArn.includes('${Token[')) {
+                        throw new Error(`Tool ${tool.toolId} has unresolved CDK token in lambdaArn: ${tool.lambdaArn}`);
+                    }
+                } else {
+                    const executionType = 'executionType' in tool ? tool.executionType : 'lambda (default)';
+                    console.log(`Tool ${index} (${tool.toolId}) executionType:`, executionType);
                 }
             });
         }

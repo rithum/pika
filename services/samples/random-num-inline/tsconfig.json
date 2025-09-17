@@ -1,0 +1,34 @@
+{
+    "extends": "@pika/typescript-config/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "sourceMap": true,
+        "inlineSources": true,
+        "resolveJsonModule": true,
+        "experimentalDecorators": true,
+        "baseUrl": ".",
+        "types": [
+            "node",
+        ],
+        "paths": {
+            "pika-shared/*": [
+                "../../packages/shared/src/*"
+            ],
+            "pika-shared": [
+                "../../packages/shared/src"
+            ]
+        }
+    },
+    "include": [
+        "src",
+        "bin",
+        "lib/stacks",
+        "test"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "cdk.out"
+    ]
+}
