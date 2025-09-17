@@ -376,6 +376,41 @@ async function handleToolsIdempotent(
                         // Both MCP tools
                         handleOptionalFieldUpdate(requestedTool.url, existingTool.url, 'url', fieldsToUpdate, fieldsToRemove);
                         handleOptionalFieldUpdate(requestedTool.auth, existingTool.auth, 'auth', fieldsToUpdate, fieldsToRemove);
+                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'inline') {
+                        // Both inline tools
+                        handleRequiredFieldUpdate(requestedTool.code, existingTool.code, 'code', fieldsToUpdate);
+                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'lambda') {
+                        // Changing from lambda to inline
+                        if (requestedTool.code) {
+                            fieldsToUpdate.code = requestedTool.code;
+                        }
+                        // Remove lambda-specific field
+                        fieldsToRemove.push('lambdaArn');
+                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'mcp') {
+                        // Changing from MCP to inline
+                        if (requestedTool.code) {
+                            fieldsToUpdate.code = requestedTool.code;
+                        }
+                        // Remove MCP-specific fields
+                        fieldsToRemove.push('url');
+                        if ('auth' in existingTool) fieldsToRemove.push('auth');
+                    } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'inline') {
+                        // Changing from inline to lambda
+                        if (requestedTool.lambdaArn) {
+                            fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
+                        }
+                        // Remove inline-specific field
+                        fieldsToRemove.push('code');
+                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'inline') {
+                        // Changing from inline to MCP
+                        if (requestedTool.url) {
+                            fieldsToUpdate.url = requestedTool.url;
+                        }
+                        if (requestedTool.auth) {
+                            fieldsToUpdate.auth = requestedTool.auth;
+                        }
+                        // Remove inline-specific field
+                        fieldsToRemove.push('code');
                     }
 
                     handleObjectFieldUpdate(requestedTool.functionSchema, existingTool.functionSchema, 'functionSchema', fieldsToUpdate, fieldsToRemove, true);

@@ -36,6 +36,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Instruction Assistance', to: '/docs/features/instruction-assistance/' },
                         { title: 'Instruction Augmentation', to: '/docs/features/instruction-augmentation/' },
                         { title: 'Direct Agent Invocation', to: '/docs/features/direct-agent-invocation/' },
+                        { title: 'Inline Tools', to: '/docs/features/inline-tools/' },
                         { title: 'Model Context Protocol (MCP)', to: '/docs/features/mcp/' },
                         { title: 'Admin Site', to: '/docs/features/admin-site/' }
                     ]
@@ -73,6 +74,7 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Instruction Assistance', to: '/docs/developer/instruction-assistance/' },
                         { title: 'Instruction Augmentation', to: '/docs/developer/instruction-augmentation/' },
                         { title: 'Direct Agent Invocation', to: '/docs/developer/direct-agent-invocation/' },
+                        { title: 'Inline Tools', to: '/docs/developer/inline-tools/' },
                         { title: 'Site Admin Feature', to: '/docs/developer/site-admin-feature/' },
                         { title: 'Content Admin', to: '/docs/developer/content-admin/' },
                         { title: 'Stack Management', to: '/docs/developer/stack-management/' },
