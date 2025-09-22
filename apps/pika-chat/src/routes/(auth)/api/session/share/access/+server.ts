@@ -19,9 +19,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             throw error(400, 'shareId or chatAppId are required');
         }
 
+        let customDataFieldPathToMatchUsersEntity: string | undefined;
+        if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
+            customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
+        }
+
         let chatApp: ChatApp | undefined;
         try {
-            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, req.chatAppId);
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, req.chatAppId, customDataFieldPathToMatchUsersEntity);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {

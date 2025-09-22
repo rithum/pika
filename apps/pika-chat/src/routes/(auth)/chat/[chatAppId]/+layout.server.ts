@@ -32,9 +32,13 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
     }
 
     const authProvider = locals.authProvider;
+    let customDataFieldPathToMatchUsersEntity: string | undefined;
+    if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
+        customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
+    }
 
     try {
-        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId);
+        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {

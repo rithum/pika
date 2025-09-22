@@ -242,13 +242,15 @@ export async function getMatchingChatApps(
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
     chatAppsForHomePage: boolean,
     homePageFilterRules?: UserChatAppRule[],
-    chatAppId?: string
+    chatAppId?: string,
+    customDataFieldPathToMatchUsersEntity?: string
 ): Promise<ChatApp[]> {
     const request: GetChatAppsByRulesRequest = {
         userId: user.userId,
         chatAppsForHomePage,
         homePageFilterRules: homePageFilterRules,
-        chatAppId
+        chatAppId,
+        customDataFieldPathToMatchUsersEntity
     };
 
     // console.log('getMatchingChatApps called with:', {
