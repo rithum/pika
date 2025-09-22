@@ -1,11 +1,11 @@
 <script lang="ts">
+    import { buttonVariants } from '$ui/shadcn/button/index.js';
+    import * as Popover from '$ui/shadcn/popover/index.js';
+    import { RangeCalendar } from '$ui/shadcn/range-calendar/index.js';
+    import { cn } from '$ui/shadcn/utils.js';
+    import { CalendarDate, DateFormatter, type DateValue, getLocalTimeZone } from '@internationalized/date';
     import CalendarIcon from '@lucide/svelte/icons/calendar';
     import type { DateRange } from 'bits-ui';
-    import { CalendarDate, DateFormatter, type DateValue, getLocalTimeZone } from '@internationalized/date';
-    import { cn } from '$ui/shadcn/utils.js';
-    import { buttonVariants } from '$ui/shadcn/button/index.js';
-    import { RangeCalendar } from '$ui/shadcn/range-calendar/index.js';
-    import * as Popover from '$ui/shadcn/popover/index.js';
 
     const df = new DateFormatter('en-US', {
         dateStyle: 'medium',

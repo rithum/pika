@@ -1,6 +1,6 @@
 import { getChatMessages } from '$lib/server/chat-apis';
-import { isUserContentAdmin } from '$lib/server/utils';
-import { json, redirect, type RequestHandler } from '@sveltejs/kit';
+import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
+import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
     const user = locals.user;
@@ -10,18 +10,18 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
     const { chatAppId } = params;
     if (!chatAppId) {
-        return new Response('chatAppId is required', { status: 400 });
+        throw error(400, 'chatAppId is required');
     }
 
     const { sessionId } = params;
     if (!sessionId) {
-        return new Response('sessionId is required', { status: 400 });
+        throw error(400, 'sessionId is required');
     }
 
     let userId: string | undefined;
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
-            throw new Response('Forbidden', { status: 403 });
+            throw error(403, 'Forbidden');
         }
         userId = locals.user.viewingContentFor[chatAppId]?.userId;
     }
@@ -30,7 +30,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         userId = user.userId;
     }
 
-    const messages = await getChatMessages(sessionId, userId);
-
-    return json(messages);
+    try {
+        const messages = await getChatMessages(sessionId, userId);
+        return json(messages);
+    } catch (e) {
+        handleApiGatewayError(e, 'getting chat messages');
+    }
 };

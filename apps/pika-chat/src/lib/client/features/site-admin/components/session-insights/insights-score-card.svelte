@@ -1,6 +1,6 @@
 <script lang="ts">
-    import type { Component } from 'svelte';
     import { Badge } from '$ui/shadcn/badge';
+    import type { Component } from 'svelte';
 
     interface Props {
         title: string;

@@ -1,12 +1,12 @@
-<script>
-    import { page } from '$app/stores';
+<script lang="ts">
+    import { page } from '$app/state';
     import { onMount } from 'svelte';
 
     onMount(() => {
         console.log('SSO redirect page mounted, initiating OAuth...');
 
         // Get the callback URL from query parameters
-        const callbackUrl = $page.url.searchParams.get('callbackUrl') || '/';
+        const callbackUrl = page.url.searchParams.get('callbackUrl') || '/';
         console.log('Callback URL:', callbackUrl);
 
         // Create a form and submit it to initiate OAuth

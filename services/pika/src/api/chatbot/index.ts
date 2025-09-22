@@ -20,7 +20,26 @@ import {
     SetChatUserPrefsResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    UserMemoryStrategies
+    UserMemoryStrategies,
+    CreateSharedSessionRequest,
+    CreateSharedSessionResponse,
+    GetRecentSharedRequest,
+    GetRecentSharedResponse,
+    GetPinnedSessionsRequest,
+    GetPinnedSessionsResponse,
+    PinSessionRequest,
+    UnpinSessionRequest,
+    ValidateShareAccessRequest,
+    ValidateShareAccessResponse,
+    RecordOrUndef,
+    RecordShareVisitRequest,
+    RecordShareVisitResponse,
+    PinSessionResponse,
+    UnpinSessionResponse,
+    RevokeSharedSessionRequest,
+    RevokeSharedSessionResponse,
+    UnrevokeSharedSessionRequest,
+    UnrevokeSharedSessionResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
@@ -38,12 +57,23 @@ import {
     searchForUsers,
     searchTagDefsApi,
     setUserPrefs,
-    updateSessionTitle
+    updateSessionTitle,
+    createSharedSessionForSession,
+    validateUserCanAccessShare,
+    handlePinSession,
+    handleUnpinSession,
+    handleRecordShareVisit,
+    getRecentSharedSessionsForUser,
+    getPinnedSessionsForUser,
+    revokeSharedSessionApi,
+    unrevokeSharedSessionApi
 } from '../../lib/chat-apis';
-import { addUser, getUserByUserId, updateUser } from '../../lib/chat-ddb';
+import { addUser, getChatSessionByShareId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
 import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { ForbiddenError } from 'pika-shared/util/forbidden-error';
 import { getMemoryId } from '../../lib/utils';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
@@ -52,6 +82,64 @@ let jwtSecret: string | undefined;
 
 type userObjFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, user: ChatUser) => Promise<U>;
 type userIdFnTypeHandler<T, U> = (event: APIGatewayProxyEventPika<T>, userId: string) => Promise<U>;
+
+// Route matching utilities for proxy integration
+interface RouteMatch {
+    handler: userObjFnTypeHandler<any, any> | userIdFnTypeHandler<any, any>;
+    passUserObj: boolean;
+    pathParameters: Record<string, string>;
+}
+
+/**
+ * Convert a route template (e.g., "/api/chat/{sessionId}/messages") to a regex pattern
+ */
+function routeTemplateToRegex(template: string): RegExp {
+    // Escape special regex characters except for our parameter placeholders
+    const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Replace {paramName} with named capture groups
+    const withCaptures = escaped.replace(/\\{([^}]+)\\}/g, '(?<$1>[^/]+)');
+    return new RegExp(`^${withCaptures}$`);
+}
+
+/**
+ * Find a matching route handler for the given method and path
+ */
+function findMatchingRoute(method: string, path: string): RouteMatch | undefined {
+    const routeKey = `${method}:${path}`;
+
+    // First try exact match (for routes without parameters)
+    const exactMatch = routes[routeKey];
+    if (exactMatch) {
+        return {
+            handler: exactMatch.handler,
+            passUserObj: exactMatch.passUserObj,
+            pathParameters: {}
+        };
+    }
+
+    // Try pattern matching for parameterized routes
+    for (const [template, routeConfig] of Object.entries(routes)) {
+        const [templateMethod, templatePath] = template.split(':');
+
+        if (templateMethod !== method) continue;
+
+        // Skip if this doesn't contain parameters
+        if (!templatePath.includes('{')) continue;
+
+        const regex = routeTemplateToRegex(templatePath);
+        const match = path.match(regex);
+
+        if (match && match.groups) {
+            return {
+                handler: routeConfig.handler,
+                passUserObj: routeConfig.passUserObj,
+                pathParameters: match.groups
+            };
+        }
+    }
+
+    return undefined;
+}
 
 const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdFnTypeHandler<any, any>; passUserObj: boolean }> = {
     'GET:/api/chat/user': {
@@ -108,7 +196,43 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     },
     'POST:/api/chat/memory/record/search': {
         handler: handleSearchAllMemoryRecords,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/share': {
+        handler: handleCreateSharedSession,
         passUserObj: true
+    },
+    'DELETE:/api/chat/session/share': {
+        handler: handleRevokeSharedSession,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/share/unrevoke': {
+        handler: handleUnrevokeSharedSession,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/share/recent': {
+        handler: handleGetRecentSharedSessions,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/pinned/search': {
+        handler: handleGetPinnedSessions,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/share/access': {
+        handler: handleValidateShareAccess,
+        passUserObj: true
+    },
+    'POST:/api/chat/session/share/visit': {
+        handler: handleRecordShareVisitApi,
+        passUserObj: false
+    },
+    'POST:/api/chat/session/pinned': {
+        handler: handlePinSessionApi,
+        passUserObj: false
+    },
+    'DELETE:/api/chat/session/pinned': {
+        handler: handleUnpinSessionApi,
+        passUserObj: false
     }
 };
 
@@ -148,24 +272,32 @@ export async function handlerFn(event: APIGatewayProxyEventPika<ConverseRequest 
         throw new HttpStatusError(error ?? 'Unauthorized', simpleUser);
     }
 
-    const { httpMethod, resource } = event;
+    const { httpMethod, path } = event;
 
-    console.log('resource', resource);
+    console.log('path', path);
 
-    const route = `${httpMethod}:${resource}`;
-    const routeHandler = routes[route];
-    if (!routeHandler) {
-        throw new HttpStatusError(`Unsupported route: ${httpMethod} ${resource}`, 404);
+    // Use dynamic route matching for proxy integration
+    const routeMatch = findMatchingRoute(httpMethod, path);
+    if (!routeMatch) {
+        throw new HttpStatusError(`Unsupported route: ${httpMethod} ${path}`, 404);
     }
 
-    if (routeHandler.passUserObj) {
+    // Merge extracted path parameters with existing ones
+    if (Object.keys(routeMatch.pathParameters).length > 0) {
+        event.pathParameters = {
+            ...event.pathParameters,
+            ...routeMatch.pathParameters
+        };
+    }
+
+    if (routeMatch.passUserObj) {
         const user = await getUserByUserId(simpleUser.userId);
         if (!user) {
             throw new UnauthorizedError('Unauthorized: user not found');
         }
-        return (routeHandler.handler as userObjFnTypeHandler<any, any>)(event, user);
+        return (routeMatch.handler as userObjFnTypeHandler<any, any>)(event, user);
     } else {
-        return (routeHandler.handler as userIdFnTypeHandler<any, any>)(event, simpleUser.userId);
+        return (routeMatch.handler as userIdFnTypeHandler<any, any>)(event, simpleUser.userId);
     }
 }
 
@@ -198,19 +330,19 @@ async function handleGetUserPrefs(_event: APIGatewayProxyEventPika<void>, userId
 async function handleSetUserPrefs(event: APIGatewayProxyEventPika<SetChatUserPrefsRequest>, userId: string): Promise<SetChatUserPrefsResponse> {
     const request = event.body;
     if (!request) {
-        throw new Error('Request is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!('prefs' in request)) {
-        throw new Error('Prefs are required');
+        throw new BadRequestError('Prefs are required');
     }
 
     if (typeof request.prefs !== 'object') {
-        throw new Error('Prefs must be an object');
+        throw new BadRequestError('Prefs must be an object');
     }
 
     if ('partial' in request && typeof request.partial !== 'boolean') {
-        throw new Error('Partial must be a boolean');
+        throw new BadRequestError('Partial must be a boolean');
     }
 
     const newPrefs = await setUserPrefs(userId, request.prefs, request.partial ?? false);
@@ -230,7 +362,7 @@ async function handleSetUserPrefs(event: APIGatewayProxyEventPika<SetChatUserPre
 async function handleSearchForUsers(event: APIGatewayProxyEventPika<void>, userId: string): Promise<ChatUserSearchResponse> {
     const partialUserId = event.pathParameters?.partialUserId;
     if (!partialUserId) {
-        throw new Error('Partial user ID is required');
+        throw new BadRequestError('Partial user ID is required');
     }
 
     const users = await searchForUsers(partialUserId.trim());
@@ -243,11 +375,11 @@ async function handleSearchForUsers(event: APIGatewayProxyEventPika<void>, userI
 /**
  * POST:/api/chat/user
  */
-async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser>, userId: string): Promise<ChatUserAddOrUpdateResponse | undefined> {
+async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser<RecordOrUndef>>, userId: string): Promise<ChatUserAddOrUpdateResponse | undefined> {
     // The body of the post must be a ChatUser object
     const user = event.body;
     if (!user) {
-        throw new Error('User is required');
+        throw new BadRequestError('User is required');
     }
 
     // Just in case, override the userId with the one from the jwt
@@ -257,7 +389,7 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
     delete user.overrideData;
     delete user.viewingContentFor;
 
-    let userToReturn: ChatUser;
+    let userToReturn: ChatUser<RecordOrUndef>;
 
     // Check if the user already exists
     const existingUser = await getUserByUserId(user.userId);
@@ -285,7 +417,7 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
 async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatMessagesResponse> {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
-        throw new Error('Session ID is required');
+        throw new BadRequestError('Session ID is required');
     }
     // Get the session and make sure it's associated with the user
     const chatSession = await getChatSession(user.userId, sessionId);
@@ -317,12 +449,12 @@ async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequest
 async function handleAddChatMessage(event: APIGatewayProxyEventPika<ConverseRequest>, user: ChatUser): Promise<ChatMessageResponse> {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
-        throw new Error('Session ID is required');
+        throw new BadRequestError('Session ID is required');
     }
 
     const body = event.body;
     if (!body || !body.message) {
-        throw new Error('Message is required');
+        throw new BadRequestError('Message is required');
     }
 
     // Get the session and make sure it's associated with the user
@@ -362,7 +494,7 @@ async function handleGetUserSessions(_event: APIGatewayProxyEventPika<BaseReques
 async function handleGetUserSessionsByChatAppId(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatSessionsResponse> {
     const chatAppId = event.pathParameters?.chatAppId;
     if (!chatAppId) {
-        throw new Error('Chat app ID is required');
+        throw new BadRequestError('Chat app ID is required');
     }
 
     const sessions = await getUserSessionsByChatAppId(user.userId, chatAppId);
@@ -378,7 +510,7 @@ async function handleGetUserSessionsByChatAppId(event: APIGatewayProxyEventPika<
 async function handleUpdateSessionTitle(event: APIGatewayProxyEventPika<ChatTitleUpdateRequest>, user: ChatUser) {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
-        throw new Error('Session ID is required');
+        throw new BadRequestError('Session ID is required');
     }
 
     // Get the session and make sure it's associated with the user
@@ -398,27 +530,27 @@ async function handleUpdateSessionTitle(event: APIGatewayProxyEventPika<ChatTitl
 async function handleAddFeedback(event: APIGatewayProxyEventPika<AddChatSessionFeedbackRequest>, user: ChatUser): Promise<AddChatSessionFeedbackResponse> {
     const request = event.body as AddChatSessionFeedbackRequest;
     if (!request) {
-        throw new Error('Feedback is required');
+        throw new BadRequestError('Feedback is required');
     }
 
     if (typeof request !== 'object') {
-        throw new Error('Feedback must be an object');
+        throw new BadRequestError('Feedback must be an object');
     }
 
     if (!('feedback' in request)) {
-        throw new Error('Feedback is required');
+        throw new BadRequestError('Feedback is required');
     }
 
     if (typeof request.feedback !== 'object') {
-        throw new Error('Feedback must be an object');
+        throw new BadRequestError('Feedback must be an object');
     }
 
     if (!('feedbackId' in request.feedback)) {
-        throw new Error('Feedback ID is required and must be a V7 UUID');
+        throw new BadRequestError('Feedback ID is required and must be a V7 UUID');
     }
 
     if (!('sessionId' in request.feedback)) {
-        throw new Error('Session ID is required');
+        throw new BadRequestError('Session ID is required');
     }
     return {
         success: true,
@@ -435,7 +567,7 @@ async function handleAddFeedback(event: APIGatewayProxyEventPika<AddChatSessionF
 async function handleGetFeedbackBySessionId(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<GetChatSessionFeedbackResponse> {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
-        throw new Error('Session ID is required');
+        throw new BadRequestError('Session ID is required');
     }
 
     return {
@@ -462,15 +594,15 @@ async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSea
 async function handleSearchAllMemoryRecords(event: APIGatewayProxyEventPika<SearchAllMyMemoryRecordsRequest>, userId: string): Promise<SearchAllMyMemoryRecordsResponse> {
     const requestBody = event.body;
     if (!requestBody) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!requestBody.strategy) {
-        throw new Error('strategy is required');
+        throw new BadRequestError('strategy is required');
     }
 
     if (!UserMemoryStrategies.includes(requestBody.strategy)) {
-        throw new Error(`Invalid strategy: ${requestBody.strategy}`);
+        throw new BadRequestError(`Invalid strategy: ${requestBody.strategy}`);
     }
     let response: SearchAllMyMemoryRecordsResponse = {
         success: true,
@@ -483,6 +615,127 @@ async function handleSearchAllMemoryRecords(event: APIGatewayProxyEventPika<Sear
     response.results = await getAllMemoryRecords(userId, getMemoryId(), requestBody.strategy, requestBody.nextToken);
 
     return response;
+}
+
+// ===== SHARING SESSIONS FEATURE API HANDLERS =====
+
+async function handleCreateSharedSession(event: APIGatewayProxyEventPika<CreateSharedSessionRequest>, user: ChatUser<RecordOrUndef>): Promise<CreateSharedSessionResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new BadRequestError('Request body is required');
+    }
+
+    return await createSharedSessionForSession(user, request);
+}
+
+async function handleRevokeSharedSession(event: APIGatewayProxyEventPika<RevokeSharedSessionRequest>, userId: string): Promise<RevokeSharedSessionResponse> {
+    const request = event.body;
+    if (!request?.shareId) {
+        throw new BadRequestError('shareId is required');
+    }
+
+    const session = await getChatSessionByShareId(request.shareId);
+    if (!session) {
+        throw new HttpStatusError('Shared session not found', 404);
+    }
+
+    // Allow both session owner and share creator to revoke
+    if (session.userId !== userId && session.shareCreatedByUserId !== userId) {
+        throw new ForbiddenError('Not authorized to revoke this shared session');
+    }
+
+    await revokeSharedSessionApi(request.shareId);
+    return { success: true };
+}
+
+async function handleUnrevokeSharedSession(event: APIGatewayProxyEventPika<UnrevokeSharedSessionRequest>, userId: string): Promise<UnrevokeSharedSessionResponse> {
+    const request = event.body;
+    if (!request?.shareId) {
+        throw new BadRequestError('shareId is required');
+    }
+
+    const session = await getChatSessionByShareId(request.shareId);
+    if (!session) {
+        throw new HttpStatusError('Shared session not found', 404);
+    }
+
+    // Allow both session owner and share creator to unrevoke
+    if (session.userId !== userId && session.shareCreatedByUserId !== userId) {
+        throw new ForbiddenError('Not authorized to unrevoke this shared session');
+    }
+
+    await unrevokeSharedSessionApi(request.shareId);
+    return { success: true };
+}
+
+async function handleGetRecentSharedSessions(event: APIGatewayProxyEventPika<GetRecentSharedRequest>, userId: string): Promise<GetRecentSharedResponse> {
+    const request = event.body;
+    if (!request?.chatAppId) {
+        throw new BadRequestError('chatAppId is required');
+    }
+
+    const sessions = await getRecentSharedSessionsForUser(userId, request.chatAppId, request.limit || 5);
+    return {
+        success: true,
+        recentShared: sessions
+    };
+}
+
+async function handleGetPinnedSessions(event: APIGatewayProxyEventPika<GetPinnedSessionsRequest>, userId: string): Promise<GetPinnedSessionsResponse> {
+    const request = event.body;
+    if (!request?.chatAppId) {
+        throw new BadRequestError('chatAppId is required');
+    }
+
+    const result = await getPinnedSessionsForUser(userId, request.chatAppId, request.limit || 20, request.nextToken);
+
+    return {
+        success: true,
+        results: result.results,
+        nextToken: result.nextToken
+    };
+}
+
+async function handleValidateShareAccess(event: APIGatewayProxyEventPika<ValidateShareAccessRequest>, user: ChatUser<RecordOrUndef>): Promise<ValidateShareAccessResponse> {
+    const request = event.body;
+    if (!request?.shareId || !request?.chatAppId) {
+        throw new BadRequestError('shareId and chatAppId are required');
+    }
+
+    return await validateUserCanAccessShare(request.shareId, request.chatAppId, user.userType || 'external-user', request.entityId);
+}
+
+async function handleRecordShareVisitApi(event: APIGatewayProxyEventPika<RecordShareVisitRequest>, userId: string): Promise<RecordShareVisitResponse> {
+    const request = event.body;
+    if (!request?.shareId) {
+        throw new BadRequestError('shareId is required');
+    }
+
+    // Get user data for custom data
+    const user = await getUserByUserId(userId);
+    await handleRecordShareVisit(userId, request.shareId, user?.customData);
+
+    return { success: true };
+}
+
+async function handlePinSessionApi(event: APIGatewayProxyEventPika<PinSessionRequest>, userId: string): Promise<PinSessionResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new BadRequestError('Request body is required');
+    }
+
+    await handlePinSession(userId, request);
+    return { success: true };
+}
+
+async function handleUnpinSessionApi(event: APIGatewayProxyEventPika<UnpinSessionRequest>, userId: string): Promise<UnpinSessionResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new BadRequestError('Request body is required');
+    }
+
+    await handleUnpinSession(userId, request);
+    return { success: true };
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

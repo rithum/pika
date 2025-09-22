@@ -4,10 +4,10 @@ import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import {
     clearAllCookies,
-    serializeAuthenticatedUserToCookies,
     deserializeAuthenticatedUserFromCookies,
-    deserializeUserOverrideDataFromCookies,
     deserializeContentAdminDataFromCookies,
+    deserializeUserOverrideDataFromCookies,
+    serializeAuthenticatedUserToCookies,
     validateAllCookieVersions
 } from '$lib/server/cookies';
 import { KeyManager } from '$lib/server/encryption/KeyManager';

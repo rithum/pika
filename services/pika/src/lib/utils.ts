@@ -1,14 +1,19 @@
-import type { DynamoDBRecord } from 'aws-lambda';
+import type { APIGatewayProxyStructuredResultV2, DynamoDBRecord } from 'aws-lambda';
 import { createHash } from 'crypto';
 import type {
     ChatSession,
     ChatUser,
     ConverseInvocationMode,
+    PinnedSession,
+    PinnedSessionDynamoDb,
     RecordOrUndef,
     SessionDataWithChatUserCustomDataSpreadIn,
+    SharedSessionVisitHistory,
+    SharedSessionVisitHistoryDynamoDb,
     UserMemoryStrategy
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 
 export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')
@@ -81,9 +86,13 @@ export function isDevLikeEnv(): boolean {
     return stage.includes('dev') || stage.includes('test');
 }
 
-// export function getAgentId(): string {
-//     return getFromEnv('AGENT_ID');
-// }
+export function getSharedSessionVisitHistoryTable(): string {
+    return getFromEnv('SHARED_SESSION_VISIT_HISTORY_TABLE');
+}
+
+export function getPinnedSessionTable(): string {
+    return getFromEnv('PINNED_SESSION_TABLE');
+}
 
 /**
  * Extracts the message id from the message id string and increments it by 1.
@@ -193,11 +202,11 @@ export function convertDatesToStrings(obj: any): any {
  * Preserves the customData value without converting its internal structure.
  * Only the customData key name gets converted (customData -> custom_data).
  */
-export function convertChatUserToSnakeFromCamelCase(user: ChatUser): any {
+export function convertChatUserToSnakeFromCamelCase(user: ChatUser<RecordOrUndef>): any {
     const { customData, ...userWithoutCustomData } = user;
 
     // Convert everything except customData
-    const converted = convertToSnakeCase<ChatUser>(userWithoutCustomData);
+    const converted = convertToSnakeCase<ChatUser<RecordOrUndef>>(userWithoutCustomData);
 
     // Add customData back with snake_case key but preserve its value structure
     if (customData !== undefined) {
@@ -334,3 +343,48 @@ export function getMemoryNamespaceForStrategyAndUserId(strategy: UserMemoryStrat
     const namespace = getMemoryNamespaceForStrategy(strategy);
     return namespace.replace('{actorId}', userId);
 }
+
+export function convertPinnedSessionToCamelFromSnakeCaseFromDynamoDb(pinnedSession: SnakeCase<PinnedSessionDynamoDb>): PinnedSession {
+    const result = convertToCamelCase<PinnedSession>(pinnedSession);
+
+    delete (result as any).userIdChatAppId;
+    delete (result as any).sessionOrShareId;
+
+    return result;
+}
+
+export function convertPinnedSessionToSnakeFromCamelCaseForDynamoDb(userId: string, pinnedSession: PinnedSession): SnakeCase<PinnedSessionDynamoDb> {
+    const partitionKey = `${userId}#${pinnedSession.chatAppId}`;
+    const sessionOrShareId = pinnedSession.sessionId || pinnedSession.shareId!;
+
+    if (pinnedSession.testType && pinnedSession.testType !== 'mock') {
+        delete pinnedSession.testType;
+    }
+
+    if (!pinnedSession.pinnedAt) {
+        pinnedSession.pinnedAt = new Date().toISOString();
+    }
+
+    return convertToSnakeCase<PinnedSessionDynamoDb>({ ...pinnedSession, userIdChatAppId: partitionKey, sessionOrShareId });
+}
+
+export function convertSharedSessionVisitHistoryToCamelFromSnakeCaseFromDynamoDb(
+    sharedSessionVisitHistory: SnakeCase<SharedSessionVisitHistoryDynamoDb>
+): SharedSessionVisitHistory {
+    const result = convertToCamelCase<SharedSessionVisitHistory>(sharedSessionVisitHistory);
+
+    delete (result as any).userIdChatAppId;
+
+    return result;
+}
+
+export function convertSharedSessionVisitHistoryToSnakeFromCamelCaseForDynamoDb(
+    userId: string,
+    sharedSessionVisitHistory: SharedSessionVisitHistory
+): SnakeCase<SharedSessionVisitHistoryDynamoDb> {
+    const partitionKey = `${userId}#${sharedSessionVisitHistory.chatAppId}`;
+
+    return convertToSnakeCase<SharedSessionVisitHistoryDynamoDb>({ ...sharedSessionVisitHistory, userIdChatAppId: partitionKey });
+}
+
+export type ApiResponse = APIGatewayProxyStructuredResultV2;

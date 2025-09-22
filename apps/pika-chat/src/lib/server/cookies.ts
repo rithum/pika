@@ -1,7 +1,7 @@
-import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from 'pika-shared/types/chatbot/chatbot-types';
 import { type RequestEvent } from '@sveltejs/kit';
-import { KeyManager } from './encryption/KeyManager';
+import type { AuthenticatedUser, ContentAdminData, RecordOrUndef, UserOverrideData } from 'pika-shared/types/chatbot/chatbot-types';
 import { CookieEncryption } from './encryption/CookieEncryption';
+import { KeyManager } from './encryption/KeyManager';
 
 // Cookie size limit (4KB = 4096 bytes)
 const COOKIE_SIZE_LIMIT = 4096;

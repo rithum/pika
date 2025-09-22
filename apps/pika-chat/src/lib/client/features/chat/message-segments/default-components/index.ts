@@ -2,12 +2,12 @@ import type { Component } from 'svelte';
 
 // Import all tag components
 import ChartComponent from './chart-renderer.svelte';
-import tagDefChart from './tag-definition-chart';
 import ChatComponent from './chat-renderer.svelte';
 import DownloadComponent from './download-renderer.svelte';
 import ImageComponent from './image-renderer.svelte';
-import imageDefChart from './tag-definition-image';
 import PromptComponent from './prompt.svelte';
+import tagDefChart from './tag-definition-chart';
+import imageDefChart from './tag-definition-image';
 import promptDefChart from './tag-definition-prompt';
 
 // Import text renderer

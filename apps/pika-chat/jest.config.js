@@ -23,10 +23,12 @@ export default {
     // Test file patterns
     testMatch: ['<rootDir>/test/**/*.test.ts', '<rootDir>/test/**/*.spec.ts'],
 
-    // Module name mapping to handle SvelteKit path aliases
+    // Module name mapping to handle SvelteKit path aliases and mocks
     moduleNameMapper: {
         '^\\$lib/(.*)$': '<rootDir>/src/lib/$1',
-        '^pika-shared/(.*)$': '<rootDir>/../../packages/shared/$1'
+        '^pika-shared/(.*)$': '<rootDir>/../../packages/shared/src/$1',
+        '^\\$env/dynamic/private$': '<rootDir>/test/__mocks__/$env-dynamic-private.ts',
+        '^@sveltejs/kit$': '<rootDir>/test/__mocks__/@sveltejs-kit.ts'
     },
 
     // Enable ES modules
@@ -34,6 +36,9 @@ export default {
 
     // Setup files to run before tests
     setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+
+    // Increase timeout for integration tests that make AWS API calls
+    testTimeout: 15000, // 15 seconds default timeout
 
     // Collect coverage from source files
     collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/**/*.svelte'],

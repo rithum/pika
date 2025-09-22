@@ -5,7 +5,6 @@
     import type { ServerSideConfig, ServerSideTableState } from '$ui/pika/pika-table/types';
     import { Button } from '$ui/shadcn/button';
     import { Card } from '$ui/shadcn/card';
-    import { Input } from '$ui/shadcn/input';
     import { Separator } from '$ui/shadcn/separator';
     import FiltersPopup from './filters-popup.svelte';
     // Import additional PikaTable components

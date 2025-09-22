@@ -1,5 +1,5 @@
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from 'pika-shared/types/chatbot/chatbot-types';
 import type { RequestEvent } from '@sveltejs/kit';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation } from 'pika-shared/types/chatbot/chatbot-types';
 import { AuthProvider } from './types.js';
 
 export interface MockAuthData extends Record<string, string | undefined> {
@@ -37,8 +37,8 @@ export default class DefaultAuthProvider extends AuthProvider<MockAuthData, Mock
                 mockAccessToken: 'aaa-bbb-ccc'
             },
             customData: {
-                // accountId: '123',
-                // accountType: 'standard',
+                accountId: '123',
+                accountType: 'standard'
             } as MockCustomData,
             features: {
                 instruction: {

@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { getContext } from 'svelte';
-    import Scope from './scope.svelte';
     import DirectiveId from './directive-id.svelte';
+    import Scope from './scope.svelte';
 
     const appState = getContext<AppState>('appState');
     const iaState = appState.siteAdmin.instructionAugmentation;

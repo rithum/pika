@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
+    import { PanelLeft } from '$lib/icons/lucide';
     import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from '$ui/shadcn/button';
-    import { PanelLeft } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');

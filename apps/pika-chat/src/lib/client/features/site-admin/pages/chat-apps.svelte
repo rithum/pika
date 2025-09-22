@@ -5,12 +5,12 @@
     import { Button } from '$ui/shadcn/button';
     import { ScrollArea } from '$ui/shadcn/scroll-area';
     import { Separator } from '$ui/shadcn/separator';
+    import deepEqual from 'deep-equal';
     import type {
         ChatApp,
         ChatAppOverrideForCreateOrUpdate,
         UserChatAppRule,
     } from 'pika-shared/types/chatbot/chatbot-types';
-    import deepEqual from 'deep-equal';
     import { getContext, type Snippet } from 'svelte';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
     import BasicSettings from '../components/chat-apps/basic-settings.svelte';

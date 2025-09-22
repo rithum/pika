@@ -4,18 +4,18 @@
 </script>
 
 <script lang="ts" generics="TData">
-    import { PikaTableFacetedFilter, PikaTableViewOptions } from '$ui/pika/pika-table';
     import { X } from '$icons/lucide';
+    import { PikaTableFacetedFilter, PikaTableViewOptions } from '$ui/pika/pika-table';
     import Button from '$ui/shadcn/button/button.svelte';
     import { Input } from '$ui/shadcn/input/index.js';
     import type { Table } from '@tanstack/table-core';
+    import type { Snippet } from 'svelte';
     import type {
         FacetedFilterPropsWithColumn,
         FacetedFilters,
         FacetedFiltersWithColumn,
         GlobalFilterProps,
     } from './types';
-    import type { Snippet } from 'svelte';
 
     interface Props {
         table: Table<TData>;

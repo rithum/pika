@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Carta, MarkdownEditor } from 'carta-md';
     import { code } from '@cartamd/plugin-code';
+    import { Carta, MarkdownEditor } from 'carta-md';
     import './github.scss';
 
     interface Props {

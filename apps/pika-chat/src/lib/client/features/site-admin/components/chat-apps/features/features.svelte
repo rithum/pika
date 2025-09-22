@@ -17,13 +17,14 @@
         ChatApp,
         ChatAppFeature,
         ChatDisclaimerNoticeFeatureForChatApp,
+        EntityFeatureForChatApp,
         FeatureIdType,
         FileUploadFeature,
         FileUploadFeatureForChatApp,
+        InstructionAugmentationFeatureForChatApp,
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
         PromptInputFieldLabelFeatureForChatApp,
-        InstructionAugmentationFeatureForChatApp,
         SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
@@ -37,22 +38,23 @@
         VerifyResponseFeatureForChatApp,
     } from 'pika-shared/types/chatbot/chatbot-types';
     // Import individual feature components
+    import { assert } from '$lib/utils';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import Button from '$ui/shadcn/button/button.svelte';
-    import { assert } from '$lib/utils';
+    import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
     import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
+    import EntityFeatureRenderer from './entity-feature-renderer.svelte';
     import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
+    import InstructionAugmentationFeatureRenderer from './instruction-augmentation-feature-renderer.svelte';
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
-    import InstructionAugmentationFeatureRenderer from './instruction-augmentation-feature-renderer.svelte';
+    import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
     import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
     import TagsFeatureRenderer from './tags-feature-renderer.svelte';
     import TracesFeatureRenderer from './traces-feature-renderer.svelte';
     import UiCustomizationFeatureRenderer from './ui-customization-feature-renderer.svelte';
-    import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
-    import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
-    import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
     import UserMemoryFeatureRenderer from './user-memory-feature-renderer.svelte';
+    import VerifyResponseFeatureRenderer from './verify-response-feature-renderer.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -238,6 +240,7 @@
         logout: false,
         agentInstructionAssistance: false,
         userMemory: false,
+        entity: false,
     } as Record<FeatureIdType, boolean>);
 
     function setExpandedOrCollapsed(expanded: boolean) {
@@ -916,6 +919,35 @@
                             />
                         {:else if typedFeatureId === 'userDataOverrides'}
                             <div>No additional configuration may be overridden for this feature.</div>
+                        {:else if typedFeatureId === 'entity'}
+                            <EntityFeatureRenderer
+                                {featureEnabled}
+                                isOverridden={featureOverridden}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as EntityFeatureForChatApp | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as EntityFeatureForChatApp}
+                                {isOverrideMode}
+                            />
                         {/if}
                     </div>
                 </div>
@@ -1069,6 +1101,21 @@
             <p class="text-xs text-muted-foreground">
                 Stored memories are automatically retrieved and injected into LLM requests to provide more personalized
                 and contextually relevant responses.
+            </p>
+        </div>
+    {:else if featureId === 'entity'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Controls whether entity-based access control and filtering is active for this chat app. When enabled,
+                users are associated with their organizational entity for security and session sharing.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Important:</span> Chat apps can only disable the entity feature, not modify the site-level
+                entity configuration (attribute name, display settings, etc.).
+            </p>
+            <p class="text-xs text-muted-foreground">
+                When disabled, all users with chat app access can view shared sessions from this app regardless of their
+                entity.
             </p>
         </div>
     {:else}

@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import { LRUCache } from 'lru-cache';
 import type {
     AddChatSessionFeedbackRequest,
     AddChatSessionFeedbackResponse,
@@ -11,20 +13,36 @@ import type {
     ChatUserLite,
     ChatUserResponse,
     ChatUserSearchResponse,
+    CreateSharedSessionRequest,
+    CreateSharedSessionResponse,
     GetChatSessionFeedbackResponse,
     GetChatUserPrefsResponse,
+    GetPinnedSessionsRequest,
+    GetPinnedSessionsResponse,
+    GetRecentSharedRequest,
+    GetRecentSharedResponse,
+    PinSessionRequest,
+    PinSessionResponse,
     RecordOrUndef,
+    RecordShareVisitRequest,
+    RecordShareVisitResponse,
+    RevokeSharedSessionRequest,
+    RevokeSharedSessionResponse,
+    SearchAllMyMemoryRecordsRequest,
+    SearchAllMyMemoryRecordsResponse,
     SetChatUserPrefsResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    UserPrefs,
+    UnpinSessionRequest,
+    UnpinSessionResponse,
+    UnrevokeSharedSessionRequest,
+    UnrevokeSharedSessionResponse,
     UserMemoryStrategy,
-    SearchAllMyMemoryRecordsRequest,
-    SearchAllMyMemoryRecordsResponse
+    UserPrefs,
+    ValidateShareAccessRequest,
+    ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
-import { hash } from 'crypto';
-import { LRUCache } from 'lru-cache';
 import { appConfig } from './config';
 import { invokeApi } from './invoke-api';
 
@@ -46,12 +64,13 @@ export async function getChatUser<T extends RecordOrUndef = undefined>(userId: s
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getChatUser',
+            resourceName: 'chat user',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting user from chat database for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.user;
 }
@@ -64,14 +83,13 @@ export async function searchForUser(userId: string, partialUserId: string): Prom
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'searchForUser',
+            resourceName: 'user search',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error searching for users for userId ${userId} using partialUserId ${partialUserId} with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
-    }
 
     return response.body.users;
 }
@@ -85,12 +103,13 @@ export async function createChatUser<T extends RecordOrUndef = undefined>(user: 
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<T>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'addOrUpdateChatUser',
+            resourceName: 'chat user',
+            userId: user.userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error creating user in chat database for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.user as ChatUser<T>;
 }
@@ -107,12 +126,13 @@ export async function addFeedback<T extends RecordOrUndef = undefined>(user: Cha
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<T>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'addChatSessionFeedback',
+            resourceName: 'chat session feedback',
+            userId: user.userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error adding feedback for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.feedback;
 }
@@ -124,12 +144,12 @@ export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSes
         method: 'GET',
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'getChatSessionFeedback',
+            resourceName: 'chat session feedback'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting feedback for sessionId ${sessionId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.feedback;
 }
@@ -142,14 +162,13 @@ export async function getChatSessions(userId: string, chatAppId: string): Promis
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getChatSessions',
+            resourceName: 'chat sessions',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error getting sessions from chat database for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error} and body: ${JSON.stringify(response.body)}`
-        );
-    }
 
     return response.body.sessions;
 }
@@ -162,6 +181,11 @@ export async function getChatMessages(sessionId: string, userId: string): Promis
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getChatMessages',
+            resourceName: 'chat messages',
+            userId
         }
     });
     return response.body;
@@ -175,12 +199,13 @@ export async function getUserPrefs(userId: string): Promise<UserPrefs | undefine
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getChatUserPrefs',
+            resourceName: 'user preferences',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting user prefs for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.prefs;
 }
@@ -194,19 +219,20 @@ export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: bo
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'setChatUserPrefs',
+            resourceName: 'user preferences',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error setting user prefs for userId ${userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.prefs!;
 }
 
 export async function searchTagDefinitions(userId: string, request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
     // Generate cache key based on request parameters
-    const requestHash = hash('sha256', JSON.stringify(request));
+    const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
     const cacheKey = `search:chat:${requestHash}`;
 
     // Check if any tag definition has dontCacheThis set to true
@@ -223,12 +249,13 @@ export async function searchTagDefinitions(userId: string, request: TagDefinitio
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'searchTagDefinitions',
+            resourceName: 'tag definitions',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error searching tag definitions with status code: ${response.statusCode}`);
-    }
 
     // Cache the response only if no tag definition has dontCacheThis set
     if (!response.body.tagDefinitions.some((def) => def.dontCacheThis)) {
@@ -255,12 +282,203 @@ export async function getUserMemoriesForStrategy(userId: string, strategy: UserM
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getUserMemoriesForStrategy',
+            resourceName: 'user memory records',
+            userId
         }
     });
 
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error retrieving user memory with status code: ${response.statusCode}`);
+    return response.body;
+}
+
+// === SHARING-RELATED FUNCTIONS ===
+
+export async function createSharedSession(user: ChatUser<RecordOrUndef>, request: CreateSharedSessionRequest): Promise<CreateSharedSessionResponse> {
+    const response = await invokeApi<CreateSharedSessionResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body: request,
+        errorInfo: {
+            operation: 'createSharedSession',
+            resourceName: 'shared session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function revokeSharedSession(user: ChatUser<RecordOrUndef>, request: RevokeSharedSessionRequest): Promise<RevokeSharedSessionResponse> {
+    const response = await invokeApi<RevokeSharedSessionResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share`,
+        method: 'DELETE',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body: request,
+        errorInfo: {
+            operation: 'revokeSharedSession',
+            resourceName: 'shared session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function unrevokeSharedSession(user: ChatUser<RecordOrUndef>, request: UnrevokeSharedSessionRequest): Promise<UnrevokeSharedSessionResponse> {
+    const response = await invokeApi<UnrevokeSharedSessionResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share/unrevoke`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body: request,
+        errorInfo: {
+            operation: 'unrevokeSharedSession',
+            resourceName: 'shared session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+export async function getRecentSharedSessions(userId: string, chatAppId: string, limit: number = 5): Promise<GetRecentSharedResponse> {
+    const body: GetRecentSharedRequest = { chatAppId, limit };
+    const response = await invokeApi<GetRecentSharedResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share/recent`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body,
+        errorInfo: {
+            operation: 'getRecentSharedSessions',
+            resourceName: 'shared sessions',
+            userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function getPinnedSessions(userId: string, chatAppId: string, limit?: number, nextToken?: string): Promise<GetPinnedSessionsResponse> {
+    const body: GetPinnedSessionsRequest = { chatAppId, limit, nextToken };
+
+    if (!body.limit) {
+        body.limit = 20;
     }
+
+    const response = await invokeApi<GetPinnedSessionsResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/pinned/search`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body,
+        errorInfo: {
+            operation: 'getPinnedSessions',
+            resourceName: 'pinned sessions',
+            userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function pinSession(user: ChatUser<RecordOrUndef>, request: PinSessionRequest): Promise<PinSessionResponse> {
+    const response = await invokeApi<PinSessionResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/pinned`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body: request,
+        errorInfo: {
+            operation: 'pinSession',
+            resourceName: 'pinned session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function unpinSession(user: ChatUser<RecordOrUndef>, request: UnpinSessionRequest): Promise<UnpinSessionResponse> {
+    const response = await invokeApi<UnpinSessionResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/pinned`,
+        method: 'DELETE',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body: request,
+        errorInfo: {
+            operation: 'unpinSession',
+            resourceName: 'pinned session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function validateShareAccess(user: ChatUser<RecordOrUndef>, shareId: string, chatAppId: string, entityId?: string): Promise<ValidateShareAccessResponse> {
+    const body: ValidateShareAccessRequest = { shareId, chatAppId, entityId };
+    const response = await invokeApi<ValidateShareAccessResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share/access`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<RecordOrUndef>({ userId: user.userId, customUserData: user.customData }, appConfig.jwtSecret)}`
+        },
+        body,
+        errorInfo: {
+            operation: 'validateShareAccess',
+            resourceName: 'shared session',
+            userId: user.userId
+        }
+    });
+
+    return response.body;
+}
+
+export async function recordShareVisit(userId: string, shareId: string): Promise<RecordShareVisitResponse> {
+    const body: RecordShareVisitRequest = { shareId };
+    const response = await invokeApi<RecordShareVisitResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/session/share/visit`,
+        method: 'POST',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        body,
+        errorInfo: {
+            operation: 'recordShareVisit',
+            resourceName: 'shared session',
+            userId
+        }
+    });
 
     return response.body;
 }

@@ -1,5 +1,5 @@
-import { SSMKeyProvider } from './SSMKeyProvider';
 import { KMSProvider } from './KMSProvider';
+import { SSMKeyProvider } from './SSMKeyProvider';
 import { VersionManager } from './VersionManager';
 import type { SsmKeyParameters } from './types';
 

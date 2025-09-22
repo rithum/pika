@@ -5,9 +5,9 @@ import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import Caches from '../pages/caches.svelte';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
-import SessionInsights from '../pages/session-insights.svelte';
 import InstructionAugmentation from '../pages/instruction-augmentation.svelte';
 import Memory from '../pages/memory.svelte';
+import SessionInsights from '../pages/session-insights.svelte';
 
 const ITEMS: NavItem[] = [
     {

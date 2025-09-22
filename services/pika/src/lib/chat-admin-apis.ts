@@ -15,104 +15,94 @@ import type {
     AgentAndTools,
     AgentDataRequest,
     AgentDefinition,
-    CreateAgentRequest,
-    ToolDefinition,
-    ToolDefinitionForCreate,
-    UpdateableAgentDefinitionFields,
-    UpdateableToolDefinitionFields,
-    UpdateAgentRequest,
-    UpdateToolRequest,
     ChatApp,
-    CreateChatAppRequest,
-    UpdateChatAppRequest,
-    ChatAppForCreate,
     ChatAppDataRequest,
     ChatAppForIdempotentCreateOrUpdate,
-    UpdateableChatAppFields,
     ChatAppOverride,
-    CreateOrUpdateChatAppOverrideRequest,
-    DeleteChatAppOverrideRequest,
-    ChatAppOverrideForCreateOrUpdate,
     ChatAppOverrideDdb,
-    UpdateableChatAppOverrideFields,
-    ChatSessionFeedbackForCreate,
+    ChatAppOverrideForCreateOrUpdate,
     ChatSessionFeedback,
+    ChatSessionFeedbackForCreate,
     ChatSessionFeedbackForUpdate,
-    ChatSession,
+    CreateAgentRequest,
+    CreateChatAppRequest,
+    CreateOrUpdateChatAppOverrideRequest,
+    RecordOrUndef,
+    SearchSemanticDirectivesRequest,
+    SearchSemanticDirectivesResponse,
+    SemanticDirectiveCreateOrUpdateRequest,
+    SemanticDirectiveCreateOrUpdateResponse,
+    SemanticDirectiveDeleteRequest,
+    SemanticDirectiveDeleteResponse,
     SessionSearchRequest,
     SessionSearchResponse,
-    TagDefinition,
-    TagDefinitionWidget,
     TagDefinitionCreateOrUpdateRequest,
     TagDefinitionCreateOrUpdateResponse,
     TagDefinitionDeleteRequest,
     TagDefinitionDeleteResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    TagDefinitionForCreateOrUpdate,
-    TagDefinitionLite,
-    SemanticDirective,
-    SemanticDirectiveCreateOrUpdateRequest,
-    SemanticDirectiveCreateOrUpdateResponse,
-    SemanticDirectiveDeleteRequest,
-    SemanticDirectiveDeleteResponse,
-    SearchSemanticDirectivesRequest,
-    SearchSemanticDirectivesResponse,
-    SemanticDirectiveForCreateOrUpdate,
-    RecordOrUndef
+    ToolDefinition,
+    ToolDefinitionForCreate,
+    UpdateableAgentDefinitionFields,
+    UpdateableChatAppFields,
+    UpdateableChatAppOverrideFields,
+    UpdateableToolDefinitionFields,
+    UpdateAgentRequest,
+    UpdateChatAppRequest,
+    UpdateToolRequest
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { PikaUserRoles, UPDATEABLE_FEEDBACK_FIELDS, UserTypes } from 'pika-shared/types/chatbot/chatbot-types';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { v7 as uuidv7 } from 'uuid';
 import {
+    addFeedback,
     createAgent,
+    createChatApp,
+    createChatAppOverrideDdb,
+    createOrUpdateSemanticDirective,
+    createOrUpdateTagDefinition,
     createTool,
+    deleteChatApp,
+    deleteChatAppOverrideDdb,
+    deleteSemanticDirective,
+    deleteTagDefinition,
     getAgentById,
     getAgentsByCreator,
     getAllAgents,
+    getAllChatApps,
     getAllTools,
+    getChatAppById,
+    getFeedbackById,
     getToolById,
     getToolsByCreator,
     getToolsByExecutionType,
     getToolsByIds,
     getToolsByLifecycleStatus,
-    updateAgent,
-    updateTool,
-    getAllChatApps,
-    getChatAppById,
-    createChatApp,
-    updateChatApp,
-    deleteChatApp,
-    createChatAppOverrideDdb,
-    updateChatAppOverrideToDdb,
-    deleteChatAppOverrideDdb,
-    addFeedback,
-    updateFeedback,
-    getFeedbackById,
-    getAllTagDefinitions,
-    getTagDefinition,
-    createOrUpdateTagDefinition,
-    deleteTagDefinition,
+    searchSemanticDirectives,
     searchTagDefinitions,
-    createOrUpdateSemanticDirective,
-    deleteSemanticDirective,
-    searchSemanticDirectives
+    updateAgent,
+    updateChatApp,
+    updateChatAppOverrideToDdb,
+    updateFeedback,
+    updateTool
 } from './chat-admin-ddb';
 import {
     agentsAreSame,
-    toolsAreSame,
-    handleOptionalFieldUpdate,
-    handleRequiredFieldUpdate,
-    handleArrayFieldUpdate,
-    handleRequiredArrayFieldUpdate,
-    handleObjectFieldUpdate,
-    validateEntitiesExist,
-    arraysHaveSameElements,
     arraysAreSame,
-    recordsHaveSameElements,
+    arraysHaveSameElements,
+    calculateTTL,
     createEntityWithMetadata,
-    calculateTTL
+    handleArrayFieldUpdate,
+    handleObjectFieldUpdate,
+    handleOptionalFieldUpdate,
+    handleRequiredArrayFieldUpdate,
+    handleRequiredFieldUpdate,
+    recordsHaveSameElements,
+    toolsAreSame,
+    validateEntitiesExist
 } from './chat-admin-utils';
-import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { queryForSessions } from './opensearch/opensearch';
 
 /**
@@ -302,7 +292,7 @@ async function handleToolsIdempotent(
 ): Promise<[ToolDefinition[], boolean]> {
     // Validate input: cannot provide both tool IDs and tool definitions
     if (toolIdsFromAgentRequest.length > 0 && requestToolDefs.length > 0) {
-        throw new Error('Both toolIdsFromAgentRequest and newTools cannot be provided');
+        throw new BadRequestError('Both toolIdsFromAgentRequest and newTools cannot be provided');
     }
 
     // Early return if no tools specified
@@ -452,7 +442,7 @@ export async function createAgentDefinition(request: CreateAgentRequest): Promis
     if (request.agent.agentId) {
         const existingAgent = await getAgent(request.agent.agentId);
         if (existingAgent) {
-            throw new Error('Agent ID already exists');
+            throw new BadRequestError('Agent ID already exists');
         }
     }
 
@@ -464,7 +454,7 @@ export async function createAgentDefinition(request: CreateAgentRequest): Promis
     if (request.existingToolsToAssociate) {
         const existingTools = await getToolsByIds(request.existingToolsToAssociate);
         if (existingTools.length !== request.existingToolsToAssociate.length) {
-            throw new Error(
+            throw new BadRequestError(
                 `These tools don't exist to associate with your agent: ${request.existingToolsToAssociate.filter((toolId) => !existingTools.some((tool) => tool.toolId === toolId)).join(', ')}`
             );
         }
@@ -478,7 +468,7 @@ export async function createAgentDefinition(request: CreateAgentRequest): Promis
         }
     }
 
-    const ttl = request.agent.test ? calculateTTL(1) : undefined;
+    const ttl = request.agent.testType === 'mock' ? calculateTTL(1) : undefined;
 
     const agent: AgentDefinition = {
         ...request.agent,
@@ -504,7 +494,7 @@ export async function createAgentDefinition(request: CreateAgentRequest): Promis
 export async function updateAgentDefinition(request: UpdateAgentRequest): Promise<AgentDefinition> {
     const existingAgent = await getAgent(request.agent.agentId);
     if (!existingAgent) {
-        throw new Error(`Agent ${request.agent.agentId} not found`);
+        throw new HttpStatusError(`Agent ${request.agent.agentId} not found`, 404);
     }
 
     const now = new Date().toISOString();
@@ -602,22 +592,22 @@ export async function createToolDefinition(toolData: ToolDefinitionForCreate, us
     if (toolData.toolId) {
         const existingTool = await getTool(toolData.toolId);
         if (existingTool) {
-            throw new Error(`Tool ID ${toolData.toolId} already exists`);
+            throw new BadRequestError(`Tool ID ${toolData.toolId} already exists`);
         }
     }
 
-    const ttl = toolData.test ? calculateTTL(1) : undefined;
+    const ttl = toolData.testType === 'mock' ? calculateTTL(1) : undefined;
 
     const now = new Date().toISOString();
 
     // Validate that required fields for the specific execution type are present
     if (toolData.executionType === 'mcp') {
         if (!toolData.url) {
-            throw new Error('MCP tools require a url field');
+            throw new BadRequestError('MCP tools require a url field');
         }
     } else if (toolData.executionType === 'lambda') {
         if (!toolData.lambdaArn) {
-            throw new Error('Lambda tools require a lambdaArn field');
+            throw new BadRequestError('Lambda tools require a lambdaArn field');
         }
     }
 
@@ -649,7 +639,7 @@ export async function updateToolDefinition(request: UpdateToolRequest): Promise<
     const now = new Date().toISOString();
     const existingTool = await getTool(request.tool.toolId);
     if (!existingTool) {
-        throw new Error(`Tool ${request.tool.toolId} not found`);
+        throw new HttpStatusError(`Tool ${request.tool.toolId} not found`, 404);
     }
 
     const fieldsToUpdate: Record<UpdateableToolDefinitionFields, any> = {} as any;
@@ -892,10 +882,10 @@ export async function createChatAppDefinition(request: CreateChatAppRequest): Pr
     // Chat App IDs must be unique, so we must verify it is not already in use
     const existingChatApp = await getChatApp(request.chatApp.chatAppId);
     if (existingChatApp) {
-        throw new Error(`Chat App ID '${request.chatApp.chatAppId}' already exists`);
+        throw new BadRequestError(`Chat App ID '${request.chatApp.chatAppId}' already exists`);
     }
 
-    const ttl = request.chatApp.test ? calculateTTL(1) : undefined;
+    const ttl = request.chatApp.testType === 'mock' ? calculateTTL(1) : undefined;
 
     const now = new Date().toISOString();
 
@@ -923,7 +913,7 @@ export async function deleteChatAppOverride(chatAppId: string): Promise<void> {
 export async function createOrUpdateChatAppOverride(request: CreateOrUpdateChatAppOverrideRequest, chatAppId: string): Promise<ChatAppOverride> {
     const existingChatApp = await getChatApp(chatAppId);
     if (!existingChatApp) {
-        throw new Error(`Chat App ${chatAppId} not found`);
+        throw new HttpStatusError(`Chat App ${chatAppId} not found`, 404);
     }
 
     const errors = validateChatAppOverride(request.override);
@@ -1014,7 +1004,7 @@ async function updateChatAppOverride(existingOverride: ChatAppOverride, chatAppI
 export async function updateChatAppDefinition(request: UpdateChatAppRequest): Promise<ChatApp> {
     const existingChatApp = await getChatApp(request.chatApp.chatAppId!);
     if (!existingChatApp) {
-        throw new Error(`Chat App ${request.chatApp.chatAppId} not found`);
+        throw new HttpStatusError(`Chat App ${request.chatApp.chatAppId} not found`, 404);
     }
 
     // You don't get to create the override this way, if there remove it
@@ -1032,7 +1022,7 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
         // Check that the new ID doesn't already exist
         const chatAppWithNewId = await getChatApp(newChatAppId);
         if (chatAppWithNewId) {
-            throw new Error(`Chat App ID '${newChatAppId}' already exists`);
+            throw new BadRequestError(`Chat App ID '${newChatAppId}' already exists`);
         }
 
         // Create the new chat app with the updated data
@@ -1057,7 +1047,7 @@ export async function updateChatAppDefinition(request: UpdateChatAppRequest): Pr
             } catch (cleanupError) {
                 console.error('Failed to cleanup new record after deletion failure:', cleanupError);
             }
-            throw new Error(`Failed to delete old chat app after creating new one: ${error instanceof Error ? error.message : String(error)}`);
+            throw new HttpStatusError(`Failed to delete old chat app after creating new one: ${error instanceof Error ? error.message : String(error)}`, 500);
         }
 
         return newChatApp;
@@ -1390,7 +1380,7 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
 
     const result = await getFeedbackById(feedbackId);
     if (!result) {
-        throw new Error(`Feedback not found after update: ${feedbackId}`);
+        throw new HttpStatusError(`Feedback not found after update: ${feedbackId}`, 404);
     }
 
     return result;

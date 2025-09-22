@@ -4,8 +4,8 @@
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import type {
         AgentDefinition,
-        SemanticDirectiveScope,
         SemanticDirectiveForCreateOrUpdate,
+        SemanticDirectiveScope,
     } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 

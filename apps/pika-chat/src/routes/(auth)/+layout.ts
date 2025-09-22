@@ -1,5 +1,5 @@
-import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
 import type { LoadEvent } from '@sveltejs/kit';
+import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
 
 export async function load({ fetch, data }: LoadEvent) {
     // Only fetch and return user data - AppState will be created once in the component

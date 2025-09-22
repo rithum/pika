@@ -8,5 +8,4 @@
     let { userId }: Props = $props();
 </script>
 
-<CopyButton truncateAfter={12} embedded={true} value={userId}>
-</CopyButton>
+<CopyButton truncateAfter={12} embedded={true} value={userId}></CopyButton>

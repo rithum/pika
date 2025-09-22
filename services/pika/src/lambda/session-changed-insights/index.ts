@@ -53,6 +53,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                 continue;
             }
             session = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSession<RecordOrUndef>>);
+
+            // If the session is a test session, skip it
+            if (session.testType === 'mock') {
+                console.log(`Skipping test session: ${session.sessionId}`);
+                continue;
+            }
         } else {
             console.log(`Skipping unsupported event type: ${record.eventName}`);
             continue;

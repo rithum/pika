@@ -65,6 +65,14 @@ export interface AppConfig {
 
     /**
      * Must be set in an environment variable.
+     * The api id for the chat admin app
+     *
+     * env variable: CHAT_ADMIN_API_ID
+     */
+    chatAdminApiId: string;
+
+    /**
+     * Must be set in an environment variable.
      * The url for the converse function
      *
      * env variable: CONVERSE_FUNCTION_URL

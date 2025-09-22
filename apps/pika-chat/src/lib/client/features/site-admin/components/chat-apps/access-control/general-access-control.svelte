@@ -1,9 +1,9 @@
 <script lang="ts">
+    import { assert } from '$lib/utils';
     import List from '$ui/pika/list/list.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { Checkbox } from '$ui/shadcn/checkbox/index.js';
     import { Label } from '$ui/shadcn/label/index.js';
-    import { assert } from '$lib/utils';
     import type { AccessRules, UserRole } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {

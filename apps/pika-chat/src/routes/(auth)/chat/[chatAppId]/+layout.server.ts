@@ -1,9 +1,10 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { searchTagDefinitions } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { doesUserNeedToProvideDataOverrides, getOverridableFeatures, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
-import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, TagDefinition, TagDefinitionWidget, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
+import { doesUserNeedToProvideDataOverrides, handleApiGatewayError, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
 import { error } from '@sveltejs/kit';
+import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, TagDefinition, TagDefinitionWidget, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
+import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ params, url, locals, depends }) => {
@@ -15,6 +16,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
 
     const { chatAppId } = params;
     const modeParam = url.searchParams.get('mode') || undefined;
+    const errorParam = url.searchParams.get('error') || undefined;
     let chatApp: ChatApp | undefined;
 
     if (modeParam && modeParam !== 'standalone' && modeParam !== 'embedded') {
@@ -30,24 +32,16 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
     }
 
     const authProvider = locals.authProvider;
-    let customDataFieldPathToMatchUsersEntity: string | undefined;
-
-    if (siteFeatures?.entity?.enabled && siteFeatures.entity.attributeName) {
-        customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
-    }
 
     try {
-        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
+        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId);
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {
             throw error(404, 'Chat app not found');
         }
     } catch (e) {
-        if (e instanceof Error && e.message.includes('404')) {
-            throw error(404, 'Chat app not found');
-        }
-        throw e;
+        handleApiGatewayError(e, 'loading chat app');
     }
 
     if (!chatApp) {
@@ -75,7 +69,9 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
             !isViewingContentForAnotherUser &&
             doesUserNeedToProvideDataOverrides(locals.user, locals.user.overrideData?.[chatApp.chatAppId], chatApp.chatAppId)
     };
-    const features = getOverridableFeatures(chatApp, locals.user);
+    const features = getOverridableFeatures(siteFeatures ?? {}, chatApp, locals.user);
+
+    // Determine if entity feature is enabled for this specific chat app after resolving overrides
     let customDataUiRepresentation: CustomDataUiRepresentation | undefined;
 
     // Fetch all enabled tag definitions by paging through results
@@ -92,8 +88,9 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
             paginationToken = response.paginationToken;
         } while (paginationToken);
     } catch (e) {
-        // Log error but don't fail the entire page load
-        console.error('Error fetching tag definitions:', e);
+        // For tag definitions, we log the error but don't fail the entire page load
+        // since this is not critical functionality
+        console.error('Error fetching tag definitions for chat app layout:', e);
         tagDefinitions = [];
     }
 
@@ -111,6 +108,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         features,
         customDataUiRepresentation,
         tagDefinitions,
-        mode: (modeParam ?? 'standalone') as ChatAppMode
+        mode: (modeParam ?? 'standalone') as ChatAppMode,
+        error: errorParam
     };
 };

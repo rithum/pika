@@ -1,7 +1,9 @@
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { SignatureV4 } from '@smithy/signature-v4';
+import { error } from '@sveltejs/kit';
 import { appConfig } from './config';
+import { checkApiGatewayResponse } from './utils';
 
 interface ApiGatewayRequestParams {
     apiId: string;
@@ -10,6 +12,11 @@ interface ApiGatewayRequestParams {
     queryParams?: Record<string, string>;
     body?: any; // For POST, PUT, PATCH
     headers?: Record<string, string>;
+    errorInfo: {
+        operation: string;
+        resourceName: string;
+        userId?: string;
+    };
 }
 
 interface ApiGatewayResponse<T = any> {
@@ -24,7 +31,7 @@ interface ApiGatewayResponse<T = any> {
  * @returns Promise<ApiGatewayResponse>
  */
 export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promise<ApiGatewayResponse<T>> {
-    const { apiId, path, method = 'GET', queryParams, body, headers: customHeaders = {} } = params;
+    const { apiId, path, method = 'GET', queryParams, body, headers: customHeaders = {}, errorInfo = { operation: 'operation', resourceName: 'resource' } } = params;
 
     const baseUrl = `https://${apiId}.execute-api.${appConfig.awsRegion}.amazonaws.com/${appConfig.stage}`;
     let fullPath = `/${path.startsWith('/') ? path.substring(1) : path}`;
@@ -91,61 +98,41 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
     // 6. Process the response
     const responseBodyText = await response.text();
     let responseBodyJson: T;
-
-    if (response.status === 404) {
-        // return a 404
-        return {
-            statusCode: 404,
-            body: { error: 'Not Found' } as T,
-            headers: new Headers()
-        };
-    } else if (response.status >= 400) {
-        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${responseBodyText}`);
-    }
+    let jsonParseError: unknown | undefined;
 
     try {
         responseBodyJson = responseBodyText ? JSON.parse(responseBodyText) : ({} as T);
     } catch (e) {
-        const error = e as Error;
-        throw new Error(
-            `Failed to parse API Gateway response as JSON. Status: ${response.status}, URL: ${invokeUrl.toString()}, Raw response: ${responseBodyText}, Parse error: ${error.message}`
-        );
+        // Let it fall through to the next block that checks for a returned http error from the API invocation.
+        responseBodyJson = undefined as T;
+        jsonParseError = e;
     }
 
-    if (!response.ok) {
-        console.error(`API Gateway request failed with status ${response.status}:`, responseBodyJson);
-        throw new Error(`API Gateway request failed with status ${response.status}. Response body: ${JSON.stringify(responseBodyJson, null, 2)}`);
-    }
-
-    return {
+    const apiGatewayResponse = {
         statusCode: response.status,
         body: responseBodyJson,
         headers: response.headers
     };
+
+    // Perform automatic error checking if requested
+    checkApiGatewayResponse(apiGatewayResponse, errorInfo.operation, errorInfo.resourceName, errorInfo.userId);
+
+    // If checkApiGatewayResponse didn't throw an http error and we got an unknown error in the JSON parse block, throw an error.
+    if (!!jsonParseError) {
+        throw error(
+            400,
+            `Failed to parse API Gateway response as JSON. Status: ${response.status}, URL: ${invokeUrl.toString()}, Raw response: ${responseBodyText}, Parse error: ${jsonParseError instanceof Error ? jsonParseError.message : String(jsonParseError)}`
+        );
+    }
+
+    if (!responseBodyJson || !(responseBodyJson as any).success) {
+        console.error(`${errorInfo.operation} API Gateway body error:`, {
+            body: responseBodyJson,
+            statusCode: response.status,
+            ...(errorInfo.userId && { userId: errorInfo.userId })
+        });
+        throw new Error(`API Gateway body error: ${(responseBodyJson as any)?.error || 'Unknown error'}`);
+    }
+
+    return apiGatewayResponse;
 }
-
-// async function main() {
-//     // Let's test the invokeApi function
-//     const response = await invokeApi({
-//         apiId: 'vsscyn28w0',
-//         stage: 'dev',
-//         region: 'us-east-1',
-//         path: 'dev/api/chat/user/123',
-//         method: 'GET',
-//     });
-
-//     if (response.ok) {
-//         console.log(`worked: ${JSON.stringify(response.body, null, 2)}`);
-//     } else {
-//         console.log(`failed: ${JSON.stringify(response.body, null, 2)}`);
-//         console.log(response.statusCode);
-//     }
-// }
-
-// (async () => {
-//     try {
-//         await main();
-//     } catch (error) {
-//         console.error(error);
-//     }
-// })();

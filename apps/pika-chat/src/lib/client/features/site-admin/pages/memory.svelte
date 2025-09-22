@@ -4,8 +4,8 @@
     import { Button } from '$ui/shadcn/button';
     import * as Tabs from '$ui/shadcn/tabs';
     import { getContext, type Snippet } from 'svelte';
-    import MemoryList from '../components/memory/memory-list.svelte';
     import MemoryInstructions from '../components/memory/memory-instructions.svelte';
+    import MemoryList from '../components/memory/memory-list.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;

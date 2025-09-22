@@ -1,12 +1,12 @@
 <script lang="ts">
+    import { Loader, PanelLeft, PanelRightClose, Pin, PinOff, Settings2, SquarePen } from '$icons/lucide';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
     import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from '$ui/shadcn/button';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
-    import { PanelLeft, PanelRightClose, Settings2, SquarePen } from '$lib/icons/lucide';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import type { AppState } from '$lib/client/app/app.state.svelte';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -125,22 +125,88 @@
     <div class="font-semibold">{chat.pageTitle ?? ''}</div>
     <div class="ml-auto">
         {#if !standalone}
-            {@render newChatButton()}
-            {@render settingsDropdown(true)}
-            <Button
-                variant="ghost"
-                size="icon"
-                class="pl-0 pr-0 w-8"
-                onclick={() => {
-                    tellParentToClose();
-                }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
-            >
+            <div class="flex items-center gap-1">
+                {@render newChatButton()}
+                {@render shareAndPin()}
+                {@render settingsDropdown(true)}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="pl-0 pr-0 w-8"
+                    onclick={() => {
+                        tellParentToClose();
+                    }}><PanelRightClose style="width: 1.3rem; height: 1.2rem;" /></Button
+                >
+            </div>
         {:else}
-            {@render settingsDropdown(false)}
+            <div class="flex items-center gap-1">
+                {@render shareAndPin()}
+                {@render settingsDropdown(false)}
+            </div>
         {/if}
         {#if chat.pageHeaderRight}{@render chat.pageHeaderRight()}{/if}
     </div>
 </div>
+
+{#snippet shareAndPin()}
+    {#if chat.pinningSession || chat.unpinningSession || chat.sharingSession || chat.unsharingSession}
+        <Loader class="h-4 w-4 animate-spin" />
+    {/if}
+    <TooltipPlus
+        tooltip={chat.pinCurrentSessionState === 'disable-pin-feature'
+            ? ''
+            : chat.pinCurrentSessionState === 'pinned'
+              ? 'Remove from Pinned'
+              : 'Add to Pinned'}
+    >
+        <Button
+            variant="ghost"
+            size="icon"
+            class="pl-0 pr-0 w-8"
+            disabled={chat.pinCurrentSessionState === 'disable-pin-feature'}
+            onclick={() => {
+                if (chat.pinCurrentSessionState === 'pinned') {
+                    chat.unpinSession(chat.currentSession.sessionId);
+                } else {
+                    chat.pinSession(chat.currentSession.sessionId);
+                }
+            }}
+        >
+            {#if chat.pinCurrentSessionState === 'pinned'}
+                <PinOff style="width: 1.3rem; height: 1.2rem;" />
+            {:else}
+                <Pin style="width: 1.3rem; height: 1.2rem;" />
+            {/if}
+        </Button>
+    </TooltipPlus>
+    <TooltipPlus
+        tooltip={chat.pinCurrentSessionState === 'disable-pin-feature'
+            ? ''
+            : chat.pinCurrentSessionState === 'pinned'
+              ? 'Remove from Pinned'
+              : 'Add to Pinned'}
+    >
+        <Button
+            variant="ghost"
+            size="icon"
+            class="pl-0 pr-0 w-8"
+            disabled={chat.pinCurrentSessionState === 'disable-pin-feature'}
+            onclick={() => {
+                if (chat.pinCurrentSessionState === 'pinned') {
+                    chat.unpinSession(chat.currentSession.sessionId);
+                } else {
+                    chat.pinSession(chat.currentSession.sessionId);
+                }
+            }}
+        >
+            {#if chat.pinCurrentSessionState === 'pinned'}
+                <PinOff style="width: 1.3rem; height: 1.2rem;" />
+            {:else}
+                <Pin style="width: 1.3rem; height: 1.2rem;" />
+            {/if}
+        </Button>
+    </TooltipPlus>
+{/snippet}
 
 {#snippet settingsDropdown(showHistoryAndPanelWidth: boolean)}
     <DropdownMenu.Root>

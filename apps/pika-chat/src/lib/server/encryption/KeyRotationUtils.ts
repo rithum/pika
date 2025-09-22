@@ -1,8 +1,6 @@
-import { DecryptCommand, GenerateDataKeyCommand, KMSClient } from '@aws-sdk/client-kms';
-import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterNotFound, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
-import type { KeyRotationResult, SsmKeyParameters } from './types';
-import type { SSMKeyProvider } from './SSMKeyProvider';
 import type { KMSProvider } from './KMSProvider';
+import type { SSMKeyProvider } from './SSMKeyProvider';
+import type { KeyRotationResult } from './types';
 
 /**
  * Perform key rotation with proper locking and error handling.

@@ -2,16 +2,17 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
-import { getErrorResponse, getOverridableFeatures, isUserContentAdmin } from '$lib/server/utils';
+import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
+import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
-            throw new Response('Forbidden', { status: 403 });
+            throw error(403, 'Forbidden');
         }
-        return new Response('You have selected view content for another user and you are not allowed to take action as that user.', { status: 403 });
+        throw error(403, 'You have selected view content for another user and you are not allowed to take action as that user.');
     }
 
     try {
@@ -23,24 +24,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         if (!params.userId) {
-            return new Response('userId is required', { status: 400 });
+            throw error(400, 'userId is required');
         }
 
         if (!params.message) {
-            return new Response('message is required', { status: 400 });
+            throw error(400, 'message is required');
         }
 
         if (!params.agentId) {
-            return new Response('agentId is required', { status: 400 });
+            throw error(400, 'agentId is required');
         }
 
         if (!params.chatAppId) {
-            return new Response('chatAppId is required', { status: 400 });
+            throw error(400, 'chatAppId is required');
         }
 
         if (params.userId !== user.userId) {
             console.log('User ID mismatch:', { userId: params.userId, user: user.userId });
-            return new Response('Unauthorized', { status: 401 });
+            throw error(401, 'Unauthorized');
         }
 
         //TODO: what do we do if an internal user changes the custom data during a chat session?  Do we care?  Will it break anything downstream?
@@ -65,7 +66,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
             }
 
-            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, customDataFieldPathToMatchUsersEntity);
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {
@@ -80,6 +81,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         // Don't trust the features passed in the request and don't send UI-only features to the converse function
         const { chatDisclaimerNotice, traces, logout, fileUpload, suggestions, promptInputFieldLabel, uiCustomization, ...featuresForConverse } = getOverridableFeatures(
+            siteFeatures ?? {},
             chatApp,
             locals.user
         );
@@ -118,7 +120,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             headers: responseHeaders
         });
     } catch (e) {
-        console.error('Error in message handler:', e);
-        return getErrorResponse(500, `Failed to get answer back from chatbot: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
+        handleApiGatewayError(e, 'getting answer back from chatbot');
     }
 };

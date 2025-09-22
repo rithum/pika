@@ -1,5 +1,5 @@
 import type { VisibilityState } from '@tanstack/table-core';
-import type { AppSettings, TableSettings } from '../types';
+import type { AppSettings, ShowToastFn, TableSettings } from '../types';
 
 const SETTINGS_KEY = 'app-settings';
 
@@ -7,12 +7,18 @@ export class AppSettingsState {
     dialogCreated = $state(false);
     dialogOpen = $state(false);
     data = $state<AppSettings>(this.#getSettings());
+    #showToast: ShowToastFn;
 
-    constructor() {
+    constructor(showToast: ShowToastFn) {
+        this.#showToast = showToast;
         $effect(() => {
             // Automatically save settings to local storage when they change
             this.#saveSettingsToLocalStorage(this.data);
         });
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     showDialog() {
@@ -79,9 +85,7 @@ export class AppSettingsState {
                 tableSettings.hiddenColumns = tableSettings.hiddenColumns.filter((c) => c !== col);
             } else {
                 // Add if not already present
-                tableSettings.hiddenColumns = tableSettings.hiddenColumns.includes(col)
-                    ? tableSettings.hiddenColumns
-                    : [...tableSettings.hiddenColumns, col];
+                tableSettings.hiddenColumns = tableSettings.hiddenColumns.includes(col) ? tableSettings.hiddenColumns : [...tableSettings.hiddenColumns, col];
             }
         } else {
             if (!visible) {

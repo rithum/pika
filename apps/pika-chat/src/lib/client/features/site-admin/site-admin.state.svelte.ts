@@ -1,7 +1,8 @@
-import type { FetchZ } from '$client/app/types';
+import type { FetchZ, ShowToastFn } from '$client/app/types';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
+import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import type { ServerSideTableState } from '$ui/pika/pika-table/types';
 import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type { Page } from '@sveltejs/kit';
@@ -80,6 +81,7 @@ export class SiteAdminState {
     valuesForAutoCompleteForUserAccessControl = $state<ChatUserLite[] | undefined>(undefined);
     #componentRegistry: ComponentRegistry;
     #instructionAssistanceConfig = $state<InstructionAssistanceConfig | undefined>(undefined);
+    #showToast: ShowToastFn;
 
     siteAdminOperationInProgress: Record<SiteAdminCommand, boolean> = $state({
         getInitialData: false,
@@ -124,34 +126,40 @@ export class SiteAdminState {
         siteFeatures: SiteFeatures,
         page: Page,
         componentRegistry: ComponentRegistry,
-        identity: IdentityState
+        identity: IdentityState,
+        showToast: ShowToastFn
     ) {
         this.#chatApps = chatApps;
         this.#siteFeatures = siteFeatures;
         this.#appState = appState;
         this.#nav = new SiteAdminNavState(page, siteFeatures);
-        this.#userPrefs = new UserPrefsState(this.fetchz);
+        this.#userPrefs = new UserPrefsState(this.fetchz, showToast);
         this.#componentRegistry = componentRegistry;
         this.#identity = identity;
+        this.#showToast = showToast;
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     get sessionInsights() {
         if (!this.#sessionInsights) {
-            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry, this.#identity);
+            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry, this.#identity, this.#showToast);
         }
         return this.#sessionInsights;
     }
 
     get instructionAugmentation() {
         if (!this.#instructionAugmentation) {
-            this.#instructionAugmentation = new InstructionAugmentationState(this.fetchz, this.#userPrefs, this.#identity);
+            this.#instructionAugmentation = new InstructionAugmentationState(this.fetchz, this.#userPrefs, this.#identity, this.#showToast);
         }
         return this.#instructionAugmentation;
     }
 
     get memory() {
         if (!this.#memory) {
-            this.#memory = new MemoryState(this.fetchz, this.#userPrefs, this.#identity);
+            this.#memory = new MemoryState(this.fetchz, this.#userPrefs, this.#identity, this.#showToast);
         }
         return this.#memory;
     }
@@ -263,7 +271,7 @@ export class SiteAdminState {
         try {
             do {
                 this.siteAdminOperationInProgress['searchTagDefinitions'] = true;
-                const response = await this.fetchz('/api/site-admin', {
+                const response: Response = await this.fetchz('/api/site-admin', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -277,30 +285,21 @@ export class SiteAdminState {
                     })
                 });
 
-                if (!response.ok) {
-                    //TODO: handle error
-                    throw new Error('Failed to send site admin command');
-                }
+                const json: TagDefinitionSearchResponse = await checkClientResponseAndBody<TagDefinitionSearchResponse>(
+                    response,
+                    'loading tag definitions',
+                    this.#showToast,
+                    CLIENT_RESOURCE_NAMES.TAG_DEFINITION
+                );
 
-                const json: SiteAdminResponse = await response.json();
-                if (!json) {
-                    throw new Error('Invalid response for site admin command');
-                } else if ('success' in json && json.success === false) {
-                    //TODO: throw a toast
-                    throw new Error(json.error);
-                } else {
-                    const response = json as TagDefinitionSearchResponse;
-                    if (response.success) {
-                        paginationToken = response.paginationToken;
-                        if (response.tagDefinitions) {
-                            tagDefinitions.push(...response.tagDefinitions);
-                        }
-                    }
+                paginationToken = json.paginationToken;
+                if (json.tagDefinitions) {
+                    tagDefinitions.push(...json.tagDefinitions);
                 }
             } while (paginationToken);
             this.#tagDefinitions = tagDefinitions;
         } catch (e) {
-            console.error('Error loading tag definitions', e);
+            handleClientError(e, 'loading tag definitions', this.#showToast);
             throw e;
         } finally {
             this.siteAdminOperationInProgress['searchTagDefinitions'] = false;
@@ -318,18 +317,9 @@ export class SiteAdminState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                //TODO: handle error
-                throw new Error('Failed to send site admin command');
-            }
+            const json = await checkClientResponseAndBody<SiteAdminResponse>(response, `executing ${request.command} command`, this.#showToast);
 
-            const json: SiteAdminResponse = await response.json();
-            if (!json) {
-                throw new Error('Invalid response for site admin command');
-            } else if ('success' in json && json.success === false) {
-                //TODO: throw a toast
-                throw new Error(json.error);
-            } else if (request.command === 'getValuesForEntityAutoComplete') {
+            if (request.command === 'getValuesForEntityAutoComplete') {
                 const values = (json as GetValuesForEntityAutoCompleteResponse).data ?? undefined;
                 if (request.type === 'internal-user') {
                     this.valuesForInternalEntityAutoComplete = values;
@@ -485,7 +475,7 @@ export class SiteAdminState {
                 }
             }
         } catch (e) {
-            console.error('Error sending content admin command', e);
+            handleClientError(e, `executing ${request.command} command`, this.#showToast);
             throw e;
         } finally {
             this.siteAdminOperationInProgress[request.command] = false;

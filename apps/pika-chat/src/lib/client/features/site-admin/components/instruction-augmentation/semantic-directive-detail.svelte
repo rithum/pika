@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Calendar, Loader, X } from '$icons/lucide';
+    import { Calendar, Loader } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
     import { Button } from '$ui/shadcn/button';

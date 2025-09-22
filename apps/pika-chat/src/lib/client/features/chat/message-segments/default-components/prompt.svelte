@@ -1,7 +1,7 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
     import { MessageSquare } from '$lib/icons/lucide';
+    import { Button } from '$ui/shadcn/button';
     import { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTagSegment } from '../segment-types';
 

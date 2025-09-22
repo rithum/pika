@@ -7,6 +7,7 @@
     import Button from '$ui/shadcn/button/button.svelte';
     import * as Dialog from '$ui/shadcn/dialog';
     import { Toaster } from '$ui/shadcn/sonner';
+    import { toast } from 'svelte-sonner';
     import type {
         ChatAppLite,
         ChatUser,
@@ -15,6 +16,7 @@
         LogoutFeature,
     } from 'pika-shared/types/chatbot/chatbot-types';
     import { setContext, type Snippet } from 'svelte';
+    import type { ShowToastOptions } from '$lib/client/app/types';
 
     interface Props {
         data: {
@@ -58,7 +60,8 @@
                 data.customDataUiRepresentation,
                 data.homePageSiteFeature,
                 data.logoutSiteFeature,
-                data.chatApps
+                data.chatApps,
+                showToast
             );
             appState.page = page;
             setContext('appState', appState);
@@ -189,6 +192,13 @@
             appState.checkForHotKey(e);
         }
     };
+
+    function showToast(message: string, options: ShowToastOptions) {
+        const duration = options.duration === 'infinite' ? Number.POSITIVE_INFINITY : options.duration;
+        toast[options.type](message, {
+            duration: duration,
+        });
+    }
 </script>
 
 <svelte:window onunload={onUnload} onkeydown={handleKeydown} />

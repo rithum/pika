@@ -1,9 +1,9 @@
 <script lang="ts">
+    import { Loader } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { Button } from '$ui/shadcn/button';
     import * as Dialog from '$ui/shadcn/dialog';
     import { getContext } from 'svelte';
-    import { Loader } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
 
     interface Props {
         open: boolean;

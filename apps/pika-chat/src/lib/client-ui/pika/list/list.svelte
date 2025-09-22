@@ -1,9 +1,9 @@
 <script lang="ts" generics="T">
-    import * as Command from '$ui/shadcn/command/index.js';
+    import { Minus, Plus } from '$lib/icons/lucide';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import Button from '$ui/shadcn/button/button.svelte';
+    import * as Command from '$ui/shadcn/command/index.js';
     import { Input } from '$ui/shadcn/input/index.js';
-    import { Minus, Plus } from '$lib/icons/lucide';
     import { cn } from '$ui/shadcn/utils';
     import { SvelteSet } from 'svelte/reactivity';
     import Combobox from '../combobox/combobox.svelte';

@@ -1,9 +1,9 @@
 import { Sha256 } from '@aws-crypto/sha256-js';
+import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { SignatureV4 } from '@smithy/signature-v4';
 import type { ConverseRequest, ConverseRequestWithCommand, RecordOrUndef, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
-import { SignatureV4 } from '@smithy/signature-v4';
 import { PassThrough } from 'stream';
 import { appConfig } from './config';
 

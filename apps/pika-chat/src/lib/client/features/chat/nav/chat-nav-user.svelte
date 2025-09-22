@@ -1,10 +1,10 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
+    import { ChevronsUpDown } from '$icons/lucide';
     import * as Avatar from '$ui/shadcn/avatar';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
     import * as Sidebar from '$ui/shadcn/sidebar';
     import { useSidebar } from '$ui/shadcn/sidebar';
-    import { ChevronsUpDown } from '$icons/lucide';
     import { getContext } from 'svelte';
 
     const sidebar = useSidebar();

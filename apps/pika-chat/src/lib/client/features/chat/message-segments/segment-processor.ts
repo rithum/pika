@@ -1,5 +1,6 @@
 // No imports needed from shared types
 import type { AppState } from '$lib/client/app/app.state.svelte';
+import type { ShowToastFn } from '$lib/client/app/types';
 import type { ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ChatAppState } from '../chat-app.state.svelte';
 import type { ComponentRegistry } from './component-registry';
@@ -144,9 +145,15 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     #componentRegistry: ComponentRegistry;
     #supportedTagsPattern: RegExp | undefined;
     #lastTagsHash: string = '';
+    #showToast: ShowToastFn;
 
-    constructor(componentRegistry: ComponentRegistry) {
+    constructor(componentRegistry: ComponentRegistry, showToast: ShowToastFn) {
         this.#componentRegistry = componentRegistry;
+        this.#showToast = showToast;
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     /**

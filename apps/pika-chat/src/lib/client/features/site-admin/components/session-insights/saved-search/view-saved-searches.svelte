@@ -1,12 +1,12 @@
 <script lang="ts">
     import { Trash2 } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { formatDateTime } from '$lib/utils';
+    import { Button } from '$ui/shadcn/button';
     import * as Dialog from '$ui/shadcn/dialog';
+    import * as Table from '$ui/shadcn/table';
     import cloneDeep from 'lodash.clonedeep';
     import { getContext } from 'svelte';
-    import * as Table from '$ui/shadcn/table';
 
     interface Props {
         open: boolean;

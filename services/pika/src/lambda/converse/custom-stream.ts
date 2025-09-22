@@ -1,7 +1,7 @@
 import type { Callback, Context, LambdaFunctionURLEvent, LambdaFunctionURLResult } from 'aws-lambda';
 import { streamifyResponse as originalStreamifyResponse, ResponseStream } from 'lambda-stream';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
-import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { sanitizeAndStringifyError } from '../../lib/utils';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 

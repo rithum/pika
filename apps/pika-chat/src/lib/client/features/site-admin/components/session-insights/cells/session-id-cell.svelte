@@ -17,5 +17,4 @@
     embedded={true}
     linkCallbackFn={() => appState.siteAdmin.sessionInsights.openSession(sessionId)}
     value={sessionId}
->
-</CopyButton>
+></CopyButton>

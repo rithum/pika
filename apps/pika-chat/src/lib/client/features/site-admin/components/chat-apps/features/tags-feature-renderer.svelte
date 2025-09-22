@@ -6,7 +6,6 @@
     import { Label } from '$ui/shadcn/label';
     import type {
         TagDefinition,
-        TagDefinitionLite,
         TagDefinitionWidget,
         TagsFeatureForChatApp,
     } from 'pika-shared/types/chatbot/chatbot-types';

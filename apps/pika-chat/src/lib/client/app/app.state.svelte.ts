@@ -1,5 +1,6 @@
 import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
+import type { Page } from '@sveltejs/kit';
 import type {
     ChatApp,
     ChatAppLite,
@@ -14,13 +15,12 @@ import type {
     TagDefinitionWidget,
     UserDataOverrideSettings
 } from 'pika-shared/types/chatbot/chatbot-types';
-import type { Page } from '@sveltejs/kit';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
 import { SiteAdminState } from '../features/site-admin/site-admin.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
-import type { FetchZ, HotKey } from './types';
+import type { FetchZ, HotKey, ShowToastFn } from './types';
 
 export class AppState {
     #settings: AppSettingsState | undefined;
@@ -38,6 +38,7 @@ export class AppState {
     #customDataUiRepresentation: CustomDataUiRepresentation | undefined;
     #page: Page | undefined;
     #isMobile: IsMobile;
+    #showToast: ShowToastFn;
     #hotKeys: Record<string, HotKey> = {};
 
     addHotKey(hotKey: HotKey) {
@@ -73,14 +74,16 @@ export class AppState {
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         homePageSiteFeature: HomePageSiteFeature | undefined,
         logoutSiteFeature: LogoutFeature | undefined,
-        allChatApps: ChatAppLite[]
+        allChatApps: ChatAppLite[],
+        showToast: ShowToastFn
     ) {
         this.#isMobile = new IsMobile();
-        this.#identity = new IdentityState(user);
+        this.#identity = new IdentityState(user, showToast);
         this.#customDataUiRepresentation = customDataUiRepresentation;
         this.#homePageSiteFeature = homePageSiteFeature;
         this.#logoutSiteFeature = logoutSiteFeature;
         this.#allChatApps = allChatApps;
+        this.#showToast = showToast;
     }
 
     addChatApp(
@@ -114,19 +117,24 @@ export class AppState {
                 features,
                 customDataUiRepresentation,
                 mode,
-                tagDefinitions
+                tagDefinitions,
+                this.#showToast
             );
         }
         return this.#chatApps[chatApp.chatAppId];
     }
 
     addSiteAdminState(chatApps: ChatApp[], siteFeatures: SiteFeatures, page: Page, componentRegistry: ComponentRegistry): SiteAdminState {
-        this.#siteAdmin = new SiteAdminState(this.fetchz, this, chatApps, siteFeatures, page, componentRegistry, this.#identity);
+        this.#siteAdmin = new SiteAdminState(this.fetchz, this, chatApps, siteFeatures, page, componentRegistry, this.#identity, this.#showToast);
         return this.#siteAdmin;
     }
 
     getChatApp(chatAppId: string): ChatAppState | undefined {
         return this.#chatApps[chatAppId];
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     get siteAdmin() {
@@ -150,7 +158,7 @@ export class AppState {
 
     get settings() {
         if (!this.#settings) {
-            this.#settings = new AppSettingsState();
+            this.#settings = new AppSettingsState(this.#showToast);
         }
         return this.#settings;
     }

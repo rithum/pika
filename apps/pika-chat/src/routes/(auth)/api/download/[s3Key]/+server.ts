@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
     const { s3Key } = params;
     if (!s3Key) {
-        return new Response('s3Key is required', { status: 400 });
+        throw error(400, 's3Key is required');
     }
 
     // URL decode the s3Key
@@ -64,10 +64,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         console.error('Error downloading file from S3', err);
         if (err && typeof err === 'object' && 'name' in err) {
             if (err.name === 'NoSuchKey' || err.name === 'NotFound') {
-                return error(404, 'File not found');
+                throw error(404, 'File not found');
             }
             if (err.name === 'AccessDenied') {
-                return error(403, 'Access denied');
+                throw error(403, 'Access denied');
             }
         }
 

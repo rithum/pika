@@ -3,9 +3,9 @@
     import Combobox from '$ui/pika/combobox/combobox.svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import type {
+        SemanticDirectiveForCreateOrUpdate,
         SemanticDirectiveScope,
         SimpleOption,
-        SemanticDirectiveForCreateOrUpdate,
     } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
