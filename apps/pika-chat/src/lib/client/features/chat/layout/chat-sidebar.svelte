@@ -3,14 +3,14 @@
     import * as Sidebar from '$ui/shadcn/sidebar';
     import ChatNav from '../nav/chat-nav.svelte';
 
-    import Button from '$ui/shadcn/button/button.svelte';
+    import { goto } from '$app/navigation';
     import { PanelLeft } from '$icons/lucide';
-    import { useSidebar } from '$ui/shadcn/sidebar';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
     import { SquarePen } from '$lib/icons/lucide';
+    import Button from '$ui/shadcn/button/button.svelte';
+    import { useSidebar } from '$ui/shadcn/sidebar';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import { goto } from '$app/navigation';
-    import type { AppState } from '$lib/client/app/app.state.svelte';
 
     // We have to get the sidebar state from the context because it is not available
     // consistently since the sidebar component is riddled with bugs around the open state

@@ -1,16 +1,16 @@
 import { appConfig } from '$lib/server/config';
-import { getErrorResponse, isUserContentAdmin } from '$lib/server/utils';
+import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { json, type RequestHandler } from '@sveltejs/kit';
+import { error, json, type RequestHandler } from '@sveltejs/kit';
 
 let s3Client: S3Client | undefined;
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
-            throw new Response('Forbidden', { status: 403 });
+            throw error(403, 'Forbidden');
         }
-        return new Response('You have selected view content for another user and you are not allowed to take action as that user.', { status: 403 });
+        throw error(403, 'You have selected view content for another user and you are not allowed to take action as that user.');
     }
 
     try {
@@ -24,19 +24,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         // Validate required fields
         if (!file) {
-            return new Response('file is required', { status: 400 });
+            throw error(400, 'file is required');
         }
 
         if (!s3Key) {
-            return new Response('s3Key is required', { status: 400 });
+            throw error(400, 's3Key is required');
         }
 
         if (!fileMimeType) {
-            return new Response('fileMimeType is required', { status: 400 });
+            throw error(400, 'fileMimeType is required');
         }
 
         if (!fileSize) {
-            return new Response('fileSize is required', { status: 400 });
+            throw error(400, 'fileSize is required');
         }
 
         // Initialize S3 client if not already done
@@ -70,6 +70,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             bucket: appConfig.pikaS3Bucket
         });
 
-        return getErrorResponse(500, `Failed to upload file: ${e instanceof Error ? e.message + ' ' + e.stack : e}`);
+        handleApiGatewayError(e, 'uploading file');
     }
 };

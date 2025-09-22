@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { getContext } from 'svelte';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getSessionSearchDateDisplayValue } from './utils';
     import Chip from '$ui/pika/chip/chip.svelte';
+    import { getContext } from 'svelte';
+    import { getSessionSearchDateDisplayValue } from './utils';
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Label } from '$ui/shadcn/label';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Label } from '$ui/shadcn/label';
     import type {
         InstructionAugmentationFeatureForChatApp,
         InstructionAugmentationType,

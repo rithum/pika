@@ -1,14 +1,13 @@
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
-import type { FetchZ } from '$lib/client/app/types';
+import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
+import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import deepEqual from 'deep-equal';
 import cloneDeep from 'lodash.clonedeep';
 import type {
     AgentDefinition,
-    ChatApp,
     ChatUserLite,
     GetAllAgentsAdminResponse,
-    GetAllChatAppsAdminResponse,
     GetAllToolsAdminResponse,
     GetValuesForEntityAutoCompleteRequest,
     GetValuesForEntityAutoCompleteResponse,
@@ -21,7 +20,7 @@ import type {
     SemanticDirectiveCreateOrUpdateAdminRequest,
     SemanticDirectiveCreateOrUpdateResponse,
     SemanticDirectiveDeleteAdminRequest,
-    SemanticDirectiveDeleteRequest,
+    SemanticDirectiveDeleteResponse,
     SemanticDirectiveForCreateOrUpdate,
     SimpleOption,
     ToolDefinition
@@ -75,15 +74,18 @@ export class InstructionAugmentationState {
     directiveDialogMode = $state<'create' | 'edit'>('create');
     showDirectiveDialog = $state(false);
     #isCheckingSemanticDirectiveExists = $state(false);
+    #showToast: ShowToastFn;
 
     constructor(
         private readonly fetchz: FetchZ,
         userPrefs: UserPrefsState,
-        identity: IdentityState
+        identity: IdentityState,
+        showToast: ShowToastFn
     ) {
         this.#userPrefs = userPrefs;
         this.searchQuery = {};
         this.#identity = identity;
+        this.#showToast = showToast;
 
         $effect(() => {
             const query = this.searchQuery;
@@ -101,6 +103,10 @@ export class InstructionAugmentationState {
                 this.loadAllAgentsTools();
             }
         });
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     get userPrefs() {
@@ -209,25 +215,23 @@ export class InstructionAugmentationState {
     }
 
     async loadAllAgentsTools() {
-        const [agents, tools] = await Promise.all([
-            this.fetchz('/api/site-admin', { method: 'POST', body: JSON.stringify({ command: 'getAllAgents' }) }),
-            this.fetchz('/api/site-admin', { method: 'POST', body: JSON.stringify({ command: 'getAllTools' }) })
-        ]);
+        try {
+            const [agents, tools] = await Promise.all([
+                this.fetchz('/api/site-admin', { method: 'POST', body: JSON.stringify({ command: 'getAllAgents' }) }),
+                this.fetchz('/api/site-admin', { method: 'POST', body: JSON.stringify({ command: 'getAllTools' }) })
+            ]);
 
-        if (!agents.ok || !tools.ok) {
-            throw new Error('Failed to load all chat apps, agents, and tools');
+            // Use unified error handling for both responses
+            const agentsJson = await checkClientResponseAndBody<GetAllAgentsAdminResponse>(agents, 'loading agents', this.#showToast);
+            const toolsJson = await checkClientResponseAndBody<GetAllToolsAdminResponse>(tools, 'loading tools', this.#showToast);
+
+            this.#allAgents = agentsJson.agents;
+            this.#allTools = toolsJson.tools;
+            this.#initialized = true;
+        } catch (error) {
+            handleClientError(error, 'loading agents and tools', this.#showToast);
+            throw error;
         }
-
-        const agentsJson = (await agents.json()) as GetAllAgentsAdminResponse;
-        const toolsJson = (await tools.json()) as GetAllToolsAdminResponse;
-
-        if (!agentsJson.success || !toolsJson.success) {
-            throw new Error('Failed to load all chat apps, agents, and tools');
-        }
-
-        this.#allAgents = agentsJson.agents;
-        this.#allTools = toolsJson.tools;
-        this.#initialized = true;
     }
 
     toggleDetailPanel() {
@@ -269,18 +273,12 @@ export class InstructionAugmentationState {
                 body: JSON.stringify(request)
             });
 
-            if (!resp.ok) {
-                throw new Error('Failed to get values for entity auto complete');
-            }
-
-            const responseBody = (await resp.json()) as GetValuesForEntityAutoCompleteResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to get values for entity auto complete');
-            }
+            const responseBody = await checkClientResponseAndBody<GetValuesForEntityAutoCompleteResponse>(resp, 'getting entity auto-complete values', this.#showToast);
 
             this.#valuesForEntityAutoComplete = responseBody.data;
             responseBody.data?.forEach((entity) => this.#entitiesRetrievedMap.set(entity.value, entity));
+        } catch (error) {
+            handleClientError(error, 'getting entity auto-complete values', this.#showToast);
         } finally {
             this.#entityAutoCompleteSearchInProgress = false;
         }
@@ -297,17 +295,16 @@ export class InstructionAugmentationState {
                 body: JSON.stringify({ command: 'getValuesForUserAutoComplete', valueProvidedByUser })
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to get values for auto complete');
-            }
-
-            const responseBody = (await response.json()) as GetValuesForUserAutoCompleteResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to get values for auto complete');
-            }
+            const responseBody = await checkClientResponseAndBody<GetValuesForUserAutoCompleteResponse>(
+                response,
+                'getting user auto-complete values',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.USER
+            );
 
             this.valuesForUserAutoComplete = (responseBody.data ?? []) as ChatUserLite[];
+        } catch (error) {
+            handleClientError(error, 'getting user auto-complete values', this.#showToast);
         } finally {
             this.userAutoCompleteSearchInProgress = false;
         }
@@ -336,9 +333,7 @@ export class InstructionAugmentationState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to delete semantic directive');
-            }
+            await checkClientResponseAndBody<SemanticDirectiveDeleteResponse>(response, 'deleting semantic directive', this.#showToast, CLIENT_RESOURCE_NAMES.SEMANTIC_DIRECTIVE);
 
             const idx = this.#semanticDirectives.findIndex((d) => d.scope === directive.scope && d.id === directive.id);
             console.log('idx', idx);
@@ -346,6 +341,8 @@ export class InstructionAugmentationState {
                 console.log('splicing', idx);
                 this.#semanticDirectives.splice(idx, 1);
             }
+        } catch (error) {
+            handleClientError(error, 'deleting semantic directive', this.#showToast);
         } finally {
             this.isDeletingSemanticDirective = false;
         }
@@ -379,19 +376,16 @@ export class InstructionAugmentationState {
                 body: JSON.stringify(saveRequest)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to create or update semantic directive');
-            }
-
-            const responseBody = (await response.json()) as SemanticDirectiveCreateOrUpdateResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to create or update semantic directive');
-            }
+            await checkClientResponseAndBody<SemanticDirectiveCreateOrUpdateResponse>(
+                response,
+                'saving semantic directive',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SEMANTIC_DIRECTIVE
+            );
 
             worked = true;
         } catch (error) {
-            console.error('Failed to create semantic directive:', error);
+            handleClientError(error, 'saving semantic directive', this.#showToast);
             throw error;
         } finally {
             this.isSavingSemanticDirective = false;
@@ -423,23 +417,17 @@ export class InstructionAugmentationState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching for a single semantic directive', JSON.stringify(request, null, 2));
-                return;
-            }
-
-            const responseBody = (await response.json()) as SearchSemanticDirectivesResponse;
-
-            if (!responseBody.success) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching for a single semantic directive. Response body:', JSON.stringify(responseBody, null, 2));
-                return;
-            }
+            const responseBody = await checkClientResponseAndBody<SearchSemanticDirectivesResponse>(
+                response,
+                'checking if semantic directive exists',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SEMANTIC_DIRECTIVE
+            );
 
             return responseBody.semanticDirectives.length > 0;
         } catch (error) {
-            console.error(`Error searching for a single semantic directive: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);
+            this.#searchError = DEFAULT_SEARCH_ERROR;
+            handleClientError(error, 'checking if semantic directive exists', this.#showToast);
         } finally {
             this.#isCheckingSemanticDirectiveExists = false;
         }
@@ -476,19 +464,12 @@ export class InstructionAugmentationState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching semantic directives', JSON.stringify(this.searchQuery, null, 2));
-                return;
-            }
-
-            const responseBody = (await response.json()) as SearchSemanticDirectivesResponse;
-
-            if (!responseBody.success) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching semantic directives. Response body:', JSON.stringify(responseBody, null, 2));
-                return;
-            }
+            const responseBody = await checkClientResponseAndBody<SearchSemanticDirectivesResponse>(
+                response,
+                'searching semantic directives',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SEMANTIC_DIRECTIVE
+            );
 
             if (append) {
                 this.#semanticDirectives.push(...responseBody.semanticDirectives);
@@ -502,8 +483,8 @@ export class InstructionAugmentationState {
             this.#hasMore = !!responseBody.paginationToken;
             this.#lastSearchTimestamp = new Date();
         } catch (error) {
-            console.error(`Error searching semantic directives: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);
             this.#searchError = DEFAULT_SEARCH_ERROR;
+            handleClientError(error, 'searching semantic directives', this.#showToast);
         } finally {
             this.#isSearching = false;
         }

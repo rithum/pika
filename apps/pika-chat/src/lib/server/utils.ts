@@ -1,17 +1,7 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import {
-    DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
-    DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
-    type AccessRules,
-    type AuthenticatedUser,
-    type ChatApp,
-    type ChatAppOverridableFeatures,
-    type ChatUser,
-    type RecordOrUndef,
-    type TagDefinitionLite
-} from 'pika-shared/types/chatbot/chatbot-types';
-import { json } from '@sveltejs/kit';
+import { error, isHttpError, json } from '@sveltejs/kit';
+import { type AuthenticatedUser, type ChatUser, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 export function getErrorResponse(status: number, error: string): Response {
     const err: ErrorResponse = {
@@ -229,419 +219,6 @@ export function doesUserNeedToProvideDataOverrides(user: AuthenticatedUser<Recor
 }
 
 /**
- * Validates if a feature override is valid and returns its status.
- *
- * @param appFeature - The app-level feature configuration
- * @param featureName - The name of the feature for error logging
- * @returns The status of the override: 'enabled', 'disabled', 'invalid', or 'none'
- */
-function isFeatureOverrideValid(appFeature: any, featureName: string): 'enabled' | 'disabled' | 'invalid' | 'none' {
-    if (!appFeature) return 'none';
-
-    // Empty object is invalid
-    if (Object.keys(appFeature).length === 0) {
-        console.error(`Invalid empty feature override for ${featureName}. Falling back to site level.`);
-        return 'invalid';
-    }
-
-    // Must have enabled property to be valid (except for simple features)
-    if (!('enabled' in appFeature)) {
-        console.error(`Invalid feature override for ${featureName}: missing 'enabled' property. Falling back to site level.`);
-        return 'invalid';
-    }
-
-    return appFeature.enabled ? 'enabled' : 'disabled';
-}
-
-/**
- * Validates if a simple feature override (no access rules) is valid.
- *
- * @param appFeature - The app-level feature configuration
- * @param featureName - The name of the feature for error logging
- * @returns Whether the override is valid
- */
-function isSimpleFeatureOverrideValid(appFeature: any, featureName: string): boolean {
-    if (!appFeature) return false;
-
-    // Empty object is invalid
-    if (Object.keys(appFeature).length === 0) {
-        console.error(`Invalid empty feature override for ${featureName}. Falling back to site level.`);
-        return false;
-    }
-
-    return true;
-}
-
-/**
- * Generic handler for features with access rules (enabled property + user access control).
- *
- * @param featureName - Name of the feature for logging
- * @param appFeature - App-level feature configuration
- * @param siteFeature - Site-level feature configuration
- * @param defaults - Default values for the feature
- * @param user - The authenticated user
- * @param propertyExtractor - Function to extract properties from feature config
- * @returns The resolved feature configuration
- */
-function handleAccessRuleFeature<T>(
-    featureName: string,
-    appFeature: any,
-    siteFeature: any,
-    defaults: T,
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
-    propertyExtractor: (feature: any, enabled: boolean) => T
-): T {
-    const overrideStatus = isFeatureOverrideValid(appFeature, featureName);
-
-    if (overrideStatus === 'enabled' && appFeature) {
-        // Site-level gating: if site is disabled, app can't enable it
-        const siteRule = siteFeature || { enabled: false };
-        if (siteRule.enabled) {
-            const enabled = checkUserAccessToFeature(user, appFeature as AccessRules);
-            return propertyExtractor(appFeature, enabled);
-        }
-        return propertyExtractor(defaults, false);
-    } else if (overrideStatus === 'disabled') {
-        return propertyExtractor(defaults, false);
-    } else {
-        // Use site level or defaults
-        const siteRule = siteFeature || { enabled: false };
-        const enabled = checkUserAccessToFeature(user, siteRule);
-        return propertyExtractor(siteRule, enabled);
-    }
-}
-
-/**
- * Generic handler for simple features (no access rules).
- *
- * @param featureName - Name of the feature for logging
- * @param appFeature - App-level feature configuration
- * @param siteFeature - Site-level feature configuration
- * @param defaults - Default values for the feature
- * @param propertyExtractor - Function to extract properties from feature config
- * @returns The resolved feature configuration
- */
-function handleSimpleFeature<T>(featureName: string, appFeature: any, siteFeature: any, defaults: T, propertyExtractor: (feature: any) => T): T {
-    if (isSimpleFeatureOverrideValid(appFeature, featureName) && appFeature) {
-        return propertyExtractor(appFeature);
-    } else {
-        // Use site level or defaults
-        const siteRule = siteFeature || defaults;
-        return propertyExtractor(siteRule);
-    }
-}
-
-/**
- * Generic handler for features with enabled flag but no user access control.
- * If enabled, the feature is on for all users. If disabled, it's off for all users.
- *
- * @param featureName - Name of the feature for logging
- * @param appFeature - App-level feature configuration
- * @param siteFeature - Site-level feature configuration
- * @param defaults - Default values for the feature
- * @param propertyExtractor - Function to extract properties from feature config
- * @returns The resolved feature configuration
- */
-function handleEnabledOnlyFeature<T>(featureName: string, appFeature: any, siteFeature: any, defaults: T, propertyExtractor: (feature: any, enabled: boolean) => T): T {
-    const overrideStatus = isFeatureOverrideValid(appFeature, featureName);
-
-    if (overrideStatus === 'enabled' && appFeature) {
-        // Site-level gating: if site is disabled, app can't enable it
-        const siteRule = siteFeature || { enabled: false };
-        if (siteRule.enabled) {
-            return propertyExtractor(appFeature, true);
-        }
-        return propertyExtractor({}, false); // Pass empty object when disabled
-    } else if (overrideStatus === 'disabled') {
-        return propertyExtractor({}, false); // Pass empty object when disabled
-    } else {
-        // Use site level or defaults
-        const siteRule = siteFeature || { enabled: true }; // Default enabled for this feature
-        return propertyExtractor(siteRule, siteRule.enabled);
-    }
-}
-
-/**
- * Compute what features the user is and isn't allowed to use for this chat app.
- *
- * Feature hierarchy (in order of precedence):
- * 1. Site level (<root>/pika-config.ts) - Controls ultimate availability
- * 2. Chat app level (chatApp.features) - Can override site settings
- * 3. Admin override level (chatApp.override.features) - Can override chat app settings
- *
- * Note that we always return siteAdmin: { websiteEnabled: false } because we only check that for real when they try to access the admin page itself.
- *
- * Override rules:
- * - Site level controls whether a feature can be used at all
- * - Chat apps can override site level (but only to restrict)
- * - Admins can override chat app level completely (but cannot enable features disabled at site level)
- * - When overriding, complete feature configuration must be provided (no merging)
- */
-export function getOverridableFeatures(chatApp: ChatApp, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): ChatAppOverridableFeatures {
-    const result: ChatAppOverridableFeatures = {
-        verifyResponse: {
-            enabled: false
-        },
-        traces: {
-            enabled: false,
-            detailedTraces: false
-        },
-        fileUpload: {
-            mimeTypesAllowed: [] as string[]
-        },
-        suggestions: {
-            suggestions: [] as string[],
-            randomize: false,
-            randomizeAfter: 0,
-            maxToShow: 5
-        },
-        promptInputFieldLabel: {
-            label: undefined
-        },
-        uiCustomization: {
-            showUserRegionInLeftNav: false,
-            showChatHistoryInStandaloneMode: false
-        },
-        chatDisclaimerNotice: undefined,
-        logout: {
-            enabled: false,
-            menuItemTitle: 'Logout',
-            dialogTitle: 'Logout',
-            dialogDescription: 'Are you sure you want to logout?'
-        },
-        siteAdmin: {
-            websiteEnabled: false
-        },
-        tags: {
-            tagsEnabled: [] as TagDefinitionLite[]
-        },
-        agentInstructionAssistance: {
-            enabled: false,
-            includeOutputFormattingRequirements: false,
-            includeInstructionsForTags: false,
-            completeExampleInstructionEnabled: false,
-            completeExampleInstructionLine: undefined,
-            jsonOnlyImperativeInstructionEnabled: false,
-            jsonOnlyImperativeInstructionLine: undefined
-        },
-        instructionAugmentation: {
-            enabled: false,
-            type: undefined
-        },
-        userMemory: {
-            enabled: false,
-            maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
-            maxKMatchesPerStrategy: DEFAULT_MAX_K_MATCHES_PER_STRATEGY
-        }
-    };
-
-    // Handle verifyResponse feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveVerifyResponseFeature = chatApp.override?.features?.verifyResponse || chatApp.features?.verifyResponse;
-    result.verifyResponse = handleAccessRuleFeature(
-        'verifyResponse',
-        effectiveVerifyResponseFeature,
-        siteFeatures?.verifyResponse,
-        result.verifyResponse,
-        user,
-        (feature, enabled) => ({
-            enabled,
-            autoRepromptThreshold: feature.autoRepromptThreshold
-        })
-    );
-
-    // Handle traces feature (has sub-feature for detailedTraces)
-    // Admin override takes precedence over chat app configuration
-    const effectiveTracesFeature = chatApp.override?.features?.traces || chatApp.features?.traces;
-    result.traces = handleAccessRuleFeature('traces', effectiveTracesFeature, siteFeatures?.traces, result.traces, user, (feature, enabled) => {
-        let detailedTraces = false;
-        if (enabled && feature.detailedTraces) {
-            // Check site-level gating for detailedTraces
-            const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
-            if (siteDetailedTracesRule.enabled) {
-                detailedTraces = checkUserAccessToFeature(user, feature.detailedTraces as AccessRules);
-            }
-        } else if (enabled) {
-            // No app/admin override for detailedTraces, use site level
-            const siteDetailedTracesRule = siteFeatures?.traces?.detailedTraces || { enabled: false };
-            detailedTraces = checkUserAccessToFeature(user, siteDetailedTracesRule);
-        }
-        return {
-            enabled,
-            detailedTraces
-        };
-    });
-
-    // Handle logout feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveLogoutFeature = chatApp.override?.features?.logout || chatApp.features?.logout;
-    result.logout = handleAccessRuleFeature('logout', effectiveLogoutFeature, siteFeatures?.logout, result.logout, user, (feature, enabled) => ({
-        enabled,
-        menuItemTitle: feature.menuItemTitle ?? 'Logout',
-        dialogTitle: feature.dialogTitle ?? 'Logout',
-        dialogDescription: feature.dialogDescription ?? 'Are you sure you want to logout?'
-    }));
-
-    // Handle fileUpload feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveFileUploadFeature = chatApp.override?.features?.fileUpload || chatApp.features?.fileUpload;
-    result.fileUpload = handleSimpleFeature('fileUpload', effectiveFileUploadFeature, siteFeatures?.fileUpload, result.fileUpload, (feature) => ({
-        mimeTypesAllowed: feature.mimeTypesAllowed || []
-    }));
-
-    // Handle suggestions feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveSuggestionsFeature = chatApp.override?.features?.suggestions || chatApp.features?.suggestions;
-    result.suggestions = handleSimpleFeature('suggestions', effectiveSuggestionsFeature, siteFeatures?.suggestions, result.suggestions, (feature) => ({
-        suggestions: feature.suggestions || [],
-        randomize: feature.randomize ?? false,
-        randomizeAfter: feature.randomizeAfter ?? 0,
-        maxToShow: feature.maxToShow ?? 5
-    }));
-
-    // Handle promptInputFieldLabel feature
-    // Admin override takes precedence over chat app configuration
-    const effectivePromptInputFieldLabelFeature = chatApp.override?.features?.promptInputFieldLabel || chatApp.features?.promptInputFieldLabel;
-    result.promptInputFieldLabel = handleEnabledOnlyFeature(
-        'promptInputFieldLabel',
-        effectivePromptInputFieldLabelFeature,
-        siteFeatures?.promptInputFieldLabel,
-        { label: 'Ready to chat' }, // Default return shape
-        (feature, enabled) => ({
-            label: enabled ? (feature.promptInputFieldLabel ?? 'Ready to chat') : undefined
-        })
-    );
-
-    // Handle uiCustomization feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveUiCustomizationFeature = chatApp.override?.features?.uiCustomization || chatApp.features?.uiCustomization;
-    result.uiCustomization = handleSimpleFeature('uiCustomization', effectiveUiCustomizationFeature, siteFeatures?.uiCustomization, result.uiCustomization, (feature) => ({
-        showUserRegionInLeftNav: feature.showUserRegionInLeftNav ?? false,
-        showChatHistoryInStandaloneMode: feature.showChatHistoryInStandaloneMode ?? false
-    }));
-
-    // Handle chatDisclaimerNotice feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveChatDisclaimerNoticeFeature = chatApp.override?.features?.chatDisclaimerNotice || chatApp.features?.chatDisclaimerNotice;
-    const disclaimerResult = handleEnabledOnlyFeature(
-        'chatDisclaimerNotice',
-        effectiveChatDisclaimerNoticeFeature,
-        siteFeatures?.chatDisclaimerNotice,
-        { notice: undefined },
-        (feature, enabled) => ({
-            notice: enabled ? feature.notice : undefined
-        })
-    );
-    result.chatDisclaimerNotice = disclaimerResult.notice;
-
-    // Handle tags feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveTagsFeature = chatApp.override?.features?.tags || chatApp.features?.tags;
-    result.tags = handleSimpleFeature('tags', effectiveTagsFeature, siteFeatures?.tags, result.tags, (feature) => ({
-        tagsEnabled: feature.tagsEnabled ?? []
-    }));
-
-    // Handle agentInstructionAssistance feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveAgentInstructionAssistanceFeature = chatApp.override?.features?.agentInstructionAssistance || chatApp.features?.agentInstructionAssistance;
-    result.agentInstructionAssistance = handleSimpleFeature(
-        'agentInstructionAssistance',
-        effectiveAgentInstructionAssistanceFeature,
-        siteFeatures?.agentInstructionAssistance,
-        result.agentInstructionAssistance,
-        (feature) => ({
-            enabled: feature.enabled ?? false,
-            includeOutputFormattingRequirements: feature.includeOutputFormattingRequirements?.enabled ?? false,
-            includeInstructionsForTags: feature.includeInstructionsForTags?.enabled ?? false,
-            completeExampleInstructionEnabled: feature.completeExampleInstructionLine?.enabled ?? false,
-            completeExampleInstructionLine: feature.completeExampleInstructionLine?.mdLine ?? undefined,
-            jsonOnlyImperativeInstructionEnabled: feature.jsonOnlyImperativeInstructionLine?.enabled ?? false,
-            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine?.line ?? undefined
-        })
-    );
-
-    // Handle instructionAugmentation feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveInstructionAugmentationFeature = chatApp.override?.features?.instructionAugmentation || chatApp.features?.instructionAugmentation;
-    result.instructionAugmentation = handleSimpleFeature(
-        'instructionAugmentation',
-        effectiveInstructionAugmentationFeature,
-        siteFeatures?.instructionAugmentation,
-        result.instructionAugmentation,
-        (feature) => ({
-            enabled: feature.enabled ?? false,
-            type: feature.type ?? 'llm-semantic-directive-search'
-        })
-    );
-
-    // Handle userMemory feature
-    // Admin override takes precedence over chat app configuration
-    const effectiveUserMemoryFeature = chatApp.override?.features?.userMemory || chatApp.features?.userMemory;
-    result.userMemory = handleSimpleFeature('userMemory', effectiveUserMemoryFeature, siteFeatures?.userMemory, result.userMemory, (feature) => ({
-        enabled: feature.enabled ?? false,
-        maxMemoryRecordsPerPrompt: feature.maxMemoryRecordsPerPrompt ?? DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
-        maxKMatchesPerStrategy: feature.maxKMatchesPerStrategy ?? DEFAULT_MAX_K_MATCHES_PER_STRATEGY
-    }));
-
-    return result;
-}
-
-/**
- * Generic function to check if a user has access to a feature based on user types and roles.
- * This implements the same logic used in get for checking user access rules.
- *
- * **Access Control Logic:**
- * - If the feature is disabled (`enabled: false`), no access regardless of other rules
- * - If no userTypes or userRoles are specified, no access is granted (secure by default)
- * - If multiple userTypes are provided, a user need only have one of them to have access (OR logic)
- * - If multiple userRoles are provided, a user need only have one of them to have access (OR logic)
- * - If both userTypes and userRoles are provided, the `applyRulesAs` setting determines how they're combined:
- *   - `'and'` (default): User must match a userType AND have a userRole
- *   - `'or'`: User must match a userType OR have a userRole
- *
- * @param user - The authenticated user to check access for
- * @param feature - The feature configuration with user access rules
- * @returns Whether the user has access to the feature
- */
-export function checkUserAccessToFeature(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, feature: AccessRules): boolean {
-    let { enabled, userTypes, userRoles, applyRulesAs = 'and' } = feature;
-
-    // Normalize empty arrays to undefined for more intuitive access control
-    // If userTypes is set but userRoles is empty array, treat userRoles as undefined
-    if (userTypes && userTypes.length > 0 && userRoles && userRoles.length === 0) {
-        userRoles = undefined;
-    }
-
-    // If userRoles is populated but userTypes is undefined/empty, treat userTypes as undefined
-    if (userRoles && userRoles.length > 0 && (!userTypes || userTypes.length === 0)) {
-        userTypes = undefined;
-    }
-
-    // If the feature is disabled, no access regardless of other rules
-    if (!enabled) {
-        return false;
-    }
-
-    // If no rules are specified, no access is granted (secure by default)
-    if (!userTypes && !userRoles) {
-        return false;
-    }
-
-    // Check user type access
-    const userTypeMatches = userTypes ? userTypes.includes(user.userType ?? 'external-user') : true;
-
-    // Check user role access
-    const userRoleMatches = userRoles ? (user.roles ?? []).some((role) => userRoles.includes(role as any)) : true;
-
-    // Apply the rules based on the logic specified
-    if (applyRulesAs === 'and') {
-        return userTypeMatches && userRoleMatches;
-    } else {
-        return userTypeMatches || userRoleMatches;
-    }
-}
-
-/**
  * Compare two arrays of strings for equality.  The arrays are the same if they have the same length and the same values
  * whether they are in the same order or not.
  *
@@ -656,4 +233,78 @@ export function arraysEqual(a: string[] | undefined, b: string[] | undefined): b
     const sortedA = [...a].sort();
     const sortedB = [...b].sort();
     return sortedA.every((val, i) => val === sortedB[i]);
+}
+
+/**
+ * Utility class for handling errors that come from API Gateway calls.
+ * Provides status code information that can be used by SvelteKit route handlers.
+ */
+export class ApiGatewayError extends Error {
+    constructor(
+        message: string,
+        public readonly status: number,
+        public readonly operation: string
+    ) {
+        super(message);
+        this.name = 'ApiGatewayError';
+    }
+}
+
+/**
+ * Checks API Gateway HTTP status codes and throws appropriate ApiGatewayError instances.
+ * This creates consistent error messages based on the resource type.
+ *
+ * @param response The API Gateway response object
+ * @param operation The operation name for logging and error context
+ * @param resourceName The human-readable resource name (e.g., "shared session", "tag definitions")
+ * @param userId Optional user ID for logging context
+ */
+export function checkApiGatewayResponse(response: { statusCode: number; body?: any }, operation: string, resourceName: string, userId?: string): void {
+    // Check HTTP status codes with detailed server-side logging
+    console.log(`${operation} API Gateway response: status=${response.statusCode}, operation=${operation}${userId ? `, userId=${userId}` : ''}`);
+
+    if (response.statusCode === 400) {
+        // Use server error message if available, otherwise fall back to generic message
+        const serverMessage =
+            response.body && typeof response.body === 'string' ? response.body : response.body && response.body.message ? response.body.message : 'Invalid request parameters';
+        throw new ApiGatewayError(serverMessage, 400, operation);
+    } else if (response.statusCode === 401) {
+        throw new ApiGatewayError('Unauthorized', 401, operation);
+    } else if (response.statusCode === 403) {
+        throw new ApiGatewayError(`User does not have permission to access ${resourceName}`, 403, operation);
+    } else if (response.statusCode === 404) {
+        throw new ApiGatewayError(`${resourceName.charAt(0).toUpperCase() + resourceName.slice(1)} not found`, 404, operation);
+    } else if (response.statusCode !== 200) {
+        throw new ApiGatewayError(`API Gateway returned unexpected status ${response.statusCode}`, response.statusCode, operation);
+    }
+}
+
+/**
+ * Handles errors from functions that call API Gateway and throws SvelteKit errors.
+ * This should be used in SvelteKit route handlers after calling functions that may
+ * throw ApiGatewayError instances.
+ *
+ * @param e The caught error
+ * @param operation Description of the operation for logging
+ */
+export function handleApiGatewayError(e: unknown, operation: string): never {
+    console.error(`SvelteKit Server Error in ${operation}:`, e);
+
+    // First, check if this is a SvelteKit HttpError and rethrow it directly
+    // This preserves the original status code and message from throw error()
+    if (isHttpError(e)) {
+        throw e;
+    }
+
+    if (e instanceof ApiGatewayError) {
+        // Use the actual error message from the ApiGatewayError,
+        // which may contain server-provided details
+        throw error(e.status, e.message);
+    }
+
+    if (e instanceof Error) {
+        throw error(500, 'Internal server error');
+    }
+
+    throw error(500, 'Unknown error occurred');
 }

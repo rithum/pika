@@ -1,11 +1,22 @@
-import type { FetchZ } from '$client/app/types';
+import type { FetchZ, ShowToastFn } from '$client/app/types';
+import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import type { GetChatUserPrefsResponse, SetChatUserPrefsRequest, SetChatUserPrefsResponse, UserPrefs } from 'pika-shared/types/chatbot/chatbot-types';
 
 export class UserPrefsState {
     #prefs = $state<UserPrefs>();
     #initialized = $state(false);
+    #showToast: ShowToastFn;
 
-    constructor(private readonly fetchz: FetchZ) {}
+    constructor(
+        private readonly fetchz: FetchZ,
+        showToast: ShowToastFn
+    ) {
+        this.#showToast = showToast;
+    }
+
+    get showToast() {
+        return this.#showToast;
+    }
 
     get initialized() {
         return this.#initialized;
@@ -24,20 +35,20 @@ export class UserPrefsState {
                 }
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to refresh prefs from server');
-            }
+            // Use unified function for HTTP status + response body checking
+            const json = await checkClientResponseAndBody<GetChatUserPrefsResponse>(
+                response,
+                'loading user preferences',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SETTINGS,
+                'Failed to load your preferences. Please refresh the page.'
+            );
 
-            const json: GetChatUserPrefsResponse = await response.json();
-            if (!json.success) {
-                throw new Error(`Failed to refresh prefs from server: ${json.error}`);
-            }
             this.#prefs = json.prefs ?? {};
-
             this.#initialized = true;
-        } catch (ex) {
-            console.error('Error refreshing prefs from server', ex);
-            throw ex;
+        } catch (error) {
+            handleClientError(error, 'loading user preferences', this.#showToast);
+            throw error;
         }
     }
 
@@ -78,18 +89,19 @@ export class UserPrefsState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to modify pref');
-            }
+            // Use unified function for HTTP status + response body checking
+            const json = await checkClientResponseAndBody<SetChatUserPrefsResponse>(
+                response,
+                'saving user preference',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SETTINGS,
+                'Failed to save your preference. Please try again.'
+            );
 
-            const json: SetChatUserPrefsResponse = await response.json();
-            if (!json.success) {
-                throw new Error(`Failed to modify pref: ${json.error}`);
-            }
             this.#prefs = json.prefs ?? {};
-        } catch (ex) {
-            console.error('Error modifying pref', ex);
-            throw ex;
+        } catch (error) {
+            handleClientError(error, 'saving user preference', this.#showToast);
+            throw error;
         }
     }
 }

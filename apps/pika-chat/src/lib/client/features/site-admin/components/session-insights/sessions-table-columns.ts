@@ -1,10 +1,10 @@
+import { Archive, Eye, MessageSquare, Trash2 } from '$icons/lucide';
 import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
 import type { RowActionsProps } from '$ui/pika/pika-table/types';
 import { renderComponent } from '$ui/shadcn/data-table';
-import { Archive, Eye, MessageSquare, Trash2 } from '$icons/lucide';
-import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
+import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import SessionIdCell from './cells/session-id-cell.svelte';
 import UserIdCell from './cells/user-id-cell.svelte';
 
@@ -59,11 +59,11 @@ export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
         size: 120
     },
 
-    //Agent 
+    //Agent
     {
         accessorKey: 'agentId',
-        header: ({column}) => renderComponent(TableColumnHeader, {column, title: 'Agent'}),
-        cell: ({getValue}) => {
+        header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'Agent' }),
+        cell: ({ getValue }) => {
             const agentId = getValue() as string;
             return agentId || '-';
         },

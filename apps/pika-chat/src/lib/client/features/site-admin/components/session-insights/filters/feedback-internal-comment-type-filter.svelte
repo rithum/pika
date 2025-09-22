@@ -1,13 +1,13 @@
 <script lang="ts">
     import { X } from '$icons/lucide';
+    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { Button } from '$ui/shadcn/button';
     import {
         FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES,
-        type NameValueDescTriple,
         type FeedbackInternalCommentType,
+        type NameValueDescTriple,
     } from 'pika-shared/types/chatbot/chatbot-types';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
 
     interface Props {
         feedbackInternalCommentType: FeedbackInternalCommentType[] | undefined;

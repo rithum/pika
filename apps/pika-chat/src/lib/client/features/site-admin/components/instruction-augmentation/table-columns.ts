@@ -1,10 +1,8 @@
 import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
-import type { RowActionsProps } from '$ui/pika/pika-table/types';
 import { renderComponent } from '$ui/shadcn/data-table';
-import { Archive, Eye, MessageSquare, Trash2 } from '$icons/lucide';
-import type { ChatSession, RecordOrUndef, SemanticDirective } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
+import type { SemanticDirective } from 'pika-shared/types/chatbot/chatbot-types';
 import ScopeCell from './cells/scope-cell.svelte';
 
 const TableColumnHeader = PikaTableColumnHeader<SemanticDirective, unknown>;

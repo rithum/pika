@@ -12,13 +12,60 @@ import {
     CreateChatAppRequest,
     CreateOrUpdateChatAppOverrideRequest,
     CreateOrUpdateChatAppOverrideResponse,
+    CreateOrUpdateMockAgentRequest,
+    CreateOrUpdateMockAgentResponse,
+    CreateOrUpdateMockChatAppRequest,
+    CreateOrUpdateMockChatAppResponse,
+    CreateOrUpdateMockSessionRequest,
+    CreateOrUpdateMockSessionResponse,
+    CreateOrUpdateMockToolRequest,
+    CreateOrUpdateMockToolResponse,
+    CreateOrUpdateMockUserRequest,
+    CreateOrUpdateMockUserResponse,
     CreateToolRequest,
+    DeleteAllMockAgentsRequest,
+    DeleteAllMockAgentsResponse,
+    DeleteAllMockChatAppsRequest,
+    DeleteAllMockChatAppsResponse,
+    DeleteAllMockDataRequest,
+    DeleteAllMockDataResponse,
+    DeleteAllMockPinnedSessionsRequest,
+    DeleteAllMockPinnedSessionsResponse,
+    DeleteAllMockSessionsRequest,
+    DeleteAllMockSessionsResponse,
+    DeleteAllMockSharedSessionVisitsRequest,
+    DeleteAllMockSharedSessionVisitsResponse,
+    DeleteAllMockToolsRequest,
+    DeleteAllMockToolsResponse,
+    DeleteAllMockUsersRequest,
+    DeleteAllMockUsersResponse,
     DeleteChatAppOverrideRequest,
     DeleteChatAppOverrideResponse,
+    DeleteMockAgentRequest,
+    DeleteMockAgentResponse,
+    DeleteMockChatAppRequest,
+    DeleteMockChatAppResponse,
+    DeleteMockDataRequest,
+    DeleteMockDataResponse,
+    DeleteMockSessionRequest,
+    DeleteMockSessionResponse,
+    DeleteMockToolRequest,
+    DeleteMockToolResponse,
+    DeleteMockUserRequest,
+    DeleteMockUserResponse,
+    GetAllMockAgentsResponse,
+    GetAllMockChatAppsResponse,
+    GetAllMockDataResponse,
+    GetAllMockPinnedSessionsResponse,
+    GetAllMockSessionsResponse,
+    GetAllMockSharedSessionVisitsResponse,
+    GetAllMockToolsResponse,
+    GetAllMockUsersResponse,
     GetChatAppsByRulesRequest,
     GetChatAppsByRulesResponse,
     GetInstructionsAddedForUserMemoryRequest,
     GetInstructionsAddedForUserMemoryResponse,
+    GetMockSessionByUserIdAndSessionIdResponse,
     RecordOrUndef,
     SearchAllMemoryRecordsRequest,
     SearchAllMemoryRecordsResponse,
@@ -49,6 +96,8 @@ import {
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { ForbiddenError } from 'pika-shared/util/forbidden-error';
 import {
     addChatSessionFeedback,
     createAgentDefinition,
@@ -80,8 +129,36 @@ import {
     validateChatAppDefinition,
     validateToolDefinition
 } from '../../lib/chat-admin-apis';
-import { getAgentById, getToolById } from '../../lib/chat-admin-ddb';
-import { getUser } from '../../lib/chat-apis';
+import {
+    createAgent,
+    createChatApp as createChatAppDdb,
+    createTool,
+    deleteAllMockTestAgents,
+    deleteAllMockTestChatApps,
+    deleteAllMockTestTools,
+    deleteMockAgent,
+    deleteMockChatApp,
+    deleteMockTool,
+    getAgentById,
+    getMockTestAgents,
+    getMockTestChatApps,
+    getMockTestTools,
+    getToolById
+} from '../../lib/chat-admin-ddb';
+import { createChatSession, deleteMockSession, getUser } from '../../lib/chat-apis';
+import {
+    addUser,
+    deleteAllMockTestChatSessions,
+    deleteAllMockTestChatUsers,
+    deleteAllMockTestPinnedSessions,
+    deleteAllMockTestSharedSessionVisits,
+    deleteMockUser,
+    getChatSessionByUserIdAndSessionId,
+    getMockTestChatSessions,
+    getMockTestChatUsers,
+    getMockTestPinnedSessions,
+    getMockTestSharedSessionVisits
+} from '../../lib/chat-ddb';
 import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
 import { getAllMemoryRecords, getMemoryInstructions } from '../../lib/memory';
 import { getMemoryId } from '../../lib/utils';
@@ -230,6 +307,94 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/memory/instructions': {
         handler: handleGetInstructionsAddedForUserMemory
+    },
+    // Mock data APIs for testing
+    'POST:/api/chat-admin/session/mock': {
+        handler: handleCreateOrUpdateMockSession
+    },
+    'DELETE:/api/chat-admin/session/mock': {
+        handler: handleDeleteMockSession
+    },
+    'POST:/api/chat-admin/chat-app/mock': {
+        handler: handleCreateOrUpdateMockChatApp
+    },
+    'DELETE:/api/chat-admin/chat-app/mock': {
+        handler: handleDeleteMockChatApp
+    },
+    'POST:/api/chat-admin/agent/mock': {
+        handler: handleCreateOrUpdateMockAgent
+    },
+    'DELETE:/api/chat-admin/agent/mock': {
+        handler: handleDeleteMockAgent
+    },
+    'POST:/api/chat-admin/tool/mock': {
+        handler: handleCreateOrUpdateMockTool
+    },
+    'DELETE:/api/chat-admin/tool/mock': {
+        handler: handleDeleteMockTool
+    },
+    'POST:/api/chat-admin/user/mock': {
+        handler: handleCreateOrUpdateMockUser
+    },
+    'DELETE:/api/chat-admin/user/mock': {
+        handler: handleDeleteMockUser
+    },
+    'DELETE:/api/chat-admin/mock': {
+        handler: handleDeleteMock
+    },
+    // Get all mock data endpoints
+    'GET:/api/chat-admin/session/mock/all': {
+        handler: handleGetAllMockSessions
+    },
+    'GET:/api/chat-admin/session/mock/{sessionId}/user/{userId}': {
+        handler: handleGetMockSessionByUserIdAndSessionId
+    },
+    'GET:/api/chat-admin/user/mock/all': {
+        handler: handleGetAllMockUsers
+    },
+    'GET:/api/chat-admin/agent/mock/all': {
+        handler: handleGetAllMockAgents
+    },
+    'GET:/api/chat-admin/tool/mock/all': {
+        handler: handleGetAllMockTools
+    },
+    'GET:/api/chat-admin/chat-app/mock/all': {
+        handler: handleGetAllMockChatApps
+    },
+    'GET:/api/chat-admin/shared-session-visit/mock/all': {
+        handler: handleGetAllMockSharedSessionVisits
+    },
+    'GET:/api/chat-admin/pinned-session/mock/all': {
+        handler: handleGetAllMockPinnedSessions
+    },
+    // Delete all mock data endpoints
+    'DELETE:/api/chat-admin/session/mock/all': {
+        handler: handleDeleteAllMockSessions
+    },
+    'DELETE:/api/chat-admin/user/mock/all': {
+        handler: handleDeleteAllMockUsers
+    },
+    'DELETE:/api/chat-admin/agent/mock/all': {
+        handler: handleDeleteAllMockAgents
+    },
+    'DELETE:/api/chat-admin/tool/mock/all': {
+        handler: handleDeleteAllMockTools
+    },
+    'DELETE:/api/chat-admin/chat-app/mock/all': {
+        handler: handleDeleteAllMockChatApps
+    },
+    'DELETE:/api/chat-admin/shared-session-visit/mock/all': {
+        handler: handleDeleteAllMockSharedSessionVisits
+    },
+    'DELETE:/api/chat-admin/pinned-session/mock/all': {
+        handler: handleDeleteAllMockPinnedSessions
+    },
+    // Bulk operations
+    'GET:/api/chat-admin/mock/bulk': {
+        handler: handleGetAllMockData
+    },
+    'DELETE:/api/chat-admin/mock/bulk': {
+        handler: handleDeleteAllMockData
     }
 };
 
@@ -260,6 +425,16 @@ export async function handlerFn(
         | SemanticDirectiveDeleteRequest
         | SearchSemanticDirectivesRequest
         | SearchAllMemoryRecordsRequest
+        | CreateOrUpdateMockSessionRequest
+        | DeleteMockSessionRequest
+        | CreateOrUpdateMockChatAppRequest
+        | DeleteMockChatAppRequest
+        | CreateOrUpdateMockAgentRequest
+        | DeleteMockAgentRequest
+        | CreateOrUpdateMockToolRequest
+        | DeleteMockToolRequest
+        | CreateOrUpdateMockUserRequest
+        | DeleteMockUserRequest
         | BaseRequestData
         | void
     >
@@ -304,7 +479,7 @@ async function handleGetAgents(_event: APIGatewayProxyEventPika<void>): Promise<
 async function handleGetAgent(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; agent: AgentDefinition | undefined }> {
     const agentId = event.pathParameters?.agentId;
     if (!agentId) {
-        throw new Error('Agent ID is required');
+        throw new BadRequestError('Agent ID is required');
     }
 
     const agent = await getAgent(agentId);
@@ -320,7 +495,7 @@ async function handleGetAgent(event: APIGatewayProxyEventPika<void>): Promise<{ 
 async function handleCreateAgent(event: APIGatewayProxyEventPika<CreateAgentRequest>): Promise<{ success: boolean; agent: AgentDefinition }> {
     const createAgentRequest = event.body;
     if (!createAgentRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Validate the agent definition
@@ -348,38 +523,25 @@ async function handleCreateAgent(event: APIGatewayProxyEventPika<CreateAgentRequ
  * You may either provide agent.toolIds or tools but not both.
  */
 async function handleCreateOrUpdateAgentIdempotently(event: APIGatewayProxyEventPika<AgentDataRequest>): Promise<AgentDataResponse> {
-    try {
-        console.log('handleCreateOrUpdateAgentIdempotently - Request body received:', JSON.stringify(event.body, null, 2));
+    console.log('handleCreateOrUpdateAgentIdempotently - Request body received:', JSON.stringify(event.body, null, 2));
 
-        if (!event.body) {
-            throw new HttpStatusError('Request body is required', 400);
-        }
-
-        const { agent, tools } = await createOrUpdateAgentIdempotently(event.body);
-
-        console.log('handleCreateOrUpdateAgentIdempotently - Successfully processed:', {
-            agentId: agent.agentId,
-            toolCount: tools?.length ?? 0,
-            toolIds: tools?.map((t) => t.toolId) ?? []
-        });
-
-        return {
-            success: true,
-            agent,
-            tools
-        };
-    } catch (error) {
-        console.error('handleCreateOrUpdateAgentIdempotently - Error occurred:', error);
-        console.error('Error details:', {
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            name: error instanceof Error ? error.name : undefined,
-            statusCode: error instanceof HttpStatusError ? error.statusCode : undefined
-        });
-
-        // Re-throw the error so the decorator can handle it properly
-        throw error;
+    if (!event.body) {
+        throw new BadRequestError('Request body is required');
     }
+
+    const { agent, tools } = await createOrUpdateAgentIdempotently(event.body);
+
+    console.log('handleCreateOrUpdateAgentIdempotently - Successfully processed:', {
+        agentId: agent.agentId,
+        toolCount: tools?.length ?? 0,
+        toolIds: tools?.map((t) => t.toolId) ?? []
+    });
+
+    return {
+        success: true,
+        agent,
+        tools
+    };
 }
 
 /**
@@ -388,30 +550,17 @@ async function handleCreateOrUpdateAgentIdempotently(event: APIGatewayProxyEvent
  * This allows you to do an idempotent create or update of a chat app. You can create or modify a chat app.
  */
 async function handleCreateOrUpdateChatAppIdempotently(event: APIGatewayProxyEventPika<ChatAppDataRequest>): Promise<ChatAppDataResponse> {
-    try {
-        console.log('handleCreateOrUpdateChatAppIdempotently - Request body received:', JSON.stringify(event.body, null, 2));
+    console.log('handleCreateOrUpdateChatAppIdempotently - Request body received:', JSON.stringify(event.body, null, 2));
 
-        if (!event.body) {
-            throw new HttpStatusError('Request body is required', 400);
-        }
-
-        const chatApp = await createOrUpdateChatAppIdempotently(event.body);
-        return {
-            success: true,
-            chatApp
-        };
-    } catch (error) {
-        console.error('handleCreateOrUpdateChatAppIdempotently - Error occurred:', error);
-        console.error('Error details:', {
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            name: error instanceof Error ? error.name : undefined,
-            statusCode: error instanceof HttpStatusError ? error.statusCode : undefined
-        });
-
-        // Re-throw the error so the decorator can handle it properly
-        throw error;
+    if (!event.body) {
+        throw new BadRequestError('Request body is required');
     }
+
+    const chatApp = await createOrUpdateChatAppIdempotently(event.body);
+    return {
+        success: true,
+        chatApp
+    };
 }
 
 /**
@@ -420,12 +569,12 @@ async function handleCreateOrUpdateChatAppIdempotently(event: APIGatewayProxyEve
 async function handleUpdateAgent(event: APIGatewayProxyEventPika<UpdateAgentRequest>): Promise<{ success: boolean; agent: AgentDefinition }> {
     const agentId = event.pathParameters?.agentId;
     if (!agentId) {
-        throw new Error('Agent ID is required');
+        throw new BadRequestError('Agent ID is required');
     }
 
     const updateAgentRequest = event.body;
     if (!updateAgentRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Ensure the agentId in the path matches the one in the body
@@ -469,7 +618,7 @@ async function handleGetTools(event: APIGatewayProxyEventPika<void>): Promise<{ 
 async function handleGetTool(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; tool: ToolDefinition | null }> {
     const toolId = event.pathParameters?.toolId;
     if (!toolId) {
-        throw new Error('Tool ID is required');
+        throw new BadRequestError('Tool ID is required');
     }
 
     const tool = await getTool(toolId);
@@ -485,7 +634,7 @@ async function handleGetTool(event: APIGatewayProxyEventPika<void>): Promise<{ s
 async function handleSearchTools(event: APIGatewayProxyEventPika<SearchToolsRequest>): Promise<{ success: boolean; tools: ToolDefinition[] }> {
     const requestBody = event.body;
     if (!requestBody || !requestBody.toolIds || !Array.isArray(requestBody.toolIds)) {
-        throw new Error('Request body must contain a toolIds array');
+        throw new BadRequestError('Request body must contain a toolIds array');
     }
 
     const tools = await searchToolsByIds(requestBody.toolIds);
@@ -501,7 +650,7 @@ async function handleSearchTools(event: APIGatewayProxyEventPika<SearchToolsRequ
 async function handleCreateTool(event: APIGatewayProxyEventPika<CreateToolRequest>): Promise<{ success: boolean; tool: ToolDefinition }> {
     const createToolRequest = event.body;
     if (!createToolRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Validate the tool definition
@@ -523,12 +672,12 @@ async function handleCreateTool(event: APIGatewayProxyEventPika<CreateToolReques
 async function handleUpdateTool(event: APIGatewayProxyEventPika<UpdateToolRequest>): Promise<{ success: boolean; tool: ToolDefinition }> {
     const updateToolRequest = event.body;
     if (!updateToolRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     const toolId = updateToolRequest.tool.toolId;
     if (!toolId) {
-        throw new Error('Tool ID is required in request body');
+        throw new BadRequestError('Tool ID is required in request body');
     }
 
     // Check if user has permission to modify this tool
@@ -571,11 +720,11 @@ async function handleGetAllChatApps(_event: APIGatewayProxyEventPika<void>): Pro
 async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAppsByRulesRequest>): Promise<GetChatAppsByRulesResponse> {
     const requestBody = event.body;
     if (!requestBody) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!requestBody.userId) {
-        throw new Error('userId is required');
+        throw new BadRequestError('userId is required');
     }
 
     // console.log('🔍 handleGetChatAppByRules called with request:', {
@@ -679,7 +828,7 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
 async function handleGetChatApp(event: APIGatewayProxyEventPika<void>): Promise<{ success: boolean; chatApp: ChatApp | null }> {
     const chatAppId = event.pathParameters?.chatAppId;
     if (!chatAppId) {
-        throw new Error('Chat App ID is required');
+        throw new BadRequestError('Chat App ID is required');
     }
 
     const chatApp = await getChatApp(chatAppId);
@@ -695,7 +844,7 @@ async function handleGetChatApp(event: APIGatewayProxyEventPika<void>): Promise<
 async function handleCreateChatApp(event: APIGatewayProxyEventPika<CreateChatAppRequest>): Promise<{ success: boolean; chatApp: ChatApp }> {
     const createChatAppRequest = event.body;
     if (!createChatAppRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Validate the chat app definition
@@ -717,12 +866,12 @@ async function handleCreateChatApp(event: APIGatewayProxyEventPika<CreateChatApp
 async function handleUpdateChatApp(event: APIGatewayProxyEventPika<UpdateChatAppRequest>): Promise<{ success: boolean; chatApp: ChatApp }> {
     const chatAppId = event.pathParameters?.chatAppId;
     if (!chatAppId) {
-        throw new Error('Chat App ID is required');
+        throw new BadRequestError('Chat App ID is required');
     }
 
     const updateChatAppRequest = event.body;
     if (!updateChatAppRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Ensure the chatAppId in the path matches the one in the body if provided
@@ -754,12 +903,12 @@ async function handleUpdateChatApp(event: APIGatewayProxyEventPika<UpdateChatApp
 async function handleCreateOrUpdateChatAppOverride(event: APIGatewayProxyEventPika<CreateOrUpdateChatAppOverrideRequest>): Promise<CreateOrUpdateChatAppOverrideResponse> {
     const chatAppId = event.pathParameters?.chatAppId;
     if (!chatAppId) {
-        throw new Error('Chat App ID is required');
+        throw new BadRequestError('Chat App ID is required');
     }
 
     const updateChatAppOverrideRequest = event.body;
     if (!updateChatAppOverrideRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     const chatAppOverride = await createOrUpdateChatAppOverride(updateChatAppOverrideRequest, chatAppId);
@@ -775,7 +924,7 @@ async function handleCreateOrUpdateChatAppOverride(event: APIGatewayProxyEventPi
 async function handleDeleteChatAppOverride(event: APIGatewayProxyEventPika<DeleteChatAppOverrideRequest>): Promise<DeleteChatAppOverrideResponse> {
     const chatAppId = event.pathParameters?.chatAppId;
     if (!chatAppId) {
-        throw new Error('Chat App ID is required');
+        throw new BadRequestError('Chat App ID is required');
     }
 
     await deleteChatAppOverride(chatAppId);
@@ -790,7 +939,7 @@ async function handleDeleteChatAppOverride(event: APIGatewayProxyEventPika<Delet
 async function handleCreateSessionFeedback(event: APIGatewayProxyEventPika<AddChatSessionFeedbackRequest>): Promise<AddChatSessionFeedbackResponse> {
     const createSessionFeedbackRequest = event.body;
     if (!createSessionFeedbackRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     return {
@@ -805,7 +954,7 @@ async function handleCreateSessionFeedback(event: APIGatewayProxyEventPika<AddCh
 async function handleUpdateSessionFeedback(event: APIGatewayProxyEventPika<UpdateChatSessionFeedbackRequest>): Promise<UpdateChatSessionFeedbackResponse> {
     const updateSessionFeedbackRequest = event.body;
     if (!updateSessionFeedbackRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     return {
@@ -820,7 +969,7 @@ async function handleUpdateSessionFeedback(event: APIGatewayProxyEventPika<Updat
 async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearchRequest>): Promise<SessionSearchResponse<RecordOrUndef | undefined>> {
     const searchSessionsRequest = event.body;
     if (!searchSessionsRequest) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     // Log a concise summary of the incoming search request for diagnostics
@@ -866,15 +1015,15 @@ async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearc
 async function handleCreateOrUpdateTagDef(event: APIGatewayProxyEventPika<TagDefinitionCreateOrUpdateRequest>): Promise<TagDefinitionCreateOrUpdateResponse> {
     const request = event.body;
     if (!request) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!request.tagDefinition) {
-        throw new Error('Tag definition is required');
+        throw new BadRequestError('Tag definition is required');
     }
 
     if (!request.userId) {
-        throw new Error('User ID is required');
+        throw new BadRequestError('User ID is required');
     }
 
     return await createOrUpdateTagDefApi(request);
@@ -886,19 +1035,19 @@ async function handleCreateOrUpdateTagDef(event: APIGatewayProxyEventPika<TagDef
 async function handleDeleteTagDef(event: APIGatewayProxyEventPika<TagDefinitionDeleteRequest>): Promise<TagDefinitionDeleteResponse> {
     const request = event.body;
     if (!request) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!request.tagDefinition) {
-        throw new Error('Tag definition identifier is required');
+        throw new BadRequestError('Tag definition identifier is required');
     }
 
     if (!request.tagDefinition.scope) {
-        throw new Error('Tag definition scope is required');
+        throw new BadRequestError('Tag definition scope is required');
     }
 
     if (!request.tagDefinition.tag) {
-        throw new Error('Tag definition tag is required');
+        throw new BadRequestError('Tag definition tag is required');
     }
 
     return await deleteTagDefApi(request);
@@ -918,15 +1067,15 @@ async function handleGetTagDefs(event: APIGatewayProxyEventPika<TagDefinitionSea
 async function handleCreateOrUpdateSemanticDirective(event: APIGatewayProxyEventPika<SemanticDirectiveCreateOrUpdateRequest>): Promise<SemanticDirectiveCreateOrUpdateResponse> {
     const request = event.body;
     if (!request) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!request.semanticDirective) {
-        throw new Error('Semantic directive is required');
+        throw new BadRequestError('Semantic directive is required');
     }
 
     if (!request.userId) {
-        throw new Error('User ID is required');
+        throw new BadRequestError('User ID is required');
     }
 
     return await createOrUpdateSemanticDirectiveApi(request);
@@ -938,19 +1087,19 @@ async function handleCreateOrUpdateSemanticDirective(event: APIGatewayProxyEvent
 async function handleDeleteSemanticDirective(event: APIGatewayProxyEventPika<SemanticDirectiveDeleteRequest>): Promise<SemanticDirectiveDeleteResponse> {
     const request = event.body;
     if (!request) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!request.semanticDirective) {
-        throw new Error('Semantic directive identifier is required');
+        throw new BadRequestError('Semantic directive identifier is required');
     }
 
     if (!request.semanticDirective.scope) {
-        throw new Error('Semantic directive scope is required');
+        throw new BadRequestError('Semantic directive scope is required');
     }
 
     if (!request.semanticDirective.id) {
-        throw new Error('Semantic directive id is required');
+        throw new BadRequestError('Semantic directive id is required');
     }
 
     return await deleteSemanticDirectiveApi(request);
@@ -972,19 +1121,19 @@ async function handleSearchSemanticDirectives(event: APIGatewayProxyEventPika<Se
 async function handleSearchAllMemoryRecords(event: APIGatewayProxyEventPika<SearchAllMemoryRecordsRequest>): Promise<SearchAllMemoryRecordsResponse> {
     const requestBody = event.body;
     if (!requestBody) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!requestBody.userId) {
-        throw new Error('userId is required');
+        throw new BadRequestError('userId is required');
     }
 
     if (!requestBody.strategy) {
-        throw new Error('strategy is required');
+        throw new BadRequestError('strategy is required');
     }
 
     if (!UserMemoryStrategies.includes(requestBody.strategy)) {
-        throw new Error(`Invalid strategy: ${requestBody.strategy}`);
+        throw new BadRequestError(`Invalid strategy: ${requestBody.strategy}`);
     }
 
     let response: SearchAllMemoryRecordsResponse = {
@@ -1017,31 +1166,31 @@ async function handleGetInstructionsAddedForUserMemory(
 ): Promise<GetInstructionsAddedForUserMemoryResponse> {
     const requestBody = event.body;
     if (!requestBody) {
-        throw new Error('Request body is required');
+        throw new BadRequestError('Request body is required');
     }
 
     if (!requestBody.userId) {
-        throw new Error('userId is required');
+        throw new BadRequestError('userId is required');
     }
 
     if (!requestBody.prompt) {
-        throw new Error('prompt is required');
+        throw new BadRequestError('prompt is required');
     }
 
     if (!requestBody.strategies) {
-        throw new Error('strategies is required');
+        throw new BadRequestError('strategies is required');
     }
 
     if (!requestBody.strategies.every((strategy) => UserMemoryStrategies.includes(strategy))) {
-        throw new Error(`Invalid strategy found in strategies: ${requestBody.strategies}`);
+        throw new BadRequestError(`Invalid strategy found in strategies: ${requestBody.strategies}`);
     }
 
     if (!requestBody.maxMemoryRecordsPerPrompt) {
-        throw new Error('maxMemoryRecordsPerPrompt is required');
+        throw new BadRequestError('maxMemoryRecordsPerPrompt is required');
     }
 
     if (!requestBody.maxKMatchesPerStrategy) {
-        throw new Error('maxKMatchesPerStrategy is required');
+        throw new BadRequestError('maxKMatchesPerStrategy is required');
     }
 
     const userMemoryFeature: UserMemoryFeatureWithMemoryInfo = {
@@ -1067,6 +1216,796 @@ async function handleGetInstructionsAddedForUserMemory(
     response.instructions = await getMemoryInstructions(user, userMemoryFeature, requestBody.prompt, requestBody.maxKMatchesPerStrategy);
 
     return response;
+}
+
+// ===== MOCK DATA APIS FOR TESTING =====
+
+/**
+ * POST:/api/chat-admin/session/mock
+ */
+async function handleCreateOrUpdateMockSession(event: APIGatewayProxyEventPika<CreateOrUpdateMockSessionRequest>): Promise<CreateOrUpdateMockSessionResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.session) {
+        throw new HttpStatusError('Session data is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('User ID is required', 400);
+    }
+
+    // Ensure test is set to true
+    request.session.testType = 'mock';
+
+    console.log('Creating mock session:', {
+        userId: request.session.userId,
+        chatAppId: request.session.chatAppId,
+        agentId: request.session.agentId,
+        adminUserId: request.userId
+    });
+
+    const session = await createChatSession(request.session);
+
+    return {
+        success: true,
+        session
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/session/mock
+ */
+async function handleDeleteMockSession(event: APIGatewayProxyEventPika<DeleteMockSessionRequest>): Promise<DeleteMockSessionResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.sessionId) {
+        throw new HttpStatusError('Session ID is required', 400);
+    }
+
+    if (!request.sessionUserId) {
+        throw new HttpStatusError('Session user ID is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock session:', {
+        sessionId: request.sessionId,
+        sessionUserId: request.sessionUserId,
+        adminUserId: request.userId
+    });
+
+    // Verify the session exists and is a test session
+    const session = await getChatSessionByUserIdAndSessionId(request.sessionUserId, request.sessionId);
+    if (!session) {
+        throw new HttpStatusError('Session not found', 404);
+    }
+
+    if (session.testType !== 'mock') {
+        throw new HttpStatusError('Can only delete test sessions', 400);
+    }
+
+    // TODO: Implement delete session functionality
+    throw new HttpStatusError('Delete session not yet implemented', 501);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * POST:/api/chat-admin/agent/mock
+ */
+async function handleCreateOrUpdateMockAgent(event: APIGatewayProxyEventPika<CreateOrUpdateMockAgentRequest>): Promise<CreateOrUpdateMockAgentResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.agent) {
+        throw new HttpStatusError('Agent data is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('User ID is required', 400);
+    }
+
+    // Ensure test flag is set
+    request.agent.testType = 'mock';
+    request.agent.createdAt = new Date().toISOString();
+    request.agent.updatedAt = new Date().toISOString();
+    request.agent.createdBy = request.userId;
+    request.agent.lastModifiedBy = request.userId;
+    request.agent.version = 1;
+
+    console.log('Creating mock agent:', {
+        agentId: request.agent.agentId,
+        basePrompt: request.agent.basePrompt?.substring(0, 50) + '...',
+        adminUserId: request.userId
+    });
+
+    const agent = await createAgent(request.agent);
+
+    return {
+        success: true,
+        agent
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/agent/mock
+ */
+async function handleDeleteMockAgent(event: APIGatewayProxyEventPika<DeleteMockAgentRequest>): Promise<DeleteMockAgentResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.agentId) {
+        throw new HttpStatusError('Agent ID is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock agent:', {
+        agentId: request.agentId,
+        adminUserId: request.userId
+    });
+
+    await deleteMockAgent(request.agentId);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * POST:/api/chat-admin/tool/mock
+ */
+async function handleCreateOrUpdateMockTool(event: APIGatewayProxyEventPika<CreateOrUpdateMockToolRequest>): Promise<CreateOrUpdateMockToolResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.tool) {
+        throw new HttpStatusError('Tool data is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('User ID is required', 400);
+    }
+
+    // Ensure test flag is set
+    request.tool.testType = 'mock';
+    request.tool.createdAt = new Date().toISOString();
+    request.tool.updatedAt = new Date().toISOString();
+    request.tool.createdBy = request.userId;
+    request.tool.lastModifiedBy = request.userId;
+    request.tool.version = 1;
+
+    console.log('Creating mock tool:', {
+        toolId: request.tool.toolId,
+        name: request.tool.name,
+        adminUserId: request.userId
+    });
+
+    const tool = await createTool(request.tool);
+
+    return {
+        success: true,
+        tool
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/tool/mock
+ */
+async function handleDeleteMockTool(event: APIGatewayProxyEventPika<DeleteMockToolRequest>): Promise<DeleteMockToolResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.toolId) {
+        throw new HttpStatusError('Tool ID is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock tool:', {
+        toolId: request.toolId,
+        adminUserId: request.userId
+    });
+
+    await deleteMockTool(request.toolId);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * POST:/api/chat-admin/chat-app/mock
+ */
+async function handleCreateOrUpdateMockChatApp(event: APIGatewayProxyEventPika<CreateOrUpdateMockChatAppRequest>): Promise<CreateOrUpdateMockChatAppResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.chatApp) {
+        throw new HttpStatusError('Chat app data is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('User ID is required', 400);
+    }
+
+    // Ensure test flag is set
+    request.chatApp.testType = 'mock';
+    request.chatApp.createDate = new Date().toISOString();
+    request.chatApp.lastUpdate = new Date().toISOString();
+
+    console.log('Creating mock chat app:', {
+        chatAppId: request.chatApp.chatAppId,
+        title: request.chatApp.title,
+        adminUserId: request.userId
+    });
+
+    const chatApp = await createChatAppDdb(request.chatApp);
+
+    return {
+        success: true,
+        chatApp
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/chat-app/mock
+ */
+async function handleDeleteMockChatApp(event: APIGatewayProxyEventPika<DeleteMockChatAppRequest>): Promise<DeleteMockChatAppResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.chatAppId) {
+        throw new HttpStatusError('Chat app ID is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock chat app:', {
+        chatAppId: request.chatAppId,
+        adminUserId: request.userId
+    });
+
+    // Verify the chat app exists and is a test chat app
+    const chatApp = await getChatApp(request.chatAppId);
+    if (!chatApp) {
+        throw new HttpStatusError('Chat app not found', 404);
+    }
+
+    if (chatApp.testType !== 'mock') {
+        throw new HttpStatusError('Can only delete test chat apps', 400);
+    }
+
+    await deleteMockChatApp(request.chatAppId);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * POST:/api/chat-admin/user/mock
+ */
+async function handleCreateOrUpdateMockUser(event: APIGatewayProxyEventPika<CreateOrUpdateMockUserRequest>): Promise<CreateOrUpdateMockUserResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.user) {
+        throw new HttpStatusError('User data is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    // Ensure test flag is set
+    request.user.testType = 'mock';
+
+    console.log('Creating mock user:', {
+        userId: request.user.userId,
+        firstName: request.user.firstName,
+        lastName: request.user.lastName,
+        adminUserId: request.userId
+    });
+
+    const user = await addUser(request.user);
+
+    return {
+        success: true,
+        user
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/user/mock
+ */
+async function handleDeleteMockUser(event: APIGatewayProxyEventPika<DeleteMockUserRequest>): Promise<DeleteMockUserResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.mockUserId) {
+        throw new HttpStatusError('Mock user ID is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock user:', {
+        mockUserId: request.mockUserId,
+        adminUserId: request.userId
+    });
+
+    await deleteMockUser(request.mockUserId);
+
+    return {
+        success: true
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/mock
+ */
+async function handleDeleteMock(event: APIGatewayProxyEventPika<DeleteMockDataRequest>): Promise<DeleteMockDataResponse> {
+    const request = event.body;
+    if (!request) {
+        throw new HttpStatusError('Request body is required', 400);
+    }
+
+    if (!request.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting mock data:', {
+        userId: request.userId
+    });
+
+    if (request.sessions) {
+        for (const session of request.sessions) {
+            await deleteMockSession(session.sessionId, session.sessionUserId);
+        }
+    }
+
+    if (request.chatApps) {
+        for (const chatApp of request.chatApps) {
+            await deleteMockChatApp(chatApp.chatAppId);
+        }
+    }
+
+    if (request.agents) {
+        for (const agent of request.agents) {
+            await deleteMockAgent(agent.agentId);
+        }
+    }
+
+    if (request.tools) {
+        for (const tool of request.tools) {
+            await deleteMockTool(tool.toolId);
+        }
+    }
+
+    if (request.users) {
+        for (const user of request.users) {
+            await deleteMockUser(user.userId);
+        }
+    }
+
+    return {
+        success: true
+    };
+}
+
+// ===== GET ALL MOCK DATA HANDLERS =====
+
+/**
+ * GET:/api/chat-admin/session/mock/all
+ */
+async function handleGetAllMockSessions(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockSessionsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestChatSessions(limit, nextToken);
+
+    return {
+        success: true,
+        chatSessions: result.chatSessions,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/session/mock/{sessionId}/user/{userId}
+ */
+async function handleGetMockSessionByUserIdAndSessionId(event: APIGatewayProxyEventPika<void>): Promise<GetMockSessionByUserIdAndSessionIdResponse> {
+    const sessionId = event.pathParameters?.sessionId;
+    const userId = event.pathParameters?.userId;
+
+    if (!sessionId) {
+        throw new HttpStatusError('Session ID is required', 400);
+    }
+
+    if (!userId) {
+        throw new HttpStatusError('User ID is required', 400);
+    }
+
+    const chatSession = await getChatSessionByUserIdAndSessionId(userId, sessionId);
+
+    if (chatSession && chatSession.testType !== 'mock') {
+        throw new HttpStatusError('Session is not a mock session', 400);
+    }
+
+    return {
+        success: true,
+        chatSession
+    };
+}
+
+/**
+ * GET:/api/chat-admin/user/mock/all
+ */
+async function handleGetAllMockUsers(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockUsersResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestChatUsers(limit, nextToken);
+
+    return {
+        success: true,
+        chatUsers: result.chatUsers,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/agent/mock/all
+ */
+async function handleGetAllMockAgents(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockAgentsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestAgents(limit, nextToken);
+
+    return {
+        success: true,
+        agents: result.agents,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/tool/mock/all
+ */
+async function handleGetAllMockTools(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockToolsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestTools(limit, nextToken);
+
+    return {
+        success: true,
+        tools: result.tools,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/chat-app/mock/all
+ */
+async function handleGetAllMockChatApps(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockChatAppsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestChatApps(limit, nextToken);
+
+    return {
+        success: true,
+        chatApps: result.chatApps,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/shared-session-visit/mock/all
+ */
+async function handleGetAllMockSharedSessionVisits(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockSharedSessionVisitsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestSharedSessionVisits(limit, nextToken);
+
+    return {
+        success: true,
+        sharedSessionVisits: result.sharedSessionVisits,
+        nextToken: result.nextToken
+    };
+}
+
+/**
+ * GET:/api/chat-admin/pinned-session/mock/all
+ */
+async function handleGetAllMockPinnedSessions(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockPinnedSessionsResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 20;
+    const nextToken = event.queryStringParameters?.nextToken;
+
+    const result = await getMockTestPinnedSessions(limit, nextToken);
+
+    return {
+        success: true,
+        pinnedSessions: result.pinnedSessions,
+        nextToken: result.nextToken
+    };
+}
+
+// ===== DELETE ALL MOCK DATA HANDLERS =====
+
+/**
+ * DELETE:/api/chat-admin/session/mock/all
+ */
+async function handleDeleteAllMockSessions(event: APIGatewayProxyEventPika<DeleteAllMockSessionsRequest>): Promise<DeleteAllMockSessionsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock sessions:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestChatSessions();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/user/mock/all
+ */
+async function handleDeleteAllMockUsers(event: APIGatewayProxyEventPika<DeleteAllMockUsersRequest>): Promise<DeleteAllMockUsersResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock users:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestChatUsers();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/agent/mock/all
+ */
+async function handleDeleteAllMockAgents(event: APIGatewayProxyEventPika<DeleteAllMockAgentsRequest>): Promise<DeleteAllMockAgentsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock agents:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestAgents();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/tool/mock/all
+ */
+async function handleDeleteAllMockTools(event: APIGatewayProxyEventPika<DeleteAllMockToolsRequest>): Promise<DeleteAllMockToolsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock tools:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestTools();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/chat-app/mock/all
+ */
+async function handleDeleteAllMockChatApps(event: APIGatewayProxyEventPika<DeleteAllMockChatAppsRequest>): Promise<DeleteAllMockChatAppsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock chat apps:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestChatApps();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/shared-session-visit/mock/all
+ */
+async function handleDeleteAllMockSharedSessionVisits(event: APIGatewayProxyEventPika<DeleteAllMockSharedSessionVisitsRequest>): Promise<DeleteAllMockSharedSessionVisitsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock shared session visits:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestSharedSessionVisits();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/pinned-session/mock/all
+ */
+async function handleDeleteAllMockPinnedSessions(event: APIGatewayProxyEventPika<DeleteAllMockPinnedSessionsRequest>): Promise<DeleteAllMockPinnedSessionsResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    console.log('Deleting all mock pinned sessions:', {
+        adminUserId: request.userId
+    });
+
+    const deletedCount = await deleteAllMockTestPinnedSessions();
+
+    return {
+        success: true,
+        deletedCount
+    };
+}
+
+// ===== BULK OPERATIONS =====
+
+/**
+ * GET:/api/chat-admin/mock/bulk
+ */
+async function handleGetAllMockData(event: APIGatewayProxyEventPika<void>): Promise<GetAllMockDataResponse> {
+    const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 10;
+
+    console.log('Getting all mock data with limit:', limit);
+
+    // Get all mock data in parallel
+    const [sessionsResult, usersResult, agentsResult, toolsResult, chatAppsResult, sharedSessionVisitsResult, pinnedSessionsResult] = await Promise.all([
+        getMockTestChatSessions(limit),
+        getMockTestChatUsers(limit),
+        getMockTestAgents(limit),
+        getMockTestTools(limit),
+        getMockTestChatApps(limit),
+        getMockTestSharedSessionVisits(limit),
+        getMockTestPinnedSessions(limit)
+    ]);
+
+    return {
+        success: true,
+        data: {
+            sessions: sessionsResult.chatSessions,
+            users: usersResult.chatUsers,
+            agents: agentsResult.agents,
+            tools: toolsResult.tools,
+            chatApps: chatAppsResult.chatApps,
+            sharedSessionVisits: sharedSessionVisitsResult.sharedSessionVisits,
+            pinnedSessions: pinnedSessionsResult.pinnedSessions
+        }
+    };
+}
+
+/**
+ * DELETE:/api/chat-admin/mock/bulk
+ */
+async function handleDeleteAllMockData(event: APIGatewayProxyEventPika<DeleteAllMockDataRequest>): Promise<DeleteAllMockDataResponse> {
+    const request = event.body;
+    if (!request?.userId) {
+        throw new HttpStatusError('Admin user ID is required', 400);
+    }
+
+    if (!request.confirm) {
+        throw new HttpStatusError('Confirmation required: set confirm=true to proceed', 400);
+    }
+
+    console.log('Deleting ALL mock data:', {
+        adminUserId: request.userId
+    });
+
+    // Delete all mock data in parallel
+    const [sessionsDeleted, usersDeleted, agentsDeleted, toolsDeleted, chatAppsDeleted, sharedSessionVisitsDeleted, pinnedSessionsDeleted] = await Promise.all([
+        deleteAllMockTestChatSessions(),
+        deleteAllMockTestChatUsers(),
+        deleteAllMockTestAgents(),
+        deleteAllMockTestTools(),
+        deleteAllMockTestChatApps(),
+        deleteAllMockTestSharedSessionVisits(),
+        deleteAllMockTestPinnedSessions()
+    ]);
+
+    const totalDeleted = sessionsDeleted + usersDeleted + agentsDeleted + toolsDeleted + chatAppsDeleted + sharedSessionVisitsDeleted + pinnedSessionsDeleted;
+
+    console.log('Bulk delete completed:', {
+        sessions: sessionsDeleted,
+        users: usersDeleted,
+        agents: agentsDeleted,
+        tools: toolsDeleted,
+        chatApps: chatAppsDeleted,
+        sharedSessionVisits: sharedSessionVisitsDeleted,
+        pinnedSessions: pinnedSessionsDeleted,
+        total: totalDeleted
+    });
+
+    return {
+        success: true,
+        deletedCounts: {
+            sessions: sessionsDeleted,
+            users: usersDeleted,
+            agents: agentsDeleted,
+            tools: toolsDeleted,
+            chatApps: chatAppsDeleted,
+            sharedSessionVisits: sharedSessionVisitsDeleted,
+            pinnedSessions: pinnedSessionsDeleted,
+            total: totalDeleted
+        }
+    };
 }
 
 export const handler = apiGatewayFunctionDecorator(handlerFn);

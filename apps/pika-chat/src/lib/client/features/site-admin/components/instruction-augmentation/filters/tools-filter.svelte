@@ -2,7 +2,7 @@
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import type { ToolDefinition, SemanticDirectiveForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { SemanticDirectiveForCreateOrUpdate, ToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
 
     interface Props {

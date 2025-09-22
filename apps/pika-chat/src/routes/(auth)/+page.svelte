@@ -1,13 +1,11 @@
 <script lang="ts">
-    import { goto } from '$app/navigation';
     import type { AppState } from '$client/app/app.state.svelte';
+    import { Settings2 } from '$lib/icons/lucide';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
     import { Button } from '$ui/shadcn/button';
     import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
-    import { Settings2 } from '$lib/icons/lucide';
     import type { ChatAppLite } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
-    import type { PageData } from './$types';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
 
     const appState = getContext<AppState>('appState');
 

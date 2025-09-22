@@ -8,8 +8,8 @@
     import { getContext } from 'svelte';
     import Trace from '../chat-app-main/trace.svelte';
     import type { ChatAppState } from '../chat-app.state.svelte';
-    import type { MetadataTagSegment, ProcessedTagSegment, ProcessedTextSegment } from './segment-types';
     import type { ComponentRegistry } from './component-registry';
+    import type { MetadataTagSegment, ProcessedTagSegment, ProcessedTextSegment } from './segment-types';
 
     interface Props {
         message: ChatMessageForRendering;

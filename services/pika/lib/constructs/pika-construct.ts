@@ -144,6 +144,10 @@ export class PikaConstruct extends Construct {
         const tagDefinitionsTable = this.createTagDefinitionsTable();
         const semanticDirectiveTable = this.createSemanticDirectiveTable();
 
+        // Sharing Sessions Feature Tables
+        const sharedSessionVisitHistoryTable = this.createSharedSessionVisitHistoryTable();
+        const pinnedSessionTable = this.createPinnedSessionTable();
+
         // Create the archive processor after tables are created
         this.createArchiveProcessor(archiveStagingTable, fileArchiveBucket, pikaS3Bucket);
 
@@ -159,7 +163,9 @@ export class PikaConstruct extends Construct {
             agentDefinitionsTable,
             toolDefinitionsTable,
             tagDefinitionsTable,
-            semanticDirectiveTable
+            semanticDirectiveTable,
+            sharedSessionVisitHistoryTable,
+            pinnedSessionTable
         };
     }
 
@@ -170,10 +176,13 @@ export class PikaConstruct extends Construct {
             storageResources.chatMessagesTable,
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
+            storageResources.chatAppTable,
             storageResources.tagDefinitionsTable,
             bedrockChatRole,
             storageResources.chatSessionFeedbackTable,
-            openSearchDomain
+            openSearchDomain,
+            storageResources.sharedSessionVisitHistoryTable,
+            storageResources.pinnedSessionTable
         );
 
         // Create Lambda functions
@@ -182,10 +191,13 @@ export class PikaConstruct extends Construct {
             storageResources.chatMessagesTable,
             storageResources.chatSessionTable,
             storageResources.chatUserTable,
+            storageResources.chatAppTable,
             storageResources.tagDefinitionsTable,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain,
-            memoryId
+            memoryId,
+            storageResources.sharedSessionVisitHistoryTable,
+            storageResources.pinnedSessionTable
         );
 
         const [chatAdminApiFn, chatAdminRestApi] = this.createChatAdminApiFunction(
@@ -193,8 +205,11 @@ export class PikaConstruct extends Construct {
             storageResources.toolDefinitionsTable,
             storageResources.chatAppTable,
             storageResources.chatUserTable,
+            storageResources.chatSessionTable,
             storageResources.tagDefinitionsTable,
             storageResources.semanticDirectiveTable,
+            storageResources.sharedSessionVisitHistoryTable,
+            storageResources.pinnedSessionTable,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain,
             memoryId,
@@ -319,6 +334,12 @@ export class PikaConstruct extends Construct {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/chat_admin_api_name`,
             stringValue: computeResources.chatAdminApiFn.functionName,
             description: 'Name of the Chat Admin API Lambda function'
+        });
+
+        new ssm.StringParameter(this, 'ChatbotApiFunctionNameParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/chatbot_api_name`,
+            stringValue: computeResources.chatbotApiFn.functionName,
+            description: 'Name of the Chatbot API Lambda function'
         });
 
         new ssm.StringParameter(this, 'ConverseUrlParam', {
@@ -632,6 +653,34 @@ export class PikaConstruct extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         });
 
+        // GSI for shared sessions - allows querying all shared sessions
+        chatSessionTable.addGlobalSecondaryIndex({
+            indexName: 'shared-sessions-index',
+            partitionKey: {
+                name: 'share_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'share_date',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        // So can query for all test sessions
+        chatSessionTable.addGlobalSecondaryIndex({
+            indexName: 'test-records-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'session_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
         const sessionChangedLambdaRole = new iam.Role(this, 'SessionChangedLambdaRole', {
             roleName: `session-changed-lambda-role-${this.props.stackName}`,
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -865,6 +914,20 @@ export class PikaConstruct extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         });
 
+        // So can query for all test users
+        chatUserTable.addGlobalSecondaryIndex({
+            indexName: 'test-users-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'user_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
         return chatUserTable;
     }
 
@@ -885,6 +948,20 @@ export class PikaConstruct extends Construct {
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
             timeToLiveAttribute: 'ttl'
+        });
+
+        // So can query for all test chat apps
+        chatAppTable.addGlobalSecondaryIndex({
+            indexName: 'test-chat-apps-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'chat_app_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
         });
 
         new ssm.StringParameter(this, 'ChatAppTableNameParam', {
@@ -931,6 +1008,20 @@ export class PikaConstruct extends Construct {
             indexName: 'cacheStatus-agentId-index',
             partitionKey: {
                 name: 'cache_status',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'agent_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        // So can query for all test agents
+        agentDefinitionsTable.addGlobalSecondaryIndex({
+            indexName: 'test-agents-index',
+            partitionKey: {
+                name: 'test_type',
                 type: dynamodb.AttributeType.STRING
             },
             sortKey: {
@@ -995,6 +1086,20 @@ export class PikaConstruct extends Construct {
             },
             sortKey: {
                 name: 'created_at',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        // So can query for all test tools
+        toolDefinitionsTable.addGlobalSecondaryIndex({
+            indexName: 'test-tools-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'tool_id',
                 type: dynamodb.AttributeType.STRING
             },
             projectionType: dynamodb.ProjectionType.ALL
@@ -1109,6 +1214,73 @@ export class PikaConstruct extends Construct {
         });
 
         return semanticDirectiveTable;
+    }
+
+    // ===== SHARING SESSIONS FEATURE TABLES =====
+
+    private createSharedSessionVisitHistoryTable(): dynamodb.Table {
+        const sharedSessionVisitHistoryTable = new dynamodb.Table(this, 'SharedSessionVisitHistoryTable', {
+            tableName: `shared-session-visit-history-${this.props.stackName}`,
+            partitionKey: { name: 'user_id_chat_app_id', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'share_id', type: dynamodb.AttributeType.STRING },
+            removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
+        });
+
+        // GSI for querying recent visits by timestamp
+        sharedSessionVisitHistoryTable.addGlobalSecondaryIndex({
+            indexName: 'recent-visits-index',
+            partitionKey: { name: 'user_id_chat_app_id', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'last_visited_at', type: dynamodb.AttributeType.STRING },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        sharedSessionVisitHistoryTable.addGlobalSecondaryIndex({
+            indexName: 'test-shared-sessions-visits-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'share_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        return sharedSessionVisitHistoryTable;
+    }
+
+    private createPinnedSessionTable(): dynamodb.Table {
+        const pinnedSessionTable = new dynamodb.Table(this, 'PinnedSessionTable', {
+            tableName: `pinned-session-${this.props.stackName}`,
+            partitionKey: { name: 'user_id_chat_app_id', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'session_or_share_id', type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            pointInTimeRecovery: true,
+            removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
+        });
+
+        // Add GSI for sorting by pinned_at in descending order
+        pinnedSessionTable.addGlobalSecondaryIndex({
+            indexName: 'user-chat-pinned-at-index',
+            partitionKey: { name: 'user_id_chat_app_id', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'pinned_at', type: dynamodb.AttributeType.STRING }
+        });
+
+        pinnedSessionTable.addGlobalSecondaryIndex({
+            indexName: 'test-pinned-sessions-index',
+            partitionKey: {
+                name: 'test_type',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'session_or_share_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
+        return pinnedSessionTable;
     }
 
     private createSessionRunnerMutexTable(): dynamodb.Table {
@@ -1247,10 +1419,13 @@ export class PikaConstruct extends Construct {
         chatMessagesTable: dynamodb.Table,
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        chatAppTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
         bedrockChatRole: iam.Role,
         chatSessionFeedbackTable?: dynamodb.Table,
-        openSearchDomain?: opensearch.Domain
+        openSearchDomain?: opensearch.Domain,
+        sharedSessionVisitHistoryTable?: dynamodb.Table,
+        pinnedSessionTable?: dynamodb.Table
     ): iam.Role {
         const lambdaRole = new iam.Role(this, 'PikaLambdaRole', {
             roleName: `lambda-role-${this.props.stackName}`,
@@ -1329,7 +1504,11 @@ export class PikaConstruct extends Construct {
                                 `${chatSessionTable.tableArn}/*`,
                                 chatUserTable.tableArn,
                                 `${chatUserTable.tableArn}/index/*`,
-                                ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
+                                ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : []),
+                                chatAppTable.tableArn,
+                                `${chatAppTable.tableArn}/*`,
+                                ...(pinnedSessionTable ? [pinnedSessionTable.tableArn, `${pinnedSessionTable.tableArn}/*`] : []),
+                                ...(sharedSessionVisitHistoryTable ? [sharedSessionVisitHistoryTable.tableArn, `${sharedSessionVisitHistoryTable.tableArn}/*`] : [])
                             ]
                         }),
                         new iam.PolicyStatement({
@@ -1361,6 +1540,13 @@ export class PikaConstruct extends Construct {
         chatMessagesTable.grantReadWriteData(lambdaRole);
         chatSessionTable.grantReadWriteData(lambdaRole);
         chatUserTable.grantReadWriteData(lambdaRole);
+
+        if (sharedSessionVisitHistoryTable) {
+            sharedSessionVisitHistoryTable.grantReadWriteData(lambdaRole);
+        }
+        if (pinnedSessionTable) {
+            pinnedSessionTable.grantReadWriteData(lambdaRole);
+        }
 
         return lambdaRole;
     }
@@ -1517,10 +1703,13 @@ export class PikaConstruct extends Construct {
         chatMessagesTable: dynamodb.Table,
         chatSessionTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        chatAppTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain,
-        memoryId?: string
+        memoryId?: string,
+        sharedSessionVisitHistoryTable?: dynamodb.Table,
+        pinnedSessionTable?: dynamodb.Table
     ): lambda.Function {
         return new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
             entry: 'src/api/chatbot/index.ts',
@@ -1533,12 +1722,15 @@ export class PikaConstruct extends Construct {
                 CHAT_MESSAGES_TABLE: chatMessagesTable.tableName,
                 CHAT_SESSION_TABLE: chatSessionTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
+                CHAT_APP_TABLE: chatAppTable.tableName,
                 TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
-                ...(memoryId ? { MEMORY_ID: memoryId } : {})
+                ...(memoryId ? { MEMORY_ID: memoryId } : {}),
+                ...(sharedSessionVisitHistoryTable ? { SHARED_SESSION_VISIT_HISTORY_TABLE: sharedSessionVisitHistoryTable.tableName } : {}),
+                ...(pinnedSessionTable ? { PINNED_SESSION_TABLE: pinnedSessionTable.tableName } : {})
             },
             bundling: {
                 minify: true,
@@ -1554,8 +1746,11 @@ export class PikaConstruct extends Construct {
         toolDefinitionsTable: dynamodb.Table,
         chatAppTable: dynamodb.Table,
         chatUserTable: dynamodb.Table,
+        chatSessionTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
         semanticDirectiveTable: dynamodb.Table,
+        sharedSessionVisitHistoryTable: dynamodb.Table,
+        pinnedSessionTable: dynamodb.Table,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain,
         memoryId?: string,
@@ -1595,27 +1790,25 @@ export class PikaConstruct extends Construct {
                             ],
                             resources: [
                                 agentDefinitionsTable.tableArn,
+                                `${agentDefinitionsTable.tableArn}/*`,
                                 toolDefinitionsTable.tableArn,
+                                `${toolDefinitionsTable.tableArn}/*`,
                                 chatAppTable.tableArn,
+                                `${chatAppTable.tableArn}/*`,
+                                chatSessionTable.tableArn,
+                                `${chatSessionTable.tableArn}/*`,
                                 tagDefinitionsTable.tableArn,
                                 `${tagDefinitionsTable.tableArn}/*`,
+                                chatUserTable.tableArn,
+                                `${chatUserTable.tableArn}/*`,
                                 semanticDirectiveTable.tableArn,
                                 `${semanticDirectiveTable.tableArn}/*`,
+                                sharedSessionVisitHistoryTable.tableArn,
+                                `${sharedSessionVisitHistoryTable.tableArn}/*`,
+                                pinnedSessionTable.tableArn,
+                                `${pinnedSessionTable.tableArn}/*`,
                                 ...(chatSessionFeedbackTable ? [chatSessionFeedbackTable.tableArn, `${chatSessionFeedbackTable.tableArn}/*`] : [])
                             ]
-                        }),
-                        new iam.PolicyStatement({
-                            effect: iam.Effect.ALLOW,
-                            actions: [
-                                'dynamodb:BatchGetItem',
-                                'dynamodb:DescribeTable',
-                                'dynamodb:GetItem',
-                                'dynamodb:GetRecords',
-                                'dynamodb:GetShardIterator',
-                                'dynamodb:Query',
-                                'dynamodb:Scan'
-                            ],
-                            resources: [chatUserTable.tableArn, `${chatUserTable.tableArn}/index/*`]
                         }),
                         // Memory permissions
                         new iam.PolicyStatement({
@@ -1659,8 +1852,11 @@ export class PikaConstruct extends Construct {
                 TOOL_DEFINITIONS_TABLE: toolDefinitionsTable.tableName,
                 CHAT_APP_TABLE: chatAppTable.tableName,
                 CHAT_USER_TABLE: chatUserTable.tableName,
+                CHAT_SESSION_TABLE: chatSessionTable.tableName,
                 TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
                 SEMANTIC_DIRECTIVE_TABLE: semanticDirectiveTable.tableName,
+                SHARED_SESSION_VISIT_HISTORY_TABLE: sharedSessionVisitHistoryTable.tableName,
+                PINNED_SESSION_TABLE: pinnedSessionTable.tableName,
                 STAGE: this.props.stage,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
@@ -1703,17 +1899,7 @@ export class PikaConstruct extends Construct {
 
         // Add methods for all HTTP verbs needed
         proxyResource.addMethod('ANY', integration);
-        // proxyResource.addMethod('POST', integration);
-        // proxyResource.addMethod('PUT', integration);
-        // proxyResource.addMethod('DELETE', integration);
-        // NOTE: OPTIONS method is automatically handled by defaultCorsPreflightOptions
-
-        // Handle the root chat-admin path (for routes without subpaths)
         chatAdmin.addMethod('ANY', integration);
-        // chatAdmin.addMethod('POST', integration);
-        // chatAdmin.addMethod('PUT', integration);
-        // chatAdmin.addMethod('DELETE', integration);
-        // NOTE: OPTIONS method is automatically handled by defaultCorsPreflightOptions
 
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {
@@ -2193,70 +2379,20 @@ export class PikaConstruct extends Construct {
             minCompressionSize: cdk.Size.mebibytes(1)
         });
 
+        // Use proxy integration to avoid policy size limits
         const apiResource = api.root.addResource('api');
-        const chats = apiResource.addResource('chat');
-        const sessionResource = chats.addResource('{sessionId}');
+        const chat = apiResource.addResource('chat');
 
-        // GET /api/chat/{sessionId}/messages
-        const messages = sessionResource.addResource('messages');
-        messages.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
+        // Create a single proxy resource that handles all routes
+        const proxyResource = chat.addResource('{proxy+}');
 
-        // POST /api/chat/{sessionId}/message
-        sessionResource.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
+        // Single integration for all HTTP methods
+        const integration = new apigateway.LambdaIntegration(chatbotApiFn, {
+            allowTestInvoke: false
+        });
 
-        // POST /api/chat/{sessionId}/title
-        const title = sessionResource.addResource('title');
-        title.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/conversations
-        const conversations = chats.addResource('conversations');
-        conversations.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/conversations/{chatAppId}
-        const conversationsByChatAppId = conversations.addResource('{chatAppId}');
-        conversationsByChatAppId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/user
-        const userResource = chats.addResource('user');
-        userResource.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/user/search/{partialUserId}
-        const search = userResource.addResource('search');
-        const searchByPartialUserId = search.addResource('{partialUserId}');
-        searchByPartialUserId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // POST /api/chat/user
-        userResource.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/user/prefs
-        const prefs = userResource.addResource('prefs');
-        prefs.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // POST /api/chat/user/prefs
-        prefs.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // POST /api/chat/feedback
-        const feedback = chats.addResource('feedback');
-        feedback.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // GET /api/chat/feedback/{sessionId}
-        const feedbackBySessionId = feedback.addResource('{sessionId}');
-        feedbackBySessionId.addMethod('GET', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        // Tag Definition endpoints (non-admin)
-        const chatTagdef = chats.addResource('tagdef');
-
-        // POST /api/chat/tagdef/search
-        const chatTagdefSearch = chatTagdef.addResource('search');
-        chatTagdefSearch.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-
-        if (userMemoryFeatureEnabled) {
-            // POST /api/chat/memory/record/search
-            const chatMemory = chats.addResource('memory');
-            const chatMemoryRecord = chatMemory.addResource('record');
-            const chatMemoryRecordSearch = chatMemoryRecord.addResource('search');
-            chatMemoryRecordSearch.addMethod('POST', new apigateway.LambdaIntegration(chatbotApiFn));
-        }
+        proxyResource.addMethod('ANY', integration);
+        chat.addMethod('ANY', integration);
 
         return api;
     }

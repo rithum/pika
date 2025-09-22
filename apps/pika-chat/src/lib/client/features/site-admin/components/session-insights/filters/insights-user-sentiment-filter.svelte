@@ -1,17 +1,14 @@
 <script lang="ts">
-    import { ChevronsUpDown, X } from '$icons/lucide';
-    import List from '$ui/pika/list/list.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Label } from '$ui/shadcn/label';
-    import * as Popover from '$ui/shadcn/popover';
-    import {
-        SESSION_INSIGHT_USER_SENTIMENT_VALUES,
-        type NameValueDescTriple,
-        type InsightsSearchParams,
-        type SessionInsightUserSentiment,
-    } from 'pika-shared/types/chatbot/chatbot-types';
+    import { X } from '$icons/lucide';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import {
+        SESSION_INSIGHT_USER_SENTIMENT_VALUES,
+        type InsightsSearchParams,
+        type NameValueDescTriple,
+        type SessionInsightUserSentiment,
+    } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

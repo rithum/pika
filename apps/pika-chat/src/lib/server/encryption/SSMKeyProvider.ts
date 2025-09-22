@@ -1,12 +1,4 @@
-import {
-    SSMClient,
-    GetParameterCommand,
-    GetParametersCommand,
-    PutParameterCommand,
-    DeleteParameterCommand,
-    GetParametersByPathCommand,
-    ParameterNotFound
-} from '@aws-sdk/client-ssm';
+import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import type { SsmKeyParameters } from './types';
 
 /**

@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Button } from '$ui/shadcn/button';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { Button } from '$ui/shadcn/button';
     import * as Dialog from '$ui/shadcn/dialog';
     import { Input } from '$ui/shadcn/input';
     import { Label } from '$ui/shadcn/label';

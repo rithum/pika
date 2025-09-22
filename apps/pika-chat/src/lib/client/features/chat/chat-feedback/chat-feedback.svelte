@@ -1,8 +1,8 @@
 <script lang="ts">
     import { Loader, ThumbsDown, ThumbsUp } from '$icons/lucide';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from '$ui/shadcn/button';
     import * as Dialog from '$ui/shadcn/dialog';
     import { Textarea } from '$ui/shadcn/textarea';

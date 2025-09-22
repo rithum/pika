@@ -30,6 +30,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                     if (record.dynamodb?.NewImage) {
                         const newFeedback = convertToCamelCase<ChatSessionFeedback>(unmarshall(record.dynamodb.NewImage as any) as SnakeCase<ChatSessionFeedback>);
                         console.log(`New feedback created: ${newFeedback.feedbackId} for session ${newFeedback.sessionId}`);
+
                         newObjects.push(newFeedback);
                     }
                     break;

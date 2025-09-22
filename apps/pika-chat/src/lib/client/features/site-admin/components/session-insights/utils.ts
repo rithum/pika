@@ -1,5 +1,6 @@
+import { parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import {
-    SESSION_SEARCH_DATE_PRESETS_VALUES,
     SESSION_SEARCH_DATE_TYPES_VALUES,
     type NameValuePair,
     type RecordOrUndef,
@@ -7,8 +8,6 @@ import {
     type SessionSearchDatePreset,
     type SessionSearchRequest
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { format, parseISO } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
 
 export function createDefaultDateFilter(): SessionSearchDateFilter {
     const now = new Date();

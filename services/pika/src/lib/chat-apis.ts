@@ -9,6 +9,8 @@
 //TODO: how do we create a first session with first message?
 
 import type {
+    BaseRequestData,
+    ChatApp,
     ChatMessage,
     ChatMessageForCreate,
     ChatSession,
@@ -20,34 +22,56 @@ import type {
     ChatUser,
     ChatUserLite,
     ConverseInvocationMode,
+    CreateSharedSessionRequest,
+    CreateSharedSessionResponse,
+    PinnedObjAndChatSession,
+    PinSessionRequest,
     RecordOrUndef,
+    SharedSessionVisitHistory,
     SimpleAuthenticatedUser,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    UserPrefs
+    UnpinSessionRequest,
+    UserPrefs,
+    ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
-import type { BaseRequestData } from 'pika-shared/types/chatbot/chatbot-types';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { v7 as uuidv7 } from 'uuid';
 import { getTitleFromBedrockIfNeeded } from './bedrock-agent';
+import { getChatApp } from './chat-admin-apis';
+import { searchTagDefinitions } from './chat-admin-ddb';
 import {
     addChatSession,
-    addMessage,
-    getChatMessagesInSession,
-    getChatSessionByUserIdAndSessionId,
-    getUserByUserId,
-    getUserSessionsByUserId,
-    updateSession,
-    updateSessionTitleInDdb,
-    getSessionsByUserIdAndChatAppId,
-    searchForUsersByPartialUserId,
     addFeedback,
+    addMessage,
+    batchGetChatSessionsByPrimaryKey,
+    batchGetChatSessionsByShareId,
+    deleteMockSessionDdb,
+    getChatMessagesInSession,
+    getChatSessionByShareId,
+    getChatSessionByUserIdAndSessionId,
     getFeedbackBySessionId,
+    getPinnedSessions,
+    getRecentSharedSessionHistory,
+    getSessionsByUserIdAndChatAppId,
+    getUserByUserId,
     getUserPrefsByUserId,
-    setUserPrefsForUser
+    getUserSessionsByUserId,
+    markSessionAsShared,
+    pinSession,
+    recordSharedSessionVisit,
+    revokeSharedSession,
+    searchForUsersByPartialUserId,
+    setUserPrefsForUser,
+    unpinSession,
+    unrevokeSharedSession,
+    updateSession,
+    updateSessionTitleInDdb
 } from './chat-ddb';
-import { UnauthorizedError } from './unauthorized-error';
+import { getMatchingChatApps } from './get-matching-chat-apps';
 import { createSessionToken, getNextMessageId } from './utils';
-import { searchTagDefinitions } from './chat-admin-ddb';
 
 /**
  * Get all chat messages for a session.
@@ -125,7 +149,9 @@ export async function ensureChatSession(
     agentId: string,
     chatAppId: string,
     simpleUser: SimpleAuthenticatedUser<RecordOrUndef>,
-    invocationMode: ConverseInvocationMode
+    invocationMode: ConverseInvocationMode,
+    entityEnabled: boolean,
+    entityValue: string | undefined
 ): Promise<[ChatSession<RecordOrUndef>, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
@@ -133,7 +159,9 @@ export async function ensureChatSession(
         agentId,
         chatAppId,
         simpleUser,
-        invocationMode
+        invocationMode,
+        entityEnabled,
+        entityValue
     });
 
     let isNewSession = false;
@@ -163,14 +191,16 @@ export async function ensureChatSession(
                 currentDate: new Date().toISOString(),
                 userId: user.userId
             },
-            identityId: user.userId
+            identityId: user.userId,
+            entityId: entityEnabled && entityValue ? entityValue : 'chat-app-global'
         });
 
         console.log('New session created:', {
             sessionId: chatSession.sessionId,
             userId: chatSession.userId,
             chatAppId: chatSession.chatAppId,
-            agentId: chatSession.agentId
+            agentId: chatSession.agentId,
+            entityId: chatSession.entityId
         });
 
         isNewSession = true;
@@ -208,6 +238,10 @@ export async function createChatSession(chatSessionForCreate: ChatSessionForCrea
     };
     await addChatSession(chatSession);
     return chatSession;
+}
+
+export async function deleteMockSession(sessionId: string, sessionUserId: string): Promise<void> {
+    await deleteMockSessionDdb(sessionId, sessionUserId);
 }
 
 /**
@@ -336,11 +370,14 @@ export async function updateSessionTitle(sessionId: string, userId: string, requ
     let title = request.title;
     if (!title) {
         if (!request.userQuestionAsked || !request.answerToQuestionFromAgent) {
-            throw new Error('Missing required userQuestionAsked and answerToQuestionFromAgent parameters');
+            throw new BadRequestError('Missing required userQuestionAsked and answerToQuestionFromAgent parameters');
         }
         title = await getTitleFromBedrockIfNeeded(request.userQuestionAsked, request.answerToQuestionFromAgent);
         if (!title) {
-            throw new Error(`Failed to generate title using Bedrock for user question: ${request.userQuestionAsked} and answer: ${request.answerToQuestionFromAgent}`);
+            throw new HttpStatusError(
+                `Failed to generate title using Bedrock for user question: ${request.userQuestionAsked} and answer: ${request.answerToQuestionFromAgent}`,
+                500
+            );
         }
     }
     const session = await updateSessionTitleInDdb(sessionId, userId, title);
@@ -379,5 +416,239 @@ export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Pro
         success: true,
         tagDefinitions,
         paginationToken
+    };
+}
+
+// ===== SHARING SESSIONS FEATURE BUSINESS LOGIC =====
+
+export async function createSharedSessionForSession(user: ChatUser<RecordOrUndef>, request: CreateSharedSessionRequest): Promise<CreateSharedSessionResponse> {
+    // Validate session ownership
+    const session = await getChatSessionByUserIdAndSessionId(request.sessionUserId, request.sessionId);
+    if (!session) {
+        throw new HttpStatusError('Session not found', 404);
+    }
+
+    if (request.chatAppId !== session.chatAppId) {
+        throw new HttpStatusError('Chat app id mismatch', 400);
+    }
+
+    if (session.shareId) {
+        throw new HttpStatusError('Session is already shared', 400);
+    }
+
+    // Prevent sharing of direct agent invocation sessions
+    if (session.chatAppId.startsWith('direct-agent-')) {
+        throw new HttpStatusError('Cannot share direct agent invocation sessions', 400);
+    }
+
+    // If the user creating the share isn't the owner of the session, then the user must be an internal user
+    // or throw an error.  If the user is an internal user, then we use the chat app entity setting to determine
+    // whether we should scope the shared session to the creator of the shared session's entity ID or not.
+
+    // If the user is an internal user, then we use the chat app entity setting to determine
+    // whether we should scope the shared session to the creator of the shared session's entity ID or not.
+    let chatApp: ChatApp | undefined;
+    try {
+        chatApp = await getChatApp(request.chatAppId);
+        if (!chatApp) {
+            throw new HttpStatusError('Chat app not found', 404);
+        }
+    } catch (e) {
+        if (e instanceof Error && e.message.includes('404')) {
+            throw new HttpStatusError('Chat app not found', 404);
+        }
+        throw e;
+    }
+
+    let userId = user.userId;
+    let shareCreatedByUserId = user.userId;
+    if (session.userId !== user.userId) {
+        if (user.userType !== 'internal-user') {
+            throw new HttpStatusError('Not authorized to share this session', 403);
+        }
+
+        // The internal user must have access to the chat app of the session or else we throw an error
+        const matchingChatApps = getMatchingChatApps(user, false, [], [chatApp]);
+
+        if (!matchingChatApps || matchingChatApps.length === 0) {
+            throw new HttpStatusError('Not authorized to share this session', 403);
+        }
+
+        userId = session.userId;
+    }
+
+    // Generate shareId
+    const shareId = uuidv7();
+
+    // Mark the session as shared with all sharing info stored on the session itself
+    await markSessionAsShared(request.sessionId, userId, shareId, shareCreatedByUserId);
+
+    return {
+        success: true,
+        shareId,
+        chatAppId: request.chatAppId
+    };
+}
+
+export async function revokeSharedSessionApi(shareId: string): Promise<void> {
+    await revokeSharedSession(shareId);
+}
+
+export async function unrevokeSharedSessionApi(shareId: string): Promise<void> {
+    await unrevokeSharedSession(shareId);
+}
+
+export async function validateUserCanAccessShare(
+    shareId: string,
+    chatAppId: string,
+    userType: 'internal-user' | 'external-user',
+    userEntityId?: string
+): Promise<ValidateShareAccessResponse> {
+    // Get shared session using the new approach
+    const sessionData = await getChatSessionByShareId(shareId);
+
+    if (!sessionData) {
+        return { success: true, hasAccess: false, error: 'Shared session not found' };
+    }
+
+    if (sessionData.shareRevokedDate) {
+        return { success: true, hasAccess: false, error: 'This shared session has been revoked and is no longer available' };
+    }
+
+    if (sessionData.chatAppId !== chatAppId) {
+        return { success: true, hasAccess: false, error: 'Shared session not valid for this chat app' };
+    }
+
+    // Check access permissions
+    if (userType === 'internal-user') {
+        // Internal users can access any shared session for chat apps they have access to
+        return {
+            success: true,
+            hasAccess: true,
+            sessionData
+        };
+    } else {
+        // External users must belong to the same entity
+        if (sessionData.entityId === 'chat-app-global') {
+            // When entity feature is disabled, all users with chat app access can view
+            return {
+                success: true,
+                hasAccess: true,
+                sessionData
+            };
+        } else {
+            if (userEntityId === sessionData.entityId) {
+                return {
+                    success: true,
+                    hasAccess: true,
+                    sessionData
+                };
+            } else {
+                return { success: true, hasAccess: false, error: 'Access denied - user not in same organization' };
+            }
+        }
+    }
+}
+
+export async function handlePinSession(userId: string, request: PinSessionRequest): Promise<void> {
+    await pinSession(userId, request.pinnedSession);
+}
+
+export async function handleUnpinSession(userId: string, request: UnpinSessionRequest): Promise<void> {
+    await unpinSession(userId, request.chatAppId, request.sessionId, request.shareId);
+}
+
+export async function handleRecordShareVisit(userId: string, shareId: string, userCustomData?: any): Promise<void> {
+    // Get share link to extract entity and chat app info
+    const sessionData = await getChatSessionByShareId(shareId);
+    if (!sessionData) {
+        throw new HttpStatusError('Shared session not found', 404);
+    }
+
+    await recordSharedSessionVisit(userId, shareId, sessionData.chatAppId, sessionData.title ?? 'Untitled');
+}
+
+export async function getRecentSharedSessionsForUser(userId: string, chatAppId: string, limit: number = 5): Promise<SharedSessionVisitHistory[]> {
+    // Already filtered by chat app in the database query
+    return await getRecentSharedSessionHistory(userId, chatAppId, limit);
+}
+
+export async function getPinnedSessionsForUser(
+    userId: string,
+    chatAppId: string,
+    limit: number = 20,
+    nextToken?: string
+): Promise<{ results: PinnedObjAndChatSession[]; nextToken?: string }> {
+    // Get the pinned sessions first
+    const pinnedResult = await getPinnedSessions(userId, chatAppId, limit, nextToken);
+
+    if (pinnedResult.pinnedSessions.length === 0) {
+        return { results: [], nextToken: pinnedResult.nextToken };
+    }
+
+    // Separate pinned sessions by type (sessionId vs shareId)
+    const pinnedWithSessionId = pinnedResult.pinnedSessions.filter((p) => p.sessionId);
+    const pinnedWithShareId = pinnedResult.pinnedSessions.filter((p) => p.shareId);
+
+    // Prepare batch requests
+    const sessionKeys = pinnedWithSessionId.map((p) => ({
+        userId: p.userId,
+        sessionId: p.sessionId!
+    }));
+
+    const shareIds = pinnedWithShareId.map((p) => p.shareId!);
+
+    // Execute batch operations in parallel
+    const [sessionsByPrimaryKey, sessionsByShareId] = await Promise.all([batchGetChatSessionsByPrimaryKey(sessionKeys), batchGetChatSessionsByShareId(shareIds)]);
+
+    // Create lookup maps for efficient retrieval
+    const sessionsByUserIdAndSessionId = new Map<string, ChatSession<RecordOrUndef>>();
+    sessionsByPrimaryKey.forEach((session) => {
+        const key = `${session.userId}:${session.sessionId}`;
+        sessionsByUserIdAndSessionId.set(key, session);
+    });
+
+    const sessionsByShareIdMap = new Map<string, ChatSession<RecordOrUndef>>();
+    sessionsByShareId.forEach((session) => {
+        if (session.shareId) {
+            sessionsByShareIdMap.set(session.shareId, session);
+        }
+    });
+
+    // Build results, maintaining original pinned session ordering
+    const results: PinnedObjAndChatSession[] = [];
+
+    for (const pinnedSession of pinnedResult.pinnedSessions) {
+        let chatSession: ChatSession<RecordOrUndef> | undefined;
+
+        if (pinnedSession.sessionId) {
+            // Look up by primary key
+            const key = `${pinnedSession.userId}:${pinnedSession.sessionId}`;
+            chatSession = sessionsByUserIdAndSessionId.get(key);
+        } else if (pinnedSession.shareId) {
+            // Look up by shareId
+            chatSession = sessionsByShareIdMap.get(pinnedSession.shareId);
+        }
+
+        // Only include if we found the associated chat session
+        if (chatSession) {
+            results.push({
+                pinnedSession,
+                chatSession
+            });
+        } else {
+            // Log warning about missing session but don't fail
+            console.warn(`Failed to find chat session for pinned item:`, {
+                sessionId: pinnedSession.sessionId,
+                shareId: pinnedSession.shareId,
+                userId: pinnedSession.userId,
+                chatAppId: pinnedSession.chatAppId
+            });
+        }
+    }
+
+    return {
+        results,
+        nextToken: pinnedResult.nextToken
     };
 }

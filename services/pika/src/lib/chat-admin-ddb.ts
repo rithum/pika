@@ -8,22 +8,25 @@ import type {
     ChatSessionFeedbackForUpdate,
     ChatSessionLiteForUpdate,
     RecordOrUndef,
-    TagDefinition,
-    TagDefinitionWidget,
-    TagDefinitionForCreateOrUpdate,
-    TagDefinitionLite,
+    SearchSemanticDirectivesRequest,
     SemanticDirective,
     SemanticDirectiveForCreateOrUpdate,
-    SearchSemanticDirectivesRequest,
+    SemanticDirectiveScope,
+    TagDefinition,
+    TagDefinitionForCreateOrUpdate,
+    TagDefinitionLite,
+    TagDefinitionWidget,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
     UpdateableChatAppOverrideFields,
-    UpdateableToolDefinitionFields,
-    SemanticDirectiveScope
+    UpdateableToolDefinitionFields
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS } from 'pika-shared/types/chatbot/chatbot-types';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
+import { ForbiddenError } from 'pika-shared/util/forbidden-error';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { constructScope } from 'pika-shared/util/server-client-utils';
 
 import { DynamoDBClient, type ScanOutput } from '@aws-sdk/client-dynamodb';
@@ -148,6 +151,23 @@ export async function createAgent(agent: AgentDefinition): Promise<AgentDefiniti
     return agent;
 }
 
+export async function deleteMockAgent(agentId: string): Promise<void> {
+    // First get the agent and if it doesn't have the test flag, throw an error and don't delete it
+    const agent = await getAgentById(agentId);
+    if (!agent) {
+        return;
+    }
+
+    if (agent.testType !== 'mock') {
+        throw new ForbiddenError('Cannot delete agent since it is not a mock test agent');
+    }
+
+    await ddbDocClient.delete({
+        TableName: getAgentDefinitionsTable(),
+        Key: { agent_id: agentId }
+    });
+}
+
 /**
  * Update an existing agent definition
  */
@@ -204,7 +224,7 @@ export async function updateAgent(
     // Return the updated agent
     const updatedAgent = await getAgentById(existingAgent.agentId);
     if (!updatedAgent) {
-        throw new Error(`Agent not found after update: ${existingAgent.agentId}`);
+        throw new HttpStatusError(`Agent not found after update: ${existingAgent.agentId}`, 404);
     }
 
     return updatedAgent;
@@ -342,6 +362,22 @@ export async function createTool(tool: ToolDefinition): Promise<ToolDefinition> 
     return tool;
 }
 
+export async function deleteMockTool(toolId: string): Promise<void> {
+    const tool = await getToolById(toolId);
+    if (!tool) {
+        return;
+    }
+
+    if (tool.testType !== 'mock') {
+        throw new ForbiddenError('Cannot delete tool since it is not a mock test tool');
+    }
+
+    await ddbDocClient.delete({
+        TableName: getToolDefinitionsTable(),
+        Key: { tool_id: toolId }
+    });
+}
+
 /**
  * Update an existing tool definition
  */
@@ -407,7 +443,7 @@ export async function updateTool(
     // Return the updated tool
     const updatedTool = await getToolById(existingTool.toolId);
     if (!updatedTool) {
-        throw new Error(`Tool not found after update: ${existingTool.toolId}`);
+        throw new HttpStatusError(`Tool not found after update: ${existingTool.toolId}`, 404);
     }
 
     return updatedTool;
@@ -642,7 +678,7 @@ export async function updateChatAppOverrideToDdb(
     // Get the updated override by fetching the main ChatApp (which will include the override)
     const updatedChatApp = await getChatAppById(chatAppId);
     if (!updatedChatApp?.override) {
-        throw new Error(`Chat app override not found after update: ${chatAppId}`);
+        throw new HttpStatusError(`Chat app override not found after update: ${chatAppId}`, 404);
     }
 
     return updatedChatApp.override;
@@ -699,7 +735,7 @@ export async function updateChatApp(
     // Return the updated chat app
     const updatedChatApp = await getChatAppById(existingChatApp.chatAppId);
     if (!updatedChatApp) {
-        throw new Error(`Chat app not found after update: ${existingChatApp.chatAppId}`);
+        throw new HttpStatusError(`Chat app not found after update: ${existingChatApp.chatAppId}`, 404);
     }
 
     return updatedChatApp;
@@ -709,6 +745,40 @@ export async function updateChatApp(
  * Delete a chat app definition by ID
  */
 export async function deleteChatApp(chatAppId: string): Promise<void> {
+    const chatAppIdWithOverride = `${chatAppId}:override`;
+
+    // Delete the main chat app record (with condition to ensure it exists)
+    await ddbDocClient.delete({
+        TableName: getChatAppTable(),
+        Key: {
+            chat_app_id: chatAppId
+        },
+        ConditionExpression: 'attribute_exists(chat_app_id)' // Ensure chat app exists before deletion
+    });
+
+    // Delete the override record if it exists (no condition, so won't error if not found)
+    await ddbDocClient.delete({
+        TableName: getChatAppTable(),
+        Key: {
+            chat_app_id: chatAppIdWithOverride
+        }
+        // No ConditionExpression - won't error if the override record doesn't exist
+    });
+}
+
+/**
+ * Delete a chat app definition by ID
+ */
+export async function deleteMockChatApp(chatAppId: string): Promise<void> {
+    const chatApp = await getChatAppById(chatAppId);
+    if (!chatApp) {
+        return;
+    }
+
+    if (chatApp.testType !== 'mock') {
+        throw new ForbiddenError('Cannot delete chat app since it is not a mock test chat app');
+    }
+
     const chatAppIdWithOverride = `${chatAppId}:override`;
 
     // Delete the main chat app record (with condition to ensure it exists)
@@ -779,7 +849,9 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
                 Limit: pageSize
             })
         );
-        const convertedSessions = (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
+        const convertedSessions = (sessions.Items || [])
+            .map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>))
+            .filter((session) => session.testType !== 'mock');
 
         if (convertedSessions.length > 0) {
             pageCount++;
@@ -816,7 +888,10 @@ export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<C
             ExclusiveStartKey: lastEvaluatedKey
         });
 
-        const convertedSessions = (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
+        // Filter out test sessions
+        const convertedSessions = (sessions.Items || [])
+            .map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>))
+            .filter((session) => session.testType !== 'mock');
         allSessions.push(...convertedSessions);
 
         lastEvaluatedKey = sessions.LastEvaluatedKey;
@@ -921,7 +996,7 @@ export async function setSessionsInsightsAnalysisInBatch(sessions: ChatSessionLi
     const failureThreshold = 0.1; // 10% failure tolerance
     if (failedBatches / batches.length > failureThreshold) {
         const failureRate = Math.round((failedBatches / batches.length) * 100);
-        throw new Error(`Batch failure rate too high: ${failureRate}% (${failedBatches}/${batches.length} batches failed)`);
+        throw new HttpStatusError(`Batch failure rate too high: ${failureRate}% (${failedBatches}/${batches.length} batches failed)`, 500);
     }
 }
 
@@ -1898,4 +1973,306 @@ function applyDateFilters(
 
         return true;
     });
+}
+
+// ===== MOCK TEST METHODS =====
+
+export async function getMockTestAgents(limit: number = 20, nextToken?: string): Promise<{ agents: AgentDefinition[]; nextToken?: string }> {
+    const queryParams: any = {
+        TableName: getAgentDefinitionsTable(),
+        IndexName: 'test-agents-index',
+        KeyConditionExpression: 'test_type = :testType',
+        ExpressionAttributeValues: {
+            ':testType': 'mock'
+        },
+        Limit: limit
+    };
+
+    // Add pagination token if provided
+    if (nextToken) {
+        try {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        } catch (error) {
+            console.error('Invalid pagination token:', error);
+            throw new BadRequestError('Invalid pagination token');
+        }
+    }
+
+    const result = await ddbDocClient.query(queryParams);
+
+    // Transform results to camelCase
+    const agents = (result.Items || []).map((item) => convertToCamelCase<AgentDefinition>(item as SnakeCase<AgentDefinition>));
+    const returnNextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+
+    return {
+        agents,
+        nextToken: returnNextToken
+    };
+}
+
+export async function deleteAllMockTestAgents(): Promise<number> {
+    let deletedCount = 0;
+    let nextToken: string | undefined;
+
+    do {
+        // Query for mock test records using the GSI
+        const queryParams: any = {
+            TableName: getAgentDefinitionsTable(),
+            IndexName: 'test-agents-index',
+            KeyConditionExpression: 'test_type = :testType',
+            ExpressionAttributeValues: {
+                ':testType': 'mock'
+            },
+            Limit: 100 // Process in batches
+        };
+
+        if (nextToken) {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        }
+
+        const result = await ddbDocClient.query(queryParams);
+        const items = (result.Items || []) as SnakeCase<AgentDefinition>[];
+
+        if (items.length === 0) break;
+
+        // Batch delete in chunks of 25 (DynamoDB limit)
+        const chunks = [] as SnakeCase<AgentDefinition>[][];
+        for (let i = 0; i < items.length; i += 25) {
+            chunks.push(items.slice(i, i + 25));
+        }
+
+        for (const chunk of chunks) {
+            const deleteRequests = chunk.map((item: SnakeCase<AgentDefinition>) => {
+                return {
+                    DeleteRequest: {
+                        Key: {
+                            agent_id: item.agent_id
+                        }
+                    }
+                };
+            });
+
+            await ddbDocClient.batchWrite({
+                RequestItems: {
+                    [getAgentDefinitionsTable()]: deleteRequests
+                }
+            });
+
+            deletedCount += chunk.length;
+        }
+
+        nextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+    } while (nextToken);
+
+    console.log(`Deleted ${deletedCount} mock test agents`);
+    return deletedCount;
+}
+
+export async function getMockTestTools(limit: number = 20, nextToken?: string): Promise<{ tools: ToolDefinition[]; nextToken?: string }> {
+    const queryParams: any = {
+        TableName: getToolDefinitionsTable(),
+        IndexName: 'test-tools-index',
+        KeyConditionExpression: 'test_type = :testType',
+        ExpressionAttributeValues: {
+            ':testType': 'mock'
+        },
+        Limit: limit
+    };
+
+    // Add pagination token if provided
+    if (nextToken) {
+        try {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        } catch (error) {
+            console.error('Invalid pagination token:', error);
+            throw new BadRequestError('Invalid pagination token');
+        }
+    }
+
+    const result = await ddbDocClient.query(queryParams);
+
+    // Transform results using existing conversion function
+    const tools = (result.Items || []).map((item) => convertToolFromSnakeCase(item));
+    const returnNextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+
+    return {
+        tools,
+        nextToken: returnNextToken
+    };
+}
+
+export async function deleteAllMockTestTools(): Promise<number> {
+    let deletedCount = 0;
+    let nextToken: string | undefined;
+
+    do {
+        // Query for mock test records using the GSI
+        const queryParams: any = {
+            TableName: getToolDefinitionsTable(),
+            IndexName: 'test-tools-index',
+            KeyConditionExpression: 'test_type = :testType',
+            ExpressionAttributeValues: {
+                ':testType': 'mock'
+            },
+            Limit: 100 // Process in batches
+        };
+
+        if (nextToken) {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        }
+
+        const result = await ddbDocClient.query(queryParams);
+        const items = (result.Items || []) as SnakeCase<ToolDefinition>[];
+
+        if (items.length === 0) break;
+
+        // Batch delete in chunks of 25 (DynamoDB limit)
+        const chunks = [] as SnakeCase<ToolDefinition>[][];
+        for (let i = 0; i < items.length; i += 25) {
+            chunks.push(items.slice(i, i + 25));
+        }
+
+        for (const chunk of chunks) {
+            const deleteRequests = chunk.map((item: SnakeCase<ToolDefinition>) => {
+                return {
+                    DeleteRequest: {
+                        Key: {
+                            tool_id: item.tool_id
+                        }
+                    }
+                };
+            });
+
+            await ddbDocClient.batchWrite({
+                RequestItems: {
+                    [getToolDefinitionsTable()]: deleteRequests
+                }
+            });
+
+            deletedCount += chunk.length;
+        }
+
+        nextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+    } while (nextToken);
+
+    console.log(`Deleted ${deletedCount} mock test tools`);
+    return deletedCount;
+}
+
+export async function getMockTestChatApps(limit: number = 20, nextToken?: string): Promise<{ chatApps: ChatApp[]; nextToken?: string }> {
+    const queryParams: any = {
+        TableName: getChatAppTable(),
+        IndexName: 'test-chat-apps-index',
+        KeyConditionExpression: 'test_type = :testType',
+        ExpressionAttributeValues: {
+            ':testType': 'mock'
+        },
+        Limit: limit
+    };
+
+    // Add pagination token if provided
+    if (nextToken) {
+        try {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        } catch (error) {
+            console.error('Invalid pagination token:', error);
+            throw new BadRequestError('Invalid pagination token');
+        }
+    }
+
+    const result = await ddbDocClient.query(queryParams);
+
+    // Filter out override records and convert to camelCase
+    const mainChatApps: any[] = [];
+    const overrides = new Map<string, any>();
+
+    for (const item of result.Items || []) {
+        const chatAppId = item.chat_app_id;
+        if (chatAppId.endsWith(':override')) {
+            // This is an override record
+            const mainChatAppId = chatAppId.replace(':override', '');
+            overrides.set(mainChatAppId, item);
+        } else {
+            // This is a main ChatApp record
+            mainChatApps.push(item);
+        }
+    }
+
+    // Convert and combine records
+    const chatApps = mainChatApps.map((item) => {
+        const chatApp = convertToCamelCase<ChatApp>(item as SnakeCase<ChatApp>);
+
+        // Add override if present
+        const override = overrides.get(chatApp.chatAppId);
+        if (override) {
+            chatApp.override = convertToCamelCase<ChatAppOverride>(override as SnakeCase<ChatAppOverride>);
+        }
+
+        return chatApp;
+    });
+
+    const returnNextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+
+    return {
+        chatApps,
+        nextToken: returnNextToken
+    };
+}
+
+export async function deleteAllMockTestChatApps(): Promise<number> {
+    let deletedCount = 0;
+    let nextToken: string | undefined;
+
+    do {
+        // Query for mock test records using the GSI
+        const queryParams: any = {
+            TableName: getChatAppTable(),
+            IndexName: 'test-chat-apps-index',
+            KeyConditionExpression: 'test_type = :testType',
+            ExpressionAttributeValues: {
+                ':testType': 'mock'
+            },
+            Limit: 100 // Process in batches
+        };
+
+        if (nextToken) {
+            queryParams.ExclusiveStartKey = JSON.parse(Buffer.from(nextToken, 'base64').toString());
+        }
+
+        const result = await ddbDocClient.query(queryParams);
+        const items = (result.Items || []) as SnakeCase<ChatApp>[];
+
+        if (items.length === 0) break;
+
+        // Batch delete in chunks of 25 (DynamoDB limit)
+        const chunks = [] as SnakeCase<ChatApp>[][];
+        for (let i = 0; i < items.length; i += 25) {
+            chunks.push(items.slice(i, i + 25));
+        }
+
+        for (const chunk of chunks) {
+            const deleteRequests = chunk.map((item: SnakeCase<ChatApp>) => {
+                return {
+                    DeleteRequest: {
+                        Key: {
+                            chat_app_id: item.chat_app_id
+                        }
+                    }
+                };
+            });
+
+            await ddbDocClient.batchWrite({
+                RequestItems: {
+                    [getChatAppTable()]: deleteRequests
+                }
+            });
+
+            deletedCount += chunk.length;
+        }
+
+        nextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+    } while (nextToken);
+
+    console.log(`Deleted ${deletedCount} mock test chat apps`);
+    return deletedCount;
 }

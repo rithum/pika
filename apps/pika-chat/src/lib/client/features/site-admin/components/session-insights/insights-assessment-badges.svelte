@@ -1,14 +1,14 @@
 <script lang="ts">
+    import { Brain, CircleCheck, Clock, TrendingUp, TriangleAlert, User, Zap } from '$icons/lucide';
     import { Badge } from '$ui/shadcn/badge';
-    import { TriangleAlert, CircleCheck, Clock, User, Brain, Zap, TrendingUp } from '$icons/lucide';
     import type {
-        SessionInsightUserSentiment,
         SessionInsightGoalCompletionStatus,
-        SessionInsightSatisfactionLevel,
-        SessionInsightMetricsSessionDurationEstimate,
-        SessionInsightMetricsComplexityLevel,
-        SessionInsightMetricsUserEffortRequired,
         SessionInsightMetricsAiConfidenceLevel,
+        SessionInsightMetricsComplexityLevel,
+        SessionInsightMetricsSessionDurationEstimate,
+        SessionInsightMetricsUserEffortRequired,
+        SessionInsightSatisfactionLevel,
+        SessionInsightUserSentiment,
     } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { X } from '$icons/lucide';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { Button } from '$ui/shadcn/button';
     import {
         SESSION_INSIGHT_METRICS_COMPLEXITY_LEVEL_VALUES,
@@ -8,7 +9,6 @@
         type NameValueDescTriple,
         type SessionInsightMetricsComplexityLevel,
     } from 'pika-shared/types/chatbot/chatbot-types';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

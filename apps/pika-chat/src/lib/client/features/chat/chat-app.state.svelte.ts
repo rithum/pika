@@ -1,16 +1,35 @@
 import type { AppState } from '$client/app/app.state.svelte';
-import type { FetchZ } from '$client/app/types';
+import type { FetchZ, ShowToastFn } from '$client/app/types';
+import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
+import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
 import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
+import type { Page } from '@sveltejs/kit';
 import type {
     AddChatSessionFeedbackRequest,
     ChatAppMode,
     ChatSessionFeedbackForCreate,
+    CreateSharedSessionRequest,
+    CreateSharedSessionResponse,
+    GetPinnedSessionsRequest,
+    GetPinnedSessionsResponse,
+    GetRecentSharedResponse,
+    PinnedObjAndChatSession,
+    PinnedSession,
+    PinSessionRequest,
     RecordOrUndef,
     RetrievedMemoryRecordSummary,
+    RevokeSharedSessionRequest,
+    RevokeSharedSessionResponse,
     SearchAllMyMemoryRecordsResponse,
+    SharedSessionVisitHistory,
     TagDefinition,
     TagDefinitionWidget,
-    UserDataOverrideSettings
+    UnpinSessionRequest,
+    UnrevokeSharedSessionRequest,
+    UnrevokeSharedSessionResponse,
+    UserDataOverrideSettings,
+    ValidateShareAccessRequest,
+    ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
@@ -37,7 +56,6 @@ import {
     type UserOverrideDataCommandResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
-import type { Page } from '@sveltejs/kit';
 import type { Snippet } from 'svelte';
 import { v7 as uuidv7 } from 'uuid';
 import { UploadInstance } from '../upload/upload-instance.svelte';
@@ -46,7 +64,6 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
-import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 
 const MAX_FILES = 5;
 
@@ -130,6 +147,37 @@ export class ChatAppState {
         });
     });
 
+    // Sharing-related state
+    #recentSharedSessions = $state<SharedSessionVisitHistory[]>([]);
+    #pinnedSessions = $state<PinnedObjAndChatSession[]>([]);
+    #sharedSessionsById = $state<Record<string, ChatSession<RecordOrUndef>>>({});
+    #currentSessionIsShared = $state<boolean>(false);
+    #currentShareId = $state<string | undefined>(undefined);
+    #pinningSession = $state<boolean>(false);
+    #unpinningSession = $state<boolean>(false);
+    #sharingSession = $state<boolean>(false);
+    #unsharingSession = $state<boolean>(false);
+    #loadingPinnedSessions = $state<boolean>(false);
+    #pinCurrentSessionState: 'disable-pin-feature' | 'pinned' | 'not-pinned' = $derived.by(() => {
+        const currentSession = this.#currentSession;
+        const isInterimSession = this.#isInterimSession;
+        const pinnedSessions = this.#pinnedSessions;
+        const pinningSession = this.#pinningSession;
+        const unpinningSession = this.#unpinningSession;
+        const loadingPinnedSessions = this.#loadingPinnedSessions;
+
+        if (!currentSession || isInterimSession || loadingPinnedSessions || pinningSession || unpinningSession) {
+            return 'disable-pin-feature';
+        }
+        return pinnedSessions.find((pin) => pin.pinnedSession.sessionId === currentSession.sessionId) ? 'pinned' : 'not-pinned';
+    });
+
+    // Derived sharing properties
+    #pinnedOwnSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.sessionId));
+    #pinnedSharedSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.shareId));
+
+    #currentSessionIsReadOnly = $derived(this.#currentSessionIsShared);
+
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
         !this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.enabled && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides
@@ -179,6 +227,14 @@ export class ChatAppState {
     #features = $state<ChatAppOverridableFeatures>() as ChatAppOverridableFeatures;
     #customDataUiRepresentation = $state<CustomDataUiRepresentation | undefined>(undefined);
     #tagDefs = $state<TagDefinition<TagDefinitionWidget>[]>([]);
+    #showToast: ShowToastFn;
+
+    // #userActionsInProgress: Record<string, boolean> = $state({
+    //     pin-session: false,
+    //     unpin-session: false,
+    //     add-feedback: false,
+    //     remove-feedback: false
+    // });
 
     /**
      * Fisher-Yates shuffle algorithm for proper randomization
@@ -219,6 +275,30 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get pinningSession() {
+        return this.#pinningSession;
+    }
+
+    get unpinningSession() {
+        return this.#unpinningSession;
+    }
+
+    get sharingSession() {
+        return this.#sharingSession;
+    }
+
+    get unsharingSession() {
+        return this.#unsharingSession;
+    }
+
+    get pinCurrentSessionState() {
+        return this.#pinCurrentSessionState;
+    }
+
+    get showToast() {
+        return this.#showToast;
+    }
 
     get addingFeedback() {
         return this.#addingFeedback;
@@ -285,6 +365,35 @@ export class ChatAppState {
 
     get allMemoryRecordsSorted() {
         return this.#allMemoryRecordsSorted;
+    }
+
+    // Sharing getters
+    get recentSharedSessions() {
+        return this.#recentSharedSessions;
+    }
+
+    get pinnedSessions() {
+        return this.#pinnedSessions;
+    }
+
+    get pinnedOwnSessions() {
+        return this.#pinnedOwnSessions;
+    }
+
+    get pinnedSharedSessions() {
+        return this.#pinnedSharedSessions;
+    }
+
+    get currentSessionIsShared() {
+        return this.#currentSessionIsShared;
+    }
+
+    get currentShareId() {
+        return this.#currentShareId;
+    }
+
+    get currentSessionIsReadOnly() {
+        return this.#currentSessionIsReadOnly;
     }
 
     get sortedChatSessions() {
@@ -440,23 +549,25 @@ export class ChatAppState {
         features: ChatAppOverridableFeatures,
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
-        tagDefinitions: TagDefinition<TagDefinitionWidget>[]
+        tagDefinitions: TagDefinition<TagDefinitionWidget>[],
+        showToast: ShowToastFn
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
         this.#loadInprogressInputs();
-        this.#uploadState = new UploadState(this.fetchz);
+        this.#uploadState = new UploadState(this.fetchz, showToast);
         this.#setSession(undefined);
         this.#page = page;
         this.#componentRegistry = componentRegistry;
-        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
+        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
         this.#userDataOverrideSettings = userDataOverrideSettings;
         this.#userIsContentAdmin = userIsContentAdmin;
         this.#features = features;
         this.#customDataUiRepresentation = customDataUiRepresentation;
         this.#tagDefs = tagDefinitions;
         this.#mode = mode;
-        this.#userPrefs = new UserPrefsState(this.fetchz);
+        this.#userPrefs = new UserPrefsState(this.fetchz, showToast);
+        this.#showToast = showToast;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
             this.#userDataOverrideDialogOpen = true;
@@ -558,6 +669,7 @@ export class ChatAppState {
                 chatAppId: this.#chatApp.chatAppId,
                 agentId: 'interim-agent-id',
                 identityId: this.#user.userId,
+                entityId: '', // Don't need a real value for this on an interim session
                 invocationMode: 'chat-app',
                 sessionAttributes: {
                     token: 'interim-token',
@@ -596,9 +708,10 @@ export class ChatAppState {
                 body: JSON.stringify(req)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to add feedback');
-            }
+            checkClientResponse(response, 'adding feedback', this.#showToast, CLIENT_RESOURCE_NAMES.FEEDBACK);
+        } catch (error) {
+            handleClientError(error, 'adding feedback', this.#showToast, 'adding feedback failed:');
+            throw error;
         } finally {
             this.#addingFeedback = false;
         }
@@ -621,17 +734,13 @@ export class ChatAppState {
     async refreshChatSessions() {
         try {
             const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);
-            if (resp.ok) {
-                const sessionsResult = (await resp.json()) as ChatSessionsResponse;
-                if (sessionsResult.success) {
-                    this.#chatSessions = sessionsResult.sessions;
-                } else {
-                    console.error('Error refreshing chat sessions from server', sessionsResult.error);
-                }
-            }
-        } catch (e) {
-            console.error('Error refreshing chat sessions from server', e);
-            throw e;
+
+            const sessionsResult = await checkClientResponseAndBody<ChatSessionsResponse>(resp, 'refreshing chat sessions', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+
+            this.#chatSessions = sessionsResult.sessions;
+        } catch (error) {
+            handleClientError(error, 'refreshing chat sessions', this.#showToast, 'refreshing chat sessions failed:');
+            throw error;
         }
     }
 
@@ -660,43 +769,42 @@ export class ChatAppState {
         try {
             this.#retrievingMessages = true;
             const resp = await this.fetchz(`/api/message/${this.#chatApp.chatAppId}/${this.#currentSession.sessionId}`);
-            if (resp.ok) {
-                const msgResult = (await resp.json()) as ChatMessagesResponse;
-                if (msgResult.success) {
-                    this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
-                } else {
-                    console.error('Error refreshing messages for current session', msgResult.error);
-                }
-            }
-        } catch (e) {
-            console.error('Error refreshing messages for current session', e);
+
+            const msgResult = await checkClientResponseAndBody<ChatMessagesResponse>(resp, 'refreshing messages', this.#showToast, CLIENT_RESOURCE_NAMES.MESSAGE);
+
+            this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
+        } catch (error) {
+            handleClientError(error, 'refreshing messages', this.#showToast, 'refreshing messages failed:');
         } finally {
             this.#retrievingMessages = false;
         }
     }
 
     async loadAllMemoryRecords() {
-        const strategies = DEFAULT_MEMORY_STRATEGIES;
-        this.#allMemoryRecords = [];
-        for (const strategy of strategies) {
-            let nextToken: string | undefined = undefined;
-            do {
-                const response = await this.fetchz('/api/memory', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ strategy, nextToken })
-                });
+        try {
+            const strategies = DEFAULT_MEMORY_STRATEGIES;
+            this.#allMemoryRecords = [];
+            for (const strategy of strategies) {
+                let nextToken: string | undefined = undefined;
+                do {
+                    const response = await this.fetchz('/api/memory', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ strategy, nextToken })
+                    });
 
-                if (!response.ok) {
-                    throw new Error('Failed to get memory records');
-                }
+                    checkClientResponse(response, 'loading memory records', this.#showToast, CLIENT_RESOURCE_NAMES.MEMORY);
 
-                const json = (await response.json()) as SearchAllMyMemoryRecordsResponse;
-                this.#allMemoryRecords.push(...json.results.records);
-                nextToken = json.results.nextToken;
-            } while (nextToken);
+                    const json = (await response.json()) as SearchAllMyMemoryRecordsResponse;
+                    this.#allMemoryRecords.push(...json.results.records);
+                    nextToken = json.results.nextToken;
+                } while (nextToken);
+            }
+        } catch (error) {
+            handleClientError(error, 'loading memory records', this.#showToast, 'loading memory records failed:');
+            throw error;
         }
     }
 
@@ -934,16 +1042,15 @@ export class ChatAppState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                //TODO: handle error
-                throw new Error('Failed to send user override data command');
-            }
+            checkClientResponse(response, 'sending user override data command', this.#showToast);
 
             const json: UserOverrideDataCommandResponse = await response.json();
             if (!json) {
+                this.#showToast('Invalid response for user override data command', { type: 'error' });
                 throw new Error('Invalid response for user override data command');
             } else if ('success' in json && json.success === false) {
-                throw new Error(json.error);
+                this.#showToast(json.error || 'User override data command failed', { type: 'error' });
+                throw new Error(json.error || 'User override data command failed');
             } else if (request.command === 'getInitialDialogData') {
                 this.initialDataForUserOverrideDialog = (json as GetInitialDialogDataResponse).data ?? undefined;
             } else if (request.command === 'getValuesForAutoComplete') {
@@ -962,9 +1069,9 @@ export class ChatAppState {
             } else if (request.command === 'clearUserOverrideData') {
                 this.#appState.identity.clearUserOverrideData(this.#chatApp.chatAppId);
             }
-        } catch (e) {
-            console.error('Error sending user override data command', e);
-            throw e;
+        } catch (error) {
+            handleClientError(error, 'sending user override data command', this.#showToast, 'sending user override data command failed:');
+            throw error;
         } finally {
             this.userDataOverrideOperationInProgress[request.command] = false;
         }
@@ -981,16 +1088,15 @@ export class ChatAppState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                //TODO: handle error
-                throw new Error('Failed to send content admin command');
-            }
+            checkClientResponse(response, 'sending content admin command', this.#showToast);
 
             const json: ContentAdminResponse = await response.json();
             if (!json) {
+                this.#showToast('Invalid response for content admin command', { type: 'error' });
                 throw new Error('Invalid response for content admin command');
             } else if ('success' in json && json.success === false) {
-                throw new Error(json.error);
+                this.#showToast(json.error || 'Content admin command failed', { type: 'error' });
+                throw new Error(json.error || 'Content admin command failed');
             } else if (request.command === 'getValuesForAutoComplete') {
                 if (!this.valuesForAutoCompleteForContentAdminDialog) {
                     this.valuesForAutoCompleteForContentAdminDialog = [];
@@ -1001,9 +1107,9 @@ export class ChatAppState {
             } else if (request.command === 'stopViewingContentForUser') {
                 this.#appState.identity.clearViewingContentFor(this.#chatApp.chatAppId);
             }
-        } catch (e) {
-            console.error('Error sending content admin command', e);
-            throw e;
+        } catch (error) {
+            handleClientError(error, 'sending content admin command', this.#showToast, 'sending content admin command failed:');
+            throw error;
         } finally {
             this.contentAdminOperationInProgress[request.command] = false;
         }
@@ -1115,7 +1221,7 @@ export class ChatAppState {
         for (const file of files) {
             const fileName = sanitizeFileName(file.name);
             const s3Key = generateChatFileUploadS3KeyName(this.#user.userId, fileName, uuidv7());
-            const instance = new UploadInstance({ s3Key, file, fileName });
+            const instance = new UploadInstance({ s3Key, file, fileName }, this.#showToast);
             newInstances.push(instance);
             this.#inputFiles.push(instance);
         }
@@ -1200,5 +1306,307 @@ export class ChatAppState {
                 }
             }, 10); // Update every 100ms
         }, 1000); // Wait 1 second before starting assistant response
+    }
+
+    // === SHARING-RELATED METHODS ===
+
+    async initializeData() {
+        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions()]);
+    }
+
+    async refreshRecentSharedSessions() {
+        try {
+            const resp = await this.fetchz(`/api/session/share/recent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatAppId: this.#chatApp.chatAppId })
+            });
+
+            const result = await checkClientResponseAndBody<GetRecentSharedResponse>(
+                resp,
+                'refreshing recent shared sessions',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SHARED_SESSION
+            );
+
+            this.#recentSharedSessions = result.recentShared;
+        } catch (error) {
+            handleClientError(error, 'refreshing recent shared sessions', this.#showToast, 'refreshing recent shared sessions failed:');
+        }
+    }
+
+    /**
+     * We need to get all pinned sessions, not just the first 20.  So we need to keep calling the API until we get all pinned sessions.
+     */
+    async refreshPinnedSessions() {
+        this.#loadingPinnedSessions = true;
+        let pinnedSessions: PinnedObjAndChatSession[] = [];
+        let nextToken: string | undefined = undefined;
+        try {
+            do {
+                try {
+                    let resp: Response = await this.fetchz('/api/session/pinned/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chatAppId: this.#chatApp.chatAppId,
+                            limit: 20,
+                            nextToken
+                        } as GetPinnedSessionsRequest)
+                    });
+
+                    let result = await checkClientResponseAndBody<GetPinnedSessionsResponse>(resp, 'refreshing pinned sessions', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+
+                    // They are already sorted by pinnedAt in descending order
+                    pinnedSessions.push(...result.results);
+                    // Store nextToken for pagination
+                    nextToken = result.nextToken;
+                } catch (error) {
+                    handleClientError(error, 'refreshing pinned sessions', this.#showToast, 'refreshing pinned sessions failed:');
+                }
+            } while (nextToken);
+
+            pinnedSessions.sort((a, b) => new Date(b.pinnedSession.pinnedAt).getTime() - new Date(a.pinnedSession.pinnedAt).getTime());
+            this.#pinnedSessions = pinnedSessions;
+        } finally {
+            this.#loadingPinnedSessions = false;
+        }
+    }
+
+    async createSharedSession(sessionId: string): Promise<string> {
+        const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
+        if (!session) {
+            throw new Error('Session not found');
+        }
+
+        if (session.shareId) {
+            throw new Error('Session is already shared');
+        }
+
+        const request: CreateSharedSessionRequest = {
+            sessionId,
+            sessionUserId: this.#user.userId,
+            chatAppId: this.#chatApp.chatAppId
+        };
+
+        try {
+            this.#sharingSession = true;
+            const resp = await this.fetchz('/api/session/share', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            });
+
+            const result = await checkClientResponseAndBody<CreateSharedSessionResponse>(
+                resp,
+                'creating shared session',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SHARED_SESSION,
+                'Failed to create share link. Please try again.'
+            );
+
+            const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
+            if (session) {
+                session.shareId = result.shareId;
+                session.shareDate = new Date().toISOString();
+            }
+            return `/chat/${result.chatAppId}/share/${result.shareId}`;
+        } catch (error) {
+            handleClientError(error, 'creating shared session', this.#showToast, 'creating shared session failed:');
+            throw error;
+        } finally {
+            this.#sharingSession = false;
+        }
+    }
+
+    async revokeSharedSession(shareId: string) {
+        try {
+            const resp = await this.fetchz('/api/session/share', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shareId } as RevokeSharedSessionRequest)
+            });
+
+            await checkClientResponseAndBody<RevokeSharedSessionResponse>(resp, 'revoking shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+
+            const session = this.#chatSessions.find((s) => s.shareId === shareId);
+            if (session) {
+                session.shareRevokedDate = new Date().toISOString();
+            }
+        } catch (error) {
+            handleClientError(error, 'revoking shared session', this.#showToast, 'revoking shared session failed:');
+        }
+    }
+
+    async unrevokeSharedSession(shareId: string) {
+        try {
+            const resp = await this.fetchz('/api/session/share/unrevoke', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shareId } as UnrevokeSharedSessionRequest)
+            });
+
+            await checkClientResponseAndBody<UnrevokeSharedSessionResponse>(resp, 'unrevoking shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+
+            const session = this.#chatSessions.find((s) => s.shareId === shareId);
+            if (session) {
+                delete session.shareRevokedDate;
+            }
+        } catch (error) {
+            handleClientError(error, 'unrevoking shared session', this.#showToast, 'unrevoking shared session failed:');
+        }
+    }
+
+    /**
+     *
+     * @param sessionId Either this or shareId must be provided but not both.  If present, I want to pin one of my own sessions.
+     * @param shareId Either this or sessionId must be provided but not both.  If present, I want to pin a shared session.
+     */
+    async pinSession(sessionId: string) {
+        let shareId: string | undefined = undefined;
+        let sessionIdToUse = sessionId;
+        let recentSharedSession: SharedSessionVisitHistory | undefined = undefined;
+        let sessionToPin = this.#chatSessions.find((s) => s.sessionId === sessionId);
+        if (!sessionToPin) {
+            sessionToPin = this.#sharedSessionsById[sessionId];
+            if (!sessionToPin) {
+                recentSharedSession = this.#recentSharedSessions.find((s) => s.shareId === sessionId);
+            }
+        }
+
+        if (recentSharedSession) {
+            shareId = recentSharedSession.shareId;
+        } else if (sessionToPin) {
+            if (sessionToPin.shareId && sessionToPin.userId !== this.#user.userId) {
+                shareId = sessionToPin.shareId;
+            } else {
+                sessionIdToUse = sessionToPin.sessionId;
+            }
+        } else {
+            throw new Error('Session not found');
+        }
+
+        try {
+            this.#pinningSession = true;
+            const request: PinSessionRequest = {
+                pinnedSession: {
+                    userId: this.#user.userId,
+                    ...(sessionIdToUse ? { sessionId: sessionIdToUse } : { shareId }),
+                    chatAppId: this.#chatApp.chatAppId,
+                    pinnedAt: new Date().toISOString()
+                }
+            };
+
+            const resp = await this.fetchz('/api/session/pinned', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            });
+
+            checkClientResponse(resp, 'pinning session', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+
+            await this.refreshPinnedSessions();
+        } catch (error) {
+            handleClientError(error, 'pinning session', this.#showToast, 'pinning session failed:');
+        } finally {
+            this.#pinningSession = false;
+        }
+    }
+
+    async unpinSession(pinnedSession: PinnedSession | string) {
+        if (typeof pinnedSession === 'string') {
+            const obj = this.#pinnedSessions.find((s) => s.pinnedSession.sessionId === pinnedSession);
+            if (!obj) {
+                throw new Error('Session not found');
+            }
+            pinnedSession = obj.pinnedSession;
+        }
+
+        try {
+            this.#unpinningSession = true;
+            const resp = await this.fetchz('/api/session/pinned', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: pinnedSession.shareId ? undefined : pinnedSession.sessionId,
+                    shareId: pinnedSession.shareId,
+                    chatAppId: this.#chatApp.chatAppId
+                } as UnpinSessionRequest)
+            });
+
+            checkClientResponse(resp, 'unpinning session', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+
+            await this.refreshPinnedSessions();
+        } catch (error) {
+            handleClientError(error, 'unpinning session', this.#showToast, 'unpinning session failed:');
+        } finally {
+            this.#unpinningSession = false;
+        }
+    }
+
+    async loadSharedSession(shareId: string): Promise<void> {
+        try {
+            // Set current session to shared mode
+            this.#currentShareId = shareId;
+            this.#currentSessionIsShared = true;
+
+            const resp = await this.fetchz('/api/session/share/access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shareId,
+                    chatAppId: this.#chatApp.chatAppId
+                } as ValidateShareAccessRequest)
+            });
+
+            checkClientResponse(resp, 'loading shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+
+            const result = (await resp.json()) as ValidateShareAccessResponse;
+
+            if (!result.success) {
+                this.#showToast(result.error || 'Failed to load shared session', { type: 'error' });
+                throw new Error(result.error || 'Failed to load shared session');
+            }
+
+            if (!result.hasAccess || !result.sessionData) {
+                this.#showToast('Access denied to shared session', { type: 'error' });
+                throw new Error('Access denied');
+            }
+
+            this.#sharedSessionsById[shareId] = result.sessionData;
+            // Set this as current session
+            this.#setSession(result.sessionData);
+            // Record the visit
+            await this.recordShareVisit(shareId);
+        } catch (error) {
+            handleClientError(error, 'loading shared session', this.#showToast, 'loading shared session failed:');
+            throw error;
+        }
+    }
+
+    async recordShareVisit(shareId: string) {
+        try {
+            const resp = await this.fetchz('/api/session/share/visit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shareId })
+            });
+
+            checkClientResponse(resp, 'recording share visit', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+
+            // Refresh recent shared to reflect the new visit
+            await this.refreshRecentSharedSessions();
+        } catch (error) {
+            handleClientError(error, 'recording share visit', this.#showToast, 'recording share visit failed:');
+        }
+    }
+
+    getSessionShareStatus(sessionId: string): boolean {
+        return !!this.#chatSessions.find((s) => s.sessionId === sessionId)?.shareId;
+    }
+
+    isSessionSharedButRevoked(sessionId: string): boolean {
+        const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
+        return !!(session?.shareId && session?.shareRevokedDate);
     }
 }

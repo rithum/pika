@@ -11,6 +11,7 @@ import type {
     APIGatewayProxyStructuredResultV2,
     Context
 } from 'aws-lambda';
+import { HttpStatusError } from './http-status-error';
 
 /**
  * Extends the standard Error interface to include an optional HTTP status code.
@@ -87,7 +88,7 @@ function isObjectResponse<TResponse>(data: undefined | void | APIGatewayProxyRes
  */
 export function apiGatewayFunctionDecorator<TRequestBody, TResponse>(fn: APIGatewayProxyHandlerPika<TRequestBody, TResponse>): APIGatewayProxyHandlerV2<TResponse> {
     return async (event, context) => {
-        let error: HttpError | undefined;
+        let error: any; // Use 'any' to preserve original error type for instanceof checks
         let response: undefined | void | APIGatewayProxyResultV2<TResponse>;
 
         // Just in case, add another version of the headers with all lowercase keys;
@@ -109,13 +110,22 @@ export function apiGatewayFunctionDecorator<TRequestBody, TResponse>(fn: APIGate
             response = await fn(eventWithType, context);
         } catch (err) {
             // Capture any errors that occur during processing
-            error = err as HttpError;
+            error = err;
         }
 
         // Handle errors by returning an appropriate error response
         if (error) {
             console.error(error);
-            return toResponse(typeof error === 'string' ? error : error.message, error.statusCode ?? 500);
+
+            // Handle HttpStatusError specifically (has required statusCode property)
+            if (error instanceof HttpStatusError) {
+                return toResponse(error.message, error.statusCode);
+            }
+
+            // Handle other HttpError types (has optional statusCode property)
+            const httpError = error as HttpError;
+            const statusCode = httpError.statusCode || 500;
+            return toResponse(typeof error === 'string' ? error : error.message, statusCode);
         }
 
         // Return resource not found if the response is undefined

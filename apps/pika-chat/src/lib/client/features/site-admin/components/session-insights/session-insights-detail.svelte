@@ -1,24 +1,14 @@
 <script lang="ts">
+    import { Brain, ChartBar, Clock, MessageCircle, Target, Users } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getContext } from 'svelte';
-    import {
-        ChartBar,
-        TrendingUp,
-        MessageCircle,
-        Users,
-        Clock,
-        Target,
-        Brain,
-        DollarSign,
-        FileText,
-    } from '$icons/lucide';
+    import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
     import { Badge } from '$ui/shadcn/badge';
     import { Card } from '$ui/shadcn/card';
-    import { Separator } from '$ui/shadcn/separator';
     import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
-    import InsightsScoreCard from './insights-score-card.svelte';
+    import { Separator } from '$ui/shadcn/separator';
+    import { getContext } from 'svelte';
     import InsightsAssessmentBadges from './insights-assessment-badges.svelte';
+    import InsightsScoreCard from './insights-score-card.svelte';
 
     const appState = getContext<AppState>('appState');
     const sessionInsights = appState.siteAdmin.sessionInsights;

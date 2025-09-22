@@ -1,12 +1,12 @@
 <script lang="ts">
-    import { Button } from '$ui/shadcn/button';
     import { ArrowUp, Paperclip } from '$icons/lucide';
+    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from '$ui/shadcn/button';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import ChatFileAttachment from './chat-file-attachment.svelte';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
 
     interface Props {
         // Allows external components to get the height of the input region, we don't
@@ -18,6 +18,9 @@
     let { inputRegionHeight = $bindable() }: Props = $props();
 
     const chat = getContext<ChatAppState>('chatAppState');
+
+    // Read-only mode for shared sessions
+    const isReadOnly = $derived(chat.currentSessionIsReadOnly);
 
     let inputRegionEl: HTMLDivElement;
     let textarea: HTMLTextAreaElement;
@@ -120,8 +123,13 @@
                         bind:value={chat.chatInput}
                         oninput={handleInput}
                         onkeydown={handleKeyDown}
-                        class="text-token-text-primary placeholder:text-token-text-tertiary block w-full min-h-[48px] resize-none border-0 bg-transparent px-0 py-2 ring-0 placeholder:ps-px focus:outline-none"
-                        placeholder="Ask me a question"
+                        disabled={isReadOnly || chat.isStreamingResponseNow}
+                        class="text-token-text-primary placeholder:text-token-text-tertiary block w-full min-h-[48px] resize-none border-0 bg-transparent px-0 py-2 ring-0 placeholder:ps-px focus:outline-none {isReadOnly
+                            ? 'bg-gray-100 cursor-not-allowed'
+                            : ''}"
+                        placeholder={isReadOnly
+                            ? "This chat session was shared with you and isn't editable"
+                            : 'Ask me a question'}
                         rows="1"
                     ></textarea>
                 </div>
@@ -134,17 +142,18 @@
             <div class="w-full">
                 <div class="absolute end-3 bottom-0 flex items-center gap-2">
                     <div class="ms-auto flex items-center gap-1.5">
-                        {#if chat.enableFileUpload}
-                        <TooltipPlus tooltip="Upload File">
-                            <Button variant="outline" class="w-9 h-9" onclick={openFileDialog}>
-                                <Paperclip style="width: 1.3rem; height: 1.3rem;" />
-                            </Button>
-                        </TooltipPlus>
+                        {#if chat.enableFileUpload && !isReadOnly}
+                            <TooltipPlus tooltip="Upload File">
+                                <Button variant="outline" class="w-9 h-9" onclick={openFileDialog}>
+                                    <Paperclip style="width: 1.3rem; height: 1.3rem;" />
+                                </Button>
+                            </TooltipPlus>
                         {/if}
                         <Button
                             variant="default"
                             class="w-9 h-9"
-                            disabled={chat.isViewingContentForAnotherUser ||
+                            disabled={isReadOnly ||
+                                chat.isViewingContentForAnotherUser ||
                                 chat.userNeedsToProvideDataOverrides ||
                                 !chat.chatInput.trim()}
                             onclick={async () => await chat.sendMessage()}
@@ -158,7 +167,7 @@
     </div>
 
     <!-- Hidden file input -->
-    {#if chat.enableFileUpload && !chat.isViewingContentForAnotherUser}
+    {#if chat.enableFileUpload && !chat.isViewingContentForAnotherUser && !isReadOnly}
         <input
             type="file"
             bind:this={fileInput}

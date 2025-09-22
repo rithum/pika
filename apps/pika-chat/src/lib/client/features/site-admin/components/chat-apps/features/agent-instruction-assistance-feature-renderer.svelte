@@ -4,6 +4,8 @@
     import { Checkbox } from '$ui/shadcn/checkbox';
     import { Label } from '$ui/shadcn/label';
     import { Textarea } from '$ui/shadcn/textarea';
+    import hljs from 'highlight.js';
+    import 'highlight.js/styles/github-dark.css';
     import type {
         AgentDefinition,
         AgentInstructionAssistanceFeature,
@@ -15,8 +17,6 @@
         generateInstructionAssistanceContent,
     } from 'pika-shared/util/instruction-assistance-utils';
     import { getContext } from 'svelte';
-    import hljs from 'highlight.js';
-    import 'highlight.js/styles/github-dark.css';
 
     interface Props {
         featureEnabled: boolean;

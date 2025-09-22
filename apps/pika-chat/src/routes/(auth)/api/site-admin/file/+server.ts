@@ -1,9 +1,9 @@
 import { appConfig } from '$lib/server/config';
-import { isUserSiteAdmin } from '$lib/server/utils';
+import { handleApiGatewayError, isUserSiteAdmin } from '$lib/server/utils';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { json, redirect, type RequestHandler } from '@sveltejs/kit';
-import { v7 as uuidv7 } from 'uuid';
+import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import { fileTypeFromBuffer } from 'file-type';
+import { v7 as uuidv7 } from 'uuid';
 
 let s3Client: S3Client | undefined;
 
@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         throw redirect(302, '/auth/login');
     }
     if (!isUserSiteAdmin(user)) {
-        return new Response('User is not site admin', { status: 403 });
+        throw error(403, 'You do not have permission to perform this action');
     }
 
     try {
@@ -28,7 +28,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const file = formData.get('file') as File | null;
 
         if (!file) {
-            return new Response('file is required', { status: 400 });
+            throw error(400, 'file is required');
         }
 
         const originalName = (file as any).name || 'upload';
@@ -86,8 +86,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         return json({ success: true, attachment });
     } catch (e) {
-        console.error('Site-admin upload error:', e);
-        return new Response('Failed to upload file', { status: 500 });
+        handleApiGatewayError(e, 'uploading site admin file');
     }
 };
 
@@ -97,12 +96,12 @@ export const DELETE: RequestHandler = async ({ url, locals }) => {
         throw redirect(302, '/auth/login');
     }
     if (!isUserSiteAdmin(user)) {
-        return new Response('User is not site admin', { status: 403 });
+        throw error(403, 'You do not have permission to perform this action');
     }
 
     const s3Key = url.searchParams.get('s3Key');
     if (!s3Key) {
-        return new Response('s3Key is required', { status: 400 });
+        throw error(400, 's3Key is required');
     }
 
     try {
@@ -115,7 +114,6 @@ export const DELETE: RequestHandler = async ({ url, locals }) => {
         );
         return json({ success: true });
     } catch (e) {
-        console.error('Site-admin delete error:', e);
-        return new Response('Failed to delete file', { status: 500 });
+        handleApiGatewayError(e, 'deleting site admin file');
     }
 };

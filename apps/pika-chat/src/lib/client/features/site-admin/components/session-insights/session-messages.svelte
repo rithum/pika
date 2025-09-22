@@ -68,6 +68,9 @@
             maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
             maxKMatchesPerStrategy: DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
         },
+        entity: {
+            enabled: true,
+        },
     };
 </script>
 

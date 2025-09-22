@@ -67,7 +67,19 @@ function isAdminWildcardPermission(sourceArn: string, apiId: string): boolean {
     return pattern.test(sourceArn);
 }
 
-function classifyStatements(statements: Statement[], currentApiId: string): { keep: Statement[]; remove: Statement[] } {
+function isChatbotWildcardPermission(sourceArn: string, apiId: string): boolean {
+    // Matches:
+    // arn:aws:execute-api:REGION:ACCOUNT:APIID/<stage>/*/api/chat
+    // arn:aws:execute-api:REGION:ACCOUNT:APIID/<stage>/*/api/chat/...
+    const pattern = new RegExp(`:${apiId}/[^/]+/\\*/api/chat(?:/.*)?$`);
+    return pattern.test(sourceArn);
+}
+
+function classifyStatements(
+    statements: Statement[],
+    currentApiId: string,
+    isWildcardPermission: (sourceArn: string, apiId: string) => boolean
+): { keep: Statement[]; remove: Statement[] } {
     const keep: Statement[] = [];
     const remove: Statement[] = [];
     for (const s of statements) {
@@ -83,7 +95,7 @@ function classifyStatements(statements: Statement[], currentApiId: string): { ke
             continue;
         }
         // Default behavior: keep only minimal wildcard ANY permissions for proxy/root
-        if (isAdminWildcardPermission(sourceArn, currentApiId)) {
+        if (isWildcardPermission(sourceArn, currentApiId)) {
             keep.push(s);
         } else {
             remove.push(s);
@@ -109,7 +121,7 @@ async function listAdmin(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: string
     }
 
     const statements = policyDoc?.Statement ?? [];
-    const { keep, remove } = classifyStatements(statements, adminApiId);
+    const { keep, remove } = classifyStatements(statements, adminApiId, isAdminWildcardPermission);
 
     console.log(
         JSON.stringify(
@@ -144,7 +156,7 @@ async function pruneAdmin(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: strin
     }
 
     const statements = policyDoc?.Statement ?? [];
-    const { remove } = classifyStatements(statements, adminApiId);
+    const { remove } = classifyStatements(statements, adminApiId, isAdminWildcardPermission);
     const sids = remove.map((s) => s.Sid).filter(Boolean) as string[];
 
     if (sids.length === 0) {
@@ -176,6 +188,104 @@ async function pruneAdmin(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: strin
     console.log(JSON.stringify({ removed: summary }, null, 2));
 }
 
+async function listChatbot(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: string): Promise<void> {
+    const chatbotApiId = await getSsmParam(ssm, buildSsmPath(ssmPrefix, ['api', 'id']));
+    const chatbotFnName = await getSsmParam(ssm, buildSsmPath(ssmPrefix, ['lambda', 'chatbot_api_name']));
+
+    let policyDoc: PolicyDocument | undefined;
+    try {
+        const policy = await lambda.send(new GetPolicyCommand({ FunctionName: chatbotFnName }));
+        policyDoc = policy.Policy ? (JSON.parse(policy.Policy) as PolicyDocument) : undefined;
+    } catch (err: any) {
+        if (err?.name === 'ResourceNotFoundException') {
+            console.log(`No resource-based policy found on ${chatbotFnName}`);
+            return;
+        }
+        throw err;
+    }
+
+    const statements = policyDoc?.Statement ?? [];
+    const { keep, remove } = classifyStatements(statements, chatbotApiId, isChatbotWildcardPermission);
+
+    console.log(
+        JSON.stringify(
+            {
+                functionName: chatbotFnName,
+                apiId: chatbotApiId,
+                totalStatements: statements.length,
+                keepCount: keep.length,
+                removeCount: remove.length,
+                removeSids: remove.map((s) => s.Sid).filter(Boolean)
+            },
+            null,
+            2
+        )
+    );
+}
+
+async function pruneChatbot(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: string, dryRun: boolean): Promise<void> {
+    const chatbotApiId = await getSsmParam(ssm, buildSsmPath(ssmPrefix, ['api', 'id']));
+    const chatbotFnName = await getSsmParam(ssm, buildSsmPath(ssmPrefix, ['lambda', 'chatbot_api_name']));
+
+    let policyDoc: PolicyDocument | undefined;
+    try {
+        const policy = await lambda.send(new GetPolicyCommand({ FunctionName: chatbotFnName }));
+        policyDoc = policy.Policy ? (JSON.parse(policy.Policy) as PolicyDocument) : undefined;
+    } catch (err: any) {
+        if (err?.name === 'ResourceNotFoundException') {
+            console.log(`No resource-based policy found on ${chatbotFnName}`);
+            return;
+        }
+        throw err;
+    }
+
+    const statements = policyDoc?.Statement ?? [];
+    const { remove } = classifyStatements(statements, chatbotApiId, isChatbotWildcardPermission);
+    const sids = remove.map((s) => s.Sid).filter(Boolean) as string[];
+
+    if (sids.length === 0) {
+        console.log('No stale API Gateway permission statements to remove.');
+        return;
+    }
+
+    console.log(`Target function: ${chatbotFnName}`);
+    console.log(`Current API ID: ${chatbotApiId}`);
+    console.log(`Found ${sids.length} stale statement(s) to remove: ${sids.join(', ')}`);
+
+    if (dryRun) {
+        console.log('Dry run: no changes made.');
+        return;
+    }
+
+    const results = await Promise.allSettled(
+        sids.map((sid) =>
+            lambda.send(
+                new RemovePermissionCommand({
+                    FunctionName: chatbotFnName,
+                    StatementId: sid
+                })
+            )
+        )
+    );
+
+    const summary = results.map((r, i) => ({ sid: sids[i], status: r.status, reason: (r as any).reason?.message }));
+    console.log(JSON.stringify({ removed: summary }, null, 2));
+}
+
+async function listAll(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: string): Promise<void> {
+    console.log('=== Chat Admin API ===');
+    await listAdmin(lambda, ssm, ssmPrefix);
+    console.log('\n=== Chatbot API ===');
+    await listChatbot(lambda, ssm, ssmPrefix);
+}
+
+async function pruneAll(lambda: LambdaClient, ssm: SSMClient, ssmPrefix: string, dryRun: boolean): Promise<void> {
+    console.log('=== Pruning Chat Admin API ===');
+    await pruneAdmin(lambda, ssm, ssmPrefix, dryRun);
+    console.log('\n=== Pruning Chatbot API ===');
+    await pruneChatbot(lambda, ssm, ssmPrefix, dryRun);
+}
+
 async function main(): Promise<void> {
     loadEnv();
     requireEnv(['stage', 'AWS_REGION', 'PIKA_SERVICE_PROJ_NAME_KEBAB_CASE']);
@@ -195,12 +305,26 @@ async function main(): Promise<void> {
 
     switch (cmd) {
         case 'list-admin':
-        case 'list':
             await listAdmin(lambda, ssm, ssmPrefix);
             break;
         case 'prune-admin':
-        case 'prune':
             await pruneAdmin(lambda, ssm, ssmPrefix, dryRun);
+            break;
+        case 'list-chatbot':
+        case 'list-chat':
+            await listChatbot(lambda, ssm, ssmPrefix);
+            break;
+        case 'prune-chatbot':
+        case 'prune-chat':
+            await pruneChatbot(lambda, ssm, ssmPrefix, dryRun);
+            break;
+        case 'list-all':
+        case 'list':
+            await listAll(lambda, ssm, ssmPrefix);
+            break;
+        case 'prune-all':
+        case 'prune':
+            await pruneAll(lambda, ssm, ssmPrefix, dryRun);
             break;
         case 'help':
         default:
@@ -210,8 +334,12 @@ async function main(): Promise<void> {
                     '  pnpm tsx tools/lambda-permission-pruner/index.ts <command> [--dry-run]',
                     '',
                     'Commands:',
-                    '  list|list-admin      Show current policy and which statements would be removed',
-                    '  prune|prune-admin    Remove stale API Gateway invoke statements for Chat Admin Lambda',
+                    '  list-admin           Show current policy for Chat Admin Lambda',
+                    '  prune-admin          Remove stale API Gateway permissions for Chat Admin Lambda',
+                    '  list-chatbot|list-chat  Show current policy for Chatbot Lambda',
+                    '  prune-chatbot|prune-chat Remove stale API Gateway permissions for Chatbot Lambda',
+                    '  list-all|list        Show current policies for both lambdas',
+                    '  prune-all|prune      Remove stale API Gateway permissions for both lambdas',
                     '',
                     'Flags:',
                     '  --dry-run, -n        Do not change anything; just report',

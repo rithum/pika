@@ -1,8 +1,13 @@
-import type { FetchZ } from '$lib/client/app/types';
+import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
+import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
 import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
 import { MessageSegmentProcessor } from '$lib/client/features/chat/message-segments/segment-processor';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
+import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
+import deepEqual from 'deep-equal';
+import cloneDeep from 'lodash.clonedeep';
 import type {
+    Attachment,
     ChatMessageForRendering,
     ChatMessagesResponse,
     ChatSession,
@@ -10,23 +15,19 @@ import type {
     ChatSessionFeedbackForCreate,
     ChatSessionFeedbackForUpdate,
     ChatUserLite,
-    Attachment,
     GetValuesForEntityAutoCompleteRequest,
     GetValuesForEntityAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
     RecordOrUndef,
+    SessionInsights,
     SessionSearchAdminRequest,
     SessionSearchRequest,
     SessionSearchResponse,
-    SimpleOption,
-    SessionInsights
+    SimpleOption
 } from 'pika-shared/types/chatbot/chatbot-types';
-import deepEqual from 'deep-equal';
-import cloneDeep from 'lodash.clonedeep';
 import { SvelteMap } from 'svelte/reactivity';
 import type { ImageForLightbox, SavedSearch } from './types';
 import { createDefaultSearchQuery } from './utils';
-import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 
 const DEFAULT_SEARCH_ERROR = 'Unknown error occurred while searching sessions.  Please try again later.';
 const SAVED_SEARCHES_KEY = 'pika:admin:session-insights:saved-searches';
@@ -96,19 +97,22 @@ export class SessionInsightsState {
     #updatingFeedback = $state(false);
     #addingInternalComment = $state(false);
     attachmentOperationInProgress = $state(false);
+    #showToast: ShowToastFn;
 
     constructor(
         private readonly fetchz: FetchZ,
         userPrefs: UserPrefsState,
         componentRegistry: ComponentRegistry,
-        identity: IdentityState
+        identity: IdentityState,
+        showToast: ShowToastFn
     ) {
         this.#userPrefs = userPrefs;
-        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry);
+        this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
         this.loadSavedSearches();
         this.searchQuery = createDefaultSearchQuery();
         this.#componentRegistry = componentRegistry;
         this.#identity = identity;
+        this.#showToast = showToast;
 
         $effect(() => {
             const query = this.searchQuery;
@@ -129,6 +133,10 @@ export class SessionInsightsState {
                 this.getCompleteSessionObjectForCurrentSession();
             }
         });
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     get curSessionInsights() {
@@ -391,18 +399,12 @@ export class SessionInsightsState {
                 body: JSON.stringify(request)
             });
 
-            if (!resp.ok) {
-                throw new Error('Failed to get values for entity auto complete');
-            }
-
-            const responseBody = (await resp.json()) as GetValuesForEntityAutoCompleteResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to get values for entity auto complete');
-            }
+            const responseBody = await checkClientResponseAndBody<GetValuesForEntityAutoCompleteResponse>(resp, 'getting entity auto-complete values', this.#showToast);
 
             this.#valuesForEntityAutoComplete = responseBody.data;
             responseBody.data?.forEach((entity) => this.#entitiesRetrievedMap.set(entity.value, entity));
+        } catch (error) {
+            handleClientError(error, 'getting entity auto-complete values', this.#showToast);
         } finally {
             this.#entityAutoCompleteSearchInProgress = false;
         }
@@ -424,16 +426,12 @@ export class SessionInsightsState {
                 },
                 body: JSON.stringify({ command: 'getChatMessagesAsAdmin', sessionId: this.#currentSession.sessionId, chatAppId, userId: this.#currentSession.userId })
             });
-            if (resp.ok) {
-                const msgResult = (await resp.json()) as ChatMessagesResponse;
-                if (msgResult.success) {
-                    this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
-                } else {
-                    console.error('Error refreshing messages for current session', msgResult.error);
-                }
-            }
+
+            const msgResult = await checkClientResponseAndBody<ChatMessagesResponse>(resp, 'refreshing session messages', this.#showToast, CLIENT_RESOURCE_NAMES.MESSAGE);
+
+            this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
         } catch (e) {
-            console.error('Error refreshing messages for current session', e);
+            handleClientError(e, 'refreshing session messages', this.#showToast);
         } finally {
             this.#retrievingMessages = false;
         }
@@ -455,17 +453,16 @@ export class SessionInsightsState {
                 body: JSON.stringify({ command: 'getValuesForUserAutoComplete', valueProvidedByUser })
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to get values for auto complete');
-            }
-
-            const responseBody = (await response.json()) as GetValuesForUserAutoCompleteResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to get values for auto complete');
-            }
+            const responseBody = await checkClientResponseAndBody<GetValuesForUserAutoCompleteResponse>(
+                response,
+                'getting user auto-complete values',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.USER
+            );
 
             this.valuesForUserAutoComplete = (responseBody.data ?? []) as ChatUserLite[];
+        } catch (error) {
+            handleClientError(error, 'getting user auto-complete values', this.#showToast);
         } finally {
             this.userAutoCompleteSearchInProgress = false;
         }
@@ -502,14 +499,17 @@ export class SessionInsightsState {
             const form = new FormData();
             form.append('file', file);
             const resp = await this.fetchz('/api/site-admin/file', { method: 'POST', body: form });
-            if (!resp.ok) {
-                throw new Error('Failed to upload attachment');
-            }
-            const json = (await resp.json()) as { success: boolean; attachment: Attachment };
-            if (!json.success || !json.attachment) {
-                throw new Error('Invalid upload response');
+
+            const json = await checkClientResponseAndBody<{ success: boolean; attachment: Attachment }>(resp, 'uploading attachment', this.#showToast);
+
+            if (!json.attachment) {
+                this.#showToast('Failed to upload attachment. Please try again.', { type: 'error' });
+                throw new Error('Invalid upload response - no attachment');
             }
             return json.attachment;
+        } catch (error) {
+            handleClientError(error, 'uploading attachment', this.#showToast);
+            throw error;
         } finally {
             this.attachmentOperationInProgress = false;
         }
@@ -519,9 +519,11 @@ export class SessionInsightsState {
         this.attachmentOperationInProgress = true;
         try {
             const resp = await this.fetchz(`/api/site-admin/file?s3Key=${encodeURIComponent(s3Key)}`, { method: 'DELETE' });
-            if (!resp.ok) {
-                throw new Error('Failed to delete attachment');
-            }
+
+            checkClientResponse(resp, 'deleting attachment', this.#showToast);
+        } catch (error) {
+            handleClientError(error, 'deleting attachment', this.#showToast);
+            throw error;
         } finally {
             this.attachmentOperationInProgress = false;
         }
@@ -560,19 +562,12 @@ export class SessionInsightsState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching sessions', JSON.stringify(this.searchQuery, null, 2));
-                return;
-            }
-
-            const responseBody = (await response.json()) as SessionSearchResponse<RecordOrUndef>;
-
-            if (!responseBody.success) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching sessions.  Error: ', responseBody.error, 'Response body:', JSON.stringify(responseBody, null, 2));
-                return;
-            }
+            const responseBody = await checkClientResponseAndBody<SessionSearchResponse<RecordOrUndef>>(
+                response,
+                'searching sessions',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SESSION
+            );
 
             if (append) {
                 this.#sessions.push(...responseBody.sessions);
@@ -587,8 +582,8 @@ export class SessionInsightsState {
             this.#totalResults = responseBody.total || 0;
             this.#lastSearchTimestamp = new Date();
         } catch (error) {
-            console.error(`Error searching sessions: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);
             this.#searchError = DEFAULT_SEARCH_ERROR;
+            handleClientError(error, 'searching sessions', this.#showToast);
         } finally {
             this.#isSearching = false;
         }
@@ -614,24 +609,12 @@ export class SessionInsightsState {
                 body: JSON.stringify(request)
             });
 
-            if (!response.ok) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error('Unknown error searching sessions', JSON.stringify(this.searchQuery, null, 2));
-                return;
-            }
-
-            const responseBody = (await response.json()) as SessionSearchResponse<RecordOrUndef>;
-
-            if (!responseBody.success) {
-                this.#searchError = DEFAULT_SEARCH_ERROR;
-                console.error(
-                    'Unknown error searching sessions to get complete session for current sesssion.  Error: ',
-                    responseBody.error,
-                    'Response body:',
-                    JSON.stringify(responseBody, null, 2)
-                );
-                return;
-            }
+            const responseBody = await checkClientResponseAndBody<SessionSearchResponse<RecordOrUndef>>(
+                response,
+                'retrieving complete session',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SESSION
+            );
 
             if (responseBody.sessions.length === 0) {
                 console.error('No session found for current session');
@@ -641,7 +624,8 @@ export class SessionInsightsState {
             this.#curSessionFeedback = responseBody.sessions[0].feedback;
             this.#curSessionInsights = responseBody.sessions[0].insights;
         } catch (error) {
-            console.error(`Error searching sessions to get complete session for current sesssion: ${error instanceof Error ? error.message + ' ' + error.stack : error}`);
+            this.#searchError = DEFAULT_SEARCH_ERROR;
+            handleClientError(error, 'retrieving complete session', this.#showToast);
         } finally {
             this.#isRetrievingCompleteSession = false;
         }
@@ -660,14 +644,15 @@ export class SessionInsightsState {
                 body: JSON.stringify({ command: 'addChatSessionFeedback', feedback })
             });
 
-            if (!resp.ok) {
-                console.error('Failed to add chat session feedback');
-                return undefined;
-            }
+            const json = await checkClientResponseAndBody<{ success: boolean; feedback?: ChatSessionFeedback }>(
+                resp,
+                'adding session feedback',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.FEEDBACK
+            );
 
-            const json = (await resp.json()) as { success: boolean; feedback?: ChatSessionFeedback };
-            if (!json.success || !json.feedback) {
-                console.error('Failed to add chat session feedback (unsuccessful response)');
+            if (!json.feedback) {
+                this.#showToast('Failed to add session feedback. Please try again.', { type: 'error' });
                 return undefined;
             }
 
@@ -683,7 +668,7 @@ export class SessionInsightsState {
 
             return newFeedback;
         } catch (e) {
-            console.error('Error adding chat session feedback', e);
+            handleClientError(e, 'adding session feedback', this.#showToast);
             return undefined;
         } finally {
             this.#savingFeedback = false;
@@ -702,14 +687,15 @@ export class SessionInsightsState {
                 body: JSON.stringify({ command: 'updateChatSessionFeedback', feedback })
             });
 
-            if (!resp.ok) {
-                console.error('Failed to update chat session feedback');
-                return undefined;
-            }
+            const json = await checkClientResponseAndBody<{ success: boolean; feedback?: ChatSessionFeedback }>(
+                resp,
+                'updating session feedback',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.FEEDBACK
+            );
 
-            const json = (await resp.json()) as { success: boolean; feedback?: ChatSessionFeedback };
-            if (!json.success || !json.feedback) {
-                console.error('Failed to update chat session feedback (unsuccessful response)');
+            if (!json.feedback) {
+                this.#showToast('Failed to update session feedback. Please try again.', { type: 'error' });
                 return undefined;
             }
 
@@ -726,7 +712,7 @@ export class SessionInsightsState {
 
             return updated;
         } catch (e) {
-            console.error('Error updating chat session feedback', e);
+            handleClientError(e, 'updating session feedback', this.#showToast);
             return undefined;
         } finally {
             this.#updatingFeedback = false;

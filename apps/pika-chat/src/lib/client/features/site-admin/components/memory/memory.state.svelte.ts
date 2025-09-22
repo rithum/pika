@@ -1,6 +1,7 @@
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
-import type { FetchZ } from '$lib/client/app/types';
+import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
+import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import type {
     ChatUserLite,
     GetAllMemoryRecordsAdminRequest,
@@ -40,14 +41,21 @@ export class MemoryState {
     userForMemory = $state<ChatUserLite | undefined>(undefined);
     userForInstructions = $state<ChatUserLite | undefined>(undefined);
     readyToGetMemoryInstructions = $state(false);
+    #showToast: ShowToastFn;
 
     constructor(
         private readonly fetchz: FetchZ,
         userPrefs: UserPrefsState,
-        identity: IdentityState
+        identity: IdentityState,
+        showToast: ShowToastFn
     ) {
         this.#userPrefs = userPrefs;
         this.#identity = identity;
+        this.#showToast = showToast;
+    }
+
+    get showToast() {
+        return this.#showToast;
     }
 
     get allMemoryRecordsSorted() {
@@ -114,18 +122,19 @@ export class MemoryState {
                         body: JSON.stringify(obj)
                     });
 
-                    if (!response.ok) {
-                        throw new Error('Failed to get memory records');
-                    }
-
-                    const json = (await response.json()) as SearchAllMemoryRecordsResponse;
+                    const json = await checkClientResponseAndBody<SearchAllMemoryRecordsResponse>(
+                        response,
+                        'loading memory records',
+                        this.#showToast,
+                        CLIENT_RESOURCE_NAMES.MEMORY
+                    );
                     console.log('json', json);
                     this.#allMemoryRecords.push(...json.results.records);
                     nextToken = json.results.nextToken;
                 } while (nextToken);
             }
         } catch (e) {
-            console.error('Error loading all memory records', e);
+            handleClientError(e, 'loading memory records', this.#showToast);
             throw e;
         } finally {
             this.#isSearching = false;
@@ -160,13 +169,17 @@ export class MemoryState {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to get instructions added for user memory');
-            }
-
-            const responseBody = (await response.json()) as GetInstructionsAddedForUserMemoryAdminResponse;
+            const responseBody = await checkClientResponseAndBody<GetInstructionsAddedForUserMemoryAdminResponse>(
+                response,
+                'getting memory instructions',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.MEMORY
+            );
             console.log('responseBody', responseBody);
             this.#instructionsAddedForUserMemory = responseBody.instructions;
+        } catch (error) {
+            handleClientError(error, 'getting memory instructions', this.#showToast);
+            throw error;
         } finally {
             this.#isGettingInstructionsAddedForUserMemory = false;
         }
@@ -183,17 +196,16 @@ export class MemoryState {
                 body: JSON.stringify({ command: 'getValuesForUserAutoComplete', valueProvidedByUser })
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to get values for auto complete');
-            }
-
-            const responseBody = (await response.json()) as GetValuesForUserAutoCompleteResponse;
-
-            if (!responseBody.success) {
-                throw new Error('Failed to get values for auto complete');
-            }
+            const responseBody = await checkClientResponseAndBody<GetValuesForUserAutoCompleteResponse>(
+                response,
+                'getting user auto-complete values',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.USER
+            );
 
             this.valuesForUserAutoComplete = (responseBody.data ?? []) as ChatUserLite[];
+        } catch (error) {
+            handleClientError(error, 'getting user auto-complete values', this.#showToast);
         } finally {
             this.userAutoCompleteSearchInProgress = false;
         }

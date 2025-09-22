@@ -1,4 +1,5 @@
 import { type ChatSession, type ChatSessionFeedback, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { Types, API } from '@opensearch-project/opensearch';
 import { convertChatSessionToCamelFromSnakeCase, convertChatSessionToSnakeFromCamelCase } from '../utils';
@@ -76,6 +77,7 @@ export const chatSessionOpenSearchMappings = {
             identity_id: { type: 'keyword' },
             title: { type: 'text' },
             last_message_id: { type: 'keyword' },
+            test_type: { type: 'keyword' },
 
             // Cost and token fields
             input_cost: { type: 'double' },
@@ -248,7 +250,13 @@ export const chatSessionOpenSearchMappings = {
             },
 
             // Add this for tracking when indexed
-            last_index_date: { type: 'date' }
+            last_index_date: { type: 'date' },
+
+            // Sharing-related fields
+            share_id: { type: 'keyword' },
+            share_created_by_user_id: { type: 'keyword' },
+            share_date: { type: 'date' },
+            share_revoked_date: { type: 'date' }
         }
     }
 };
@@ -335,7 +343,7 @@ export function getDomainIndex(obj: OpenSearchIngestType | OpenSearchIndexable):
     if ('sessionId' in obj) {
         return 'session';
     } else {
-        throw new Error(`Unknown ingest type: ${JSON.stringify(obj)}`);
+        throw new BadRequestError(`Unknown ingest type: ${JSON.stringify(obj)}`);
     }
 }
 

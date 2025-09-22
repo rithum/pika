@@ -1,18 +1,16 @@
 <script lang="ts">
+    import { ChartBar, Loader, MessageCircle, MessagesSquare, RefreshCw, X } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import { getContext, type Snippet } from 'svelte';
-    import SessionsTable from '../components/session-insights/sessions-table.svelte';
-    import { RefreshCw, ChartBar, MessagesSquare, MessageCircle } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
+    import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
+    import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
     import SessionMessages from '$lib/client/features/site-admin/components/session-insights/session-messages.svelte';
+    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import { Label } from '$ui/shadcn/label';
     import * as Resizable from '$ui/shadcn/resizable';
     import { Separator } from '$ui/shadcn/separator';
-    import { X, Loader } from '$icons/lucide';
-    import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
-    import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import { Label } from '$ui/shadcn/label';
+    import { getContext, type Snippet } from 'svelte';
+    import SessionsTable from '../components/session-insights/sessions-table.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;

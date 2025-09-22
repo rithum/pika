@@ -1,18 +1,18 @@
 <script lang="ts">
+    import { ChevronsUpDown } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { getContext } from 'svelte';
-    import { ChevronsUpDown, X } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
     import * as Popover from '$ui/shadcn/popover';
-    import EntityFilter from './entity-filter.svelte';
-    import AgentsFilter from './agents-filter.svelte';
     import { Separator } from '$ui/shadcn/separator';
     import type {
-        SemanticDirectiveScope,
         SemanticDirectiveForCreateOrUpdate,
+        SemanticDirectiveScope,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import { getContext } from 'svelte';
     import Scope from '../scope.svelte';
+    import AgentsFilter from './agents-filter.svelte';
+    import EntityFilter from './entity-filter.svelte';
 
     interface Props {
         mode?: 'filter' | 'edit';

@@ -1,12 +1,12 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
     import type { HotKey } from '$client/app/types';
-    import * as Tooltip from '$ui/shadcn/tooltip';
     import { getHotKeyHtmlDisplay } from '$lib/utils';
+    import * as Tooltip from '$ui/shadcn/tooltip';
     import { getContext, type Snippet } from 'svelte';
 
     interface Props {
-        tooltip: string | Snippet<[]>;
+        tooltip: undefined | string | Snippet<[]>;
         hotKey?: HotKey;
         children?: Snippet<[]>;
         delayDuration?: number;
@@ -16,7 +16,7 @@
     const { tooltip, hotKey, children, delayDuration, allowHoverOverTooltip = false }: Props = $props();
 
     const appState = getContext<AppState>('appState');
-    let hideTooltip = $derived(appState.settings.data.hideTooltips);
+    let hideTooltip = $derived(appState.settings.data.hideTooltips || !tooltip);
 </script>
 
 {#if !hideTooltip}

@@ -1,4 +1,4 @@
-import { hash } from 'crypto';
+import { createHash } from 'crypto';
 import { LRUCache } from 'lru-cache';
 import {
     ClearSvelteKitCacheTypes,
@@ -16,8 +16,18 @@ import {
     type DeleteChatAppOverrideResponse,
     type GetChatAppsByRulesRequest,
     type GetChatAppsByRulesResponse,
+    type GetInstructionsAddedForUserMemoryRequest,
+    type GetInstructionsAddedForUserMemoryResponse,
     type InstructionAssistanceConfig,
     type RecordOrUndef,
+    type SearchAllMemoryRecordsRequest,
+    type SearchAllMemoryRecordsResponse,
+    type SearchSemanticDirectivesRequest,
+    type SearchSemanticDirectivesResponse,
+    type SemanticDirectiveCreateOrUpdateRequest,
+    type SemanticDirectiveCreateOrUpdateResponse,
+    type SemanticDirectiveDeleteRequest,
+    type SemanticDirectiveDeleteResponse,
     type SessionSearchRequest,
     type SessionSearchResponse,
     type TagDefinitionCreateOrUpdateRequest,
@@ -26,21 +36,10 @@ import {
     type TagDefinitionDeleteResponse,
     type TagDefinitionSearchRequest,
     type TagDefinitionSearchResponse,
-    type SemanticDirectiveCreateOrUpdateRequest,
-    type SemanticDirectiveCreateOrUpdateResponse,
-    type SemanticDirectiveDeleteRequest,
-    type SemanticDirectiveDeleteResponse,
-    type SearchSemanticDirectivesRequest,
-    type SearchSemanticDirectivesResponse,
+    type ToolDefinition,
     type UpdateChatSessionFeedbackResponse,
     type UserChatAppRule,
-    type ToolDefinition,
-    type UserMemoryStrategy,
-    type SearchAllMyMemoryRecordsRequest,
-    type SearchAllMemoryRecordsResponse,
-    type SearchAllMemoryRecordsRequest,
-    type GetInstructionsAddedForUserMemoryRequest,
-    type GetInstructionsAddedForUserMemoryResponse
+    type UserMemoryStrategy
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { convertToJwtString } from 'pika-shared/util/jwt';
@@ -87,12 +86,12 @@ export async function getAllChatApps(): Promise<ChatApp[]> {
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getAllChatApps',
+            resourceName: 'chat apps'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting all chat apps from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.chatApps;
 }
@@ -105,12 +104,12 @@ export async function getAllAgents(): Promise<AgentDefinition[]> {
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getAllAgents',
+            resourceName: 'agents'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting all agents from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.agents;
 }
@@ -123,12 +122,12 @@ export async function getAllTools(): Promise<ToolDefinition[]> {
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: 'site-admin', customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getAllTools',
+            resourceName: 'tools'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting all tools from chat database with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.tools;
 }
@@ -141,12 +140,12 @@ export async function getChatApp(chatAppId: string): Promise<ChatApp | undefined
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: chatAppId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getChatApp',
+            resourceName: 'chat app'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting chat app from chat database for chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.chatApp;
 }
@@ -155,12 +154,12 @@ export async function getAgent(agentId: string): Promise<AgentDefinition | undef
     const response = await invokeApi<{ success: boolean; agent?: AgentDefinition; error?: string }>({
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/agent/${agentId}`,
-        method: 'GET'
+        method: 'GET',
+        errorInfo: {
+            operation: 'getAgent',
+            resourceName: 'agent'
+        }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error getting agent from chat database for agentId ${agentId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.agent;
 }
@@ -243,15 +242,13 @@ export async function getMatchingChatApps(
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
     chatAppsForHomePage: boolean,
     homePageFilterRules?: UserChatAppRule[],
-    chatAppId?: string,
-    customDataFieldPathToMatchUsersEntity?: string
+    chatAppId?: string
 ): Promise<ChatApp[]> {
     const request: GetChatAppsByRulesRequest = {
         userId: user.userId,
         chatAppsForHomePage,
         homePageFilterRules: homePageFilterRules,
-        chatAppId,
-        customDataFieldPathToMatchUsersEntity
+        chatAppId
     };
 
     // console.log('getMatchingChatApps called with:', {
@@ -266,7 +263,7 @@ export async function getMatchingChatApps(
     // });
 
     // Hash the request and see if it is in the cache
-    const requestHash = hash('sha256', JSON.stringify(request));
+    const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
     const cachedResponse = chatAppCache.get(requestHash);
     if (cachedResponse) {
         const chatAppIds = cachedResponse as string[];
@@ -291,24 +288,13 @@ export async function getMatchingChatApps(
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getMatchingChatApps',
+            resourceName: 'chat apps',
+            userId: user.userId
         }
     });
-
-    console.log('API response received for getMatchingChatApps:', {
-        statusCode: response.statusCode,
-        success: response.body?.success,
-        chatAppsCount: response.body?.chatApps?.length,
-        error: response.body?.error
-    });
-
-    if (!response.body || !response.body.success) {
-        console.error('Error getting matching chat apps:', {
-            statusCode: response.statusCode,
-            error: response.body?.error,
-            userId: user.userId
-        });
-        throw new Error(`Error getting matching chat apps for userId ${user.userId} with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     // console.log(
     //     'Chat apps received from API:',
@@ -351,34 +337,31 @@ export async function createOrUpdateChatAppOverride(userId: string, chatAppId: s
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'createOrUpdateChatAppOverride',
+            resourceName: 'chat app override'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error creating or updating chat app override for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
-    }
 
     return response.body.chatAppOverride;
 }
 
 export async function deleteChatAppOverride(userId: string, chatAppId: string): Promise<void> {
-    const response = await invokeApi<DeleteChatAppOverrideResponse>({
+    await invokeApi<DeleteChatAppOverrideResponse>({
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/chat-app/${chatAppId}/override`,
         method: 'DELETE',
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'deleteChatAppOverride',
+            resourceName: 'chat app override',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(
-            `Error deleting chat app override for userId ${userId} and chatAppId ${chatAppId} with status code: ${response.statusCode} and error: ${response.body?.error}`
-        );
-    }
 }
 
 export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCreate): Promise<ChatSessionFeedback> {
@@ -389,12 +372,12 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
         body: { feedback },
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'addChatSessionFeedback',
+            resourceName: 'chat session feedback'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error adding chat session feedback with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.feedback;
 }
@@ -407,12 +390,12 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
         body: { feedback },
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'updateChatSessionFeedback',
+            resourceName: 'chat session feedback'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error updating chat session feedback with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body.feedback;
 }
@@ -425,12 +408,12 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
         body: search,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'searchForSessions',
+            resourceName: 'session search'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error searching for sessions with status code: ${response.statusCode} and error: ${response.body?.error}`);
-    }
 
     return response.body;
 }
@@ -443,12 +426,12 @@ export async function createOrUpdateTagDefinition(request: TagDefinitionCreateOr
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'createOrUpdateTagDefinition',
+            resourceName: 'tag definition'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error creating or updating tag definition with status code: ${response.statusCode}`);
-    }
 
     // Invalidate cache for this tag definition
     const cacheKey = `${request.tagDefinition.scope}:${request.tagDefinition.tag}`;
@@ -472,12 +455,12 @@ export async function deleteTagDefinition(request: TagDefinitionDeleteRequest): 
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'deleteTagDefinition',
+            resourceName: 'tag definition'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error deleting tag definition with status code: ${response.statusCode}`);
-    }
 
     // Invalidate cache for this tag definition
     const cacheKey = `${request.tagDefinition.scope}:${request.tagDefinition.tag}`;
@@ -495,7 +478,7 @@ export async function deleteTagDefinition(request: TagDefinitionDeleteRequest): 
 
 export async function searchTagDefinitions(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
     // Generate cache key based on request parameters
-    const requestHash = hash('sha256', JSON.stringify(request));
+    const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
     const cacheKey = `search:admin:${requestHash}`;
 
     // Check if any tag definition has dontCacheThis set to true
@@ -511,12 +494,12 @@ export async function searchTagDefinitions(request: TagDefinitionSearchRequest):
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'searchTagDefinitions',
+            resourceName: 'tag definitions'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error searching tag definitions with status code: ${response.statusCode}`);
-    }
 
     // Cache the response only if no tag definition has dontCacheThis set
     if (!response.body.tagDefinitions.some((def) => def.dontCacheThis)) {
@@ -547,12 +530,12 @@ export async function createOrUpdateSemanticDirective(request: SemanticDirective
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'createOrUpdateSemanticDirective',
+            resourceName: 'semantic directive'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error creating or updating semantic directive with status code: ${response.statusCode}`);
-    }
 
     return response.body;
 }
@@ -565,12 +548,12 @@ export async function deleteSemanticDirective(request: SemanticDirectiveDeleteRe
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'deleteSemanticDirective',
+            resourceName: 'semantic directive'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error deleting semantic directive with status code: ${response.statusCode}`);
-    }
 
     return response.body;
 }
@@ -583,12 +566,12 @@ export async function searchSemanticDirectives(request: SearchSemanticDirectives
         body: request,
         headers: {
             'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'searchSemanticDirectives',
+            resourceName: 'semantic directives'
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error searching semantic directives with status code: ${response.statusCode}`);
-    }
 
     return response.body;
 }
@@ -611,12 +594,13 @@ export async function getUserMemoriesForStrategy(userId: string, strategy: UserM
         headers: {
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getUserMemoriesForStrategy',
+            resourceName: 'user memory records',
+            userId
         }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error retrieving user memory with status code: ${response.statusCode}`);
-    }
 
     return response.body;
 }
@@ -626,12 +610,12 @@ export async function getInstructionsAddedForUserMemory(request: GetInstructions
         apiId: appConfig.chatAdminApiId,
         path: `${appConfig.stage}/api/chat-admin/memory/instructions`,
         method: 'POST',
-        body: request
+        body: request,
+        errorInfo: {
+            operation: 'getInstructionsAddedForUserMemory',
+            resourceName: 'user memory instructions'
+        }
     });
-
-    if (!response.body || !response.body.success) {
-        throw new Error(`Error retrieving instructions added for user memory with status code: ${response.statusCode}`);
-    }
 
     return response.body;
 }

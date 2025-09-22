@@ -1,24 +1,24 @@
 <script lang="ts">
+    import { File, Loader, X } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getContext } from 'svelte';
+    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import { Button } from '$ui/shadcn/button';
     import * as Dialog from '$ui/shadcn/dialog';
     import { Textarea } from '$ui/shadcn/textarea';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Loader, X, File } from '$icons/lucide';
-    import {
-        SESSION_FEEDBACK_SEVERITY_VALUES,
-        SESSION_FEEDBACK_STATUS_VALUES,
-        SESSION_FEEDBACK_TYPE_VALUES,
-    } from 'pika-shared/types/chatbot/chatbot-types';
     import type {
+        Attachment,
         ChatSessionFeedback,
         ChatSessionFeedbackForUpdate,
         SessionFeedbackSeverity,
         SessionFeedbackStatus,
         SessionFeedbackType,
     } from 'pika-shared/types/chatbot/chatbot-types';
-    import type { Attachment } from 'pika-shared/types/chatbot/chatbot-types';
+    import {
+        SESSION_FEEDBACK_SEVERITY_VALUES,
+        SESSION_FEEDBACK_STATUS_VALUES,
+        SESSION_FEEDBACK_TYPE_VALUES,
+    } from 'pika-shared/types/chatbot/chatbot-types';
+    import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
 
     interface Props {

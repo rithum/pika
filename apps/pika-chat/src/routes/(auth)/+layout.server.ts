@@ -1,9 +1,10 @@
-import type { ChatAppLite, ChatUser, CustomDataUiRepresentation, HomePageSiteFeature, LogoutFeature } from 'pika-shared/types/chatbot/chatbot-types';
+import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
+import { siteFeatures } from '$lib/server/custom-site-features';
+import { handleApiGatewayError } from '$lib/server/utils';
 import { createUserDataVersion } from '$lib/utils/user-data-version';
 import { redirect } from '@sveltejs/kit';
+import type { ChatAppLite, ChatUser, CustomDataUiRepresentation, HomePageSiteFeature, LogoutFeature } from 'pika-shared/types/chatbot/chatbot-types';
 import type { LayoutServerLoad } from './$types';
-import { siteFeatures } from '$lib/server/custom-site-features';
-import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 
 export const load: LayoutServerLoad = async ({ depends, locals }) => {
     // Add dependency tracking for targeted invalidation.  We will invalidate
@@ -54,15 +55,19 @@ export const load: LayoutServerLoad = async ({ depends, locals }) => {
         homePageSiteFeature = siteFeatures.homePage;
         if (homePageSiteFeature.linksToChatApps && homePageSiteFeature.linksToChatApps.userChatAppRules && homePageSiteFeature.linksToChatApps.userChatAppRules.length > 0) {
             // They mean to turn on the feature, so we need to get the matching chat apps
-            const matchingChatApps = await getMatchingChatApps(user, true, homePageSiteFeature.linksToChatApps.userChatAppRules, undefined, customDataFieldPathToMatchUsersEntity);
-            chatApps = matchingChatApps.map((app) => ({
-                chatAppId: app.chatAppId,
-                title: app.title,
-                description: app.description,
-                agentId: app.agentId,
-                userTypesAllowed: app.userTypes,
-                userRolesAllowed: app.userRoles
-            }));
+            try {
+                const matchingChatApps = await getMatchingChatApps(user, true, homePageSiteFeature.linksToChatApps.userChatAppRules);
+                chatApps = matchingChatApps.map((app) => ({
+                    chatAppId: app.chatAppId,
+                    title: app.title,
+                    description: app.description,
+                    agentId: app.agentId,
+                    userTypesAllowed: app.userTypes,
+                    userRolesAllowed: app.userRoles
+                }));
+            } catch (e) {
+                handleApiGatewayError(e, 'loading home page chat apps');
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Tabs as TabsPrimitive } from 'bits-ui';
     import { cn } from '$ui/shadcn/utils.js';
+    import { Tabs as TabsPrimitive } from 'bits-ui';
 
     let { ref = $bindable(null), class: className, value, ...restProps }: TabsPrimitive.TriggerProps = $props();
 </script>

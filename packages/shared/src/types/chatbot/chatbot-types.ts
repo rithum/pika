@@ -73,6 +73,16 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     lastUpdate: string;
 
     /**
+     * If the entity feature is enabled, this is the entity ID of the user who created the session at the moment of creation.
+     *
+     * If the site wide entity feature is not enabled or if the associated chat app has disabled the entity feature or
+     * if this session is being created in the context of a direct invocation (no chat app involved) then this is the string
+     * "chat-app-global" indicating that if the user chooses to share this session, it will be accessible to anyone with access to the chat app who has the link.
+     * Otherwise, only those who have access to the chat app and are associated with the same entity ID as the session owner will be able to access the session.
+     */
+    entityId: string;
+
+    /**
      * Last Message that has been analyzed by the system for insights, this lets us detect if the user came back to
      * the chat after the session is believed to be complete and added another message that we should analyze again.
      *
@@ -140,6 +150,17 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
      * when the session is created and when the last message ID is added.  This should be fine.
      */
     insightStatus?: InsightStatusNeedsInsightsAnalysis | undefined;
+    /** The share ID if this session is shared */
+    shareId?: string;
+    /** User ID of the user who created the share */
+    shareCreatedByUserId?: string;
+    /** When this session was first shared */
+    shareDate?: string;
+    /** When this session's share was revoked */
+    shareRevokedDate?: string;
+
+    /** If set to 'mock', this session is used for integration testing purposes. */
+    testType?: 'mock';
 }
 
 /**
@@ -679,6 +700,9 @@ export interface ChatUser<T extends RecordOrUndef = undefined> {
     features: {
         [K in FeatureType]: K extends 'instruction' ? InstructionFeature : K extends 'history' ? HistoryFeature : never;
     };
+
+    /** If set to 'mock', this user is used for integration testing purposes. */
+    testType?: 'mock';
 }
 
 export interface ChatUserLite {
@@ -723,6 +747,29 @@ export interface SimpleAuthenticatedUser<T extends RecordOrUndef = undefined> {
  * to use the various features of pika.  It is not persisted to the database or in cookies.  We use it
  */
 export interface ChatAppOverridableFeatures {
+    /**
+     * If enabled, entity-based access control and filtering is active for this chat app.
+     * Chat apps can only disable the entity feature, not modify the site-level configuration
+     * like attributeName or display settings.
+     */
+    entity: {
+        /**
+         * If false, entity features are disabled for this chat app regardless of site settings.  This
+         * affects the session share feature.  If this is false, then a shared session will be
+         * accessible to anyone with access to the chat app that the session exists within.
+         */
+        enabled: boolean;
+
+        /**
+         * The attribute name in the user's custom data that is used to match against the entity access control lists.
+         *
+         * This value is copied from the site level entity feature configuration and may not be overridden at the chat app level.
+         *
+         * It enabled is true and this is not set, then an error will be thrown.
+         */
+        attributeName?: string;
+    };
+
     /**
      *
      * If true then the verify response feature is enabled.
@@ -1074,9 +1121,9 @@ export interface SetChatUserPrefsResponse {
     error?: string;
 }
 
-export interface ChatUserAddOrUpdateResponse<T extends RecordOrUndef = undefined> {
+export interface ChatUserAddOrUpdateResponse {
     success: boolean;
-    user: ChatUser<T>;
+    user: ChatUser<RecordOrUndef>;
     error?: string;
 }
 
@@ -1402,8 +1449,8 @@ export interface AgentDefinition {
     /** ISO 8601 formatted timestamp of last update */
     updatedAt: string;
 
-    /** If true, this is a test agent that will get deleted after 1 day.  This is used for testing. */
-    test?: boolean;
+    /** If set to 'mock', this is a test agent that will get deleted after 1 day.  This is used for integration testing. */
+    testType?: 'mock';
 }
 
 export type UpdateableAgentDefinitionFields = Extract<
@@ -1545,8 +1592,8 @@ export interface ToolDefinitionBase {
     /** ISO 8601 formatted timestamp of last update */
     updatedAt: string;
 
-    /** If true, this is a test tool that will get deleted after 1 day.  This is used for testing. */
-    test?: boolean;
+    /** If set to 'mock', this is a test tool that will get deleted after 1 day.  This is used for integration testing. */
+    testType?: 'mock';
 }
 
 export interface LambdaToolDefinition extends ToolDefinitionBase {
@@ -1710,6 +1757,318 @@ export interface DeleteChatAppOverrideResponse {
 
 export interface DeleteChatAppOverrideRequest {}
 
+// ===== MOCK DATA APIS FOR TESTING =====
+
+export interface DeleteMockDataRequest {
+    userId: string;
+    sessions?: {
+        sessionId: string;
+        sessionUserId: string;
+    }[];
+    chatApps?: {
+        chatAppId: string;
+    }[];
+    agents?: {
+        agentId: string;
+    }[];
+    tools?: {
+        toolId: string;
+    }[];
+    users?: {
+        userId: string;
+    }[];
+}
+
+export interface DeleteMockDataResponse {
+    success: boolean;
+}
+
+export interface CreateOrUpdateMockSessionRequest {
+    session: ChatSessionForCreate & { test: 'test' };
+    userId: string; // admin user creating the mock
+}
+
+export interface CreateOrUpdateMockSessionResponse {
+    success: boolean;
+    session: ChatSession<RecordOrUndef>;
+}
+
+export interface DeleteMockSessionRequest {
+    sessionId: string;
+    sessionUserId: string; // owner of session
+    userId: string; // admin user deleting the mock
+}
+
+export interface DeleteMockSessionResponse {
+    success: boolean;
+}
+
+export interface CreateOrUpdateMockChatAppRequest {
+    chatApp: ChatApp & { test: 'test' };
+    userId: string;
+}
+
+export interface CreateOrUpdateMockChatAppResponse {
+    success: boolean;
+    chatApp: ChatApp;
+}
+
+export interface DeleteMockChatAppRequest {
+    chatAppId: string;
+    userId: string;
+}
+
+export interface DeleteMockChatAppResponse {
+    success: boolean;
+}
+
+export interface CreateOrUpdateMockAgentRequest {
+    agent: AgentDefinition & { test: 'test' };
+    userId: string;
+}
+
+export interface CreateOrUpdateMockAgentResponse {
+    success: boolean;
+    agent: AgentDefinition;
+}
+
+export interface DeleteMockAgentRequest {
+    agentId: string;
+    userId: string;
+}
+
+export interface DeleteMockAgentResponse {
+    success: boolean;
+}
+
+export interface CreateOrUpdateMockToolRequest {
+    tool: ToolDefinition & { test: 'test' };
+    userId: string;
+}
+
+export interface CreateOrUpdateMockToolResponse {
+    success: boolean;
+    tool: ToolDefinition;
+}
+
+export interface DeleteMockToolRequest {
+    toolId: string;
+    userId: string;
+}
+
+export interface DeleteMockToolResponse {
+    success: boolean;
+}
+
+export interface CreateOrUpdateMockUserRequest {
+    user: ChatUser<RecordOrUndef> & { test: 'test' };
+    userId: string; // admin user creating the mock
+}
+
+export interface CreateOrUpdateMockUserResponse {
+    success: boolean;
+    user: ChatUser<RecordOrUndef>;
+}
+
+export interface DeleteMockUserRequest {
+    mockUserId: string; // userId of the mock user to delete
+    userId: string; // admin user deleting the mock
+}
+
+export interface DeleteMockUserResponse {
+    success: boolean;
+}
+
+// ===== GET ALL MOCK DATA APIS =====
+
+export interface GetAllMockSessionsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockSessionsResponse {
+    success: boolean;
+    chatSessions: ChatSession<RecordOrUndef>[];
+    nextToken?: string;
+}
+
+export interface GetMockSessionByUserIdAndSessionIdRequest {
+    sessionId: string;
+    userId: string;
+}
+
+export interface GetMockSessionByUserIdAndSessionIdResponse {
+    success: boolean;
+    chatSession?: ChatSession<RecordOrUndef>;
+}
+
+export interface GetAllMockUsersRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockUsersResponse {
+    success: boolean;
+    chatUsers: ChatUser<RecordOrUndef>[];
+    nextToken?: string;
+}
+
+export interface GetAllMockAgentsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockAgentsResponse {
+    success: boolean;
+    agents: AgentDefinition[];
+    nextToken?: string;
+}
+
+export interface GetAllMockToolsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockToolsResponse {
+    success: boolean;
+    tools: ToolDefinition[];
+    nextToken?: string;
+}
+
+export interface GetAllMockChatAppsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockChatAppsResponse {
+    success: boolean;
+    chatApps: ChatApp[];
+    nextToken?: string;
+}
+
+export interface GetAllMockSharedSessionVisitsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockSharedSessionVisitsResponse {
+    success: boolean;
+    sharedSessionVisits: SharedSessionVisitHistory[];
+    nextToken?: string;
+}
+
+export interface GetAllMockPinnedSessionsRequest {
+    limit?: number;
+    nextToken?: string;
+}
+
+export interface GetAllMockPinnedSessionsResponse {
+    success: boolean;
+    pinnedSessions: PinnedSession[];
+    nextToken?: string;
+}
+
+export interface GetAllMockDataRequest {
+    limit?: number;
+}
+
+export interface GetAllMockDataResponse {
+    success: boolean;
+    data: {
+        sessions: ChatSession<RecordOrUndef>[];
+        users: ChatUser<RecordOrUndef>[];
+        agents: AgentDefinition[];
+        tools: ToolDefinition[];
+        chatApps: ChatApp[];
+        sharedSessionVisits: SharedSessionVisitHistory[];
+        pinnedSessions: PinnedSession[];
+    };
+}
+
+// ===== DELETE ALL MOCK DATA APIS =====
+
+export interface DeleteAllMockSessionsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockSessionsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockUsersRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockUsersResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockAgentsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockAgentsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockToolsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockToolsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockChatAppsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockChatAppsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockSharedSessionVisitsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockSharedSessionVisitsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockPinnedSessionsRequest {
+    userId: string;
+}
+
+export interface DeleteAllMockPinnedSessionsResponse {
+    success: boolean;
+    deletedCount: number;
+}
+
+export interface DeleteAllMockDataRequest {
+    userId: string;
+    confirm?: boolean;
+}
+
+export interface DeleteAllMockDataResponse {
+    success: boolean;
+    deletedCounts: {
+        sessions: number;
+        users: number;
+        agents: number;
+        tools: number;
+        chatApps: number;
+        sharedSessionVisits: number;
+        pinnedSessions: number;
+        total: number;
+    };
+}
+
 export type ChatAppMode = 'standalone' | 'embedded';
 
 /**
@@ -1781,8 +2140,8 @@ export interface ChatApp extends AccessRules {
     /** ISO 8601 formatted timestamp of the last chat app update */
     lastUpdate: string;
 
-    /** If true, this is a test chat app that will get deleted after 1 day.  This is used for testing. */
-    test?: boolean;
+    /** If set to 'mock', this is a test chat app that will get deleted after 1 day.  This is used for integration testing. */
+    testType?: 'mock';
 }
 
 export interface ChatAppLite {
@@ -1908,7 +2267,8 @@ export type ChatAppFeature =
     | TagsFeatureForChatApp
     | AgentInstructionAssistanceFeatureForChatApp
     | InstructionAugmentationFeatureForChatApp
-    | UserMemoryFeatureForChatApp;
+    | UserMemoryFeatureForChatApp
+    | EntityFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -1936,7 +2296,8 @@ export const FeatureIdList = [
     'tags',
     'agentInstructionAssistance',
     'instructionAugmentation',
-    'userMemory'
+    'userMemory',
+    'entity'
 ] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
@@ -1957,7 +2318,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     tags: 'Tags',
     agentInstructionAssistance: 'Agent Instruction Assistance',
     instructionAugmentation: 'Instruction Augmentation',
-    userMemory: 'User Memory'
+    userMemory: 'User Memory',
+    entity: 'Entity'
 };
 
 export interface SiteAdminFeature {
@@ -2197,6 +2559,13 @@ export interface InstructionAugmentationFeatureForChatApp extends InstructionAug
 
 export interface UserMemoryFeatureForChatApp extends UserMemoryFeature, Feature {
     featureId: 'userMemory';
+}
+
+export interface EntityFeatureForChatApp extends Feature {
+    featureId: 'entity';
+    /** Whether entity feature is enabled for this chat app. Can only be set to false to disable site-level configuration. */
+    enabled: boolean;
+    attributeName?: string;
 }
 
 /**
@@ -4073,4 +4442,149 @@ export interface TagDefInJsonFile {
     tag: string;
     scope: string;
     gzippedBase64EncodedString: string;
+}
+
+// ===== SHARING SESSIONS FEATURE TYPES =====
+
+/**
+ * SharedSessionVisitHistory tracks user visits to shared sessions
+ */
+export interface SharedSessionVisitHistory {
+    shareId: string;
+    entityId: string;
+    chatAppId: string;
+    firstVisitedAt: string;
+    lastVisitedAt: string;
+    visitCount: number;
+    title: string;
+
+    /** If set to 'mock', this is a test shared session visit history.  This is used for integration testing. */
+    testType?: 'mock';
+}
+
+export interface SharedSessionVisitHistoryDynamoDb extends SharedSessionVisitHistory {
+    userIdChatAppId: string;
+}
+
+/**
+ * PinnedSession represents user-curated sidebar items (both own and shared sessions)
+ */
+export interface PinnedSession {
+    shareId?: string; // for shared sessions
+    sessionId?: string; // for own sessions
+    userId: string; // the user who did the pinning, will be userId of session if pin is for own session
+    chatAppId: string;
+    pinnedAt: string;
+
+    /** If set to 'mock', this is a test pinned session.  This is used for integration testing. */
+    testType?: 'mock';
+}
+
+export type PinnedSessionDynamoDb = PinnedSession & {
+    userIdChatAppId: string;
+    sessionOrShareId: string;
+};
+
+export interface PinnedObjAndChatSession {
+    pinnedSession: PinnedSession;
+    chatSession: ChatSession<RecordOrUndef>;
+}
+
+// API Request/Response types
+
+export interface CreateSharedSessionRequest {
+    sessionId: string;
+    sessionUserId: string;
+    chatAppId: string;
+}
+
+export interface CreateSharedSessionResponse {
+    success: boolean;
+    shareId: string;
+    chatAppId: string;
+    error?: string;
+}
+
+export interface RevokeSharedSessionRequest {
+    shareId: string;
+}
+
+export interface RevokeSharedSessionResponse {
+    success: boolean;
+    error?: string;
+}
+
+export interface UnrevokeSharedSessionRequest {
+    shareId: string;
+}
+
+export interface UnrevokeSharedSessionResponse {
+    success: boolean;
+    error?: string;
+}
+
+export interface GetRecentSharedRequest {
+    chatAppId: string;
+    limit?: number; // default 5
+}
+
+export interface GetRecentSharedResponse {
+    success: boolean;
+    recentShared: SharedSessionVisitHistory[];
+    error?: string;
+}
+
+export interface GetPinnedSessionsRequest {
+    chatAppId: string;
+    limit?: number; // default 20
+    nextToken?: string; // pagination token
+}
+
+export interface GetPinnedSessionsResponse {
+    success: boolean;
+    results: PinnedObjAndChatSession[];
+    nextToken?: string; // for pagination
+    error?: string;
+}
+
+export interface PinSessionRequest {
+    pinnedSession: PinnedSession;
+}
+
+export interface PinSessionResponse {
+    success: boolean;
+    error?: string;
+}
+
+export interface UnpinSessionRequest {
+    sessionId?: string; // for own sessions
+    shareId?: string; // for shared sessions
+    chatAppId: string;
+}
+
+export interface UnpinSessionResponse {
+    success: boolean;
+    error?: string;
+}
+
+export interface ValidateShareAccessRequest {
+    shareId: string;
+    chatAppId: string;
+    entityId?: string;
+}
+
+export interface ValidateShareAccessResponse {
+    success: boolean;
+    hasAccess: boolean;
+    sessionData?: ChatSession<RecordOrUndef>;
+    error?: string;
+}
+
+export interface RecordShareVisitRequest {
+    shareId: string;
+}
+
+export interface RecordShareVisitResponse {
+    success: boolean;
+    error?: string;
 }

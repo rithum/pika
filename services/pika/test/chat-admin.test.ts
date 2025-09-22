@@ -246,7 +246,7 @@ describe('Chat Admin API Integration Tests', () => {
             const updateRequest: UpdateToolRequest = {
                 tool: {
                     toolId: toolIdToUpdate,
-                    test: true,
+                    testType: 'mock',
                     displayName: 'Updated Test Tool',
                     name: 'updated-test-tool',
                     description: 'An updated test tool description',
@@ -352,7 +352,7 @@ describe('Chat Admin API Integration Tests', () => {
             const createRequest: CreateChatAppRequest = {
                 chatApp: {
                     ...mockChatAppDefinition,
-                    test: true
+                    testType: 'mock'
                 },
                 userId: 'test-user'
             };
@@ -397,7 +397,7 @@ describe('Chat Admin API Integration Tests', () => {
             const updateRequest: UpdateChatAppRequest = {
                 chatApp: {
                     chatAppId: chatAppIdToUpdate,
-                    test: true,
+                    testType: 'mock',
                     title: 'Updated Test Chat App',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
                     enabled: false,
@@ -438,7 +438,7 @@ describe('Chat Admin API Integration Tests', () => {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
                     dontCacheThis: true,
-                    test: true,
+                    testType: 'mock',
                     title: 'Idempotent Test Chat App',
                     description: 'Idempotent Test Chat App Description',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
@@ -482,7 +482,7 @@ describe('Chat Admin API Integration Tests', () => {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
                     dontCacheThis: true,
-                    test: true,
+                    testType: 'mock',
                     title: 'Idempotent Test Chat App',
                     description: 'Idempotent Test Chat App Description',
                     agentId: createdAgentId || mockAgentDefinition.agentId,
@@ -521,7 +521,7 @@ describe('Chat Admin API Integration Tests', () => {
             const chatAppDataRequest: ChatAppDataRequest = {
                 chatApp: {
                     chatAppId: idempotentChatAppId,
-                    test: true,
+                    testType: 'mock',
                     dontCacheThis: false,
                     title: 'UPDATED Idempotent Test Chat App',
                     description: 'UPDATED Idempotent Test Chat App Description',
@@ -565,7 +565,7 @@ describe('Chat Admin API Integration Tests', () => {
             const invalidChatAppDataRequest: ChatAppDataRequest = {
                 chatApp: {
                     chatAppId: `invalid-chat-app-${Date.now()}`,
-                    test: true,
+                    testType: 'mock',
                     title: '', // Invalid: empty title
                     description: 'Invalid Test Chat App Description',
                     agentId: 'non-existent-agent', // Invalid: non-existent agent
@@ -598,7 +598,7 @@ describe('Chat Admin API Integration Tests', () => {
             const agentDataRequest: AgentDataRequest = {
                 agent: {
                     agentId: idempotentAgentId,
-                    test: true,
+                    testType: 'mock',
                     basePrompt: 'You are an idempotent test assistant. {{user.email}}',
                     accessRules: [
                         {
@@ -617,7 +617,7 @@ describe('Chat Admin API Integration Tests', () => {
                 tools: [
                     {
                         toolId: idempotentToolId,
-                        test: true,
+                        testType: 'mock',
                         displayName: 'Idempotent Test Tool',
                         name: 'idempotent-test-tool',
                         description: 'A test tool for idempotent agent creation',
@@ -655,7 +655,7 @@ describe('Chat Admin API Integration Tests', () => {
             const agentDataRequest: AgentDataRequest = {
                 agent: {
                     agentId: idempotentAgentId,
-                    test: true,
+                    testType: 'mock',
                     basePrompt: 'You are an idempotent test assistant. {{user.email}}',
                     accessRules: [
                         {
@@ -674,7 +674,7 @@ describe('Chat Admin API Integration Tests', () => {
                 tools: [
                     {
                         toolId: idempotentToolId,
-                        test: true,
+                        testType: 'mock',
                         displayName: 'Idempotent Test Tool',
                         name: 'idempotent-test-tool',
                         description: 'A test tool for idempotent agent creation',
@@ -708,7 +708,7 @@ describe('Chat Admin API Integration Tests', () => {
             const agentDataRequest: AgentDataRequest = {
                 agent: {
                     agentId: idempotentAgentId,
-                    test: true,
+                    testType: 'mock',
                     basePrompt: 'You are an UPDATED idempotent test assistant. {{user.email}}',
                     dontCacheThis: true
                 },
@@ -716,7 +716,7 @@ describe('Chat Admin API Integration Tests', () => {
                 tools: [
                     {
                         toolId: idempotentToolId,
-                        test: true,
+                        testType: 'mock',
                         displayName: 'UPDATED Idempotent Test Tool',
                         name: 'updated-idempotent-test-tool',
                         description: 'An UPDATED test tool for idempotent agent updates',
@@ -755,7 +755,7 @@ describe('Chat Admin API Integration Tests', () => {
             const agentDataRequest: AgentDataRequest = {
                 agent: {
                     agentId: agentWithExistingToolsId,
-                    test: true,
+                    testType: 'mock',
                     basePrompt: 'You are a test assistant that uses existing tools. {{user.email}}',
                     toolIds: createdToolId ? [createdToolId] : []
                 },
@@ -782,7 +782,7 @@ describe('Chat Admin API Integration Tests', () => {
             const invalidAgentDataRequest: AgentDataRequest = {
                 agent: {
                     agentId: `invalid-agent-${Date.now()}`,
-                    test: true,
+                    testType: 'mock',
                     basePrompt: '' // Invalid: empty basePrompt
                 },
                 userId: 'test-user'

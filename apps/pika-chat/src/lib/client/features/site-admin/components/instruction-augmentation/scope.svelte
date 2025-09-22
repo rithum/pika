@@ -1,9 +1,9 @@
 <script lang="ts">
+    import { X } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { Button } from '$ui/shadcn/button';
     import type { SemanticDirective, SemanticDirectiveScope } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
-    import { X } from '$icons/lucide';
 
     interface Props {
         scope: SemanticDirectiveScope | SemanticDirective;

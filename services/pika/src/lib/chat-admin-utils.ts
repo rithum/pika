@@ -1,5 +1,6 @@
-import type { AgentDefinition, ToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
 import cloneDeep from 'lodash.clonedeep';
+import type { AgentDefinition, ToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { areSame } from './same';
 
 /**
@@ -203,7 +204,7 @@ export function validateEntitiesExist<T>(requestedIds: string[], fetchedEntities
     if (fetchedEntities.length !== requestedIds.length) {
         const missingIds = requestedIds.filter((id) => !fetchedEntities.some((entity) => entity[idField] === id));
         const errorPrefix = customErrorPrefix ?? `These ${entityName} don't exist`;
-        throw new Error(`${errorPrefix}: ${missingIds.join(', ')}`);
+        throw new BadRequestError(`${errorPrefix}: ${missingIds.join(', ')}`);
     }
 }
 

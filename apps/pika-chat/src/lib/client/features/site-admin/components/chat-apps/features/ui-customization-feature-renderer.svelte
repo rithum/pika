@@ -1,8 +1,8 @@
 <script lang="ts">
+    import { assert } from '$lib/utils';
     import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import { Checkbox } from '$ui/shadcn/checkbox';
     import { Label } from '$ui/shadcn/label';
-    import { assert } from '$lib/utils';
     import type { UiCustomizationFeature } from 'pika-shared/types/chatbot/chatbot-types';
 
     interface Props {

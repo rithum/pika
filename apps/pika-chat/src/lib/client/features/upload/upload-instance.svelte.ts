@@ -1,9 +1,11 @@
+import type { ShowToastFn } from '$lib/client/app/types';
 import type { UploadInfo, UploadStatus } from 'pika-shared/types/upload-types';
 
 export class UploadInstance {
     #status = $state<UploadStatus>({ status: 'idle', progress: 0 });
     #xhrEventListeners = $state<Map<string, XhrEventListener>>(new Map());
     #xhr = new XMLHttpRequest();
+    #showToast: ShowToastFn;
 
     s3Key = $state<string>() as string;
     // we only keep the file around for the duration of the upload, then we remove it
@@ -17,17 +19,22 @@ export class UploadInstance {
         return this.#status;
     }
 
+    get showToast() {
+        return this.#showToast;
+    }
+
     get xhr() {
         return this.#xhr;
     }
 
-    constructor(info: UploadInfo) {
+    constructor(info: UploadInfo, showToast: ShowToastFn) {
         this.s3Key = info.s3Key;
         this.file = info.file;
         this.fileName = info.fileName;
         this.size = info.file.size;
         this.lastModified = info.file.lastModified;
         this.type = this.file.type;
+        this.#showToast = showToast;
     }
 
     async updateStatus(status: UploadStatus) {

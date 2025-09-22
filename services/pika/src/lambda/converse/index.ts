@@ -30,13 +30,14 @@ import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { applyInstructionAssistance, generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
 import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getMemoryInstructions } from '../../lib/memory';
 import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
-import { UnauthorizedError } from '../../lib/unauthorized-error';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { getEffectiveChatAppId, getEntityFromCustomData, getMemoryId } from '../../lib/utils';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
@@ -199,7 +200,7 @@ export const handler = enhancedStreamifyResponse(
             });
 
             if (!converseRequest.message) {
-                throw new Error('message is required');
+                throw new BadRequestError('message is required');
             }
 
             if (simpleUser.userId !== converseRequest.userId) {
@@ -218,7 +219,7 @@ export const handler = enhancedStreamifyResponse(
             if (converseRequest.files && converseRequest.files.length > 0) {
                 for (const file of converseRequest.files) {
                     if (file.locationType === 's3' && file.s3Bucket !== pikaS3Bucket) {
-                        throw new Error(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${pikaS3Bucket}`);
+                        throw new BadRequestError(`Invalid file location: ${file.s3Bucket} is not the same as the upload bucket: ${pikaS3Bucket}`);
                     }
                 }
             }
@@ -237,8 +238,21 @@ export const handler = enhancedStreamifyResponse(
 
             const effectiveChatAppId = getEffectiveChatAppId(converseRequest.chatAppId, converseRequest.agentId, invocationMode);
 
+            const entityValue = converseRequest.entityAttributeNameInUserCustomData
+                ? getEntityFromCustomData(user.customData, converseRequest.entityAttributeNameInUserCustomData)
+                : undefined;
+
             console.log('Ensuring chat session...');
-            const [chatSession, isNewSession] = await ensureChatSession(user, converseRequest, converseRequest.agentId, effectiveChatAppId, simpleUser, invocationMode);
+            const [chatSession, isNewSession] = await ensureChatSession(
+                user,
+                converseRequest,
+                converseRequest.agentId,
+                effectiveChatAppId,
+                simpleUser,
+                invocationMode,
+                features?.entity?.enabled ?? false,
+                entityValue
+            );
             console.log('Chat session ensured:', {
                 sessionId: chatSession.sessionId,
                 isNewSession,
@@ -249,10 +263,6 @@ export const handler = enhancedStreamifyResponse(
             console.log('Agent and tools fetched:', agentAndTools);
 
             agentAndTools.tools = !!agentAndTools.tools ? agentAndTools.tools : [];
-
-            const entityValue = converseRequest.entityAttributeNameInUserCustomData
-                ? getEntityFromCustomData(user.customData, converseRequest.entityAttributeNameInUserCustomData)
-                : undefined;
 
             const scopes: InvocationScopes = {
                 ...(invocationMode === 'chat-app' ? { chatapp: [converseRequest.chatAppId!] } : {}),
@@ -308,7 +318,7 @@ async function handleClearCacheCommand(request: ConverseRequestWithCommand, resp
             const deleted = agentAndToolCache.delete(request.agentId);
             console.log(`Cache entry for agentId ${request.agentId} deleted:`, deleted);
         } else {
-            throw new Error('agentId is required when clearing agent cache');
+            throw new BadRequestError('agentId is required when clearing agent cache');
         }
     } else if (request.cacheType === 'tagDefinitions') {
         tagDefinitionCache.clear();
@@ -322,7 +332,7 @@ async function handleClearCacheCommand(request: ConverseRequestWithCommand, resp
         instructionAssistanceConfig = undefined;
         console.log('All cache entries cleared');
     } else {
-        throw new Error(`Unknown cache type: ${request.cacheType}`);
+        throw new BadRequestError(`Unknown cache type: ${request.cacheType}`);
     }
 
     // Stream back a simple success response
@@ -343,7 +353,7 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
 
     result = await getAgentAndTools(agentId);
     if (!result) {
-        throw new Error(`Agent definition not found for agentId: ${agentId}`);
+        throw new BadRequestError(`Agent definition not found for agentId: ${agentId}`);
     }
     if (!result.agent.dontCacheThis) {
         agentAndToolCache.set(agentId, result);

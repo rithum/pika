@@ -9,22 +9,21 @@
     import FlexRender from '$ui/shadcn/data-table/flex-render.svelte';
     import * as Table from '$ui/shadcn/table';
     import {
-        type ColumnDef,
-        type ColumnFiltersState,
-        type RowSelectionState,
-        type SortingState,
         getCoreRowModel,
         getFacetedRowModel,
         getFacetedUniqueValues,
         getFilteredRowModel,
         getPaginationRowModel,
         getSortedRowModel,
+        type ColumnDef,
+        type ColumnFiltersState,
+        type RowSelectionState,
+        type SortingState,
     } from '@tanstack/table-core';
     import { getContext, type Snippet } from 'svelte';
     import TablePagination from './pika-table-pagination.svelte';
     import TableToolbar from './pika-table-toolbar.svelte';
-    import type { FacetedFilters, GlobalFilterProps, ServerSideTableState, ServerSideConfig } from './types';
-    import { Separator } from '$ui/shadcn/separator';
+    import type { FacetedFilters, GlobalFilterProps, ServerSideConfig, ServerSideTableState } from './types';
 
     interface Props {
         columns: ColumnDef<TData, TValue>[];

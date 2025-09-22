@@ -49,6 +49,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                         );
                         console.log(`New session created: ${newSession.sessionId}`);
 
+                        // If the session is a test session, skip it
+                        if (newSession.testType === 'mock') {
+                            console.log(`Skipping test session: ${newSession.sessionId}`);
+                            continue;
+                        }
+
                         // Handle insights for new sessions that might already have insights URLs
                         const processedSession = await processInsightsChanges(newSession);
                         newObjects.push(processedSession);
@@ -64,6 +70,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                             ? convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(unmarshall(record.dynamodb.OldImage as any) as SnakeCase<ChatSession<RecordOrUndef>>)
                             : undefined;
 
+                        // If the session is a test session, skip it
+                        if (modifiedSession.testType === 'mock') {
+                            console.log(`Skipping test session: ${modifiedSession.sessionId}`);
+                            continue;
+                        }
+
                         console.log(`Session modified: ${modifiedSession.sessionId}`);
 
                         // Defer processing until we know if it exists in OpenSearch
@@ -77,6 +89,12 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                         const deletedSession = convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(
                             unmarshall(record.dynamodb.OldImage as any) as SnakeCase<ChatSession<RecordOrUndef>>
                         );
+
+                        // If the session is a test session, skip it
+                        if (deletedSession.testType === 'mock') {
+                            console.log(`Skipping test session: ${deletedSession.sessionId}`);
+                            continue;
+                        }
 
                         if (isTTLDeletion(record)) {
                             console.log(`Session ${deletedSession.sessionId} was deleted due to TTL expiration`);

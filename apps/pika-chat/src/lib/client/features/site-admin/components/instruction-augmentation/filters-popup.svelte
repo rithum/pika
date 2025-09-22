@@ -1,17 +1,17 @@
 <script lang="ts">
     import { ChevronLeft, ChevronRight, ListFilter, ListRestart } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
-    import { Separator } from '$ui/shadcn/separator';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { Button } from '$ui/shadcn/button';
     import * as Popover from '$ui/shadcn/popover';
+    import { Separator } from '$ui/shadcn/separator';
     import { getContext } from 'svelte';
-    import ChatAppsFilter from './filters/chatapps-filter.svelte';
-    import { createDefaultSearchQuery } from './utils';
-    import ToolsFilter from './filters/tools-filter.svelte';
-    import AgentsFilter from './filters/agents-filter.svelte';
-    import EntityFilter from './filters/entity-filter.svelte';
     import AgentEntityFilter from './filters/agent-entity-filter.svelte';
+    import AgentsFilter from './filters/agents-filter.svelte';
+    import ChatAppsFilter from './filters/chatapps-filter.svelte';
     import DirectiveIdFilter from './filters/directive-id-filter.svelte';
+    import EntityFilter from './filters/entity-filter.svelte';
+    import ToolsFilter from './filters/tools-filter.svelte';
+    import { createDefaultSearchQuery } from './utils';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
