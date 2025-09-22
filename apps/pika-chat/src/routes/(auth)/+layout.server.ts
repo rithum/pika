@@ -56,7 +56,13 @@ export const load: LayoutServerLoad = async ({ depends, locals }) => {
         if (homePageSiteFeature.linksToChatApps && homePageSiteFeature.linksToChatApps.userChatAppRules && homePageSiteFeature.linksToChatApps.userChatAppRules.length > 0) {
             // They mean to turn on the feature, so we need to get the matching chat apps
             try {
-                const matchingChatApps = await getMatchingChatApps(user, true, homePageSiteFeature.linksToChatApps.userChatAppRules);
+                const matchingChatApps = await getMatchingChatApps(
+                    user,
+                    true,
+                    homePageSiteFeature.linksToChatApps.userChatAppRules,
+                    undefined,
+                    customDataFieldPathToMatchUsersEntity
+                );
                 chatApps = matchingChatApps.map((app) => ({
                     chatAppId: app.chatAppId,
                     title: app.title,

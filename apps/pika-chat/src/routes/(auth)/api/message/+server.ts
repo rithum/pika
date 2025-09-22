@@ -66,7 +66,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
             }
 
-            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId);
+            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, customDataFieldPathToMatchUsersEntity);
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {
