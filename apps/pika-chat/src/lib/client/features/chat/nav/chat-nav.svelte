@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { ExternalLink, PinOff, Share } from '$icons/lucide';
+    import { PinOff, Share } from '$icons/lucide';
     import { Button } from '$ui/shadcn/button';
     import * as Sidebar from '$ui/shadcn/sidebar';
     import { getContext } from 'svelte';
@@ -38,11 +38,8 @@
                 {#if isCurrentSession}
                     <div class="flex gap-2 items-center w-full justify-between">
                         <div
-                            class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1"
+                            class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1 leading-[36px]"
                         >
-                            {#if pinnedItem.pinnedSession.shareId}
-                                <ExternalLink class="w-3 h-3" />
-                            {/if}
                             {pinnedItem.pinnedSession.sessionId
                                 ? chat.chatSessions.find((s) => s.sessionId === pinnedItem.pinnedSession.sessionId)
                                       ?.title || 'Untitled'
@@ -52,7 +49,7 @@
                             variant="ghost"
                             size="sm"
                             class="text-xs px-2 py-1 h-6"
-                            onclick={() => chat.unpinSession(pinnedItem.pinnedSession)}
+                            onclick={() => chat.unpinSession(pinnedItem.chatSession.sessionId)}
                         >
                             <PinOff class="w-3 h-3" />
                         </Button>
@@ -85,10 +82,6 @@
                             <div
                                 class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1"
                             >
-                                {#if pinnedItem.pinnedSession.shareId}
-                                    <ExternalLink class="w-3 h-3" />
-                                {/if}
-                                {pinnedItem.pinnedSession.shareId ? 'Shared: ' : ''}
                                 {pinnedItem.chatSession.title}
                             </div>
                             {#if hoveredSessionId === pinnedItem.pinnedSession.sessionId || hoveredShareId === pinnedItem.pinnedSession.shareId}
@@ -98,7 +91,7 @@
                                     class="text-xs px-2 py-1 h-6"
                                     onclick={(event) => {
                                         event.stopPropagation();
-                                        chat.unpinSession(pinnedItem.pinnedSession);
+                                        chat.unpinSession(pinnedItem.chatSession.sessionId);
                                     }}
                                 >
                                     <PinOff class="w-3 h-3" />
@@ -113,24 +106,35 @@
 {/if}
 
 <!-- Recent Shared Section -->
-{#if chat.recentSharedSessions.length > 0}
+{#if chat.recentSharedSessionVisits.length > 0}
     <Sidebar.Group>
         <Sidebar.GroupLabel>Recent Shared</Sidebar.GroupLabel>
         <div class="flex flex-col w-full pl-2">
-            {#each chat.recentSharedSessions as sharedVisit}
-                <Button
-                    variant="ghost"
-                    class="w-full text-sm font-medium justify-start p-0"
-                    disabled={chat.isStreamingResponseNow}
-                    onclick={async () => await chat.loadSharedSession(sharedVisit.shareId)}
-                >
-                    <div class="flex items-center w-full justify-between">
-                        <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
-                            <ExternalLink class="w-3 h-3" />
+            {#each chat.recentSharedSessionVisits as sharedVisit}
+                {#if sharedVisit.shareId === chat.currentSession?.shareId}
+                    <div class="flex gap-2 items-center w-full justify-between">
+                        <div
+                            class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1 leading-[36px]"
+                        >
                             {sharedVisit.title}
                         </div>
                     </div>
-                </Button>
+                {:else}
+                    <Button
+                        variant="ghost"
+                        class="w-full text-sm font-medium justify-start p-0"
+                        disabled={chat.isStreamingResponseNow}
+                        onclick={async () => await chat.loadSharedSession(sharedVisit.shareId)}
+                    >
+                        <div class="flex items-center w-full justify-between">
+                            <div
+                                class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1"
+                            >
+                                {sharedVisit.title}
+                            </div>
+                        </div>
+                    </Button>
+                {/if}
             {/each}
         </div>
     </Sidebar.Group>
@@ -144,7 +148,7 @@
             {#if session.sessionId === chat.currentSession?.sessionId}
                 <div class="flex gap-2 items-center w-full justify-between">
                     <div
-                        class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1"
+                        class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1 leading-[36px]"
                     >
                         {#if chat.getSessionShareStatus(session.sessionId)}
                             <Share class="w-3 h-3 text-blue-500" />
@@ -163,9 +167,6 @@
                 >
                     <div class="flex items-center w-full justify-between">
                         <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
-                            {#if chat.getSessionShareStatus(session.sessionId)}
-                                <Share class="w-3 h-3 text-blue-500" />
-                            {/if}
                             {session.title}
                         </div>
                     </div>

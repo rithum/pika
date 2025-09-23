@@ -6,8 +6,6 @@
  * or something to validate they are legit and allowed to access this functionality.
  */
 
-//TODO: how do we create a first session with first message?
-
 import type {
     BaseRequestData,
     ChatApp,
@@ -71,7 +69,7 @@ import {
     updateSessionTitleInDdb
 } from './chat-ddb';
 import { getMatchingChatApps } from './get-matching-chat-apps';
-import { createSessionToken, getNextMessageId } from './utils';
+import { createSessionToken, getNextMessageId, validateUserCanAccessSession } from './utils';
 
 /**
  * Get all chat messages for a session.
@@ -506,48 +504,7 @@ export async function validateUserCanAccessShare(
 ): Promise<ValidateShareAccessResponse> {
     // Get shared session using the new approach
     const sessionData = await getChatSessionByShareId(shareId);
-
-    if (!sessionData) {
-        return { success: true, hasAccess: false, error: 'Shared session not found' };
-    }
-
-    if (sessionData.shareRevokedDate) {
-        return { success: true, hasAccess: false, error: 'This shared session has been revoked and is no longer available' };
-    }
-
-    if (sessionData.chatAppId !== chatAppId) {
-        return { success: true, hasAccess: false, error: 'Shared session not valid for this chat app' };
-    }
-
-    // Check access permissions
-    if (userType === 'internal-user') {
-        // Internal users can access any shared session for chat apps they have access to
-        return {
-            success: true,
-            hasAccess: true,
-            sessionData
-        };
-    } else {
-        // External users must belong to the same entity
-        if (sessionData.entityId === 'chat-app-global') {
-            // When entity feature is disabled, all users with chat app access can view
-            return {
-                success: true,
-                hasAccess: true,
-                sessionData
-            };
-        } else {
-            if (userEntityId === sessionData.entityId) {
-                return {
-                    success: true,
-                    hasAccess: true,
-                    sessionData
-                };
-            } else {
-                return { success: true, hasAccess: false, error: 'Access denied - user not in same organization' };
-            }
-        }
-    }
+    return validateUserCanAccessSession(sessionData, chatAppId, userType, userEntityId);
 }
 
 export async function handlePinSession(userId: string, request: PinSessionRequest): Promise<void> {
@@ -560,17 +517,68 @@ export async function handleUnpinSession(userId: string, request: UnpinSessionRe
 
 export async function handleRecordShareVisit(userId: string, shareId: string, userCustomData?: any): Promise<void> {
     // Get share link to extract entity and chat app info
-    const sessionData = await getChatSessionByShareId(shareId);
-    if (!sessionData) {
+    const session = await getChatSessionByShareId(shareId);
+    if (!session) {
         throw new HttpStatusError('Shared session not found', 404);
     }
 
-    await recordSharedSessionVisit(userId, shareId, sessionData.chatAppId, sessionData.title ?? 'Untitled');
+    // If the user is the owner of the session, then we don't need to record the visit
+    if (session.userId === userId) {
+        return;
+    }
+
+    await recordSharedSessionVisit(userId, shareId, session.chatAppId, session.title ?? 'Untitled', session.entityId);
 }
 
-export async function getRecentSharedSessionsForUser(userId: string, chatAppId: string, limit: number = 5): Promise<SharedSessionVisitHistory[]> {
+export async function getRecentSharedSessionsForUser(
+    userId: string,
+    chatAppId: string,
+    limit: number,
+    entityId?: string,
+    nextTokenArg?: string
+): Promise<[SharedSessionVisitHistory[], string | undefined]> {
     // Already filtered by chat app in the database query
-    return await getRecentSharedSessionHistory(userId, chatAppId, limit);
+    const sessionsToReturn: SharedSessionVisitHistory[] = [];
+    let nextToken: string | undefined;
+    do {
+        // console.log('[DEBUG] getRecentSharedSessionsForUser getting sessions', {
+        //     userId,
+        //     chatAppId,
+        //     limit,
+        //     entityId,
+        //     nextTokenArg
+        // });
+        let [sessions, token] = await getRecentSharedSessionHistory(userId, chatAppId, limit, nextTokenArg);
+        nextToken = token;
+
+        // console.log('[DEBUG] getRecentSharedSessionsForUser raw sessions', {
+        //     sessions,
+        // });
+
+        // Filter out sessions that either aren't the special global entity or aren't the entity id specified
+        sessions = sessions.filter((session) => session.entityId === 'chat-app-global' || session.entityId === entityId);
+
+        // console.log('[DEBUG] getRecentSharedSessionsForUser after filtering', {
+        //     sessions,
+        //     entityId
+        // });
+
+        // Figure out how many more sessions we need to get to the limit and push that many more sessions to the list
+        const sessionsToPush = limit - sessionsToReturn.length;
+        // console.log('[DEBUG] getRecentSharedSessionsForUser sessionsToPush', {
+        //     sessionsToPush,
+        //     sessionsToReturn
+        // });
+        if (sessionsToPush > 0) {
+            const sessionsArrToPush = sessions.slice(0, sessionsToPush);
+            // console.log('[DEBUG] getRecentSharedSessionsForUser pushing sessions', {
+            //     sessionsArrToPush,
+            // });
+            sessionsToReturn.push(...sessionsArrToPush);
+        }
+    } while (sessionsToReturn.length < limit && nextToken);
+
+    return [sessionsToReturn, nextToken];
 }
 
 export async function getPinnedSessionsForUser(

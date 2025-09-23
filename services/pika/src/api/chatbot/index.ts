@@ -5,6 +5,7 @@ import {
     ChatMessageForCreate,
     ChatMessageResponse,
     ChatMessagesResponse,
+    ChatSession,
     ChatSessionsResponse,
     ChatTitleUpdateRequest,
     ChatUser,
@@ -12,69 +13,69 @@ import {
     ChatUserResponse,
     ChatUserSearchResponse,
     ConverseRequest,
+    CreateSharedSessionRequest,
+    CreateSharedSessionResponse,
     GetChatSessionFeedbackResponse,
     GetChatUserPrefsResponse,
+    GetPinnedSessionsRequest,
+    GetPinnedSessionsResponse,
+    GetRecentSharedRequest,
+    GetRecentSharedResponse,
+    PinSessionRequest,
+    PinSessionResponse,
+    RecordOrUndef,
+    RecordShareVisitRequest,
+    RecordShareVisitResponse,
+    RevokeSharedSessionRequest,
+    RevokeSharedSessionResponse,
     SearchAllMyMemoryRecordsRequest,
     SearchAllMyMemoryRecordsResponse,
     SetChatUserPrefsRequest,
     SetChatUserPrefsResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
-    UserMemoryStrategies,
-    CreateSharedSessionRequest,
-    CreateSharedSessionResponse,
-    GetRecentSharedRequest,
-    GetRecentSharedResponse,
-    GetPinnedSessionsRequest,
-    GetPinnedSessionsResponse,
-    PinSessionRequest,
     UnpinSessionRequest,
-    ValidateShareAccessRequest,
-    ValidateShareAccessResponse,
-    RecordOrUndef,
-    RecordShareVisitRequest,
-    RecordShareVisitResponse,
-    PinSessionResponse,
     UnpinSessionResponse,
-    RevokeSharedSessionRequest,
-    RevokeSharedSessionResponse,
     UnrevokeSharedSessionRequest,
-    UnrevokeSharedSessionResponse
+    UnrevokeSharedSessionResponse,
+    UserMemoryStrategies,
+    ValidateShareAccessRequest,
+    ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { apiGatewayFunctionDecorator, APIGatewayProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { ForbiddenError } from 'pika-shared/util/forbidden-error';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import {
     addChatMessage,
     addChatSessionFeedback,
+    createSharedSessionForSession,
     getChatMessages,
     getChatSession,
     getChatSessionFeedback,
+    getPinnedSessionsForUser,
+    getRecentSharedSessionsForUser,
     getUserPrefs,
     getUserSessions,
     getUserSessionsByChatAppId,
+    handlePinSession,
+    handleRecordShareVisit,
+    handleUnpinSession,
+    revokeSharedSessionApi,
     searchForUsers,
     searchTagDefsApi,
     setUserPrefs,
+    unrevokeSharedSessionApi,
     updateSessionTitle,
-    createSharedSessionForSession,
-    validateUserCanAccessShare,
-    handlePinSession,
-    handleUnpinSession,
-    handleRecordShareVisit,
-    getRecentSharedSessionsForUser,
-    getPinnedSessionsForUser,
-    revokeSharedSessionApi,
-    unrevokeSharedSessionApi
+    validateUserCanAccessShare
 } from '../../lib/chat-apis';
 import { addUser, getChatSessionByShareId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
 import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
-import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
-import { BadRequestError } from 'pika-shared/util/bad-request-error';
-import { ForbiddenError } from 'pika-shared/util/forbidden-error';
-import { getMemoryId } from '../../lib/utils';
+import { getMemoryId, validateUserCanAccessSession } from '../../lib/utils';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted
@@ -163,6 +164,10 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
         passUserObj: false
     },
     'GET:/api/chat/{sessionId}/messages': {
+        handler: handleGetChatMessages,
+        passUserObj: true
+    },
+    'GET:/api/chat/{sessionId}/messages/share/{shareId}/entity/{entityId}': {
         handler: handleGetChatMessages,
         passUserObj: true
     },
@@ -412,20 +417,50 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
 }
 
 /**
- *  GET:/api/chat/{sessionId}/messages
+ * If you don't pass in an entityId when the user has one then there's a chance that the user will not get back
+ * messages for a shared session and will instead get back a 401 error.
+ *
+ * GET:/api/chat/{sessionId}/messages/
+ * GET:/api/chat/{sessionId}/messages/share/{shareId}/entity/{entityId}
  */
 async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatMessagesResponse> {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
         throw new BadRequestError('Session ID is required');
     }
-    // Get the session and make sure it's associated with the user
-    const chatSession = await getChatSession(user.userId, sessionId);
+
+    let userId = user.userId;
+    const shareId = event.pathParameters?.shareId;
+    const entityId = event.pathParameters?.entityId;
+
+    if (entityId && !shareId) {
+        throw new BadRequestError('Share ID is required when entity ID is provided');
+    }
+
+    let chatSession: ChatSession<RecordOrUndef> | undefined;
+    if (shareId) {
+        const s = await getChatSessionByShareId(shareId);
+        if (s) {
+            if (s.sessionId !== sessionId) {
+                throw new UnauthorizedError('Unauthorized: chat session not found');
+            }
+            const validateShareAccessResponse = validateUserCanAccessSession(s, s.chatAppId, user.userType || 'external-user', entityId);
+            if (!validateShareAccessResponse.success || !validateShareAccessResponse.hasAccess) {
+                throw new UnauthorizedError('Unauthorized: not authorized to access this shared session');
+            }
+            chatSession = s;
+            userId = s.userId;
+        }
+    } else {
+        // Get the session and make sure it's associated with the user
+        chatSession = await getChatSession(user.userId, sessionId);
+    }
+
     if (!chatSession) {
         throw new UnauthorizedError('Unauthorized: chat session not found');
     }
 
-    const messages = await getChatMessages(user.userId, sessionId);
+    const messages = await getChatMessages(userId, sessionId);
 
     // TODO: Only return internal trace details if the user is an internal user.
     // if (user.userType != 'internal-user') {
@@ -674,10 +709,12 @@ async function handleGetRecentSharedSessions(event: APIGatewayProxyEventPika<Get
         throw new BadRequestError('chatAppId is required');
     }
 
-    const sessions = await getRecentSharedSessionsForUser(userId, request.chatAppId, request.limit || 5);
+    const [sessions, nextToken] = await getRecentSharedSessionsForUser(userId, request.chatAppId, request.limit || 5, request.entityId, request.nextToken);
+
     return {
         success: true,
-        recentShared: sessions
+        recentShared: sessions,
+        nextToken
     };
 }
 

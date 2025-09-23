@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Loader, PanelLeft, PanelRightClose, Pin, PinOff, Settings2, SquarePen } from '$icons/lucide';
+    import { Loader, PanelLeft, PanelRightClose, Pin, PinOff, Settings2, Share, SquarePen } from '$icons/lucide';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
     import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
@@ -149,34 +149,20 @@
 </div>
 
 {#snippet shareAndPin()}
-    {#if chat.pinningSession || chat.unpinningSession || chat.sharingSession || chat.unsharingSession}
+    {#if chat.pinningSession || chat.unpinningSession || chat.unsharingSession}
         <Loader class="h-4 w-4 animate-spin" />
     {/if}
-    <TooltipPlus
-        tooltip={chat.pinCurrentSessionState === 'disable-pin-feature'
-            ? ''
-            : chat.pinCurrentSessionState === 'pinned'
-              ? 'Remove from Pinned'
-              : 'Add to Pinned'}
-    >
+    <TooltipPlus tooltip="Chat sharing...">
         <Button
             variant="ghost"
             size="icon"
             class="pl-0 pr-0 w-8"
-            disabled={chat.pinCurrentSessionState === 'disable-pin-feature'}
+            disabled={chat.shareCurrentSessionState === 'disable-share-feature'}
             onclick={() => {
-                if (chat.pinCurrentSessionState === 'pinned') {
-                    chat.unpinSession(chat.currentSession.sessionId);
-                } else {
-                    chat.pinSession(chat.currentSession.sessionId);
-                }
+                chat.showCurrentSessionDialog = true;
             }}
         >
-            {#if chat.pinCurrentSessionState === 'pinned'}
-                <PinOff style="width: 1.3rem; height: 1.2rem;" />
-            {:else}
-                <Pin style="width: 1.3rem; height: 1.2rem;" />
-            {/if}
+            <Share style="width: 1.3rem; height: 1.2rem;" />
         </Button>
     </TooltipPlus>
     <TooltipPlus
@@ -190,7 +176,7 @@
             variant="ghost"
             size="icon"
             class="pl-0 pr-0 w-8"
-            disabled={chat.pinCurrentSessionState === 'disable-pin-feature'}
+            disabled={chat.shareCurrentSessionState === 'disable-share-feature'}
             onclick={() => {
                 if (chat.pinCurrentSessionState === 'pinned') {
                     chat.unpinSession(chat.currentSession.sessionId);
@@ -283,14 +269,14 @@
                         }}>{panelWidthState === 'normal' ? 'Full Width' : 'Normal Width'}</DropdownMenu.Item
                     >
                 {/if}
-                {#if chat.features.logout.enabled}
+                {#if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin || showHistoryAndPanelWidth}
                     <DropdownMenu.Separator />
-                    <DropdownMenu.Item
-                        onclick={() => {
-                            appState.showLogoutDialog = true;
-                        }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
-                    >
                 {/if}
+                <DropdownMenu.Item
+                    onclick={() => {
+                        appState.showLogoutDialog = true;
+                    }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
+                >
             </DropdownMenu.Group>
         </DropdownMenu.Content>
     </DropdownMenu.Root>

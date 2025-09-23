@@ -17,6 +17,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
     const { chatAppId } = params;
     const modeParam = url.searchParams.get('mode') || undefined;
     const errorParam = url.searchParams.get('error') || undefined;
+    const shareParam = url.searchParams.get('share') || undefined;
     let chatApp: ChatApp | undefined;
 
     if (modeParam && modeParam !== 'standalone' && modeParam !== 'embedded') {
@@ -113,6 +114,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         customDataUiRepresentation,
         tagDefinitions,
         mode: (modeParam ?? 'standalone') as ChatAppMode,
-        error: errorParam
+        error: errorParam,
+        shareId: shareParam
     };
 };

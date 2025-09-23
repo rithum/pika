@@ -14,7 +14,6 @@ import type {
     GetPinnedSessionsResponse,
     GetRecentSharedResponse,
     PinnedObjAndChatSession,
-    PinnedSession,
     PinSessionRequest,
     RecordOrUndef,
     RetrievedMemoryRecordSummary,
@@ -110,6 +109,7 @@ export class ChatAppState {
     });
     #currentSession = $state<ChatSession<RecordOrUndef>>() as ChatSession<RecordOrUndef>; // Initialized in constructor
     #curSessionMessages = $state<ChatMessageForRendering[]>([]);
+    #refreshingChatSessions = $state<boolean>(false);
     #inputFiles = $state<UploadInstance[]>([]);
     #newSession = $derived(!!this.#currentSession); // We don't have a session created yet that we are working within
     #isInterimSession = $derived(this.#currentSession?.sessionId?.startsWith('interim-'));
@@ -148,16 +148,20 @@ export class ChatAppState {
     });
 
     // Sharing-related state
-    #recentSharedSessions = $state<SharedSessionVisitHistory[]>([]);
+    #recentSharedSessionVisits = $state<SharedSessionVisitHistory[]>([]);
+    #recentSharedSessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #pinnedSessions = $state<PinnedObjAndChatSession[]>([]);
-    #sharedSessionsById = $state<Record<string, ChatSession<RecordOrUndef>>>({});
-    #currentSessionIsShared = $state<boolean>(false);
+    showCurrentSessionDialog = $state<boolean>(false);
+    #currentSessionIsSharedBySomeoneElse = $derived.by(() => {
+        return this.#currentSession?.shareId !== undefined && this.#currentSession.userId !== this.#user.userId;
+    });
     #currentShareId = $state<string | undefined>(undefined);
     #pinningSession = $state<boolean>(false);
     #unpinningSession = $state<boolean>(false);
     #sharingSession = $state<boolean>(false);
     #unsharingSession = $state<boolean>(false);
     #loadingPinnedSessions = $state<boolean>(false);
+    #ensureThisSessionIsInList = $state<ChatSession<RecordOrUndef> | undefined>(undefined);
     #pinCurrentSessionState: 'disable-pin-feature' | 'pinned' | 'not-pinned' = $derived.by(() => {
         const currentSession = this.#currentSession;
         const isInterimSession = this.#isInterimSession;
@@ -169,14 +173,43 @@ export class ChatAppState {
         if (!currentSession || isInterimSession || loadingPinnedSessions || pinningSession || unpinningSession) {
             return 'disable-pin-feature';
         }
-        return pinnedSessions.find((pin) => pin.pinnedSession.sessionId === currentSession.sessionId) ? 'pinned' : 'not-pinned';
+
+        const val = pinnedSessions.find((pin) => pin.chatSession.sessionId === currentSession.sessionId) ? 'pinned' : 'not-pinned';
+
+        return val;
+    });
+    #shareCurrentSessionState: 'disable-share-feature' | 'shared-by-me' | 'shared-by-someone-else' | 'not-shared' = $derived.by(() => {
+        const currentSession = this.#currentSession;
+        const isInterimSession = this.#isInterimSession;
+        const sharingSession = this.#sharingSession;
+        const unsharingSession = this.#unsharingSession;
+
+        if (!currentSession || isInterimSession || sharingSession || unsharingSession) {
+            return 'disable-share-feature';
+        }
+
+        if (currentSession.userId === this.#user.userId) {
+            // THis is a session that I created.
+            if (currentSession.shareId) {
+                return 'shared-by-me';
+            } else {
+                return 'not-shared';
+            }
+        } else {
+            // This session was shared by someone else.
+            if (currentSession.shareId) {
+                return 'shared-by-someone-else';
+            } else {
+                return 'not-shared';
+            }
+        }
     });
 
     // Derived sharing properties
     #pinnedOwnSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.sessionId));
     #pinnedSharedSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.shareId));
 
-    #currentSessionIsReadOnly = $derived(this.#currentSessionIsShared);
+    #currentSessionIsReadOnly = $derived(this.#currentSessionIsSharedBySomeoneElse);
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
@@ -276,6 +309,10 @@ export class ChatAppState {
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
 
+    get shareCurrentSessionState() {
+        return this.#shareCurrentSessionState;
+    }
+
     get pinningSession() {
         return this.#pinningSession;
     }
@@ -368,8 +405,8 @@ export class ChatAppState {
     }
 
     // Sharing getters
-    get recentSharedSessions() {
-        return this.#recentSharedSessions;
+    get recentSharedSessionVisits() {
+        return this.#recentSharedSessionVisits;
     }
 
     get pinnedSessions() {
@@ -384,8 +421,8 @@ export class ChatAppState {
         return this.#pinnedSharedSessions;
     }
 
-    get currentSessionIsShared() {
-        return this.#currentSessionIsShared;
+    get currentSessionIsSharedBySomeoneElse() {
+        return this.#currentSessionIsSharedBySomeoneElse;
     }
 
     get currentShareId() {
@@ -733,14 +770,27 @@ export class ChatAppState {
 
     async refreshChatSessions() {
         try {
+            this.#refreshingChatSessions = true;
             const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);
 
             const sessionsResult = await checkClientResponseAndBody<ChatSessionsResponse>(resp, 'refreshing chat sessions', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
 
             this.#chatSessions = sessionsResult.sessions;
+
+            const ensureThisSessionIsInList = this.#ensureThisSessionIsInList;
+
+            if (ensureThisSessionIsInList) {
+                if (!this.#chatSessions.find((s) => s.sessionId === ensureThisSessionIsInList.sessionId)) {
+                    this.#chatSessions.push(ensureThisSessionIsInList);
+                }
+                this.setCurrentSessionById(ensureThisSessionIsInList.sessionId);
+                this.#ensureThisSessionIsInList = undefined;
+            }
         } catch (error) {
             handleClientError(error, 'refreshing chat sessions', this.#showToast, 'refreshing chat sessions failed:');
             throw error;
+        } finally {
+            this.#refreshingChatSessions = false;
         }
     }
 
@@ -768,7 +818,9 @@ export class ChatAppState {
 
         try {
             this.#retrievingMessages = true;
-            const resp = await this.fetchz(`/api/message/${this.#chatApp.chatAppId}/${this.#currentSession.sessionId}`);
+            const resp = await this.fetchz(
+                `/api/message/${this.#chatApp.chatAppId}/${this.#currentSession.sessionId}${this.#currentSessionIsSharedBySomeoneElse ? `?shareId=${this.#currentSession.shareId}` : ''}`
+            );
 
             const msgResult = await checkClientResponseAndBody<ChatMessagesResponse>(resp, 'refreshing messages', this.#showToast, CLIENT_RESOURCE_NAMES.MESSAGE);
 
@@ -1329,7 +1381,8 @@ export class ChatAppState {
                 CLIENT_RESOURCE_NAMES.SHARED_SESSION
             );
 
-            this.#recentSharedSessions = result.recentShared;
+            this.#recentSharedSessionVisits = result.recentShared;
+            this.#recentSharedSessions = [];
         } catch (error) {
             handleClientError(error, 'refreshing recent shared sessions', this.#showToast, 'refreshing recent shared sessions failed:');
         }
@@ -1373,7 +1426,7 @@ export class ChatAppState {
         }
     }
 
-    async createSharedSession(sessionId: string): Promise<string> {
+    async createSharedSession(sessionId: string): Promise<void> {
         const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
         if (!session) {
             throw new Error('Session not found');
@@ -1408,9 +1461,10 @@ export class ChatAppState {
             const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
             if (session) {
                 session.shareId = result.shareId;
+                session.shareCreatedByUserId = this.#user.userId;
                 session.shareDate = new Date().toISOString();
             }
-            return `/chat/${result.chatAppId}/share/${result.shareId}`;
+            // return `/chat/${result.chatAppId}/share/${result.shareId}`;
         } catch (error) {
             handleClientError(error, 'creating shared session', this.#showToast, 'creating shared session failed:');
             throw error;
@@ -1463,17 +1517,13 @@ export class ChatAppState {
      * @param shareId Either this or sessionId must be provided but not both.  If present, I want to pin a shared session.
      */
     async pinSession(sessionId: string) {
-        let shareId: string | undefined = undefined;
-        let sessionIdToUse = sessionId;
-        let recentSharedSession: SharedSessionVisitHistory | undefined = undefined;
+        let shareId: string | undefined;
+        let sessionIdToUse: string | undefined;
+        let recentSharedSession: ChatSession<RecordOrUndef> | undefined;
         let sessionToPin = this.#chatSessions.find((s) => s.sessionId === sessionId);
         if (!sessionToPin) {
-            sessionToPin = this.#sharedSessionsById[sessionId];
-            if (!sessionToPin) {
-                recentSharedSession = this.#recentSharedSessions.find((s) => s.shareId === sessionId);
-            }
+            recentSharedSession = this.#recentSharedSessions.find((s) => s.sessionId === sessionId);
         }
-
         if (recentSharedSession) {
             shareId = recentSharedSession.shareId;
         } else if (sessionToPin) {
@@ -1513,14 +1563,12 @@ export class ChatAppState {
         }
     }
 
-    async unpinSession(pinnedSession: PinnedSession | string) {
-        if (typeof pinnedSession === 'string') {
-            const obj = this.#pinnedSessions.find((s) => s.pinnedSession.sessionId === pinnedSession);
-            if (!obj) {
-                throw new Error('Session not found');
-            }
-            pinnedSession = obj.pinnedSession;
+    async unpinSession(sessionId: string) {
+        const pinnedObj = this.#pinnedSessions.find((s) => s.chatSession.sessionId === sessionId);
+        if (!pinnedObj) {
+            throw new Error('Session not found');
         }
+        const pinnedSession = pinnedObj.pinnedSession;
 
         try {
             this.#unpinningSession = true;
@@ -1544,11 +1592,10 @@ export class ChatAppState {
         }
     }
 
-    async loadSharedSession(shareId: string): Promise<void> {
+    async loadSharedSession(shareId: string, showToast: boolean = false): Promise<void> {
         try {
             // Set current session to shared mode
             this.#currentShareId = shareId;
-            this.#currentSessionIsShared = true;
 
             const resp = await this.fetchz('/api/session/share/access', {
                 method: 'POST',
@@ -1565,19 +1612,47 @@ export class ChatAppState {
 
             if (!result.success) {
                 this.#showToast(result.error || 'Failed to load shared session', { type: 'error' });
-                throw new Error(result.error || 'Failed to load shared session');
-            }
-
-            if (!result.hasAccess || !result.sessionData) {
+                return;
+            } else if (!result.hasAccess || !result.sessionData) {
                 this.#showToast('Access denied to shared session', { type: 'error' });
-                throw new Error('Access denied');
+                return;
             }
 
-            this.#sharedSessionsById[shareId] = result.sessionData;
-            // Set this as current session
-            this.#setSession(result.sessionData);
-            // Record the visit
-            await this.recordShareVisit(shareId);
+            const session: ChatSession<RecordOrUndef> = result.sessionData;
+
+            if (!session) {
+                return;
+            }
+
+            // If this session is actually owned by me, then I don't want to show it in the shared sessions list
+            // Instead, I need to make sure it's in my current session list
+
+            if (session.userId !== this.#user.userId) {
+                // Set this as current session
+                this.#setSession(session);
+                // Record the visit
+                await this.recordShareVisit(shareId);
+
+                if (!this.#recentSharedSessions.find((s) => s.sessionId === session.sessionId)) {
+                    this.#recentSharedSessions.push(session);
+                }
+
+                if (showToast) {
+                    this.#showToast('Shared session loaded', { type: 'success' });
+                }
+            } else {
+                if (this.#refreshingChatSessions) {
+                    this.#ensureThisSessionIsInList = session;
+                } else {
+                    if (!this.#chatSessions.find((s) => s.sessionId === session.sessionId)) {
+                        this.#chatSessions.push(session);
+                    }
+                    this.setCurrentSessionById(session.sessionId);
+                    if (showToast) {
+                        this.#showToast('Session loaded', { type: 'success' });
+                    }
+                }
+            }
         } catch (error) {
             handleClientError(error, 'loading shared session', this.#showToast, 'loading shared session failed:');
             throw error;
@@ -1608,5 +1683,30 @@ export class ChatAppState {
     isSessionSharedButRevoked(sessionId: string): boolean {
         const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
         return !!(session?.shareId && session?.shareRevokedDate);
+    }
+
+    /**
+     *
+     * @param browserOriginAndPathName  Use window.location.origin + window.location.pathname
+     * @param shareId  The share id to get the URL for
+     * @returns
+     */
+    getShareUrl(browserOriginAndPathName: string, shareId: string): string {
+        // Parse the URL so we can safely examine its path
+        const url = new URL(browserOriginAndPathName);
+
+        // Split the pathname into parts, ignoring empty ones (leading slash)
+        const parts = url.pathname.split('/').filter(Boolean);
+
+        // Validate: must be exactly [ "chat", "<something>" ]
+        if (parts.length !== 2 || parts[0] !== 'chat') {
+            throw new Error(`Invalid path: expected "/chat/{id}" but got "${url.pathname}"`);
+        }
+
+        return `${url.origin}${url.pathname}/share/${shareId}`;
+    }
+
+    getShareUrlMock(browserOriginAndPathName: string): string {
+        return `${browserOriginAndPathName}/share/xyz`;
     }
 }

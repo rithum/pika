@@ -173,10 +173,11 @@ export async function getChatSessions(userId: string, chatAppId: string): Promis
     return response.body.sessions;
 }
 
-export async function getChatMessages(sessionId: string, userId: string): Promise<ChatMessagesResponse> {
+export async function getChatMessages(sessionId: string, userId: string, shareId?: string, entityId?: string): Promise<ChatMessagesResponse> {
+    const pathPart = shareId ? `/share/${shareId}${entityId ? `/entity/${entityId}` : ''}` : '';
     const response = await invokeApi<ChatMessagesResponse>({
         apiId: appConfig.chatApiId,
-        path: `${appConfig.stage}/api/chat/${sessionId}/messages`,
+        path: `${appConfig.stage}/api/chat/${sessionId}/messages${pathPart}`,
         method: 'GET',
         headers: {
             'Accept-Encoding': 'gzip',
@@ -354,8 +355,8 @@ export async function unrevokeSharedSession(user: ChatUser<RecordOrUndef>, reque
 
     return response.body;
 }
-export async function getRecentSharedSessions(userId: string, chatAppId: string, limit: number = 5): Promise<GetRecentSharedResponse> {
-    const body: GetRecentSharedRequest = { chatAppId, limit };
+export async function getRecentSharedSessions(userId: string, chatAppId: string, entityId?: string, limit?: number): Promise<GetRecentSharedResponse> {
+    const body: GetRecentSharedRequest = { chatAppId, limit, entityId };
     const response = await invokeApi<GetRecentSharedResponse>({
         apiId: appConfig.chatApiId,
         path: `${appConfig.stage}/api/chat/session/share/recent`,

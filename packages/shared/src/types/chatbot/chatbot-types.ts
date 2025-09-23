@@ -4526,12 +4526,15 @@ export interface UnrevokeSharedSessionResponse {
 export interface GetRecentSharedRequest {
     chatAppId: string;
     limit?: number; // default 5
+    entityId?: string; // entity id to filter by
+    nextToken?: string; // pagination token
 }
 
 export interface GetRecentSharedResponse {
     success: boolean;
     recentShared: SharedSessionVisitHistory[];
     error?: string;
+    nextToken?: string; // pagination token
 }
 
 export interface GetPinnedSessionsRequest {
