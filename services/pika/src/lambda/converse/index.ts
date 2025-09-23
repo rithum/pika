@@ -41,7 +41,7 @@ import { getMemoryInstructions } from '../../lib/memory';
 import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
 import { getEffectiveChatAppId, getMemoryId } from '../../lib/utils';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
-import { enhancedStreamifyResponse } from './custom-stream';
+import { enhancedStreamifyResponse } from './enhanced-stream';
 
 const SESSION_TIMEOUT_MS = 1000 * 60 * 10; // 10 minutes
 const TIMEOUT_AFTER_MS = SESSION_TIMEOUT_MS * 0.9; // Timeout 90% of the way through the session

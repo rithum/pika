@@ -1,9 +1,9 @@
 import type { Callback, Context, LambdaFunctionURLEvent, LambdaFunctionURLResult } from 'aws-lambda';
 import { streamifyResponse as originalStreamifyResponse, ResponseStream } from 'lambda-stream';
-import type { EnhancedResponseStream } from './EnhancedResponseStream';
+import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { sanitizeAndStringifyError } from '../../lib/utils';
-import { HttpStatusError } from 'pika-shared/util/http-status-error';
+import type { EnhancedResponseStream } from './EnhancedResponseStream';
 
 /**
  * Custom wrapper for streamifyResponse that uses EnhancedResponseStream instead of the default ResponseStream

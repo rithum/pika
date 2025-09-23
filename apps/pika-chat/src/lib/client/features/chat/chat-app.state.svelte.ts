@@ -184,7 +184,7 @@ export class ChatAppState {
         const sharingSession = this.#sharingSession;
         const unsharingSession = this.#unsharingSession;
 
-        if (!currentSession || isInterimSession || sharingSession || unsharingSession) {
+        if (!currentSession || isInterimSession || sharingSession || unsharingSession || this.#streamingResponseNow) {
             return 'disable-share-feature';
         }
 
@@ -961,10 +961,11 @@ export class ChatAppState {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+            let newSessionId: string | undefined;
 
             // Extract session ID from headers if this was a new session
             if (wasInterimSession) {
-                const newSessionId = response.headers.get('x-chatbot-session-id');
+                newSessionId = response.headers.get('x-chatbot-session-id') ?? undefined;
                 // If we don't get a new session ID, then we need to throw an error
                 if (!newSessionId) {
                     interimMessage.isStreaming = false;
@@ -991,13 +992,20 @@ export class ChatAppState {
                 // });
 
                 // Update the current session with the real session ID
-                this.#currentSession.sessionId = newSessionId;
+                // Create a new session object instead of mutating the existing one
+                const oldSession = this.#currentSession;
+
+                // Create entirely new session object with updated sessionId
+                this.#currentSession = {
+                    ...oldSession,
+                    sessionId: newSessionId
+                };
 
                 // Update the messages with the new session ID
                 const oldMessages = this.#curSessionMessages;
                 this.#curSessionMessages = this.#curSessionMessages.map((msg) => ({
                     ...msg,
-                    sessionId: newSessionId
+                    sessionId: newSessionId!
                 }));
 
                 // console.log('[CHAT-APP-STATE] After session ID update:', {
@@ -1038,34 +1046,22 @@ export class ChatAppState {
             if (this.#interimMessageId) {
                 const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
                 if (interimMsg) {
-                    // console.log('[CHAT-APP-STATE] Calling doneStreaming:', {
-                    //     interimMessageId: this.#interimMessageId,
-                    //     segmentsBeforeDone: interimMsg.segments.length,
-                    //     segmentStatusesBeforeDone: interimMsg.segments.map((seg, idx) => ({
-                    //         index: idx,
-                    //         segmentType: seg.segmentType,
-                    //         streamingStatus: seg.streamingStatus,
-                    //         rawContentLength: seg.rawContent?.length || 0
-                    //     }))
-                    // });
-
                     this.#messageProcessor.doneStreaming(interimMsg.segments);
                     interimMsg.isStreaming = false;
-
-                    // console.log('[CHAT-APP-STATE] After doneStreaming:', {
-                    //     segmentsAfterDone: interimMsg.segments.length,
-                    //     segmentStatusesAfterDone: interimMsg.segments.map((seg, idx) => ({
-                    //         index: idx,
-                    //         segmentType: seg.segmentType,
-                    //         streamingStatus: seg.streamingStatus,
-                    //         rawContentLength: seg.rawContent?.length || 0
-                    //     }))
-                    // });
                 }
             }
 
             // Refresh sessions and its messages
-            this.refreshChatSessions();
+            await this.refreshChatSessions();
+
+            // After refreshing sessions, make sure currentSession points to the fresh object from the server
+            if (wasInterimSession) {
+                const freshSession = this.#chatSessions.find((s) => s.sessionId === newSessionId);
+                if (freshSession) {
+                    this.#currentSession = freshSession;
+                }
+            }
+
             this.refreshMessagesForCurrentSession();
 
             // Files already cleared above for interim sessions, but clear for non-interim sessions too
@@ -1074,7 +1070,6 @@ export class ChatAppState {
                 this.#persistInputState();
             }
         } catch (error) {
-            //TODO: need to trigger a toast
             console.error('Error sending message:', error);
             //TODO: what should we do here?
             // // Remove the interim message on error
@@ -1084,6 +1079,7 @@ export class ChatAppState {
             //     );
             // }
             // You might want to show an error message to the user here
+            this.#showToast('Error sending message.  Please try again later.', { type: 'error' });
         } finally {
             //TODO: if we get an error what do we do with the interim messages and session?  I think we keep them there.
             this.#streamingResponseNow = false;
@@ -1434,22 +1430,22 @@ export class ChatAppState {
     }
 
     async createSharedSession(sessionId: string): Promise<void> {
-        const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
-        if (!session) {
-            throw new Error('Session not found');
-        }
-
-        if (session.shareId) {
-            throw new Error('Session is already shared');
-        }
-
-        const request: CreateSharedSessionRequest = {
-            sessionId,
-            sessionUserId: this.#user.userId,
-            chatAppId: this.#chatApp.chatAppId
-        };
-
         try {
+            const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
+            if (!session) {
+                throw new Error('Session not found');
+            }
+
+            if (session.shareId) {
+                throw new Error('Session is already shared');
+            }
+
+            const request: CreateSharedSessionRequest = {
+                sessionId,
+                sessionUserId: this.#user.userId,
+                chatAppId: this.#chatApp.chatAppId
+            };
+
             this.#sharingSession = true;
             const resp = await this.fetchz('/api/session/share', {
                 method: 'POST',
@@ -1465,11 +1461,34 @@ export class ChatAppState {
                 'Failed to create share link. Please try again.'
             );
 
-            const session = this.#chatSessions.find((s) => s.sessionId === sessionId);
             if (session) {
+                const now = new Date().toISOString();
                 session.shareId = result.shareId;
                 session.shareCreatedByUserId = this.#user.userId;
-                session.shareDate = new Date().toISOString();
+                session.shareDate = now;
+
+                // If this is the current session, update it too to maintain reactivity
+                if (this.#currentSession.sessionId === sessionId) {
+                    this.#currentSession.shareId = result.shareId;
+                    this.#currentSession.shareCreatedByUserId = this.#user.userId;
+                    this.#currentSession.shareDate = now;
+                }
+
+                // Update any stale references in recentSharedSessions array
+                const recentSharedSession = this.#recentSharedSessions.find((s) => s.sessionId === sessionId);
+                if (recentSharedSession) {
+                    recentSharedSession.shareId = result.shareId;
+                    recentSharedSession.shareCreatedByUserId = this.#user.userId;
+                    recentSharedSession.shareDate = now;
+                }
+
+                // Update any stale references in pinnedSessions array
+                const pinnedSession = this.#pinnedSessions.find((p) => p.chatSession.sessionId === sessionId);
+                if (pinnedSession) {
+                    pinnedSession.chatSession.shareId = result.shareId;
+                    pinnedSession.chatSession.shareCreatedByUserId = this.#user.userId;
+                    pinnedSession.chatSession.shareDate = now;
+                }
             }
             // return `/chat/${result.chatAppId}/share/${result.shareId}`;
         } catch (error) {
@@ -1492,7 +1511,23 @@ export class ChatAppState {
 
             const session = this.#chatSessions.find((s) => s.shareId === shareId);
             if (session) {
-                session.shareRevokedDate = new Date().toISOString();
+                const now = new Date().toISOString();
+                session.shareRevokedDate = now;
+
+                // Update any stale references in other arrays
+                if (this.#currentSession.shareId === shareId) {
+                    this.#currentSession.shareRevokedDate = now;
+                }
+
+                const recentSharedSession = this.#recentSharedSessions.find((s) => s.shareId === shareId);
+                if (recentSharedSession) {
+                    recentSharedSession.shareRevokedDate = now;
+                }
+
+                const pinnedSession = this.#pinnedSessions.find((p) => p.chatSession.shareId === shareId);
+                if (pinnedSession) {
+                    pinnedSession.chatSession.shareRevokedDate = now;
+                }
             }
         } catch (error) {
             handleClientError(error, 'revoking shared session', this.#showToast, 'revoking shared session failed:');
@@ -1512,6 +1547,21 @@ export class ChatAppState {
             const session = this.#chatSessions.find((s) => s.shareId === shareId);
             if (session) {
                 delete session.shareRevokedDate;
+
+                // Update any stale references in other arrays
+                if (this.#currentSession.shareId === shareId) {
+                    delete this.#currentSession.shareRevokedDate;
+                }
+
+                const recentSharedSession = this.#recentSharedSessions.find((s) => s.shareId === shareId);
+                if (recentSharedSession) {
+                    delete recentSharedSession.shareRevokedDate;
+                }
+
+                const pinnedSession = this.#pinnedSessions.find((p) => p.chatSession.shareId === shareId);
+                if (pinnedSession) {
+                    delete pinnedSession.chatSession.shareRevokedDate;
+                }
             }
         } catch (error) {
             handleClientError(error, 'unrevoking shared session', this.#showToast, 'unrevoking shared session failed:');
