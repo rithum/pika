@@ -427,7 +427,7 @@ export async function unrevokeSharedSession(shareId: string): Promise<void> {
 }
 
 // SharedSessionVisitHistory operations
-export async function recordSharedSessionVisit(userId: string, shareId: string, chatAppId: string, title: string): Promise<void> {
+export async function recordSharedSessionVisit(userId: string, shareId: string, chatAppId: string, title: string, entityId: string): Promise<void> {
     const now = new Date().toISOString();
     const partitionKey = `${userId}#${chatAppId}`;
 
@@ -439,19 +439,25 @@ export async function recordSharedSessionVisit(userId: string, shareId: string, 
             share_id: shareId
         },
         UpdateExpression:
-            'SET last_visited_at = :lastVisited, chat_app_id = :chatAppId, visit_count = if_not_exists(visit_count, :zero) + :inc, first_visited_at = if_not_exists(first_visited_at, :firstVisited), title = :title',
+            'SET last_visited_at = :lastVisited, chat_app_id = :chatAppId, visit_count = if_not_exists(visit_count, :zero) + :inc, first_visited_at = if_not_exists(first_visited_at, :firstVisited), title = :title, entity_id = :entityId',
         ExpressionAttributeValues: {
             ':lastVisited': now,
             ':chatAppId': chatAppId,
             ':zero': 0,
             ':inc': 1,
             ':firstVisited': now,
-            ':title': title
+            ':title': title,
+            ':entityId': entityId
         }
     });
 }
 
-export async function getRecentSharedSessionHistory(userId: string, chatAppId: string, limit: number = 5): Promise<SharedSessionVisitHistory[]> {
+export async function getRecentSharedSessionHistory(
+    userId: string,
+    chatAppId: string,
+    limit: number = 5,
+    nextToken?: string
+): Promise<[SharedSessionVisitHistory[], string | undefined]> {
     const partitionKey = `${userId}#${chatAppId}`;
 
     const result = await ddbDocClient.query({
@@ -462,11 +468,17 @@ export async function getRecentSharedSessionHistory(userId: string, chatAppId: s
             ':partitionKey': partitionKey
         },
         ScanIndexForward: false, // Most recent first
-        Limit: limit
+        Limit: limit,
+        ExclusiveStartKey: nextToken ? JSON.parse(Buffer.from(nextToken, 'base64').toString()) : undefined
     });
 
+    const returnNextToken = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64') : undefined;
+
     // Transform results to clean interface
-    return (result.Items || []).map((item) => convertSharedSessionVisitHistoryToCamelFromSnakeCaseFromDynamoDb(item as SnakeCase<SharedSessionVisitHistoryDynamoDb>));
+    return [
+        (result.Items || []).map((item) => convertSharedSessionVisitHistoryToCamelFromSnakeCaseFromDynamoDb(item as SnakeCase<SharedSessionVisitHistoryDynamoDb>)),
+        returnNextToken
+    ];
 }
 
 // PinnedSession operations

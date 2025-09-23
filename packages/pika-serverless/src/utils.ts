@@ -4,10 +4,10 @@ import {
     ChatAppDataRequest,
     ToolDefinitionForIdempotentCreateOrUpdate
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { gunzipSync, gzipSync } from 'zlib';
 import Serverless from 'serverless';
 import AwsProvider from 'serverless/plugins/aws/provider/awsProvider';
-import { AgentDefinitionWithToolRefs, PikaToolWithLambdaRef, PikaServerlessConfig } from './types';
+import { gunzipSync, gzipSync } from 'zlib';
+import { AgentDefinitionWithToolRefs, PikaServerlessConfig, PikaToolWithLambdaRef, isLambdaTool, isLambdaToolDefinition } from './types';
 
 /**
  * Compresses a string and encodes it as base64 (keeping existing implementation)
@@ -93,10 +93,14 @@ export function prepareAgentData(agentData: AgentDataRequest, functionName: stri
 
     if (processedData.tools) {
         processedData.tools.forEach((tool: ToolDefinitionForIdempotentCreateOrUpdate) => {
-            if (tool.lambdaArn === 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED') {
-                // This will be resolved by the ToolIdToLambdaArnMap
-                tool.lambdaArn = 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED';
+            // Only process lambda tools that have lambdaArn property
+            if (isLambdaToolDefinition(tool)) {
+                if (tool.lambdaArn === 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED') {
+                    // This will be resolved by the ToolIdToLambdaArnMap
+                    tool.lambdaArn = 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED';
+                }
             }
+            // MCP and inline tools don't need lambda ARN processing
         });
     }
 
@@ -105,16 +109,20 @@ export function prepareAgentData(agentData: AgentDataRequest, functionName: stri
 
 /**
  * Build map of tool IDs to Lambda ARNs for the custom resource
+ * Only processes lambda tools since MCP and inline tools don't have Lambda ARNs
  */
 export function buildToolIdToLambdaArnMap(agentData: AgentDataRequest, lambdaLogicalId: string): { [key: string]: any } {
     const map: { [key: string]: any } = {};
 
     if (agentData.tools) {
         agentData.tools.forEach((tool) => {
-            if (tool.lambdaArn === 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED') {
-                map[tool.toolId] = {
-                    'Fn::GetAtt': [lambdaLogicalId, 'Arn']
-                };
+            // Only process lambda tools that have lambdaArn property
+            if (isLambdaToolDefinition(tool)) {
+                if (tool.lambdaArn === 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED') {
+                    map[tool.toolId] = {
+                        'Fn::GetAtt': [lambdaLogicalId, 'Arn']
+                    };
+                }
             }
         });
     }
@@ -124,17 +132,21 @@ export function buildToolIdToLambdaArnMap(agentData: AgentDataRequest, lambdaLog
 
 /**
  * Build map of tool IDs to Lambda ARNs for the custom resource (new custom.pika format)
+ * Only processes lambda tools since MCP and inline tools don't have Lambda ARNs
  */
 export function buildToolIdToLambdaArnMapFromCustomConfig(agentDef: AgentDefinitionWithToolRefs, serverless: Serverless): { [key: string]: any } {
     const map: { [key: string]: any } = {};
 
     if (agentDef.tools) {
         agentDef.tools.forEach((tool: PikaToolWithLambdaRef) => {
-            const awsProvider = serverless.getProvider('aws') as AwsProvider;
-            const lambdaLogicalId = awsProvider.naming.getLambdaLogicalId(tool.lambdaFunctionLogicalId);
-            map[tool.toolId] = {
-                'Fn::GetAtt': [lambdaLogicalId, 'Arn']
-            };
+            // Only process lambda tools
+            if (isLambdaTool(tool)) {
+                const awsProvider = serverless.getProvider('aws') as AwsProvider;
+                const lambdaLogicalId = awsProvider.naming.getLambdaLogicalId(tool.lambdaFunctionLogicalId);
+                map[tool.toolId] = {
+                    'Fn::GetAtt': [lambdaLogicalId, 'Arn']
+                };
+            }
         });
     }
 
@@ -153,17 +165,44 @@ export function prepareAgentDataFromCustomConfig(agentDef: AgentDefinitionWithTo
     if (agentDef.tools) {
         processedData.tools = agentDef.tools.map((tool: PikaToolWithLambdaRef) => {
             // Convert PikaToolWithLambdaRef to ToolDefinitionForIdempotentCreateOrUpdate
-            const convertedTool: ToolDefinitionForIdempotentCreateOrUpdate = {
+            const baseToolProps = {
                 toolId: tool.toolId,
                 name: tool.name,
                 displayName: tool.displayName,
                 description: tool.description,
                 executionType: tool.executionType,
-                lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED', // Placeholder that will be resolved by ToolIdToLambdaArnMap
                 functionSchema: tool.functionSchema,
                 supportedAgentFrameworks: tool.supportedAgentFrameworks
             };
-            return convertedTool;
+
+            if (isLambdaTool(tool)) {
+                // Lambda tool - add lambdaArn placeholder
+                return {
+                    ...baseToolProps,
+                    executionType: 'lambda' as const,
+                    lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE_LAMBDA_WHEN_DEPLOYED'
+                } as ToolDefinitionForIdempotentCreateOrUpdate;
+            } else if (tool.executionType === 'mcp') {
+                // MCP tool - add url and auth
+                const mcpTool = tool as any; // Cast to access MCP-specific properties
+                return {
+                    ...baseToolProps,
+                    executionType: 'mcp' as const,
+                    url: mcpTool.url,
+                    auth: mcpTool.auth
+                } as ToolDefinitionForIdempotentCreateOrUpdate;
+            } else if (tool.executionType === 'inline') {
+                // Inline tool - add code
+                const inlineTool = tool as any; // Cast to access inline-specific properties
+                return {
+                    ...baseToolProps,
+                    executionType: 'inline' as const,
+                    code: inlineTool.code
+                } as ToolDefinitionForIdempotentCreateOrUpdate;
+            } else {
+                // This should never happen due to TypeScript constraints, but keep for safety
+                throw new Error(`Unsupported tool execution type: ${(tool as any).executionType}`);
+            }
         });
     }
 
@@ -374,13 +413,34 @@ export function validateToolConfig(toolConfig: PikaToolWithLambdaRef): void {
         throw new Error('Expected tool configuration "description" to be a non-empty string');
     }
 
-    // Validate required lambdaFunctionLogicalId
-    if (!toolConfig.lambdaFunctionLogicalId) {
-        throw new Error('Expected tool configuration to have a "lambdaFunctionLogicalId" property');
-    }
+    // Validate tool type-specific properties
+    if (isLambdaTool(toolConfig)) {
+        // Validate required lambdaFunctionLogicalId for lambda tools
+        if (!toolConfig.lambdaFunctionLogicalId) {
+            throw new Error('Expected lambda tool configuration to have a "lambdaFunctionLogicalId" property');
+        }
 
-    if (typeof toolConfig.lambdaFunctionLogicalId !== 'string' || toolConfig.lambdaFunctionLogicalId.trim() === '') {
-        throw new Error('Expected tool configuration "lambdaFunctionLogicalId" to be a non-empty string');
+        if (typeof toolConfig.lambdaFunctionLogicalId !== 'string' || toolConfig.lambdaFunctionLogicalId.trim() === '') {
+            throw new Error('Expected lambda tool configuration "lambdaFunctionLogicalId" to be a non-empty string');
+        }
+    } else if (toolConfig.executionType === 'mcp') {
+        // Validate required url for MCP tools
+        const mcpTool = toolConfig as any;
+        if (!mcpTool.url) {
+            throw new Error('Expected MCP tool configuration to have a "url" property');
+        }
+        if (typeof mcpTool.url !== 'string' || mcpTool.url.trim() === '') {
+            throw new Error('Expected MCP tool configuration "url" to be a non-empty string');
+        }
+    } else if (toolConfig.executionType === 'inline') {
+        // Validate required code for inline tools
+        const inlineTool = toolConfig as any;
+        if (!inlineTool.code) {
+            throw new Error('Expected inline tool configuration to have a "code" property');
+        }
+        if (typeof inlineTool.code !== 'string' || inlineTool.code.trim() === '') {
+            throw new Error('Expected inline tool configuration "code" to be a non-empty string');
+        }
     }
 
     // Validate optional displayName

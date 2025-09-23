@@ -10,10 +10,11 @@ import type {
     SessionDataWithChatUserCustomDataSpreadIn,
     SharedSessionVisitHistory,
     SharedSessionVisitHistoryDynamoDb,
-    UserMemoryStrategy
+    UserMemoryStrategy,
+    UserType,
+    ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
-import { HttpStatusError } from 'pika-shared/util/http-status-error';
 
 export function createSessionToken(sessionId: string, userId: string) {
     return createHash('sha256')
@@ -385,6 +386,58 @@ export function convertSharedSessionVisitHistoryToSnakeFromCamelCaseForDynamoDb(
     const partitionKey = `${userId}#${sharedSessionVisitHistory.chatAppId}`;
 
     return convertToSnakeCase<SharedSessionVisitHistoryDynamoDb>({ ...sharedSessionVisitHistory, userIdChatAppId: partitionKey });
+}
+
+export function validateUserCanAccessSession(
+    session: ChatSession<RecordOrUndef> | undefined,
+    chatAppId: string,
+    userType: UserType,
+    userEntityId?: string
+): ValidateShareAccessResponse {
+    if (!session) {
+        return { success: true, hasAccess: false, error: 'Shared session not found' };
+    }
+
+    if (!session.shareId) {
+        return { success: true, hasAccess: false, error: 'Session is not a shared session' };
+    }
+
+    if (!session) {
+        return { success: true, hasAccess: false, error: 'Shared session not found' };
+    }
+
+    if (session.shareRevokedDate) {
+        return { success: true, hasAccess: false, error: 'This shared session has been revoked and is no longer available' };
+    }
+
+    if (session.chatAppId !== chatAppId) {
+        return { success: true, hasAccess: false, error: 'Shared session not valid for this chat app' };
+    }
+
+    // External users must belong to the same entity
+    if (session.entityId === 'chat-app-global') {
+        // When entity feature is disabled, all users with chat app access can view
+        return {
+            success: true,
+            hasAccess: true,
+            sessionData: session
+        };
+    } else {
+        if (userType === 'internal-user') {
+            if (userEntityId && userEntityId !== session.entityId) {
+                return { success: true, hasAccess: false, error: 'Access denied - user not in same organization' };
+            }
+            return { success: true, hasAccess: true, sessionData: session };
+        } else if (userEntityId === session.entityId) {
+            return {
+                success: true,
+                hasAccess: true,
+                sessionData: session
+            };
+        } else {
+            return { success: true, hasAccess: false, error: 'Access denied - user not in same organization' };
+        }
+    }
 }
 
 export type ApiResponse = APIGatewayProxyStructuredResultV2;

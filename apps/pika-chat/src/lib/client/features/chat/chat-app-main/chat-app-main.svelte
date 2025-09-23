@@ -17,6 +17,7 @@
     import ChatFeedbackDialog from '../chat-feedback/chat-feedback.svelte';
     import ChatFileDisplay from '../chat-input/chat-file-display.svelte';
     import ChatInput from '../chat-input/chat-input.svelte';
+    import CurrentSessionShareDialog from '../chat-share-dialog/current-session-share-dialog.svelte';
     import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
@@ -423,6 +424,8 @@
 {#if chatMessageForFeedback}
     <ChatFeedbackDialog bind:open={chat.feedbackDialogOpen} {chatMessageForFeedback} />
 {/if}
+
+<CurrentSessionShareDialog />
 
 <style>
     @keyframes pulse-dot {

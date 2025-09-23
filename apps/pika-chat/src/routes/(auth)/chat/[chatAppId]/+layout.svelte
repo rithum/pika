@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import ChatSidebar from '$client/features/chat/layout/chat-sidebar.svelte';
     import ChatTitlebar from '$client/features/chat/layout/chat-titlebar.svelte';
@@ -45,6 +46,15 @@
             description:
                 'You do not have permission to access this shared session.  If you feel this is an error, please contact support.',
         },
+        user_needs_to_provide_data_overrides: {
+            title: 'User Needs to Provide Data Overrides',
+            description:
+                'You need to provide data overrides to access this shared session.  Please select an entity to view content for.',
+        },
+        viewing_content_for_another_user: {
+            title: 'Viewing Content for Another User',
+            description: 'You may not visit a shard session while viewing content for another user.',
+        },
     };
 
     setContext('chatAppState', chatAppState);
@@ -57,7 +67,7 @@
 
     $effect(() => {
         // Check if there's an error=share_not_found parameter
-        const errorParam = (data as any).error;
+        const errorParam = data.error;
         if (errorParam) {
             const errObj: { title: string; description: string } | undefined = errors[errorParam];
             if (errObj) {
@@ -65,8 +75,11 @@
                 const currentUrl = new URL(page.url);
                 currentUrl.searchParams.delete('error');
 
-                // Update the URL without navigation
-                window.history.replaceState({}, '', currentUrl.toString());
+                goto(currentUrl.toString(), {
+                    replaceState: true,
+                    noScroll: true,
+                    keepFocus: true,
+                });
 
                 // Show the error dialog
                 showShareErrorDialogTitle = errObj.title;
@@ -74,7 +87,22 @@
                 showShareErrorDialog = true;
             }
 
-            delete (data as any).error;
+            delete data.error;
+        }
+    });
+
+    $effect(() => {
+        const shareId = data.shareId;
+        if (shareId) {
+            chatAppState.loadSharedSession(shareId, true);
+            const currentUrl = new URL(page.url);
+            currentUrl.searchParams.delete('share');
+
+            goto(currentUrl.toString(), {
+                replaceState: true,
+                noScroll: true,
+                keepFocus: true,
+            });
         }
     });
 </script>

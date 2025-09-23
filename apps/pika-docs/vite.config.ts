@@ -20,6 +20,7 @@ export default defineConfig(async ({ mode }) => {
                     collapsible: true,
                     items: [
                         { title: 'Overview', to: '/docs/features/overview/' },
+                        { title: 'Key Concepts', to: '/docs/features/key-concepts/' },
                         { title: 'Advanced Chat Apps', to: '/docs/features/advanced-chat-apps/' },
                         { title: 'User Memory', to: '/docs/features/user-memory/' },
                         { title: 'Session Management', to: '/docs/features/session-management/' },

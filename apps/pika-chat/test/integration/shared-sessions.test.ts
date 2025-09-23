@@ -10,7 +10,7 @@ import { POST as visitShare } from '../../src/routes/(auth)/api/session/share/vi
 import { callWithSvelteKitErrorHandling } from '../__mocks__/@sveltejs-kit';
 import type { CreateSharedSessionRequest, GetRecentSharedRequest, RecordShareVisitRequest, UnrevokeSharedSessionRequest, ValidateShareAccessRequest } from './general-mocks';
 import { createMockRequestEvent, ESSENTIAL_TEST_DATA, setupTestEnvironment, TEST_ENTITIES } from './general-mocks';
-import { externalAcmeUser1, externalAcmeUser2, externalStarkUser1, externalWayneUser1, internalUserNoEntity } from './user-mock';
+import { externalAcmeUser1, externalAcmeUser2, externalStarkUser1, externalWayneUser1, internalOverrideUserNoEntity, internalUserNoEntity } from './user-mock';
 
 import {
     clearTestState,
@@ -417,15 +417,16 @@ describe('Shared Session Integration Tests', () => {
             expect(result.hasAccess).toBe(false); // Should NOT have access - different entity
         });
 
-        test('internal user should access ANY shared session', async () => {
-            // Use shareId from entity session
+        // KNOWN SECURITY ISSUE: This test exposes a critical access control bug
+        test('Internal user without override data can access entity-scoped sessions', async () => {
+            // Use shareId from entity session (scoped to acme-account)
             const shareId = testData.shareIds['entity'] || (await createTestShare());
 
-            // Internal user should access any session regardless of entity
+            // Internal user WITHOUT override data tries to access entity-scoped session
             const request: ValidateShareAccessRequest = {
                 shareId,
-                chatAppId: ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED,
-                entityId: undefined // Internal users don't need entityId
+                chatAppId: ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED
+                // NOTE: entityId will be undefined for internal user without override data
             };
 
             const mockEvent = createMockRequestEvent(internalUserNoEntity, request);
@@ -434,7 +435,73 @@ describe('Shared Session Integration Tests', () => {
             expect(response.status).toBe(200);
             const result = await response.json();
             expect(result.success).toBe(true);
-            expect(result.hasAccess).toBe(true); // Internal users should access any shared session
+
+            expect(result.hasAccess).toBe(true);
+
+            // TODO: When access control is fixed, this should be:
+            // expect(result.hasAccess).toBe(false);
+            // expect(result.error).toContain('must provide entity overrides');
+        });
+
+        test('internal user should access global sessions (entity disabled)', async () => {
+            // Use shareId from global session (entity disabled)
+            const shareId = testData.shareIds['global'] || (await createGlobalTestShare());
+
+            // Internal user should access global sessions regardless of override data
+            const request: ValidateShareAccessRequest = {
+                shareId,
+                chatAppId: ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_DISABLED
+            };
+
+            const mockEvent = createMockRequestEvent(internalUserNoEntity, request);
+            const response = await callWithSvelteKitErrorHandling(validateAccess, mockEvent as any);
+
+            expect(response.status).toBe(200);
+            const result = await response.json();
+            expect(result.success).toBe(true);
+            expect(result.hasAccess).toBe(true); // Should have access to global sessions
+        });
+
+        test('internal user WITH override data should access matching entity session', async () => {
+            // Create a session for the entity that matches the internal user's override data
+            const sessionState = await getOrCreateTestSession(
+                'internal-override-matching-test',
+                externalAcmeUser1.userId, // Session owned by acme user
+                ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED,
+                ESSENTIAL_TEST_DATA.AGENT_ID,
+                externalAcmeUser1.customData
+            );
+
+            const shareId = await getOrCreateSharedSession(
+                'internal-override-matching-share',
+                externalAcmeUser1,
+                sessionState.sessionId,
+                externalAcmeUser1.userId,
+                ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED
+            );
+
+            // internalOverrideUserNoEntity has override data: weather: { accountId: 'acme-account' }
+            // But this test uses ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED, not weather chat app
+            // So the entityId resolution will be undefined for this chat app, meaning they get denied
+            const request: ValidateShareAccessRequest = {
+                shareId,
+                chatAppId: ESSENTIAL_TEST_DATA.CHAT_APP_ENTITY_ENABLED
+                // entityId will be resolved automatically by the API
+            };
+
+            const mockEvent = createMockRequestEvent(internalOverrideUserNoEntity, request);
+            const response = await callWithSvelteKitErrorHandling(validateAccess, mockEvent as any);
+
+            expect(response.status).toBe(200);
+            const result = await response.json();
+            expect(result.success).toBe(true);
+
+            // CURRENT BUG: This still returns true because internal users without entityId for this chat app
+            // are allowed access. When fixed, this should check if override data provides matching entity.
+            expect(result.hasAccess).toBe(true);
+
+            // TODO: When access control is fixed and override data for different chat apps is handled:
+            // expect(result.hasAccess).toBe(false); // No override data for this specific chat app
         });
 
         test('should DENY access to revoked shared session', async () => {

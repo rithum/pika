@@ -1,0 +1,117 @@
+<script lang="ts">
+    import { Loader } from '$icons/lucide';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { Button } from '$ui/shadcn/button';
+    import * as Dialog from '$ui/shadcn/dialog';
+    import { getContext } from 'svelte';
+    import { toast } from 'svelte-sonner';
+    import { ChatAppState } from '../chat-app.state.svelte';
+    import CreateCopyLinkButton from '$ui/pika/create-copy-link-button/create-copy-link-button.svelte';
+
+    const appState = getContext<AppState>('appState');
+    const chat = getContext<ChatAppState>('chatAppState');
+    let windowEl = $state<Window>();
+
+    let title = $derived.by(() => {
+        let result = '';
+        if (chat.shareCurrentSessionState === 'disable-share-feature') {
+            // THey should never see this since we disable the share feature if it is not enabled.
+            result = 'Share feature is disabled';
+        } else if (chat.shareCurrentSessionState === 'shared-by-me' || chat.shareCurrentSessionState === 'shared-by-someone-else') {
+            result = 'Chat Share Link';
+        } else if (chat.shareCurrentSessionState === 'not-shared') {
+            result = 'Share Chat';
+        } else {
+            throw new Error(`Invalid share state: ${chat.shareCurrentSessionState}`);
+        }
+        return result;
+    });
+
+    let description = $derived.by(() => {
+        let result = '';
+        if (chat.shareCurrentSessionState === 'disable-share-feature') {
+            // THey should never see this since we disable the share feature if it is not enabled.
+            result = 'Share feature is disabled';
+        } else if (chat.shareCurrentSessionState === 'shared-by-me' || chat.shareCurrentSessionState === 'shared-by-someone-else') {
+            result = 'Already shared, get the link below';
+        } else if (chat.shareCurrentSessionState === 'not-shared') {
+            result = 'All current and future messages in this chat will be shared';
+        } else {
+            throw new Error(`Invalid share state: ${chat.shareCurrentSessionState}`);
+        }
+        return result;
+    });
+
+    function reset() {
+        //TODO: Implement
+    }
+
+    function getShareUrl() {
+        
+        if (typeof window === "undefined" || !window.location) {
+            throw new Error('Window element not found');
+        }
+
+        if (!chat.currentSession?.shareId) {
+            throw new Error('Share id not found');
+        }
+
+        return chat.getShareUrl(window.location.origin + window.location.pathname, chat.currentSession.shareId);
+    }
+
+    function getValueToShowBeforeLinkIsCreated() {
+        
+        if (typeof window === "undefined" || !window.location) {
+            throw new Error('Window element not found');
+        }
+
+        return chat.getShareUrlMock(window.location.origin + window.location.pathname);
+    }
+
+
+</script>
+
+
+<Dialog.Root
+    bind:open={() => chat.showCurrentSessionDialog, (val) => {
+        chat.showCurrentSessionDialog = val === true;
+    }}
+    onOpenChange={(open) => {
+        console.log('open', open);
+        if (!open) {
+            reset();
+        }
+    }}
+>
+    <Dialog.Content>
+        <Dialog.Header>
+            <Dialog.Title>{title}</Dialog.Title>
+            <Dialog.Description>{description}</Dialog.Description>
+        </Dialog.Header>
+        <div class="pt-3 max-w-[600px]">
+            <CreateCopyLinkButton 
+            width={600}
+            truncateAfter={34}
+            linkUrl={chat.shareCurrentSessionState === 'shared-by-me' || chat.shareCurrentSessionState === 'shared-by-someone-else' ? getShareUrl() : undefined}
+            createLinkFn={() => {
+                chat.createSharedSession(chat.currentSession.sessionId)
+            }} creatingLink={chat.sharingSession} />
+        </div>
+        <div class="flex justify-end gap-2 flex-1 items-center">
+            {#if chat.sharingSession}
+                <Loader class="h-4 w-4 animate-spin" />
+            {/if}
+            <!-- <Button
+                disabled={chat.addingFeedback || !isValid}
+                onclick={async () => {
+                    try {
+                        await addFeedback();
+                        chat.feedbackDialogOpen = false;
+                    } catch (error) {
+                        toast.error('Error adding feedback');
+                    }
+                }}>Add Feedback</Button
+            > -->
+        </div>
+    </Dialog.Content>
+</Dialog.Root>
