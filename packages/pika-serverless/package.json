@@ -1,6 +1,6 @@
 {
     "name": "pika-serverless",
-    "version": "1.4.0",
+    "version": "1.3.0",
     "description": "Serverless Framework plugin for Pika chat apps, agents, and tools",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
