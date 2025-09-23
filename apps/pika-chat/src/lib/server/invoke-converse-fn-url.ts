@@ -120,6 +120,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             }) as any;
             firstBytePromise.resolve = r1;
             firstBytePromise.reject = r2;
+
             let passThrough: PassThrough & { set: (key: string, value: string) => void } = Object.assign(new PassThrough(), {
                 set: (key: string, value: string) => {
                     if (!firstBytePromise.finished) {
@@ -128,11 +129,29 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
                     response.headers.set(key, value);
                 }
             });
-            response = new Response(passThrough as any);
+
+            // Create a proper ReadableStream that handles PassThrough termination correctly
+            const readableStream = new ReadableStream({
+                start(controller) {
+                    passThrough.on('data', (chunk) => {
+                        controller.enqueue(chunk);
+                    });
+
+                    passThrough.on('end', () => {
+                        controller.close();
+                    });
+
+                    passThrough.on('error', (err) => {
+                        controller.error(err);
+                    });
+                }
+            });
+
+            response = new Response(readableStream);
 
             // Import here so that all the environment variables are set
             let { handler } = await import('../../../../../services/pika/src/lambda/converse');
-            handler(
+            const handlerPromise = handler(
                 {
                     body: request,
                     headers: signedRequest.headers,
@@ -144,13 +163,16 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
                     }
                 } as any,
                 { responseStream: passThrough } as any
-            )!
+            );
+
+            handlerPromise!
                 .then(() => {
                     passThrough.end();
                 })
                 .catch((e: any) => {
                     passThrough.emit('error', e);
                 });
+
             await firstBytePromise;
         } else {
             response = await fetch(functionUrl, {
