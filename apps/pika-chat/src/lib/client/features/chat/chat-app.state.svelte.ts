@@ -261,6 +261,9 @@ export class ChatAppState {
     #customDataUiRepresentation = $state<CustomDataUiRepresentation | undefined>(undefined);
     #tagDefs = $state<TagDefinition<TagDefinitionWidget>[]>([]);
     #showToast: ShowToastFn;
+    #entityFeatureEnabled = $derived.by(() => {
+        return this.#features.entity.enabled;
+    });
 
     // #userActionsInProgress: Record<string, boolean> = $state({
     //     pin-session: false,
@@ -308,6 +311,10 @@ export class ChatAppState {
         // Apply maxToShow limit
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
+
+    get entityFeatureEnabled() {
+        return this.#entityFeatureEnabled;
+    }
 
     get shareCurrentSessionState() {
         return this.#shareCurrentSessionState;
