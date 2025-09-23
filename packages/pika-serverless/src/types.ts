@@ -2,21 +2,89 @@ import {
     AgentDataRequest,
     AgentDefinitionForIdempotentCreateOrUpdate,
     ChatAppDataRequest,
-    ToolDefinitionForIdempotentCreateOrUpdate,
     SemanticDirectiveDataRequest,
-    SemanticDirectiveForCreateOrUpdate
+    ToolDefinitionForIdempotentCreateOrUpdate
 } from 'pika-shared/types/chatbot/chatbot-types';
-import Serverless from 'serverless';
 
 /**
- * Tool definition that references a lambda function by its logical ID
+ * Base tool definition with shared properties
  */
-export interface PikaToolWithLambdaRef extends Omit<ToolDefinitionForIdempotentCreateOrUpdate, 'lambdaArn'> {
+interface PikaToolBase {
+    toolId: string;
+    name: string;
+    displayName?: string;
+    description: string;
+    executionTimeout?: number;
+    functionSchema: any[];
+    supportedAgentFrameworks: ['bedrock'];
+    tags?: Record<string, string>;
+    lifecycle?: any;
+    accessRules?: any[];
+    testType?: 'mock';
+}
+
+/**
+ * Lambda tool definition that references a lambda function by its logical ID
+ */
+export interface PikaLambdaToolWithRef extends PikaToolBase {
+    executionType: 'lambda';
     /**
      * The logical ID of the lambda function that backs this tool
      * This should match a function name defined in the functions section
      */
     lambdaFunctionLogicalId: string;
+}
+
+/**
+ * MCP tool definition for use in serverless config
+ */
+export interface PikaMcpTool extends PikaToolBase {
+    executionType: 'mcp';
+    url: string;
+    auth?: {
+        clientId: string;
+        clientSecret: string;
+        tokenUrl: string;
+        token?: {
+            accessToken: string;
+            refreshToken?: string;
+            expiresAt?: number;
+        };
+    };
+}
+
+/**
+ * Inline tool definition for use in serverless config
+ */
+export interface PikaInlineTool extends PikaToolBase {
+    executionType: 'inline';
+    code: string;
+}
+
+/**
+ * Union type for all tool types supported in serverless config
+ */
+export type PikaToolWithLambdaRef = PikaLambdaToolWithRef | PikaMcpTool | PikaInlineTool;
+
+/**
+ * Type guard to check if a tool is a lambda tool
+ */
+export function isLambdaTool(tool: PikaToolWithLambdaRef): tool is PikaLambdaToolWithRef {
+    return tool.executionType === 'lambda';
+}
+
+/**
+ * Type guard to check if a tool is an MCP tool
+ */
+export function isMcpTool(tool: PikaToolWithLambdaRef): tool is PikaMcpTool {
+    return tool.executionType === 'mcp';
+}
+
+/**
+ * Type guard to check if a tool is an inline tool
+ */
+export function isInlineTool(tool: PikaToolWithLambdaRef): tool is PikaInlineTool {
+    return tool.executionType === 'inline';
 }
 
 /**
@@ -39,6 +107,27 @@ export interface PikaServerlessConfig {
 
     // Standalone tool definitions (for tools that may be used by external agents)
     tools?: PikaToolWithLambdaRef[];
+}
+
+/**
+ * Type guard to check if a tool definition is a lambda tool
+ */
+export function isLambdaToolDefinition(tool: ToolDefinitionForIdempotentCreateOrUpdate): tool is Extract<ToolDefinitionForIdempotentCreateOrUpdate, { executionType: 'lambda' }> {
+    return tool.executionType === 'lambda';
+}
+
+/**
+ * Type guard to check if a tool definition is an MCP tool
+ */
+export function isMcpToolDefinition(tool: ToolDefinitionForIdempotentCreateOrUpdate): tool is Extract<ToolDefinitionForIdempotentCreateOrUpdate, { executionType: 'mcp' }> {
+    return tool.executionType === 'mcp';
+}
+
+/**
+ * Type guard to check if a tool definition is an inline tool
+ */
+export function isInlineToolDefinition(tool: ToolDefinitionForIdempotentCreateOrUpdate): tool is Extract<ToolDefinitionForIdempotentCreateOrUpdate, { executionType: 'inline' }> {
+    return tool.executionType === 'inline';
 }
 
 export interface AgentDefinitionWithToolRefs extends Omit<AgentDataRequest, 'agent' | 'tools'> {

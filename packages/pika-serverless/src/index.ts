@@ -1,13 +1,8 @@
-import {
-    AgentDataRequest,
-    AgentDefinition,
-    AgentDefinitionForIdempotentCreateOrUpdate,
-    ChatAppDataRequest,
-    SemanticDirectiveDataRequest
-} from 'pika-shared/types/chatbot/chatbot-types';
+import { AgentDataRequest, ChatAppDataRequest, SemanticDirectiveDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+import Serverless from 'serverless';
 import Plugin from 'serverless/classes/Plugin';
 import AwsProvider from 'serverless/plugins/aws/provider/awsProvider';
-import { AgentDefinitionWithToolRefs, CloudFormationResource, PikaServerlessConfig, PikaToolWithLambdaRef } from './types';
+import { AgentDefinitionWithToolRefs, CloudFormationResource, PikaServerlessConfig } from './types';
 import {
     buildToolIdToLambdaArnMap,
     buildToolIdToLambdaArnMapFromCustomConfig,
@@ -19,7 +14,6 @@ import {
     resolveCustomResourceArn,
     validatePikaConfig
 } from './utils';
-import Serverless from 'serverless';
 
 class PikaServerlessPlugin implements Plugin {
     hooks: Record<string, () => void | Promise<void>>;
