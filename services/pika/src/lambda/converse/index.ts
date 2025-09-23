@@ -26,19 +26,20 @@ import {
     type UserMemoryFeatureWithMemoryInfo
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
+import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
 import { applyInstructionAssistance, generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
-import { BadRequestError } from 'pika-shared/util/bad-request-error';
+import { getEntityIdForUser } from 'pika-shared/util/server-utils';
+import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
 import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getMemoryInstructions } from '../../lib/memory';
 import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
-import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
-import { getEffectiveChatAppId, getEntityFromCustomData, getMemoryId } from '../../lib/utils';
+import { getEffectiveChatAppId, getMemoryId } from '../../lib/utils';
 import type { EnhancedResponseStream } from './EnhancedResponseStream';
 import { enhancedStreamifyResponse } from './custom-stream';
 
@@ -238,9 +239,7 @@ export const handler = enhancedStreamifyResponse(
 
             const effectiveChatAppId = getEffectiveChatAppId(converseRequest.chatAppId, converseRequest.agentId, invocationMode);
 
-            const entityValue = converseRequest.entityAttributeNameInUserCustomData
-                ? getEntityFromCustomData(user.customData, converseRequest.entityAttributeNameInUserCustomData)
-                : undefined;
+            const entityValue = getEntityIdForUser(user, simpleUser.customUserData, converseRequest.entityAttributeNameInUserCustomData);
 
             console.log('Ensuring chat session...');
             const [chatSession, isNewSession] = await ensureChatSession(
