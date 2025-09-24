@@ -105,21 +105,5 @@
                 creatingLink={chat.sharingSession}
             />
         </div>
-        <div class="flex justify-end gap-2 flex-1 items-center">
-            {#if chat.sharingSession}
-                <Loader class="h-4 w-4 animate-spin" />
-            {/if}
-            <!-- <Button
-                disabled={chat.addingFeedback || !isValid}
-                onclick={async () => {
-                    try {
-                        await addFeedback();
-                        chat.feedbackDialogOpen = false;
-                    } catch (error) {
-                        toast.error('Error adding feedback');
-                    }
-                }}>Add Feedback</Button
-            > -->
-        </div>
     </Dialog.Content>
 </Dialog.Root>
