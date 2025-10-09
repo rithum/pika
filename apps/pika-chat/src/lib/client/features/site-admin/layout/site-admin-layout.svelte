@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Slideout, SlideoutContent, SlideoutProvider } from '$ui/pika/slideout';
-    import * as Sidebar from '$ui/shadcn/sidebar/index.js';
+    import { Slideout, SlideoutContent, SlideoutProvider } from 'pika-ux/pika/slideout';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar/index.js';
     import { type Snippet } from 'svelte';
     import SiteAdminSidebar from './site-admin-sidebar.svelte';
     import SiteAdminTitlebar from './site-admin-titlebar.svelte';

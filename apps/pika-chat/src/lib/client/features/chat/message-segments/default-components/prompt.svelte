@@ -1,7 +1,7 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
-    import { MessageSquare } from '$lib/icons/lucide';
-    import { Button } from '$ui/shadcn/button';
+    import MessageSquare from '$icons/lucide/message-square';
+    import { Button } from 'pika-ux/shadcn/button';
     import { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTagSegment } from '../segment-types';
 
@@ -54,7 +54,7 @@
 
     // LOGGING: Track component lifecycle and DOM state
     // $effect(() => {
-    //     console.log('[PROMPT-RENDERER] 🔄 DOM State Check:', {
+    //     console.log('[PROMPT-RENDERER] DOM State Check:', {
     //         segmentId: segment.id,
     //         showPlaceholder,
     //         streamingStatus: segment.streamingStatus,
@@ -76,7 +76,7 @@
             const grayElements = document.querySelectorAll('.bg-gray-100, .animate-pulse, [class*="gray"]');
             const textRendererElements = document.querySelectorAll('[data-segment-type="text"]');
 
-            // console.log('[PROMPT-RENDERER] 🚨 PLACEHOLDER DEBUG:', {
+            // console.log('[PROMPT-RENDERER] PLACEHOLDER DEBUG:', {
             //     segmentId: segment.id,
             //     showPlaceholder,
             //     streamingStatus: segment.streamingStatus,
@@ -116,7 +116,7 @@
             // Log this placeholder element specifically with more detail
             const thisPlaceholder = document.querySelector(`[data-prompt-placeholder="${segment.id}"]`);
             if (thisPlaceholder) {
-                // console.log(`[PROMPT-RENDERER] 🔍 THIS PLACEHOLDER ELEMENT (segment ${segment.id}):`, {
+                // console.log(`[PROMPT-RENDERER] THIS PLACEHOLDER ELEMENT (segment ${segment.id}):`, {
                 //     element: thisPlaceholder,
                 //     boundingRect: (thisPlaceholder as HTMLElement).getBoundingClientRect(),
                 //     computedStyle: {
@@ -138,7 +138,7 @@
 {#if showPlaceholder}
     <!-- Use key to ensure proper DOM element replacement -->
     <!-- LOGGING: Track when placeholder is shown -->
-    <!-- {console.log('[PROMPT-RENDERER] 🔴 DOM: Rendering placeholder div for segment:', segment.id, {
+    <!-- {console.log('[PROMPT-RENDERER] DOM: Rendering placeholder div for segment:', segment.id, {
         streamingStatus: segment.streamingStatus,
         rawContentLength: segment.rawContent.length,
         showPlaceholder,
@@ -153,7 +153,7 @@
                 const allGrayElements = messageContainer.querySelectorAll(
                     '.bg-gray-100, .animate-pulse, [class*="gray"], .streaming'
                 );
-                // console.log('[PROMPT-RENDERER] 🌐 COMPREHENSIVE DOM SNAPSHOT (placeholder render):', {
+                // console.log('[PROMPT-RENDERER] COMPREHENSIVE DOM SNAPSHOT (placeholder render):', {
                 //     segmentId: segment.id,
                 //     messageContainer: messageContainer,
                 //     allGrayElementsInMessage: Array.from(allGrayElements).map((el, index) => ({
@@ -180,7 +180,7 @@
     </div>
 {:else}
     <!-- LOGGING: Track when button is shown -->
-    <!-- {console.log('[PROMPT-RENDERER] 🟢 DOM: Rendering button for segment:', segment.id, {
+    <!-- {console.log('[PROMPT-RENDERER] DOM: Rendering button for segment:', segment.id, {
         streamingStatus: segment.streamingStatus,
         rawContent: segment.rawContent,
         showPlaceholder,

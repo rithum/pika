@@ -1,5 +1,5 @@
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
-import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
+import type { FetchZ } from '$lib/client/app/types';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import type {
@@ -8,7 +8,8 @@ import type {
     GetInstructionsAddedForUserMemoryAdminResponse,
     GetValuesForUserAutoCompleteResponse,
     RetrievedMemoryRecordSummary,
-    SearchAllMemoryRecordsResponse
+    SearchAllMemoryRecordsResponse,
+    ShowToastFn
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { DEFAULT_MAX_K_MATCHES_PER_STRATEGY, DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT, DEFAULT_MEMORY_STRATEGIES } from 'pika-shared/types/chatbot/chatbot-types';
 
@@ -128,7 +129,7 @@ export class MemoryState {
                         this.#showToast,
                         CLIENT_RESOURCE_NAMES.MEMORY
                     );
-                    console.log('json', json);
+                    // console.log('json', json);
                     this.#allMemoryRecords.push(...json.results.records);
                     nextToken = json.results.nextToken;
                 } while (nextToken);
@@ -175,7 +176,7 @@ export class MemoryState {
                 this.#showToast,
                 CLIENT_RESOURCE_NAMES.MEMORY
             );
-            console.log('responseBody', responseBody);
+            // console.log('responseBody', responseBody);
             this.#instructionsAddedForUserMemory = responseBody.instructions;
         } catch (error) {
             handleClientError(error, 'getting memory instructions', this.#showToast);

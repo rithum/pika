@@ -26,9 +26,12 @@ The instruction assistance system uses several placeholders that get replaced wi
 
 When you enable the `includeInstructionsForTags` option, this placeholder gets replaced with detailed instructions for all tags that are available to your chat app. The system automatically:
 
-- Retrieves all enabled tag definitions for the current chat app
+- Discovers tags based on `chatAppId` (both app-specific and `'chat-app-global'` tags)
+- Filters to only `status === 'enabled'` tags with `contexts.inline.enabled === true`
 - Formats their LLM instructions according to Pika's structured format
 - Injects them at the placeholder location (or appends them if no placeholder exists)
+
+Tag visibility is controlled at the tag definition level via the `chatAppId` and `status` fields, not through site-level configuration.
 
 ### complete-example-instruction-line placeholder
 

@@ -1,0 +1,20 @@
+{
+    "extends": "@pika/typescript-config/base.json",
+    "compilerOptions": {
+        "outDir": "../../dist/cli",
+        "rootDir": ".",
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "allowSyntheticDefaultImports": true,
+        "resolveJsonModule": true,
+        "sourceMap": true
+    },
+    "include": [
+        "**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "template-files"
+    ]
+}

@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { ArrowUp, Paperclip } from '$icons/lucide';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$ui/shadcn/button';
+    import ArrowUp from '$icons/lucide/arrow-up';
+    import Paperclip from '$icons/lucide/paperclip';
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';

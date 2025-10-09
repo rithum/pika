@@ -307,25 +307,38 @@ jsonOnlyImperativeInstructionLine: {
 
 ### Conditional Instruction Loading
 
-Control which tags get instructions based on context:
+Tag visibility is automatically determined by the tag definition's `chatAppId` and `status` fields:
 
 ```js
-// In your chat app configuration
-const chatAppFeatures = {
-    tags: {
-        // Only enable specific tags for this app
-        tagsEnabled: [
-            { tag: 'chart', scope: 'builtin' },
-            { tag: 'order-status', scope: 'custom' }
-        ]
+// Tag definitions control which tags are available
+// Example tag definition:
+{
+    tag: 'chart',
+    scope: 'pika',
+    chatAppId: 'chat-app-global',  // Available to all chat apps
+    status: 'enabled',              // Active and visible
+    renderingContexts: {
+        inline: { enabled: true }   // Available for inline rendering
     },
+    llmInstructionsMd: '...'        // Instructions for the LLM
+}
+
+// The instruction assistance feature automatically discovers tags:
+// 1. Queries for tags with matching chatAppId (and 'chat-app-global')
+// 2. Filters to status === 'enabled'
+// 3. Filters to contexts.inline.enabled === true
+// 4. Injects instructions for matching tags
+
+const chatAppFeatures = {
     agentInstructionAssistance: {
         enabled: true,
         includeOutputFormattingRequirements: { enabled: true },
-        includeInstructionsForTags: { enabled: true } // Only includes instructions for enabled tags
+        includeInstructionsForTags: { enabled: true }
     }
 };
 ```
+
+To make a tag available to a specific chat app, set its `chatAppId` field to match the chat app ID. To make it available to all chat apps, use `chatAppId: 'chat-app-global'`.
 
 ## Testing and Debugging
 

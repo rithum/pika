@@ -1,11 +1,16 @@
 <script lang="ts">
-    import { Brain, ChartBar, Clock, MessageCircle, Target, Users } from '$icons/lucide';
+    import Brain from '$icons/lucide/brain';
+    import ChartBar from '$icons/lucide/chart-bar';
+    import Clock from '$icons/lucide/clock';
+    import MessageCircle from '$icons/lucide/message-circle';
+    import Target from '$icons/lucide/target';
+    import Users from '$icons/lucide/users';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Card } from '$ui/shadcn/card';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import { Separator } from '$ui/shadcn/separator';
+    import ExpandableContainer from 'pika-ux/pika/expandable-container/expandable-container.svelte';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { Card } from 'pika-ux/shadcn/card';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import InsightsAssessmentBadges from './insights-assessment-badges.svelte';
     import InsightsScoreCard from './insights-score-card.svelte';

@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import type { RecordOrUndef, SimpleOption } from 'pika-shared/types/chatbot/chatbot-types';
+    import Combobox from 'pika-ux/pika/combobox/combobox.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
     import { getContext } from 'svelte';
 
     interface Props {

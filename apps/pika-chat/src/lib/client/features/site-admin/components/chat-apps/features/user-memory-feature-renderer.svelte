@@ -1,12 +1,12 @@
 <script lang="ts">
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
     import type { UserMemoryFeature } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
         DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
 
     interface Props {
         featureEnabled: boolean;

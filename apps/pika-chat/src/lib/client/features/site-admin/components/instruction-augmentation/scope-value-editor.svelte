@@ -1,12 +1,12 @@
 <script lang="ts">
     import type { SemanticDirectiveForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
-    import { Label } from '$ui/shadcn/label';
-    import ChatAppsFilter from './filters/chatapps-filter.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Label } from 'pika-ux/shadcn/label';
+    import AgentEntityFilter from './filters/agent-entity-filter.svelte';
     import AgentsFilter from './filters/agents-filter.svelte';
+    import ChatAppsFilter from './filters/chatapps-filter.svelte';
     import EntityFilter from './filters/entity-filter.svelte';
     import ToolsFilter from './filters/tools-filter.svelte';
-    import AgentEntityFilter from './filters/agent-entity-filter.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
 
     interface Props {
         directive: SemanticDirectiveForCreateOrUpdate;

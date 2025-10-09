@@ -1,12 +1,13 @@
 <script lang="ts">
-    import { ChevronsUpDown, X } from '$icons/lucide';
-    import DateTimePicker from '$ui/pika/date-time-picker/date-time-picker.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Label } from '$ui/shadcn/label';
-    import * as Popover from '$ui/shadcn/popover';
-    import { Separator } from '$ui/shadcn/separator';
-    import * as ToggleGroup from '$ui/shadcn/toggle-group';
+    import ChevronsUpDown from '$icons/lucide/chevrons-up-down';
+    import X from '$icons/lucide/x';
+    import DateTimePicker from 'pika-ux/pika/date-time-picker/date-time-picker.svelte';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Label } from 'pika-ux/shadcn/label';
+    import * as Popover from 'pika-ux/shadcn/popover';
+    import { Separator } from 'pika-ux/shadcn/separator';
+    import * as ToggleGroup from 'pika-ux/shadcn/toggle-group';
 
     import type {
         NameValuePair,

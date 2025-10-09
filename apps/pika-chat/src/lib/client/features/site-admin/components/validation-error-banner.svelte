@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { TriangleAlert } from '$icons/lucide';
+    import TriangleAlert from '$icons/lucide/triangle-alert';
 
     interface Props {
         visible: boolean;

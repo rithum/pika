@@ -1,6 +1,4 @@
 <script lang="ts">
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Label } from '$ui/shadcn/label';
     import type {
         InstructionAugmentationFeatureForChatApp,
         InstructionAugmentationType,
@@ -9,6 +7,8 @@
         InstructionAugmentationTypeDisplayNames,
         InstructionAugmentationTypes,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Label } from 'pika-ux/shadcn/label';
 
     interface Props {
         overriddenFeature: InstructionAugmentationFeatureForChatApp | undefined;

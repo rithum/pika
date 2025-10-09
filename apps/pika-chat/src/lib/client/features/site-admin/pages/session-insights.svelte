@@ -1,14 +1,19 @@
 <script lang="ts">
-    import { ChartBar, Loader, MessageCircle, MessagesSquare, RefreshCw, X } from '$icons/lucide';
+    import ChartBar from '$icons/lucide/chart-bar';
+    import Loader from '$icons/lucide/loader';
+    import MessageCircle from '$icons/lucide/message-circle';
+    import MessagesSquare from '$icons/lucide/messages-square';
+    import RefreshCw from '$icons/lucide/refresh-cw';
+    import X from '$icons/lucide/x';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import SessionFeedback from '$lib/client/features/site-admin/components/session-insights/feedback/session-feedback.svelte';
     import SessionInsightsDetail from '$lib/client/features/site-admin/components/session-insights/session-insights-detail.svelte';
     import SessionMessages from '$lib/client/features/site-admin/components/session-insights/session-messages.svelte';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Label } from '$ui/shadcn/label';
-    import * as Resizable from '$ui/shadcn/resizable';
-    import { Separator } from '$ui/shadcn/separator';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Label } from 'pika-ux/shadcn/label';
+    import * as Resizable from 'pika-ux/shadcn/resizable';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext, type Snippet } from 'svelte';
     import SessionsTable from '../components/session-insights/sessions-table.svelte';
 

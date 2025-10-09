@@ -1,9 +1,5 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Checkbox } from '$ui/shadcn/checkbox';
-    import { Label } from '$ui/shadcn/label';
-    import { Textarea } from '$ui/shadcn/textarea';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import type {
@@ -16,6 +12,10 @@
         applyInstructionAssistance,
         generateInstructionAssistanceContent,
     } from 'pika-shared/util/instruction-assistance-utils';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
     import { getContext } from 'svelte';
 
     interface Props {
@@ -55,13 +55,13 @@
         const tagsEnabled = tagsToUse;
         const feature = effectiveFeature;
 
-        console.log('instructions', {
-            featureEnabled,
-            agentToUse,
-            instructionAssistanceConfig,
-            tagsEnabled,
-            feature,
-        });
+        // console.log('instructions', {
+        //     featureEnabled,
+        //     agentToUse,
+        //     instructionAssistanceConfig,
+        //     tagsEnabled,
+        //     feature,
+        // });
 
         if (featureEnabled && agentToUse && instructionAssistanceConfig) {
             const instructionContent = generateInstructionAssistanceContent(

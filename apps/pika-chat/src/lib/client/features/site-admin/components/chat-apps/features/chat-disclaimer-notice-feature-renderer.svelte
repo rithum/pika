@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { Label } from '$ui/shadcn/label';
-    import { Textarea } from '$ui/shadcn/textarea';
     import type { ChatDisclaimerNoticeFeatureForChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
 
     interface Props {
         overriddenFeature: ChatDisclaimerNoticeFeatureForChatApp | undefined;

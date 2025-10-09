@@ -1,15 +1,16 @@
-import {
-    TagDefinitionForCreateOrUpdate,
-    TagDefinitionWidgetPikaCompiledIn,
-    TagDefinitionWidgetCustomCompiledIn,
-    TagDefinitionCreateOrUpdateResponse,
-    TagDefinitionDeleteResponse
-} from 'pika-shared/types/chatbot/chatbot-types';
-import { invokeApi } from '../../lib/invoke-api';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 import pRetry, { AbortError } from 'p-retry';
+import {
+    TAG_DEFINITION_STATUSES,
+    TAG_DEFINITION_WIDGET_TYPES,
+    TagDefinitionCreateOrUpdateResponse,
+    TagDefinitionDeleteResponse,
+    TagDefinitionForCreateOrUpdate,
+    TagDefinitionWidget
+} from 'pika-shared/types/chatbot/chatbot-types';
+import { invokeApi } from '../../lib/invoke-api';
 
-export function parseTagDefinitionCustomResourceProperties(str: string): TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompiledIn | TagDefinitionWidgetCustomCompiledIn> {
+export function parseTagDefinitionCustomResourceProperties(str: string): TagDefinitionForCreateOrUpdate<TagDefinitionWidget> {
     let tagDefData: unknown;
     try {
         tagDefData = JSON.parse(str) as unknown;
@@ -21,7 +22,7 @@ export function parseTagDefinitionCustomResourceProperties(str: string): TagDefi
         throw new Error('TagDefData property when ungzipped and hex decoded is not an object');
     }
 
-    const tagDefDataObj = tagDefData as TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompiledIn | TagDefinitionWidgetCustomCompiledIn>;
+    const tagDefDataObj = tagDefData as TagDefinitionForCreateOrUpdate<TagDefinitionWidget>;
 
     if (!tagDefDataObj.tag) {
         throw new Error('TagDefData is missing the tag property');
@@ -36,9 +37,35 @@ export function parseTagDefinitionCustomResourceProperties(str: string): TagDefi
     }
 
     const widgetType = tagDefDataObj.widget.type;
-    if (widgetType !== 'pika-compiled-in' && widgetType !== 'custom-compiled-in' && widgetType !== 'web-component' && widgetType !== 'pass-through') {
-        throw new Error(`TagDefData.widget.type must be 'pika-compiled-in' or 'custom-compiled-in' or 'web-component' or 'pass-through', got: ${widgetType}`);
+    if (!TAG_DEFINITION_WIDGET_TYPES.includes(widgetType)) {
+        throw new Error(`TagDefData.widget.type must be one of: ${TAG_DEFINITION_WIDGET_TYPES.join(', ')}, got: ${widgetType}`);
     }
+
+    const status = tagDefDataObj.status;
+
+    if (!status) {
+        tagDefDataObj.status = 'enabled';
+        console.log('Status not provided, defaulting to "enabled"');
+    }
+
+    // Validate status
+    if (!TAG_DEFINITION_STATUSES.includes(tagDefDataObj.status)) {
+        throw new Error(
+            `Tag definition status must be one of: ${TAG_DEFINITION_STATUSES.join(', ')}. ` + `Got: ${tagDefDataObj.status}. ` + `Tag: ${tagDefDataObj.scope}.${tagDefDataObj.tag}`
+        );
+    }
+
+    // Validate chatAppId
+    if (!tagDefDataObj.chatAppId || typeof tagDefDataObj.chatAppId !== 'string' || tagDefDataObj.chatAppId.trim() === '') {
+        throw new Error(`Tag definition must have a non-empty chatAppId. ` + `Use 'chat-app-global' for global tags. ` + `Tag: ${tagDefDataObj.scope}.${tagDefDataObj.tag}`);
+    }
+
+    console.log('Tag definition validation passed:', {
+        tag: `${tagDefDataObj.scope}.${tagDefDataObj.tag}`,
+        chatAppId: tagDefDataObj.chatAppId,
+        status: tagDefDataObj.status,
+        widgetType: tagDefDataObj.widget.type
+    });
 
     return tagDefDataObj;
 }
@@ -119,6 +146,16 @@ export async function sendCustomResourceResponse(event: CloudFormationCustomReso
 
     if (!responseUrl) {
         throw new Error('ResponseURL is missing from the event');
+    }
+
+    // Check if this is a direct invocation (not from CloudFormation)
+    if (responseUrl.includes('mock-response-url.local')) {
+        console.log('Direct invocation detected (mock ResponseURL). Skipping CloudFormation callback.');
+        console.log('Tag operation completed successfully:', {
+            status: response.Status,
+            physicalResourceId: response.PhysicalResourceId
+        });
+        return;
     }
 
     // Validate the response before attempting to send

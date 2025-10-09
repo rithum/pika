@@ -1430,7 +1430,7 @@ export async function deleteTagDefApi(request: TagDefinitionDeleteRequest): Prom
  * Search for tag definitions with optional filtering and pagination
  */
 export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
-    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request.tagsDesired, true, request.includeInstructions, request.paginationToken);
+    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request, true);
 
     return {
         success: true,

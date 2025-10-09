@@ -1,7 +1,6 @@
 // No imports needed from shared types
 import type { AppState } from '$lib/client/app/app.state.svelte';
-import type { ShowToastFn } from '$lib/client/app/types';
-import type { ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ChatMessageForRendering, ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
 import type { ChatAppState } from '../chat-app.state.svelte';
 import type { ComponentRegistry } from './component-registry';
 import type { MetadataTagSegment, ProcessedSegment, ProcessedTagSegment, ProcessedTextSegment, SegmentProcessor } from './segment-types';
@@ -652,7 +651,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // Analyze what kind of tag construct we have starting at nextTagStart
             const tagAnalysis = this.analyzeTagConstruct(content, nextTagStart);
 
-            // console.log('[SEGMENT-PROCESSOR] 🔍 TAG ANALYSIS DEBUG:', {
+            // console.log('[SEGMENT-PROCESSOR] TAG ANALYSIS DEBUG:', {
             //     contentAtPosition: content.slice(nextTagStart, nextTagStart + 20),
             //     isValid: tagAnalysis.isValid,
             //     type: tagAnalysis.type,
@@ -700,7 +699,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 }
             } else {
                 // Not a valid tag, treat '<' as literal text
-                // console.log('[SEGMENT-PROCESSOR] ⚠️ LONE < DETECTED:', {
+                // console.log('[SEGMENT-PROCESSOR] LONE < DETECTED:', {
                 //     contentAtPosition: content.slice(nextTagStart, nextTagStart + 20),
                 //     fullRemainingContent: content.slice(nextTagStart),
                 //     reason: 'Tag construct analysis returned isValid: false'
@@ -732,7 +731,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         const contentToAnalyze = content.slice(startIndex);
         const match = contentToAnalyze.match(tagPattern);
 
-        // console.log('[SEGMENT-PROCESSOR] 🔍 ANALYZE TAG CONSTRUCT:', {
+        // console.log('[SEGMENT-PROCESSOR] ANALYZE TAG CONSTRUCT:', {
         //     startIndex,
         //     contentToAnalyze: contentToAnalyze.slice(0, 30),
         //     regexPattern: tagPattern.toString(),
@@ -746,7 +745,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         // });
 
         if (!match) {
-            // console.log('[SEGMENT-PROCESSOR] ❌ TAG ANALYSIS FAILED: No regex match');
+            // console.log('[SEGMENT-PROCESSOR] TAG ANALYSIS FAILED: No regex match');
             return { isValid: false };
         }
 
@@ -757,7 +756,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         const allSupportedTags = this.getAllSupportedTags();
         const isFullySupportedTag = allSupportedTags.includes(tagName);
 
-        // console.log('[SEGMENT-PROCESSOR] 🔍 TAG SUPPORT CHECK:', {
+        // console.log('[SEGMENT-PROCESSOR] TAG SUPPORT CHECK:', {
         //     tagName,
         //     afterTagName: afterTagName === '' ? '<EMPTY>' : afterTagName,
         //     isFullySupportedTag,
@@ -768,7 +767,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // We have <tag>, check if it's supported
             if (!isFullySupportedTag) {
                 // Not a supported tag, treat as text
-                // console.log('[SEGMENT-PROCESSOR] ❌ TAG REJECTED: Complete tag not supported');
+                // console.log('[SEGMENT-PROCESSOR] TAG REJECTED: Complete tag not supported');
                 return { isValid: false };
             }
 
@@ -780,7 +779,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             if (closingIndex !== -1) {
                 // Found complete tag
                 const tagContent = contentAfterOpening.slice(0, closingIndex);
-                // console.log('[SEGMENT-PROCESSOR] ✅ COMPLETE TAG FOUND:', {
+                // console.log('[SEGMENT-PROCESSOR] COMPLETE TAG FOUND:', {
                 //     tagName,
                 //     contentLength: tagContent.length
                 // });
@@ -793,7 +792,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 };
             } else {
                 // No closing tag found, it's streaming
-                // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (no closing):', { tagName });
+                // console.log('[SEGMENT-PROCESSOR] STREAMING TAG (no closing):', { tagName });
                 return {
                     isValid: true,
                     type: 'streaming',
@@ -806,13 +805,13 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // We have <tag , check if it's supported
             if (!isFullySupportedTag) {
                 // Not a supported tag, treat as text
-                // console.log('[SEGMENT-PROCESSOR] ❌ TAG REJECTED: Space after unsupported tag');
+                // console.log('[SEGMENT-PROCESSOR] TAG REJECTED: Space after unsupported tag');
                 return { isValid: false };
             }
 
             // The space indicates complete tag name, this is streaming
             const contentAfterSpace = content.slice(startIndex + match[0].length);
-            // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (space):', { tagName });
+            // console.log('[SEGMENT-PROCESSOR] STREAMING TAG (space):', { tagName });
             return {
                 isValid: true,
                 type: 'streaming',
@@ -824,7 +823,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // afterTagName is empty string (end of content), this could be incomplete
             if (isFullySupportedTag) {
                 // This is a complete supported tag name but no closing >, so it's streaming
-                // console.log('[SEGMENT-PROCESSOR] ✅ STREAMING TAG (incomplete but supported):', { tagName });
+                // console.log('[SEGMENT-PROCESSOR] STREAMING TAG (incomplete but supported):', { tagName });
                 return {
                     isValid: true,
                     type: 'streaming',
@@ -835,7 +834,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             } else {
                 // This could be a partial tag name - be permissive and create incomplete segment
                 // We'll validate when we get the complete name
-                // console.log('[SEGMENT-PROCESSOR] ✅ INCOMPLETE TAG (partial name):', {
+                // console.log('[SEGMENT-PROCESSOR] INCOMPLETE TAG (partial name):', {
                 //     partialTagName: tagName,
                 //     reason: 'Not in supported tags yet, being permissive'
                 // });

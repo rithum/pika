@@ -1,5 +1,5 @@
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
-import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
+import type { FetchZ } from '$lib/client/app/types';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
 import deepEqual from 'deep-equal';
@@ -22,6 +22,7 @@ import type {
     SemanticDirectiveDeleteAdminRequest,
     SemanticDirectiveDeleteResponse,
     SemanticDirectiveForCreateOrUpdate,
+    ShowToastFn,
     SimpleOption,
     ToolDefinition
 } from 'pika-shared/types/chatbot/chatbot-types';
@@ -336,9 +337,7 @@ export class InstructionAugmentationState {
             await checkClientResponseAndBody<SemanticDirectiveDeleteResponse>(response, 'deleting semantic directive', this.#showToast, CLIENT_RESOURCE_NAMES.SEMANTIC_DIRECTIVE);
 
             const idx = this.#semanticDirectives.findIndex((d) => d.scope === directive.scope && d.id === directive.id);
-            console.log('idx', idx);
             if (idx !== -1) {
-                console.log('splicing', idx);
                 this.#semanticDirectives.splice(idx, 1);
             }
         } catch (error) {
@@ -392,7 +391,6 @@ export class InstructionAugmentationState {
         }
 
         if (worked && deleteThisWhenDoneSaving) {
-            console.log('deleting', deleteThisWhenDoneSaving);
             await this.deleteSemanticDirective(deleteThisWhenDoneSaving);
         }
 

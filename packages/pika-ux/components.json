@@ -1,0 +1,16 @@
+{
+    "$schema": "https://shadcn-svelte.com/schema.json",
+    "tailwind": {
+        "css": "src/app.css",
+        "baseColor": "slate"
+    },
+    "aliases": {
+        "components": "$ui",
+        "utils": "$ui/shadcn/utils",
+        "ui": "$ui/shadcn",
+        "hooks": "$ui/shadcn",
+        "lib": "$lib"
+    },
+    "typescript": true,
+    "registry": "https://tw3.shadcn-svelte.com/registry/new-york"
+}

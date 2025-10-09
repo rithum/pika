@@ -1129,6 +1129,20 @@ export class PikaConstruct extends Construct {
             removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
         });
 
+        // Add GSI for querying by chatAppId and status
+        tagDefinitionsTable.addGlobalSecondaryIndex({
+            indexName: 'chatappid-status-index',
+            partitionKey: {
+                name: 'chat_app_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'status',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
         new ssm.StringParameter(this, 'TagDefinitionsTableNameParam', {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/pika_tag_def`,
             stringValue: tagDefinitionsTable.tableName,
@@ -1513,7 +1527,7 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
+                            actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan', 'dynamodb:BatchGetItem'],
                             resources: [tagDefinitionsTable.tableArn, `${tagDefinitionsTable.tableArn}/*`]
                         }),
                         // Memory permissions

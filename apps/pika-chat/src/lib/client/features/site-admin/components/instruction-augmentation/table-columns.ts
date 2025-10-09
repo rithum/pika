@@ -1,12 +1,12 @@
-import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
-import { renderComponent } from '$ui/shadcn/data-table';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
 import type { SemanticDirective } from 'pika-shared/types/chatbot/chatbot-types';
+import { PikaTableCheckbox, PikaTableColumnHeader } from 'pika-ux/pika/pika-table';
+import { renderComponent } from 'pika-ux/shadcn/data-table';
 import ScopeCell from './cells/scope-cell.svelte';
 
 const TableColumnHeader = PikaTableColumnHeader<SemanticDirective, unknown>;
-const TableRowActions = PikaTableRowActions<SemanticDirective>;
+// const TableRowActions = PikaTableRowActions<SemanticDirective>;
 
 function truncateText(text: string, maxLength: number = 100): string {
     if (text.length <= maxLength) return text;

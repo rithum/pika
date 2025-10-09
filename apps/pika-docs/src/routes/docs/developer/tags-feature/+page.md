@@ -19,34 +19,49 @@ Enable the tags feature in your `pika-config.ts`:
 ```js
 export const siteFeatures: SiteFeatures = {
     tags: {
-        enabled: true,
-        tagsEnabled: [
-            { tag: 'chart', scope: 'builtin' },
-            { tag: 'table', scope: 'builtin' },
-            { tag: 'order-status', scope: 'custom' }
-        ],
-        tagsProhibited: [
-            // Tags that should never be used
-        ]
+        enabled: true
+        // Tag visibility is controlled at the tag definition level via:
+        // - TagDefinition.chatAppId: 'chat-app-global' = available to all chat apps
+        // - TagDefinition.chatAppId: 'weather' = available only to 'weather' chat app
+        // - TagDefinition.status: 'enabled' | 'disabled' | 'retired' = lifecycle state
     }
     // ... other features
 };
 ```
 
-### Chat App Level Configuration
+### Tag Visibility Model
 
-Override tag settings for specific chat apps:
+Tag visibility is controlled by fields on the `TagDefinition` itself, not through site or chat app configuration:
+
+**Global Tags** - Available to all chat apps:
 
 ```js
-const chatAppFeatures: ChatAppOverridableFeatures = {
-    tags: {
-        tagsEnabled: [
-            { tag: 'chart', scope: 'pika' },
-            { tag: 'product-form', scope: 'acme_company' }
-        ]
-    }
-};
+{
+    tag: 'chart',
+    scope: 'pika',
+    chatAppId: 'chat-app-global',  // Special value for global tags
+    status: 'enabled',              // Active and visible
+    // ... rest of definition
+}
 ```
+
+**App-Specific Tags** - Available to specific chat app(s):
+
+```js
+{
+    tag: 'order-status',
+    scope: 'acme',
+    chatAppId: 'sales-chat',       // Only visible in 'sales-chat' app
+    status: 'enabled',
+    // ... rest of definition
+}
+```
+
+**Status Lifecycle:**
+
+- `'enabled'` - Active and available for use
+- `'disabled'` - Temporarily hidden but not removed
+- `'retired'` - Permanently archived/deprecated
 
 ## Tag Definition Types
 
@@ -89,7 +104,7 @@ Standalone web components that can be uploaded and dynamically loaded:
     webComponent: {
       s3Bucket: 'my-components-bucket',
       s3Key: 'calculator-component.js',
-      encoding: 'gzip+base64'
+      encoding: 'gzip'
     }
   }
 }

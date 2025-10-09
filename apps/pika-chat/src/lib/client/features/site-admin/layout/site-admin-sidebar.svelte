@@ -1,8 +1,8 @@
 <script lang="ts">
-    import * as Sidebar from '$ui/shadcn/sidebar';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar';
 
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { useSidebar } from '$ui/shadcn/sidebar';
+    import { useSidebar } from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
     import SiteAdminNav from '../nav/site-admin-nav.svelte';
     // import ChatNavUser from '../nav/chat-nav-user.svelte';

@@ -1,14 +1,17 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
-    import { Loader, MessageSquarePlus, ThumbsDown, ThumbsUp } from '$icons/lucide';
-    import ExpandableContainer from '$ui/pika/expandable-container/expandable-container.svelte';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$ui/shadcn/button';
+    import Loader from '$icons/lucide/loader';
+    import MessageSquarePlus from '$icons/lucide/message-square-plus';
+    import ThumbsDown from '$icons/lucide/thumbs-down';
+    import ThumbsUp from '$icons/lucide/thumbs-up';
     import type {
         ChatMessage,
         ChatSessionFeedbackForCreate,
         SessionFeedbackType,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import ExpandableContainer from 'pika-ux/pika/expandable-container/expandable-container.svelte';
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { v7 as uuidv7 } from 'uuid';
@@ -22,7 +25,9 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import Prompt from '../message-segments/default-components/prompt.svelte';
+    import Spotlight from '../spotlight/index.svelte';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
+    import WidgetDialog from './widget-dialog.svelte';
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
@@ -249,6 +254,8 @@
         </div>
     {/if}
 
+    <Spotlight mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'} />
+
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
         <!-- Scrollable area that spans full width with right-aligned scrollbar -->
         <div class="inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto" bind:this={resizeHeightEl}>
@@ -426,6 +433,8 @@
 {/if}
 
 <CurrentSessionShareDialog />
+
+<WidgetDialog />
 
 <style>
     @keyframes pulse-dot {

@@ -1,5 +1,6 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { error } from 'console';
 import type { PresignedUrlUploadRequest, PresignedUrlUploadResponse } from 'pika-shared/types/upload-types';
 import { appConfig } from './config';
 
@@ -35,4 +36,33 @@ export async function getPresignedUploadResponse(request: PresignedUrlUploadRequ
             'Content-Type': fileMimeType
         }
     };
+}
+
+export async function getS3Object(key: string): Promise<Uint8Array[]> {
+    if (!s3Client) {
+        s3Client = new S3Client({ region: appConfig.awsRegion });
+    }
+
+    const command = new GetObjectCommand({
+        Bucket: appConfig.pikaS3Bucket,
+        Key: key
+    });
+
+    const response = await s3Client.send(command);
+
+    if (!response.Body) {
+        throw error(500, 'Failed to read web component from S3');
+    }
+
+    // Convert stream to buffer
+    const chunks: Uint8Array[] = [];
+    const reader = response.Body.transformToWebStream().getReader();
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+    }
+
+    return chunks;
 }

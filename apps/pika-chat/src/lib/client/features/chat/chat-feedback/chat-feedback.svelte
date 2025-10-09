@@ -1,17 +1,19 @@
 <script lang="ts">
-    import { Loader, ThumbsDown, ThumbsUp } from '$icons/lucide';
+    import Loader from '$icons/lucide/loader';
+    import ThumbsDown from '$icons/lucide/thumbs-down';
+    import ThumbsUp from '$icons/lucide/thumbs-up';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import { Textarea } from '$ui/shadcn/textarea';
     import {
         SESSION_FEEDBACK_TYPE_VALUES,
         type ChatMessage,
         type ChatSessionFeedbackForCreate,
         type SessionFeedbackType,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { v7 as uuidv7 } from 'uuid';

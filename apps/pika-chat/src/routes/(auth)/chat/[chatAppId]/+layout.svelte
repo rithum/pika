@@ -5,10 +5,11 @@
     import ChatTitlebar from '$client/features/chat/layout/chat-titlebar.svelte';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
-    import { Slideout, SlideoutContent, SlideoutProvider } from '$ui/pika/slideout';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import * as Sidebar from '$ui/shadcn/sidebar/index.js';
+    import WebComponentRenderer from '$lib/client/features/chat/message-segments/default-components/web-component-renderer.svelte';
+    import { Slideout, SlideoutContent, SlideoutProvider } from 'pika-ux/pika/slideout';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar/index.js';
     import { getContext, setContext, type Snippet } from 'svelte';
     import type { LayoutData } from './$types';
 
@@ -29,7 +30,8 @@
         data.features,
         data.customDataUiRepresentation,
         data.mode,
-        data.tagDefinitions
+        data.tagDefinitions,
+        WebComponentRenderer
     );
 
     let showShareErrorDialogTitle = $state('');

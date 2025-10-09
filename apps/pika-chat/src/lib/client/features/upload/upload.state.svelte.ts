@@ -1,5 +1,6 @@
-import type { FetchZ, ShowToastFn } from '$client/app/types';
+import type { FetchZ } from '$client/app/types';
 import { ClientOperationError, handleClientError } from '$lib/client/util';
+import type { ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
 import { UploadInstance } from './upload-instance.svelte';
 
 export class UploadState {

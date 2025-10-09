@@ -1,5 +1,6 @@
 import type { VisibilityState } from '@tanstack/table-core';
-import type { AppSettings, ShowToastFn, TableSettings } from '../types';
+import type { ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AppSettings, TableSettings } from '../types';
 
 const SETTINGS_KEY = 'app-settings';
 

@@ -1,0 +1,123 @@
+{
+    "name": "pika-ux",
+    "version": "1.0.0-beta.10",
+    "type": "module",
+    "exports": {
+        "./pika/*": "./src/pika/*",
+        "./shadcn/*": "./src/shadcn/*",
+        "./icons/*": "./src/icons/*",
+        "./app.css": "./src/app.css",
+        "./tools/icon-generator": "./dist/icon-generator/generate-icon-ts-indices.js",
+        "./tools/shadcn-postinstall": "./dist/shadcn-postinstall/index.js"
+    },
+    "bin": {
+        "pikaux": "./dist/cli/index.js",
+        "pika-ux": "./dist/cli/index.js",
+        "pika-ux-icons": "./dist/icon-generator/generate-icon-ts-indices.js",
+        "pika-ux-normalize": "./dist/shadcn-postinstall/index.js"
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "pnpm run icons:generate && tsup",
+        "setup": "node scripts/setup.js",
+        "icons:generate": "tsx tools/icon-generator/generate-icon-ts-indices.ts",
+        "shadcn:normalize": "tsx tools/shadcn-postinstall/index.ts",
+        "lint": "eslint src/",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+        "check-types": "tsc --noEmit",
+        "version:patch": "pnpm version patch --git-tag-version=true",
+        "version:minor": "pnpm version minor --git-tag-version=true",
+        "version:major": "pnpm version major --git-tag-version=true",
+        "release:patch": "pnpm run build && pnpm run version:patch && pnpm publish && git push && git push --tags",
+        "release:minor": "pnpm run build && pnpm run version:minor && pnpm publish && git push && git push --tags",
+        "release:major": "pnpm run build && pnpm run version:major && pnpm publish && git push && git push --tags",
+        "release:dry": "pnpm run build && pnpm publish --dry-run"
+    },
+    "files": [
+        "src/**",
+        "dist/**",
+        "scripts/**"
+    ],
+    "devDependencies": {
+        "@iconify-json/ci": "catalog:",
+        "@iconify-json/lucide": "catalog:",
+        "@lucide/svelte": "catalog:",
+        "@pika/typescript-config": "workspace:*",
+        "@sveltejs/vite-plugin-svelte": "catalog:",
+        "@tailwindcss/typography": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "@tsconfig/svelte": "catalog:",
+        "@types/fs-extra": "catalog:",
+        "@types/indefinite": "catalog:",
+        "@types/inquirer": "catalog:",
+        "@types/node": "catalog:",
+        "@types/semver": "catalog:",
+        "bits-ui": "^1.8.0",
+        "embla-carousel-svelte": "catalog:",
+        "eslint": "catalog:",
+        "tailwind-merge": "catalog:",
+        "tailwind-variants": "catalog:",
+        "tailwindcss": "catalog:",
+        "tsup": "catalog:",
+        "tsx": "catalog:",
+        "tw-animate-css": "catalog:",
+        "typescript": "catalog:",
+        "unplugin-icons": "catalog:",
+        "vite": "catalog:"
+    },
+    "peerDependencies": {
+        "@iconify-json/ci": "catalog:",
+        "@iconify-json/lucide": "catalog:",
+        "@tailwindcss/typography": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "svelte": "catalog:",
+        "tailwind-merge": "catalog:",
+        "tailwind-variants": "catalog:",
+        "tailwindcss": "catalog:",
+        "unplugin-icons": "catalog:"
+    },
+    "dependencies": {
+        "@cartamd/plugin-code": "catalog:",
+        "@iconify-json/ci": "catalog:",
+        "@iconify-json/lucide": "catalog:",
+        "@internationalized/date": "catalog:",
+        "@tanstack/table-core": "catalog:",
+        "carta-md": "catalog:",
+        "chalk": "catalog:",
+        "clsx": "catalog:",
+        "commander": "catalog:",
+        "date-fns": "catalog:",
+        "date-fns-tz": "catalog:",
+        "fs-extra": "catalog:",
+        "glob": "catalog:",
+        "indefinite": "catalog:",
+        "inquirer": "catalog:",
+        "mode-watcher": "catalog:",
+        "ora": "catalog:",
+        "paneforge": "catalog:",
+        "plur": "catalog:",
+        "semver": "catalog:",
+        "svelte-sonner": "catalog:"
+    },
+    "keywords": [
+        "pika",
+        "ui",
+        "components",
+        "svelte",
+        "shadcn",
+        "design-system"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rithum/pika.git",
+        "directory": "packages/pika-ux"
+    },
+    "bugs": {
+        "url": "https://github.com/rithum/pika/issues"
+    },
+    "homepage": "https://github.com/rithum/pika#readme",
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
+    }
+}

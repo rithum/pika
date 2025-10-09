@@ -1,10 +1,8 @@
 <script lang="ts">
-    import { File, Loader, X } from '$icons/lucide';
+    import File from '$icons/lucide/file';
+    import Loader from '$icons/lucide/loader';
+    import X from '$icons/lucide/x';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import { Textarea } from '$ui/shadcn/textarea';
     import type {
         Attachment,
         ChatSessionFeedback,
@@ -17,6 +15,10 @@
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
         FEEDBACK_INTERNAL_COMMENT_TYPE_VALUES,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { v7 as uuidv7 } from 'uuid';

@@ -1,11 +1,13 @@
 <script lang="ts">
-    import { HelpQuestionmark } from '$icons/ci';
-    import { Loader, RefreshCw, X } from '$icons/lucide';
+    import HelpQuestionmark from '$icons/ci/help-questionmark';
+    import Loader from '$icons/lucide/loader';
+    import RefreshCw from '$icons/lucide/refresh-cw';
+    import X from '$icons/lucide/x';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Resizable from '$ui/shadcn/resizable';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Resizable from 'pika-ux/shadcn/resizable';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
     import { getContext, type Snippet } from 'svelte';
     import DirectiveDialog from '../components/instruction-augmentation/directive-dialog.svelte';
     import SemanticDirectiveDetail from '../components/instruction-augmentation/semantic-directive-detail.svelte';

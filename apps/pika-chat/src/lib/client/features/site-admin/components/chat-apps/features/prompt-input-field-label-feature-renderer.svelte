@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
     import type { PromptInputFieldLabelFeature } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
 
     interface Props {
         overriddenFeature: PromptInputFieldLabelFeature | undefined;

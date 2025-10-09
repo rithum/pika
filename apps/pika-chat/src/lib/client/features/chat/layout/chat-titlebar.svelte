@@ -1,10 +1,17 @@
 <script lang="ts">
-    import { Loader, PanelLeft, PanelRightClose, Pin, PinOff, Settings2, Share, SquarePen } from '$icons/lucide';
+    import Loader from '$icons/lucide/loader';
+    import PanelLeft from '$icons/lucide/panel-left';
+    import PanelRightClose from '$icons/lucide/panel-right-close';
+    import Pin from '$icons/lucide/pin';
+    import PinOff from '$icons/lucide/pin-off';
+    import Settings2 from '$icons/lucide/settings-2';
+    import Share from '$icons/lucide/share';
+    import SquarePen from '$icons/lucide/square-pen';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
 

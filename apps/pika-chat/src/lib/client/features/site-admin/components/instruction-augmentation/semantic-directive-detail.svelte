@@ -1,13 +1,14 @@
 <script lang="ts">
-    import { Calendar, Loader } from '$icons/lucide';
+    import Calendar from '$icons/lucide/calendar';
+    import Loader from '$icons/lucide/loader';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$ui/shadcn/card';
-    import { Label } from '$ui/shadcn/label';
     import { formatDistanceToNow } from 'date-fns';
     import MarkdownIt from 'markdown-it';
     import type { SemanticDirective } from 'pika-shared/types/chatbot/chatbot-types';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Card, CardContent, CardDescription, CardHeader, CardTitle } from 'pika-ux/shadcn/card';
+    import { Label } from 'pika-ux/shadcn/label';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import Scope from './scope.svelte';

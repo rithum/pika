@@ -1,5 +1,5 @@
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
-import type { FetchZ, ShowToastFn } from '$lib/client/app/types';
+import type { FetchZ } from '$lib/client/app/types';
 import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
 import { MessageSegmentProcessor } from '$lib/client/features/chat/message-segments/segment-processor';
 import type { UserPrefsState } from '$lib/client/features/prefs/user-prefs.state.svelte';
@@ -23,6 +23,7 @@ import type {
     SessionSearchAdminRequest,
     SessionSearchRequest,
     SessionSearchResponse,
+    ShowToastFn,
     SimpleOption
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { SvelteMap } from 'svelte/reactivity';

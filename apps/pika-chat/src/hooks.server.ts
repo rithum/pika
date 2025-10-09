@@ -4,10 +4,14 @@ import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import {
     clearAllCookies,
+    clearForceReauthRetryCookie,
+    clearForceReauthRetryCookieIfExists,
     deserializeAuthenticatedUserFromCookies,
     deserializeContentAdminDataFromCookies,
     deserializeUserOverrideDataFromCookies,
+    getForceRetryAuthRetryAttemptsCookieValue,
     serializeAuthenticatedUserToCookies,
+    setForceReauthRetryCookie,
     validateAllCookieVersions
 } from '$lib/server/cookies';
 import { KeyManager } from '$lib/server/encryption/KeyManager';
@@ -16,6 +20,8 @@ import { addSecurityHeaders, arraysEqual, isUserAllowedToUseUserDataOverrides, i
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 import deepEqual from 'deep-equal';
 import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+
+const MAX_FORCE_REAUTH_RETRY_ATTEMPTS = 3;
 
 let authProvider: AuthProvider<RecordOrUndef, RecordOrUndef> | undefined;
 let keyManager: KeyManager | undefined;
@@ -88,6 +94,42 @@ export const handle: Handle = async ({ event, resolve }) => {
         await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
         // Allow access to client auth page without authentication
         return addSecurityHeaders(await resolve(event));
+    }
+
+    // Force re-authentication route - clears cookies and redirects to trigger fresh auth
+    if (pathName === '/force-reauth') {
+        clearAllCookies(event);
+
+        // Get the return URL from query params, default to home page
+        const returnUrl = event.url.searchParams.get('return_url') || '/';
+
+        // Handle local development - show static error page instead of redirect loop
+        if (appConfig.isLocal) {
+            console.log('[Hooks] Force re-auth requested (LOCAL MODE) - showing token expired page');
+            return new Response(
+                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Token Expired</title></head><body><div><h1>AWS Token Expired</h1><p><strong>Local Development Mode</strong></p><p>AWS token has expired and needs to be updated.</p><div><strong>Intended URL:</strong><div>${returnUrl}</div></div><p>Please update your AWS credentials in your local configuration and restart the application.</p></div></body></html>`,
+                {
+                    status: 401,
+                    headers: { 'Content-Type': 'text/html' }
+                }
+            );
+        } else {
+            const retryCount = getForceRetryAuthRetryAttemptsCookieValue(event);
+            if (retryCount >= MAX_FORCE_REAUTH_RETRY_ATTEMPTS) {
+                // Too many retry attempts - redirect to login to break the loop
+                console.log('[Hooks] Force re-auth exceeded max attempts, redirecting to login');
+                clearForceReauthRetryCookie(event);
+                // Pass the intended destination as a query parameter for future enhancement
+                const loginUrl = `/login?callbackUrl=${encodeURIComponent(returnUrl)}`;
+                return redirect(302, loginUrl);
+            } else {
+                setForceReauthRetryCookie(event, retryCount + 1);
+                console.log('[Hooks] Force re-auth requested (attempt', retryCount + 1, '), clearing cookies and redirecting to:', returnUrl);
+                const redirectUrl = new URL(returnUrl, event.url.origin);
+                redirectUrl.searchParams.set('force_reauth', '1');
+                return redirect(302, redirectUrl.pathname + redirectUrl.search);
+            }
+        }
     }
 
     // ===== Protected Routes (Auth Required) =====
@@ -455,13 +497,30 @@ export const handle: Handle = async ({ event, resolve }) => {
     // Set user, config, and keyManager in locals for server-side use
     event.locals = { user, appConfig, authProvider, keyManager };
 
-    // Clean up auth_retry parameter if authentication was successful
+    // Clean up auth_retry and force_reauth parameters if authentication was successful
     if (user) {
         const url = new URL(event.url);
+        let needsCleanup = false;
+
         if (url.searchParams.has('auth_retry')) {
             console.log('[Hooks] Authentication successful, cleaning up auth_retry parameter');
             url.searchParams.delete('auth_retry');
-            // Redirect to clean URL - this removes the parameter
+            needsCleanup = true;
+        }
+
+        if (url.searchParams.has('force_reauth')) {
+            console.log('[Hooks] Authentication successful, cleaning up force_reauth parameter');
+            url.searchParams.delete('force_reauth');
+            needsCleanup = true;
+        }
+
+        if (clearForceReauthRetryCookieIfExists(event)) {
+            console.log('[Hooks] Authentication successful, clearing reauth retry cookie');
+            needsCleanup = true;
+        }
+
+        if (needsCleanup) {
+            // Redirect to clean URL - this removes the parameters
             return redirect(302, url.pathname + url.search);
         }
     }

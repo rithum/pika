@@ -19,7 +19,6 @@ import {
     type RecordOrUndef,
     type SimpleAuthenticatedUser,
     type TagDefinition,
-    type TagDefinitionLite,
     type TagDefinitionSearchRequest,
     type TagDefinitionSearchResponse,
     type TagDefinitionWidget,
@@ -361,28 +360,30 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
 }
 
 /**
- * Get tag definitions from cache or fetch from API
+ * Get inline-enabled tag definitions for a chat app (including global tags).
+ * Automatically queries both the specified chatAppId AND 'chat-app-global'.
+ * Filters to only include tags with status === 'enabled' AND contexts.inline.enabled === true.
  */
-async function getTagDefinitionsFromCacheOrApi(tagsEnabled: TagDefinitionLite[]): Promise<TagDefinition<TagDefinitionWidget>[]> {
-    if (!tagsEnabled || tagsEnabled.length === 0) {
+async function getInlineTagDefinitionsForChatApp(chatAppId: string): Promise<TagDefinition<TagDefinitionWidget>[]> {
+    if (!chatAppId) {
         return [];
     }
 
-    // Create cache key from sorted tag identifiers
-    const cacheKey = tagsEnabled
-        .map((tag) => `${tag.scope}.${tag.tag}`)
-        .sort()
-        .join(',');
+    // Create cache key based on chat app ID
+    const cacheKey = `inline-tags-${chatAppId}`;
 
     let result = tagDefinitionCache.get(cacheKey);
     if (result) {
-        console.log('Tag definitions retrieved from cache:', { cacheKey, count: result.length });
+        console.log('Inline tag definitions retrieved from cache:', { chatAppId, count: result.length });
         return result;
     }
 
-    console.log('Fetching tag definitions from API:', { tagsEnabled, cacheKey });
+    console.log('Fetching inline tag definitions from API:', { chatAppId });
+
+    // Search for all tags available to this chat app
+    // Note: Automatically includes both chatAppId-specific tags AND 'chat-app-global' tags
     const searchRequest: TagDefinitionSearchRequest = {
-        tagsDesired: tagsEnabled,
+        chatAppId: chatAppId,
         includeInstructions: true
     };
 
@@ -392,15 +393,18 @@ async function getTagDefinitionsFromCacheOrApi(tagsEnabled: TagDefinitionLite[])
         return [];
     }
 
-    result = response.tagDefinitions;
+    // Filter to only include inline-enabled tags with status 'enabled'
+    result = response.tagDefinitions.filter((tagDef) => {
+        return tagDef.status === 'enabled' && tagDef.renderingContexts?.inline?.enabled === true;
+    });
 
     // Only cache if no tag has dontCacheThis set to true
     const shouldCache = result.every((tagDef) => !tagDef.dontCacheThis);
     if (shouldCache) {
         tagDefinitionCache.set(cacheKey, result);
-        console.log('Tag definitions cached:', { cacheKey, count: result.length });
+        console.log('Inline tag definitions cached:', { chatAppId, count: result.length });
     } else {
-        console.log('Tag definitions not cached due to dontCacheThis flag');
+        console.log('Inline tag definitions not cached due to dontCacheThis flag');
     }
 
     return result;
@@ -542,7 +546,7 @@ async function converse(
 
     // Apply instruction assistance to the agent prompt if enabled
     console.log('Applying instruction assistance to agent prompt...');
-    const tagDefinitions = await getTagDefinitionsFromCacheOrApi(features.tags?.tagsEnabled ?? []);
+    const tagDefinitions = await getInlineTagDefinitionsForChatApp(chatSession.chatAppId);
     const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
     const originalPrompt = agentAndTools.agent.basePrompt;
     const enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);

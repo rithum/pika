@@ -1,0 +1,35 @@
+{
+    "name": "{projectName}",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    },
+    "devDependencies": {
+        "@iconify-json/ci": "catalog:",
+        "@iconify-json/lucide": "catalog:",
+        "@internationalized/date": "catalog:",
+        "@lucide/svelte": "catalog:",
+        "@sveltejs/vite-plugin-svelte": "catalog:",
+        "@tailwindcss/typography": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "@types/node": "catalog:",
+        "@tsconfig/svelte": "catalog:",
+        "bits-ui": "catalog:",
+        "clsx": "catalog:",
+        "pika-ux": "{pikaUxVersion}",
+        "svelte": "catalog:",
+        "svelte-check": "catalog:",
+        "tailwind-merge": "catalog:",
+        "tailwind-variants": "catalog:",
+        "tailwindcss": "catalog:",
+        "tw-animate-css": "catalog:",
+        "typescript": "catalog:",
+        "unplugin-icons": "catalog:",
+        "vite": "catalog:"
+    }
+}

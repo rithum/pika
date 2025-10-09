@@ -1,8 +1,9 @@
-import type { FetchZ, ShowToastFn } from '$client/app/types';
+import type { FetchZ } from '$client/app/types';
 import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
-import type { GetChatUserPrefsResponse, SetChatUserPrefsRequest, SetChatUserPrefsResponse, UserPrefs } from 'pika-shared/types/chatbot/chatbot-types';
+import type { GetChatUserPrefsResponse, SetChatUserPrefsRequest, SetChatUserPrefsResponse, ShowToastFn, UserPrefs } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IUserPrefsState } from 'pika-shared/types/chatbot/webcomp-types';
 
-export class UserPrefsState {
+export class UserPrefsState implements IUserPrefsState {
     #prefs = $state<UserPrefs>();
     #initialized = $state(false);
     #showToast: ShowToastFn;

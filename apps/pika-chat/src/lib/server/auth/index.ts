@@ -20,7 +20,7 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
     } catch (e) {
         // Provider file doesn't exist or has errors
         console.log('Auth provider load error:', e);
-        return new DefaultAuthProvider(appConfig.stage);
+        return addDefaultGetUserCognitoIdentityMethodIfSupposedTo(new DefaultAuthProvider(appConfig.stage));
     }
 
     // Validate the provider
@@ -28,23 +28,35 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
         console.log(
             'WARNING!! ACHTUNG!! ATTENTION!! Auth provider is undefined so using INSECURE default mock authentication.  If not intentional, see docs at https://pika.tools.'
         );
-        return new DefaultAuthProvider(appConfig.stage);
+        return addDefaultGetUserCognitoIdentityMethodIfSupposedTo(new DefaultAuthProvider(appConfig.stage));
     }
 
     if (typeof authProvider !== 'function') {
         console.log('Custom auth provider is not a class, using default mock authentication');
-        return new DefaultAuthProvider(appConfig.stage);
+        return addDefaultGetUserCognitoIdentityMethodIfSupposedTo(new DefaultAuthProvider(appConfig.stage));
     }
 
     try {
         console.log('Custom authentication provider loaded successfully');
         // At this point, authProvider is confirmed to be a function that we can construct an instance of
         const AuthProviderClass = authProvider as new (stage: string) => AuthProvider<RecordOrUndef, RecordOrUndef>;
-        return new AuthProviderClass(appConfig.stage);
+        return addDefaultGetUserCognitoIdentityMethodIfSupposedTo(new AuthProviderClass(appConfig.stage));
     } catch (e) {
         console.log('Failed to instantiate custom auth provider, using default mock authentication');
         console.log(`Provider instantiation error: ${e instanceof Error ? e.message : String(e)}`);
         // Return the error to cause the app to crash
         throw e;
     }
+}
+
+function addDefaultGetUserCognitoIdentityMethodIfSupposedTo(authProvider: AuthProvider<RecordOrUndef, RecordOrUndef>): AuthProvider<RecordOrUndef, RecordOrUndef> {
+    if (appConfig.isLocal && appConfig.getArbitraryConfigValue('USE_LOCAL_COGNITO_IDENTITY') === 'true') {
+        authProvider.getUserCognitoIdentity = async (_user) => {
+            return {
+                cognitoIdentityId: appConfig.getArbitraryConfigValue('LOCAL_COGNITO_IDENTITY_ID'),
+                cognitoAccessToken: appConfig.getArbitraryConfigValue('LOCAL_COGNITO_IDENTITY_TOKEN')
+            };
+        };
+    }
+    return authProvider;
 }

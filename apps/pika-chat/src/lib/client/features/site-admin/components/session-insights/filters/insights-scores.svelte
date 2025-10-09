@@ -1,9 +1,10 @@
 <script lang="ts">
-    import { ChevronsUpDown, X } from '$icons/lucide';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Popover from '$ui/shadcn/popover';
+    import ChevronsUpDown from '$icons/lucide/chevrons-up-down';
+    import X from '$icons/lucide/x';
     import { type InsightsSearchParams } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Popover from 'pika-ux/shadcn/popover';
     import InsightsScoreFilter from './insights-score.svelte';
 
     interface Props {

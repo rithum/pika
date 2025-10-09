@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
     import { getContext } from 'svelte';
 
     interface Props {

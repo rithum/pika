@@ -1,14 +1,14 @@
 <script lang="ts">
-    import { ChevronsUpDown } from '$icons/lucide';
+    import ChevronsUpDown from '$icons/lucide/chevrons-up-down';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Popover from '$ui/shadcn/popover';
-    import { Separator } from '$ui/shadcn/separator';
     import type {
         SemanticDirectiveForCreateOrUpdate,
         SemanticDirectiveScope,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Popover from 'pika-ux/shadcn/popover';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import Scope from '../scope.svelte';
     import AgentsFilter from './agents-filter.svelte';

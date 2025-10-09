@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import Chip from '$ui/pika/chip/chip.svelte';
+    import Chip from 'pika-ux/pika/chip/chip.svelte';
     import { getContext } from 'svelte';
     import { getSessionSearchDateDisplayValue } from './utils';
     const appState = getContext<AppState>('appState');

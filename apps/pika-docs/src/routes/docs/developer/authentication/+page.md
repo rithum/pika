@@ -1192,6 +1192,361 @@ This pattern is ideal for:
 - **Set appropriate cookie security** settings for your domain
 - **Handle authentication errors** gracefully on both client and server
 
+## AWS Credentials Integration
+
+### Overview
+
+The Pika framework provides a seamless way to obtain AWS credentials on the client side, enabling your application to make direct calls to AWS services from the browser. This is particularly useful for scenarios like uploading files to S3, invoking Lambda functions, or accessing other AWS resources directly from the client.
+
+### How It Works
+
+1. **Server-Side**: Your auth provider implements the `getUserCognitoIdentity` method
+2. **Client-Side**: The framework provides `appState.identity.getUserAwsCredentials()` to obtain temporary AWS credentials
+3. **AWS Integration**: Use these credentials with AWS SDK to access AWS services
+
+### Implementing the Auth Provider Method
+
+Add the optional `getUserCognitoIdentity` method to your auth provider:
+
+```js
+export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    // ... other methods
+
+    async getUserCognitoIdentity(user: AuthenticatedUser<YourAuthData, YourCustomData>): Promise<UserCognitoIdentity | undefined> {
+        // Return the Cognito identity for the authenticated user
+        // This typically comes from your authentication provider (e.g., Cognito User Pool)
+
+        const cognitoIdentityId = user.authData.cognitoIdentityId;
+        const cognitoAccessToken = user.authData.accessToken;
+
+        if (!cognitoIdentityId || !cognitoAccessToken) {
+            return undefined;
+        }
+
+        return {
+            cognitoIdentityId,
+            cognitoAccessToken
+        };
+    }
+}
+```
+
+### Using AWS Credentials on the Client Side
+
+Access AWS credentials from any Svelte component that has access to the app state:
+
+<Tabs activeName="Component Usage">
+  <TabPanel name="Component Usage">
+
+```js
+<script lang="ts">
+    import { getContext } from 'svelte';
+    import type { AppState } from '$client/app/app.state.svelte';
+    import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+
+    const appState = getContext<AppState>('appState');
+
+    async function uploadFileToS3(file: File) {
+        // Get AWS credentials
+        const credentials = await appState.identity.getUserAwsCredentials();
+
+        if (!credentials) {
+            console.error('AWS credentials not available');
+            return;
+        }
+
+        // Create S3 client with temporary credentials
+        const s3Client = new S3Client({
+            region: 'us-east-1',
+            credentials: {
+                accessKeyId: credentials.accessKeyId,
+                secretAccessKey: credentials.secretKey,
+                sessionToken: credentials.sessionToken,
+                expiration: new Date(credentials.expiration)
+            }
+        });
+
+        // Upload file to S3
+        const command = new PutObjectCommand({
+            Bucket: 'your-bucket-name',
+            Key: file.name,
+            Body: file
+        });
+
+        await s3Client.send(command);
+    }
+</script>
+```
+
+  </TabPanel>
+  <TabPanel name="Credentials Structure">
+
+```js
+// The UserAwsCredentials type returned by getUserAwsCredentials()
+interface UserAwsCredentials {
+    accessKeyId: string;      // AWS access key ID
+    secretKey: string;         // AWS secret access key
+    sessionToken: string;      // Temporary session token
+    expiration: string;        // Expiration time (ISO 8601 format)
+}
+```
+
+  </TabPanel>
+  <TabPanel name="Error Handling">
+
+```js
+async function performAwsOperation() {
+    try {
+        const credentials = await appState.identity.getUserAwsCredentials();
+
+        if (!credentials) {
+            console.warn('AWS credentials not available for this user');
+            // Fall back to server-side operation or show error to user
+            return;
+        }
+
+        // Check if credentials are expired
+        const expirationTime = new Date(credentials.expiration).getTime();
+        const now = Date.now();
+
+        if (expirationTime <= now) {
+            console.warn('AWS credentials have expired');
+            // Retry or refresh credentials
+            return;
+        }
+
+        // Use credentials for AWS operations
+        // ...
+    } catch (error) {
+        console.error('Failed to get AWS credentials:', error);
+    }
+}
+```
+
+  </TabPanel>
+</Tabs>
+
+### Testing with Local Development
+
+For development and testing purposes, you can hardcode AWS credentials without implementing full Cognito integration. This is useful when you want to test AWS operations locally before setting up production authentication.
+
+#### Configuration
+
+Create or edit `apps/pika-chat/.env.local`:
+
+```bash
+# Enable local Cognito identity override
+USE_LOCAL_COGNITO_IDENTITY=true
+
+# Provide hardcoded Cognito identity values
+LOCAL_COGNITO_IDENTITY_ID=us-east-1:12345678-1234-1234-1234-123456789012
+LOCAL_COGNITO_IDENTITY_TOKEN=your-cognito-access-token-here
+```
+
+:::warning[Development Only]
+This `.env.local` configuration is for **development and testing only**. When `USE_LOCAL_COGNITO_IDENTITY=true`, the framework will:
+
+- Override any `getUserCognitoIdentity` method you've implemented
+- Use the hardcoded values from environment variables
+- Skip all authentication provider logic for AWS credentials
+
+**Never use this in production!** It bypasses your authentication logic and uses one set of hardcoded credentials for all users.
+:::
+
+#### How It Works
+
+When `USE_LOCAL_COGNITO_IDENTITY` is enabled:
+
+1. The framework detects the environment variable
+2. It automatically overrides or implements `getUserCognitoIdentity`
+3. Returns the hardcoded identity from `LOCAL_COGNITO_IDENTITY_ID` and `LOCAL_COGNITO_IDENTITY_TOKEN`
+4. Your client-side code can call `appState.identity.getUserAwsCredentials()` as normal
+
+#### Required Environment Variables
+
+<Tabs activeName="Required Variables">
+  <TabPanel name="Required Variables">
+
+```bash
+# All three variables are required when using local override
+USE_LOCAL_COGNITO_IDENTITY=true
+LOCAL_COGNITO_IDENTITY_ID=us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+LOCAL_COGNITO_IDENTITY_TOKEN=eyJraWQiOiJxxxxxxxxxxxxxx...
+```
+
+  </TabPanel>
+  <TabPanel name="Getting Test Values">
+
+```bash
+# Get Cognito Identity Pool ID from AWS Console:
+# 1. Go to AWS Cognito Console
+# 2. Select your Identity Pool
+# 3. Copy the Identity Pool ID (format: us-east-1:guid)
+
+# Get a test token:
+# 1. Authenticate with your identity provider
+# 2. Get the access token from the authentication response
+# 3. Use this token for LOCAL_COGNITO_IDENTITY_TOKEN
+
+# Example using AWS CLI to get credentials:
+aws cognito-identity get-credentials-for-identity \
+    --identity-id "us-east-1:12345678-1234-1234-1234-123456789012" \
+    --logins "cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxxx=<your-token>"
+```
+
+  </TabPanel>
+</Tabs>
+
+:::caution[Error Handling]
+If you set `USE_LOCAL_COGNITO_IDENTITY=true` but don't provide both `LOCAL_COGNITO_IDENTITY_ID` and `LOCAL_COGNITO_IDENTITY_TOKEN`, the framework will throw an error at startup.
+:::
+
+### Use Cases
+
+<Tabs activeName="Direct S3 Upload">
+  <TabPanel name="Direct S3 Upload">
+
+```js
+// Upload files directly to S3 from the browser
+// Avoids sending large files through your server
+async function uploadUserDocument(file: File) {
+    const credentials = await appState.identity.getUserAwsCredentials();
+    if (!credentials) return;
+
+    const s3 = new S3Client({
+        region: 'us-east-1',
+        credentials: {
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretKey,
+            sessionToken: credentials.sessionToken
+        }
+    });
+
+    await s3.send(new PutObjectCommand({
+        Bucket: 'user-documents',
+        Key: `${appState.identity.user.userId}/${file.name}`,
+        Body: file
+    }));
+}
+```
+
+  </TabPanel>
+  <TabPanel name="Invoke Lambda">
+
+```js
+// Invoke Lambda functions directly from the browser
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+
+async function processData(data: any) {
+    const credentials = await appState.identity.getUserAwsCredentials();
+    if (!credentials) return;
+
+    const lambda = new LambdaClient({
+        region: 'us-east-1',
+        credentials: {
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretKey,
+            sessionToken: credentials.sessionToken
+        }
+    });
+
+    const result = await lambda.send(new InvokeCommand({
+        FunctionName: 'user-data-processor',
+        Payload: JSON.stringify(data)
+    }));
+
+    return JSON.parse(new TextDecoder().decode(result.Payload));
+}
+```
+
+  </TabPanel>
+  <TabPanel name="DynamoDB Access">
+
+```js
+// Query DynamoDB directly for user-specific data
+import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
+
+async function getUserData() {
+    const credentials = await appState.identity.getUserAwsCredentials();
+    if (!credentials) return;
+
+    const dynamo = new DynamoDBClient({
+        region: 'us-east-1',
+        credentials: {
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretKey,
+            sessionToken: credentials.sessionToken
+        }
+    });
+
+    const result = await dynamo.send(
+        new QueryCommand({
+            TableName: 'UserData',
+            KeyConditionExpression: 'userId = :userId',
+            ExpressionAttributeValues: {
+                ':userId': { S: appState.identity.user.userId }
+            }
+        })
+    );
+
+    return result.Items;
+}
+```
+
+  </TabPanel>
+</Tabs>
+
+### Security Considerations
+
+**IAM Permissions:**
+
+- Configure your Cognito Identity Pool with appropriate IAM roles
+- Use fine-grained IAM policies to limit what operations users can perform
+- Consider using resource-based policies to restrict access to user-specific data
+
+**Credential Lifecycle:**
+
+- AWS credentials are temporary and expire after a certain time (typically 1 hour)
+- Always check the `expiration` field before using credentials
+- Handle expired credentials gracefully by refreshing or re-authenticating
+
+**Client-Side Security:**
+
+- Never log or expose AWS credentials in the browser console in production
+- Credentials are scoped to the authenticated user's permissions
+- Users cannot escalate privileges beyond what their IAM role allows
+
+**Production Checklist:**
+
+<Tabs activeName="Security Checklist">
+  <TabPanel name="Security Checklist">
+
+```bash
+# Production Security Checklist
+
+# 1. Remove or set to false in production
+USE_LOCAL_COGNITO_IDENTITY=false  # or remove entirely
+
+# 2. Implement getUserCognitoIdentity properly
+# - Integrate with your real authentication provider
+# - Validate tokens before returning Cognito identity
+# - Handle errors and edge cases
+
+# 3. Configure IAM properly
+# - Use least-privilege principle
+# - Restrict S3 bucket access by user
+# - Set appropriate session duration
+# - Enable CloudWatch logging for audit trails
+
+# 4. Test credential expiration handling
+# - Verify your app handles expired credentials gracefully
+# - Implement credential refresh logic if needed
+# - Show appropriate error messages to users
+```
+
+  </TabPanel>
+</Tabs>
+
 ## Example Use Cases
 
 :::tip[Working Example Reference]

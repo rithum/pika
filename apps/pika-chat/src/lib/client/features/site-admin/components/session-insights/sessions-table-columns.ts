@@ -1,10 +1,13 @@
-import { Archive, Eye, MessageSquare, Trash2 } from '$icons/lucide';
-import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from '$ui/pika/pika-table';
-import type { RowActionsProps } from '$ui/pika/pika-table/types';
-import { renderComponent } from '$ui/shadcn/data-table';
+import Archive from '$icons/lucide/archive';
+import Eye from '$icons/lucide/eye';
+import MessageSquare from '$icons/lucide/message-square';
+import Trash2 from '$icons/lucide/trash-2';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
 import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from 'pika-ux/pika/pika-table';
+import type { RowActionsProps } from 'pika-ux/pika/pika-table/types';
+import { renderComponent } from 'pika-ux/shadcn/data-table';
 import SessionIdCell from './cells/session-id-cell.svelte';
 import UserIdCell from './cells/user-id-cell.svelte';
 

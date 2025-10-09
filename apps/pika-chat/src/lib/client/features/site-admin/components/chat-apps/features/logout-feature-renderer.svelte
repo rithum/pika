@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
-    import { Textarea } from '$ui/shadcn/textarea';
     import type { FeatureError, LogoutFeatureForChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {

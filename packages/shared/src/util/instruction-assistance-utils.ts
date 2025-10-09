@@ -74,7 +74,7 @@ export function generateInstructionAssistanceContent(
         if (tagDefinitions.length > 0) {
             // First create a dictionary listing all supported tags
             const tagDictionary = tagDefinitions
-                .filter((tagDef) => tagDef.canBeGeneratedByLlm && !tagDef.disabled)
+                .filter((tagDef) => tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled')
                 .map((tagDef) => `  - ${tagDef.tagTitle}: \`${tagDef.shortTagEx}\``)
                 .join('\n');
 
@@ -85,7 +85,7 @@ export function generateInstructionAssistanceContent(
 
             // Then add detailed instructions for each tag
             for (const tagDef of tagDefinitions) {
-                if (tagDef.canBeGeneratedByLlm && !tagDef.disabled && tagDef.llmInstructionsMd) {
+                if (tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled' && tagDef.llmInstructionsMd) {
                     const tagType = `${tagDef.scope}.${tagDef.tag}`;
                     tagInstructionsContent += `- **${tagDef.tagTitle}:**\n  <tag-instructions type="${tagType}">\n${tagDef.llmInstructionsMd}\n  </tag-instructions>\n`;
                 }

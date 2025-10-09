@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { X } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
+    import X from '$icons/lucide/x';
+    import { Button } from 'pika-ux/shadcn/button';
 
     interface Props {
         directiveId: string;

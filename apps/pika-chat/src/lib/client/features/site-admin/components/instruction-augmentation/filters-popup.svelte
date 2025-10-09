@@ -1,9 +1,12 @@
 <script lang="ts">
-    import { ChevronLeft, ChevronRight, ListFilter, ListRestart } from '$icons/lucide';
+    import ChevronLeft from '$icons/lucide/chevron-left';
+    import ChevronRight from '$icons/lucide/chevron-right';
+    import ListFilter from '$icons/lucide/list-filter';
+    import ListRestart from '$icons/lucide/list-restart';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Popover from '$ui/shadcn/popover';
-    import { Separator } from '$ui/shadcn/separator';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Popover from 'pika-ux/shadcn/popover';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import AgentEntityFilter from './filters/agent-entity-filter.svelte';
     import AgentsFilter from './filters/agents-filter.svelte';

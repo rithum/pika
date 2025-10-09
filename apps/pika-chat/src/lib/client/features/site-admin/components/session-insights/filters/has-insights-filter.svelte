@@ -1,7 +1,7 @@
 <script lang="ts">
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import type { InsightsSearchParams, NameValuePair } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

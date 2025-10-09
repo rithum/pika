@@ -1,11 +1,11 @@
 <script lang="ts">
     import { assert } from '$lib/utils';
-    import List from '$ui/pika/list/list.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Checkbox } from '$ui/shadcn/checkbox';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
     import type { SuggestionsFeature } from 'pika-shared/types/chatbot/chatbot-types';
+    import List from 'pika-ux/pika/list/list.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
 
     interface Props {
         overriddenFeature: SuggestionsFeature | undefined;

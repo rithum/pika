@@ -86,7 +86,8 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         do {
             const response = await searchTagDefinitions(locals.user.userId, {
                 includeInstructions: false, // We don't need instructions for frontend display
-                paginationToken
+                paginationToken,
+                chatAppId: chatApp.chatAppId
             });
 
             tagDefinitions.push(...response.tagDefinitions);

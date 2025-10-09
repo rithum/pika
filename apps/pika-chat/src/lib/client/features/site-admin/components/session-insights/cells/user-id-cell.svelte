@@ -1,5 +1,5 @@
 <script lang="ts">
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
 
     interface Props {
         userId: string;

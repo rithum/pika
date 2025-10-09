@@ -8,6 +8,7 @@ const COOKIE_SIZE_LIMIT = 4096;
 const AUTH_USER_COOKIE_NAME_PREFIX = 'au';
 const USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX = 'uod'; // User Override Data
 const CONTENT_ADMIN_COOKIE_NAME_PREFIX = 'cad'; // Content Admin
+const FORCE_REAUTH_RETRY_COOKIE_NAME = 'reauth_retry'; // Reauth Retry
 const COOKIE_PART_SEPARATOR = '_part_';
 
 // Cookie expiration: 12 hours in seconds
@@ -16,6 +17,7 @@ const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60; // 12 hours
 const cookieTypes = ['AUTH_USER', 'USER_OVERRIDE_DATA', 'CONTENT_ADMIN'] as const;
 type CookieType = (typeof cookieTypes)[number];
 
+// Don't put the reauth retry cookie type in this record as it's not a real cookie managed in the same way
 const cookieTypeToCookieNamePrefix: Record<CookieType, string> = {
     AUTH_USER: AUTH_USER_COOKIE_NAME_PREFIX,
     USER_OVERRIDE_DATA: USER_OVERRIDE_DATA_COOKIE_NAME_PREFIX,
@@ -32,6 +34,36 @@ export function clearUserOverrideDataCookies(event: RequestEvent): void {
 
 export function clearContentAdminCookies(event: RequestEvent): void {
     clearCookies('CONTENT_ADMIN', event);
+}
+
+export function clearForceReauthRetryCookie(event: RequestEvent): void {
+    event.cookies.delete(FORCE_REAUTH_RETRY_COOKIE_NAME, {
+        path: '/',
+        maxAge: 0 // Force immediate expiration
+    });
+}
+
+export function clearForceReauthRetryCookieIfExists(event: RequestEvent): boolean {
+    if (event.cookies.get(FORCE_REAUTH_RETRY_COOKIE_NAME)) {
+        clearForceReauthRetryCookie(event);
+        return true;
+    }
+    return false;
+}
+
+export function setForceReauthRetryCookie(event: RequestEvent, retryCount: number): void {
+    event.cookies.set(FORCE_REAUTH_RETRY_COOKIE_NAME, String(retryCount), {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 5 * 60 // 5 minutes
+    });
+}
+
+export function getForceRetryAuthRetryAttemptsCookieValue(event: RequestEvent): number {
+    const retryCountStr = event.cookies.get(FORCE_REAUTH_RETRY_COOKIE_NAME) || '0';
+    return parseInt(retryCountStr, 10);
 }
 
 export function clearAllCookies(event: RequestEvent): void {

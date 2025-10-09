@@ -7,7 +7,7 @@
         "dev": "vite dev",
         "dev:local": "cross-env LOCAL_TOOLS=../../custom-local-action-group-endpoints.json vite dev",
         "copy-pika-config": "mkdir -p infra/build && cp ../../pika-config.ts infra/build",
-        "build": "vite build && tsx tools/generate-tag-defs-for-build/index.ts && pnpm run copy-pika-config",
+        "build": "vite build && pnpm run generate-tag-defs-for-build && pnpm run copy-pika-config",
         "preview": "vite preview",
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -25,6 +25,8 @@
         "cdk:deploy": "pnpm run docker:build && cdk deploy --app 'tsx infra/bin/pika-chat.ts' --require-approval never -c stage=${STAGE:-test}",
         "master-key:generate": "tsx tools/master-key-generator/generate-master-key.ts",
         "encryption:setup": "mkdir -p tools/cookie-encryption-setup/build && cp ../../pika-config.ts tools/cookie-encryption-setup/build && tsx tools/cookie-encryption-setup/index.ts",
+        "generate-tag-defs-for-build": "tsx tools/generate-tag-defs-for-build/index.ts",
+        "upload-tag-defs": "pnpm run generate-tag-defs-for-build && tsx tools/upload-tag-defs/index.ts",
         "test": "jest",
         "test:watch": "jest --watch"
     },
@@ -32,6 +34,7 @@
         "@auth/core": "catalog:",
         "@auth/sveltekit": "catalog:",
         "@aws-crypto/sha256-js": "catalog:",
+        "@aws-sdk/client-cognito-identity": "catalog:",
         "@aws-sdk/client-dynamodb": "catalog:",
         "@aws-sdk/client-kms": "catalog:",
         "@aws-sdk/client-lambda": "catalog:",
@@ -45,7 +48,7 @@
         "@iconify-json/ci": "catalog:",
         "@iconify-json/lucide": "catalog:",
         "@internationalized/date": "catalog:",
-        "@lucide/svelte": "^0.482.0",
+        "@lucide/svelte": "catalog:",
         "@opensearch-project/opensearch": "catalog:",
         "@pika/typescript-config": "workspace:*",
         "@smithy/node-http-handler": "catalog:",
@@ -79,7 +82,7 @@
         "constructs": "catalog:",
         "cssnano": "catalog:",
         "date-fns": "catalog:",
-        "date-fns-tz": "^3.2.0",
+        "date-fns-tz": "catalog:",
         "deep-equal": "catalog:",
         "dompurify": "catalog:",
         "embla-carousel-svelte": "catalog:",
@@ -97,9 +100,10 @@
         "markdown-it": "catalog:",
         "marked": "catalog:",
         "mode-watcher": "catalog:",
-        "paneforge": "1.0.0-next.6",
+        "paneforge": "catalog:",
         "path": "catalog:",
         "pika-shared": "workspace:*",
+        "pika-ux": "workspace:*",
         "plur": "catalog:",
         "prettier": "catalog:",
         "prettier-plugin-svelte": "catalog:",
@@ -111,7 +115,7 @@
         "svelte-check": "catalog:",
         "svelte-sonner": "catalog:",
         "tailwind-merge": "catalog:",
-        "tailwind-variants": "^0.2.1",
+        "tailwind-variants": "catalog:",
         "tailwindcss": "catalog:",
         "ts-jest": "catalog:",
         "tsx": "catalog:",
@@ -122,7 +126,7 @@
         "vite": "catalog:"
     },
     "dependencies": {
-        "@cartamd/plugin-code": "^4.2.0",
-        "carta-md": "^4.11.1"
+        "@cartamd/plugin-code": "catalog:",
+        "carta-md": "catalog:"
     }
 }

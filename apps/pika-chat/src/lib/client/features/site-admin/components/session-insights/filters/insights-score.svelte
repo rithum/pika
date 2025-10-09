@@ -1,10 +1,10 @@
 <script lang="ts">
-    import { X } from '$icons/lucide';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
+    import X from '$icons/lucide/x';
     import { SCORE_SEARCH_OPERATORS_VALUES, type InsightsSearchParams } from 'pika-shared/types/chatbot/chatbot-types';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

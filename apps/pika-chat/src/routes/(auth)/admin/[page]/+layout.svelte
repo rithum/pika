@@ -4,9 +4,9 @@
     import SiteAdminSidebar from '$client/features/site-admin/layout/site-admin-sidebar.svelte';
     import SiteAdminTitlebar from '$client/features/site-admin/layout/site-admin-titlebar.svelte';
     import { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
-    import { Slideout, SlideoutContent, SlideoutProvider } from '$ui/pika/slideout';
-    import * as Sidebar from '$ui/shadcn/sidebar/index.js';
     import type { ChatApp, SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Slideout, SlideoutContent, SlideoutProvider } from 'pika-ux/pika/slideout';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar/index.js';
     import { getContext, type Snippet } from 'svelte';
 
     interface Props {

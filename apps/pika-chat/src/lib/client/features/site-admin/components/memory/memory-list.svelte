@@ -1,13 +1,13 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import * as Card from '$ui/shadcn/card';
-    import { Label } from '$ui/shadcn/label';
     import hljs from 'highlight.js/lib/core';
     import json from 'highlight.js/lib/languages/json';
     import 'highlight.js/styles/github.css';
     import type { ChatUserLite } from 'pika-shared/types/chatbot/chatbot-types';
+    import Combobox from 'pika-ux/pika/combobox/combobox.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import * as Card from 'pika-ux/shadcn/card';
+    import { Label } from 'pika-ux/shadcn/label';
     import { getContext } from 'svelte';
     // or any other theme you prefer
 

@@ -1,8 +1,7 @@
 import type { AppState } from '$client/app/app.state.svelte';
-import type { FetchZ, ShowToastFn } from '$client/app/types';
+import type { FetchZ } from '$client/app/types';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
-import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type { Page } from '@sveltejs/kit';
 import type {
     AddChatSessionFeedbackRequest,
@@ -21,14 +20,18 @@ import type {
     RevokeSharedSessionResponse,
     SearchAllMyMemoryRecordsResponse,
     SharedSessionVisitHistory,
+    ShareSessionState,
+    ShowToastFn,
     TagDefinition,
     TagDefinitionWidget,
+    TagDefinitionWidgetWebComponent,
     UnpinSessionRequest,
     UnrevokeSharedSessionRequest,
     UnrevokeSharedSessionResponse,
     UserDataOverrideSettings,
     ValidateShareAccessRequest,
-    ValidateShareAccessResponse
+    ValidateShareAccessResponse,
+    WidgetRenderingContextType
 } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
@@ -54,8 +57,10 @@ import {
     type UserOverrideDataCommandRequest,
     type UserOverrideDataCommandResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IChatAppState } from 'pika-shared/types/chatbot/webcomp-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
-import type { Snippet } from 'svelte';
+import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
+import type { Component, Snippet } from 'svelte';
 import { v7 as uuidv7 } from 'uuid';
 import { UploadInstance } from '../upload/upload-instance.svelte';
 import { UploadState } from '../upload/upload.state.svelte';
@@ -63,6 +68,7 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
+import { WidgetRegistry } from './widgets/widget-registry';
 
 const MAX_FILES = 5;
 
@@ -78,14 +84,6 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const INPROGRESS_INPUT_MSGS_KEY = 'inprogress-input-msgs';
 
 /**
- * Structure for persisting input state in localStorage
- */
-interface PersistedInputState {
-    text: string;
-    uploads: UploadInstance[];
-}
-
-/**
  * An interim session is one that is not yet saved to the server and has a sessionId that starts with 'interim-'.
  *
  * An interim message is a message that is not yet saved to the server and has a messageId that starts with 'interim-'.
@@ -95,7 +93,7 @@ interface PersistedInputState {
  *
  * There will always be a current session.  Current session will be an interim session if we haven't submitted a message to the server yet.
  */
-export class ChatAppState {
+export class ChatAppState implements IChatAppState {
     #chatApp = $state<ChatApp>() as ChatApp;
     #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
@@ -121,6 +119,7 @@ export class ChatAppState {
     #retrievingMessages = $state<boolean>(false);
     #messageChunkCount = $state<number>(0); // Allows reactive response to streaming response (scroll to bottom most obvious case)
     #componentRegistry = $state<ComponentRegistry>() as ComponentRegistry; // renderers and metadata handlers for chat message segments
+    #widgetRegistry = $state<WidgetRegistry>() as WidgetRegistry; // registry for multi-context widgets (spotlight, canvas, dialog)
     #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #waitingForFirstStreamedResponse = $derived.by(() => {
         const streaming = this.#streamingResponseNow;
@@ -178,7 +177,7 @@ export class ChatAppState {
 
         return val;
     });
-    #shareCurrentSessionState: 'disable-share-feature' | 'shared-by-me' | 'shared-by-someone-else' | 'not-shared' = $derived.by(() => {
+    #shareCurrentSessionState: ShareSessionState = $derived.by(() => {
         const currentSession = this.#currentSession;
         const isInterimSession = this.#isInterimSession;
         const sharingSession = this.#sharingSession;
@@ -265,6 +264,14 @@ export class ChatAppState {
         return this.#features.entity.enabled;
     });
 
+    #spotlightWidgets = $state<SpotlightWidget[]>([]);
+    #spotlightUserPrefs = $state<UserSpotlightPreferences | undefined>(undefined);
+    #canvasWidget = $state<CanvasWidgetState | undefined>(undefined);
+    #canvasOpen = $state(false);
+    #dialogWidget = $state<DialogWidgetState | undefined>(undefined);
+    #widgetDialogOpen = $state(false);
+    #webComponentRenderer = $state<Component<any>>() as Component<any>;
+
     // #userActionsInProgress: Record<string, boolean> = $state({
     //     pin-session: false,
     //     unpin-session: false,
@@ -318,6 +325,29 @@ export class ChatAppState {
 
     get shareCurrentSessionState() {
         return this.#shareCurrentSessionState;
+    }
+
+    // Spotlight getters
+    get spotlightWidgets() {
+        return this.#spotlightWidgets;
+    }
+
+    // Canvas getters
+    get canvasWidget() {
+        return this.#canvasWidget;
+    }
+
+    get canvasOpen() {
+        return this.#canvasOpen;
+    }
+
+    // Dialog getters
+    get dialogWidget() {
+        return this.#dialogWidget;
+    }
+
+    get widgetDialogOpen() {
+        return this.#widgetDialogOpen;
     }
 
     get pinningSession() {
@@ -400,7 +430,7 @@ export class ChatAppState {
     }
 
     get isViewingContentForAnotherUser() {
-        return this.#isViewingContentForAnotherUser;
+        return this.#isViewingContentForAnotherUser ?? false;
     }
 
     get user() {
@@ -462,6 +492,10 @@ export class ChatAppState {
 
     get componentRegistry() {
         return this.#componentRegistry;
+    }
+
+    get widgetRegistry() {
+        return this.#widgetRegistry;
     }
 
     get suggestions() {
@@ -594,7 +628,8 @@ export class ChatAppState {
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
         tagDefinitions: TagDefinition<TagDefinitionWidget>[],
-        showToast: ShowToastFn
+        showToast: ShowToastFn,
+        webComponentRenderer: Component<any>
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -603,6 +638,13 @@ export class ChatAppState {
         this.#setSession(undefined);
         this.#page = page;
         this.#componentRegistry = componentRegistry;
+        this.#widgetRegistry = new WidgetRegistry();
+        this.#widgetRegistry.registerTagDefinitions(tagDefinitions);
+        this.#webComponentRenderer = webComponentRenderer;
+
+        // Register web component renderers dynamically based on tag definitions
+        this.registerWebComponentRenderers(tagDefinitions);
+
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
         this.#userDataOverrideSettings = userDataOverrideSettings;
         this.#userIsContentAdmin = userIsContentAdmin;
@@ -631,9 +673,24 @@ export class ChatAppState {
         //                   segmentsArrayId: Object.prototype.toString.call(messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments),
         //                   segmentsCount: messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments.length
         //               }
-        //             : null
+        //             : undefined
         //     });
         // });
+    }
+
+    /**
+     * Register web component renderers dynamically based on tag definitions.
+     * This allows inline rendering of web component tags in chat messages.
+     */
+    private registerWebComponentRenderers(tagDefinitions: TagDefinition<TagDefinitionWidget>[]) {
+        // Register a renderer for each web component tag
+        for (const tagDef of tagDefinitions) {
+            if (tagDef.widget.type === 'web-component' && tagDef.renderingContexts?.inline?.enabled) {
+                // Register with full tag name (scope.tag format)
+                const fullTagName = `${tagDef.scope}.${tagDef.tag}`;
+                this.#componentRegistry.registerRenderer(fullTagName, this.#webComponentRenderer);
+            }
+        }
     }
 
     setCurrentSessionById(sessionId: string) {
@@ -1246,7 +1303,7 @@ export class ChatAppState {
         //                   segmentsCount: foundMessage.segments.length,
         //                   messageLength: foundMessage.message.length
         //               }
-        //             : null,
+        //             : undefined,
         //         totalMessages: this.#curSessionMessages?.length || 0,
         //         messagesArrayId: Object.prototype.toString.call(this.#curSessionMessages)
         //     });
@@ -1766,4 +1823,251 @@ export class ChatAppState {
     getShareUrlMock(browserOriginAndPathName: string): string {
         return `${browserOriginAndPathName}/share/xyz`;
     }
+
+    // === WIDGET RENDERING METHODS ===
+
+    /**
+     * Initialize spotlight widgets for the current chat app.
+     * Called on page load after tag definitions are loaded.
+     */
+    async initializeSpotlight() {
+        // 1. Filter tag definitions for spotlight-enabled widgets
+        const spotlightTags = this.#tagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
+
+        // 2. Load user preferences for spotlight
+        this.#spotlightUserPrefs = await this.loadSpotlightPreferences();
+
+        // 3. Resolve which widgets to show and in what order
+        this.#spotlightWidgets = this.resolveSpotlightWidgets(spotlightTags, this.#spotlightUserPrefs);
+    }
+
+    /**
+     * Resolve which spotlight widgets to show based on preferences.
+     * Filters out unpinned widgets and sorts by display order.
+     */
+    private resolveSpotlightWidgets(spotlightTags: TagDefinition<TagDefinitionWidget>[], prefs: UserSpotlightPreferences | undefined): SpotlightWidget[] {
+        const widgets: SpotlightWidget[] = [];
+        const unpinnedSet = new Set(prefs?.unpinned || []);
+
+        // Filter out unpinned widgets
+        const pinnedTags = spotlightTags.filter((tag) => {
+            const tagId = `${tag.scope}.${tag.tag}`;
+            return !unpinnedSet.has(tagId);
+        });
+
+        // Sort by displayOrder
+        pinnedTags
+            .sort((a, b) => {
+                const orderA = a.renderingContexts?.spotlight?.displayOrder ?? 999;
+                const orderB = b.renderingContexts?.spotlight?.displayOrder ?? 999;
+                return orderA - orderB;
+            })
+            .forEach((tag, index) => {
+                widgets.push({
+                    tagDefinition: tag as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    renderOrder: index,
+                    isVisible: true,
+                    contextConfig: tag.renderingContexts!.spotlight!
+                });
+            });
+
+        return widgets;
+    }
+
+    /**
+     * Add a widget to spotlight (or reopen if unpinned).
+     * Removes the widget from the unpinned list.
+     */
+    async addToSpotlight(tagId: string) {
+        // Initialize preferences if needed
+        if (!this.#spotlightUserPrefs) {
+            this.#spotlightUserPrefs = {
+                unpinned: []
+            };
+        }
+
+        // Remove from unpinned list (making it visible/pinned)
+        const index = this.#spotlightUserPrefs.unpinned.indexOf(tagId);
+        if (index > -1) {
+            this.#spotlightUserPrefs.unpinned.splice(index, 1);
+        }
+
+        // Persist preferences
+        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
+
+        // Refresh spotlight widgets
+        await this.initializeSpotlight();
+    }
+
+    /**
+     * Remove a widget from spotlight (unpin/hide it).
+     * Adds the widget to the unpinned list.
+     */
+    async removeFromSpotlight(tagId: string) {
+        if (!this.#spotlightUserPrefs) {
+            this.#spotlightUserPrefs = {
+                unpinned: []
+            };
+        }
+
+        // Add to unpinned list if not already there
+        if (!this.#spotlightUserPrefs.unpinned.includes(tagId)) {
+            this.#spotlightUserPrefs.unpinned.push(tagId);
+        }
+
+        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
+        await this.initializeSpotlight();
+    }
+
+    /**
+     * Get all unpinned spotlight widgets.
+     * Used to populate the settings dropdown menu.
+     */
+    getUnpinnedSpotlightWidgets(): TagDefinition<TagDefinitionWidget>[] {
+        if (!this.#spotlightUserPrefs) return [];
+
+        return this.#tagDefs.filter((tag) => {
+            const tagId = `${tag.scope}.${tag.tag}`;
+            return tag.renderingContexts?.spotlight?.enabled === true && this.#spotlightUserPrefs!.unpinned.includes(tagId);
+        });
+    }
+
+    /**
+     * Load spotlight preferences from user preferences API.
+     */
+    private async loadSpotlightPreferences(): Promise<UserSpotlightPreferences | undefined> {
+        try {
+            // Key format: ${chatAppId}/spotlight
+            const key = `${this.#chatApp.chatAppId}/spotlight`;
+            const prefs = await this.#userPrefs.getPref<UserSpotlightPreferences>(key);
+            return prefs || undefined;
+        } catch (e) {
+            console.error('Error loading spotlight preferences:', e);
+            return undefined;
+        }
+    }
+
+    /**
+     * Save spotlight preferences to user preferences API.
+     */
+    private async saveSpotlightPreferences(prefs: UserSpotlightPreferences): Promise<void> {
+        // Key format: ${chatAppId}/spotlight
+        const key = `${this.#chatApp.chatAppId}/spotlight`;
+        await this.#userPrefs.modifyPref(key, prefs);
+    }
+
+    /**
+     * Request to render a tag in a specific context.
+     * This is the primary API that web components use to render other components.
+     *
+     * @param tagId Format: "scope.tag"
+     * @param renderingContext Which rendering context to use
+     * @param data Optional data/props to pass to the component
+     */
+    async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>): Promise<void> {
+        // 1. Validate tag exists and is enabled for this context
+        const [scope, tag] = tagId.split('.');
+        const tagDef = this.#tagDefs.find((t) => t.scope === scope && t.tag === tag);
+
+        if (!tagDef) {
+            throw new Error(`Tag ${tagId} not found`);
+        }
+
+        if (tagDef.status !== 'enabled') {
+            throw new Error(`Tag ${tagId} is not enabled (status: ${tagDef.status})`);
+        }
+
+        if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
+            throw new Error(`Tag ${tagId} does not support ${renderingContext} context`);
+        }
+
+        // 2. Render based on context
+        switch (renderingContext) {
+            case 'spotlight':
+                // Add to spotlight if not already visible
+                await this.addToSpotlight(tagId);
+                break;
+
+            case 'canvas':
+                this.#canvasWidget = {
+                    tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    contextConfig: tagDef.renderingContexts.canvas!,
+                    data
+                };
+                this.#canvasOpen = true;
+                break;
+
+            case 'dialog':
+                this.#dialogWidget = {
+                    tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    contextConfig: tagDef.renderingContexts.dialog!,
+                    data
+                };
+                this.#widgetDialogOpen = true;
+                break;
+
+            case 'inline':
+                // We don't render inline tags like with this method.
+                throw new Error('Inline rendering from web components not supported via the renderTag method');
+        }
+    }
+
+    /**
+     * Close the canvas view.
+     */
+    closeCanvas() {
+        this.#canvasOpen = false;
+        this.#canvasWidget = undefined;
+    }
+
+    /**
+     * Close the dialog.
+     */
+    closeDialog() {
+        this.#widgetDialogOpen = false;
+        this.#dialogWidget = undefined;
+    }
+}
+
+/**
+ * Structure for persisting input state in localStorage
+ */
+interface PersistedInputState {
+    text: string;
+    uploads: UploadInstance[];
+}
+
+/**
+ * Spotlight widget state
+ */
+export interface SpotlightWidget {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    renderOrder: number;
+    isVisible: boolean;
+    contextConfig: any;
+}
+
+/**
+ * User preferences for spotlight widgets
+ */
+export interface UserSpotlightPreferences {
+    unpinned: string[];
+}
+
+/**
+ * Canvas widget state
+ */
+export interface CanvasWidgetState {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    contextConfig: any;
+    data?: Record<string, any>;
+}
+
+/**
+ * Dialog widget state
+ */
+export interface DialogWidgetState {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    contextConfig: any;
+    data?: Record<string, any>;
 }

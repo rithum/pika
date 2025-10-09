@@ -74,8 +74,9 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
             throw new Error('Failed to gunzip TagDefData: ' + zipErr);
         }
 
+        // Parse and validate tag definition (validation happens in the utility function)
         let tagDefData = parseTagDefinitionCustomResourceProperties(tagDefDataStr);
-        console.log('Successfully parsed TagDefData for tag:', tagDefData.tag, 'scope:', tagDefData.scope);
+        console.log('Successfully parsed and validated TagDefData for tag:', tagDefData.tag, 'scope:', tagDefData.scope);
 
         // Handle different CloudFormation operations
         console.log(`Processing ${event.RequestType} request`);

@@ -272,10 +272,10 @@ export async function getMatchingChatApps(
         const allAreCached = chatAppIds.every((chatAppId) => chatAppCache.has(`chatApp:${chatAppId}`));
         if (allAreCached) {
             const chatApps = (await Promise.all(chatAppIds.map((chatAppId) => getChatApp(chatAppId)))) as ChatApp[];
-            console.log(
-                'getMatchingChatApps returning cached result:',
-                chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
-            );
+            // console.log(
+            //     'getMatchingChatApps returning cached result:',
+            //     chatApps.map((app) => ({ chatAppId: app.chatAppId, title: app.title }))
+            // );
             return chatApps;
         }
     }

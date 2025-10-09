@@ -1,12 +1,14 @@
 <script lang="ts">
-    import { ChevronDown, Expand, Shrink } from '$icons/lucide';
+    import ChevronDown from '$icons/lucide/chevron-down';
+    import Expand from '$icons/lucide/expand';
+    import Shrink from '$icons/lucide/shrink';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { PikaBadge } from '$ui/pika/pika-badge';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Checkbox } from '$ui/shadcn/checkbox';
-    import { Label } from '$ui/shadcn/label';
-    import { Separator } from '$ui/shadcn/separator';
     import { FEATURE_NAMES, VerifyResponseClassificationDescriptions } from 'pika-shared/types/chatbot/chatbot-types';
+    import { PikaBadge } from 'pika-ux/pika/pika-badge';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';
 
@@ -39,8 +41,8 @@
     } from 'pika-shared/types/chatbot/chatbot-types';
     // Import individual feature components
     import { assert } from '$lib/utils';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import Button from '$ui/shadcn/button/button.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import Button from 'pika-ux/shadcn/button/button.svelte';
     import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
     import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
     import EntityFeatureRenderer from './entity-feature-renderer.svelte';

@@ -1,9 +1,9 @@
 <script lang="ts">
     import { assert } from '$lib/utils';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import Checkbox from '$ui/shadcn/checkbox/checkbox.svelte';
-    import { Label } from '$ui/shadcn/label';
     import type { FeatureError, TracesFeatureForChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import Checkbox from 'pika-ux/shadcn/checkbox/checkbox.svelte';
+    import { Label } from 'pika-ux/shadcn/label';
     import GeneralAccessControl from '../access-control/general-access-control.svelte';
 
     interface Props {

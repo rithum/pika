@@ -1,8 +1,8 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import Button from '$ui/shadcn/button/button.svelte';
     import type { SessionInsightsFeature } from 'pika-shared/types/chatbot/chatbot-types';
+    import Button from 'pika-ux/shadcn/button/button.svelte';
     import { getContext } from 'svelte';
 
     interface Props {

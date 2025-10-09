@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
     import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
     import { getContext } from 'svelte';
 
     interface Props {

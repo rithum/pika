@@ -18,6 +18,12 @@
             ],
             "pika-shared": [
                 "../../packages/shared/src"
+            ],
+            "pika-ux": [
+                "../../packages/pika-ux/src"
+            ],
+            "pika-ux/*": [
+                "../../packages/pika-ux/src/*"
             ]
         }
     },

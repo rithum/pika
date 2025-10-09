@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Badge } from '$ui/shadcn/badge';
+    import { Badge } from 'pika-ux/shadcn/badge';
     import type { Component } from 'svelte';
 
     interface Props {
