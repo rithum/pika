@@ -15,12 +15,14 @@ import {
     ConverseRequest,
     CreateSharedSessionRequest,
     CreateSharedSessionResponse,
+    DeleteUserWidgetDataResponse,
     GetChatSessionFeedbackResponse,
     GetChatUserPrefsResponse,
     GetPinnedSessionsRequest,
     GetPinnedSessionsResponse,
     GetRecentSharedRequest,
     GetRecentSharedResponse,
+    GetUserWidgetDataResponse,
     PinSessionRequest,
     PinSessionResponse,
     RecordOrUndef,
@@ -32,6 +34,8 @@ import {
     SearchAllMyMemoryRecordsResponse,
     SetChatUserPrefsRequest,
     SetChatUserPrefsResponse,
+    SetUserWidgetDataRequest,
+    SetUserWidgetDataResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
     UnpinSessionRequest,
@@ -72,7 +76,7 @@ import {
     updateSessionTitle,
     validateUserCanAccessShare
 } from '../../lib/chat-apis';
-import { addUser, getChatSessionByShareId, getUserByUserId, updateUser } from '../../lib/chat-ddb';
+import { addUser, deleteWidgetDataForUser, getWidgetDataByUserId, getChatSessionByShareId, getUserByUserId, setWidgetDataForUser, updateUser } from '../../lib/chat-ddb';
 import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { getMemoryId, validateUserCanAccessSession } from '../../lib/utils';
@@ -153,6 +157,18 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     },
     'POST:/api/chat/user/prefs': {
         handler: handleSetUserPrefs,
+        passUserObj: false
+    },
+    'GET:/api/chat/widget/{scope}/{tag}/data': {
+        handler: handleGetUserWidgetData,
+        passUserObj: false
+    },
+    'POST:/api/chat/widget/{scope}/{tag}/data': {
+        handler: handleSetUserWidgetData,
+        passUserObj: false
+    },
+    'DELETE:/api/chat/widget/{scope}/{tag}/data': {
+        handler: handleDeleteUserWidgetData,
         passUserObj: false
     },
     'GET:/api/chat/user/search/{partialUserId}': {
@@ -356,6 +372,90 @@ async function handleSetUserPrefs(event: APIGatewayProxyEventPika<SetChatUserPre
         success: true,
         userId,
         prefs: newPrefs
+    };
+}
+
+/**
+ * GET:/api/chat/widget/{scope}/{tag}/data
+ */
+async function handleGetUserWidgetData(event: APIGatewayProxyEventPika<void>, userId: string): Promise<GetUserWidgetDataResponse> {
+    const scope = event.pathParameters?.scope;
+    const tag = event.pathParameters?.tag;
+
+    if (!scope || !tag) {
+        throw new BadRequestError('scope and tag are required');
+    }
+
+    const values = await getWidgetDataByUserId(userId, scope, tag);
+
+    return {
+        success: true,
+        userId,
+        scope,
+        tag,
+        data: values
+    };
+}
+
+/**
+ * POST:/api/chat/widget/{scope}/{tag}/data
+ */
+async function handleSetUserWidgetData(event: APIGatewayProxyEventPika<SetUserWidgetDataRequest>, userId: string): Promise<SetUserWidgetDataResponse> {
+    const scope = event.pathParameters?.scope;
+    const tag = event.pathParameters?.tag;
+    const request = event.body;
+
+    if (!scope || !tag) {
+        throw new BadRequestError('scope and tag are required');
+    }
+
+    if (!request || !request.data || typeof request.data !== 'object') {
+        throw new BadRequestError('values object is required');
+    }
+
+    let dataToSet = request.data;
+
+    if (request.partial) {
+        const existing = await getWidgetDataByUserId(userId, scope, tag);
+        dataToSet = { ...existing, ...request.data };
+
+        // Handle null values as deletions in partial updates
+        Object.keys(dataToSet).forEach((key) => {
+            if (dataToSet[key] === null) {
+                delete dataToSet[key];
+            }
+        });
+    }
+
+    await setWidgetDataForUser(userId, scope, tag, dataToSet);
+
+    return {
+        success: true,
+        userId,
+        scope,
+        tag,
+        data: dataToSet
+    };
+}
+
+/**
+ * DELETE:/api/chat/widget/{scope}/{tag}/data
+ */
+async function handleDeleteUserWidgetData(event: APIGatewayProxyEventPika<void>, userId: string): Promise<DeleteUserWidgetDataResponse> {
+    const scope = event.pathParameters?.scope;
+    const tag = event.pathParameters?.tag;
+
+    if (!scope || !tag) {
+        throw new BadRequestError('scope and tag are required');
+    }
+
+    await deleteWidgetDataForUser(userId, scope, tag);
+
+    return {
+        success: true,
+        userId,
+        scope,
+        tag
     };
 }
 

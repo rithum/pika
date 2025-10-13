@@ -9,10 +9,10 @@
  */
 
 import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
-import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);

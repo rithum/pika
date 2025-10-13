@@ -5853,7 +5853,7 @@ function ea(e) {
       r(new Error("Pika context not provided - component must be rendered within a Pika chat app"));
     }, 1e3);
     e.dispatchEvent(
-      new CustomEvent("pika-context-request", {
+      new CustomEvent("pika-wc-context-request", {
         bubbles: !0,
         composed: !0,
         detail: {

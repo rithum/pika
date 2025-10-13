@@ -20,7 +20,7 @@ export function getPikaContext(el: HTMLElement): Promise<PikaWCContext> {
         }, 1000);
 
         el.dispatchEvent(
-            new CustomEvent<PikaWCContextRequestDetail>('pika-context-request', {
+            new CustomEvent<PikaWCContextRequestDetail>('pika-wc-context-request', {
                 bubbles: true,
                 composed: true,
                 detail: {

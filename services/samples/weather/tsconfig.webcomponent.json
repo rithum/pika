@@ -1,0 +1,37 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$lib": [
+        "./src/webcomponent/lib"
+      ],
+      "$lib/*": [
+        "./src/webcomponent/lib/*"
+      ],
+      "$icons/*": [
+        "~icons/*"
+      ],
+      "pika-ux": [
+        "../../packages/pika-ux/src"
+      ],
+      "pika-ux/*": [
+        "../../packages/pika-ux/src/*"
+      ],
+      "pika-shared": [
+        "../../packages/shared/src"
+      ],
+      "pika-shared/*": [
+        "../../packages/shared/src/*"
+      ]
+    }
+  }
+}

@@ -6,11 +6,11 @@ import {
     TagDefinitionCreateOrUpdateResponse,
     TagDefinitionDeleteResponse,
     TagDefinitionForCreateOrUpdate,
-    TagDefinitionWidget
+    TagDefinitionWidgetForCreateOrUpdate
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { invokeApi } from '../../lib/invoke-api';
 
-export function parseTagDefinitionCustomResourceProperties(str: string): TagDefinitionForCreateOrUpdate<TagDefinitionWidget> {
+export function parseTagDefinitionCustomResourceProperties(str: string): TagDefinitionForCreateOrUpdate<TagDefinitionWidgetForCreateOrUpdate> {
     let tagDefData: unknown;
     try {
         tagDefData = JSON.parse(str) as unknown;
@@ -22,7 +22,7 @@ export function parseTagDefinitionCustomResourceProperties(str: string): TagDefi
         throw new Error('TagDefData property when ungzipped and hex decoded is not an object');
     }
 
-    const tagDefDataObj = tagDefData as TagDefinitionForCreateOrUpdate<TagDefinitionWidget>;
+    const tagDefDataObj = tagDefData as TagDefinitionForCreateOrUpdate<TagDefinitionWidgetForCreateOrUpdate>;
 
     if (!tagDefDataObj.tag) {
         throw new Error('TagDefData is missing the tag property');

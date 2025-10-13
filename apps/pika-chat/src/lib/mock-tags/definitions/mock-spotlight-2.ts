@@ -1,6 +1,6 @@
-import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
+import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponentForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
 
-const mockSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent> = {
+const mockSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
     tag: 'mock-spotlight-2',
     scope: 'pika',
     shortTagEx: '<pika.mock-spotlight-2></pika.mock-spotlight-2>',
@@ -17,16 +17,11 @@ const mockSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompo
             isDefault: false
         }
     },
-    displayMetadata: {
-        icon: 'Star',
-        category: 'Mock'
-    },
     widget: {
         type: 'web-component',
         webComponent: {
             customElementName: 'hello-world',
             s3: {
-                s3Bucket: '',
                 s3Key: 'wc/pika/hello-world.js.gz'
             },
             encoding: 'gzip',

@@ -1,16 +1,33 @@
-import type { AgentDataRequest, ChatAppForIdempotentCreateOrUpdate, SemanticDirectiveForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    AgentDataRequest,
+    ChatAppForIdempotentCreateOrUpdate,
+    SemanticDirectiveForCreateOrUpdate,
+    TagDefinitionForCreateOrUpdate,
+    TagDefinitionWidgetWebComponentForCreateOrUpdate
+} from 'pika-shared/types/chatbot/chatbot-types';
 
-import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
+import { createHash } from 'crypto';
+import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
+import { gzipSync } from 'zlib';
 import { weatherFunctions } from '../../src/lambda/weather/weather-functions';
 import { weatherAgentInstruction } from '../../src/lambda/weather/weather-instructions';
 import { weatherSuggestions } from '../../src/lambda/weather/weather-suggestions';
+import { weatherTagDefinitions } from './tag-definitions';
+
+// ES modules don't have __dirname, so we create it from import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface WeatherStackProps extends cdk.StackProps {
     stage: string;
@@ -103,6 +120,59 @@ export class WeatherStack extends cdk.Stack {
         weatherLambda.addPermission('allowAgentInvokeFn', {
             action: 'lambda:invokeFunction',
             principal: new iam.ServicePrincipal('bedrock.amazonaws.com')
+        });
+
+        // Helper function to gzip and hash web component file
+        function gzipAndHashFile(filePath: string): { gzipped: Buffer; hash: string; size: number } {
+            const fileContent = fs.readFileSync(filePath, 'utf-8');
+            const gzipped = gzipSync(fileContent);
+            const hash = createHash('sha256').update(gzipped).digest('base64');
+            return { gzipped, hash, size: gzipped.length };
+        }
+
+        // Process web components: read from build/, gzip, write to dist/
+        const buildDir = path.join(__dirname, '../../build');
+        const distDir = path.join(__dirname, '../../dist');
+
+        // Ensure dist directory exists and is clean
+        if (fs.existsSync(distDir)) {
+            fs.rmSync(distDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(distDir, { recursive: true });
+
+        // Process all .js files from build/ to dist/
+        const buildFiles = fs.readdirSync(buildDir);
+        const jsFiles = buildFiles.filter((f) => f.endsWith('.js'));
+
+        let webcomponentMeta: { gzipped: Buffer; hash: string; size: number } | undefined;
+
+        jsFiles.forEach((file) => {
+            const sourcePath = path.join(buildDir, file);
+            const meta = gzipAndHashFile(sourcePath);
+
+            // Save metadata for hello-world.js (used in tag definitions)
+            if (file === 'hello-world.js') {
+                webcomponentMeta = meta;
+            }
+
+            // Write gzipped file to dist/
+            const gzippedFileName = `${file}.gz`;
+            const gzippedFilePath = path.join(distDir, gzippedFileName);
+            fs.writeFileSync(gzippedFilePath, meta.gzipped);
+        });
+
+        if (!webcomponentMeta) {
+            throw new Error('hello-world.js not found in build directory');
+        }
+
+        // Deploy entire dist/ directory to S3
+        new BucketDeployment(this, 'WeatherWebComponentDeployment', {
+            sources: [Source.asset(distDir)],
+            destinationBucket: s3.Bucket.fromBucketName(this, 'PikaBucket', pikaBucketNameParam.stringValue),
+            destinationKeyPrefix: 'wc/weather/',
+            contentType: 'application/javascript',
+            contentEncoding: 'gzip',
+            prune: false
         });
 
         const customResourceArn = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/lambda/agent_custom_resource_arn`);
@@ -261,6 +331,36 @@ export class WeatherStack extends cdk.Stack {
                 // This makes sure that the custom resource is called every time the stack is deployed since it changes each time
                 Timestamp: String(Date.now())
             }
+        });
+
+        // Get the tag definition custom resource ARN
+        const tagDefCustomResourceArn = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${this.stage}/lambda/tag_definition_custom_resource_arn`
+        );
+
+        // Register tag definitions via custom resources
+        weatherTagDefinitions.forEach((tagDef: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate>, index: number) => {
+            // Create a copy to avoid mutating the original
+            const tagDefCopy = JSON.parse(JSON.stringify(tagDef));
+
+            // Populate s3Bucket and file metadata
+            if (tagDefCopy.widget.type === 'web-component' && tagDefCopy.widget.webComponent?.s3) {
+                tagDefCopy.widget.webComponent.encodedSizeBytes = webcomponentMeta!.size;
+                tagDefCopy.widget.webComponent.encodedSha256Base64 = webcomponentMeta!.hash;
+            }
+
+            // Gzip and encode just the tag definition (not wrapped in userId/tagDefinition object)
+            const tagDefData = gzipAndBase64EncodeString(JSON.stringify(tagDefCopy));
+
+            new cdk.CustomResource(this, `WeatherTagDef${index}`, {
+                serviceToken: tagDefCustomResourceArn,
+                properties: {
+                    Stage: this.stage,
+                    TagDefData: tagDefData,
+                    Timestamp: String(Date.now())
+                }
+            });
         });
 
         // Make sure the chat app is created after the agent

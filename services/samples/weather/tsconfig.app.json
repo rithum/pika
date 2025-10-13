@@ -1,0 +1,39 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "types": [
+      "svelte",
+      "vite/client",
+      "unplugin-icons/types/svelte",
+      "pika-ux/icons/ci/index.d.ts",
+      "pika-ux/icons/lucide/index.d.ts"
+    ],
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "moduleDetection": "force",
+    "baseUrl": ".",
+    "paths": {
+      "$lib": [
+        "./src/webcomponent/lib"
+      ],
+      "$lib/*": [
+        "./src/webcomponent/lib/*"
+      ],
+      "$icons/*": [
+        "~icons/*"
+      ]
+    }
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/webcomponent/**/*.ts",
+    "src/webcomponent/**/*.d.ts",
+    "src/webcomponent/**/*.js",
+    "src/webcomponent/**/*.svelte"
+  ]
+}

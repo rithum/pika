@@ -3,7 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { WeatherStack } from '../lib/stacks';
 import { getLoggedInAccountIdFromSts } from './sts';
-import { pikaConfig } from '../../../../pika-config.js';
+import { pikaConfig } from './build/pika-config.js';
 
 const app = new cdk.App();
 

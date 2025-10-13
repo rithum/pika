@@ -31,7 +31,6 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         throw error(400, 'scope and tag are required');
     }
 
-    // 1. Fetch tag definition from database
     try {
         const tagDefResponse = await searchTagDefinitions(locals.user.userId, {
             tagsDesired: [{ scope, tag }],
@@ -44,19 +43,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
         const tagDef = tagDefResponse.tagDefinitions[0];
 
-        // 2. Validate tag is enabled
         if (tagDef.status !== 'enabled') {
             throw error(404, 'Web component not found or disabled');
         }
 
-        // 3. Validate widget type is web-component
         if (tagDef.widget.type !== 'web-component') {
             throw error(400, 'Tag is not a web component');
         }
 
         const webComponent = tagDef.widget.webComponent;
 
-        // 4. Verify S3 configuration exists
         if (!webComponent.s3) {
             throw error(400, 'Web component does not have S3 configuration');
         }
@@ -73,12 +69,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             throw error(400, 'Invalid s3 bucket specified on tag definition');
         }
 
-        // 5. Fetch from S3
         const chunks = await getS3Object(webComponent.s3.s3Key);
         const gzippedBytes = Buffer.concat(chunks);
 
-        // 6. SECURITY: Validate file integrity using SHA256 hash
-        // Calculate hash of the gzipped bytes (as stored in S3)
+        // Validate file integrity using SHA256 hash
         const calculatedHash = createHash('sha256').update(gzippedBytes).digest('base64');
 
         // Compare to stored hash
@@ -94,7 +88,6 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             throw error(400, 'Web component file integrity check failed');
         }
 
-        // 7. Hash validated - safe to decompress and serve
         let jsContent: string;
         try {
             const decompressed = gunzipSync(gzippedBytes);
@@ -104,7 +97,6 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             throw error(500, 'Failed to decompress web component');
         }
 
-        // 8. Return with proper content-type and security headers
         return new Response(jsContent, {
             headers: {
                 'Content-Type': 'application/javascript',

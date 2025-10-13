@@ -16,6 +16,9 @@ import type {
     TagDefinitionForCreateOrUpdate,
     TagDefinitionSearchRequest,
     TagDefinitionWidget,
+    TagDefinitionWidgetForCreateOrUpdate,
+    TagDefinitionWidgetWebComponent,
+    TagDefinitionWidgetWebComponentForCreateOrUpdate,
     ToolDefinition,
     UpdateableAgentDefinitionFields,
     UpdateableChatAppFields,
@@ -34,7 +37,13 @@ import { BatchGetCommand, DynamoDBDocument, QueryCommand } from '@aws-sdk/lib-dy
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import https from 'https';
 import pRetry, { AbortError } from 'p-retry';
-import { convertChatSessionToCamelFromSnakeCase, getChatSessionFeedbackTable, getChatSessionTable } from './utils';
+import {
+    convertChatSessionToCamelFromSnakeCase,
+    convertTagDefinitionToCamelFromSnakeCase,
+    convertTagDefinitionToSnakeFromCamelCase,
+    getChatSessionFeedbackTable,
+    getChatSessionTable
+} from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
 const ddbClient = new DynamoDBClient({
@@ -1351,7 +1360,7 @@ export async function getAllTagDefinitions(
     const result: ScanOutput = await ddbDocClient.scan(scanParams);
     lastEvaluatedKey = result.LastEvaluatedKey;
 
-    let tagDefinitions = result.Items ? result.Items.map((item) => convertToCamelCase(item as unknown as SnakeCase<TagDefinition<TagDefinitionWidget>>)) : [];
+    let tagDefinitions = result.Items ? result.Items.map((item) => convertTagDefinitionToCamelFromSnakeCase(item)) : [];
 
     if (!includeInstructions) {
         tagDefinitions = tagDefinitions.map((tag) => {
@@ -1381,7 +1390,7 @@ export async function getTagDefinition(scope: string, tag: string): Promise<TagD
         return null;
     }
 
-    return convertToCamelCase(result.Item as any) as TagDefinition<TagDefinitionWidget>;
+    return convertTagDefinitionToCamelFromSnakeCase(result.Item) as TagDefinition<TagDefinitionWidget>;
 }
 
 /**
@@ -1409,7 +1418,11 @@ function validateAndNormalizeTagDefinition(tagDef: TagDefinitionForCreateOrUpdat
 /**
  * Create or update a tag definition (idempotent operation)
  */
-export async function createOrUpdateTagDefinition(tagDefinition: TagDefinitionForCreateOrUpdate, userId: string): Promise<TagDefinition<TagDefinitionWidget>> {
+export async function createOrUpdateTagDefinition(
+    tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetForCreateOrUpdate>,
+    userId: string,
+    pikaS3Bucket: string
+): Promise<TagDefinition<TagDefinitionWidget>> {
     // Validate and normalize the tag definition
     validateAndNormalizeTagDefinition(tagDefinition);
 
@@ -1418,8 +1431,29 @@ export async function createOrUpdateTagDefinition(tagDefinition: TagDefinitionFo
     // Check if the tag definition already exists
     const existingTagDef = await getTagDefinition(tagDefinition.scope, tagDefinition.tag);
 
+    // Convert widget from create/update type to storage type
+    // For web components with s3 configuration, populate the s3Bucket field
+    let widget: TagDefinitionWidget = tagDefinition.widget as TagDefinitionWidget;
+    if (tagDefinition.widget && tagDefinition.widget.type === 'web-component') {
+        const webComponentWidget = tagDefinition.widget as TagDefinitionWidgetWebComponentForCreateOrUpdate;
+        if (webComponentWidget.webComponent.s3) {
+            // Populate the s3Bucket field that's managed by the backend
+            widget = {
+                ...webComponentWidget,
+                webComponent: {
+                    ...webComponentWidget.webComponent,
+                    s3: {
+                        s3Bucket: pikaS3Bucket,
+                        s3Key: webComponentWidget.webComponent.s3.s3Key
+                    }
+                }
+            } as TagDefinitionWidgetWebComponent;
+        }
+    }
+
     const tagDefToStore: TagDefinition<TagDefinitionWidget> = {
         ...tagDefinition,
+        widget,
         createdBy: existingTagDef?.createdBy ?? userId,
         lastUpdatedBy: userId,
         createDate: existingTagDef?.createDate ?? now,
@@ -1428,7 +1462,7 @@ export async function createOrUpdateTagDefinition(tagDefinition: TagDefinitionFo
 
     const putParams = {
         TableName: getTagDefinitionsTable(),
-        Item: convertToSnakeCase(tagDefToStore)
+        Item: convertTagDefinitionToSnakeFromCamelCase(tagDefToStore)
     };
 
     await ddbDocClient.put(putParams);
@@ -1512,7 +1546,7 @@ export async function searchTagDefinitions(
 
         if (result.Responses?.[getTagDefinitionsTable()]) {
             for (const item of result.Responses[getTagDefinitionsTable()]) {
-                const tagDef = convertToCamelCase(item as any) as TagDefinition<TagDefinitionWidget>;
+                const tagDef = convertTagDefinitionToCamelFromSnakeCase(item) as TagDefinition<TagDefinitionWidget>;
 
                 // Filter by status unless includeDisabled is true
                 if (includeDisabled || tagDef.status === 'enabled') {
@@ -1559,7 +1593,7 @@ export async function searchTagDefinitions(
 
         const chatAppResult = await ddbDocClient.send(chatAppQuery);
         if (chatAppResult.Items) {
-            tagDefs.push(...(chatAppResult.Items.map((item) => convertToCamelCase(item as any)) as TagDefinition<TagDefinitionWidget>[]));
+            tagDefs.push(...(chatAppResult.Items.map((item) => convertTagDefinitionToCamelFromSnakeCase(item)) as TagDefinition<TagDefinitionWidget>[]));
         }
 
         // Store pagination token for chatApp query if there are more results
@@ -1581,7 +1615,7 @@ export async function searchTagDefinitions(
 
             const globalResult = await ddbDocClient.send(globalQuery);
             if (globalResult.Items) {
-                tagDefs.push(...(globalResult.Items.map((item) => convertToCamelCase(item as any)) as TagDefinition<TagDefinitionWidget>[]));
+                tagDefs.push(...(globalResult.Items.map((item) => convertTagDefinitionToCamelFromSnakeCase(item)) as TagDefinition<TagDefinitionWidget>[]));
             }
 
             // Store pagination token for global query if there are more results

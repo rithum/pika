@@ -1,6 +1,6 @@
-import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
+import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponentForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
 
-const mockCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent> = {
+const mockCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
     tag: 'mock-canvas',
     scope: 'pika',
     shortTagEx: '<pika.mock-canvas></pika.mock-canvas>',
@@ -16,16 +16,11 @@ const mockCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent
             enabled: true
         }
     },
-    displayMetadata: {
-        icon: 'Layout',
-        category: 'Mock'
-    },
     widget: {
         type: 'web-component',
         webComponent: {
             customElementName: 'hello-world',
             s3: {
-                s3Bucket: '',
                 s3Key: 'wc/pika/hello-world.js.gz'
             },
             encoding: 'gzip',

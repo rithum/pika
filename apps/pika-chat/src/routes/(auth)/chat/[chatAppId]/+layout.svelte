@@ -31,7 +31,8 @@
         data.customDataUiRepresentation,
         data.mode,
         data.tagDefinitions,
-        WebComponentRenderer
+        WebComponentRenderer,
+        data.webComponentUrls
     );
 
     let showShareErrorDialogTitle = $state('');

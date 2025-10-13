@@ -4,13 +4,13 @@
  */
 import { gunzipSync, gzipSync } from 'zlib';
 import {
-    type ChatUser,
     DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
     DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
     type AccessRules,
     type AuthenticatedUser,
     type ChatApp,
     type ChatAppOverridableFeatures,
+    type ChatUser,
     type RecordOrUndef,
     type SiteFeatures,
     type TagDefinitionLite
@@ -92,7 +92,9 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
             completeExampleInstructionEnabled: false,
             completeExampleInstructionLine: undefined,
             jsonOnlyImperativeInstructionEnabled: false,
-            jsonOnlyImperativeInstructionLine: undefined
+            jsonOnlyImperativeInstructionLine: undefined,
+            includeTypescriptBackedOutputFormattingRequirements: false,
+            typescriptBackedOutputFormattingRequirements: undefined
         },
         instructionAugmentation: {
             enabled: false,
@@ -226,7 +228,9 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
             completeExampleInstructionEnabled: feature.completeExampleInstructionLine?.enabled ?? false,
             completeExampleInstructionLine: feature.completeExampleInstructionLine?.mdLine ?? undefined,
             jsonOnlyImperativeInstructionEnabled: feature.jsonOnlyImperativeInstructionLine?.enabled ?? false,
-            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine?.line ?? undefined
+            jsonOnlyImperativeInstructionLine: feature.jsonOnlyImperativeInstructionLine?.line ?? undefined,
+            includeTypescriptBackedOutputFormattingRequirements: feature.includeTypescriptBackedOutputFormattingRequirements?.enabled ?? false,
+            typescriptBackedOutputFormattingRequirements: feature.typescriptBackedOutputFormattingRequirements ?? undefined
         })
     );
 

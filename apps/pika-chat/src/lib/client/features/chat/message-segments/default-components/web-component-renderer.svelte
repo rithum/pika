@@ -37,6 +37,7 @@
                 return;
             }
 
+            // Inject component and get instance ID (async operation)
             injectChatAppWebComponent(
                 tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                 containerEl,
@@ -47,7 +48,13 @@
                     chatAppId: chat.chatApp.chatAppId,
                 },
                 true
-            );
+            )
+                .then(() => {
+                    // Component injected successfully
+                })
+                .catch((error) => {
+                    console.error('Error injecting web component:', error);
+                });
 
             initialized = true;
         }

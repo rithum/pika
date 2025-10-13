@@ -12,15 +12,20 @@ import type {
     ChatSession,
     ChatUser,
     CustomDataUiRepresentation,
+    InvokeAgentAsComponentOptions,
     RecordOrUndef,
     ShareSessionState,
     ShowToastFn,
     TagDefinition,
     TagDefinitionWidget,
     UserAwsCredentials,
+    UserWidgetData,
     UserDataOverrideSettings,
     UserPrefs,
-    WidgetRenderingContextType
+    WidgetAction,
+    WidgetMetadata,
+    WidgetRenderingContextType,
+    IUserWidgetDataStoreState
 } from './chatbot-types';
 
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
@@ -31,7 +36,7 @@ export type Snippet = any;
 /** Declare global event map for pika context request */
 declare global {
     interface HTMLElementEventMap {
-        'pika-context-request': PikaWCContextRequestEvent;
+        'pika-wc-context-request': PikaWCContextRequestEvent;
     }
 }
 
@@ -51,12 +56,119 @@ export interface IAppState {
     readonly isMobile: boolean;
 }
 
+/**
+ * Widget Metadata API - scoped to a specific widget instance.
+ * Returned by getWidgetMetadataAPI() and bound to the widget's instanceId.
+ *
+ * This API allows widgets to register and update their display metadata (title and actions)
+ * which the parent app uses to render context-appropriate chrome.
+ *
+ * @example
+ * ```js
+ * const ctx = await getPikaContext($host());
+ * const metadata = ctx.chatAppState.getWidgetMetadataAPI('weather', 'favorite-cities', ctx.instanceId, ctx.renderingContext);
+ *
+ * metadata.setMetadata({
+ *   title: 'Favorite Cities',
+ *   actions: [
+ *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() }
+ *   ]
+ * });
+ * ```
+ */
+export interface IWidgetMetadataAPI {
+    /**
+     * Register or update complete metadata (title and actions).
+     * Replaces any previously registered metadata for this widget instance.
+     *
+     * @param metadata - The metadata to register
+     *
+     * @example
+     * ```js
+     * metadata.setMetadata({
+     *   title: 'Weather Comparison',
+     *   actions: [
+     *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() },
+     *     { id: 'settings', title: 'Settings', iconSvg: '<svg>...</svg>', callback: () => showSettings() }
+     *   ]
+     * });
+     * ```
+     */
+    setMetadata(metadata: WidgetMetadata): void;
+
+    /**
+     * Update just the widget title without affecting actions.
+     *
+     * @param title - The new title
+     *
+     * @example
+     * ```js
+     * metadata.updateTitle(`Temperature Trend - ${newCity}`);
+     * ```
+     */
+    updateTitle(title: string): void;
+
+    /**
+     * Update a specific action's properties (e.g., disable/enable).
+     * Only updates the properties provided in `updates`.
+     *
+     * @param actionId - The ID of the action to update
+     * @param updates - Partial properties to update (cannot change id or callback)
+     *
+     * @example
+     * ```js
+     * // Disable the refresh button during loading
+     * metadata.updateAction('refresh', { disabled: true });
+     *
+     * // Re-enable it after loading
+     * metadata.updateAction('refresh', { disabled: false });
+     * ```
+     */
+    updateAction(actionId: string, updates: Partial<Omit<WidgetAction, 'id' | 'callback'>>): void;
+
+    /**
+     * Add a new action button dynamically.
+     *
+     * @param action - The action to add
+     *
+     * @example
+     * ```js
+     * if (userHasPremium) {
+     *   metadata.addAction({
+     *     id: 'export',
+     *     title: 'Export data',
+     *     iconSvg: '<svg>...</svg>',
+     *     callback: () => exportData()
+     *   });
+     * }
+     * ```
+     */
+    addAction(action: WidgetAction): void;
+
+    /**
+     * Remove an action button.
+     *
+     * @param actionId - The ID of the action to remove
+     *
+     * @example
+     * ```js
+     * metadata.removeAction('export');
+     * ```
+     */
+    removeAction(actionId: string): void;
+}
+
 export interface IChatAppState {
     readonly entityFeatureEnabled: boolean;
     readonly shareCurrentSessionState: ShareSessionState;
     readonly showToast: ShowToastFn;
     readonly userPrefs: IUserPrefsState;
     readonly mode: ChatAppMode;
+    /**
+     * Get component-specific storage scoped to this component (scope.tag) and current user.
+     * Max 400KB per component.
+     */
+    getUserWidgetDataStoreState(scope: string, tag: string): IUserWidgetDataStoreState;
     readonly customDataUiRepresentation: CustomDataUiRepresentation | undefined;
     readonly features: ChatAppOverridableFeatures;
     readonly tagDefs: TagDefinition<TagDefinitionWidget>[];
@@ -95,6 +207,96 @@ export interface IChatAppState {
     renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas', data?: Record<string, any>): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
+    /**
+     * Invoke the agent directly from a web component using the 'chat-app-component' invocation mode.
+     * This allows components to make out-of-band requests to the LLM without creating user sessions.
+     *
+     * The component must have a tag definition with `componentAgentInstructionsMd` that
+     * includes instructions for the specified `instructionName`.
+     *
+     * @param scope - The scope of the tag definition (e.g., 'weather')
+     * @param tag - The tag name (e.g., 'favorite-cities')
+     * @param instructionName - The key in the tag definition's componentAgentInstructionsMd
+     * @param userMessage - The message/query to send to the agent
+     * @param options - Optional streaming callbacks and configuration
+     * @returns Promise that resolves to the parsed JSON response from the agent
+     * @throws Error if the request fails or response cannot be parsed
+     *
+     * @example
+     * Simple usage:
+     * ```typescript
+     * const weatherData = await chatAppState.invokeAgentAsComponent<{ temperature: number, condition: string }>(
+     *   'weather',
+     *   'favorite-cities',
+     *   'get-weather',
+     *   'Get current weather for San Francisco'
+     * );
+     * ```
+     *
+     * With streaming callbacks:
+     * ```typescript
+     * const data = await chatAppState.invokeAgentAsComponent<WeatherData>(
+     *   'weather',
+     *   'favorite-cities',
+     *   'get-weather',
+     *   'Get weather for NYC',
+     *   {
+     *     onThinking: (text) => console.log('Thinking:', text),
+     *     onToolCall: (call) => console.log('Calling tool:', call.name)
+     *   }
+     * );
+     * ```
+     */
+    invokeAgentAsComponent<T = any>(scope: string, tag: string, instructionName: string, userMessage: string, options?: InvokeAgentAsComponentOptions): Promise<T>;
+
+    /**
+     * Get a scoped metadata API for registering widget title and actions.
+     * Call this once during widget initialization to get an API bound to this widget instance.
+     *
+     * The metadata you register will be used by the parent app to render context-appropriate chrome:
+     * - **Spotlight**: Small title bar overlay with icon + title + action menu
+     * - **Canvas**: Full title bar with all action buttons + close
+     * - **Dialog**: Title in header, actions as buttons in footer
+     * - **Inline**: No chrome rendered (widget manages own UI)
+     *
+     * **IMPORTANT**: You MUST pass instanceId and renderingContext from the PikaWCContext.
+     * These values are automatically set during component injection.
+     *
+     * @param scope - Widget scope (e.g., 'weather', 'pika')
+     * @param tag - Widget tag (e.g., 'favorite-cities')
+     * @param instanceId - Unique instance ID from context.instanceId (set during injection)
+     * @param renderingContext - Rendering context from context.renderingContext (set during injection)
+     * @returns Scoped API for this widget instance
+     *
+     * @example
+     * Correct usage (always pass context values):
+     * ```js
+     * const ctx = await getPikaContext($host());
+     * const metadata = ctx.chatAppState.getWidgetMetadataAPI(
+     *   'weather',
+     *   'favorite-cities',
+     *   ctx.instanceId,  // REQUIRED - set during injection
+     *   ctx.renderingContext       // REQUIRED - set during injection
+     * );
+     *
+     * metadata.setMetadata({
+     *   title: 'Favorite Cities',
+     *   actions: [
+     *     {
+     *       id: 'refresh',
+     *       title: 'Refresh weather data',
+     *       lucideIconName: 'refresh-cw',  // MUST be lowercase kebab-case
+     *       callback: async () => {
+     *         loading = true;
+     *         await fetchWeatherData();
+     *         loading = false;
+     *       }
+     *     }
+     *   ]
+     * });
+     * ```
+     */
+    getWidgetMetadataAPI(scope: string, tag: string, instanceId: string, renderingContext: WidgetRenderingContextType): IWidgetMetadataAPI;
 }
 
 // Supporting interfaces
@@ -129,7 +331,15 @@ export interface PikaWCContext {
     renderingContext: WidgetRenderingContextType; // e.g. 'spotlight', 'inline', 'dialog', 'canvas'
     chatAppState: IChatAppState;
     chatAppId: string;
+
+    /**
+     * Unique instance ID for this component instance.
+     * Set by injectChatAppWebComponent() and used by getWidgetMetadataAPI().
+     */
+    instanceId: string;
 }
+
+export type PikaWCContextWithoutInstanceId = Omit<PikaWCContext, 'instanceId'>;
 
 export type PikaWCContextRequestCallbackFn = (contextRequest: PikaWCContext) => void;
 

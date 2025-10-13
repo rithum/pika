@@ -1,5 +1,6 @@
 import type { TagDefinition, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
-import type { PikaWCContext, PikaWCContextRequestEvent } from 'pika-shared/types/chatbot/webcomp-types';
+import type { PikaWCContext, PikaWCContextRequestEvent, PikaWCContextWithoutInstanceId } from 'pika-shared/types/chatbot/webcomp-types';
+import { v7 as uuidv7 } from 'uuid';
 
 // Global registry of loaded URLs (per page load)
 const loadedWebComponentUrls = new Set<string>();
@@ -14,7 +15,7 @@ const loadedWebComponentFiles = new Set<string>();
  * This is used to track which files have been loaded and prevent the same file
  * from being loaded multiple times, even if accessed via different proxy URLs.
  *
- * @param tagDef The tag definition containing web component info
+ * @param tagDef The tag definition Øcontaining web component info
  * @returns A unique identifier for the file (e.g., "s3:bucket/key" or "url:https://...")
  */
 function getWebComponentFileId(tagDef: TagDefinition<TagDefinitionWidgetWebComponent>): string {
@@ -58,6 +59,13 @@ export function resolveWebComponentUrl(tagDef: TagDefinition<TagDefinitionWidget
 export async function loadWebComponentByUrl(tagName: string, url: string): Promise<void> {
     if (typeof window === 'undefined') return;
 
+    // console.log(`[Web Component Loader] loadWebComponentByUrl called:`, {
+    //     tagName,
+    //     url,
+    //     alreadyRegistered: !!customElements.get(tagName),
+    //     urlAlreadyLoaded: loadedWebComponentUrls.has(url)
+    // });
+
     // Check if this specific custom element is already registered
     if (customElements.get(tagName)) {
         // console.log(`[Web Component Loader] ${tagName} already registered, skipping load`);
@@ -73,6 +81,13 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
         // 1. The file didn't properly register the element (error)
         // 2. The element is registered under a different name (error in tag def)
         if (!customElements.get(tagName)) {
+            // console.error(`[Web Component Loader] Custom element ${tagName} not found even though ${url} was loaded.`, {
+            //     loadedUrls: Array.from(loadedWebComponentUrls),
+            //     registeredElements: Array.from(document.querySelectorAll('*'))
+            //         .map((el) => el.tagName.toLowerCase())
+            //         .filter((tag) => tag.includes('-')),
+            //     expectedTagName: tagName
+            // });
             throw new Error(`Custom element ${tagName} not found even though ${url} was loaded. ` + `Possible causes: file doesn't define '${tagName}', or tag name mismatch.`);
         }
         return;
@@ -82,6 +97,7 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
     // console.log(`[Web Component Loader] Loading ${tagName} from ${url}`);
     try {
         await import(/* @vite-ignore */ url);
+        // console.log(`[Web Component Loader] Import completed for ${url}`);
 
         // Mark this URL as loaded
         loadedWebComponentUrls.add(url);
@@ -89,6 +105,11 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
         // Verify the expected custom element was registered
         // Note: The file might register multiple elements (widget bundle)
         if (!customElements.get(tagName)) {
+            // console.error(`[Web Component Loader] Custom element ${tagName} not defined after loading ${url}`, {
+            //     expectedTagName: tagName,
+            //     url,
+            //     loadedUrls: Array.from(loadedWebComponentUrls)
+            // });
             throw new Error(`Custom element ${tagName} not defined after loading ${url}. ` + `Check that the file calls customElements.define('${tagName}', ...)`);
         }
 
@@ -107,32 +128,42 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
  * @param el The container element to inject into
  * @param contextRequest The Pika context to provide
  * @param replaceEl If true, replaces all children; if false, appends
+ * @returns Promise that resolves to the unique instance ID for this component
  */
 export async function injectChatAppWebComponent(
     tagDef: TagDefinition<TagDefinitionWidgetWebComponent>,
     el: HTMLElement,
-    contextRequest: PikaWCContext,
+    contextRequestWithoutInstanceId: PikaWCContextWithoutInstanceId,
     replaceEl: boolean = true
-): Promise<void> {
+): Promise<string> {
+    // Generate unique instance ID for this component
+    const instanceId = uuidv7();
+
     // Use customElementName if provided, otherwise construct from scope.tag
     const customElementName = tagDef.widget.webComponent.customElementName || `${tagDef.scope}.${tagDef.tag}`;
     const url = resolveWebComponentUrl(tagDef);
     const fileId = getWebComponentFileId(tagDef);
 
-    // console.log(`[Web Component Loader] Injecting ${customElementName} from ${url}`, {
-    //     tagDef: `${tagDef.scope}.${tagDef.tag}`,
-    //     customElementName,
-    //     fileId,
-    //     contextRequest,
-    //     replaceEl
-    // });
+    console.log(`[Web Component Loader] Injecting ${customElementName} from ${url}`, {
+        tagDef: `${tagDef.scope}.${tagDef.tag}`,
+        customElementName,
+        fileId,
+        instanceId,
+        contextRequestWithoutInstanceId,
+        replaceEl
+    });
 
     // 1. Check if this file has been loaded before (by actual file location, not proxy URL)
     if (loadedWebComponentFiles.has(fileId)) {
         // File was already loaded - verify the custom element we need is registered
-        // console.log(`[Web Component Loader] File ${fileId} already loaded, checking for element ${customElementName}`);
+        console.log(`[Web Component Loader] File ${fileId} already loaded, checking for element ${customElementName}`);
 
         if (!customElements.get(customElementName)) {
+            // console.error(`[Web Component Loader] Custom element not found after file loaded:`, {
+            //     customElementName,
+            //     fileId,
+            //     loadedFiles: Array.from(loadedWebComponentFiles)
+            // });
             throw new Error(
                 `Custom element ${customElementName} not found even though file ${fileId} was previously loaded. ` +
                     `This indicates the JavaScript file "${fileId}" doesn't define a custom element named "${customElementName}". ` +
@@ -140,27 +171,37 @@ export async function injectChatAppWebComponent(
             );
         }
 
-        // console.log(`[Web Component Loader] Element ${customElementName} found, ready to use`);
+        console.log(`[Web Component Loader] Element ${customElementName} found, ready to use`);
     } else {
         // File hasn't been loaded yet - load it and track it by file location
-        // console.log(`[Web Component Loader] Loading file ${fileId} for element ${customElementName}`);
+        console.log(`[Web Component Loader] Loading file ${fileId} for element ${customElementName}`);
 
         // Check if custom element is already registered (shouldn't be, but safety check)
         if (customElements.get(customElementName)) {
-            // console.log(`[Web Component Loader] ${customElementName} already registered, skipping load`);
+            console.log(`[Web Component Loader] ${customElementName} already registered before file load, skipping load`);
         } else {
             // Load the JavaScript file
+            console.log(`[Web Component Loader] Starting import of ${url}`);
             try {
                 await import(/* @vite-ignore */ url);
+                console.log(`[Web Component Loader] Import completed for ${url}`);
 
                 // Verify the expected custom element was registered
-                if (!customElements.get(customElementName)) {
+                const isRegistered = !!customElements.get(customElementName);
+                console.log(`[Web Component Loader] Checking if ${customElementName} is registered: ${isRegistered}`);
+
+                if (!isRegistered) {
+                    // console.error(`[Web Component Loader] Expected element not found after import:`, {
+                    //     expectedElement: customElementName,
+                    //     url,
+                    //     fileId
+                    // });
                     throw new Error(
                         `Custom element ${customElementName} not defined after loading ${url}. ` + `Check that the file calls customElements.define('${customElementName}', ...)`
                     );
                 }
 
-                // console.log(`[Web Component Loader] Successfully loaded and registered ${customElementName}`);
+                console.log(`[Web Component Loader] Successfully loaded and registered ${customElementName}`);
             } catch (error) {
                 console.error(`[Web Component Loader] Error loading web component ${customElementName} from ${url}:`, error);
                 throw new Error(`[Web Component Loader] Error loading web component ${customElementName} from ${url}`, { cause: error });
@@ -169,21 +210,56 @@ export async function injectChatAppWebComponent(
 
         // Mark this file as loaded (by actual file location, not proxy URL)
         loadedWebComponentFiles.add(fileId);
-        // console.log(`[Web Component Loader] File ${fileId} loaded and registered`);
+        console.log(`[Web Component Loader] File ${fileId} marked as loaded. Total loaded files:`, Array.from(loadedWebComponentFiles));
     }
 
     // 2. Create instance
+    // console.log(`[Web Component Loader] Creating element instance:`, {
+    //     customElementName,
+    //     elementConstructor: customElements.get(customElementName)
+    // });
     const newEl = document.createElement(customElementName);
 
-    // 3. Set up context provider
-    newEl.addEventListener('pika-context-request', (event: PikaWCContextRequestEvent) => {
-        event.detail.callback(contextRequest);
+    // Set instance ID as data attribute for debugging and reference
+    newEl.setAttribute('data-tag-instance-id', instanceId);
+
+    // console.log(`[Web Component Loader] Element created:`, {
+    //     tagName: newEl.tagName,
+    //     constructor: newEl.constructor.name,
+    //     instanceId
+    // });
+
+    // 3. Set up context provider with instance ID
+    console.log(`[Web Component Loader] Setting up context provider for ${customElementName}`);
+
+    // Create context with instance ID for proper metadata tracking
+    const contextWithInstance: PikaWCContext = {
+        ...contextRequestWithoutInstanceId,
+        instanceId: instanceId
+    };
+
+    newEl.addEventListener('pika-wc-context-request', (event: PikaWCContextRequestEvent) => {
+        // console.log(`[Web Component Loader] Context requested by ${customElementName}`, {
+        //     contextWithInstance,
+        //     instanceId,
+        //     eventDetail: event.detail
+        // });
+        event.detail.callback(contextWithInstance);
     });
 
     // 4. Inject into DOM
+    // console.log(`[Web Component Loader] Injecting ${customElementName} into DOM`, {
+    //     replaceEl,
+    //     parentElement: el.tagName,
+    //     instanceId
+    // });
     if (replaceEl) {
         el.replaceChildren(newEl);
     } else {
         el.appendChild(newEl);
     }
+    // console.log(`[Web Component Loader] Successfully injected ${customElementName} into DOM with instanceId: ${instanceId}`);
+
+    // Return the instance ID for parent components to track
+    return instanceId;
 }

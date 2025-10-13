@@ -24,7 +24,10 @@
             ],
             "pika-ux/*": [
                 "../../packages/pika-ux/src/*"
-            ]
+            ],
+            "$icons/*": [
+                "~icons/*"
+            ],
         }
     },
     "include": [

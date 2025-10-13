@@ -1,33 +1,38 @@
 import { type ConversationHistory, ConversationRole } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LRUCache } from 'lru-cache';
-import {
-    type AgentAndTools,
-    type ChatAppOverridableFeaturesForConverseFn,
-    type ChatMessage,
-    type ChatMessageFile,
-    type ChatMessageForCreate,
-    type ChatSession,
-    type ChatUser,
-    type ConverseInvocationMode,
-    type ConverseRequest,
-    type ConverseRequestWithCommand,
-    DEFAULT_MAX_K_MATCHES_PER_STRATEGY,
-    DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
-    DEFAULT_MEMORY_STRATEGIES,
-    type InstructionAssistanceConfig,
-    type InvocationScopes,
-    type RecordOrUndef,
-    type SimpleAuthenticatedUser,
-    type TagDefinition,
-    type TagDefinitionSearchRequest,
-    type TagDefinitionSearchResponse,
-    type TagDefinitionWidget,
-    type UserMemoryFeatureWithMemoryInfo
+import type {
+    AgentAndTools,
+    ChatAppComponentConfig,
+    ChatAppOverridableFeaturesForConverseFn,
+    ChatMessage,
+    ChatMessageFile,
+    ChatMessageForCreate,
+    ChatSession,
+    ChatUser,
+    ConverseInvocationMode,
+    ConverseRequest,
+    ConverseRequestWithCommand,
+    InstructionAssistanceConfig,
+    InvocationScopes,
+    RecordOrUndef,
+    SimpleAuthenticatedUser,
+    TagDefinition,
+    TagDefinitionSearchRequest,
+    TagDefinitionSearchResponse,
+    TagDefinitionWidget,
+    UserMemoryFeatureWithMemoryInfo,
+    WidgetRenderingContextType
 } from 'pika-shared/types/chatbot/chatbot-types';
+import { DEFAULT_MAX_K_MATCHES_PER_STRATEGY, DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT, DEFAULT_MEMORY_STRATEGIES } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertFunctionUrlEventToStandardApiGatewayEvent, type LambdaFunctionUrlProxyEventPika } from 'pika-shared/util/api-gateway-utils';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { HttpStatusError } from 'pika-shared/util/http-status-error';
-import { applyInstructionAssistance, generateInstructionAssistanceContent, getInstructionsAssistanceConfigFromRawSsmParams } from 'pika-shared/util/instruction-assistance-utils';
+import {
+    applyInstructionAssistance,
+    generateComponentInstructionContent,
+    generateInstructionAssistanceContent,
+    getInstructionsAssistanceConfigFromRawSsmParams
+} from 'pika-shared/util/instruction-assistance-utils';
 import { extractFromJwtString } from 'pika-shared/util/jwt';
 import { redactData } from 'pika-shared/util/server-client-utils';
 import { getEntityIdForUser } from 'pika-shared/util/server-utils';
@@ -64,7 +69,7 @@ const agentAndToolCache = new LRUCache<string, AgentAndTools>({
 });
 
 // Cache for tag definitions to avoid re-fetching them repeatedly
-const tagDefinitionCache = new LRUCache<string, TagDefinition<TagDefinitionWidget>[]>({
+const tagDefinitionCache = new LRUCache<string, TagDefinition<TagDefinitionWidget> | TagDefinition<TagDefinitionWidget>[]>({
     max: 50,
     ttl: 1000 * 60 * 10, // 10 minutes
     ttlAutopurge: true
@@ -179,6 +184,28 @@ export const handler = enhancedStreamifyResponse(
                     console.error('chatAppId is not allowed in direct-agent-invoke mode despite mode explicitly set to direct-agent-invoke');
                     throw new HttpStatusError('chatAppId is not allowed in direct-agent-invoke mode', 400);
                 }
+                if (converseRequest.invocationMode === 'chat-app-component') {
+                    if (!converseRequest.chatAppId) {
+                        console.error('Missing chatAppId in request for chat-app-component mode');
+                        throw new HttpStatusError('chatAppId is required for chat-app-component mode', 400);
+                    }
+                    if (!converseRequest.chatAppComponentConfig) {
+                        console.error('Missing chatAppComponentConfig in request for chat-app-component mode');
+                        throw new HttpStatusError('chatAppComponentConfig is required for chat-app-component mode', 400);
+                    }
+                    if (!converseRequest.chatAppComponentConfig.componentAgentInstructionName) {
+                        console.error('Missing componentAgentInstructionName in chatAppComponentConfig');
+                        throw new HttpStatusError('componentAgentInstructionName is required in chatAppComponentConfig', 400);
+                    }
+                    if (!converseRequest.chatAppComponentConfig.componentTagDefinition) {
+                        console.error('Missing componentTagDefinition in chatAppComponentConfig');
+                        throw new HttpStatusError('componentTagDefinition is required in chatAppComponentConfig', 400);
+                    }
+                    if (!converseRequest.chatAppComponentConfig.componentTagDefinition.scope || !converseRequest.chatAppComponentConfig.componentTagDefinition.tag) {
+                        console.error('Invalid componentTagDefinition - missing scope or tag');
+                        throw new HttpStatusError('componentTagDefinition must have both scope and tag', 400);
+                    }
+                }
                 invocationMode = converseRequest.invocationMode;
             } else {
                 if (converseRequest.chatAppId) {
@@ -282,7 +309,8 @@ export const handler = enhancedStreamifyResponse(
                 features,
                 scopes,
                 invocationMode,
-                converseRequest.files
+                converseRequest.files,
+                converseRequest.chatAppComponentConfig
             );
             console.log('Conversation completed successfully');
         } catch (e) {
@@ -360,19 +388,19 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
 }
 
 /**
- * Get inline-enabled tag definitions for a chat app (including global tags).
+ * Get tag definitions for a chat app (including global tags).
  * Automatically queries both the specified chatAppId AND 'chat-app-global'.
  * Filters to only include tags with status === 'enabled' AND contexts.inline.enabled === true.
  */
-async function getInlineTagDefinitionsForChatApp(chatAppId: string): Promise<TagDefinition<TagDefinitionWidget>[]> {
+async function getTagDefinitionsForChatApp(chatAppId: string, filterToThisType?: WidgetRenderingContextType): Promise<TagDefinition<TagDefinitionWidget>[]> {
     if (!chatAppId) {
         return [];
     }
 
     // Create cache key based on chat app ID
-    const cacheKey = `inline-tags-${chatAppId}`;
+    const cacheKey = `tags-${chatAppId}${filterToThisType ? `-${filterToThisType}` : ''}`;
 
-    let result = tagDefinitionCache.get(cacheKey);
+    let result = tagDefinitionCache.get(cacheKey) as TagDefinition<TagDefinitionWidget>[] | undefined;
     if (result) {
         console.log('Inline tag definitions retrieved from cache:', { chatAppId, count: result.length });
         return result;
@@ -395,7 +423,15 @@ async function getInlineTagDefinitionsForChatApp(chatAppId: string): Promise<Tag
 
     // Filter to only include inline-enabled tags with status 'enabled'
     result = response.tagDefinitions.filter((tagDef) => {
-        return tagDef.status === 'enabled' && tagDef.renderingContexts?.inline?.enabled === true;
+        if (tagDef.status === 'enabled') {
+            if (filterToThisType) {
+                return tagDef.renderingContexts?.[filterToThisType]?.enabled === true;
+            } else {
+                return true;
+            }
+        } else {
+            return false;
+        }
     });
 
     // Only cache if no tag has dontCacheThis set to true
@@ -408,6 +444,37 @@ async function getInlineTagDefinitionsForChatApp(chatAppId: string): Promise<Tag
     }
 
     return result;
+}
+
+export async function getTagDefinitionForChatAppComponent(chatAppId: string, scope: string, tag: string): Promise<TagDefinition<TagDefinitionWidget> | undefined> {
+    if (tagDefinitionCache.has(`tag-${chatAppId}-${scope}-${tag}`)) {
+        const tagDef = tagDefinitionCache.get(`tag-${chatAppId}-${scope}-${tag}`) as TagDefinition<TagDefinitionWidget> | undefined;
+        if (tagDef) {
+            return tagDef;
+        }
+    }
+
+    const searchRequest: TagDefinitionSearchRequest = {
+        includeInstructions: true,
+        tagsDesired: [{ scope, tag }]
+    };
+
+    const response: TagDefinitionSearchResponse = await searchTagDefsApi(searchRequest);
+    if (!response.success) {
+        console.error('Failed to fetch tag definitions');
+        return undefined;
+    }
+    const tagDefinition = response.tagDefinitions && response.tagDefinitions.length === 1 ? response.tagDefinitions[0] : undefined;
+
+    if (!tagDefinition) {
+        return undefined;
+    }
+
+    if (!tagDefinition.dontCacheThis) {
+        tagDefinitionCache.set(`tag-${chatAppId}-${scope}-${tag}`, tagDefinition);
+    }
+
+    return tagDefinition;
 }
 
 /**
@@ -435,7 +502,8 @@ async function converse(
     features: ChatAppOverridableFeaturesForConverseFn,
     scopes: InvocationScopes,
     mode: ConverseInvocationMode,
-    files?: ChatMessageFile[]
+    files?: ChatMessageFile[],
+    chatAppComponentConfig?: ChatAppComponentConfig
 ) {
     console.log('=== CONVERSE FUNCTION START ===');
     console.log('converse called with:', {
@@ -546,15 +614,67 @@ async function converse(
 
     // Apply instruction assistance to the agent prompt if enabled
     console.log('Applying instruction assistance to agent prompt...');
-    const tagDefinitions = await getInlineTagDefinitionsForChatApp(chatSession.chatAppId);
-    const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
     const originalPrompt = agentAndTools.agent.basePrompt;
-    const enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);
+    let enhancedPrompt = originalPrompt;
+
+    // Check if this is a chat-app-component invocation
+    if (mode === 'chat-app-component' && chatAppComponentConfig) {
+        console.log('Processing chat-app-component mode with component config:', {
+            scope: chatAppComponentConfig.componentTagDefinition.scope,
+            tag: chatAppComponentConfig.componentTagDefinition.tag,
+            instructionName: chatAppComponentConfig.componentAgentInstructionName
+        });
+
+        // Fetch the full tag definition to get the component instructions
+        const componentTagDef = await getTagDefinitionForChatAppComponent(
+            chatSession.chatAppId,
+            chatAppComponentConfig.componentTagDefinition.scope,
+            chatAppComponentConfig.componentTagDefinition.tag
+        );
+
+        if (!componentTagDef) {
+            console.error('Component tag definition not found:', {
+                scope: chatAppComponentConfig.componentTagDefinition.scope,
+                tag: chatAppComponentConfig.componentTagDefinition.tag
+            });
+            throw new BadRequestError(
+                `Component tag definition not found for chat app ID ${chatSession.chatAppId}: ${chatAppComponentConfig.componentTagDefinition.scope}.${chatAppComponentConfig.componentTagDefinition.tag}`
+            );
+        }
+
+        const componentInstructions = generateComponentInstructionContent(
+            componentTagDef,
+            chatAppComponentConfig.componentAgentInstructionName,
+            instructionAssistanceConfig,
+            features.agentInstructionAssistance
+        );
+
+        if (!componentInstructions) {
+            console.error('Component instructions not found:', {
+                scope: componentTagDef.scope,
+                tag: componentTagDef.tag,
+                instructionName: chatAppComponentConfig.componentAgentInstructionName
+            });
+            throw new BadRequestError(`Component instructions not found for: ${chatAppComponentConfig.componentAgentInstructionName}`);
+        }
+
+        // For component invocations, replace the base prompt with component-specific instructions
+        enhancedPrompt = componentInstructions;
+        console.log('Component instructions applied to prompt:', {
+            instructionsLength: componentInstructions.length
+        });
+    } else {
+        // Standard chat-app or direct-agent-invoke mode: apply standard instruction assistance
+        const tagDefinitions = await getTagDefinitionsForChatApp(chatSession.chatAppId, 'inline');
+        const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
+        enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);
+    }
 
     console.log('Agent prompt enhancement:', {
         originalPromptLength: originalPrompt.length,
         enhancedPromptLength: enhancedPrompt.length,
-        wasModified: originalPrompt !== enhancedPrompt
+        wasModified: originalPrompt !== enhancedPrompt,
+        mode
     });
 
     // Log the enhanced prompt for debugging (truncated if too long)

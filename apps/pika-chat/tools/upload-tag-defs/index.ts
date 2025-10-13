@@ -297,10 +297,7 @@ async function main(): Promise<void> {
         const tagDef = config.definition;
         console.log(`  ${tagDef.scope}.${tagDef.tag}:`);
 
-        // Populate S3 bucket in definition
         if (tagDef.widget?.webComponent?.s3) {
-            tagDef.widget.webComponent.s3.s3Bucket = bucketName;
-
             // Get file metadata if web component exists
             if (config.webComponentPath && fs.existsSync(config.webComponentPath)) {
                 const fileContent = fs.readFileSync(config.webComponentPath, 'utf-8');

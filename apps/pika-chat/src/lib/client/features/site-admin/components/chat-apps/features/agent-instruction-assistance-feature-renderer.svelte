@@ -75,6 +75,10 @@
                     completeExampleInstructionLine: feature?.completeExampleInstructionLine?.mdLine,
                     jsonOnlyImperativeInstructionEnabled: feature?.jsonOnlyImperativeInstructionLine?.enabled ?? false,
                     jsonOnlyImperativeInstructionLine: feature?.jsonOnlyImperativeInstructionLine?.line,
+                    includeTypescriptBackedOutputFormattingRequirements:
+                        feature?.includeTypescriptBackedOutputFormattingRequirements?.enabled ?? false,
+                    typescriptBackedOutputFormattingRequirements:
+                        feature?.includeTypescriptBackedOutputFormattingRequirements?.line,
                 },
                 tags
             );

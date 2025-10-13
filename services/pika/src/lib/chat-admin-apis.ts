@@ -1402,10 +1402,10 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
 /**
  * Create or update a tag definition (idempotent operation)
  */
-export async function createOrUpdateTagDefApi(request: TagDefinitionCreateOrUpdateRequest): Promise<TagDefinitionCreateOrUpdateResponse> {
+export async function createOrUpdateTagDefApi(request: TagDefinitionCreateOrUpdateRequest, pikaS3Bucket: string): Promise<TagDefinitionCreateOrUpdateResponse> {
     const { tagDefinition, userId } = request;
 
-    const createdTagDef = await createOrUpdateTagDefinition(tagDefinition, userId);
+    const createdTagDef = await createOrUpdateTagDefinition(tagDefinition, userId, pikaS3Bucket);
 
     return {
         success: true,

@@ -100,7 +100,8 @@ export class AppState implements IAppState {
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
         tagDefinitions: TagDefinition<TagDefinitionWidget>[],
-        webComponentRenderer: Component<any>
+        webComponentRenderer: Component<any>,
+        webComponentUrls: Record<string, string> | undefined
     ): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
@@ -123,7 +124,8 @@ export class AppState implements IAppState {
                 mode,
                 tagDefinitions,
                 this.#showToast,
-                webComponentRenderer
+                webComponentRenderer,
+                webComponentUrls
             );
         }
         return this.#chatApps[chatApp.chatAppId];

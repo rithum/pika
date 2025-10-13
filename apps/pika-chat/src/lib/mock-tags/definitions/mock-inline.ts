@@ -1,6 +1,6 @@
-import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
+import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponentForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
 
-const mockInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent> = {
+const mockInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
     tag: 'mock-inline',
     scope: 'pika',
     shortTagEx: '<pika.mock-inline></pika.mock-inline>',
@@ -16,16 +16,11 @@ const mockInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent
             enabled: true
         }
     },
-    displayMetadata: {
-        icon: 'MessageSquare',
-        category: 'Mock'
-    },
     widget: {
         type: 'web-component',
         webComponent: {
             customElementName: 'hello-world',
             s3: {
-                s3Bucket: '',
                 s3Key: 'wc/pika/hello-world.js.gz'
             },
             encoding: 'gzip',

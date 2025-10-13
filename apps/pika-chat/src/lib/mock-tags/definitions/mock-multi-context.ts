@@ -1,6 +1,6 @@
-import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
+import type { TagDefinitionForCreateOrUpdate, TagDefinitionWidgetWebComponentForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
 
-const mockMultiContext: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponent> = {
+const mockMultiContext: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
     tag: 'mock-multi-context',
     scope: 'pika',
     shortTagEx: '<pika.mock-multi-context></pika.mock-multi-context>',
@@ -23,16 +23,11 @@ const mockMultiContext: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCom
             enabled: true
         }
     },
-    displayMetadata: {
-        icon: 'Grid',
-        category: 'Mock'
-    },
     widget: {
         type: 'web-component',
         webComponent: {
             customElementName: 'hello-world',
             s3: {
-                s3Bucket: '',
                 s3Key: 'wc/pika/hello-world.js.gz'
             },
             encoding: 'gzip',

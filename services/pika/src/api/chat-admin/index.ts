@@ -1026,7 +1026,11 @@ async function handleCreateOrUpdateTagDef(event: APIGatewayProxyEventPika<TagDef
         throw new BadRequestError('User ID is required');
     }
 
-    return await createOrUpdateTagDefApi(request);
+    if (!process.env.PIKA_S3_BUCKET) {
+        throw new BadRequestError('PIKA_S3_BUCKET environment variable is required');
+    }
+
+    return await createOrUpdateTagDefApi(request, process.env.PIKA_S3_BUCKET);
 }
 
 /**

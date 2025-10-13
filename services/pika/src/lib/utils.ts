@@ -440,4 +440,45 @@ export function validateUserCanAccessSession(
     }
 }
 
+/**
+ * Converts a TagDefinition object to snake_case for DynamoDB storage.
+ * Preserves the keys within componentAgentInstructionsMd without converting them.
+ * Only the componentAgentInstructionsMd field name gets converted to snake_case.
+ * The keys inside (developer-defined instruction names like 'getCurrentWeather') remain as-is.
+ */
+export function convertTagDefinitionToSnakeFromCamelCase<T extends Record<string, any>>(tagDef: T): any {
+    const { componentAgentInstructionsMd, ...tagDefWithoutInstructions } = tagDef as any;
+
+    // Convert everything except componentAgentInstructionsMd
+    const converted = convertToSnakeCase(tagDefWithoutInstructions);
+
+    // Add componentAgentInstructionsMd back with snake_case key but preserve its keys structure
+    if (componentAgentInstructionsMd !== undefined) {
+        converted.component_agent_instructions_md = componentAgentInstructionsMd;
+    }
+
+    return converted;
+}
+
+/**
+ * Converts a TagDefinition object from snake_case (from DynamoDB) to camelCase.
+ * Preserves the keys within component_agent_instructions_md without converting them.
+ * Only the field name gets converted (component_agent_instructions_md -> componentAgentInstructionsMd).
+ * The keys inside (developer-defined instruction names like 'getCurrentWeather') remain as-is.
+ */
+export function convertTagDefinitionToCamelFromSnakeCase<T extends Record<string, any>>(tagDef: T): any {
+    const tagDefAny = tagDef as any;
+    const { component_agent_instructions_md, ...tagDefWithoutInstructions } = tagDefAny;
+
+    // Convert everything except component_agent_instructions_md
+    const converted = convertToCamelCase(tagDefWithoutInstructions);
+
+    // Add componentAgentInstructionsMd back with camelCase key but preserve its keys structure
+    if (component_agent_instructions_md !== undefined) {
+        (converted as any).componentAgentInstructionsMd = component_agent_instructions_md;
+    }
+
+    return converted;
+}
+
 export type ApiResponse = APIGatewayProxyStructuredResultV2;

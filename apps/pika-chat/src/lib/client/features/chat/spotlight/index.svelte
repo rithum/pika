@@ -10,6 +10,8 @@
     import SpotlightIcon from '$icons/lucide/spotlight';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import type { ChatAppState } from '$lib/client/features/chat/chat-app.state.svelte';
+    import WidgetActionButton from '$lib/client/features/chat/widgets/widget-action-button.svelte';
+    import WidgetActionMenu from '$lib/client/features/chat/widgets/widget-action-menu.svelte';
     import { injectChatAppWebComponent } from '$lib/client/webcomponent-utils.js';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button/index';
@@ -35,11 +37,15 @@
     let isVisible = $state(true);
     let hoveredCardId = $state<string | undefined>(undefined);
     let widgetContainers = $state<Map<string, HTMLElement>>(new Map());
+    let widgetInstanceIds = $state<Map<string, string>>(new Map()); // tagId -> instanceId mapping
 
     const activeMode = $derived(userOverriddenMode ?? mode);
     const spotlightWidgets = $derived(chat.spotlightWidgets);
     const unpinnedWidgets = $derived(chat.getUnpinnedSpotlightWidgets());
     const hasUnpinnedWidgets = $derived(unpinnedWidgets.length > 0);
+
+    // Icon components loaded dynamically per widget
+    let widgetIcons = $state<Map<string, any>>(new Map());
 
     // Initialize spotlight on mount
     $effect(() => {
@@ -90,7 +96,8 @@
             const container = widgetContainers.get(tagId);
 
             if (container && widget.tagDefinition.widget.type === 'web-component') {
-                await injectChatAppWebComponent(
+                // Inject component and capture instance ID
+                const instanceId = await injectChatAppWebComponent(
                     widget.tagDefinition,
                     container,
                     {
@@ -101,6 +108,9 @@
                     },
                     true
                 );
+
+                // Store instance ID for metadata lookup
+                widgetInstanceIds.set(tagId, instanceId);
             }
         }
     }
@@ -195,24 +205,52 @@
             </div>
         </div>
 
-        {#if isVisible && spotlightWidgets.length > 0}
-            <div class="spotlight-content" class:visible={isVisible}>
+        {#if spotlightWidgets.length > 0}
+            <div class="spotlight-content {isVisible ? 'visible' : 'hidden'}">
                 <Carousel.Root setApi={(emblaApi: any) => (api = emblaApi)} opts={{ align: 'start' }}>
                     <Carousel.Content>
                         {#each spotlightWidgets as widget (widget.tagDefinition.scope + '.' + widget.tagDefinition.tag)}
                             {@const tagId = `${widget.tagDefinition.scope}.${widget.tagDefinition.tag}`}
+                            {@const instanceId = widgetInstanceIds.get(tagId)}
+                            {@const metadata = instanceId ? chat.widgetMetadata.get(instanceId) : undefined}
+                            {@const title = metadata?.title ?? widget.tagDefinition.tagTitle}
+                            {@const actions = metadata?.actions ?? []}
+                            {@const IconComponent = widgetIcons.get(tagId)}
                             <Carousel.Item class="basis-auto">
                                 {#if activeMode === 'card'}
                                     <div class="p-2">
                                         <div
                                             role="button"
                                             tabindex="0"
-                                            class="rounded-lg border-2 w-[250px] h-[175px] bg-white hover:shadow-lg transition-all cursor-pointer relative group"
+                                            class="rounded-lg border-2 w-[250px] h-[175px] bg-white hover:shadow-lg transition-all cursor-pointer relative group overflow-hidden"
                                             onmouseenter={() => (hoveredCardId = tagId)}
                                             onmouseleave={() => (hoveredCardId = undefined)}
                                         >
+                                            <!-- Title bar with metadata -->
+                                            <div
+                                                class="absolute top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b px-2 py-1 flex items-center justify-between z-10"
+                                            >
+                                                <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                                    {#if IconComponent}
+                                                        <IconComponent
+                                                            class="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                                                        />
+                                                    {/if}
+                                                    <span class="text-xs font-medium truncate" {title}>
+                                                        {title}
+                                                    </span>
+                                                </div>
+                                                <div class="flex items-center gap-0.5 flex-shrink-0">
+                                                    {#if actions.length === 1}
+                                                        <WidgetActionButton action={actions[0]} />
+                                                    {:else if actions.length > 1}
+                                                        <WidgetActionMenu {actions} />
+                                                    {/if}
+                                                </div>
+                                            </div>
+
                                             {#if hoveredCardId === tagId}
-                                                <div class="absolute top-2 right-2 flex gap-1 z-10">
+                                                <div class="absolute top-8 right-2 flex gap-1 z-10">
                                                     <TooltipPlus tooltip="Unpin">
                                                         <Button
                                                             variant="ghost"
@@ -242,7 +280,7 @@
                                                 </div>
                                             {/if}
                                             <div
-                                                class="w-full h-full overflow-hidden flex"
+                                                class="w-full h-full pt-8 overflow-hidden flex"
                                                 use:registerContainer={tagId}
                                             ></div>
                                         </div>
@@ -286,7 +324,14 @@
                                                     </TooltipPlus>
                                                 </div>
                                             {/if}
-                                            <h2 class="text-sm font-semibold">{widget.tagDefinition.tagTitle}</h2>
+                                            <div class="flex items-center gap-2 min-w-0 flex-1">
+                                                {#if IconComponent}
+                                                    <IconComponent
+                                                        class="h-4 w-4 flex-shrink-0 text-muted-foreground"
+                                                    />
+                                                {/if}
+                                                <h2 class="text-sm font-semibold truncate" {title}>{title}</h2>
+                                            </div>
                                         </div>
                                     </div>
                                 {/if}
