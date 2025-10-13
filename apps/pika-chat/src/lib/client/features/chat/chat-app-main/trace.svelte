@@ -250,10 +250,10 @@
             if (val.orchestrationTrace?.rationale?.text) {
                 const rationaleText = val.orchestrationTrace.rationale.text;
 
-                // Check if this is a semantic directives trace (admin only)
+                // Check if this is a semantic directives trace (detailed traces permission required)
                 try {
                     const parsed = JSON.parse(rationaleText);
-                    if (parsed.type === 'semantic-directives' && isContentAdmin && parsed.directives) {
+                    if (parsed.type === 'semantic-directives' && detailedTrace && parsed.directives) {
                         // Build a nice table format for the directives
                         const directivesTable = parsed.directives
                             .map((d: any) => {
