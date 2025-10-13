@@ -5,20 +5,23 @@ import { getBedrockClient } from './bedrock-agent';
 import { type InvocationScopes, type SemanticDirective, type SemanticDirectiveScope, type InstructionAugmentationScopeType } from 'pika-shared/types/chatbot/chatbot-types';
 import { searchSemanticDirectives } from './chat-admin-ddb';
 
+/**
+ * Returns the additional user prompt instructions that should be applied to the user prompt.  It also returns the IDs of the semantic directives that were applied.
+ */
 export async function getAdditionalUserPromptInstructions(
     scopes: InvocationScopes,
     userPrompt: string,
     model: string = MODELS.AMAZON.NovaLite.id
     //model: string = MODELS.ANTHROPIC.Claude3_5Haiku.id,
     //model: string = MODELS.META.Llama3_2_11B_Instruct.id,
-): Promise<string> {
+): Promise<{ instructions: string; semanticDirectiveIds: string[] }> {
     const bedrockClient = getBedrockClient();
 
     const allDirectives = await getMatchingSemanticDirectives(scopes);
 
     // Return early if no instructions are found
     if (allDirectives.length == 0 && allDirectives.length == 0) {
-        return '';
+        return { instructions: '', semanticDirectiveIds: [] };
     }
     console.log('[instruction-augmentation] allDirectives', allDirectives.map((directive) => directive.scope).join(', '));
 
@@ -85,11 +88,11 @@ ${directivesString}
 
     // Return early if no instructions are found
     if (finalInstructionsFromLLMChosenDirectives.length == 0) {
-        return '';
+        return { instructions: '', semanticDirectiveIds: [] };
     }
 
     // Return the prompt instructions
-    return finalInstructionsFromLLMChosenDirectives.join('\n') + '\n';
+    return { instructions: finalInstructionsFromLLMChosenDirectives.join('\n') + '\n', semanticDirectiveIds: answer };
 }
 
 async function getMatchingSemanticDirectives(scopes: InvocationScopes): Promise<SemanticDirective[]> {

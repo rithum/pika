@@ -9,10 +9,12 @@
     import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
     import { toast } from 'svelte-sonner';
     import { v4 as uuidv4 } from 'uuid';
+    import type { ChatAppState } from '../chat-app.state.svelte';
 
     interface Props {
         message: ChatMessageForRendering;
         features: ChatAppOverridableFeatures;
+        chatAppState?: ChatAppState;
     }
 
     const md = new MarkdownIt({
@@ -34,9 +36,10 @@
         },
     });
 
-    let { message, features }: Props = $props();
+    let { message, features, chatAppState }: Props = $props();
 
     const detailedTrace = $derived(features.traces.detailedTraces);
+    const isContentAdmin = $derived(chatAppState?.userIsContentAdmin ?? false);
     let expandedTraces = $state<Record<string, boolean>>({});
 
     // TODO: Pull this from the correct user setting
@@ -246,6 +249,28 @@
         traces.forEach((val, index) => {
             if (val.orchestrationTrace?.rationale?.text) {
                 const rationaleText = val.orchestrationTrace.rationale.text;
+
+                // Check if this is a semantic directives trace (admin only)
+                try {
+                    const parsed = JSON.parse(rationaleText);
+                    if (parsed.type === 'semantic-directives' && isContentAdmin) {
+                        const directiveList = Array.isArray(parsed.directiveIds) 
+                            ? parsed.directiveIds.join(', ') 
+                            : String(parsed.directiveIds);
+                        const [md, rawText] = renderMarkdown(
+                            `**Applied Semantic Directives:** ${directiveList}`
+                        );
+                        grouped.push({
+                            id: val.orchestrationTrace.rationale.traceId ?? 'semantic-directives',
+                            type: 'text',
+                            markdown: md,
+                            rawText,
+                        });
+                        return; // Skip further processing for this trace
+                    }
+                } catch (e) {
+                    // Not JSON or parsing failed, continue with normal processing
+                }
 
                 // Check if this is a verification trace
                 const verificationMatch = rationaleText.match(/^(.*?Verified Response):\s+([A-Z])$/);
