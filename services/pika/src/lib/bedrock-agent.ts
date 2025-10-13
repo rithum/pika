@@ -734,7 +734,9 @@ export async function invokeAgentToGetAnswer(
     features: ChatAppOverridableFeaturesForConverseFn,
     memoryFeature: UserMemoryFeatureWithMemoryInfo,
     agentPostProcessorFnArn?: string,
-    conversationHistory?: ConversationHistory
+    conversationHistory?: ConversationHistory,
+    // The semantic directive IDs that were applied to the prompt so we can add to trace to make it easier to debug
+    semanticDirectiveIds?: string[]
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -746,7 +748,8 @@ export async function invokeAgentToGetAnswer(
         conversationHistoryLength: conversationHistory?.messages?.length,
         agentId: agentAndTools.agent.agentId,
         chatAppId: chatSession.chatAppId,
-        features
+        features,
+        semanticDirectiveIds
     });
 
     const toolContext: Record<string, ToolContext> = {};
@@ -1079,6 +1082,21 @@ export async function invokeAgentToGetAnswer(
     try {
         console.log(`Initializing tool contexts (${toolContexts.length})...`);
         await Promise.all(toolContexts.map((context) => context.initialize?.(chatSession.sessionId)));
+
+        // Add semantic directives trace for debugging (admin only on frontend)
+        if (semanticDirectiveIds && semanticDirectiveIds.length > 0) {
+            hooks.onTrace({
+                orchestrationTrace: {
+                    rationale: {
+                        traceId: 'semantic-directives',
+                        text: JSON.stringify({
+                            type: 'semantic-directives',
+                            directiveIds: semanticDirectiveIds
+                        })
+                    }
+                }
+            });
+        }
 
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
         addUsage(mainResponse.usage);
