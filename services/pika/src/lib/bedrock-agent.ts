@@ -39,6 +39,7 @@ import {
     type InlineToolDefinition,
     type McpToolDefinition,
     type RecordOrUndef,
+    type SemanticDirective,
     type SimpleAuthenticatedUser,
     type ToolDefinition,
     Unclassified,
@@ -735,8 +736,8 @@ export async function invokeAgentToGetAnswer(
     memoryFeature: UserMemoryFeatureWithMemoryInfo,
     agentPostProcessorFnArn?: string,
     conversationHistory?: ConversationHistory,
-    // The semantic directive IDs that were applied to the prompt so we can add to trace to make it easier to debug
-    semanticDirectiveIds?: string[]
+    // The semantic directives that were applied to the prompt so we can add to trace to make it easier to debug
+    appliedDirectives?: SemanticDirective[]
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -749,7 +750,7 @@ export async function invokeAgentToGetAnswer(
         agentId: agentAndTools.agent.agentId,
         chatAppId: chatSession.chatAppId,
         features,
-        semanticDirectiveIds
+        appliedDirectivesCount: appliedDirectives?.length ?? 0
     });
 
     const toolContext: Record<string, ToolContext> = {};
@@ -1084,14 +1085,19 @@ export async function invokeAgentToGetAnswer(
         await Promise.all(toolContexts.map((context) => context.initialize?.(chatSession.sessionId)));
 
         // Add semantic directives trace for debugging (admin only on frontend)
-        if (semanticDirectiveIds && semanticDirectiveIds.length > 0) {
+        if (appliedDirectives && appliedDirectives.length > 0) {
             hooks.onTrace({
                 orchestrationTrace: {
                     rationale: {
                         traceId: 'semantic-directives',
                         text: JSON.stringify({
                             type: 'semantic-directives',
-                            directiveIds: semanticDirectiveIds
+                            directives: appliedDirectives.map((d) => ({
+                                scope: d.scope,
+                                id: d.id,
+                                description: d.description,
+                                instructions: d.instructions
+                            }))
                         })
                     }
                 }
