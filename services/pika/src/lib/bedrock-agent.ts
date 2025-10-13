@@ -39,6 +39,7 @@ import {
     type InlineToolDefinition,
     type McpToolDefinition,
     type RecordOrUndef,
+    type SemanticDirective,
     type SimpleAuthenticatedUser,
     type ToolDefinition,
     Unclassified,
@@ -130,7 +131,7 @@ export function getBedrockClient(): BedrockRuntimeClient {
     return bedrockClient;
 }
 
-async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string) {
+async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string, appliedDirectives?: SemanticDirective[]) {
     let error: unknown;
     let startingTime = Date.now();
     let model: string = cmdInput.foundationModel ?? DEFAULT_ANTHROPIC_MODEL;
@@ -177,6 +178,27 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
         }
 
         hooks.onStart();
+
+        // Add semantic directives trace for debugging (admin only on frontend)
+        // Send early so it appears at the top of the reasoning
+        if (appliedDirectives && appliedDirectives.length > 0) {
+            hooks.onTrace({
+                orchestrationTrace: {
+                    rationale: {
+                        traceId: 'semantic-directives',
+                        text: JSON.stringify({
+                            type: 'semantic-directives',
+                            directives: appliedDirectives.map((d) => ({
+                                scope: d.scope,
+                                id: d.id,
+                                description: d.description,
+                                instructions: d.instructions
+                            }))
+                        })
+                    }
+                }
+            });
+        }
 
         console.log(label, 'Processing completion stream...');
         let chunkCount = 0;
@@ -734,7 +756,9 @@ export async function invokeAgentToGetAnswer(
     features: ChatAppOverridableFeaturesForConverseFn,
     memoryFeature: UserMemoryFeatureWithMemoryInfo,
     agentPostProcessorFnArn?: string,
-    conversationHistory?: ConversationHistory
+    conversationHistory?: ConversationHistory,
+    // The semantic directives that were applied to the prompt so we can add to trace to make it easier to debug
+    appliedDirectives?: SemanticDirective[]
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -746,7 +770,8 @@ export async function invokeAgentToGetAnswer(
         conversationHistoryLength: conversationHistory?.messages?.length,
         agentId: agentAndTools.agent.agentId,
         chatAppId: chatSession.chatAppId,
-        features
+        features,
+        appliedDirectivesCount: appliedDirectives?.length ?? 0
     });
 
     const toolContext: Record<string, ToolContext> = {};
@@ -1080,7 +1105,7 @@ export async function invokeAgentToGetAnswer(
         console.log(`Initializing tool contexts (${toolContexts.length})...`);
         await Promise.all(toolContexts.map((context) => context.initialize?.(chatSession.sessionId)));
 
-        let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:');
+        let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:', appliedDirectives);
         addUsage(mainResponse.usage);
         if (mainResponse.error) {
             throw mainResponse.error;

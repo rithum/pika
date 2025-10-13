@@ -104,7 +104,7 @@
     })} -->
 
     {#if traceEnabled}
-        <Trace {message} {features} />
+        <Trace {message} {features} {chatAppState} />
     {/if}
 
     <!-- Render each processed segment -->

@@ -603,9 +603,11 @@ async function converse(
         }
     }
 
-    const additionalUserPromptInstructions = features.instructionAugmentation?.enabled ? await getAdditionalUserPromptInstructions(scopes, message) : '';
+    const additionalUserPromptInstructions = features.instructionAugmentation?.enabled
+        ? await getAdditionalUserPromptInstructions(scopes, message)
+        : { instructions: '', appliedDirectives: [] };
 
-    const questionFromUser = `${instructions}${additionalUserPromptInstructions}${message}${filesStr}`;
+    const questionFromUser = `${instructions}${additionalUserPromptInstructions.instructions}${message}${filesStr}`;
     console.log('Question from user:', questionFromUser);
     console.log('Prepared question for agent:', {
         hasInstructions: !!instructions,
@@ -704,7 +706,8 @@ async function converse(
         features,
         memoryFeature,
         process.env.POST_PROCESSOR_FUNCTION_ARN,
-        conversationHistory
+        conversationHistory,
+        additionalUserPromptInstructions.appliedDirectives
     );
     console.log('Agent response received:', {
         hasMessage: !!assistantMessageForCreate.message,

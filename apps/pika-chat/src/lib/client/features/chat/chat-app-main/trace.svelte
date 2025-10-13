@@ -12,10 +12,12 @@
     import { Button } from 'pika-ux/shadcn/button';
     import { toast } from 'svelte-sonner';
     import { v4 as uuidv4 } from 'uuid';
+    import type { ChatAppState } from '../chat-app.state.svelte';
 
     interface Props {
         message: ChatMessageForRendering;
         features: ChatAppOverridableFeatures;
+        chatAppState?: ChatAppState;
     }
 
     const md = new MarkdownIt({
@@ -37,9 +39,10 @@
         },
     });
 
-    let { message, features }: Props = $props();
+    let { message, features, chatAppState }: Props = $props();
 
     const detailedTrace = $derived(features.traces.detailedTraces);
+    const isContentAdmin = $derived(chatAppState?.userIsContentAdmin ?? false);
     let expandedTraces = $state<Record<string, boolean>>({});
 
     // TODO: Pull this from the correct user setting
@@ -249,6 +252,48 @@
         traces.forEach((val, index) => {
             if (val.orchestrationTrace?.rationale?.text) {
                 const rationaleText = val.orchestrationTrace.rationale.text;
+
+                // Check if this is a semantic directives trace (detailed traces permission required)
+                try {
+                    const parsed = JSON.parse(rationaleText);
+                    if (parsed.type === 'semantic-directives' && detailedTrace && parsed.directives) {
+                        // Build a nice table format for the directives
+                        const directivesTable = parsed.directives
+                            .map((d: any) => {
+                                return `<div class="mb-4 p-3 bg-slate-50 rounded border border-slate-200">
+                                <div class="flex items-start gap-2 mb-2">
+                                    <span class="font-semibold text-slate-700">Scope:</span>
+                                    <span class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-0.5 rounded">${d.scope}</span>
+                                </div>
+                                <div class="flex items-start gap-2 mb-2">
+                                    <span class="font-semibold text-slate-700">ID:</span>
+                                    <span class="font-mono text-sm text-slate-900">${d.id}</span>
+                                </div>
+                                <div class="mb-2">
+                                    <div class="font-semibold text-slate-700 mb-1">Description:</div>
+                                    <div class="text-slate-600 text-sm">${d.description}</div>
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-slate-700 mb-1">Instructions:</div>
+                                    <div class="text-slate-600 text-sm font-mono bg-white p-2 rounded border border-slate-200">${d.instructions}</div>
+                                </div>
+                            </div>`;
+                            })
+                            .join('');
+
+                        const html = `<div class="font-medium text-slate-800 mb-3">Applied Semantic Directives (${parsed.directives.length})</div>${directivesTable}`;
+
+                        grouped.push({
+                            id: val.orchestrationTrace.rationale.traceId ?? 'semantic-directives',
+                            type: 'text',
+                            markdown: html,
+                            rawText: JSON.stringify(parsed.directives, null, 2),
+                        });
+                        return; // Skip further processing for this trace
+                    }
+                } catch (e) {
+                    // Not JSON or parsing failed, continue with normal processing
+                }
 
                 // Check if this is a verification trace
                 const verificationMatch = rationaleText.match(/^(.*?Verified Response):\s+([A-Z])$/);
