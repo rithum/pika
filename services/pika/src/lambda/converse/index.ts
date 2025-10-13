@@ -533,7 +533,7 @@ async function converse(
 
     const additionalUserPromptInstructions = features.instructionAugmentation?.enabled
         ? await getAdditionalUserPromptInstructions(scopes, message)
-        : { instructions: '', semanticDirectiveIds: [] };
+        : { instructions: '', appliedDirectives: [] };
 
     const questionFromUser = `${instructions}${additionalUserPromptInstructions.instructions}${message}${filesStr}`;
     console.log('Question from user:', questionFromUser);
@@ -583,7 +583,7 @@ async function converse(
         memoryFeature,
         process.env.POST_PROCESSOR_FUNCTION_ARN,
         conversationHistory,
-        additionalUserPromptInstructions.semanticDirectiveIds
+        additionalUserPromptInstructions.appliedDirectives
     );
     console.log('Agent response received:', {
         hasMessage: !!assistantMessageForCreate.message,

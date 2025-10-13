@@ -6,7 +6,7 @@ import { type InvocationScopes, type SemanticDirective, type SemanticDirectiveSc
 import { searchSemanticDirectives } from './chat-admin-ddb';
 
 /**
- * Returns the additional user prompt instructions that should be applied to the user prompt.  It also returns the IDs of the semantic directives that were applied.
+ * Returns the additional user prompt instructions that should be applied to the user prompt.  It also returns the full semantic directive objects that were applied.
  */
 export async function getAdditionalUserPromptInstructions(
     scopes: InvocationScopes,
@@ -14,14 +14,14 @@ export async function getAdditionalUserPromptInstructions(
     model: string = MODELS.AMAZON.NovaLite.id
     //model: string = MODELS.ANTHROPIC.Claude3_5Haiku.id,
     //model: string = MODELS.META.Llama3_2_11B_Instruct.id,
-): Promise<{ instructions: string; semanticDirectiveIds: string[] }> {
+): Promise<{ instructions: string; appliedDirectives: SemanticDirective[] }> {
     const bedrockClient = getBedrockClient();
 
     const allDirectives = await getMatchingSemanticDirectives(scopes);
 
     // Return early if no instructions are found
     if (allDirectives.length == 0 && allDirectives.length == 0) {
-        return { instructions: '', semanticDirectiveIds: [] };
+        return { instructions: '', appliedDirectives: [] };
     }
     console.log('[instruction-augmentation] allDirectives', allDirectives.map((directive) => directive.scope).join(', '));
 
@@ -80,19 +80,19 @@ ${directivesString}
         {} as Record<string, SemanticDirective>
     );
 
-    // Map the instructions by id to the instructions
-    let finalInstructionsFromLLMChosenDirectives = answer
-        .map((id) => directivesByScope[id])
-        .filter((a) => a != null)
-        .map((a) => a.instructions);
+    // Map the LLM-chosen directive scopes to the full directive objects
+    let chosenDirectives = answer.map((scope) => directivesByScope[scope]).filter((directive) => directive != null);
 
-    // Return early if no instructions are found
-    if (finalInstructionsFromLLMChosenDirectives.length == 0) {
-        return { instructions: '', semanticDirectiveIds: [] };
+    // Return early if no directives were chosen
+    if (chosenDirectives.length == 0) {
+        return { instructions: '', appliedDirectives: [] };
     }
 
-    // Return the prompt instructions
-    return { instructions: finalInstructionsFromLLMChosenDirectives.join('\n') + '\n', semanticDirectiveIds: answer };
+    // Extract just the instructions to return
+    let finalInstructions = chosenDirectives.map((directive) => directive.instructions).join('\n') + '\n';
+
+    // Return the prompt instructions and the full directive objects
+    return { instructions: finalInstructions, appliedDirectives: chosenDirectives };
 }
 
 async function getMatchingSemanticDirectives(scopes: InvocationScopes): Promise<SemanticDirective[]> {
