@@ -1,4 +1,4 @@
-<svelte:options customElement="quick-weather-search" />
+<svelte:options customElement={{ tag: 'quick-weather-search', shadow: 'none' }} />
 
 <script lang="ts">
     import MessageSquare from '$icons/lucide/message-square';

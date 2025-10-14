@@ -1,4 +1,4 @@
-<svelte:options customElement="full-forecast" />
+<svelte:options customElement={{ tag: 'full-forecast', shadow: 'none' }} />
 
 <script lang="ts">
     import MapPin from '$icons/lucide/map-pin';

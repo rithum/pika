@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import tailwindcss from '@tailwindcss/vite';
 import Icons from 'unplugin-icons/vite';
 import { resolve } from 'path';
 
@@ -12,6 +11,9 @@ import { resolve } from 'path';
  * - dev-dist/city-selector.js
  * - etc.
  *
+ * Web components DO NOT bundle CSS - they rely on the parent app (pika-chat) to provide
+ * Tailwind CSS. This is safer and avoids web components injecting global styles.
+ *
  * Usage:
  *   pnpm run dev:wc     (builds once + watches for changes)
  *   pnpm run serve:wc   (serves built files on localhost:5173)
@@ -21,12 +23,11 @@ import { resolve } from 'path';
  */
 export default defineConfig({
     plugins: [
-        tailwindcss(),
         svelte({
             compilerOptions: {
-                // Ensure custom elements are compiled correctly
                 customElement: true
-            }
+            },
+            emitCss: false // Don't emit CSS - parent app provides Tailwind
         }),
         Icons({
             compiler: 'svelte'
@@ -39,9 +40,7 @@ export default defineConfig({
         }
     },
     build: {
-        outDir: 'dev-dist', // Output to dev-dist/ to separate from production build/
-        // Multi-entry library build
-        // Each entry point imports the component + styles
+        outDir: 'dev-dist',
         lib: {
             entry: {
                 'favorite-cities': resolve(__dirname, 'dev-entry/favorite-cities.ts'),
@@ -59,11 +58,10 @@ export default defineConfig({
         rollupOptions: {
             external: [],
             output: {
-                inlineDynamicImports: false
+                manualChunks: undefined
             }
         },
-        cssCodeSplit: false,
         minify: false, // Don't minify in dev for easier debugging
-        watch: {} // Enable watch mode
+        watch: {}
     }
 });

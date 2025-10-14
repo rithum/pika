@@ -144,19 +144,19 @@ export async function injectChatAppWebComponent(
     const url = resolveWebComponentUrl(tagDef);
     const fileId = getWebComponentFileId(tagDef);
 
-    console.log(`[Web Component Loader] Injecting ${customElementName} from ${url}`, {
-        tagDef: `${tagDef.scope}.${tagDef.tag}`,
-        customElementName,
-        fileId,
-        instanceId,
-        contextRequestWithoutInstanceId,
-        replaceEl
-    });
+    // console.log(`[Web Component Loader] Injecting ${customElementName} from ${url}`, {
+    //     tagDef: `${tagDef.scope}.${tagDef.tag}`,
+    //     customElementName,
+    //     fileId,
+    //     instanceId,
+    //     contextRequestWithoutInstanceId,
+    //     replaceEl
+    // });
 
     // 1. Check if this file has been loaded before (by actual file location, not proxy URL)
     if (loadedWebComponentFiles.has(fileId)) {
         // File was already loaded - verify the custom element we need is registered
-        console.log(`[Web Component Loader] File ${fileId} already loaded, checking for element ${customElementName}`);
+        // console.log(`[Web Component Loader] File ${fileId} already loaded, checking for element ${customElementName}`);
 
         if (!customElements.get(customElementName)) {
             // console.error(`[Web Component Loader] Custom element not found after file loaded:`, {
@@ -171,24 +171,24 @@ export async function injectChatAppWebComponent(
             );
         }
 
-        console.log(`[Web Component Loader] Element ${customElementName} found, ready to use`);
+        // console.log(`[Web Component Loader] Element ${customElementName} found, ready to use`);
     } else {
         // File hasn't been loaded yet - load it and track it by file location
-        console.log(`[Web Component Loader] Loading file ${fileId} for element ${customElementName}`);
+        // console.log(`[Web Component Loader] Loading file ${fileId} for element ${customElementName}`);
 
         // Check if custom element is already registered (shouldn't be, but safety check)
         if (customElements.get(customElementName)) {
-            console.log(`[Web Component Loader] ${customElementName} already registered before file load, skipping load`);
+            // console.log(`[Web Component Loader] ${customElementName} already registered before file load, skipping load`);
         } else {
             // Load the JavaScript file
-            console.log(`[Web Component Loader] Starting import of ${url}`);
+            // console.log(`[Web Component Loader] Starting import of ${url}`);
             try {
                 await import(/* @vite-ignore */ url);
-                console.log(`[Web Component Loader] Import completed for ${url}`);
+                // console.log(`[Web Component Loader] Import completed for ${url}`);
 
                 // Verify the expected custom element was registered
                 const isRegistered = !!customElements.get(customElementName);
-                console.log(`[Web Component Loader] Checking if ${customElementName} is registered: ${isRegistered}`);
+                // console.log(`[Web Component Loader] Checking if ${customElementName} is registered: ${isRegistered}`);
 
                 if (!isRegistered) {
                     // console.error(`[Web Component Loader] Expected element not found after import:`, {
@@ -201,7 +201,7 @@ export async function injectChatAppWebComponent(
                     );
                 }
 
-                console.log(`[Web Component Loader] Successfully loaded and registered ${customElementName}`);
+                // console.log(`[Web Component Loader] Successfully loaded and registered ${customElementName}`);
             } catch (error) {
                 console.error(`[Web Component Loader] Error loading web component ${customElementName} from ${url}:`, error);
                 throw new Error(`[Web Component Loader] Error loading web component ${customElementName} from ${url}`, { cause: error });
@@ -210,7 +210,7 @@ export async function injectChatAppWebComponent(
 
         // Mark this file as loaded (by actual file location, not proxy URL)
         loadedWebComponentFiles.add(fileId);
-        console.log(`[Web Component Loader] File ${fileId} marked as loaded. Total loaded files:`, Array.from(loadedWebComponentFiles));
+        // console.log(`[Web Component Loader] File ${fileId} marked as loaded. Total loaded files:`, Array.from(loadedWebComponentFiles));
     }
 
     // 2. Create instance
@@ -230,7 +230,7 @@ export async function injectChatAppWebComponent(
     // });
 
     // 3. Set up context provider with instance ID
-    console.log(`[Web Component Loader] Setting up context provider for ${customElementName}`);
+    // console.log(`[Web Component Loader] Setting up context provider for ${customElementName}`);
 
     // Create context with instance ID for proper metadata tracking
     const contextWithInstance: PikaWCContext = {

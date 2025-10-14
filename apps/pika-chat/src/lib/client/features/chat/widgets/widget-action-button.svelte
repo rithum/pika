@@ -45,10 +45,10 @@ Used in spotlight, canvas, and dialog contexts.
             size="icon"
             disabled={action.disabled}
             onclick={handleClick}
-            class={className}
+            class="p-0 w-5.5 h-5.5 {className ?? ''}"
             aria-label={action.title}
         >
-            <span class="inline-block h-4 w-4">
+            <span class="icon-wrapper inline-block h-3.5 w-3.5">
                 {@html action.iconSvg}
             </span>
         </Button>
@@ -60,11 +60,19 @@ Used in spotlight, canvas, and dialog contexts.
         {size}
         disabled={action.disabled}
         onclick={handleClick}
-        class={className}
+        class="p-0 w-5.5 h-5.5 {className ?? ''}"
     >
-        <span class="inline-block mr-2 h-4 w-4">
+        <span class="icon-wrapper inline-block mr-2 h-3.5 w-3.5">
             {@html action.iconSvg}
         </span>
         {action.title}
     </Button>
 {/if}
+
+<style>
+    .icon-wrapper :global(svg) {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+    }
+</style>

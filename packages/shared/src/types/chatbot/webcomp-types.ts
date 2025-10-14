@@ -156,6 +156,19 @@ export interface IWidgetMetadataAPI {
      * ```
      */
     removeAction(actionId: string): void;
+
+    /**
+     * Set the loading status for the widget.
+     *
+     * @param loading - Whether the widget is loading
+     * @param loadingMsg - The message to display while loading
+     *
+     * @example
+     * ```js
+     * metadata.setLoadingStatus(true, 'Loading...');
+     * ```
+     */
+    setLoadingStatus(loading: boolean, loadingMsg?: string): void;
 }
 
 export interface IChatAppState {

@@ -11,8 +11,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     if (!scope || !tag) throw error(400, 'scope and tag are required');
 
     try {
-        const values = await getUserWidgetData(user.userId, scope, tag);
-        return json({ success: true, values });
+        const data = await getUserWidgetData(user.userId, scope, tag);
+        return json({ success: true, data });
     } catch (e) {
         handleApiGatewayError(e, 'getting component values');
     }

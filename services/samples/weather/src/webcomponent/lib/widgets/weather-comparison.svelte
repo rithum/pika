@@ -1,12 +1,16 @@
-<svelte:options customElement="weather-comparison" />
+<svelte:options customElement={{ tag: 'weather-comparison', shadow: 'none' }} />
 
 <script lang="ts">
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
     import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
-    import Button from 'pika-ux/shadcn/button/button.svelte';
-    import Shuffle from '$icons/lucide/shuffle';
-    import MessageSquare from '$icons/lucide/message-square';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
+
+    const shuffleIconSvg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shuffle-icon lucide-shuffle"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></svg>';
+
+    const gitCompareArrowsIconSvg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-compare-arrows-icon lucide-git-compare-arrows"><circle cx="5" cy="6" r="3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/><path d="m15 9-3-3 3-3"/><circle cx="19" cy="18" r="3"/><path d="M12 18H7a2 2 0 0 1-2-2V9"/><path d="m9 15 3 3-3 3"/></svg>';
 
     interface CityWeather {
         location: string;
@@ -24,18 +28,35 @@
         timestamp: string;
     }
 
-    let cities: CityWeather[] = $state([]);
+    const compareActionId = 'compare';
+    const compareActionTitle = 'Compare Random Cities';
+    let cities = $state<CityWeather[] | undefined>([]);
     let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
     let thinkingStatus = $state('');
     let toolStatus = $state('');
-    let lastRefreshTime = $state<string>('');
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
 
     $effect(() => {
         if (!initialized) {
             init();
+        }
+    });
+
+    $effect(() => {
+        if (widgetMetadataApi) {
+            if (loading) {
+                widgetMetadataApi.updateAction(compareActionId, {
+                    disabled: true
+                });
+            } else {
+                widgetMetadataApi.updateAction(compareActionId, {
+                    disabled: false
+                });
+            }
         }
     });
 
@@ -44,23 +65,25 @@
         initialized = true;
 
         // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-comparison', context.instanceId, context.renderingContext);
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-comparison', context.instanceId, context.renderingContext);
 
-        metadata.setMetadata({
+        const metadataToSet = {
             title: 'Weather Comparison',
+            iconSvg: gitCompareArrowsIconSvg,
+            iconColor: '#3b82f6', // Brighter blue (Tailwind blue-500)
             actions: [
                 {
-                    id: 'compare',
-                    title: 'Compare Random Cities',
-                    // shuffle icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shuffle-icon lucide-shuffle"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></svg>',
+                    id: compareActionId,
+                    title: compareActionTitle,
+                    iconSvg: shuffleIconSvg,
                     callback: async () => {
                         await compareRandomCities();
                     }
                 }
             ]
-        });
+        };
+
+        widgetMetadataApi.setMetadata(metadataToSet);
 
         // Load cached comparison data (but don't auto-fetch)
         const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'weather-comparison');
@@ -70,6 +93,10 @@
             lastRefreshTime = cachedData.timestamp;
             cities = cachedData.response.cities;
         }
+
+        // setTimeout(() => {
+        //     widgetMetadataApi?.setLoadingStatus(true, 'One sec.  AI is on it...');
+        // }, 10000);
     }
 
     async function compareRandomCities() {
@@ -83,11 +110,11 @@
         try {
             const options: InvokeAgentAsComponentOptions = {
                 onThinking: (text: string) => {
-                    thinkingStatus = text.length > 60 ? text.substring(0, 60) + '...' : text;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
                 },
                 onToolCall: (call: { name: string; params: any }) => {
                     const funcName = call.name.split('__')[1] || call.name;
-                    toolStatus = `🔧 Calling ${funcName}...`;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
                 }
             };
 
@@ -95,7 +122,9 @@
                 'weather',
                 'weather-comparison',
                 'compareCities',
-                'Get current weather for 4 random major cities around the world',
+                cities && cities.length > 0
+                    ? `Don't pick any of these cities you just returned: ${cities.map((city) => city.location).join(', ')}`
+                    : 'Follow the instructions you have been given',
                 options
             );
 
@@ -120,7 +149,7 @@
     }
 
     async function addToPrompt() {
-        if (!context || cities.length === 0) return;
+        if (!context || !cities || cities.length === 0) return;
 
         const comparisonText = cities.map((city) => `${city.location}: ${Math.round(city.tempF)}°F`).join(', ');
 
@@ -136,166 +165,49 @@
     }
 </script>
 
-<div class="weather-comparison">
-    <div class="header">
-        <div class="title-section">
-            {#if lastRefreshTime}
-                <span class="last-update">Last: {new Date(lastRefreshTime).toLocaleTimeString()}</span>
-            {/if}
+{#if loading}
+    <div class="px-3 py-3 space-y-2">
+        <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+            <Spinner class="h-3.5 w-3.5 text-blue-500" />
+            <span>One sec, AI is on it...</span>
         </div>
-        <Button variant="outline" size="sm" onclick={compareRandomCities} disabled={loading}>
-            <Shuffle class="h-3 w-3 mr-1" />
-            {loading ? 'Loading...' : 'Compare'}
-        </Button>
+        {#if thinkingStatus}
+            <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                <p class="font-bold">AI Reasoning</p>
+                <p class="text-indigo-600 italic">{thinkingStatus}</p>
+            </div>
+        {/if}
+        {#if toolStatus}
+            <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                <p class="font-bold">AI Tooling</p>
+                <p class="text-emerald-600 italic">{toolStatus}</p>
+            </div>
+        {/if}
     </div>
-
-    {#if loading}
-        <div class="loading">
-            <p>Loading weather data...</p>
-            {#if thinkingStatus}
-                <p class="status thinking">💭 {thinkingStatus}</p>
-            {/if}
-            {#if toolStatus}
-                <p class="status tool">{toolStatus}</p>
-            {/if}
+{:else if error}
+    <p class="text-center p-6 text-red-500 text-sm">{error}</p>
+{:else if cities && cities.length === 0}
+    <p class="text-center p-6 text-gray-500 text-sm">Click Compare button (top right) to see weather across the globe</p>
+{:else}
+    <div class="flex divide-x divide-gray-200 pt-4">
+        {#each cities || [] as city, i}
+            {@const tempCategory = getRelativeTemp(city.tempF)}
+            {@const accentColor =
+                tempCategory === 'hot' ? 'border-amber-500' : tempCategory === 'warm' ? 'border-blue-500' : tempCategory === 'cool' ? 'border-indigo-500' : 'border-cyan-500'}
+            <div class="flex-1 text-center px-1">
+                <h4 class="text-[0.7rem] text-gray-600 font-medium mb-2 leading-tight">{city.location}</h4>
+                <div class="text-sm font-bold text-gray-900 leading-none">{Math.round(city.tempF)}°F</div>
+                <div class="text-[0.7rem] text-gray-400 mb-2">{Math.round(city.tempC)}°C</div>
+                {#if city.condition}
+                    <div class="text-[0.7rem] text-gray-500 italic leading-snug">{city.condition}</div>
+                {/if}
+                <div class="mt-2 mx-auto w-8 h-0.5 rounded-full {accentColor}"></div>
+            </div>
+        {/each}
+    </div>
+    {#if lastRefreshTime}
+        <div class="position absolute bottom-0 left-0 text-gray-500 text-right w-full px-2 italic" style="font-size: 0.55rem;">
+            Updated: {new Date(lastRefreshTime).toLocaleString()}
         </div>
-    {:else if error}
-        <p class="error">{error}</p>
-    {:else if cities.length === 0}
-        <p class="no-data">Click "Compare" to see weather across the globe</p>
-    {:else}
-        <div class="comparison-grid">
-            {#each cities as city}
-                <div class="city-card {getRelativeTemp(city.tempF)}">
-                    <h4>{city.location}</h4>
-                    <div class="temp">{Math.round(city.tempF)}°F</div>
-                    <div class="temp-c">{Math.round(city.tempC)}°C</div>
-                    {#if city.condition}
-                        <div class="condition">{city.condition}</div>
-                    {/if}
-                </div>
-            {/each}
-        </div>
-        <Button variant="outline" size="sm" onclick={addToPrompt} class="w-full">
-            <MessageSquare class="h-3 w-3 mr-1" />
-            Add to Prompt
-        </Button>
     {/if}
-</div>
-
-<style>
-    .weather-comparison {
-        padding: 0.75rem;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .title-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-    }
-
-    .last-update {
-        font-size: 0.65rem;
-        color: #6b7280;
-    }
-
-    .comparison-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-        gap: 0.5rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .city-card {
-        padding: 0.75rem;
-        border-radius: 6px;
-        text-align: center;
-        border: 2px solid #e5e7eb;
-    }
-
-    .city-card.hot {
-        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-        border-color: #fbbf24;
-    }
-
-    .city-card.warm {
-        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-        border-color: #60a5fa;
-    }
-
-    .city-card.cool {
-        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-        border-color: #818cf8;
-    }
-
-    .city-card.cold {
-        background: linear-gradient(135deg, #dbeafe 0%, #bae6fd 100%);
-        border-color: #38bdf8;
-    }
-
-    .city-card h4 {
-        margin: 0 0 0.375rem 0;
-        font-size: 0.875rem;
-        color: #111827;
-    }
-
-    .temp {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #111827;
-    }
-
-    .temp-c {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin-top: 0.125rem;
-    }
-
-    .condition {
-        margin-top: 0.375rem;
-        font-size: 0.75rem;
-        color: #374151;
-        font-style: italic;
-    }
-
-    .loading,
-    .no-data,
-    .error {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .loading .status {
-        font-size: 0.75rem;
-        padding: 0.375rem;
-        margin: 0.375rem 0 0 0;
-        border-radius: 3px;
-        background: #f3f4f6;
-    }
-
-    .loading .status.thinking {
-        color: #6366f1;
-        background: #eef2ff;
-    }
-
-    .loading .status.tool {
-        color: #059669;
-        background: #d1fae5;
-    }
-
-    .error {
-        color: #ef4444;
-    }
-</style>
+{/if}

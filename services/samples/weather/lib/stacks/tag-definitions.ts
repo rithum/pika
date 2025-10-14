@@ -398,9 +398,10 @@ const weatherComparison: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     componentAgentInstructionsMd: {
         compareCities: `You are a weather comparison assistant. When invoked, you should:
 
-1. Select 4 random major cities from different parts of the world
-2. Get current weather data for each city
-3. Return the data in a structured format for comparison
+1. Select 3 random cities from different parts of the world
+2. It's important to not return the same cities all the time, there are many many cities in the world so be creative and don't just return the same cities all the time
+3. Get current weather data for each city
+4. Return the data in a structured format for comparison
 
 <output_schema>
 interface ComparisonResponse {

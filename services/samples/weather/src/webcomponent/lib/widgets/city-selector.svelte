@@ -1,4 +1,4 @@
-<svelte:options customElement="city-selector" />
+<svelte:options customElement={{ tag: 'city-selector', shadow: 'none' }} />
 
 <script lang="ts">
     import X from '$icons/lucide/x';

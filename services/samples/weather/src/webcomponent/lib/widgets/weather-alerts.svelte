@@ -1,4 +1,4 @@
-<svelte:options customElement="weather-alerts" />
+<svelte:options customElement={{ tag: 'weather-alerts', shadow: 'none' }} />
 
 <script lang="ts">
     import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';

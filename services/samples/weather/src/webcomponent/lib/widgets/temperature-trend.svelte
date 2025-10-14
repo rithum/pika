@@ -1,4 +1,4 @@
-<svelte:options customElement="temperature-trend" />
+<svelte:options customElement={{ tag: 'temperature-trend', shadow: 'none' }} />
 
 <script lang="ts">
     import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';

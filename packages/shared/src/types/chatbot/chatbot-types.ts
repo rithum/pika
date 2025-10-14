@@ -4990,6 +4990,8 @@ export interface WidgetAction {
  * ```js
  * const metadata: WidgetMetadata = {
  *   title: 'My Widget',
+ *   iconSvg: '<svg>...</svg>',
+ *   iconColor: '#001F3F',
  *   actions: [
  *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() }
  *   ]
@@ -5000,8 +5002,20 @@ export interface WidgetMetadata {
     /** Widget title shown in chrome */
     title: string;
 
+    /** Optional icon SVG markup for the widget title */
+    iconSvg?: string;
+
+    /** Optional color for the widget icon (hex, rgb, or CSS color name) */
+    iconColor?: string;
+
     /** Optional action buttons */
     actions?: WidgetAction[];
+
+    /** Optional loading status */
+    loadingStatus?: {
+        loading: boolean;
+        loadingMsg?: string;
+    };
 }
 
 /**

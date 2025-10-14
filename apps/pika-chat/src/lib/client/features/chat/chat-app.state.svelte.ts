@@ -4,6 +4,7 @@ import { UserWidgetDataStoreState } from '$client/features/chat/user-widget-data
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
 import type { Page } from '@sveltejs/kit';
+import { SvelteMap } from 'svelte/reactivity';
 import type {
     AddChatSessionFeedbackRequest,
     ChatAppMode,
@@ -106,7 +107,7 @@ export class ChatAppState implements IChatAppState {
     #userWidgetDataCache = new Map<string, UserWidgetDataStoreState>();
 
     // Widget metadata storage - keyed by instanceId
-    #widgetMetadata = $state<Map<string, WidgetMetadataState>>(new Map());
+    #widgetMetadata = $state<Map<string, WidgetMetadataState>>(new SvelteMap());
 
     #chatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #sortedChatSessions = $derived.by(() => {
@@ -462,40 +463,46 @@ export class ChatAppState implements IChatAppState {
             throw new Error(`renderingContext is required for getWidgetMetadataAPI. Widget: ${scope}.${tag}`);
         }
 
-        const widgetInstanceId = instanceId;
-        const widgetRenderingContext = renderingContext;
-
         // Return scoped API object
         return {
             setMetadata: (metadata: WidgetMetadata) => {
+                // console.log(`[Widget Metadata] setMetadata called for ${scope}.${tag} (instance: ${instanceId})`, metadata);
+
                 // Validate actions
                 // if (metadata.actions && metadata.actions.length > 5) {
                 //     console.warn(`[Widget Metadata] Widget ${scope}.${tag} has ${metadata.actions.length} actions (>5 recommended max)`);
                 // }
 
                 // Check for multiple primary actions
-                const primaryCount = metadata.actions?.filter((a) => a.primary).length || 0;
-                if (primaryCount > 1) {
-                    console.warn(`[Widget Metadata] Widget ${scope}.${tag} has ${primaryCount} primary actions (only first will be used)`);
-                }
+                // const primaryCount = metadata.actions?.filter((a) => a.primary).length || 0;
+                // if (primaryCount > 1) {
+                //     console.warn(`[Widget Metadata] Widget ${scope}.${tag} has ${primaryCount} primary actions (only first will be used)`);
+                // }
 
                 // Store metadata
-                this.#widgetMetadata.set(widgetInstanceId, {
-                    instanceId: widgetInstanceId,
+                const storedMetadata = {
+                    instanceId: instanceId,
                     scope,
                     tag,
                     title: metadata.title,
+                    iconSvg: metadata.iconSvg,
+                    iconColor: metadata.iconColor,
                     actions: metadata.actions || [],
-                    renderingContext: widgetRenderingContext
-                });
+                    renderingContext: renderingContext,
+                    loadingStatus: metadata.loadingStatus
+                };
 
-                // console.log(`[Widget Metadata] Registered metadata for ${scope}.${tag} (instance: ${widgetInstanceId})`, metadata);
+                // console.log(`[Widget Metadata] Storing metadata for ${scope}.${tag}:`, storedMetadata);
+                this.#widgetMetadata.set(instanceId, storedMetadata);
+
+                // console.log(`[Widget Metadata] After set, widgetMetadata size:`, this.#widgetMetadata.size);
+                // console.log(`[Widget Metadata] Can retrieve?`, this.#widgetMetadata.get(instanceId));
             },
 
             updateTitle: (title: string) => {
-                const existing = this.#widgetMetadata.get(widgetInstanceId);
+                const existing = this.#widgetMetadata.get(instanceId);
                 if (existing) {
-                    this.#widgetMetadata.set(widgetInstanceId, {
+                    this.#widgetMetadata.set(instanceId, {
                         ...existing,
                         title
                     });
@@ -504,7 +511,7 @@ export class ChatAppState implements IChatAppState {
             },
 
             updateAction: (actionId: string, updates: Partial<Omit<WidgetAction, 'id' | 'callback'>>) => {
-                const existing = this.#widgetMetadata.get(widgetInstanceId);
+                const existing = this.#widgetMetadata.get(instanceId);
                 if (existing && existing.actions) {
                     const actionIndex = existing.actions.findIndex((a) => a.id === actionId);
                     if (actionIndex !== -1) {
@@ -513,7 +520,7 @@ export class ChatAppState implements IChatAppState {
                             ...updatedActions[actionIndex],
                             ...updates
                         };
-                        this.#widgetMetadata.set(widgetInstanceId, {
+                        this.#widgetMetadata.set(instanceId, {
                             ...existing,
                             actions: updatedActions
                         });
@@ -523,9 +530,9 @@ export class ChatAppState implements IChatAppState {
             },
 
             addAction: (action: WidgetAction) => {
-                const existing = this.#widgetMetadata.get(widgetInstanceId);
+                const existing = this.#widgetMetadata.get(instanceId);
                 if (existing) {
-                    this.#widgetMetadata.set(widgetInstanceId, {
+                    this.#widgetMetadata.set(instanceId, {
                         ...existing,
                         actions: [...(existing.actions || []), action]
                     });
@@ -534,13 +541,34 @@ export class ChatAppState implements IChatAppState {
             },
 
             removeAction: (actionId: string) => {
-                const existing = this.#widgetMetadata.get(widgetInstanceId);
+                const existing = this.#widgetMetadata.get(instanceId);
                 if (existing && existing.actions) {
-                    this.#widgetMetadata.set(widgetInstanceId, {
+                    this.#widgetMetadata.set(instanceId, {
                         ...existing,
                         actions: existing.actions.filter((a) => a.id !== actionId)
                     });
                     // console.log(`[Widget Metadata] Removed action "${actionId}" for ${scope}.${tag} (instance: ${widgetInstanceId})`);
+                }
+            },
+
+            setLoadingStatus: (loading: boolean, loadingMsg?: string) => {
+                // console.log(`[Widget Metadata] setLoadingStatus called for ${scope}.${tag} (instance: ${instanceId})`, { loading, loadingMsg });
+                const existing = this.#widgetMetadata.get(instanceId);
+                // console.log(`[Widget Metadata] Existing metadata:`, existing);
+
+                if (existing) {
+                    const updated = {
+                        ...existing,
+                        loadingStatus: {
+                            loading,
+                            loadingMsg
+                        }
+                    };
+                    // console.log(`[Widget Metadata] Setting updated metadata:`, updated);
+                    this.#widgetMetadata.set(instanceId, updated);
+                    // console.log(`[Widget Metadata] After setLoadingStatus, can retrieve?`, this.#widgetMetadata.get(instanceId));
+                } else {
+                    console.warn(`[Widget Metadata] No existing metadata found for ${scope}.${tag} (instance: ${instanceId})`);
                 }
             }
         };

@@ -1,4 +1,4 @@
-<svelte:options customElement="favorite-cities" />
+<svelte:options customElement={{ tag: 'favorite-cities', shadow: 'none' }} />
 
 <script lang="ts">
     import Plus from '$icons/lucide/plus';
