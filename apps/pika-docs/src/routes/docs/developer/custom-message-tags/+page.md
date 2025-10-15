@@ -6,8 +6,8 @@ outline: [2, 3]
 
 This guide explains how to create custom renderers for XML tags in LLM responses and metadata handlers for processing non-visual tags in your Pika chat application.
 
-:::tip[Evolution to Tags Feature]
-This document describes the current implementation of custom message tags using compiled-in renderers. Pika is evolving toward a more powerful [Tags Feature system](/docs/developer/tags-feature) that supports dynamic tag definitions, web components, and centralized management. The approach described here will continue to work and serves as the foundation for the new system.
+:::tip[Evolution to Web Components & Tags Feature]
+This document describes the current implementation of custom message tags using compiled-in renderers. Pika now supports a more powerful [Web Components system](/docs/features/web-components) with multi-context rendering (spotlight, inline, dialog, canvas) and dynamic [Tag Definitions](/docs/developer/tags-feature). The compiled-in approach described here continues to work and serves as the foundation for inline rendering in the new system.
 :::
 
 ## Overview

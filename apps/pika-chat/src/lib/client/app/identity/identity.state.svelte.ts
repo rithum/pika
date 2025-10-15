@@ -1,11 +1,16 @@
-import type { ChatUser, ChatUserLite, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
-import type { ShowToastFn } from '../types';
+import type { ChatUser, ChatUserLite, RecordOrUndef, ShowToastFn, UserAwsCredentials } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IIdentityState } from 'pika-shared/types/chatbot/webcomp-types';
+import type { FetchZ } from '../types';
+import { AwsCredsState } from './aws-creds.state.svelte';
 
-export class IdentityState {
+export class IdentityState implements IIdentityState {
+    #fetchz: FetchZ;
     #user = $state<ChatUser<RecordOrUndef>>() as ChatUser<RecordOrUndef>;
     #isInternalUser = $derived(this.#user && this.#user.userType === 'internal-user');
     #isSiteAdmin = $derived(this.#user && this.#user.roles?.includes('pika:site-admin'));
     #isContentAdmin = $derived(this.#user && this.#user.roles?.includes('pika:content-admin'));
+    #awsCredsState = $state<AwsCredsState | undefined>(undefined);
+
     fullName = $derived.by(() => {
         return this.#user.firstName && this.#user.lastName ? `${this.#user.firstName} ${this.#user.lastName}` : 'YOU';
     });
@@ -16,9 +21,10 @@ export class IdentityState {
 
     #showToast: ShowToastFn;
 
-    constructor(user: ChatUser, showToast: ShowToastFn) {
+    constructor(user: ChatUser, showToast: ShowToastFn, fetchz: FetchZ) {
         this.#user = user;
         this.#showToast = showToast;
+        this.#fetchz = fetchz;
     }
 
     get showToast() {
@@ -30,7 +36,7 @@ export class IdentityState {
     }
 
     get isSiteAdmin() {
-        return this.#isSiteAdmin;
+        return this.#isSiteAdmin ?? false;
     }
 
     get isInternalUser() {
@@ -38,7 +44,7 @@ export class IdentityState {
     }
 
     get isContentAdmin() {
-        return this.#isContentAdmin;
+        return this.#isContentAdmin ?? false;
     }
 
     updateUserOverrideData(chatAppId: string, data: RecordOrUndef) {
@@ -79,5 +85,12 @@ export class IdentityState {
 
     async logout() {
         //TODO: Implement logout
+    }
+
+    async getUserAwsCredentials(): Promise<UserAwsCredentials | undefined> {
+        if (!this.#awsCredsState) {
+            this.#awsCredsState = new AwsCredsState(this.#fetchz, this.#showToast);
+        }
+        return this.#awsCredsState.getAwsCredentials();
     }
 }

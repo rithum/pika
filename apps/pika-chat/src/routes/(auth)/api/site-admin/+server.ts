@@ -150,7 +150,7 @@ export const POST: RequestHandler = async (event) => {
             if (reader) {
                 const result = await reader.read();
                 const commandResponse = JSON.parse(new TextDecoder().decode(result.value));
-                console.log('Cache clear command response:', commandResponse);
+                // console.log('Cache clear command response:', commandResponse);
             }
 
             return json({

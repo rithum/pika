@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
     import { getContext } from 'svelte';
 
     interface Props {

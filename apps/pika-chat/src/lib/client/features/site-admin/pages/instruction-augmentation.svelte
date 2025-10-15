@@ -1,11 +1,13 @@
 <script lang="ts">
-    import { HelpQuestionmark } from '$icons/ci';
-    import { Loader, RefreshCw, X } from '$icons/lucide';
+    import HelpQuestionmark from '$icons/ci/help-questionmark';
+    import Loader from '$icons/lucide/loader';
+    import RefreshCw from '$icons/lucide/refresh-cw';
+    import X from '$icons/lucide/x';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Resizable from '$ui/shadcn/resizable';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Resizable from 'pika-ux/shadcn/resizable';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
     import { getContext, type Snippet } from 'svelte';
     import DirectiveDialog from '../components/instruction-augmentation/directive-dialog.svelte';
     import SemanticDirectiveDetail from '../components/instruction-augmentation/semantic-directive-detail.svelte';
@@ -52,7 +54,24 @@
     // }
 
     async function refreshData() {
+        const currentDirectiveScope = iaState.currentDirective?.scope;
+        const currentDirectiveId = iaState.currentDirective?.id;
+
         await iaState.performSearch();
+
+        // If we had a current directive, update it with fresh data from the search results
+        if (currentDirectiveScope && currentDirectiveId) {
+            const updatedDirective = iaState.semanticDirectives.find(
+                (d) => d.scope === currentDirectiveScope && d.id === currentDirectiveId
+            );
+            if (updatedDirective) {
+                iaState.setCurrentDirective(updatedDirective, true);
+            } else {
+                // If we can't find the directive with the original scope/id, it might have been
+                // deleted/replaced during editing. Clear the current directive.
+                iaState.setCurrentDirective(undefined, true);
+            }
+        }
     }
 
     function confirmChangeDirective() {
@@ -93,8 +112,8 @@
                 </div>
 
                 <!-- Detail content -->
-                <div class="flex-1">
-                    <ScrollArea class="h-full">
+                <div class="flex-1 overflow-hidden">
+                    <ScrollArea class="h-full w-full">
                         <div class="p-4">
                             <SemanticDirectiveDetail
                                 directive={iaState.currentDirective}

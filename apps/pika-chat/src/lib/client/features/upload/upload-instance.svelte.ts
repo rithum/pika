@@ -1,7 +1,8 @@
-import type { ShowToastFn } from '$lib/client/app/types';
+import type { ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IUploadInstance } from 'pika-shared/types/chatbot/webcomp-types';
 import type { UploadInfo, UploadStatus } from 'pika-shared/types/upload-types';
 
-export class UploadInstance {
+export class UploadInstance implements IUploadInstance {
     #status = $state<UploadStatus>({ status: 'idle', progress: 0 });
     #xhrEventListeners = $state<Map<string, XhrEventListener>>(new Map());
     #xhr = new XMLHttpRequest();

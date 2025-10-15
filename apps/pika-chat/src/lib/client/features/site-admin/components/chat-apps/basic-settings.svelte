@@ -1,10 +1,10 @@
 <script lang="ts">
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Checkbox } from '$ui/shadcn/checkbox';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
     import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
     import ConfigSection from '../config-section.svelte';
 
     interface Props {

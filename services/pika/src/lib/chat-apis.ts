@@ -408,7 +408,7 @@ export async function getChatSessionFeedback(sessionId: string): Promise<ChatSes
  * Search for tag definitions with optional filtering and pagination
  */
 export async function searchTagDefsApi(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
-    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request.tagsDesired, false, request.includeInstructions, request.paginationToken);
+    let [tagDefinitions, paginationToken] = await searchTagDefinitions(request, false);
 
     return {
         success: true,

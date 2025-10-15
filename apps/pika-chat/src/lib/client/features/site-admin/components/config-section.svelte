@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { ChevronDown, TriangleAlert } from '$icons/lucide';
+    import ChevronDown from '$icons/lucide/chevron-down';
+    import TriangleAlert from '$icons/lucide/triangle-alert';
     import type { Snippet } from 'svelte';
     import { slide } from 'svelte/transition';
 

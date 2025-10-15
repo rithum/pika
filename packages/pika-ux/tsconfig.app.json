@@ -1,0 +1,54 @@
+{
+    "extends": "@tsconfig/svelte/tsconfig.json",
+    "compilerOptions": {
+        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+        // Library-specific settings
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "outDir": "dist",
+        // Svelte support
+        "types": [
+            "svelte",
+            "vite/client",
+            "unplugin-icons/types/svelte"
+        ],
+        "allowJs": true,
+        "checkJs": true,
+        "moduleDetection": "force",
+        // Path aliases (inherited from base tsconfig.json)
+        "baseUrl": ".",
+        "paths": {
+            "$icons/*": [
+                "~icons/*"
+            ],
+            "$ui/*": [
+                "src/*"
+            ],
+            "$lib/*": [
+                "src/lib/*"
+            ]
+        },
+        // Quality settings
+        "strict": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "skipLibCheck": true
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.d.ts",
+        "src/**/*.js",
+        "src/**/*.svelte"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.test.*",
+        "**/*.spec.*"
+    ]
+}

@@ -160,7 +160,7 @@
 
     // LOGGING: Track component lifecycle and DOM state
     // $effect(() => {
-    //     console.log('[CHART-RENDERER] 🔄 DOM State Check:', {
+    //     console.log('[CHART-RENDERER] DOM State Check:', {
     //         segmentId: segment.id,
     //         showPlaceholder,
     //         streamingStatus: segment.streamingStatus,
@@ -177,7 +177,7 @@
 <div class="chart-container my-4 max-w-full relative">
     {#if showPlaceholder}
         <!-- LOGGING: Track when placeholder is shown -->
-        <!-- {console.log('[CHART-RENDERER] 🔴 DOM: Rendering placeholder div for segment:', segment.id, {
+        <!-- {console.log('[CHART-RENDERER] DOM: Rendering placeholder div for segment:', segment.id, {
             streamingStatus: segment.streamingStatus,
             rawContentLength: rawTagContent.length,
             showPlaceholder,
@@ -192,7 +192,7 @@
         </div>
     {:else if error || chartErroredOut}
         <!-- LOGGING: Track when error is shown -->
-        <!-- {console.log('[CHART-RENDERER] 🔴 DOM: Rendering error div for segment:', segment.id, { 
+        <!-- {console.log('[CHART-RENDERER] DOM: Rendering error div for segment:', segment.id, { 
             error, 
             chartErroredOut,
             streamingStatus: segment.streamingStatus,
@@ -208,7 +208,7 @@
         </div>
     {:else}
         <!-- LOGGING: Track when chart canvas is shown -->
-        <!-- {console.log('[CHART-RENDERER] 🟢 DOM: Rendering chart canvas for segment:', segment.id, { 
+        <!-- {console.log('[CHART-RENDERER] DOM: Rendering chart canvas for segment:', segment.id, { 
             rawContentLength: rawTagContent.length,
             streamingStatus: segment.streamingStatus,
             showPlaceholder,

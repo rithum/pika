@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
 
-    import { Input } from '$ui/shadcn/input';
+    import { Input } from 'pika-ux/shadcn/input';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');

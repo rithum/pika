@@ -1,23 +1,23 @@
 <script lang="ts">
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
-    import { Textarea } from '$ui/shadcn/textarea';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
     import ScopeValueEditor from './scope-value-editor.svelte';
 
-    import { Loader } from '$icons/lucide';
-    import MarkdownEditor from '$lib/client-ui/pika/markdown-editor/markdown-editor.svelte';
+    import Loader from '$icons/lucide/loader';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
     import deepEqual from 'deep-equal';
     import type {
         InstructionAugmentationScopeType,
         SemanticDirectiveForCreateOrUpdate,
         SemanticDirectiveScope,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import MarkdownEditor from 'pika-ux/pika/markdown-editor/markdown-editor.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
 

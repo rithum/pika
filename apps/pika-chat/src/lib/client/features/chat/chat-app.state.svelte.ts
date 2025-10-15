@@ -1,9 +1,11 @@
 import type { AppState } from '$client/app/app.state.svelte';
-import type { FetchZ, ShowToastFn } from '$client/app/types';
+import type { FetchZ } from '$client/app/types';
+import { UserWidgetDataStoreState } from '$client/features/chat/user-widget-data-store.state.svelte';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
-import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
+import findAndParseJsonLikeText from 'json-like-parse';
 import type { Page } from '@sveltejs/kit';
+import { SvelteMap } from 'svelte/reactivity';
 import type {
     AddChatSessionFeedbackRequest,
     ChatAppMode,
@@ -13,6 +15,7 @@ import type {
     GetPinnedSessionsRequest,
     GetPinnedSessionsResponse,
     GetRecentSharedResponse,
+    InvokeAgentAsComponentOptions,
     PinnedObjAndChatSession,
     PinSessionRequest,
     RecordOrUndef,
@@ -21,14 +24,21 @@ import type {
     RevokeSharedSessionResponse,
     SearchAllMyMemoryRecordsResponse,
     SharedSessionVisitHistory,
+    ShareSessionState,
+    ShowToastFn,
     TagDefinition,
     TagDefinitionWidget,
+    TagDefinitionWidgetWebComponent,
     UnpinSessionRequest,
     UnrevokeSharedSessionRequest,
     UnrevokeSharedSessionResponse,
     UserDataOverrideSettings,
     ValidateShareAccessRequest,
-    ValidateShareAccessResponse
+    ValidateShareAccessResponse,
+    WidgetAction,
+    WidgetMetadata,
+    WidgetMetadataState,
+    WidgetRenderingContextType
 } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
@@ -54,8 +64,10 @@ import {
     type UserOverrideDataCommandRequest,
     type UserOverrideDataCommandResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IChatAppState, IWidgetMetadataAPI } from 'pika-shared/types/chatbot/webcomp-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
-import type { Snippet } from 'svelte';
+import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
+import type { Component, Snippet } from 'svelte';
 import { v7 as uuidv7 } from 'uuid';
 import { UploadInstance } from '../upload/upload-instance.svelte';
 import { UploadState } from '../upload/upload.state.svelte';
@@ -63,6 +75,8 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
+import { WidgetRegistry } from './widgets/widget-registry';
+import { initializeCanonicalTagMap } from '$lib/client/webcomponent-utils';
 
 const MAX_FILES = 5;
 
@@ -78,14 +92,6 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const INPROGRESS_INPUT_MSGS_KEY = 'inprogress-input-msgs';
 
 /**
- * Structure for persisting input state in localStorage
- */
-interface PersistedInputState {
-    text: string;
-    uploads: UploadInstance[];
-}
-
-/**
  * An interim session is one that is not yet saved to the server and has a sessionId that starts with 'interim-'.
  *
  * An interim message is a message that is not yet saved to the server and has a messageId that starts with 'interim-'.
@@ -95,11 +101,16 @@ interface PersistedInputState {
  *
  * There will always be a current session.  Current session will be an interim session if we haven't submitted a message to the server yet.
  */
-export class ChatAppState {
+export class ChatAppState implements IChatAppState {
     #chatApp = $state<ChatApp>() as ChatApp;
     #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
+    #userWidgetDataCache = new Map<string, UserWidgetDataStoreState>();
+
+    // Widget metadata storage - keyed by instanceId
+    #widgetMetadata = $state<Map<string, WidgetMetadataState>>(new SvelteMap());
+
     #chatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #sortedChatSessions = $derived.by(() => {
         const arr = [...this.#chatSessions];
@@ -121,6 +132,7 @@ export class ChatAppState {
     #retrievingMessages = $state<boolean>(false);
     #messageChunkCount = $state<number>(0); // Allows reactive response to streaming response (scroll to bottom most obvious case)
     #componentRegistry = $state<ComponentRegistry>() as ComponentRegistry; // renderers and metadata handlers for chat message segments
+    #widgetRegistry = $state<WidgetRegistry>() as WidgetRegistry; // registry for multi-context widgets (spotlight, canvas, dialog)
     #messageProcessor = $state<MessageSegmentProcessor>() as MessageSegmentProcessor;
     #waitingForFirstStreamedResponse = $derived.by(() => {
         const streaming = this.#streamingResponseNow;
@@ -178,7 +190,7 @@ export class ChatAppState {
 
         return val;
     });
-    #shareCurrentSessionState: 'disable-share-feature' | 'shared-by-me' | 'shared-by-someone-else' | 'not-shared' = $derived.by(() => {
+    #shareCurrentSessionState: ShareSessionState = $derived.by(() => {
         const currentSession = this.#currentSession;
         const isInterimSession = this.#isInterimSession;
         const sharingSession = this.#sharingSession;
@@ -265,6 +277,15 @@ export class ChatAppState {
         return this.#features.entity.enabled;
     });
 
+    #spotlightWidgets = $state<SpotlightWidget[]>([]);
+    #spotlightUserPrefs = $state<UserSpotlightPreferences | undefined>(undefined);
+    #canvasWidget = $state<CanvasWidgetState | undefined>(undefined);
+    #canvasOpen = $state(false);
+    #dialogWidget = $state<DialogWidgetState | undefined>(undefined);
+    #widgetDialogOpen = $state(false);
+    #webComponentRenderer = $state<Component<any>>() as Component<any>;
+    #webComponentUrls = $state<Record<string, string> | undefined>(undefined);
+
     // #userActionsInProgress: Record<string, boolean> = $state({
     //     pin-session: false,
     //     unpin-session: false,
@@ -320,6 +341,33 @@ export class ChatAppState {
         return this.#shareCurrentSessionState;
     }
 
+    // Spotlight getters
+    get spotlightWidgets() {
+        return this.#spotlightWidgets;
+    }
+
+    // Canvas getters
+    get canvasWidget() {
+        return this.#canvasWidget;
+    }
+
+    get canvasOpen() {
+        return this.#canvasOpen;
+    }
+
+    // Dialog getters
+    get dialogWidget() {
+        return this.#dialogWidget;
+    }
+
+    get widgetDialogOpen() {
+        return this.#widgetDialogOpen;
+    }
+
+    set widgetDialogOpen(value: boolean) {
+        this.#widgetDialogOpen = value;
+    }
+
     get pinningSession() {
         return this.#pinningSession;
     }
@@ -363,6 +411,175 @@ export class ChatAppState {
         return this.#userPrefs;
     }
 
+    /**
+     * Get component-specific values set for a given user state for a given scope/tag.
+     * Creates instance on first access and caches it.
+     */
+    getUserWidgetDataStoreState(scope: string, tag: string): UserWidgetDataStoreState {
+        const key = `${scope}.${tag}`;
+
+        if (!this.#userWidgetDataCache.has(key)) {
+            const state = new UserWidgetDataStoreState(this.fetchz, scope, tag, this.#showToast);
+            this.#userWidgetDataCache.set(key, state);
+        }
+
+        return this.#userWidgetDataCache.get(key)!;
+    }
+
+    /**
+     * Getter for widget metadata Map (for parent components to access metadata by instanceId)
+     */
+    get widgetMetadata(): Map<string, WidgetMetadataState> {
+        return this.#widgetMetadata;
+    }
+
+    /**
+     * Get a scoped metadata API for registering widget title and actions.
+     * This returns an API object bound to a specific widget instance.
+     *
+     * **IMPORTANT**: instanceId and renderingContext are REQUIRED and must come from PikaWCContext.
+     * These values are automatically set during component injection via injectChatAppWebComponent().
+     *
+     * @param scope - Widget scope (e.g., 'weather', 'pika')
+     * @param tag - Widget tag (e.g., 'favorite-cities')
+     * @param instanceId - Unique instance ID from context.instanceId (REQUIRED)
+     * @param renderingContext - Rendering context from context.renderingContext (REQUIRED)
+     * @returns Scoped API for this widget instance
+     *
+     * @example
+     * ```
+     * const ctx = await getPikaContext($host());
+     * const metadata = ctx.chatAppState.getWidgetMetadataAPI(
+     *   'weather',
+     *   'my-widget',
+     *   ctx.instanceId,  // REQUIRED - set during injection
+     *   ctx.renderingContext       // REQUIRED - set during injection
+     * );
+     * ```
+     */
+    getWidgetMetadataAPI(scope: string, tag: string, instanceId: string, renderingContext: WidgetRenderingContextType): IWidgetMetadataAPI {
+        // Validate required parameters
+        if (!instanceId) {
+            console.error(`[Widget Metadata] instanceId is required for ${scope}.${tag}. This should come from context.instanceId set during injection.`);
+            throw new Error(`instanceId is required for getWidgetMetadataAPI. Widget: ${scope}.${tag}`);
+        }
+
+        if (!renderingContext) {
+            console.error(`[Widget Metadata] renderingContext is required for ${scope}.${tag}. This should come from context.renderingContext set during injection.`);
+            throw new Error(`renderingContext is required for getWidgetMetadataAPI. Widget: ${scope}.${tag}`);
+        }
+
+        // Return scoped API object
+        return {
+            setMetadata: (metadata: WidgetMetadata) => {
+                // console.log(`[Widget Metadata] setMetadata called for ${scope}.${tag} (instance: ${instanceId})`, metadata);
+
+                // Validate actions
+                // if (metadata.actions && metadata.actions.length > 5) {
+                //     console.warn(`[Widget Metadata] Widget ${scope}.${tag} has ${metadata.actions.length} actions (>5 recommended max)`);
+                // }
+
+                // Check for multiple primary actions
+                // const primaryCount = metadata.actions?.filter((a) => a.primary).length || 0;
+                // if (primaryCount > 1) {
+                //     console.warn(`[Widget Metadata] Widget ${scope}.${tag} has ${primaryCount} primary actions (only first will be used)`);
+                // }
+
+                // Store metadata
+                const storedMetadata = {
+                    instanceId: instanceId,
+                    scope,
+                    tag,
+                    title: metadata.title,
+                    iconSvg: metadata.iconSvg,
+                    iconColor: metadata.iconColor,
+                    actions: metadata.actions || [],
+                    renderingContext: renderingContext,
+                    loadingStatus: metadata.loadingStatus
+                };
+
+                // console.log(`[Widget Metadata] Storing metadata for ${scope}.${tag}:`, storedMetadata);
+                this.#widgetMetadata.set(instanceId, storedMetadata);
+
+                // console.log(`[Widget Metadata] After set, widgetMetadata size:`, this.#widgetMetadata.size);
+                // console.log(`[Widget Metadata] Can retrieve?`, this.#widgetMetadata.get(instanceId));
+            },
+
+            updateTitle: (title: string) => {
+                const existing = this.#widgetMetadata.get(instanceId);
+                if (existing) {
+                    this.#widgetMetadata.set(instanceId, {
+                        ...existing,
+                        title
+                    });
+                    // console.log(`[Widget Metadata] Updated title for ${scope}.${tag} (instance: ${widgetInstanceId}): "${title}"`);
+                }
+            },
+
+            updateAction: (actionId: string, updates: Partial<Omit<WidgetAction, 'id' | 'callback'>>) => {
+                const existing = this.#widgetMetadata.get(instanceId);
+                if (existing && existing.actions) {
+                    const actionIndex = existing.actions.findIndex((a) => a.id === actionId);
+                    if (actionIndex !== -1) {
+                        const updatedActions = [...existing.actions];
+                        updatedActions[actionIndex] = {
+                            ...updatedActions[actionIndex],
+                            ...updates
+                        };
+                        this.#widgetMetadata.set(instanceId, {
+                            ...existing,
+                            actions: updatedActions
+                        });
+                        // console.log(`[Widget Metadata] Updated action "${actionId}" for ${scope}.${tag} (instance: ${widgetInstanceId})`, updates);
+                    }
+                }
+            },
+
+            addAction: (action: WidgetAction) => {
+                const existing = this.#widgetMetadata.get(instanceId);
+                if (existing) {
+                    this.#widgetMetadata.set(instanceId, {
+                        ...existing,
+                        actions: [...(existing.actions || []), action]
+                    });
+                    // console.log(`[Widget Metadata] Added action "${action.id}" for ${scope}.${tag} (instance: ${widgetInstanceId})`);
+                }
+            },
+
+            removeAction: (actionId: string) => {
+                const existing = this.#widgetMetadata.get(instanceId);
+                if (existing && existing.actions) {
+                    this.#widgetMetadata.set(instanceId, {
+                        ...existing,
+                        actions: existing.actions.filter((a) => a.id !== actionId)
+                    });
+                    // console.log(`[Widget Metadata] Removed action "${actionId}" for ${scope}.${tag} (instance: ${widgetInstanceId})`);
+                }
+            },
+
+            setLoadingStatus: (loading: boolean, loadingMsg?: string) => {
+                // console.log(`[Widget Metadata] setLoadingStatus called for ${scope}.${tag} (instance: ${instanceId})`, { loading, loadingMsg });
+                const existing = this.#widgetMetadata.get(instanceId);
+                // console.log(`[Widget Metadata] Existing metadata:`, existing);
+
+                if (existing) {
+                    const updated = {
+                        ...existing,
+                        loadingStatus: {
+                            loading,
+                            loadingMsg
+                        }
+                    };
+                    // console.log(`[Widget Metadata] Setting updated metadata:`, updated);
+                    this.#widgetMetadata.set(instanceId, updated);
+                    // console.log(`[Widget Metadata] After setLoadingStatus, can retrieve?`, this.#widgetMetadata.get(instanceId));
+                } else {
+                    console.warn(`[Widget Metadata] No existing metadata found for ${scope}.${tag} (instance: ${instanceId})`);
+                }
+            }
+        };
+    }
+
     get mode() {
         return this.#mode;
     }
@@ -400,7 +617,7 @@ export class ChatAppState {
     }
 
     get isViewingContentForAnotherUser() {
-        return this.#isViewingContentForAnotherUser;
+        return this.#isViewingContentForAnotherUser ?? false;
     }
 
     get user() {
@@ -462,6 +679,10 @@ export class ChatAppState {
 
     get componentRegistry() {
         return this.#componentRegistry;
+    }
+
+    get widgetRegistry() {
+        return this.#widgetRegistry;
     }
 
     get suggestions() {
@@ -594,7 +815,9 @@ export class ChatAppState {
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
         tagDefinitions: TagDefinition<TagDefinitionWidget>[],
-        showToast: ShowToastFn
+        showToast: ShowToastFn,
+        webComponentRenderer: Component<any>,
+        webComponentUrls: Record<string, string> | undefined
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -603,12 +826,28 @@ export class ChatAppState {
         this.#setSession(undefined);
         this.#page = page;
         this.#componentRegistry = componentRegistry;
+        this.#widgetRegistry = new WidgetRegistry();
+        this.#webComponentUrls = webComponentUrls;
+
+        // Apply local URL overrides to tag definitions for rapid development
+        const tagDefinitionsWithOverrides = this.#applyWebComponentUrlOverrides(tagDefinitions);
+
+        // Initialize canonical tag map to ensure same S3 files use same URL
+        initializeCanonicalTagMap(tagDefinitionsWithOverrides);
+
+        this.#widgetRegistry.registerTagDefinitions(tagDefinitionsWithOverrides);
+
+        this.#webComponentRenderer = webComponentRenderer;
+
+        // Register web component renderers dynamically based on tag definitions
+        this.registerWebComponentRenderers(tagDefinitionsWithOverrides);
+
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
         this.#userDataOverrideSettings = userDataOverrideSettings;
         this.#userIsContentAdmin = userIsContentAdmin;
         this.#features = features;
         this.#customDataUiRepresentation = customDataUiRepresentation;
-        this.#tagDefs = tagDefinitions;
+        this.#tagDefs = tagDefinitionsWithOverrides;
         this.#mode = mode;
         this.#userPrefs = new UserPrefsState(this.fetchz, showToast);
         this.#showToast = showToast;
@@ -631,9 +870,63 @@ export class ChatAppState {
         //                   segmentsArrayId: Object.prototype.toString.call(messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments),
         //                   segmentsCount: messages.find((msg) => msg.messageId?.startsWith('interim-'))!.segments.length
         //               }
-        //             : null
+        //             : undefined
         //     });
         // });
+    }
+
+    /**
+     * Register web component renderers dynamically based on tag definitions.
+     * This allows inline rendering of web component tags in chat messages.
+     */
+    private registerWebComponentRenderers(tagDefinitions: TagDefinition<TagDefinitionWidget>[]) {
+        // Register a renderer for each web component tag
+        for (const tagDef of tagDefinitions) {
+            if (tagDef.widget.type === 'web-component' && tagDef.renderingContexts?.inline?.enabled) {
+                // Register with full tag name (scope.tag format)
+                const fullTagName = `${tagDef.scope}.${tagDef.tag}`;
+                this.#componentRegistry.registerRenderer(fullTagName, this.#webComponentRenderer);
+            }
+        }
+    }
+
+    /**
+     * Apply local web component URL overrides for rapid development.
+     * Allows developers to point tag definitions to local dev servers without redeploying.
+     *
+     * @param tagDefinitions - Original tag definitions from the server
+     * @returns Tag definitions with URL overrides applied
+     */
+    #applyWebComponentUrlOverrides(tagDefinitions: TagDefinition<TagDefinitionWidget>[]): TagDefinition<TagDefinitionWidget>[] {
+        // If no overrides configured, return original definitions
+        if (!this.#webComponentUrls || Object.keys(this.#webComponentUrls).length === 0) {
+            return tagDefinitions;
+        }
+
+        // Clone and apply overrides
+        return tagDefinitions.map((tagDef) => {
+            const key = `${tagDef.scope}.${tagDef.tag}`;
+            const overrideUrl = this.#webComponentUrls![key];
+
+            // If no override for this tag, or not a web component, return as-is
+            if (!overrideUrl || tagDef.widget.type !== 'web-component') {
+                return tagDef;
+            }
+
+            // Clone the tag definition and apply the override
+            const clonedTagDef = { ...tagDef };
+            clonedTagDef.widget = {
+                ...tagDef.widget,
+                webComponent: {
+                    ...tagDef.widget.webComponent,
+                    url: overrideUrl,
+                    s3: undefined // Remove S3 config when using URL override
+                }
+            };
+
+            // console.log(`[ChatAppState] Applied web component URL override for ${key}:`, overrideUrl);
+            return clonedTagDef;
+        });
     }
 
     setCurrentSessionById(sessionId: string) {
@@ -1086,6 +1379,201 @@ export class ChatAppState {
         }
     }
 
+    /**
+     * Invoke the agent directly from a web component using the 'chat-app-component' invocation mode.
+     * This is used for out-of-band requests that don't show up as user-created sessions.
+     *
+     * @param scope - The scope of the tag definition (e.g., 'weather')
+     * @param tag - The tag name (e.g., 'favorite-cities')
+     * @param instructionName - The key in the tag definition's componentAgentInstructionsMd
+     * @param userMessage - The message/query to send to the agent
+     * @param options - Optional streaming callbacks and control options
+     * @returns The parsed JSON response from the agent
+     * @throws Error if the request fails or response cannot be parsed
+     */
+    async invokeAgentAsComponent<T = any>(scope: string, tag: string, instructionName: string, userMessage: string, options?: InvokeAgentAsComponentOptions): Promise<T> {
+        try {
+            const converseRequest: ConverseRequest = {
+                message: userMessage,
+                userId: this.#user.userId,
+                agentId: this.#chatApp.agentId,
+                chatAppId: this.#chatApp.chatAppId,
+                features: {} as ChatAppOverridableFeatures, // This will be set server side
+                timezone: this.#currentSession.sessionAttributes?.timezone,
+                invocationMode: 'chat-app-component',
+                chatAppComponentConfig: {
+                    componentAgentInstructionName: instructionName,
+                    componentTagDefinition: {
+                        scope,
+                        tag
+                    }
+                }
+            };
+
+            const response = await this.fetchz('/api/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(converseRequest)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            // Process the streamed response
+            const answerText = await this.#processComponentStream(response, options);
+
+            // Try to parse as JSON
+            try {
+                return JSON.parse(answerText) as T;
+            } catch (parseError) {
+                // If direct JSON parsing fails, try to extract JSON-like text
+                const parsed = findAndParseJsonLikeText(answerText);
+
+                if (parsed.length > 0) {
+                    // console.log('Extracted and parsed JSON:', parsed[0]);
+                    return parsed[0] as T;
+                }
+
+                // If nothing worked, return the text as-is
+                console.warn('Component invocation response was not JSON, returning as text:', answerText);
+                return answerText as T;
+            }
+        } catch (error) {
+            console.error('Error invoking component:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Process a component invocation stream, extracting the answer text and calling callbacks
+     * @param response The fetch response
+     * @param options Optional streaming callbacks
+     * @returns The extracted answer text (without traces or tags)
+     */
+    async #processComponentStream(response: Response, options?: InvokeAgentAsComponentOptions): Promise<string> {
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('Response body is not readable');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let answerText = '';
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process any complete elements in the buffer
+                const result = this.#extractFromBuffer(buffer, options);
+                answerText += result.answerChunk;
+                buffer = result.remainingBuffer;
+            }
+
+            // Process any remaining buffer content
+            if (buffer.trim()) {
+                // Any remaining non-tag content is part of the answer
+                const result = this.#extractFromBuffer(buffer + '\n', options);
+                answerText += result.answerChunk;
+            }
+
+            return answerText;
+        } finally {
+            reader.releaseLock();
+        }
+    }
+
+    /**
+     * Extract traces and answer content from a buffer chunk
+     * @param buffer The buffer to process
+     * @param options Optional callbacks
+     * @returns Object with extracted answer chunk and remaining buffer
+     */
+    #extractFromBuffer(buffer: string, options?: InvokeAgentAsComponentOptions): { answerChunk: string; remainingBuffer: string } {
+        let answerChunk = '';
+        let processedUpTo = 0;
+
+        // Find and process all <trace>...</trace> tags
+        const traceRegex = /<trace>(.*?)<\/trace>/gs;
+        let match: RegExpExecArray | null;
+        let lastIndex = 0;
+
+        while ((match = traceRegex.exec(buffer)) !== null) {
+            // Everything before this trace is potential answer content
+            if (match.index > lastIndex) {
+                answerChunk += buffer.substring(lastIndex, match.index);
+            }
+
+            // Process the trace
+            if (options?.onTrace || options?.onThinking || options?.onToolCall) {
+                try {
+                    const traceJson = JSON.parse(match[1]);
+
+                    if (options.onTrace && options.includeTraces) {
+                        options.onTrace(traceJson);
+                    }
+
+                    // Extract thinking/rationale
+                    if (options.onThinking && traceJson.orchestrationTrace?.rationale?.text) {
+                        options.onThinking(traceJson.orchestrationTrace.rationale.text);
+                    }
+
+                    // Extract tool calls
+                    if (options.onToolCall && traceJson.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
+                        const invocation = traceJson.orchestrationTrace.invocationInput.actionGroupInvocationInput;
+                        options.onToolCall({
+                            name: `${invocation.actionGroupName}__${invocation.function}`,
+                            params: invocation.parameters || {}
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse trace:', e);
+                }
+            }
+
+            lastIndex = match.index + match[0].length;
+            processedUpTo = lastIndex;
+        }
+
+        // Add any remaining content after the last trace
+        if (lastIndex < buffer.length) {
+            // Check if there's an incomplete trace at the end
+            const incompleteTraceStart = buffer.lastIndexOf('<trace>', lastIndex);
+            if (incompleteTraceStart > lastIndex) {
+                // We have an incomplete trace, don't include it in answer yet
+                answerChunk += buffer.substring(lastIndex, incompleteTraceStart);
+                processedUpTo = incompleteTraceStart;
+            } else {
+                // No incomplete trace, add everything
+                answerChunk += buffer.substring(lastIndex);
+                processedUpTo = buffer.length;
+            }
+        }
+
+        // Extract content from <answer>...</answer> tags if present
+        const answerMatch = answerChunk.match(/<answer>(.*?)<\/answer>/s);
+        if (answerMatch) {
+            answerChunk = answerMatch[1];
+        }
+
+        // Call onProgress if provided
+        if (options?.onProgress && answerChunk) {
+            options.onProgress(answerChunk);
+        }
+
+        return {
+            answerChunk,
+            remainingBuffer: buffer.substring(processedUpTo)
+        };
+    }
+
     async sendUserOverrideDataCommand(request: UserOverrideDataCommandRequest) {
         try {
             this.userDataOverrideOperationInProgress[request.command] = true;
@@ -1246,7 +1734,7 @@ export class ChatAppState {
         //                   segmentsCount: foundMessage.segments.length,
         //                   messageLength: foundMessage.message.length
         //               }
-        //             : null,
+        //             : undefined,
         //         totalMessages: this.#curSessionMessages?.length || 0,
         //         messagesArrayId: Object.prototype.toString.call(this.#curSessionMessages)
         //     });
@@ -1766,4 +2254,251 @@ export class ChatAppState {
     getShareUrlMock(browserOriginAndPathName: string): string {
         return `${browserOriginAndPathName}/share/xyz`;
     }
+
+    // === WIDGET RENDERING METHODS ===
+
+    /**
+     * Initialize spotlight widgets for the current chat app.
+     * Called on page load after tag definitions are loaded.
+     */
+    async initializeSpotlight() {
+        // 1. Filter tag definitions for spotlight-enabled widgets
+        const spotlightTags = this.#tagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
+
+        // 2. Load user preferences for spotlight
+        this.#spotlightUserPrefs = await this.loadSpotlightPreferences();
+
+        // 3. Resolve which widgets to show and in what order
+        this.#spotlightWidgets = this.resolveSpotlightWidgets(spotlightTags, this.#spotlightUserPrefs);
+    }
+
+    /**
+     * Resolve which spotlight widgets to show based on preferences.
+     * Filters out unpinned widgets and sorts by display order.
+     */
+    private resolveSpotlightWidgets(spotlightTags: TagDefinition<TagDefinitionWidget>[], prefs: UserSpotlightPreferences | undefined): SpotlightWidget[] {
+        const widgets: SpotlightWidget[] = [];
+        const unpinnedSet = new Set(prefs?.unpinned || []);
+
+        // Filter out unpinned widgets
+        const pinnedTags = spotlightTags.filter((tag) => {
+            const tagId = `${tag.scope}.${tag.tag}`;
+            return !unpinnedSet.has(tagId);
+        });
+
+        // Sort by displayOrder
+        pinnedTags
+            .sort((a, b) => {
+                const orderA = a.renderingContexts?.spotlight?.displayOrder ?? 999;
+                const orderB = b.renderingContexts?.spotlight?.displayOrder ?? 999;
+                return orderA - orderB;
+            })
+            .forEach((tag, index) => {
+                widgets.push({
+                    tagDefinition: tag as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    renderOrder: index,
+                    isVisible: true,
+                    contextConfig: tag.renderingContexts!.spotlight!
+                });
+            });
+
+        return widgets;
+    }
+
+    /**
+     * Add a widget to spotlight (or reopen if unpinned).
+     * Removes the widget from the unpinned list.
+     */
+    async addToSpotlight(tagId: string) {
+        // Initialize preferences if needed
+        if (!this.#spotlightUserPrefs) {
+            this.#spotlightUserPrefs = {
+                unpinned: []
+            };
+        }
+
+        // Remove from unpinned list (making it visible/pinned)
+        const index = this.#spotlightUserPrefs.unpinned.indexOf(tagId);
+        if (index > -1) {
+            this.#spotlightUserPrefs.unpinned.splice(index, 1);
+        }
+
+        // Persist preferences
+        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
+
+        // Refresh spotlight widgets
+        await this.initializeSpotlight();
+    }
+
+    /**
+     * Remove a widget from spotlight (unpin/hide it).
+     * Adds the widget to the unpinned list.
+     */
+    async removeFromSpotlight(tagId: string) {
+        if (!this.#spotlightUserPrefs) {
+            this.#spotlightUserPrefs = {
+                unpinned: []
+            };
+        }
+
+        // Add to unpinned list if not already there
+        if (!this.#spotlightUserPrefs.unpinned.includes(tagId)) {
+            this.#spotlightUserPrefs.unpinned.push(tagId);
+        }
+
+        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
+        await this.initializeSpotlight();
+    }
+
+    /**
+     * Get all unpinned spotlight widgets.
+     * Used to populate the settings dropdown menu.
+     */
+    getUnpinnedSpotlightWidgets(): TagDefinition<TagDefinitionWidget>[] {
+        if (!this.#spotlightUserPrefs) return [];
+
+        return this.#tagDefs.filter((tag) => {
+            const tagId = `${tag.scope}.${tag.tag}`;
+            return tag.renderingContexts?.spotlight?.enabled === true && this.#spotlightUserPrefs!.unpinned.includes(tagId);
+        });
+    }
+
+    /**
+     * Load spotlight preferences from user preferences API.
+     */
+    private async loadSpotlightPreferences(): Promise<UserSpotlightPreferences | undefined> {
+        try {
+            // Key format: ${chatAppId}/spotlight
+            const key = `${this.#chatApp.chatAppId}/spotlight`;
+            const prefs = await this.#userPrefs.getPref<UserSpotlightPreferences>(key);
+            return prefs || undefined;
+        } catch (e) {
+            console.error('Error loading spotlight preferences:', e);
+            return undefined;
+        }
+    }
+
+    /**
+     * Save spotlight preferences to user preferences API.
+     */
+    private async saveSpotlightPreferences(prefs: UserSpotlightPreferences): Promise<void> {
+        // Key format: ${chatAppId}/spotlight
+        const key = `${this.#chatApp.chatAppId}/spotlight`;
+        await this.#userPrefs.modifyPref(key, prefs);
+    }
+
+    /**
+     * Request to render a tag in a specific context.
+     * This is the primary API that web components use to render other components.
+     *
+     * @param tagId Format: "scope.tag"
+     * @param renderingContext Which rendering context to use
+     * @param data Optional data/props to pass to the component
+     */
+    async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>): Promise<void> {
+        // 1. Validate tag exists and is enabled for this context
+        const [scope, tag] = tagId.split('.');
+        const tagDef = this.#tagDefs.find((t) => t.scope === scope && t.tag === tag);
+
+        if (!tagDef) {
+            throw new Error(`Tag ${tagId} not found`);
+        }
+
+        if (tagDef.status !== 'enabled') {
+            throw new Error(`Tag ${tagId} is not enabled (status: ${tagDef.status})`);
+        }
+
+        if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
+            throw new Error(`Tag ${tagId} does not support ${renderingContext} context`);
+        }
+
+        // 2. Render based on context
+        switch (renderingContext) {
+            case 'spotlight':
+                // Add to spotlight if not already visible
+                await this.addToSpotlight(tagId);
+                break;
+
+            case 'canvas':
+                this.#canvasWidget = {
+                    tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    contextConfig: tagDef.renderingContexts.canvas!,
+                    data
+                };
+                this.#canvasOpen = true;
+                break;
+
+            case 'dialog':
+                this.#dialogWidget = {
+                    tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    contextConfig: tagDef.renderingContexts.dialog!,
+                    data
+                };
+                this.#widgetDialogOpen = true;
+                break;
+
+            case 'inline':
+                // We don't render inline tags like with this method.
+                throw new Error('Inline rendering from web components not supported via the renderTag method');
+        }
+    }
+
+    /**
+     * Close the canvas view.
+     */
+    closeCanvas() {
+        this.#canvasOpen = false;
+        this.#canvasWidget = undefined;
+    }
+
+    /**
+     * Close the dialog.
+     */
+    closeDialog() {
+        this.#widgetDialogOpen = false;
+        this.#dialogWidget = undefined;
+    }
+}
+
+/**
+ * Structure for persisting input state in localStorage
+ */
+interface PersistedInputState {
+    text: string;
+    uploads: UploadInstance[];
+}
+
+/**
+ * Spotlight widget state
+ */
+export interface SpotlightWidget {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    renderOrder: number;
+    isVisible: boolean;
+    contextConfig: any;
+}
+
+/**
+ * User preferences for spotlight widgets
+ */
+export interface UserSpotlightPreferences {
+    unpinned: string[];
+}
+
+/**
+ * Canvas widget state
+ */
+export interface CanvasWidgetState {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    contextConfig: any;
+    data?: Record<string, any>;
+}
+
+/**
+ * Dialog widget state
+ */
+export interface DialogWidgetState {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    contextConfig: any;
+    data?: Record<string, any>;
 }

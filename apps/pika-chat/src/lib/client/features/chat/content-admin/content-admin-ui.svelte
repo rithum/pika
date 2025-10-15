@@ -1,6 +1,6 @@
 <script lang="ts">
-    import Combobox from '$ui/pika/combobox/combobox.svelte';
     import type { ChatUserLite, ContentAdminCommand } from 'pika-shared/types/chatbot/chatbot-types';
+    import Combobox from 'pika-ux/pika/combobox/combobox.svelte';
 
     interface Props {
         isValid: boolean | string;

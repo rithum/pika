@@ -254,6 +254,92 @@ const tagDefinition: TagDefinition<ChartWidgetTagDefinition> = {
 };
 ```
 
+## Component Instruction Integration
+
+### Direct Component Invocations
+
+Tag definitions can also include `componentAgentInstructionsMd` for web components that need to invoke the agent directly with specialized instructions. This enables components to request structured data in specific formats.
+
+### Component Instruction Structure
+
+Component instructions are stored as a record of named instruction sets:
+
+```js
+const tagDefinition: TagDefinition<WebComponentTagDefinition> = {
+    tag: 'weather-widget',
+    scope: 'weather',
+    componentAgentInstructionsMd: {
+        'get-current-weather': `You are a weather data assistant. When invoked, you should:
+
+1. Extract the location(s) from the user's request
+2. Always use the appropriate tool(s) to fetch real-time data; NEVER MAKE UP WEATHER INFORMATION
+3. Return the weather information in a structured format
+
+<output_schema>
+interface WeatherDataResponse {
+    locations: WeatherData[];
+}
+
+interface WeatherData {
+    // The location name
+    location: string;
+    // Longitude
+    lon: number;
+    // Latitude
+    lat: number;
+    // Temperature in Fahrenheit
+    tempF: number;
+    // Temperature in Celsius
+    tempC: number;
+    // ISO 8601 timestamp
+    timestamp: string;
+}
+</output_schema>
+
+{{typescript-backed-output-formatting-requirements}}`
+    }
+    // ... other properties
+};
+```
+
+### TypeScript-Backed Output Formatting
+
+Component instructions support the `{{typescript-backed-output-formatting-requirements}}` placeholder, which provides structured guidance for generating JSON output that conforms to TypeScript interfaces defined in `<output_schema>` blocks.
+
+When `includeTypescriptBackedOutputFormattingRequirements.enabled` is set to `true`, this placeholder is replaced with detailed instructions that tell the LLM to:
+
+1. Locate the `<output_schema>` element containing TypeScript interface definitions
+2. Use the **first interface** as the response structure specification
+3. Generate a structured response inside <answer></answer> tags
+4. Generate valid JSON that strictly conforms to the interface of `output_schema` and put it inside the `<answer>` tag
+5. Include all required properties with correct types
+6. Optionally omit properties marked with `?` if data is unavailable
+
+This ensures components receive data in the exact format they expect, improving reliability and reducing parsing errors.
+
+Here's the actual markdown that the placeholder is replaced with as of 10/10/2025
+
+```md
+**Output Formatting Requirements:**
+
+1. **Locate the Schema**: Find the \`<output_schema>\` element in this prompt, which contains TypeScript interface definitions.
+
+2. **Identify Response Type**: The **first interface** defined in the \`<output_schema>\` element specifies the exact structure your response must follow.
+
+3. **Generate Valid JSON**: Create a JSON object that strictly conforms to that first interface definition. Ensure:
+
+    - All required properties are included
+    - Property types match the TypeScript definitions
+    - Optional properties (marked with ? may be omitted if data is unavailable
+    - String values are properly quoted
+    - The JSON is valid and parseable
+
+4. **Enclose Response**: Your entire response MUST be wrapped in \`<answer></answer>\` tags with ONLY the JSON inside - no other text, explanations, or markdown.
+
+**Example Output:**
+\`<answer>{"property":"value","property2":"value2"}</answer>\`
+```
+
 ## Implementation Details
 
 ### Runtime Processing
@@ -307,25 +393,38 @@ jsonOnlyImperativeInstructionLine: {
 
 ### Conditional Instruction Loading
 
-Control which tags get instructions based on context:
+Tag visibility is automatically determined by the tag definition's `chatAppId` and `status` fields:
 
 ```js
-// In your chat app configuration
-const chatAppFeatures = {
-    tags: {
-        // Only enable specific tags for this app
-        tagsEnabled: [
-            { tag: 'chart', scope: 'builtin' },
-            { tag: 'order-status', scope: 'custom' }
-        ]
+// Tag definitions control which tags are available
+// Example tag definition:
+{
+    tag: 'chart',
+    scope: 'pika',
+    chatAppId: 'chat-app-global',  // Available to all chat apps
+    status: 'enabled',              // Active and visible
+    renderingContexts: {
+        inline: { enabled: true }   // Available for inline rendering
     },
+    llmInstructionsMd: '...'        // Instructions for the LLM
+}
+
+// The instruction assistance feature automatically discovers tags:
+// 1. Queries for tags with matching chatAppId (and 'chat-app-global')
+// 2. Filters to status === 'enabled'
+// 3. Filters to contexts.inline.enabled === true
+// 4. Injects instructions for matching tags
+
+const chatAppFeatures = {
     agentInstructionAssistance: {
         enabled: true,
         includeOutputFormattingRequirements: { enabled: true },
-        includeInstructionsForTags: { enabled: true } // Only includes instructions for enabled tags
+        includeInstructionsForTags: { enabled: true }
     }
 };
 ```
+
+To make a tag available to a specific chat app, set its `chatAppId` field to match the chat app ID. To make it available to all chat apps, use `chatAppId: 'chat-app-global'`.
 
 ## Testing and Debugging
 

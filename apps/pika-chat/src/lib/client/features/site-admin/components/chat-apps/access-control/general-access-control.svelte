@@ -1,10 +1,10 @@
 <script lang="ts">
     import { assert } from '$lib/utils';
-    import List from '$ui/pika/list/list.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Checkbox } from '$ui/shadcn/checkbox/index.js';
-    import { Label } from '$ui/shadcn/label/index.js';
     import type { AccessRules, UserRole } from 'pika-shared/types/chatbot/chatbot-types';
+    import List from 'pika-ux/pika/list/list.svelte';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox/index.js';
+    import { Label } from 'pika-ux/shadcn/label/index.js';
 
     interface Props {
         rulesObj: AccessRules | undefined;

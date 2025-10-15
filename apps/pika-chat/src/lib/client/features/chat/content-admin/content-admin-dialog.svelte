@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import type { ChatAppState } from '$lib/client/features/chat/chat-app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
     import { getContext, untrack } from 'svelte';
     import ContentAdminUi from './content-admin-ui.svelte';
 

@@ -1,11 +1,11 @@
 <script lang="ts">
-    import { Trash2 } from '$icons/lucide';
+    import Trash2 from '$icons/lucide/trash-2';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { formatDateTime } from '$lib/utils';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import * as Table from '$ui/shadcn/table';
     import cloneDeep from 'lodash.clonedeep';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import * as Table from 'pika-ux/shadcn/table';
     import { getContext } from 'svelte';
 
     interface Props {

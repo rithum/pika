@@ -26,9 +26,27 @@ The instruction assistance system uses several placeholders that get replaced wi
 
 When you enable the `includeInstructionsForTags` option, this placeholder gets replaced with detailed instructions for all tags that are available to your chat app. The system automatically:
 
-- Retrieves all enabled tag definitions for the current chat app
+- Discovers tags based on `chatAppId` (both app-specific and `'chat-app-global'` tags)
+- Filters to only `status === 'enabled'` tags with `contexts.inline.enabled === true`
 - Formats their LLM instructions according to Pika's structured format
 - Injects them at the placeholder location (or appends them if no placeholder exists)
+
+Tag visibility is controlled at the tag definition level via the `chatAppId` and `status` fields, not through site-level configuration.
+
+### typescript-backed-output-formatting-requirements placeholder
+
+`{{typescript-backed-output-formatting-requirements}}`
+
+This specialized placeholder is used in **component invocation instructions** (stored in `componentAgentInstructionsMd`) to ensure structured JSON output that conforms to TypeScript interfaces. When you enable `includeTypescriptBackedOutputFormattingRequirements`, this placeholder gets replaced with detailed formatting instructions that tell the LLM to:
+
+1. Locate the `<output_schema>` element containing TypeScript interface definitions
+2. Use the **first interface** as the response structure specification
+3. Generate a structured response inside <answer></answer> tags
+4. Generate valid JSON that strictly conforms to the interface of `output_schema` and put it inside the `<answer>` tag
+5. Include all required properties with correct types
+6. Optionally omit properties marked with `?` if data is unavailable
+
+This is particularly useful for web components that invoke the agent directly to request structured data in specific formats.
 
 ### complete-example-instruction-line placeholder
 

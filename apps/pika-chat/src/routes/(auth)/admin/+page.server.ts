@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         error(401, 'Unauthorized');
     }
 
-    console.log('[Layout Server] User:', JSON.stringify(locals.user, null, 2));
+    // console.log('[Layout Server] User:', JSON.stringify(locals.user, null, 2));
 
     if (!isUserSiteAdmin(locals.user)) {
         error(403, 'User is not site admin');

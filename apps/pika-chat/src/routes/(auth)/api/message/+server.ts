@@ -86,7 +86,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             locals.user
         );
         params.features = featuresForConverse;
-        console.log('featuresForConverse', featuresForConverse);
+        // console.log('featuresForConverse', featuresForConverse);
 
         if (customDataFieldPathToMatchUsersEntity) {
             params.entityAttributeNameInUserCustomData = customDataFieldPathToMatchUsersEntity;

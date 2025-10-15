@@ -14,6 +14,11 @@ const tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompi
     canBeGeneratedByLlm: true,
     canBeGeneratedByTool: true,
     shortTagEx: '<pika.download></pika.download>',
+    status: 'enabled',
+    chatAppId: 'chat-app-global',
+    renderingContexts: {
+        inline: { enabled: true }
+    },
     widget: {
         type: 'pika-compiled-in'
     },

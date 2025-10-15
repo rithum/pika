@@ -87,10 +87,3 @@ export interface ErrorResponse {
 export interface SuccessResponse {
     success: true;
 }
-
-export interface ShowToastOptions {
-    type: 'success' | 'error' | 'warning' | 'info';
-    duration?: number | 'infinite';
-}
-
-export type ShowToastFn = (message: string, options: ShowToastOptions) => void;

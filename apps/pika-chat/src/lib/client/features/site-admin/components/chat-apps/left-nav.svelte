@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { Badge } from '$ui/shadcn/badge';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
     import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
 
     interface Props {
         chatApps: ChatApp[];

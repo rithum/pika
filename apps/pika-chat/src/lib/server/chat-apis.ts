@@ -15,12 +15,14 @@ import type {
     ChatUserSearchResponse,
     CreateSharedSessionRequest,
     CreateSharedSessionResponse,
+    DeleteUserWidgetDataResponse,
     GetChatSessionFeedbackResponse,
     GetChatUserPrefsResponse,
     GetPinnedSessionsRequest,
     GetPinnedSessionsResponse,
     GetRecentSharedRequest,
     GetRecentSharedResponse,
+    GetUserWidgetDataResponse,
     PinSessionRequest,
     PinSessionResponse,
     RecordOrUndef,
@@ -31,12 +33,14 @@ import type {
     SearchAllMyMemoryRecordsRequest,
     SearchAllMyMemoryRecordsResponse,
     SetChatUserPrefsResponse,
+    SetUserWidgetDataResponse,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
     UnpinSessionRequest,
     UnpinSessionResponse,
     UnrevokeSharedSessionRequest,
     UnrevokeSharedSessionResponse,
+    UserWidgetData,
     UserMemoryStrategy,
     UserPrefs,
     ValidateShareAccessRequest,
@@ -229,6 +233,62 @@ export async function setUserPrefs(userId: string, prefs: UserPrefs, partial: bo
     });
 
     return response.body.prefs!;
+}
+
+export async function getUserWidgetData(userId: string, scope: string, tag: string): Promise<UserWidgetData | undefined> {
+    const response = await invokeApi<GetUserWidgetDataResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/widget/${scope}/${tag}/data`,
+        method: 'GET',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getUserWidgetData',
+            resourceName: 'widget data',
+            userId
+        }
+    });
+
+    return response.body.data;
+}
+
+export async function setUserWidgetData(userId: string, scope: string, tag: string, data: UserWidgetData, partial: boolean): Promise<UserWidgetData> {
+    const response = await invokeApi<SetUserWidgetDataResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/widget/${scope}/${tag}/data`,
+        method: 'POST',
+        body: { data, partial },
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'setUserWidgetData',
+            resourceName: 'widget data',
+            userId
+        }
+    });
+
+    return response.body.data;
+}
+
+export async function deleteUserWidgetData(userId: string, scope: string, tag: string): Promise<void> {
+    await invokeApi<DeleteUserWidgetDataResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/widget/${scope}/${tag}/data`,
+        method: 'DELETE',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'deleteUserWidgetData',
+            resourceName: 'widget data',
+            userId
+        }
+    });
 }
 
 export async function searchTagDefinitions(userId: string, request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {

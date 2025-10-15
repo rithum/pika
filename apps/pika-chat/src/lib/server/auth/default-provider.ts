@@ -15,7 +15,7 @@ export interface MockCustomData extends Record<string, string | undefined> {
  * Default mock authentication provider that maintains existing behavior
  * when no custom authentication provider is implemented
  *
- * ⚠️ SECURITY WARNING: This provider is for development only!
+ * SECURITY WARNING: This provider is for development only!
  * - Automatically authenticates anyone as the same hardcoded user
  * - Provides no real security or access control
  * - Must be replaced with custom authentication before production deployment

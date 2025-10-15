@@ -2,22 +2,32 @@
     "name": "@pika/weather",
     "version": "0.0.1",
     "private": true,
+    "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "scripts": {
-        "build": "tsc",
-        "watch": "tsc -w",
+        "build": "vite build",
+        "dev": "vite",
+        "dev:wc": "vite build --watch --config vite.config.dev.ts",
+        "serve:wc": "npx serve dev-dist -p 5173 --cors",
+        "preview": "vite preview",
         "test": "jest",
         "lint": "eslint src/",
-        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist && rm -rf cdk.out",
-        "check-types": "tsc --noEmit",
+        "copy-pika-config": "mkdir -p bin/build && cp ../../../pika-config.ts bin/build",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf cdk.out && rm -rf build",
+        "check-types:lambda": "tsc -p tsconfig.cdk.json --noEmit",
+        "check-types:webcomponent": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+        "check-types": "pnpm run check-types:lambda && pnpm run check-types:webcomponent",
         "cdk": "cdk",
-        "cdk:synth": "cdk synth -c stage=${STAGE:-test}",
-        "cdk:deploy": "cdk deploy -c stage=${STAGE:-test}",
-        "cdk:diff": "cdk diff"
+        "cdk:synth": "pnpm run build && pnpm run copy-pika-config && cdk synth -c stage=${STAGE:-test}",
+        "cdk:deploy": "pnpm run build && pnpm run copy-pika-config && cdk deploy -c stage=${STAGE:-test}",
+        "cdk:diff": "cdk diff",
+        "upload-tag-defs": "tsx tools/upload-tag-defs/index.ts",
+        "buid-upload-tag-defs": "pnpm run build && pnpm run upload-tag-defs"
     },
     "devDependencies": {
         "@aws-sdk/client-s3": "catalog:",
+        "@aws-sdk/client-ssm": "catalog:",
         "@aws-sdk/client-sts": "catalog:",
         "@pika/typescript-config": "workspace:*",
         "@types/aws-lambda": "catalog:",
@@ -35,7 +45,26 @@
         "ts-jest": "catalog:",
         "ts-node": "catalog:",
         "tsx": "catalog:",
-        "typescript": "catalog:"
+        "typescript": "catalog:",
+        "@iconify-json/ci": "catalog:",
+        "@iconify-json/lucide": "catalog:",
+        "@internationalized/date": "catalog:",
+        "@lucide/svelte": "catalog:",
+        "@sveltejs/vite-plugin-svelte": "catalog:",
+        "@tailwindcss/typography": "catalog:",
+        "@tailwindcss/vite": "catalog:",
+        "@tsconfig/svelte": "catalog:",
+        "bits-ui": "catalog:",
+        "clsx": "catalog:",
+        "pika-ux": "workspace:*",
+        "svelte": "catalog:",
+        "svelte-check": "catalog:",
+        "tailwind-merge": "catalog:",
+        "tailwind-variants": "catalog:",
+        "tailwindcss": "catalog:",
+        "tw-animate-css": "catalog:",
+        "unplugin-icons": "catalog:",
+        "vite": "catalog:"
     },
     "dependencies": {
         "@aws-sdk/client-bedrock-agent-runtime": "catalog:",
@@ -45,6 +74,6 @@
         "source-map-support": "catalog:"
     },
     "files": [
-        "dist/**"
+        "build/**"
     ]
 }

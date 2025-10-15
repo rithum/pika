@@ -1,10 +1,10 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import { Settings2 } from '$lib/icons/lucide';
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
+    import Settings2 from '$icons/lucide/settings-2';
     import type { ChatAppLite } from 'pika-shared/types/chatbot/chatbot-types';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');

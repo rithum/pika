@@ -1,25 +1,15 @@
 <script lang="ts">
-    import {
-        CircleDot,
-        Expand,
-        File,
-        Loader,
-        MessageCircle,
-        MessageSquareText,
-        Pencil,
-        Plus,
-        Tag,
-        TriangleAlert,
-    } from '$icons/lucide';
+    import CircleDot from '$icons/lucide/circle-dot';
+    import Expand from '$icons/lucide/expand';
+    import File from '$icons/lucide/file';
+    import Loader from '$icons/lucide/loader';
+    import MessageCircle from '$icons/lucide/message-circle';
+    import MessageSquareText from '$icons/lucide/message-square-text';
+    import Pencil from '$icons/lucide/pencil';
+    import Plus from '$icons/lucide/plus';
+    import Tag from '$icons/lucide/tag';
+    import TriangleAlert from '$icons/lucide/triangle-alert';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import TooltipPlus from '$ui/pika/tooltip-plus/tooltip-plus.svelte';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Button } from '$ui/shadcn/button';
-    import { Card } from '$ui/shadcn/card';
-    import * as DropdownMenu from '$ui/shadcn/dropdown-menu';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import { Separator } from '$ui/shadcn/separator';
     import type { ChatSessionFeedback, ChatSessionFeedbackForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         FEEDBACK_INTERNAL_COMMENT_STATUS_VALUES,
@@ -28,6 +18,14 @@
         SESSION_FEEDBACK_STATUS_VALUES,
         SESSION_FEEDBACK_TYPE_VALUES,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Card } from 'pika-ux/shadcn/card';
+    import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import AddFeedbackDialog from './add-feedback-dialog.svelte';
     import AddInternalCommentDialog from './add-internal-comment-dialog.svelte';

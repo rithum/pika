@@ -1,10 +1,5 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import Combobox from '$ui/pika/combobox/combobox.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { Input } from '$ui/shadcn/input';
-    import { Label } from '$ui/shadcn/label';
     import hljs from 'highlight.js/lib/core';
     import json from 'highlight.js/lib/languages/json';
     import xml from 'highlight.js/lib/languages/xml';
@@ -14,10 +9,15 @@
         DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
         type ChatUserLite,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import Combobox from 'pika-ux/pika/combobox/combobox.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
     import { getContext } from 'svelte';
     // or any other theme you prefer
-    import CopyButton from '$ui/pika/copy-button/copy-button.svelte';
-    import { Textarea } from '$ui/shadcn/textarea';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
 
     // Register the languages
     hljs.registerLanguage('xml', xml);

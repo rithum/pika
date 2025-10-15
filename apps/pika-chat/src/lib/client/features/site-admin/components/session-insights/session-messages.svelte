@@ -25,6 +25,8 @@
             includeOutputFormattingRequirements: false,
             completeExampleInstructionEnabled: false,
             jsonOnlyImperativeInstructionEnabled: false,
+            includeTypescriptBackedOutputFormattingRequirements: false,
+            typescriptBackedOutputFormattingRequirements: undefined,
         },
         traces: {
             enabled: true,

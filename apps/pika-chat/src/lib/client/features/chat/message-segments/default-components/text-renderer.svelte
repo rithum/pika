@@ -70,7 +70,7 @@
     // $effect(() => {
     //     const segmentStreaming = segment.streamingStatus === 'streaming';
 
-    //     console.log('[TEXT-RENDERER] 📋 STATUS CHECK:', {
+    //     console.log('[TEXT-RENDERER] STATUS CHECK:', {
     //         segmentId: segment.id,
     //         segmentStreamingStatus: segment.streamingStatus,
     //         segmentStreamingBool: segmentStreaming,
@@ -97,7 +97,7 @@
     // DEBUGGING: Log when this text renderer creates streaming elements
     // $effect(() => {
     //     if (container && segment.streamingStatus === 'streaming') {
-    //         console.log('[TEXT-RENDERER] 🔍 STREAMING ELEMENT DETAILS:', {
+    //         console.log('[TEXT-RENDERER] STREAMING ELEMENT DETAILS:', {
     //             segmentId: segment.id,
     //             containerElement: container,
     //             boundingRect: container.getBoundingClientRect(),

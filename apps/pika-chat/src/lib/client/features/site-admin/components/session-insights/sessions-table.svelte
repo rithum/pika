@@ -1,17 +1,19 @@
 <script lang="ts">
-    import { Archive, Download, MessageSquare, X } from '$icons/lucide';
+    import Archive from '$icons/lucide/archive';
+    import Download from '$icons/lucide/download';
+    import MessageSquare from '$icons/lucide/message-square';
+    import X from '$icons/lucide/x';
 
-    import PikaTable from '$ui/pika/pika-table/pika-table.svelte';
-    import type { ServerSideConfig, ServerSideTableState } from '$ui/pika/pika-table/types';
-    import { Button } from '$ui/shadcn/button';
-    import { Card } from '$ui/shadcn/card';
-    import { Input } from '$ui/shadcn/input';
-    import { Separator } from '$ui/shadcn/separator';
-    import FiltersPopup from './filters-popup.svelte';
-    // Import additional PikaTable components
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import PikaTable from 'pika-ux/pika/pika-table/pika-table.svelte';
+    import type { ServerSideConfig, ServerSideTableState } from 'pika-ux/pika/pika-table/types';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Card } from 'pika-ux/shadcn/card';
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext } from 'svelte';
     import FiltersAppliedPanel from './filters-applied-panel.svelte';
+    import FiltersPopup from './filters-popup.svelte';
     import { columns } from './sessions-table-columns';
 
     const appState = getContext<AppState>('appState');
@@ -71,7 +73,7 @@
         },
 
         requestData: async (tableState: ServerSideTableState) => {
-            console.log('requestData', tableState);
+            // console.log('requestData', tableState);
 
             // Update our local table state
             serverSideTableState = { ...serverSideTableState, ...tableState, isLoading: true };

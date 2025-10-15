@@ -41,20 +41,23 @@ export function generateInstructionAssistanceContent(
         includeOutputFormattingRequirements: agentInstructionFeature?.includeOutputFormattingRequirements,
         includeInstructionsForTags: agentInstructionFeature?.includeInstructionsForTags,
         completeExampleEnabled: agentInstructionFeature?.completeExampleInstructionEnabled,
-        jsonOnlyEnabled: agentInstructionFeature?.jsonOnlyImperativeInstructionEnabled
+        jsonOnlyEnabled: agentInstructionFeature?.jsonOnlyImperativeInstructionEnabled,
+        includeTypescriptBackedOutputFormattingRequirements: agentInstructionFeature?.includeTypescriptBackedOutputFormattingRequirements
     });
 
     let outputFormattingRequirements = '';
     let tagInstructions = '';
     let completeExampleInstructionLine = '';
     let jsonOnlyImperativeInstructionLine = '';
+    let typescriptBackedOutputFormattingRequirements = '';
 
     if (!agentInstructionFeature?.enabled) {
         return {
             outputFormattingRequirements,
             tagInstructions,
             completeExampleInstructionLine,
-            jsonOnlyImperativeInstructionLine
+            jsonOnlyImperativeInstructionLine,
+            typescriptBackedOutputFormattingRequirements
         };
     }
 
@@ -74,7 +77,7 @@ export function generateInstructionAssistanceContent(
         if (tagDefinitions.length > 0) {
             // First create a dictionary listing all supported tags
             const tagDictionary = tagDefinitions
-                .filter((tagDef) => tagDef.canBeGeneratedByLlm && !tagDef.disabled)
+                .filter((tagDef) => tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled')
                 .map((tagDef) => `  - ${tagDef.tagTitle}: \`${tagDef.shortTagEx}\``)
                 .join('\n');
 
@@ -85,7 +88,7 @@ export function generateInstructionAssistanceContent(
 
             // Then add detailed instructions for each tag
             for (const tagDef of tagDefinitions) {
-                if (tagDef.canBeGeneratedByLlm && !tagDef.disabled && tagDef.llmInstructionsMd) {
+                if (tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled' && tagDef.llmInstructionsMd) {
                     const tagType = `${tagDef.scope}.${tagDef.tag}`;
                     tagInstructionsContent += `- **${tagDef.tagTitle}:**\n  <tag-instructions type="${tagType}">\n${tagDef.llmInstructionsMd}\n  </tag-instructions>\n`;
                 }
@@ -117,14 +120,16 @@ export function generateInstructionAssistanceContent(
         hasOutputFormatting: !!outputFormattingRequirements,
         hasTagInstructions: !!tagInstructions,
         hasCompleteExample: !!completeExampleInstructionLine,
-        hasJsonValidation: !!jsonOnlyImperativeInstructionLine
+        hasJsonValidation: !!jsonOnlyImperativeInstructionLine,
+        hasTypescriptBackedOutputFormattingRequirements: !!typescriptBackedOutputFormattingRequirements
     });
 
     return {
         outputFormattingRequirements,
         tagInstructions,
         completeExampleInstructionLine,
-        jsonOnlyImperativeInstructionLine
+        jsonOnlyImperativeInstructionLine,
+        typescriptBackedOutputFormattingRequirements
     };
 }
 
@@ -194,13 +199,101 @@ export function applyInstructionAssistance(basePrompt: string, instructionConten
  *
  * See header at top of file for important notes.
  *
+ * Generate component-specific instruction content for direct component invocations
+ *
+ * @param tagDefinition - The tag definition with component invocation instructions
+ * @param componentAgentInstructionName - The name of the instruction set to use
+ * @param instructionAssistanceConfig - Optional instruction assistance config for placeholder replacement
+ * @param agentInstructionFeature - Optional agent instruction feature to control which placeholders are replaced
+ * @returns The component instruction content or undefined if not found
+ */
+export function generateComponentInstructionContent(
+    tagDefinition: TagDefinition<TagDefinitionWidget>,
+    componentAgentInstructionName: string,
+    instructionAssistanceConfig?: InstructionAssistanceConfig,
+    agentInstructionFeature?: AgentInstructionChatAppOverridableFeature
+): string | undefined {
+    console.log('Generating component instruction content:', {
+        scope: tagDefinition.scope,
+        tag: tagDefinition.tag,
+        componentAgentInstructionName,
+        hasDirectInvocationInstructions: !!tagDefinition.componentAgentInstructionsMd,
+        hasInstructionAssistanceConfig: !!instructionAssistanceConfig
+    });
+
+    if (!tagDefinition.componentAgentInstructionsMd) {
+        // console.log('No componentAgentInstructionsMd found on tag definition');
+        return undefined;
+    }
+
+    const instructions = tagDefinition.componentAgentInstructionsMd[componentAgentInstructionName];
+
+    if (!instructions) {
+        console.log(`No instructions found for componentAgentInstructionName: ${componentAgentInstructionName}`);
+        console.log('Available instruction names:', Object.keys(tagDefinition.componentAgentInstructionsMd));
+        return undefined;
+    }
+
+    console.log('Component instructions found:', {
+        instructionLength: instructions.length
+    });
+
+    // Apply placeholder replacement if instruction assistance config is provided
+    if (instructionAssistanceConfig && agentInstructionFeature) {
+        return applyComponentInstructionAssistance(instructions, instructionAssistanceConfig, agentInstructionFeature);
+    }
+
+    return instructions;
+}
+
+/**
+ * IMPORTANT!!!!!!!!!!!!!!!!!!!!!!
+ *
+ * See header at top of file for important notes.
+ *
+ * Apply instruction assistance placeholder replacement to component instructions
+ *
+ * @param componentInstructions - The raw component instructions with placeholders
+ * @param instructionConfig - The instruction assistance configuration
+ * @param agentInstructionFeature - The agent instruction feature configuration
+ * @returns The component instructions with placeholders replaced
+ */
+export function applyComponentInstructionAssistance(
+    componentInstructions: string,
+    instructionConfig: InstructionAssistanceConfig,
+    agentInstructionFeature: AgentInstructionChatAppOverridableFeature
+): string {
+    let enhancedInstructions = componentInstructions;
+
+    console.log('Applying component instruction assistance:', {
+        includeTypescriptBackedOutputFormattingRequirements: agentInstructionFeature.includeTypescriptBackedOutputFormattingRequirements,
+        hasPlaceholder: enhancedInstructions.includes('{{typescript-backed-output-formatting-requirements}}')
+    });
+
+    // Replace typescript-backed-output-formatting-requirements placeholder if enabled
+    if (agentInstructionFeature.includeTypescriptBackedOutputFormattingRequirements && instructionConfig.typescriptBackedOutputFormattingRequirements) {
+        const placeholder = '{{typescript-backed-output-formatting-requirements}}';
+        if (enhancedInstructions.includes(placeholder)) {
+            console.log('Replacing typescript-backed-output-formatting-requirements placeholder');
+            enhancedInstructions = enhancedInstructions.replace(placeholder, instructionConfig.typescriptBackedOutputFormattingRequirements);
+        }
+    }
+
+    return enhancedInstructions;
+}
+
+/**
+ * IMPORTANT!!!!!!!!!!!!!!!!!!!!!!
+ *
+ * See header at top of file for important notes.
+ *
  * Get the instruction assistance configuration from raw SSM parameters
  *
  * @param params - The raw SSM parameters
  * @returns The instruction assistance configuration
  */
 export function getInstructionsAssistanceConfigFromRawSsmParams(params: Record<string, string>): InstructionAssistanceConfig {
-    const expectedKeys = ['output-formatting-requirements', 'default-complete-example-line', 'default-json-validation-line'];
+    const expectedKeys = ['output-formatting-requirements', 'default-complete-example-line', 'default-json-validation-line', 'typescript-backed-output-formatting-requirements'];
     const missingKeys = expectedKeys.filter((key) => !params[key]);
     if (missingKeys.length > 0) {
         throw new Error(
@@ -213,6 +306,7 @@ export function getInstructionsAssistanceConfigFromRawSsmParams(params: Record<s
     return {
         outputFormattingRequirements: params['output-formatting-requirements'],
         completeExampleInstructionLine: params['default-complete-example-line'],
-        jsonOnlyImperativeInstructionLine: params['default-json-validation-line']
+        jsonOnlyImperativeInstructionLine: params['default-json-validation-line'],
+        typescriptBackedOutputFormattingRequirements: params['typescript-backed-output-formatting-requirements']
     };
 }

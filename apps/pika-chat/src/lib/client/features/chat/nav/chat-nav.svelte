@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { PinOff, Share } from '$icons/lucide';
-    import { Button } from '$ui/shadcn/button';
-    import * as Sidebar from '$ui/shadcn/sidebar';
+    import PinOff from '$icons/lucide/pin-off';
+    import Share from '$icons/lucide/share';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
 

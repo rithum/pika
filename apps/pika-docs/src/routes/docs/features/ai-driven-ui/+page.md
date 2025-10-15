@@ -1,10 +1,19 @@
-# AI Driven UI Tags (BETA)
+# Multi-Context Widget System
 
-Pika includes advanced widgets that can render inline in the body of the chat response from the LLM. This revolutionary approach represents a shift away from canned UI experiences to UI experiences that materialize in the moment, guided by the LLM.
+Pika's Widget System enables rich, interactive UI components that can render in multiple contexts: inline within chat responses, in persistent spotlight dashboards, as modal dialogs, or in split-screen canvas views. This revolutionary approach represents a shift away from canned UI experiences to dynamic interfaces that materialize in the moment.
 
-## Dynamic UI Generation
+:::info[Web Components & Tag Definitions]
+This feature is powered by Pika's [Web Components system](/docs/features/web-components) and [Tag Definitions](/docs/developer/tags-feature). Learn more about building and deploying widgets in those guides.
+:::
 
-Traditional chatbots provide static responses with pre-built UI components. Pika's AI Driven UI feature allows the LLM to dynamically create and embed interactive widgets directly within chat responses, creating context-aware user interfaces that adapt to the conversation flow.
+## Dynamic Multi-Context Rendering
+
+Traditional chatbots provide static responses with pre-built UI components. Pika's Widget System allows widgets to render in four different contexts:
+
+- **Inline**: Embedded directly in chat responses (AI-driven)
+- **Spotlight**: Persistent dashboard above the chat input (always visible)
+- **Dialog**: Modal overlays for focused interactions
+- **Canvas**: Split-screen workspace for complex interfaces (like Claude Artifacts)
 
 ## Built-in Components
 
@@ -83,15 +92,48 @@ AI-driven UI components integrate seamlessly with the natural conversation flow.
 
 This creates a fluid experience where the UI adapts to serve the user's needs in real-time, rather than forcing users into predefined interaction patterns.
 
+## Widget Visibility Model
+
+Widget visibility is controlled at the tag definition level using `chatAppId` and `status` fields:
+
+**Global Widgets** - Available to all chat apps:
+
+```js
+{
+    chatAppId: 'chat-app-global',
+    status: 'enabled'
+}
+```
+
+**App-Specific Widgets** - Available to specific chat apps:
+
+```js
+{
+    chatAppId: 'sales-chat',  // Only visible in 'sales-chat' app
+    status: 'enabled'
+}
+```
+
+**Status Lifecycle:**
+
+- `'enabled'` - Active and available
+- `'disabled'` - Temporarily hidden
+- `'retired'` - Permanently archived
+
 ## Getting Started
 
-**NOTE:** To use the AI Driven UI (Tags) feature, it must first be enabled in your site-wide `pika-config.ts` file. Without this enablement, chat apps cannot use tags regardless of their individual configuration.
+**NOTE:** To use the Widget System, the tags feature must be enabled in your site-wide `pika-config.ts` file.
 
-To start using AI Driven UI in your chat app:
+To start using widgets in your chat app:
 
-1. Enable the tags feature in your site-wide configuration
-2. Define which tag definitions your chat app should use
-3. Create custom widgets if needed (optional)
-4. Configure the LLM with proper instructions for tag usage
+1. Enable the tags feature in site configuration: `tags: { enabled: true }`
+2. Create tag definitions with appropriate `chatAppId` and `status` values
+3. Build custom web components if needed (optional)
+4. Configure rendering contexts (`spotlight`, `inline`, `dialog`, `canvas`)
+5. Enable instruction assistance for inline widgets
 
-For detailed implementation instructions, see the [Tags Feature Developer Guide](/docs/developer/tags-feature).
+For detailed implementation instructions:
+
+- [Web Components Overview](/docs/features/web-components) - Learn about all rendering contexts
+- [Building Web Components](/docs/developer/building-web-components) - Create custom widgets
+- [Tags Feature Developer Guide](/docs/developer/tags-feature) - Manage tag definitions

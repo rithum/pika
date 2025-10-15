@@ -1,16 +1,21 @@
 <script lang="ts">
-    import { Construction, FileCode2, Key, MessageSquareText, RefreshCw, Trash2 } from '$icons/lucide';
+    import Construction from '$icons/lucide/construction';
+    import FileCode2 from '$icons/lucide/file-code-2';
+    import Key from '$icons/lucide/key';
+    import MessageSquareText from '$icons/lucide/message-square-text';
+    import RefreshCw from '$icons/lucide/refresh-cw';
+    import Trash2 from '$icons/lucide/trash-2';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import ConfirmDialog from '$ui/pika/confirm-dialog/confirm-dialog.svelte';
-    import { PikaBadge } from '$ui/pika/pika-badge';
-    import * as PikaTabs from '$ui/pika/pika-tabs';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Button } from '$ui/shadcn/button';
-    import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$ui/shadcn/card';
     import type {
         ClearConverseLambdaCacheType,
         ClearSvelteKitCacheType,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import ConfirmDialog from 'pika-ux/pika/confirm-dialog/confirm-dialog.svelte';
+    import { PikaBadge } from 'pika-ux/pika/pika-badge';
+    import * as PikaTabs from 'pika-ux/pika/pika-tabs';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Card, CardContent, CardDescription, CardHeader, CardTitle } from 'pika-ux/shadcn/card';
     import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
 

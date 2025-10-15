@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { Loader } from '$icons/lucide';
+    import Loader from '$icons/lucide/loader';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
     import { getContext } from 'svelte';
 
     interface Props {

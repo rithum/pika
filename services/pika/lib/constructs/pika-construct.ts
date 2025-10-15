@@ -210,6 +210,7 @@ export class PikaConstruct extends Construct {
             storageResources.semanticDirectiveTable,
             storageResources.sharedSessionVisitHistoryTable,
             storageResources.pinnedSessionTable,
+            storageResources.pikaS3Bucket,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain,
             memoryId,
@@ -407,6 +408,28 @@ export class PikaConstruct extends Construct {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/instruction-assistance/default-json-validation-line`,
             stringValue: 'BE ABSOLUTELY CERTAIN ANY JSON INCLUDED IS 100% VALID (especially for charts). Invalid JSON will break the user experience.',
             description: 'Default JSON validation instruction line for instruction assistance'
+        });
+
+        new ssm.StringParameter(this, 'InstructionAssistanceTypescriptBackedOutputFormattingParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/instruction-assistance/typescript-backed-output-formatting-requirements`,
+            stringValue: `**Output Formatting Requirements:**
+
+1. **Locate the Schema**: Find the \`<output_schema>\` element in this prompt, which contains TypeScript interface definitions.
+
+2. **Identify Response Type**: The **first interface** defined in the \`<output_schema>\` element specifies the exact structure your response must follow.
+
+3. **Generate Valid JSON**: Create a JSON object that strictly conforms to that first interface definition. Ensure:
+   - All required properties are included
+   - Property types match the TypeScript definitions
+   - Optional properties (marked with ? may be omitted if data is unavailable
+   - String values are properly quoted
+   - The JSON is valid and parseable
+
+4. **Enclose Response**: Your entire response MUST be wrapped in \`<answer></answer>\` tags with ONLY the JSON inside - no other text, explanations, or markdown.
+
+**Example Output:**
+\`<answer>{"property":"value","property2":"value2"}</answer>\``,
+            description: 'Default output formatting requirements for structured JSON conforming to typescript interface for instruction assistance'
         });
     }
 
@@ -1129,6 +1152,20 @@ export class PikaConstruct extends Construct {
             removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
         });
 
+        // Add GSI for querying by chatAppId and status
+        tagDefinitionsTable.addGlobalSecondaryIndex({
+            indexName: 'chatappid-status-index',
+            partitionKey: {
+                name: 'chat_app_id',
+                type: dynamodb.AttributeType.STRING
+            },
+            sortKey: {
+                name: 'status',
+                type: dynamodb.AttributeType.STRING
+            },
+            projectionType: dynamodb.ProjectionType.ALL
+        });
+
         new ssm.StringParameter(this, 'TagDefinitionsTableNameParam', {
             parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/ddb_table/pika_tag_def`,
             stringValue: tagDefinitionsTable.tableName,
@@ -1513,7 +1550,7 @@ export class PikaConstruct extends Construct {
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
-                            actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan'],
+                            actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan', 'dynamodb:BatchGetItem'],
                             resources: [tagDefinitionsTable.tableArn, `${tagDefinitionsTable.tableArn}/*`]
                         }),
                         // Memory permissions
@@ -1751,6 +1788,7 @@ export class PikaConstruct extends Construct {
         semanticDirectiveTable: dynamodb.Table,
         sharedSessionVisitHistoryTable: dynamodb.Table,
         pinnedSessionTable: dynamodb.Table,
+        pikaS3Bucket: s3.Bucket,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain,
         memoryId?: string,
@@ -1857,6 +1895,7 @@ export class PikaConstruct extends Construct {
                 SEMANTIC_DIRECTIVE_TABLE: semanticDirectiveTable.tableName,
                 SHARED_SESSION_VISIT_HISTORY_TABLE: sharedSessionVisitHistoryTable.tableName,
                 PINNED_SESSION_TABLE: pinnedSessionTable.tableName,
+                PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGE: this.props.stage,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),

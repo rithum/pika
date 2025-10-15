@@ -19,14 +19,12 @@ const config = {
         alias: {
             $lib: path.resolve('./src/lib'),
             '$lib/*': path.resolve('./src/lib/*'),
-            $ui: path.resolve('./src/lib/client-ui'),
-            '$ui/*': path.resolve('./src/lib/client-ui/*'),
-            $icons: path.resolve('./src/lib/icons'),
-            '$icons/*': path.resolve('./src/lib/icons/*'),
             $client: path.resolve('./src/lib/client'),
             '$client/*': path.resolve('./src/lib/client/*'),
             'pika-shared': path.resolve('../../packages/shared/src'),
-            'pika-shared/*': path.resolve('../../packages/shared/src/*')
+            'pika-shared/*': path.resolve('../../packages/shared/src/*'),
+            'pika-ux': path.resolve('../../packages/pika-ux/src'),
+            'pika-ux/*': path.resolve('../../packages/pika-ux/src/*')
         }
     }
 };

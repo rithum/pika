@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { Button } from '$ui/shadcn/button';
+    import { Button } from 'pika-ux/shadcn/button';
 
     function goBack() {
         history.back();

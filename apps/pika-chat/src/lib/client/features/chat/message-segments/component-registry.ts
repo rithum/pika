@@ -37,7 +37,7 @@ export class ComponentRegistry {
     //     prompt: {
     //         s3Bucket: 'pika-chat-web-components',
     //         s3Key: 'prompt-button-wc.js',
-    //         encoding: 'gzip+base64',
+    //         encoding: 'gzip',
     //         mediaType: 'application/javascript',
     //         encodedSizeBytes: 0,
     //         encodedSha256Base64: ''

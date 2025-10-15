@@ -1,14 +1,14 @@
 <script lang="ts">
-    import { X } from '$icons/lucide';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import SimpleDropdown from '$ui/pika/simple-dropdown/simple-dropdown.svelte';
-    import { Button } from '$ui/shadcn/button';
+    import X from '$icons/lucide/x';
     import {
         SESSION_INSIGHT_METRICS_AI_CONFIDENCE_LEVEL_VALUES,
         type InsightsSearchParams,
         type NameValueDescTriple,
         type SessionInsightMetricsAiConfidenceLevel,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
 
     interface Props {
         insights: InsightsSearchParams | undefined;

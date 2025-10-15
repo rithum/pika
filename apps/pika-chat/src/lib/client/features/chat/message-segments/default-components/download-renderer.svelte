@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
-    import { Download } from '$lib/icons/lucide';
-    import { Button } from '$ui/shadcn/button';
+    import Download from '$icons/lucide/download';
+    import { Button } from 'pika-ux/shadcn/button';
     import { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTagSegment } from '../segment-types';
 

@@ -1,4 +1,4 @@
-import type { ShowToastFn } from './app/types';
+import type { ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * Client-side error messages for different HTTP status codes.

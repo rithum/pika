@@ -33,7 +33,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
     const url = new URL(functionUrl);
 
     const xChatAuthToken = `Bearer ${convertToJwtString<T>(simpleUser, appConfig.jwtSecret)}`;
-    console.log('xChatAuthToken Length', xChatAuthToken.length);
+    // console.log('xChatAuthToken Length', xChatAuthToken.length);
 
     // Prepare the request object for signing
     const requestToSign = {

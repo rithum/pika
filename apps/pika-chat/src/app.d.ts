@@ -7,6 +7,10 @@ import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot
 // Type declarations for unplugin-icons virtual modules
 import 'unplugin-icons/types/svelte';
 
+// Include our custom icon declaration files
+/// <reference path="./lib/icons/ci/index.d.ts" />
+/// <reference path="./lib/icons/lucide/index.d.ts" />
+
 declare global {
     namespace App {
         interface Locals {

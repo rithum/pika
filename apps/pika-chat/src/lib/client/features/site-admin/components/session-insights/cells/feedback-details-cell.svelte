@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Badge } from '$ui/shadcn/badge';
     import type { ChatSessionFeedback } from 'pika-shared/types/chatbot/chatbot-types';
+    import { Badge } from 'pika-ux/shadcn/badge';
 
     interface Props {
         feedback: ChatSessionFeedback[];

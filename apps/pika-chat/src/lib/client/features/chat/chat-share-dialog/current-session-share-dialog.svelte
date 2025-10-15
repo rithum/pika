@@ -1,16 +1,10 @@
 <script lang="ts">
-    import { Loader } from '$icons/lucide';
-    import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Dialog from '$ui/shadcn/dialog';
+    import CreateCopyLinkButton from 'pika-ux/pika/create-copy-link-button/create-copy-link-button.svelte';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
     import { getContext } from 'svelte';
-    import { toast } from 'svelte-sonner';
     import { ChatAppState } from '../chat-app.state.svelte';
-    import CreateCopyLinkButton from '$ui/pika/create-copy-link-button/create-copy-link-button.svelte';
 
-    const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
-    let windowEl = $state<Window>();
 
     let title = $derived.by(() => {
         let result = '';
@@ -79,7 +73,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="w-[800px] max-w-[590px] sm:max-w-[590px] max-h-[90vh] overflow-y-auto">
         <Dialog.Header>
             <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Description>{description}</Dialog.Description>

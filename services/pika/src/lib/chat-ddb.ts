@@ -15,6 +15,7 @@ import type {
     RecordOrUndef,
     SharedSessionVisitHistory,
     SharedSessionVisitHistoryDynamoDb,
+    UserWidgetData,
     UserPrefs
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
@@ -123,6 +124,50 @@ export async function deleteUserPrefsForUser(userId: string): Promise<void> {
     await ddbDocClient.delete({
         TableName: getChatUserTable(),
         Key: { user_id: `${userId}/prefs` }
+    });
+}
+
+export async function getWidgetDataByUserId(userId: string, scope: string, tag: string): Promise<UserWidgetData | undefined> {
+    const result = await ddbDocClient.get({
+        TableName: getChatUserTable(),
+        Key: {
+            user_id: `${userId}/widget/${scope}/${tag}`
+        }
+    });
+
+    if (result.Item) {
+        const data = result.Item as unknown as UserWidgetData;
+        delete (data as any).user_id;
+        return data;
+    }
+
+    return undefined;
+}
+
+export async function setWidgetDataForUser(userId: string, scope: string, tag: string, values: UserWidgetData): Promise<void> {
+    // Validate size (400KB limit)
+    const jsonStr = JSON.stringify(values);
+    const sizeBytes = Buffer.byteLength(jsonStr, 'utf8');
+
+    if (sizeBytes > 400 * 1024) {
+        throw new BadRequestError(`Component values exceed 400KB limit (${Math.round(sizeBytes / 1024)}KB)`);
+    }
+
+    await ddbDocClient.put({
+        TableName: getChatUserTable(),
+        Item: {
+            ...values,
+            user_id: `${userId}/widget/${scope}/${tag}`
+        }
+    });
+}
+
+export async function deleteWidgetDataForUser(userId: string, scope: string, tag: string): Promise<void> {
+    await ddbDocClient.delete({
+        TableName: getChatUserTable(),
+        Key: {
+            user_id: `${userId}/widget/${scope}/${tag}`
+        }
     });
 }
 

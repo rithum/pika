@@ -1,5 +1,3 @@
-//TODO: make sure to turn on model invocation logging in aws
-
 import type { ActionGroupInvocationInput, AgentCollaboration, FunctionDefinition, RetrievalFilter, Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 import type { Role } from '@aws-sdk/client-bedrock-agentcore';
 
@@ -654,6 +652,23 @@ export type UserRole = PikaUserRole | (string & { __pika?: never });
 
 export type RecordOrUndef = Record<string, string | undefined> | undefined;
 
+export interface UserCognitoIdentity {
+    cognitoIdentityId: string;
+    cognitoAccessToken: string;
+}
+
+export interface UserAwsCredentials {
+    accessKeyId: string;
+    secretKey: string;
+    sessionToken: string;
+    expiration: string;
+}
+
+export interface UserAwsCredentialsResponse {
+    success: boolean;
+    awsCredentials: UserAwsCredentials;
+}
+
 /**
  * Represents a user in the chat system with their associated features and preferences.
  * This is saved in the chat user database.
@@ -866,6 +881,8 @@ export interface AgentInstructionChatAppOverridableFeature {
     completeExampleInstructionLine?: string;
     jsonOnlyImperativeInstructionEnabled: boolean;
     jsonOnlyImperativeInstructionLine?: string;
+    includeTypescriptBackedOutputFormattingRequirements: boolean;
+    typescriptBackedOutputFormattingRequirements?: string;
 }
 
 export interface InstructionAssistanceConfig {
@@ -873,6 +890,7 @@ export interface InstructionAssistanceConfig {
     tagInstructions?: string;
     completeExampleInstructionLine: string;
     jsonOnlyImperativeInstructionLine: string;
+    typescriptBackedOutputFormattingRequirements: string;
 }
 
 export interface TagsChatAppOverridableFeature {
@@ -1001,18 +1019,54 @@ export interface ConverseRequest extends BaseRequestData {
      * If provided, this will be used to determine the invocation mode of the converse request.
      *
      * If 'chat-app', then the converse request is a chat app request.
+     *
      * If 'direct-agent-invoke', then the converse request is a direct agent invoke request and is not
      * in the context of a chat app.  Since we are adding mode after the fact, if mode is provided
      * and it doesn't match what we expect, we will throw an error (chat-app requires that chatAppId is provided
      * and direct-agent-invoke requires that chatAppId is not provided).
      *
+     * If 'chat-app-component', then the converse request is coming from a chat app component and is not
+     * being initiated by the end user.  This is used to allow the component to invoke the agent directly
+     * without the need for the end user to initiate the request.  These do not show up as user-created sessions
+     * when we query for the users's sessions in this chat app.
+     *
+     * They are associated with the user and the chat app and the component in question.  When this mode is used,
+     * the caller must provide the chatAppId and the agentId and the complete "tag" that represents the component doing the calling.
+     * Tag definitions have both a scope and a tag.  Further, the `componentAgentInstructionName` must also provide so we
+     * know which set of instructions from the tag definition to use.
+     *
      * If invocationMode is not provided, uses the presence or absence of chatAppId to determine the mode (if chatAppId
      * is provided, then it's a chat app request, otherwise it's a direct agent invoke request).
      */
     invocationMode?: ConverseInvocationMode;
+
+    /**
+     * When invocationMode is 'chat-app-component', then this is the requiredconfiguration for the chat app component invocation.
+     */
+    chatAppComponentConfig?: ChatAppComponentConfig;
 }
 
-export const ConverseInvocationModes = ['chat-app', 'direct-agent-invoke'] as const;
+/**
+ * This is the configuration for a chat app component invocation to the converse lambda function.
+ */
+export interface ChatAppComponentConfig {
+    /**
+     * The name of the set of instructions to use for the component invocation.
+     * This is the key in the `componentAgentInstructionsMd` record in the tag definition as in
+     *
+     * `tagDef.componentAgentInstructionsMd[componentAgentInstructionName]`
+     */
+    componentAgentInstructionName: string;
+
+    /**
+     * The tag definition that represents the component doing the calling.  We use this to look up the
+     * right tag definition so we can get the correct instructions.  Note that you will get an exception
+     * if the tag definition isn't associated with this chat app or isn't marked as `chat-app-global`.
+     */
+    componentTagDefinition: TagDefinitionLite;
+}
+
+export const ConverseInvocationModes = ['chat-app', 'direct-agent-invoke', 'chat-app-component'] as const;
 export type ConverseInvocationMode = (typeof ConverseInvocationModes)[number];
 
 export interface ChatTitleUpdateRequest extends BaseRequestData {
@@ -1118,6 +1172,56 @@ export interface SetChatUserPrefsResponse {
 
     /** If successful, returns the new complete prefs object. */
     prefs?: UserPrefs;
+    error?: string;
+}
+
+/**
+ * Arbitrary key-value storage for web component state.
+ * Scoped to user + component (scope.tag).
+ * Max 400KB per component.
+ */
+export type UserWidgetData = Record<string, unknown>;
+
+export interface GetUserWidgetDataRequest {
+    scope: string;
+    tag: string;
+}
+
+export interface GetUserWidgetDataResponse {
+    success: boolean;
+    userId: string;
+    scope: string;
+    tag: string;
+    data?: UserWidgetData;
+    error?: string;
+}
+
+export interface SetUserWidgetDataRequest {
+    scope: string;
+    tag: string;
+    data: UserWidgetData;
+    partial?: boolean; // If true, merge with existing data
+}
+
+export interface SetUserWidgetDataResponse {
+    success: boolean;
+    userId: string;
+    scope: string;
+    tag: string;
+    data: UserWidgetData;
+    error?: string;
+}
+
+export interface DeleteUserWidgetDataRequest {
+    scope: string;
+    tag: string;
+}
+
+export interface DeleteUserWidgetDataResponse {
+    success: boolean;
+    userId: string;
+    scope: string;
+    tag: string;
     error?: string;
 }
 
@@ -2667,6 +2771,15 @@ export interface AgentInstructionAssistanceFeature {
         enabled: boolean;
         line?: string;
     };
+
+    /**
+     * This is only used for component invocation instructions.  If true, a line will be added to the component invocation
+     * instructions that instructs the agent to only respond with valid JSON conforming to the TypeScript interface defined in the <output_schema> block.
+     */
+    includeTypescriptBackedOutputFormattingRequirements?: {
+        enabled: boolean;
+        line?: string;
+    };
 }
 
 export type SegmentType = 'text' | 'tag';
@@ -4191,6 +4304,38 @@ export interface ComponentTagDefinition<T extends TagDefinitionWidget> {
     definition: TagDefinition<T>;
 }
 
+export const TAG_DEFINITION_STATUSES = ['enabled', 'disabled', 'retired'] as const;
+export type TagDefinitionStatus = (typeof TAG_DEFINITION_STATUSES)[number];
+
+export interface SpotlightContextConfig {
+    enabled: boolean;
+    isDefault?: boolean;
+    displayOrder?: number;
+}
+
+export interface InlineContextConfig {
+    enabled: boolean;
+}
+
+export interface DialogContextConfig {
+    enabled: boolean;
+    size?: 'small' | 'medium' | 'large' | 'fullscreen';
+}
+
+export interface CanvasContextConfig {
+    enabled: boolean;
+}
+
+export const WIDGET_RENDERING_CONTEXT_TYPES = ['spotlight', 'inline', 'dialog', 'canvas'] as const;
+export type WidgetRenderingContextType = (typeof WIDGET_RENDERING_CONTEXT_TYPES)[number];
+
+export interface WidgetRenderingContexts {
+    spotlight?: SpotlightContextConfig;
+    inline?: InlineContextConfig;
+    dialog?: DialogContextConfig;
+    canvas?: CanvasContextConfig;
+}
+
 export interface TagDefinition<T extends TagDefinitionWidget> {
     /**
      * The tag type this definition is for.  If the tag is one of the built-in pika tags, then you are overriding the built-in pika tag instructions
@@ -4268,8 +4413,34 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
     /** You must be explicit about whether this tag is a widget or not and if so what kind. */
     widget: T;
 
-    /** If true, the tag will be disabled and not available to the LLM or tools. */
-    disabled?: boolean;
+    /**
+     * The chat app ID this tag is associated with.
+     * Use the special value 'chat-app-global' for tags available to all chat apps.
+     * REQUIRED: Every tag must be associated with either a specific chat app or be global.
+     */
+    chatAppId: string;
+
+    /**
+     * The status of this tag definition.
+     * - 'enabled': Tag is active and available for use
+     * - 'disabled': Tag is temporarily disabled
+     * - 'retired': Tag is permanently retired/deprecated
+     *
+     * REQUIRED: Must be explicitly set. If not provided, defaults to 'enabled'.
+     * This is critical for the GSI to properly index all records.
+     */
+    status: TagDefinitionStatus;
+
+    /**
+     * Rendering contexts this widget supports.  Required.  Must have at least one context.
+     */
+    renderingContexts: WidgetRenderingContexts;
+
+    /**
+     * Indicates this is a mock/demo tag definition for development/testing purposes.
+     * Mock tags may be filtered out in production environments.
+     */
+    isMock?: boolean;
 
     /**
      * If `canBeGeneratedByLlm` is true, you must provide instructions for the LLM to generate the tag since chat app/agent builders can choose
@@ -4299,6 +4470,65 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
      */
     llmInstructionsMd?: string;
 
+    /**
+     * If the code that backs your tag definition, whether compile in or a separate web component, has need to
+     * directly invoke the agent to get assistance from an LLM, then you can create named sets of instructions
+     * so when the component makes the request for help from the agent, the agent will know which set of instructions
+     * to use.  For example, let's say you have a Spotlight component defined as a tag definition that needs to
+     * on startup get a list of cities and then make a request to the agent to get the weather for the list of cities.
+     * The default agent instructions for the agent probably woudn't return the weather information in a structured
+     * manner.  So, you'd want to create a new set of instructions for the agent to use, with the same set of tools,
+     * that the component code would cause to be used by asking for a direct agent invocation initiated from the
+     * code in the browser and that references the name of the instructions to use that will retrieve the
+     * weather as structured json let's say and that includes the list of cities you want the weather for.
+     *
+     * That way, the server side converse lambda function that responds to direct agent invocation requests will know
+     * which set of instructions to use.  It's not a good idea to allow the client to define the entire set of instructions.
+     *
+     * It's too risky.  So, here's an example of a good set of instructions that you could use.  Note that the input value
+     * sent from the browser webcomponent in this case would just be a list of locations that we would append to the bottom
+     * of the following.  Also note that the {{typescript-backed-output-formatting-requirements}} placeholder is used to
+     * inject the typescript backed output formatting requirements which are stored in S3.
+     *
+     * ```markdown
+     * You are **WeatherDataLookupAgent**, a highly skilled assistant used to turn a list of locations into weather data.
+     * Below you will find the list of locations you need to look up the weather for using the associated tools provided.
+     *
+     * <output_schema>
+     * interface WeatherData {
+     *     // ISO 8601 date string of when this data was generated
+     *     date: string;
+     *
+     *     // the weather data  itself
+     *     locations: LocationWeatherInfo[];
+     * }
+     *
+     * interface LocationWeatherInfo {
+     *     // The name of the location in a human readable format
+     *     locationName: string;
+     *
+     *     // longitude for the location. Optional just in case you can't get it.
+     *     lon?: string;
+     *
+     *     // latitude for the location.  Optional just in case you can't get it.
+     *     lat?: string;
+     *
+     *     // The temperature in celsius
+     *     tempC: string;
+     *
+     *     // The temperature in fahrenheit
+     *     tempF: string;
+     * }
+     * </output_schema>
+     *
+     * {{typescript-backed-output-formatting-requirements}}
+     * ```
+     *
+     * The key in the record is referred to as the "componentAgentInstructionName" and the value is the markdown string of the instructions.
+     *
+     */
+    componentAgentInstructionsMd?: Record<string, string>;
+
     /** The user id of the user who created the tag definition */
     createdBy: string;
 
@@ -4317,10 +4547,49 @@ export interface TagDefinitionLite {
     scope: string;
 }
 
-export type TagDefinitionForCreateOrUpdate<T extends TagDefinitionWidget = TagDefinitionWidget> = Omit<
-    TagDefinition<T>,
-    'createdBy' | 'lastUpdatedBy' | 'createDate' | 'lastUpdate'
->;
+/**
+ * Web component definition for create/update operations.
+ * The s3Bucket field is omitted because it's filled in by the backend.
+ */
+export interface TagDefinitionWebComponentForCreateOrUpdate extends Omit<TagDefinitionWebComponent, 's3'> {
+    s3?: {
+        /** Must follow pattern: wc/${scope}/fileName.js.gz */
+        s3Key: string;
+    };
+}
+
+/**
+ * Widget definition for web components in create/update operations.
+ * Uses TagDefinitionWebComponentForCreateOrUpdate which omits the backend-managed s3Bucket field.
+ */
+export interface TagDefinitionWidgetWebComponentForCreateOrUpdate extends TagDefinitionWidgetBase {
+    type: 'web-component';
+    webComponent: TagDefinitionWebComponentForCreateOrUpdate;
+}
+
+/**
+ * Union type for all widget types in create/update operations.
+ * Uses the specialized web component type that omits backend-managed fields.
+ */
+export type TagDefinitionWidgetForCreateOrUpdate =
+    | TagDefinitionWidgetPassThrough
+    | TagDefinitionWidgetPikaCompiledIn
+    | TagDefinitionWidgetCustomCompiledIn
+    | TagDefinitionWidgetWebComponentForCreateOrUpdate;
+
+/**
+ * Tag definition for create/update operations.
+ * Omits backend-managed fields and uses TagDefinitionWidgetForCreateOrUpdate which excludes
+ * backend-managed fields from nested structures (like s3Bucket in web components).
+ */
+export type TagDefinitionForCreateOrUpdate<T extends TagDefinitionWidgetForCreateOrUpdate = TagDefinitionWidgetForCreateOrUpdate> = Omit<
+    TagDefinition<TagDefinitionWidget>,
+    'createdBy' | 'lastUpdatedBy' | 'createDate' | 'lastUpdate' | 'widget'
+> & {
+    widget: T;
+};
+
+export const TAG_DEFINITION_WIDGET_TYPES = ['pass-through', 'pika-compiled-in', 'custom-compiled-in', 'web-component'] as const;
 
 /**
  * Pika compiled-in components are those defined as part of the compiled svelte front end code in `apps/pika-chat/src/lib/client/features/chat/message-segments/default-components/index.ts`.
@@ -4332,7 +4601,7 @@ export type TagDefinitionForCreateOrUpdate<T extends TagDefinitionWidget = TagDe
  *
  * Pass through means we will simply pass this through and not process the tag in any way.  This is useful for tags that are not meant to be rendered in the front end.
  */
-export type TagDefinitionWidgetType = 'pass-through' | 'pika-compiled-in' | 'custom-compiled-in' | 'web-component';
+export type TagDefinitionWidgetType = (typeof TAG_DEFINITION_WIDGET_TYPES)[number];
 
 export interface TagDefinitionWidgetPikaCompiledIn extends TagDefinitionWidgetBase {
     type: 'pika-compiled-in';
@@ -4360,18 +4629,57 @@ export interface TagDefinitionWidgetBase {
 
 export type TagDefinitionWidget = TagDefinitionWidgetPassThrough | TagDefinitionWidgetPikaCompiledIn | TagDefinitionWidgetCustomCompiledIn | TagDefinitionWidgetWebComponent;
 
-export type TagWebComponentEncoding = 'gzip+base64';
+export type TagWebComponentEncoding = 'gzip';
 
 export interface TagDefinitionWebComponent {
-    type: 'web-component';
-    s3Bucket: string;
-    s3Key: string;
+    /**
+     * Direct URL to the web component JavaScript file.
+     * Use this if the component is hosted externally (CDN, separate server, etc.)
+     *
+     * Either `url` OR `s3` must be provided, but not both.
+     */
+    url?: string;
+
+    /**
+     * S3 location of the web component JavaScript file in the Pika S3 bucket.
+     * If provided, the system will serve it via /api/webcomponent/:scope/:tag
+     *
+     * Either `url` OR `s3` must be provided, but not both.
+     */
+    s3?: {
+        /** Must be the Pika system S3 bucket (retrieved from SSM parameter) */
+        s3Bucket: string;
+        /** Must follow pattern: wc/${scope}/fileName.js.gz */
+        s3Key: string;
+    };
+
+    /**
+     * The actual custom element name that the JavaScript file defines.
+     * This is the name used in customElements.define() in the JavaScript file.
+     *
+     * If not provided, defaults to `${scope}.${tag}` (e.g., "pika.mock-spotlight-1").
+     *
+     * Use this when:
+     * - The JavaScript file defines a custom element with a different name than the tag
+     * - Multiple tag definitions share the same JavaScript file that defines one custom element
+     * - A JavaScript bundle file defines multiple custom elements
+     *
+     * Examples:
+     * - "hello-world" for a file that calls customElements.define("hello-world", ...)
+     * - "my-widget" for a file that calls customElements.define("my-widget", ...)
+     */
+    customElementName?: string;
 
     encoding: TagWebComponentEncoding;
     mediaType: 'application/javascript';
     encodedSizeBytes: number; // size of the stored object (post-encoding)
 
-    /** Hash of EXACT S3 object bytes (post-encoding) */
+    /**
+     * Hash of the GZIPPED file bytes as stored in S3 (NOT the decompressed JavaScript).
+     * This hash is used for integrity validation when serving the file from S3.
+     * When uploading to S3: hash = SHA256(gzippedBytes).toBase64()
+     * When serving: compare stored hash to SHA256(gzippedBytesFromS3).toBase64()
+     */
     encodedSha256Base64: string;
 }
 
@@ -4392,28 +4700,33 @@ export interface TagDefinitionCreateOrUpdateResponse {
 }
 
 /**
- * You don't have to provide anything in this request if you don't want to.  If you don't pass in tagsDesire...
+ * Search for tag definitions with two primary modes:
  *
- * If this is being used in the context of admin API then
- * you will get all tag definitions.  If this is being used in the context of a chat app user, then you will get all tag defs not disabled.
+ * MODE 1 - Get all tags for a chat app (including global):
+ *   - Pass chatAppId
+ *   - System automatically queries BOTH the specified chatAppId AND 'chat-app-global'
+ *   - Uses GSI (chatAppId-status-index) for efficient retrieval
+ *   - Returns all enabled tags for the chat app + all global tags
  *
+ * MODE 2 - Get specific tags by scope/tag:
+ *   - Pass tagsDesired array
+ *   - Returns only the requested tags (if they exist and user has access)
+ *   - Uses primary key lookup (scope + tag)
  *
- * If you do pass in tagsDesired, then our dynamodb query will scan the table for all rows (should be performant since there won't be more than a
- * few hundred tag defs at absolute most) and then will filter them to only those that match the tagsDesired.  Note if this is being called in the
- * context of a chat app user, then you will get all tag defs not disabled even if you pass in tagsDesired.
- *
- * Instructions can be big so unless you ask for them, we will not return them.
+ * If used in admin context, returns all tag definitions (including disabled/retired).
+ * If used in chat app context, filters to only 'enabled' status.
  */
 export interface TagDefinitionSearchRequest {
+    /** Specific tags to retrieve (MODE 2) */
     tagsDesired?: TagDefinitionLite[];
 
-    /** If not true, instructions will not be returned to save space. */
+    /** Chat app ID to filter tags for (MODE 1) - system automatically includes global tags */
+    chatAppId?: string;
+
+    /** If not true, instructions will not be returned to save space */
     includeInstructions?: boolean;
 
-    /**
-     * If you pass in a pagination token, we will return the next page of tag defs. Be sure to include your original
-     * request (tagsDesired, includeInstructions) if they were present in the original request.
-     */
+    /** Pagination token for continued queries */
     paginationToken?: Record<string, any> | undefined;
 }
 
@@ -4590,4 +4903,144 @@ export interface RecordShareVisitRequest {
 export interface RecordShareVisitResponse {
     success: boolean;
     error?: string;
+}
+
+export interface ShowToastOptions {
+    type: 'success' | 'error' | 'warning' | 'info';
+    duration?: number | 'infinite';
+}
+
+export type ShowToastFn = (message: string, options: ShowToastOptions) => void;
+
+export const ShareSessionStateList = ['disable-share-feature', 'shared-by-me', 'shared-by-someone-else', 'not-shared'] as const;
+export type ShareSessionState = (typeof ShareSessionStateList)[number];
+
+/**
+ * Options for invokeAgentAsComponent() method
+ */
+export interface InvokeAgentAsComponentOptions {
+    /**
+     * Callback for streaming traces from the agent
+     */
+    onTrace?: (trace: any) => void;
+
+    /**
+     * Callback for progress updates (partial JSON text as it streams)
+     */
+    onProgress?: (partialText: string) => void;
+
+    /**
+     * Callback for agent thinking/rationale
+     */
+    onThinking?: (rationale: string) => void;
+
+    /**
+     * Callback for tool invocations
+     */
+    onToolCall?: (toolCall: { name: string; params: any }) => void;
+
+    /**
+     * Whether to include full traces in callbacks (default: false)
+     */
+    includeTraces?: boolean;
+
+    /**
+     * Request timeout in milliseconds (default: 60000)
+     */
+    timeout?: number;
+}
+
+/**
+ * Action button that appears in the widget's chrome (title bar, toolbar, etc.)
+ *
+ * @example
+ * ```js
+ * const action: WidgetAction = {
+ *   id: 'refresh',
+ *   title: 'Refresh data',
+ *   iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">...</svg>',
+ *   callback: async () => { await fetchData(); }
+ * };
+ * ```
+ */
+export interface WidgetAction {
+    /** Unique identifier for this action */
+    id: string;
+
+    /** Tooltip/label for the action (also button text in dialog context) */
+    title: string;
+
+    /** SVG markup string for the icon (e.g., from extractIconSvg() helper) */
+    iconSvg: string;
+
+    /** Whether action is currently disabled */
+    disabled?: boolean;
+
+    /** If true, renders as default/prominent button (used in dialog context) */
+    primary?: boolean;
+
+    /** Handler when clicked */
+    callback: () => void | Promise<void>;
+}
+
+/**
+ * Metadata that widgets register with the parent app
+ *
+ * @example
+ * ```js
+ * const metadata: WidgetMetadata = {
+ *   title: 'My Widget',
+ *   iconSvg: '<svg>...</svg>',
+ *   iconColor: '#001F3F',
+ *   actions: [
+ *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() }
+ *   ]
+ * };
+ * ```
+ */
+export interface WidgetMetadata {
+    /** Widget title shown in chrome */
+    title: string;
+
+    /** Optional icon SVG markup for the widget title */
+    iconSvg?: string;
+
+    /** Optional color for the widget icon (hex, rgb, or CSS color name) */
+    iconColor?: string;
+
+    /** Optional action buttons */
+    actions?: WidgetAction[];
+
+    /** Optional loading status */
+    loadingStatus?: {
+        loading: boolean;
+        loadingMsg?: string;
+    };
+}
+
+/**
+ * Internal state tracked for each widget instance
+ */
+export interface WidgetMetadataState extends WidgetMetadata {
+    /** Unique instance ID for this widget */
+    instanceId: string;
+
+    /** Widget scope (e.g., 'weather', 'pika') */
+    scope: string;
+
+    /** Widget tag (e.g., 'favorite-cities') */
+    tag: string;
+
+    /** Rendering context (spotlight, canvas, dialog, inline) */
+    renderingContext: WidgetRenderingContextType;
+}
+
+export interface IUserWidgetDataStoreState {
+    readonly initialized: boolean;
+    readonly data: UserWidgetData | undefined;
+    readonly showToast: ShowToastFn;
+    refreshDataFromServer(): Promise<void>;
+    getValue<T>(key: string): Promise<T | undefined>;
+    setValue(key: string, value: unknown): Promise<void>;
+    deleteValue(key: string): Promise<void>;
 }

@@ -1,7 +1,14 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { searchTagDefinitions } from '$lib/server/chat-apis';
+import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { doesUserNeedToProvideDataOverrides, handleApiGatewayError, isUserAllowedToUseUserDataOverrides, isUserContentAdmin } from '$lib/server/utils';
+import {
+    doesUserNeedToProvideDataOverrides,
+    handleApiGatewayError,
+    isUserAllowedToUseUserDataOverrides,
+    isUserContentAdmin,
+    parseWebComponentUrlsFromEnvVar
+} from '$lib/server/utils';
 import { error } from '@sveltejs/kit';
 import type { ChatApp, ChatAppMode, CustomDataUiRepresentation, TagDefinition, TagDefinitionWidget, UserDataOverrideSettings } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
@@ -86,7 +93,8 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         do {
             const response = await searchTagDefinitions(locals.user.userId, {
                 includeInstructions: false, // We don't need instructions for frontend display
-                paginationToken
+                paginationToken,
+                chatAppId: chatApp.chatAppId
             });
 
             tagDefinitions.push(...response.tagDefinitions);
@@ -106,6 +114,19 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         }
     }
 
+    // If we're running locally we need to check for the presence of a WEB_COMPONENT_URLS that may override web copmonent s3/url locations
+    // for local testing.
+    let webComponentUrls: Record<string, string> | undefined;
+    if (appConfig.isLocal) {
+        try {
+            const webComponentUrlsStr = appConfig.getArbitraryConfigValue('WEB_COMPONENT_URLS');
+
+            webComponentUrls = parseWebComponentUrlsFromEnvVar(webComponentUrlsStr);
+        } catch (e) {
+            // It's not set, keep going.
+        }
+    }
+
     return {
         chatApp,
         userDataOverrideSettings,
@@ -115,6 +136,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         tagDefinitions,
         mode: (modeParam ?? 'standalone') as ChatAppMode,
         error: errorParam,
-        shareId: shareParam
+        shareId: shareParam,
+        ...(webComponentUrls ? { webComponentUrls } : {})
     };
 };

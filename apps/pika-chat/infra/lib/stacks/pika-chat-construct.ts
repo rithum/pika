@@ -12,10 +12,19 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { HostedZone } from 'aws-cdk-lib/aws-route53';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
+import { readFileSync } from 'fs';
+import * as path from 'path';
 import { TagDefinitionsJsonFile } from 'pika-shared/types/chatbot/chatbot-types.js';
+import { fileURLToPath } from 'url';
+import { gzipSync } from 'zlib';
 import { generateKmsKeyAliasName } from '../../../src/lib/server/encryption/kms-utils';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const COOKIE_MAX_AGE_HOURS = 12;
 const KEY_ROTATION_INTERVAL_HOURS = 12;
@@ -530,6 +539,14 @@ export class PikaChatConstruct extends Construct {
         // Create tag definition custom resources
         this.createTagDefinitionCustomResources(props.tagDefinitions, props.stage, props.pikaServiceProjNameKebabCase);
 
+        // Deploy mock tags S3 assets in non-production environments
+        // Note: Tag registration (both built-in and mock) should be done via upload-tag-defs tool
+
+        //TODO: remove this once we are ready to remove the mock tags feature completely
+        // if (props.stage !== 'prod' && props.stage !== 'production') {
+        //     this.deployMockWebComponents(pikaS3Bucket);
+        // }
+
         // Create the Fargate service
         this.service = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${props.projNameTitleCase}FargateService`, {
             cluster: this.cluster,
@@ -626,5 +643,48 @@ export class PikaChatConstruct extends Construct {
         });
 
         console.log(`Created ${tagDefinitions.tagDefs.length} tag definition custom resources`);
+    }
+
+    private deployMockWebComponents(pikaBucketName: string): void {
+        console.log('Deploying mock web components for non-production environment...');
+
+        // Get the Pika S3 bucket reference
+        const pikaBucket = s3.Bucket.fromBucketName(this, 'PikaS3Bucket', pikaBucketName);
+
+        // Path to mock tags directory (relative to this file)
+        const mockTagsPath = path.resolve(__dirname, '../../../src/lib/mock-tags');
+        const webComponentsPath = path.join(mockTagsPath, 'webcomponents');
+
+        // Deploy hello-world.js to S3
+        // We need to create a temporary gzipped version for CDK deployment
+        const tempDir = path.join(__dirname, '../../../.temp-mock-tags');
+        const fs = require('fs');
+
+        // Create temp directory if it doesn't exist
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        // Gzip hello-world.js (stored as .js.txt to avoid TypeScript checking)
+        const helloWorldPath = path.join(webComponentsPath, 'hello-world.js.txt');
+        if (fs.existsSync(helloWorldPath)) {
+            const content = readFileSync(helloWorldPath, 'utf-8');
+            const gzipped = gzipSync(content);
+            const gzippedPath = path.join(tempDir, 'hello-world.js.gz');
+            fs.writeFileSync(gzippedPath, gzipped);
+
+            // Deploy to S3
+            new s3deploy.BucketDeployment(this, 'MockWebComponentsDeployment', {
+                sources: [s3deploy.Source.asset(tempDir)],
+                destinationBucket: pikaBucket,
+                destinationKeyPrefix: 'wc/pika/',
+                prune: false
+            });
+
+            console.log('Mock web components uploaded to S3');
+            console.log('Note: Run "pnpm run upload-tag-defs" to register all tag definitions manually (built-in + mock)');
+        } else {
+            console.log('hello-world.js not found at:', helloWorldPath);
+        }
     }
 }

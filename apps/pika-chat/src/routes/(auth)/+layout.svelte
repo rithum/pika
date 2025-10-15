@@ -4,19 +4,19 @@
     import { AppState } from '$client/app/app.state.svelte';
     import AppSettings from '$client/app/settings/app-settings.svelte';
     import { hasUserDataChanged } from '$lib/utils/user-data-version';
-    import Button from '$ui/shadcn/button/button.svelte';
-    import * as Dialog from '$ui/shadcn/dialog';
-    import { Toaster } from '$ui/shadcn/sonner';
-    import { toast } from 'svelte-sonner';
     import type {
         ChatAppLite,
         ChatUser,
         CustomDataUiRepresentation,
         HomePageSiteFeature,
         LogoutFeature,
+        ShowToastOptions,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import Button from 'pika-ux/shadcn/button/button.svelte';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Toaster } from 'pika-ux/shadcn/sonner';
     import { setContext, type Snippet } from 'svelte';
-    import type { ShowToastOptions } from '$lib/client/app/types';
+    import { toast } from 'svelte-sonner';
 
     interface Props {
         data: {
@@ -219,7 +219,7 @@
             }
         }}
     >
-        <Dialog.Content>
+        <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
             <Dialog.Title>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Dialog.Title>
 
             {appState.logoutSiteFeature.dialogDescription ?? 'Are you sure you want to logout?'}

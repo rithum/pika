@@ -1,4 +1,3 @@
-import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 import { getCodeChar, getHotKeyDisplay, getHotKeyForDisplay } from '$lib/utils';
 import type { Page } from '@sveltejs/kit';
 import type {
@@ -10,19 +9,23 @@ import type {
     CustomDataUiRepresentation,
     HomePageSiteFeature,
     LogoutFeature,
+    ShowToastFn,
     SiteFeatures,
     TagDefinition,
     TagDefinitionWidget,
     UserDataOverrideSettings
 } from 'pika-shared/types/chatbot/chatbot-types';
+import type { IAppState } from 'pika-shared/types/chatbot/webcomp-types';
+import { IsMobile } from 'pika-ux/shadcn/is-mobile.svelte';
+import type { Component } from 'svelte';
 import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
 import { SiteAdminState } from '../features/site-admin/site-admin.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
-import type { FetchZ, HotKey, ShowToastFn } from './types';
+import type { FetchZ, HotKey } from './types';
 
-export class AppState {
+export class AppState implements IAppState {
     #settings: AppSettingsState | undefined;
     #chatApps = $state<Record<string, ChatAppState>>({});
     #identity: IdentityState;
@@ -78,7 +81,7 @@ export class AppState {
         showToast: ShowToastFn
     ) {
         this.#isMobile = new IsMobile();
-        this.#identity = new IdentityState(user, showToast);
+        this.#identity = new IdentityState(user, showToast, fetchz);
         this.#customDataUiRepresentation = customDataUiRepresentation;
         this.#homePageSiteFeature = homePageSiteFeature;
         this.#logoutSiteFeature = logoutSiteFeature;
@@ -96,7 +99,9 @@ export class AppState {
         // override the custom data ui representation for a specific chat app
         customDataUiRepresentation: CustomDataUiRepresentation | undefined,
         mode: ChatAppMode,
-        tagDefinitions: TagDefinition<TagDefinitionWidget>[]
+        tagDefinitions: TagDefinition<TagDefinitionWidget>[],
+        webComponentRenderer: Component<any>,
+        webComponentUrls: Record<string, string> | undefined
     ): ChatAppState {
         if (!this.#page) {
             throw new Error('Page object is not set in app state when trying to add chat app');
@@ -118,7 +123,9 @@ export class AppState {
                 customDataUiRepresentation,
                 mode,
                 tagDefinitions,
-                this.#showToast
+                this.#showToast,
+                webComponentRenderer,
+                webComponentUrls
             );
         }
         return this.#chatApps[chatApp.chatAppId];

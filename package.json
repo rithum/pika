@@ -27,5 +27,10 @@
     "packageManager": "pnpm@10.9.0",
     "dependencies": {
         "dotenv": "catalog:"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "esbuild"
+        ]
     }
 }

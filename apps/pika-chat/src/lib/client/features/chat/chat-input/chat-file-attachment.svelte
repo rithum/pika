@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { File, X } from '$lib/icons/lucide';
+    import File from '$icons/lucide/file';
+    import X from '$icons/lucide/x';
     import type { UploadInstance } from '../../upload/upload-instance.svelte';
 
     interface Props {

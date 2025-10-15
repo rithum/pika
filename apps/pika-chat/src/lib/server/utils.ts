@@ -308,3 +308,25 @@ export function handleApiGatewayError(e: unknown, operation: string): never {
 
     throw error(500, 'Unknown error occurred');
 }
+
+/**
+ * Parse WEB_COMPONENT_URLS environment variable.
+ *
+ * Format: {scope}.{tag}::{url};{scope}.{tag}::{url}
+ *
+ * Example:
+ * WEB_COMPONENT_URLS='weather.favorite-cities::http://localhost:5173/favorite-cities.js;weather.city-selector::http://localhost:5173/city-selector.js'
+ *
+ * Note: Uses double colon (::) to separate key from URL to avoid conflicts with URL colons.
+ */
+export function parseWebComponentUrlsFromEnvVar(envVar: string): Record<string, string> | undefined {
+    if (envVar) {
+        const result: Record<string, string> = {};
+        const parts = envVar.split(';');
+        for (const part of parts) {
+            const [key, value] = part.split('::');
+            result[key] = value;
+        }
+        return result;
+    }
+}

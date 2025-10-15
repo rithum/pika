@@ -1,16 +1,16 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { assert } from '$lib/utils';
-    import List from '$ui/pika/list/list.svelte';
-    import PopupHelp from '$ui/pika/popup-help/popup-help.svelte';
-    import { Checkbox } from '$ui/shadcn/checkbox';
-    import { Label } from '$ui/shadcn/label';
     import {
         type ChatApp,
         type SimpleOption,
         type UserRole,
         type UserType,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import List from 'pika-ux/pika/list/list.svelte';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Label } from 'pika-ux/shadcn/label';
     import { getContext } from 'svelte';
 
     interface Props {

@@ -1,10 +1,8 @@
-import type { FetchZ, ShowToastFn } from '$client/app/types';
+import type { FetchZ } from '$client/app/types';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import type { AppState } from '$lib/client/app/app.state.svelte';
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 import { checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$lib/client/util';
-import type { ServerSideTableState } from '$ui/pika/pika-table/types';
-import type { SidebarState } from '$ui/shadcn/sidebar/context.svelte';
 import type { Page } from '@sveltejs/kit';
 import type {
     AddChatSessionFeedbackResponse,
@@ -27,6 +25,7 @@ import type {
     SemanticDirectiveCreateOrUpdateResponse,
     SemanticDirectiveDeleteResponse,
     SessionSearchResponse,
+    ShowToastFn,
     SimpleOption,
     SiteAdminCommand,
     SiteAdminRequest,
@@ -40,6 +39,8 @@ import type {
     UpdateChatSessionFeedbackResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { type ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ServerSideTableState } from 'pika-ux/pika/pika-table/types';
+import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import type { Snippet } from 'svelte';
 import type { ComponentRegistry } from '../chat/message-segments/component-registry';
 import { InstructionAugmentationState } from './components/instruction-augmentation/instruction-augmentation.state.svelte';
@@ -358,8 +359,7 @@ export class SiteAdminState {
             } else if (request.command === 'clearConverseLambdaCache') {
                 const response = json as ClearConverseLambdaCacheResponse;
                 if (response.success) {
-                    // Cache cleared successfully - could add a toast notification here
-                    console.log('Converse lambda cache cleared');
+                    this.showToast('Converse lambda cache cleared', { type: 'success' });
                 }
             } else if (request.command === 'addChatSessionFeedback') {
                 const response = json as AddChatSessionFeedbackResponse;
@@ -470,8 +470,8 @@ export class SiteAdminState {
             } else if (request.command === 'clearSvelteKitCaches') {
                 const response = json as ClearSvelteKitCachesResponse;
                 if (response.success) {
-                    // Cache cleared successfully - could add a toast notification here
-                    console.log(`Cleared ${response.cacheType} cache, count: ${response.clearedCount ?? 'unknown'}`);
+                    // Cache cleared successfully
+                    this.showToast(`Cleared ${response.cacheType} cache, count: ${response.clearedCount ?? 'unknown'}`, { type: 'success' });
                 }
             }
         } catch (e) {

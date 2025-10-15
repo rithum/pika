@@ -1,5 +1,10 @@
 import type { NavItem, NavSubItem } from '$client/app/types';
-import { Bot, ChartBar, Cpu, FileBox, Settings, Zap } from '$icons/lucide';
+import Bot from '$icons/lucide/bot';
+import ChartBar from '$icons/lucide/chart-bar';
+import Cpu from '$icons/lucide/cpu';
+import FileBox from '$icons/lucide/file-box';
+import Settings from '$icons/lucide/settings';
+import Zap from '$icons/lucide/zap';
 import type { Page } from '@sveltejs/kit';
 import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import Caches from '../pages/caches.svelte';

@@ -108,25 +108,11 @@ export const pikaConfig: PikaConfig = {
             enabled: true
         },
         tags: {
-            enabled: true,
-            tagsEnabled: [
-                {
-                    scope: 'pika',
-                    tag: 'chart'
-                },
-                {
-                    scope: 'pika',
-                    tag: 'prompt'
-                },
-                {
-                    scope: 'pika',
-                    tag: 'image'
-                },
-                {
-                    scope: 'pika',
-                    tag: 'download'
-                }
-            ]
+            enabled: true
+            // Tag visibility is now controlled at the tag definition level via:
+            // - TagDefinition.chatAppId: 'chat-app-global' = available to all chat apps
+            // - TagDefinition.chatAppId: 'weather' = available only to 'weather' chat app
+            // - TagDefinition.status: 'enabled' | 'disabled' | 'retired' = lifecycle state
         },
         agentInstructionAssistance: {
             enabled: true

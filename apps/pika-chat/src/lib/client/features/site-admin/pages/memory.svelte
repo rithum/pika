@@ -1,8 +1,9 @@
 <script lang="ts">
-    import { Loader, RefreshCw } from '$icons/lucide';
+    import Loader from '$icons/lucide/loader';
+    import RefreshCw from '$icons/lucide/refresh-cw';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Tabs from '$ui/shadcn/tabs';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Tabs from 'pika-ux/shadcn/tabs';
     import { getContext, type Snippet } from 'svelte';
     import MemoryInstructions from '../components/memory/memory-instructions.svelte';
     import MemoryList from '../components/memory/memory-list.svelte';

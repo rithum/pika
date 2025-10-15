@@ -1,5 +1,5 @@
-import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import type { RequestEvent } from '@sveltejs/kit';
+import type { AuthenticatedUser, AuthenticateResult, CustomDataUiRepresentation, RecordOrUndef, UserCognitoIdentity } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * Custom exception for authentication failures
@@ -132,4 +132,21 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @returns The UI representation of the custom data
      */
     async getCustomDataUiRepresentation?(user: AuthenticatedUser<T, U>, chatAppId?: string): Promise<CustomDataUiRepresentation | undefined>;
+
+    /**
+     * Get the Cognito identity for the user.  This is used to get the Cognito identity for the user so we can mint credentials
+     * on behalf of the user.  If you don't want to use this feature, don't implement the method.
+     *
+     * Note that the default pika implementation only has mock authentication so this method is not implemented.  However,
+     * to make it easy to test, if you have created an `apps/pika-chat/.env.local` file and have set the `USE_LOCAL_COGNITO_IDENTITY`
+     * variable to `true`, then pika will set or override the provided getUserCognitoIdentity and hard code getting the Cognito identity
+     * for the user from these env variables also expected in the `.env.local` file: `LOCAL_COGNITO_IDENTITY_ID` and `LOCAL_COGNITO_IDENTITY_TOKEN`.
+     *
+     * If `USE_LOCAL_COGNITO_IDENTITY` then the `LOCAL_COGNITO_IDENTITY_ID` and `LOCAL_COGNITO_IDENTITY_TOKEN` must be present
+     * or else pika will throw an error.
+     *
+     * @param user - The authenticated user (if there is one)
+     * @returns The Cognito identity for the user
+     */
+    async getUserCognitoIdentity?(user: AuthenticatedUser<T, U>): Promise<UserCognitoIdentity | undefined>;
 }

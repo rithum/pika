@@ -1,9 +1,16 @@
 <script lang="ts">
-    import { CircleCheck, Eye, House, LogOut, Settings2, Shield, TriangleAlert, UserCog } from '$icons/lucide';
+    import CircleCheck from '$icons/lucide/circle-check';
+    import Eye from '$icons/lucide/eye';
+    import House from '$icons/lucide/house';
+    import LogOut from '$icons/lucide/log-out';
+    import Settings2 from '$icons/lucide/settings-2';
+    import Shield from '$icons/lucide/shield';
+    import TriangleAlert from '$icons/lucide/triangle-alert';
+    import UserCog from '$icons/lucide/user-cog';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Badge } from '$ui/shadcn/badge';
-    import { Button } from '$ui/shadcn/button';
-    import { Separator } from '$ui/shadcn/separator';
+    import { Badge } from 'pika-ux/shadcn/badge';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext, type Snippet } from 'svelte';
 
     const appState = getContext<AppState>('appState');

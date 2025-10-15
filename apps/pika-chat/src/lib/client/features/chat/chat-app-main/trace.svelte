@@ -1,12 +1,15 @@
 <script lang="ts">
-    import { Copy } from '$icons/ci';
-    import { ChevronRight, CircleCheck, Expand, Shrink } from '$icons/lucide';
-    import TextWaveShimmer from '$ui/pika/text-wave-shimmer/text-wave-shimmer.svelte';
-    import { Button } from '$ui/shadcn/button';
+    import Copy from '$icons/ci/copy';
+    import ChevronRight from '$icons/lucide/chevron-right';
+    import CircleCheck from '$icons/lucide/circle-check';
+    import Expand from '$icons/lucide/expand';
+    import Shrink from '$icons/lucide/shrink';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
     import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
+    import TextWaveShimmer from 'pika-ux/pika/text-wave-shimmer/text-wave-shimmer.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
     import { toast } from 'svelte-sonner';
     import { v4 as uuidv4 } from 'uuid';
     import type { ChatAppState } from '../chat-app.state.svelte';
@@ -53,6 +56,15 @@
                 return segment.segmentType === 'text' || (segment.segmentType === 'tag' && segment.tag !== 'trace');
             })
         );
+    });
+
+    // Auto-collapse when actual message content starts streaming
+    let previousHaveContent = $state(false);
+    $effect(() => {
+        if (haveActualMessageContent && !previousHaveContent) {
+            expanded = false;
+        }
+        previousHaveContent = haveActualMessageContent;
     });
 
     /**

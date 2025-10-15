@@ -20,6 +20,11 @@ export default defineConfig(async () => {
                 compiler: 'svelte'
             })
         ],
+        resolve: {
+            alias: {
+                '$icons/': '~icons/'
+            }
+        },
         server: {
             // Use custom config if available, otherwise use defaults
             host: viteConfig?.server?.host ?? 'localhost',

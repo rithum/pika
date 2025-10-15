@@ -1,8 +1,8 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import * as Sidebar from '$ui/shadcn/sidebar';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');

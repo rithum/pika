@@ -1,16 +1,19 @@
 <script lang="ts">
-    import { BrushCleaning, Expand, Loader, Shrink } from '$icons/lucide';
+    import BrushCleaning from '$icons/lucide/brush-cleaning';
+    import Expand from '$icons/lucide/expand';
+    import Loader from '$icons/lucide/loader';
+    import Shrink from '$icons/lucide/shrink';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import PikaAlert from '$ui/pika/pika-alert/pika-alert.svelte';
-    import { Button } from '$ui/shadcn/button';
-    import { ScrollArea } from '$ui/shadcn/scroll-area';
-    import { Separator } from '$ui/shadcn/separator';
     import deepEqual from 'deep-equal';
     import type {
         ChatApp,
         ChatAppOverrideForCreateOrUpdate,
         UserChatAppRule,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import PikaAlert from 'pika-ux/pika/pika-alert/pika-alert.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
+    import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext, type Snippet } from 'svelte';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
     import BasicSettings from '../components/chat-apps/basic-settings.svelte';
