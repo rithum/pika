@@ -1,12 +1,11 @@
 <svelte:options customElement={{ tag: 'favorite-cities', shadow: 'none' }} />
 
 <script lang="ts">
-    import Plus from '$icons/lucide/plus';
-    import RefreshCw from '$icons/lucide/refresh-cw';
-    import X from '$icons/lucide/x';
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions, WidgetAction } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
-    import Button from 'pika-ux/shadcn/button/button.svelte';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
 
     interface WeatherData {
         location: string;
@@ -24,7 +23,6 @@
     interface CityWeather {
         name: string;
         weather?: WeatherData;
-        loading: boolean;
         error?: string;
     }
 
@@ -36,12 +34,14 @@
     const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
     let cities: CityWeather[] = $state([]);
-    let loading = $state(true);
+    let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
-    let fetchingWeather = $state(false);
-    let lastRefreshTime = $state<string>('');
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
+    let thinkingStatus = $state('');
+    let toolStatus = $state('');
 
     $effect(() => {
         if (!initialized) {
@@ -49,29 +49,59 @@
         }
     });
 
+    $effect(() => {
+        if (widgetMetadataApi) {
+            widgetMetadataApi.updateAction('refresh', {
+                disabled: loading
+            });
+        }
+    });
+
     async function init() {
-        // $host() is svelte's way to get the host element of the web component
         context = await getPikaContext($host());
         initialized = true;
 
         // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'favorite-cities', context.instanceId, context.renderingContext);
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'favorite-cities', context.instanceId, context.renderingContext);
 
-        metadata.setMetadata({
-            title: 'Favorite Cities',
-            actions: [
+        const actions: WidgetAction[] = [
+            {
+                id: 'refresh',
+                title: 'Refresh Weather',
+                iconSvg: await getIconSvg('refresh-cw', 'lucide'),
+                callback: async () => {
+                    await refreshWeather();
+                }
+            }
+        ];
+
+        // Add canvas launch action if in spotlight
+        if (context.renderingContext === 'spotlight') {
+            actions.push(
                 {
-                    id: 'refresh',
-                    title: 'Refresh Weather',
-                    // refresh-cw icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
-                    disabled: fetchingWeather,
+                    id: 'expand',
+                    title: 'Open in Canvas',
+                    iconSvg: await getIconSvg('maximize-2', 'lucide'),
                     callback: async () => {
-                        await refreshWeather();
+                        await context.chatAppState.renderTag('weather.favorite-cities', 'canvas');
+                    }
+                },
+                {
+                    id: 'fullscreen',
+                    title: 'Open Full Screen',
+                    iconSvg: await getIconSvg('maximize-2', 'lucide'),
+                    callback: async () => {
+                        await context.chatAppState.renderTag('weather.favorite-cities', 'dialog');
                     }
                 }
-            ]
+            );
+        }
+
+        widgetMetadataApi.setMetadata({
+            title: 'Favorite Cities',
+            iconSvg: await getIconSvg('heart', 'lucide'),
+            iconColor: '#ef4444',
+            actions
         });
 
         try {
@@ -80,22 +110,30 @@
             const storedCityNames = await userWidgetData.getValue<string[]>('cities');
             const cityNames = storedCityNames || ['San Francisco', 'New York', 'London'];
 
-            // Initialize cities with loading state
-            cities = cityNames.map((name) => ({ name, loading: false }));
+            // Initialize cities
+            cities = cityNames.map((name) => ({ name }));
 
             // Load cached weather data
             const cachedData = await userWidgetData.getValue<CachedWeatherData>('weatherData');
             if (cachedData) {
                 lastRefreshTime = cachedData.timestamp;
-                // Apply cached weather to cities
-                cities = cities.map((city) => {
-                    const weatherData = cachedData.response.locations.find((loc) => loc.location.toLowerCase().includes(city.name.toLowerCase()));
-                    return {
-                        ...city,
-                        weather: weatherData,
-                        error: weatherData ? undefined : undefined
-                    };
-                });
+                if (typeof cachedData.response === 'string' && (cachedData.response as string).toLowerCase().includes('oops')) {
+                    error = 'Failed to load favorite cities';
+                    console.error('Favorite Cities bad data:', cachedData.response);
+                } else {
+                    // Apply cached weather to cities
+                    cities = cities.map((city) => {
+                        const weatherData =
+                            cachedData.response && cachedData.response.locations
+                                ? cachedData.response.locations.find((loc) => loc.location.toLowerCase().includes(city.name.toLowerCase()))
+                                : undefined;
+                        return {
+                            ...city,
+                            weather: weatherData,
+                            error: weatherData ? undefined : undefined
+                        };
+                    });
+                }
 
                 // Check if data is stale (older than 1 hour)
                 const cacheAge = Date.now() - new Date(cachedData.timestamp).getTime();
@@ -104,29 +142,44 @@
                     await refreshWeather();
                 }
             } else {
-                // No cached data, fetch immediately
+                // No cached data, fetch immediately (auto-load)
                 await refreshWeather();
             }
-
-            loading = false;
         } catch (e) {
             error = 'Failed to load favorite cities';
-            loading = false;
+            console.error('Init error:', e);
         }
     }
 
     async function refreshWeather() {
-        if (!context || fetchingWeather) return;
+        if (!context || loading) return;
 
-        fetchingWeather = true;
-        const cityNames = cities.map((c) => c.name).join(', ');
+        loading = true;
+        error = '';
+        thinkingStatus = '';
+        toolStatus = '';
 
         try {
+            const cityNames = cities.map((c) => c.name).join(', ');
+
+            const options: InvokeAgentAsComponentOptions = {
+                onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
+                },
+                onToolCall: (call: { name: string; params: any }) => {
+                    const funcName = call.name.split('__')[1] || call.name;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
+                }
+            };
+
             const response = await context.chatAppState.invokeAgentAsComponent<WeatherDataResponse>(
                 'weather',
                 'favorite-cities',
                 'getCurrentWeather',
-                `Get current weather for: ${cityNames}`
+                `Get current weather for: ${cityNames}`,
+                options
             );
 
             // Save to component values
@@ -140,169 +193,89 @@
 
             // Update cities with weather data
             cities = cities.map((city) => {
-                const weatherData = response.locations.find((loc) => loc.location.toLowerCase().includes(city.name.toLowerCase()));
+                const weatherData = response && response.locations ? response.locations.find((loc) => loc.location.toLowerCase().includes(city.name.toLowerCase())) : undefined;
                 return {
                     ...city,
                     weather: weatherData,
-                    loading: false,
                     error: weatherData ? undefined : 'No data'
                 };
             });
+
+            thinkingStatus = '';
+            toolStatus = '';
         } catch (e) {
             console.error('Error fetching weather:', e);
-            cities = cities.map((city) => ({ ...city, loading: false, error: 'Failed to fetch' }));
+            error = 'Failed to fetch weather';
         } finally {
-            fetchingWeather = false;
+            loading = false;
         }
     }
 
-    async function addCity() {
-        if (!context) return;
-        const cityName = prompt('Enter city name:');
-        if (cityName) {
-            const newCities = [...cities, { name: cityName, loading: false }];
-            cities = newCities;
-
-            const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'favorite-cities');
-            await userWidgetData.setValue(
-                'cities',
-                newCities.map((c) => c.name)
-            );
-        }
-    }
-
-    async function removeCity(index: number) {
-        if (!context) return;
-        cities = cities.filter((_, i) => i !== index);
-        const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'favorite-cities');
-        await userWidgetData.setValue(
-            'cities',
-            cities.map((c) => c.name)
-        );
+    function getConditionEmoji(temp: number): string {
+        if (temp >= 80) return '☀️';
+        if (temp >= 60) return '⛅';
+        if (temp >= 40) return '☁️';
+        return '🌧️';
     }
 </script>
 
-<div class="favorite-cities">
-    <div class="header">
-        <h3 class="text-base font-semibold m-0">My Favorite Cities</h3>
-        <div class="actions">
-            {#if lastRefreshTime}
-                <span class="last-update">Updated {new Date(lastRefreshTime).toLocaleTimeString()}</span>
-            {/if}
-            <Button variant="outline" size="sm" onclick={refreshWeather} disabled={fetchingWeather}>
-                <RefreshCw class="h-3 w-3 mr-1" />
-                {fetchingWeather ? 'Refreshing...' : 'Refresh'}
-            </Button>
-            <Button variant="outline" size="sm" onclick={addCity}>
-                <Plus class="h-3 w-3 mr-1" />
-                Add
-            </Button>
-        </div>
-    </div>
-
+<div class="h-full w-full flex flex-col">
     {#if loading}
-        <p class="loading">Loading...</p>
+        <div class="px-3 py-3 space-y-2">
+            <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                <Spinner class="h-3.5 w-3.5 text-red-500" />
+                <span>One sec, AI is on it...</span>
+            </div>
+            {#if thinkingStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Reasoning</p>
+                    <p class="text-indigo-600 italic">{thinkingStatus}</p>
+                </div>
+            {/if}
+            {#if toolStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Tooling</p>
+                    <p class="text-emerald-600 italic">{toolStatus}</p>
+                </div>
+            {/if}
+        </div>
     {:else if error}
-        <p class="error">{error}</p>
+        <p class="text-center p-6 text-red-500 text-sm">{error}</p>
+    {:else if cities.length === 0}
+        <p class="text-center p-6 text-gray-500 text-sm">Configure your favorite cities to see weather at a glance</p>
     {:else}
-        <ul class="cities-list">
-            {#each cities as city, i}
-                <li class="city-item">
-                    <div class="city-info">
-                        <span class="city-name">{city.name}</span>
+        <div class="flex-1 overflow-auto px-3 py-3">
+            <div class="space-y-2">
+                {#each cities as city}
+                    <div class="flex items-center justify-between py-2.5 px-3 rounded-lg bg-gradient-to-r from-red-50 to-rose-50 border border-red-100">
+                        <div class="flex items-center gap-3">
+                            {#if city.weather}
+                                <span class="text-xl">{getConditionEmoji(city.weather.tempF)}</span>
+                            {/if}
+                            <div>
+                                <div class="text-sm font-semibold text-gray-800">{city.name}</div>
+                                {#if city.weather}
+                                    <div class="text-xs text-gray-500">
+                                        {Math.round(city.weather.tempC)}°C
+                                    </div>
+                                {/if}
+                            </div>
+                        </div>
                         {#if city.weather}
-                            <span class="temp">{Math.round(city.weather.tempF)}°F</span>
+                            <div class="text-right">
+                                <div class="text-lg font-bold text-red-600">{Math.round(city.weather.tempF)}°F</div>
+                            </div>
                         {:else if city.error}
-                            <span class="error-text">{city.error}</span>
+                            <div class="text-xs text-red-500">{city.error}</div>
                         {/if}
                     </div>
-                    <Button variant="ghost" size="icon" onclick={() => removeCity(i)} class="h-6 w-6">
-                        <X class="h-4 w-4" />
-                    </Button>
-                </li>
-            {/each}
-        </ul>
+                {/each}
+            </div>
+        </div>
+        {#if lastRefreshTime}
+            <div class="px-3 pb-2 text-right w-full italic text-gray-400" style="font-size: 0.55rem;">
+                Updated: {new Date(lastRefreshTime).toLocaleString()}
+            </div>
+        {/if}
     {/if}
 </div>
-
-<style>
-    .favorite-cities {
-        padding: 0.75rem;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .actions {
-        display: flex;
-        gap: 0.25rem;
-        align-items: center;
-    }
-
-    .last-update {
-        font-size: 0.65rem;
-        color: #6b7280;
-        margin-right: 0.5rem;
-    }
-
-    .cities-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .city-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.5rem;
-        border-bottom: 1px solid #e5e7eb;
-    }
-
-    .city-item:last-child {
-        border-bottom: none;
-    }
-
-    .city-info {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex: 1;
-    }
-
-    .city-name {
-        font-size: 0.875rem;
-        color: #374151;
-        font-weight: 500;
-    }
-
-    .temp {
-        font-size: 1rem;
-        color: #3b82f6;
-        font-weight: 600;
-    }
-
-    .error-text {
-        font-size: 0.75rem;
-        color: #ef4444;
-    }
-
-    .loading,
-    .error {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .error {
-        color: #ef4444;
-    }
-</style>

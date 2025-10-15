@@ -58,6 +58,15 @@
         );
     });
 
+    // Auto-collapse when actual message content starts streaming
+    let previousHaveContent = $state(false);
+    $effect(() => {
+        if (haveActualMessageContent && !previousHaveContent) {
+            expanded = false;
+        }
+        previousHaveContent = haveActualMessageContent;
+    });
+
     /**
      * Recursively traverses an object and parses strings that start and end with {} as JSON
      * @param obj

@@ -1,4 +1,4 @@
-import type { TagDefinition, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
+import type { TagDefinition, TagDefinitionWidget, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
 import type { PikaWCContext, PikaWCContextRequestEvent, PikaWCContextWithoutInstanceId } from 'pika-shared/types/chatbot/webcomp-types';
 import { v7 as uuidv7 } from 'uuid';
 
@@ -34,7 +34,61 @@ function getWebComponentFileId(tagDef: TagDefinition<TagDefinitionWidgetWebCompo
 }
 
 /**
+ * Build a map of S3 file locations to canonical tag definitions.
+ * This allows multiple tags pointing to the same S3 file to share a single URL.
+ *
+ * @param tagDefinitions All available tag definitions
+ * @returns Map from S3 file ID to the canonical tag definition for that file
+ */
+function buildCanonicalTagMap(tagDefinitions: TagDefinition<TagDefinitionWidgetWebComponent>[]): Map<string, TagDefinition<TagDefinitionWidgetWebComponent>> {
+    const canonicalMap = new Map<string, TagDefinition<TagDefinitionWidgetWebComponent>>();
+
+    // Group tags by their S3 file location
+    for (const tagDef of tagDefinitions) {
+        if (tagDef.widget.type !== 'web-component') continue;
+
+        // Skip tags with direct URLs - they manage their own loading
+        if (tagDef.widget.webComponent.url) continue;
+
+        // Skip if no S3 config
+        if (!tagDef.widget.webComponent.s3) continue;
+
+        const fileId = getWebComponentFileId(tagDef);
+
+        // If this is the first tag for this file, or if this tag comes earlier alphabetically, use it as canonical
+        const existingCanonical = canonicalMap.get(fileId);
+        const currentKey = `${tagDef.scope}.${tagDef.tag}`;
+
+        if (!existingCanonical) {
+            canonicalMap.set(fileId, tagDef);
+        } else {
+            const existingKey = `${existingCanonical.scope}.${existingCanonical.tag}`;
+            if (currentKey < existingKey) {
+                canonicalMap.set(fileId, tagDef);
+            }
+        }
+    }
+
+    return canonicalMap;
+}
+
+// Global map of canonical tags, built once when needed
+let canonicalTagMap: Map<string, TagDefinition<TagDefinitionWidgetWebComponent>> | null = null;
+
+/**
+ * Initialize or update the canonical tag map with current tag definitions.
+ * Should be called when tag definitions are loaded or updated.
+ */
+export function initializeCanonicalTagMap(tagDefinitions: TagDefinition<TagDefinitionWidget>[]): void {
+    const webComponentTags = tagDefinitions.filter((t): t is TagDefinition<TagDefinitionWidgetWebComponent> => t.widget.type === 'web-component');
+    canonicalTagMap = buildCanonicalTagMap(webComponentTags);
+}
+
+/**
  * Resolve the URL for a web component from its tag definition.
+ * For S3 files, uses a canonical scope/tag combination to ensure files are only
+ * loaded once even when multiple tags share the same file.
+ * This maintains security by only sending scope/tag to the server.
  */
 export function resolveWebComponentUrl(tagDef: TagDefinition<TagDefinitionWidgetWebComponent>): string {
     const webComp = tagDef.widget.webComponent;
@@ -42,8 +96,18 @@ export function resolveWebComponentUrl(tagDef: TagDefinition<TagDefinitionWidget
     if (webComp.url) {
         return webComp.url; // Use direct URL
     } else if (webComp.s3) {
-        // Construct S3 proxy URL
-        return `/api/webcomponent/${tagDef.scope}/${tagDef.tag}`;
+        // For S3 files, find the canonical tag for this file and use its scope/tag in the URL
+        // This ensures multiple tags pointing to the same S3 file use the same URL
+        const fileId = getWebComponentFileId(tagDef);
+        const canonicalTag = canonicalTagMap?.get(fileId);
+
+        if (canonicalTag) {
+            // Use the canonical tag's scope and tag for the URL
+            return `/api/webcomponent/${canonicalTag.scope}/${canonicalTag.tag}`;
+        } else {
+            // Fallback to this tag's own scope/tag if no canonical mapping exists
+            return `/api/webcomponent/${tagDef.scope}/${tagDef.tag}`;
+        }
     } else {
         throw new Error(`Web component for ${tagDef.scope}.${tagDef.tag} must have either url or s3 defined`);
     }

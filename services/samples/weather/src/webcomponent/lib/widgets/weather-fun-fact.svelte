@@ -1,10 +1,11 @@
 <svelte:options customElement={{ tag: 'weather-fun-fact', shadow: 'none' }} />
 
 <script lang="ts">
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
-    import Button from 'pika-ux/shadcn/button/button.svelte';
-    import Sparkles from '$icons/lucide/sparkles';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
 
     interface FunFactResponse {
         fact: string;
@@ -16,19 +17,30 @@
         timestamp: string;
     }
 
-    const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours (once a day)
 
     let funFact = $state('');
     let category = $state('');
-    let loading = $state(true);
+    let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
-    let lastRefreshTime = $state<string>('');
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
+    let thinkingStatus = $state('');
+    let toolStatus = $state('');
 
     $effect(() => {
         if (!initialized) {
             init();
+        }
+    });
+
+    $effect(() => {
+        if (widgetMetadataApi) {
+            widgetMetadataApi.updateAction('new-fact', {
+                disabled: loading
+            });
         }
     });
 
@@ -37,17 +49,17 @@
         initialized = true;
 
         // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-fun-fact', context.instanceId, context.renderingContext);
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-fun-fact', context.instanceId, context.renderingContext);
 
-        metadata.setMetadata({
+        widgetMetadataApi.setMetadata({
             title: 'Weather Fun Fact',
+            iconSvg: await getIconSvg('sparkles', 'lucide'),
+            iconColor: '#a855f7', // Purple
             actions: [
                 {
                     id: 'new-fact',
                     title: 'New Fact',
-                    // sparkles icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles-icon lucide-sparkles"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>',
+                    iconSvg: await getIconSvg('refresh-ccw', 'lucide'),
                     callback: async () => {
                         await fetchFunFact();
                     }
@@ -64,32 +76,45 @@
             funFact = cachedData.response.fact;
             category = cachedData.response.category || '';
 
-            // Check if data is stale (older than 1 hour)
+            // Check if data is stale (older than 24 hours)
             const cacheAge = Date.now() - new Date(cachedData.timestamp).getTime();
             if (cacheAge > REFRESH_INTERVAL_MS) {
-                // Auto-refresh stale data
+                // Auto-refresh stale data (once a day)
                 await fetchFunFact();
             }
         } else {
-            // No cached data, fetch immediately
+            // No cached data, fetch immediately (auto-load)
             await fetchFunFact();
         }
-
-        loading = false;
     }
 
     async function fetchFunFact() {
-        if (!context) return;
+        if (!context || loading) return;
 
         loading = true;
         error = '';
+        thinkingStatus = '';
+        toolStatus = '';
 
         try {
+            const options: InvokeAgentAsComponentOptions = {
+                onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
+                },
+                onToolCall: (call: { name: string; params: any }) => {
+                    const funcName = call.name.split('__')[1] || call.name;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
+                }
+            };
+
             const response = await context.chatAppState.invokeAgentAsComponent<FunFactResponse>(
                 'weather',
                 'weather-fun-fact',
                 'getFunFact',
-                'Generate an interesting weather-related fun fact or trivia'
+                'Generate an interesting weather-related fun fact or trivia',
+                options
             );
 
             // Save to component values
@@ -103,6 +128,8 @@
 
             funFact = response.fact;
             category = response.category || '';
+            thinkingStatus = '';
+            toolStatus = '';
         } catch (e) {
             console.error('Error fetching fun fact:', e);
             error = 'Failed to fetch fun fact';
@@ -112,98 +139,46 @@
     }
 </script>
 
-<div class="weather-fun-fact">
-    <div class="header">
-        <div class="title-section">
-            <h3 class="text-base font-semibold m-0">⚡ Weather Fun Fact</h3>
-            {#if lastRefreshTime}
-                <span class="last-update">Updated {new Date(lastRefreshTime).toLocaleTimeString()}</span>
-            {/if}
-        </div>
-        <Button variant="outline" size="sm" onclick={fetchFunFact} disabled={loading}>
-            <Sparkles class="h-3 w-3 mr-1" />
-            {loading ? 'Loading...' : 'New Fact'}
-        </Button>
-    </div>
-
+<div class="h-full w-full flex flex-col">
     {#if loading}
-        <p class="loading">Generating fun fact...</p>
-    {:else if error}
-        <p class="error">{error}</p>
-    {:else if funFact}
-        <div class="fact-card">
-            {#if category}
-                <span class="category">{category}</span>
+        <div class="px-3 py-3 space-y-2">
+            <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                <Spinner class="h-3.5 w-3.5 text-purple-500" />
+                <span>Generating fun fact...</span>
+            </div>
+            {#if thinkingStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Reasoning</p>
+                    <p class="text-indigo-600 italic">{thinkingStatus}</p>
+                </div>
             {/if}
-            <p class="fact-text">{funFact}</p>
+            {#if toolStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Tooling</p>
+                    <p class="text-emerald-600 italic">{toolStatus}</p>
+                </div>
+            {/if}
         </div>
+    {:else if error}
+        <p class="text-center p-6 text-red-500 text-sm">{error}</p>
+    {:else if funFact}
+        <div class="flex-1 p-3 pl-4 pr-4">
+            <!-- {#if category}
+                    <div class="inline-block px-3 py-1 bg-purple-500 text-white text-xs font-bold uppercase rounded-full mb-3">{category}</div>
+                {/if} -->
+            <p class="text-sm leading-relaxed text-gray-800">{funFact}</p>
+        </div>
+        {#if lastRefreshTime}
+            <div class="px-3 pb-2 text-right w-full italic text-gray-400" style="font-size: 0.55rem;">
+                Generated: {new Date(lastRefreshTime).toLocaleString()}
+            </div>
+        {/if}
     {:else}
-        <p class="no-data">Click "New Fact" to learn something interesting!</p>
+        <div class="flex-1 flex items-center justify-center px-4">
+            <div class="text-center">
+                <div class="text-5xl mb-2">✨</div>
+                <p class="text-sm text-gray-600">Loading fun fact...</p>
+            </div>
+        </div>
     {/if}
 </div>
-
-<style>
-    .weather-fun-fact {
-        padding: 0.75rem;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .title-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-    }
-
-    .last-update {
-        font-size: 0.65rem;
-        color: #6b7280;
-    }
-
-    .fact-card {
-        padding: 1rem;
-        background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
-        border-left: 3px solid #8b5cf6;
-        border-radius: 6px;
-    }
-
-    .category {
-        display: inline-block;
-        padding: 0.125rem 0.5rem;
-        background: #8b5cf6;
-        color: white;
-        border-radius: 10px;
-        font-size: 0.625rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        margin-bottom: 0.5rem;
-    }
-
-    .fact-text {
-        margin: 0;
-        font-size: 0.875rem;
-        line-height: 1.5;
-        color: #374151;
-    }
-
-    .loading,
-    .no-data,
-    .error {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .error {
-        color: #ef4444;
-    }
-</style>

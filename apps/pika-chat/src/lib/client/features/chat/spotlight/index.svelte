@@ -5,8 +5,8 @@
     import MessageCirclePlus from '$icons/lucide/message-circle-plus';
     import Minimize2 from '$icons/lucide/minimize-2';
     import PinOff from '$icons/lucide/pin-off';
+    import Pin from '$icons/lucide/pin';
     import Plus from '$icons/lucide/plus';
-    import Settings from '$icons/lucide/settings';
     import SpotlightIcon from '$icons/lucide/spotlight';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import type { ChatAppState, SpotlightWidget } from '$lib/client/features/chat/chat-app.state.svelte';
@@ -166,6 +166,7 @@
                     appState: appState,
                     chatAppState: chat,
                     chatAppId: chat.chatApp.chatAppId,
+                    dataForWidget: {},
                 },
                 true
             );
@@ -222,7 +223,7 @@
 </script>
 
 {#if spotlightWidgets.length > 0}
-    <div class="w-full max-w-5xl mx-auto mt-2">
+    <div class="w-full max-w-5xl mx-auto mt-2 px-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 min-h-9">
                 <SpotlightIcon class="w-5 h-5" />
@@ -266,9 +267,11 @@
                     {#if hasUnpinnedWidgets}
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger>
-                                <Button variant="ghost" size="icon">
-                                    <Settings class="w-4 h-4" />
-                                </Button>
+                                <TooltipPlus tooltip="Re-pin unpinned widgets">
+                                    <Button variant="ghost" size="icon">
+                                        <Pin class="w-4 h-4" />
+                                    </Button>
+                                </TooltipPlus>
                             </DropdownMenu.Trigger>
                             <DropdownMenu.Content>
                                 <DropdownMenu.Label>Unpinned Widgets</DropdownMenu.Label>
@@ -337,12 +340,25 @@
                                                     {title}
                                                 </span>
                                             </div>
-                                            <div class="flex items-center gap-0.5 flex-shrink-0 -mr-0.5">
+                                            <div class="flex items-center flex-shrink-0 -mr-0.5">
                                                 {#if actions.length === 1}
                                                     <WidgetActionButton action={actions[0]} />
                                                 {:else if actions.length > 1}
                                                     <WidgetActionMenu {actions} />
                                                 {/if}
+                                                <TooltipPlus tooltip="Unpin (click pin button top right to re-pin)">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="h-5 text-xxs"
+                                                        onclick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleUnpin(tagId);
+                                                        }}
+                                                    >
+                                                        <PinOff class="h-2 w-2" />
+                                                    </Button>
+                                                </TooltipPlus>
                                             </div>
                                         </div>
 
@@ -373,12 +389,14 @@
 
                                 <!-- Thumbnail View - always rendered but hidden when not active -->
                                 <div class="p-1" class:hidden={activeMode !== 'thumbnail'}>
-                                    <div
-                                        role="button"
-                                        tabindex="0"
-                                        class="rounded-lg border-2 w-[200px] h-[60px] flex flex-row items-center gap-2 px-3 bg-white hover:shadow-lg transition-all cursor-pointer relative group"
+                                    <button
+                                        class="rounded-lg border-2 w-[200px] h-[60px] flex flex-row items-center gap-2 px-3 bg-white text-gray-500 hover:shadow-lg transition-all cursor-pointer relative group"
                                         onmouseenter={() => (hoveredCardId = tagId)}
                                         onmouseleave={() => (hoveredCardId = undefined)}
+                                        onclick={(e) => {
+                                            e.stopPropagation();
+                                            userOverriddenMode = 'card';
+                                        }}
                                     >
                                         {#if hoveredCardId === tagId && activeMode === 'thumbnail'}
                                             <div class="absolute top-1 right-1 flex gap-1 z-10">
@@ -395,19 +413,6 @@
                                                         <PinOff class="h-3 w-3" />
                                                     </Button>
                                                 </TooltipPlus>
-                                                <TooltipPlus tooltip="Add to Chat as Context">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        class="h-6 w-6 bg-white/90 hover:bg-white shadow-sm"
-                                                        onclick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleAddToContext(tagId);
-                                                        }}
-                                                    >
-                                                        <MessageCirclePlus class="h-3 w-3" />
-                                                    </Button>
-                                                </TooltipPlus>
                                             </div>
                                         {/if}
                                         <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -422,7 +427,7 @@
                                             {/if}
                                             <h2 class="text-sm font-semibold truncate" {title}>{title}</h2>
                                         </div>
-                                    </div>
+                                    </button>
                                 </div>
                             </Carousel.Item>
                         {/each}

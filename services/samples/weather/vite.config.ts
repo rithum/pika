@@ -23,7 +23,7 @@ export default defineConfig({
         lib: {
             entry: 'src/webcomponent/main.ts',
             formats: ['es'], // Only ES module, not UMD
-            fileName: () => 'hello-world.js'
+            fileName: () => 'weather.js'
         },
         cssCodeSplit: false, // Don't split CSS into separate files
         rollupOptions: {

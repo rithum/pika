@@ -94,6 +94,7 @@
         "indefinite": "catalog:",
         "jest": "catalog:",
         "jiti": "catalog:",
+        "json-like-parse": "catalog:",
         "jsonwebtoken": "catalog:",
         "lodash.clonedeep": "catalog:",
         "lru-cache": "catalog:",

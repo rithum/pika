@@ -3,6 +3,7 @@ import type { FetchZ } from '$client/app/types';
 import { UserWidgetDataStoreState } from '$client/features/chat/user-widget-data-store.state.svelte';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
+import findAndParseJsonLikeText from 'json-like-parse';
 import type { Page } from '@sveltejs/kit';
 import { SvelteMap } from 'svelte/reactivity';
 import type {
@@ -75,6 +76,7 @@ import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
 import { WidgetRegistry } from './widgets/widget-registry';
+import { initializeCanonicalTagMap } from '$lib/client/webcomponent-utils';
 
 const MAX_FILES = 5;
 
@@ -360,6 +362,10 @@ export class ChatAppState implements IChatAppState {
 
     get widgetDialogOpen() {
         return this.#widgetDialogOpen;
+    }
+
+    set widgetDialogOpen(value: boolean) {
+        this.#widgetDialogOpen = value;
     }
 
     get pinningSession() {
@@ -825,6 +831,10 @@ export class ChatAppState implements IChatAppState {
 
         // Apply local URL overrides to tag definitions for rapid development
         const tagDefinitionsWithOverrides = this.#applyWebComponentUrlOverrides(tagDefinitions);
+
+        // Initialize canonical tag map to ensure same S3 files use same URL
+        initializeCanonicalTagMap(tagDefinitionsWithOverrides);
+
         this.#widgetRegistry.registerTagDefinitions(tagDefinitionsWithOverrides);
 
         this.#webComponentRenderer = webComponentRenderer;
@@ -1419,7 +1429,15 @@ export class ChatAppState implements IChatAppState {
             try {
                 return JSON.parse(answerText) as T;
             } catch (parseError) {
-                // If it's not JSON, return the text as-is
+                // If direct JSON parsing fails, try to extract JSON-like text
+                const parsed = findAndParseJsonLikeText(answerText);
+
+                if (parsed.length > 0) {
+                    // console.log('Extracted and parsed JSON:', parsed[0]);
+                    return parsed[0] as T;
+                }
+
+                // If nothing worked, return the text as-is
                 console.warn('Component invocation response was not JSON, returning as text:', answerText);
                 return answerText as T;
             }

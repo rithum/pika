@@ -12,10 +12,17 @@ const weatherSpotlight1: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
             isDefault: true
+        },
+        canvas: {
+            enabled: true
+        },
+        dialog: {
+            enabled: true
         }
     },
     widget: {
@@ -23,7 +30,7 @@ const weatherSpotlight1: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
         webComponent: {
             customElementName: 'favorite-cities',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -75,6 +82,7 @@ const weatherSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
@@ -86,7 +94,7 @@ const weatherSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
         webComponent: {
             customElementName: 'weather-alerts',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -145,6 +153,7 @@ const weatherSpotlightFixed: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetW
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
@@ -156,7 +165,7 @@ const weatherSpotlightFixed: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetW
         webComponent: {
             customElementName: 'temperature-trend',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -206,6 +215,7 @@ const weatherCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         canvas: {
             enabled: true
@@ -216,7 +226,7 @@ const weatherCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
         webComponent: {
             customElementName: 'full-forecast',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -270,6 +280,7 @@ const weatherDialog: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         dialog: {
             enabled: true
@@ -280,7 +291,7 @@ const weatherDialog: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
         webComponent: {
             customElementName: 'city-selector',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -302,6 +313,7 @@ const weatherInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         inline: {
             enabled: true
@@ -310,9 +322,9 @@ const weatherInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     widget: {
         type: 'web-component',
         webComponent: {
-            customElementName: 'hello-world-weather',
+            customElementName: 'weather-app',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -323,45 +335,6 @@ const weatherInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     llmInstructionsMd: `  - To include a weather inline widget, use the \`<weather.inline></weather.inline>\` tags.
   - This is a test widget for weather-related development and testing purposes.
   - Example: \`<weather.inline>Weather data display</weather.inline>\``
-};
-
-// Weather Multi-Context Widget
-const weatherMultiContext: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
-    tag: 'multi-context',
-    scope: 'weather',
-    shortTagEx: '<weather.multi-context></weather.multi-context>',
-    tagTitle: 'Weather Multi-Context Widget',
-    description: 'A weather widget that works in multiple rendering contexts',
-    canBeGeneratedByLlm: false,
-    canBeGeneratedByTool: false,
-    chatAppId: 'weather',
-    status: 'enabled',
-    isMock: false,
-    renderingContexts: {
-        spotlight: {
-            enabled: true,
-            isDefault: false
-        },
-        canvas: {
-            enabled: true
-        },
-        dialog: {
-            enabled: true
-        }
-    },
-    widget: {
-        type: 'web-component',
-        webComponent: {
-            customElementName: 'hello-world',
-            s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
-            },
-            encoding: 'gzip',
-            mediaType: 'application/javascript',
-            encodedSizeBytes: 0,
-            encodedSha256Base64: ''
-        }
-    }
 };
 
 // Weather Comparison (Spotlight)
@@ -376,6 +349,7 @@ const weatherComparison: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
@@ -387,7 +361,7 @@ const weatherComparison: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
         webComponent: {
             customElementName: 'weather-comparison',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -436,6 +410,7 @@ const weatherFunFact: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompo
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
@@ -447,7 +422,7 @@ const weatherFunFact: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompo
         webComponent: {
             customElementName: 'weather-fun-fact',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -487,6 +462,7 @@ const quickWeatherSearch: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebC
     chatAppId: 'weather',
     status: 'enabled',
     isMock: false,
+    dontCacheThis: true,
     renderingContexts: {
         spotlight: {
             enabled: true,
@@ -498,7 +474,7 @@ const quickWeatherSearch: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebC
         webComponent: {
             customElementName: 'quick-weather-search',
             s3: {
-                s3Key: 'wc/weather/hello-world.js.gz'
+                s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
@@ -542,7 +518,6 @@ export const weatherTagDefinitions: TagDefinitionForCreateOrUpdate<TagDefinition
     weatherCanvas,
     weatherDialog,
     weatherInline,
-    weatherMultiContext,
     weatherComparison,
     weatherFunFact,
     quickWeatherSearch

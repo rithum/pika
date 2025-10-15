@@ -32,22 +32,20 @@ Used when there are 2+ actions in spotlight or overflow actions in canvas.
 
 <DropdownMenu.Root>
     <DropdownMenu.Trigger>
-        <Button variant="ghost" size="icon" class={className} aria-label="Widget actions">
+        <Button variant="ghost" size="icon" class="p-0 w-5.5 h-5.5 {className ?? ''}" aria-label="Widget actions">
             <EllipsisVertical class="h-4 w-4" />
         </Button>
     </DropdownMenu.Trigger>
-    <DropdownMenu.Content align="end" class="w-48">
-        {#each actions as action (action.id)}
-            <DropdownMenu.Item
-                disabled={action.disabled}
-                onclick={() => handleActionClick(action)}
-                class={action.primary ? 'font-semibold' : ''}
-            >
-                <span class="inline-block mr-2 h-4 w-4">
-                    {@html action.iconSvg}
-                </span>
-                <span>{action.title}</span>
-            </DropdownMenu.Item>
-        {/each}
+    <DropdownMenu.Content>
+        <DropdownMenu.Group>
+            {#each actions as action (action.id)}
+                <DropdownMenu.Item disabled={action.disabled} onclick={() => handleActionClick(action)}>
+                    <span class="inline-block mr-2 h-4 w-4">
+                        {@html action.iconSvg}
+                    </span>
+                    <span>{action.title}</span>
+                </DropdownMenu.Item>
+            {/each}
+        </DropdownMenu.Group>
     </DropdownMenu.Content>
 </DropdownMenu.Root>

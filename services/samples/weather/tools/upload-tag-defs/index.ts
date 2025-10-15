@@ -147,7 +147,7 @@ function discoverRequiredWebComponents(tagDefinitions: any[]): Map<string, strin
             continue; // Skip non-S3 web components (e.g., URL-based)
         }
 
-        // Extract filename from S3 key (e.g., "wc/weather/hello-world.js.gz" -> "hello-world.js")
+        // Extract filename from S3 key (e.g., "wc/weather/weather.js.gz" -> "weather.js")
         const filename = path.basename(s3Key, '.gz');
         const localPath = path.join(buildDir, filename);
 

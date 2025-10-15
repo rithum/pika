@@ -1,24 +1,41 @@
 <svelte:options customElement={{ tag: 'full-forecast', shadow: 'none' }} />
 
 <script lang="ts">
-    import MapPin from '$icons/lucide/map-pin';
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
 
     interface DayForecast {
-        day: string;
         date: string;
-        high: number;
-        low: number;
-        conditions: string;
-        icon: string;
+        condition: string;
+        highF: number;
+        lowF: number;
+        description?: string;
+        precipChance?: number;
     }
 
-    let forecast: DayForecast[] = $state([]);
-    let loading = $state(true);
+    interface ForecastResponse {
+        location: string;
+        forecast: DayForecast[];
+    }
+
+    interface CachedForecastData {
+        response: ForecastResponse;
+        timestamp: string;
+    }
+
+    let forecast: DayForecast[] | undefined = $state(undefined);
+    let loading = $state(false);
+    let error = $state('');
     let selectedCity = $state('San Francisco');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
+    let thinkingStatus = $state('');
+    let toolStatus = $state('');
 
     $effect(() => {
         if (!initialized) {
@@ -26,160 +43,208 @@
         }
     });
 
+    $effect(() => {
+        if (widgetMetadataApi && loading) {
+            widgetMetadataApi.updateAction('refresh', {
+                disabled: true
+            });
+        } else if (widgetMetadataApi) {
+            widgetMetadataApi.updateAction('refresh', {
+                disabled: false
+            });
+        }
+    });
+
     async function init() {
-        // $host() is svelte's way to get the host element of the web component
         context = await getPikaContext($host());
         initialized = true;
 
-        // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'full-forecast', context.instanceId, context.renderingContext);
+        // Check if location was passed in dataForWidget
+        if (context.dataForWidget?.location) {
+            selectedCity = context.dataForWidget.location;
+        }
 
-        metadata.setMetadata({
-            title: `5-Day Forecast - ${selectedCity}`,
-            actions: [
-                {
-                    id: 'change-city',
-                    title: 'Change City',
-                    // map-pin icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>',
-                    callback: () => {
-                        const newCity = prompt('Enter city name:', selectedCity);
-                        if (newCity) {
-                            selectedCity = newCity;
-                            metadata.updateTitle(`5-Day Forecast - ${selectedCity}`);
-                            loadForecast();
-                        }
-                    }
+        // Register widget metadata
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'full-forecast', context.instanceId, context.renderingContext);
+
+        const actions: any[] = [
+            {
+                id: 'refresh',
+                title: 'Refresh Forecast',
+                iconSvg: await getIconSvg('refresh-cw', 'lucide'),
+                callback: async () => {
+                    await loadForecast();
                 }
-            ]
+            }
+        ];
+
+        // Add dialog launch action if in spotlight
+        if (context.renderingContext === 'spotlight') {
+            actions.push({
+                id: 'expand',
+                title: 'Open in Dialog',
+                iconSvg: await getIconSvg('maximize-2', 'lucide'),
+                callback: async () => {
+                    await context.chatAppState.renderTag('weather.full-forecast', 'dialog');
+                }
+            });
+        }
+
+        widgetMetadataApi.setMetadata({
+            title: `5-Day Forecast - ${selectedCity}`,
+            iconSvg: await getIconSvg('calendar-days', 'lucide'),
+            iconColor: '#0ea5e9', // Sky blue
+            actions
         });
 
-        loadForecast();
+        // If location was provided via dataForWidget, immediately load forecast
+        if (context.dataForWidget?.location) {
+            await loadForecast();
+        } else {
+            // Otherwise, load cached forecast data
+            const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'full-forecast');
+            const cachedData = await userWidgetData.getValue<CachedForecastData>('forecastData');
+
+            if (cachedData) {
+                lastRefreshTime = cachedData.timestamp;
+                selectedCity = cachedData.response.location;
+                forecast = cachedData.response.forecast;
+            }
+        }
     }
 
     async function loadForecast() {
+        if (!context || loading) return;
+
         loading = true;
-        // Simulate API call
-        setTimeout(() => {
-            forecast = [
-                { day: 'Monday', date: 'Oct 14', high: 75, low: 58, conditions: 'Sunny', icon: '☀️' },
-                { day: 'Tuesday', date: 'Oct 15', high: 73, low: 56, conditions: 'Partly Cloudy', icon: '⛅' },
-                { day: 'Wednesday', date: 'Oct 16', high: 70, low: 55, conditions: 'Cloudy', icon: '☁️' },
-                { day: 'Thursday', date: 'Oct 17', high: 68, low: 54, conditions: 'Rain', icon: '🌧️' },
-                { day: 'Friday', date: 'Oct 18', high: 72, low: 57, conditions: 'Sunny', icon: '☀️' }
-            ];
+        error = '';
+        thinkingStatus = '';
+        toolStatus = '';
+
+        try {
+            const options: InvokeAgentAsComponentOptions = {
+                onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
+                },
+                onToolCall: (call: { name: string; params: any }) => {
+                    const funcName = call.name.split('__')[1] || call.name;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
+                }
+            };
+
+            const response = await context.chatAppState.invokeAgentAsComponent<ForecastResponse>(
+                'weather',
+                'full-forecast',
+                'get5dayForecast',
+                `Get 5-day weather forecast for ${selectedCity}`,
+                options
+            );
+
+            // Save to component values
+            const timestamp = new Date().toISOString();
+            const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'full-forecast');
+            await userWidgetData.setValue('forecastData', {
+                response,
+                timestamp
+            } as CachedForecastData);
+            lastRefreshTime = timestamp;
+
+            selectedCity = response.location;
+            forecast = response.forecast;
+            widgetMetadataApi?.updateTitle(`5-Day Forecast - ${selectedCity}`);
+            thinkingStatus = '';
+            toolStatus = '';
+        } catch (e) {
+            console.error('Error loading forecast:', e);
+            error = 'Failed to load forecast';
+        } finally {
             loading = false;
-        }, 500);
+        }
+    }
+
+    function getConditionEmoji(condition: string): string {
+        const lower = condition.toLowerCase();
+        if (lower.includes('sun') || lower.includes('clear')) return '☀️';
+        if (lower.includes('cloud')) return '☁️';
+        if (lower.includes('rain') || lower.includes('shower')) return '🌧️';
+        if (lower.includes('snow')) return '❄️';
+        if (lower.includes('storm') || lower.includes('thunder')) return '⛈️';
+        return '🌤️';
+    }
+
+    function getTempColor(temp: number): string {
+        if (temp >= 80) return 'text-red-600';
+        if (temp >= 60) return 'text-orange-600';
+        if (temp >= 40) return 'text-blue-600';
+        return 'text-cyan-600';
+    }
+
+    function getDayOfWeek(dateString: string): string {
+        const date = new Date(dateString);
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        return days[date.getDay()];
     }
 </script>
 
-<div class="full-forecast">
-    <header class="forecast-header">
-        <h2>5-Day Forecast</h2>
-        <p class="location">{selectedCity}</p>
-    </header>
-
+<div class="h-full w-full flex flex-col">
     {#if loading}
-        <p class="loading">Loading forecast...</p>
-    {:else}
-        <div class="forecast-grid">
-            {#each forecast as day}
-                <div class="forecast-card">
-                    <h3>{day.day}</h3>
-                    <p class="date">{day.date}</p>
-                    <div class="icon">{day.icon}</div>
-                    <div class="temps">
-                        <span class="high">{day.high}°</span>
-                        <span class="low">{day.low}°</span>
-                    </div>
-                    <p class="conditions">{day.conditions}</p>
+        <div class="px-3 py-3 space-y-2">
+            <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                <Spinner class="h-3.5 w-3.5 text-blue-500" />
+                <span>One sec, AI is on it...</span>
+            </div>
+            {#if thinkingStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Reasoning</p>
+                    <p class="text-indigo-600 italic">{thinkingStatus}</p>
                 </div>
-            {/each}
+            {/if}
+            {#if toolStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Tooling</p>
+                    <p class="text-emerald-600 italic">{toolStatus}</p>
+                </div>
+            {/if}
         </div>
+    {:else if error}
+        <p class="text-center p-6 text-red-500 text-sm">{error}</p>
+    {:else if !forecast || forecast.length === 0}
+        <div class="flex-1 flex items-center justify-center px-4">
+            <div class="text-center">
+                <div class="text-5xl mb-2">📅</div>
+                <p class="text-sm font-medium text-gray-700">Click refresh to load 5-day forecast</p>
+                <p class="text-xs text-gray-500 mt-1">for {selectedCity}</p>
+            </div>
+        </div>
+    {:else}
+        <div class="flex-1 overflow-auto px-3 py-3">
+            <div class="grid grid-cols-1 gap-2 {context?.renderingContext === 'dialog' || context?.renderingContext === 'canvas' ? 'sm:grid-cols-2 lg:grid-cols-3' : ''}">
+                {#each forecast as day}
+                    <div class="bg-gradient-to-br from-sky-50 to-blue-50 border-2 border-sky-200 rounded-xl p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">{getDayOfWeek(day.date)}</div>
+                                <div class="text-xs text-gray-500">{day.date}</div>
+                            </div>
+                            <span class="text-3xl">{getConditionEmoji(day.condition)}</span>
+                        </div>
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-2xl font-bold {getTempColor(day.highF)}">{Math.round(day.highF)}°</span>
+                                <span class="text-sm text-gray-500">/{Math.round(day.lowF)}°</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-600">{day.condition}</p>
+                    </div>
+                {/each}
+            </div>
+        </div>
+        {#if lastRefreshTime}
+            <div class="px-3 pb-2 text-right w-full italic text-gray-400" style="font-size: 0.55rem;">
+                Updated: {new Date(lastRefreshTime).toLocaleString()}
+            </div>
+        {/if}
     {/if}
 </div>
-
-<style>
-    .full-forecast {
-        padding: 2rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        color: white;
-    }
-
-    .forecast-header {
-        margin-bottom: 2rem;
-    }
-
-    .forecast-header h2 {
-        margin: 0;
-        font-size: 2rem;
-    }
-
-    .location {
-        margin: 0.5rem 0 0 0;
-        font-size: 1.25rem;
-        opacity: 0.9;
-    }
-
-    .forecast-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-    }
-
-    .forecast-card {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 1.5rem;
-        text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .forecast-card h3 {
-        margin: 0 0 0.25rem 0;
-        font-size: 1.25rem;
-    }
-
-    .date {
-        margin: 0 0 1rem 0;
-        opacity: 0.8;
-        font-size: 0.875rem;
-    }
-
-    .icon {
-        font-size: 3rem;
-        margin: 1rem 0;
-    }
-
-    .temps {
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        margin: 1rem 0;
-        font-size: 1.5rem;
-        font-weight: bold;
-    }
-
-    .high {
-        color: #fbbf24;
-    }
-
-    .low {
-        color: #93c5fd;
-    }
-
-    .conditions {
-        margin: 0.5rem 0 0 0;
-        font-size: 0.875rem;
-        opacity: 0.9;
-    }
-
-    .loading {
-        text-align: center;
-        padding: 4rem;
-        font-size: 1.25rem;
-    }
-</style>

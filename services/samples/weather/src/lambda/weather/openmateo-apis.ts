@@ -98,11 +98,16 @@ async function fetchWeatherDataAsJson(url: string, params: any): Promise<any> {
 }
 
 export async function getWeatherForecast(p: GetWeatherForecastParams): Promise<any> {
+    // Open-Meteo API requires dates in YYYY-MM-DD format
+    // Strip time component if present
+    const startDate = p.startDate ? p.startDate.split('T')[0] : undefined;
+    const endDate = p.endDate ? p.endDate.split('T')[0] : undefined;
+
     return await fetchWeatherDataAsJson('https://api.open-meteo.com/v1/forecast', {
         latitude: p.latitude,
         longitude: p.longitude,
-        start_date: p.startDate,
-        end_date: p.endDate,
+        start_date: startDate,
+        end_date: endDate,
         hourly: formatParam(p.hourly),
         daily: formatParam(p.daily),
         models: formatParam(p.models),
@@ -242,11 +247,16 @@ export function assertGetCurrentWeatherFromS3CsvFileParams(params: unknown): ass
 }
 
 export async function getHistoricalWeather(p: GetHistoricalWeatherParams): Promise<any> {
+    // Open-Meteo Archive API requires dates in YYYY-MM-DD format
+    // Strip time component if present (e.g., convert "2025-10-15T20:18:07Z" to "2025-10-15")
+    const startDate = p.startDate.split('T')[0];
+    const endDate = p.endDate.split('T')[0];
+
     return await fetchWeatherDataAsJson('https://archive-api.open-meteo.com/v1/archive', {
         latitude: p.latitude,
         longitude: p.longitude,
-        start_date: p.startDate,
-        end_date: p.endDate,
+        start_date: startDate,
+        end_date: endDate,
         hourly: formatParam(p.hourly),
         daily: formatParam(p.daily),
         timezone: p.timezone
@@ -307,22 +317,32 @@ export function assertGetGeocodingParams(params: unknown): asserts params is Get
 }
 
 export async function getAirQuality(p: GetAirQualityParams): Promise<any> {
+    // Open-Meteo API requires dates in YYYY-MM-DD format
+    // Strip time component if present
+    const startDate = p.startDate ? p.startDate.split('T')[0] : undefined;
+    const endDate = p.endDate ? p.endDate.split('T')[0] : undefined;
+
     return await fetchWeatherDataAsJson('https://air-quality-api.open-meteo.com/v1/air-quality', {
         latitude: p.latitude,
         longitude: p.longitude,
-        start_date: p.startDate,
-        end_date: p.endDate,
+        start_date: startDate,
+        end_date: endDate,
         hourly: formatParam(p.hourly),
         timezone: p.timezone
     });
 }
 
 export async function getMarineForecast(p: GetMarineForecastParams): Promise<any> {
+    // Open-Meteo API requires dates in YYYY-MM-DD format
+    // Strip time component if present
+    const startDate = p.startDate ? p.startDate.split('T')[0] : undefined;
+    const endDate = p.endDate ? p.endDate.split('T')[0] : undefined;
+
     return await fetchWeatherDataAsJson('https://marine-api.open-meteo.com/v1/marine', {
         latitude: p.latitude,
         longitude: p.longitude,
-        start_date: p.startDate,
-        end_date: p.endDate,
+        start_date: startDate,
+        end_date: endDate,
         hourly: formatParam(p.hourly),
         daily: formatParam(p.daily),
         timezone: p.timezone
@@ -330,11 +350,16 @@ export async function getMarineForecast(p: GetMarineForecastParams): Promise<any
 }
 
 export async function getClimateForecast(p: GetClimateForecastParams): Promise<any> {
+    // Open-Meteo API requires dates in YYYY-MM-DD format
+    // Strip time component if present
+    const startDate = p.startDate.split('T')[0];
+    const endDate = p.endDate.split('T')[0];
+
     return await fetchWeatherDataAsJson('https://climate-api.open-meteo.com/v1/climate', {
         latitude: p.latitude,
         longitude: p.longitude,
-        start_date: p.startDate,
-        end_date: p.endDate,
+        start_date: startDate,
+        end_date: endDate,
         daily: formatParam(p.daily),
         model: p.model,
         timezone: p.timezone

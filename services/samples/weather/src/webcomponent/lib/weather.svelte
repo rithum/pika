@@ -1,4 +1,4 @@
-<svelte:options customElement={{ tag: 'hello-world-weather', shadow: 'none' }} />
+<svelte:options customElement={{ tag: 'weather-app', shadow: 'none' }} />
 
 <script lang="ts">
     import Counter from './counter.svelte';

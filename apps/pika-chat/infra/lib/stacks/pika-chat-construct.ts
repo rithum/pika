@@ -541,9 +541,11 @@ export class PikaChatConstruct extends Construct {
 
         // Deploy mock tags S3 assets in non-production environments
         // Note: Tag registration (both built-in and mock) should be done via upload-tag-defs tool
-        if (props.stage !== 'prod' && props.stage !== 'production') {
-            this.deployMockWebComponents(pikaS3Bucket);
-        }
+
+        //TODO: remove this once we are ready to remove the mock tags feature completely
+        // if (props.stage !== 'prod' && props.stage !== 'production') {
+        //     this.deployMockWebComponents(pikaS3Bucket);
+        // }
 
         // Create the Fargate service
         this.service = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${props.projNameTitleCase}FargateService`, {

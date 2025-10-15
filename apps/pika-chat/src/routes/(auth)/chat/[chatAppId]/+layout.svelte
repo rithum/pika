@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
+    import CanvasWidgetRenderer from '$client/features/chat/canvas/canvas-widget-renderer.svelte';
     import ChatSidebar from '$client/features/chat/layout/chat-sidebar.svelte';
     import ChatTitlebar from '$client/features/chat/layout/chat-titlebar.svelte';
     import type { AppState } from '$lib/client/app/app.state.svelte';
@@ -9,6 +10,7 @@
     import { Slideout, SlideoutContent, SlideoutProvider } from 'pika-ux/pika/slideout';
     import { Button } from 'pika-ux/shadcn/button';
     import * as Dialog from 'pika-ux/shadcn/dialog';
+    import * as Resizable from 'pika-ux/shadcn/resizable';
     import * as Sidebar from 'pika-ux/shadcn/sidebar/index.js';
     import { getContext, setContext, type Snippet } from 'svelte';
     import type { LayoutData } from './$types';
@@ -116,9 +118,30 @@
         <Slideout>
             <SlideoutContent class="overflow-hidden">
                 <ChatTitlebar />
-                <div class="overflow-auto w-full h-full">
-                    {@render children?.()}
-                </div>
+
+                {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
+                    <!-- Canvas mode: Split screen with resizable panels -->
+                    <Resizable.PaneGroup direction="horizontal" class="w-full h-full">
+                        <Resizable.Pane defaultSize={50} minSize={30}>
+                            <div class="overflow-auto w-full h-full">
+                                {@render children?.()}
+                            </div>
+                        </Resizable.Pane>
+
+                        <Resizable.Handle withHandle />
+
+                        <Resizable.Pane defaultSize={50} minSize={30}>
+                            <div class="w-full h-full overflow-auto">
+                                <CanvasWidgetRenderer />
+                            </div>
+                        </Resizable.Pane>
+                    </Resizable.PaneGroup>
+                {:else}
+                    <!-- Normal mode: Full width chat -->
+                    <div class="overflow-auto w-full h-full">
+                        {@render children?.()}
+                    </div>
+                {/if}
             </SlideoutContent>
         </Slideout>
     </SlideoutProvider>

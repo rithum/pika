@@ -195,7 +195,7 @@ console.log(weather.condition); // 'Sunny'
 - **Fun facts** - Daily trivia or tips
 - **Multi-city comparisons** - Side-by-side data displays
 
-See [Building Web Components](/docs/developer/building-web-components#direct-llm-integration) for implementation details.
+See [Building Web Components](/docs/developer/building-web-components#Direct-LLM-Integration) for implementation details.
 
 ### Streaming Response Handling
 
@@ -312,7 +312,7 @@ metadata.setMetadata({
 });
 ```
 
-See [Building Web Components - Metadata Registration](/docs/developer/building-web-components#registering-component-metadata) for complete implementation details and best practices.
+See [Building Web Components - Metadata Registration](/docs/developer/building-web-components#Registering-Component-Metadata) for complete implementation details and best practices.
 
 ## Benefits
 

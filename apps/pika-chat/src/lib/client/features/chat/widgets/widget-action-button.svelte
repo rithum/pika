@@ -56,11 +56,11 @@ Used in spotlight, canvas, and dialog contexts.
 {:else}
     <!-- Button with icon + text for dialog footers -->
     <Button
-        variant={action.primary ? 'default' : buttonVariant}
+        variant={action.primary ? 'default' : 'secondary'}
         {size}
         disabled={action.disabled}
         onclick={handleClick}
-        class="p-0 w-5.5 h-5.5 {className ?? ''}"
+        class={className ?? ''}
     >
         <span class="icon-wrapper inline-block mr-2 h-3.5 w-3.5">
             {@html action.iconSvg}

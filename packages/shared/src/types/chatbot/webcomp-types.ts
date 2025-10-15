@@ -350,6 +350,9 @@ export interface PikaWCContext {
      * Set by injectChatAppWebComponent() and used by getWidgetMetadataAPI().
      */
     instanceId: string;
+
+    /** Arbitrary data to be passed to the widget. */
+    dataForWidget: Record<string, any>;
 }
 
 export type PikaWCContextWithoutInstanceId = Omit<PikaWCContext, 'instanceId'>;

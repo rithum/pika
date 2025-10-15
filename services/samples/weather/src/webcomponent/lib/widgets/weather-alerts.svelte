@@ -1,12 +1,16 @@
 <svelte:options customElement={{ tag: 'weather-alerts', shadow: 'none' }} />
 
 <script lang="ts">
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
-    import Button from 'pika-ux/shadcn/button/button.svelte';
-    import RefreshCw from '$icons/lucide/refresh-cw';
-    import ChevronRight from '$icons/lucide/chevron-right';
-    import TriangleAlert from '$icons/lucide/triangle-alert';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
+    import OctagonAlert from '$icons/lucide/octagon-alert';
+    import OctagonX from '$icons/lucide/octagon-x';
+    import Eye from '$icons/lucide/eye';
+    import CircleAlert from '$icons/lucide/circle-alert';
+    import { Component } from 'svelte';
 
     interface WeatherAlert {
         severity: string;
@@ -39,14 +43,17 @@
         timestamp: string;
     }
 
-    const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours (once a day)
 
     let alerts: DisplayAlert[] = $state([]);
-    let loading = $state(true);
+    let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
-    let lastRefreshTime = $state<string>('');
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
+    let thinkingStatus = $state('');
+    let toolStatus = $state('');
 
     $effect(() => {
         if (!initialized) {
@@ -54,23 +61,30 @@
         }
     });
 
+    $effect(() => {
+        if (widgetMetadataApi) {
+            widgetMetadataApi.updateAction('check', {
+                disabled: loading
+            });
+        }
+    });
+
     async function init() {
-        // $host() is svelte's way to get the host element of the web component
         context = await getPikaContext($host());
         initialized = true;
 
         // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-alerts', context.instanceId, context.renderingContext);
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'weather-alerts', context.instanceId, context.renderingContext);
 
-        metadata.setMetadata({
+        widgetMetadataApi.setMetadata({
             title: 'Weather Alerts',
+            iconSvg: await getIconSvg('triangle-alert', 'lucide'),
+            iconColor: '#dc2626', // Bright red
             actions: [
                 {
                     id: 'check',
                     title: 'Check Alerts',
-                    // triangle-alert icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+                    iconSvg: await getIconSvg('refresh-ccw', 'lucide'),
                     callback: async () => {
                         await checkAlerts();
                     }
@@ -84,48 +98,64 @@
 
         if (cachedData) {
             lastRefreshTime = cachedData.timestamp;
-            // Apply cached alerts
-            const allAlerts: DisplayAlert[] = [];
-            for (const locAlerts of cachedData.response.locations) {
-                for (const alert of locAlerts.alerts) {
-                    allAlerts.push({
-                        severity: alert.severity,
-                        title: alert.type,
-                        location: locAlerts.location,
-                        description: alert.description,
-                        issuedAt: alert.issuedAt,
-                        expiresAt: alert.expiresAt
-                    });
-                }
-            }
-            alerts = allAlerts;
+            applyAlertsData(cachedData.response);
 
-            // Check if data is stale (older than 1 hour)
+            // Check if data is stale (older than 24 hours)
             const cacheAge = Date.now() - new Date(cachedData.timestamp).getTime();
             if (cacheAge > REFRESH_INTERVAL_MS) {
-                // Auto-refresh stale data
+                // Auto-refresh stale data (once a day)
                 await checkAlerts();
             }
         } else {
-            // No cached data, fetch immediately
+            // No cached data, fetch immediately (auto-load)
             await checkAlerts();
         }
+    }
 
-        loading = false;
+    function applyAlertsData(response: WeatherAlertsResponse) {
+        const allAlerts: DisplayAlert[] = [];
+        for (const locAlerts of response.locations) {
+            for (const alert of locAlerts.alerts) {
+                allAlerts.push({
+                    severity: alert.severity,
+                    title: alert.type,
+                    location: locAlerts.location,
+                    description: alert.description,
+                    issuedAt: alert.issuedAt,
+                    expiresAt: alert.expiresAt
+                });
+            }
+        }
+        alerts = allAlerts;
     }
 
     async function checkAlerts() {
-        if (!context) return;
+        if (!context || loading) return;
 
         loading = true;
         error = '';
+        thinkingStatus = '';
+        toolStatus = '';
 
         try {
+            const options: InvokeAgentAsComponentOptions = {
+                onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
+                },
+                onToolCall: (call: { name: string; params: any }) => {
+                    const funcName = call.name.split('__')[1] || call.name;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
+                }
+            };
+
             const response = await context.chatAppState.invokeAgentAsComponent<WeatherAlertsResponse>(
                 'weather',
                 'weather-alerts',
                 'checkAlerts',
-                'Check weather alerts for San Francisco, New York, and London'
+                'Check weather alerts for San Francisco, New York, Chicago, Los Angeles, Salt Lake City, Houston, and Miami',
+                options
             );
 
             // Save to component values
@@ -137,22 +167,9 @@
             } as CachedAlertsData);
             lastRefreshTime = timestamp;
 
-            // Flatten the alerts from all locations
-            const allAlerts: DisplayAlert[] = [];
-            for (const locAlerts of response.locations) {
-                for (const alert of locAlerts.alerts) {
-                    allAlerts.push({
-                        severity: alert.severity,
-                        title: alert.type,
-                        location: locAlerts.location,
-                        description: alert.description,
-                        issuedAt: alert.issuedAt,
-                        expiresAt: alert.expiresAt
-                    });
-                }
-            }
-
-            alerts = allAlerts;
+            applyAlertsData(response);
+            thinkingStatus = '';
+            toolStatus = '';
         } catch (e) {
             console.error('Error checking alerts:', e);
             error = 'Failed to check alerts';
@@ -161,153 +178,122 @@
         }
     }
 
-    function getSeverityColor(severity: string) {
+    function getSeverityColor(severity: string): { bg: string; text: string; border: string } {
         const sev = severity.toLowerCase();
-        if (sev.includes('severe')) return '#dc2626';
-        if (sev.includes('warning')) return '#ef4444';
-        if (sev.includes('watch')) return '#f59e0b';
-        if (sev.includes('advisory')) return '#3b82f6';
-        return '#6b7280';
+        if (sev.includes('severe')) return { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' };
+        if (sev.includes('warning')) return { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-300' };
+        if (sev.includes('watch')) return { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' };
+        if (sev.includes('advisory')) return { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' };
+        return { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-300' };
     }
 
-    async function viewDetails(alert: DisplayAlert) {
-        // Open canvas with detailed alert info
-        context.chatAppState.renderTag('weather.full-forecast', 'canvas', {
-            alert: alert
-        });
+    function getSeverity(severity: string): 'severe' | 'warning' | 'watch' | 'advisory' {
+        const sev = severity.toLowerCase();
+        if (sev.includes('severe')) return 'severe';
+        if (sev.includes('warning')) return 'warning';
+        if (sev.includes('watch')) return 'watch';
+        if (sev.includes('advisory')) return 'advisory';
+        return 'advisory';
     }
 </script>
 
-<div class="weather-alerts">
-    <div class="header">
-        <div class="title-section">
-            <h3 class="text-base font-semibold m-0">Weather Alerts</h3>
-            {#if lastRefreshTime}
-                <span class="last-update">Updated {new Date(lastRefreshTime).toLocaleTimeString()}</span>
+<div class="h-full w-full flex flex-col">
+    {#if loading}
+        <div class="px-3 py-3 space-y-2">
+            <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                <Spinner class="h-3.5 w-3.5 text-blue-500" />
+                <span>Checking for alerts...</span>
+            </div>
+            {#if thinkingStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Reasoning</p>
+                    <p class="text-indigo-600 italic">{thinkingStatus}</p>
+                </div>
+            {/if}
+            {#if toolStatus}
+                <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                    <p class="font-bold">AI Tooling</p>
+                    <p class="text-emerald-600 italic">{toolStatus}</p>
+                </div>
             {/if}
         </div>
-        <Button variant="outline" size="sm" onclick={checkAlerts} disabled={loading}>
-            <RefreshCw class="h-3 w-3 mr-1" />
-            {loading ? 'Checking...' : 'Check'}
-        </Button>
-    </div>
-
-    {#if loading}
-        <p class="loading">Checking for alerts...</p>
     {:else if error}
-        <p class="error">{error}</p>
+        <p class="text-center p-6 text-red-500 text-sm">{error}</p>
     {:else if alerts.length === 0}
-        <p class="no-alerts">✓ No active alerts</p>
+        <div class="flex-1 flex items-center justify-center px-4">
+            <div class="text-center">
+                <div class="text-5xl mb-2">✅</div>
+                <p class="text-sm font-medium text-green-600">All Clear</p>
+                <p class="text-xs text-gray-500 mt-1">No active weather alerts</p>
+            </div>
+        </div>
+        {#if lastRefreshTime}
+            <div class="px-3 pb-2 text-right w-full italic text-gray-400" style="font-size: 0.55rem;">
+                Checked: {new Date(lastRefreshTime).toLocaleString()}
+            </div>
+        {/if}
     {:else}
-        <ul class="alerts-list">
-            {#each alerts as alert}
-                <li class="alert-item" style="border-left-color: {getSeverityColor(alert.severity)}">
-                    <div class="alert-content">
-                        <span class="severity" style="background-color: {getSeverityColor(alert.severity)}20; color: {getSeverityColor(alert.severity)}">
-                            {alert.severity.toUpperCase()}
-                        </span>
-                        <h4>{alert.title}</h4>
-                        <p class="location">{alert.location}</p>
-                        <p class="description">{alert.description}</p>
+        <div class="flex-1 overflow-auto px-3 py-3">
+            <div class="space-y-2">
+                <!-- {#each alerts as alert}
+                    {@const colors = getSeverityColor(alert.severity)}
+                    <div class="rounded-lg border-2 {colors.border} {colors.bg} p-3">
+                        <div class="flex items-start gap-2 mb-2">
+                            <span class="text-xl">{getSeverityIcon(alert.severity)}</span>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-bold {colors.text} uppercase">{alert.severity}</span>
+                                    <span class="text-xs text-gray-500">•</span>
+                                    <span class="text-xs text-gray-600">{alert.location}</span>
+                                </div>
+                                <h4 class="text-sm font-semibold text-gray-900 m-0">{alert.title}</h4>
+                                <p class="text-xs text-gray-600 mt-1 m-0 line-clamp-2">{alert.description}</p>
+                            </div>
+                        </div>
                     </div>
-                    <Button variant="ghost" size="sm" onclick={() => viewDetails(alert)}>
-                        Details
-                        <ChevronRight class="h-3 w-3 ml-1" />
-                    </Button>
-                </li>
-            {/each}
-        </ul>
+                {/each} -->
+                {#each alerts as alert}
+                    {@const colors = getSeverityColor(alert.severity)}
+                    {@const severityType = getSeverity(alert.severity)}
+                    <div class="w-full rounded-md border {colors.border} {colors.bg} p-2">
+                        <!-- Header Row -->
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="flex items-center gap-1">
+                                <!-- Icon inline with text -->
+                                {#if severityType === 'severe'}
+                                    <OctagonAlert class="w-4 h-4 {colors.text}" />
+                                {:else if severityType === 'warning'}
+                                    <OctagonX class="w-4 h-4 {colors.text}" />
+                                {:else if severityType === 'watch'}
+                                    <Eye class="w-4 h-4 {colors.text}" />
+                                {:else}
+                                    <CircleAlert class="w-4 h-4 {colors.text}" />
+                                {/if}
+                                <!-- <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10" stroke-width="2" />
+                                    <line x1="12" y1="16" x2="12" y2="12" stroke-width="2" />
+                                    <circle cx="12" cy="8" r="1" stroke-width="2" />
+                                </svg> -->
+                                <span class="text-xs font-semibold text-blue-700 uppercase">{alert.severity}</span>
+                            </div>
+                            <span class="text-xs text-gray-600 truncate">{alert.location}</span>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="text-sm font-bold text-gray-900 truncate">{alert.title}</div>
+
+                        <!-- Body Text -->
+                        <p class="text-sm text-gray-700 line-clamp-2">
+                            {alert.description}
+                        </p>
+                    </div>
+                {/each}
+            </div>
+        </div>
+        {#if lastRefreshTime}
+            <div class="px-3 pb-2 text-right w-full italic text-gray-400" style="font-size: 0.55rem;">
+                Checked: {new Date(lastRefreshTime).toLocaleString()}
+            </div>
+        {/if}
     {/if}
 </div>
-
-<style>
-    .weather-alerts {
-        padding: 0.75rem;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-    }
-
-    .title-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-    }
-
-    .last-update {
-        font-size: 0.65rem;
-        color: #6b7280;
-    }
-
-    .alerts-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .alert-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.75rem;
-        border-left: 3px solid;
-        background: #fef2f2;
-        border-radius: 4px;
-        margin-bottom: 0.5rem;
-    }
-
-    .alert-content h4 {
-        margin: 0.25rem 0;
-        font-size: 0.875rem;
-        color: #111827;
-        font-weight: 600;
-    }
-
-    .alert-content p {
-        margin: 0.25rem 0 0 0;
-        font-size: 0.75rem;
-    }
-
-    .alert-content .location {
-        color: #6b7280;
-        font-weight: 500;
-    }
-
-    .alert-content .description {
-        color: #374151;
-        margin-top: 0.5rem;
-    }
-
-    .severity {
-        display: inline-block;
-        font-size: 0.625rem;
-        font-weight: bold;
-        padding: 0.125rem 0.375rem;
-        border-radius: 3px;
-        margin-bottom: 0.375rem;
-    }
-
-    .loading,
-    .no-alerts,
-    .error {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .no-alerts {
-        color: #059669;
-    }
-
-    .error {
-        color: #ef4444;
-    }
-</style>

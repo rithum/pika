@@ -47,9 +47,17 @@
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            chat.sendMessage();
+        if (event.key === 'Enter') {
+            if (event.shiftKey) {
+                // Shift+Enter: Allow default behavior (insert newline)
+                // Stop propagation to prevent container handler from interfering
+                event.stopPropagation();
+                return;
+            } else {
+                // Enter alone: Send message
+                event.preventDefault();
+                chat.sendMessage();
+            }
         }
     }
 
@@ -60,7 +68,8 @@
     }
 
     function handleContainerKeyDown(event: KeyboardEvent) {
-        if (event.key === 'Enter') {
+        // Only handle Enter if it's not from the textarea (and not Shift+Enter)
+        if (event.key === 'Enter' && !event.shiftKey && event.target !== textarea) {
             event.preventDefault();
             focusTextarea();
         }

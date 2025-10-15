@@ -5,12 +5,7 @@
     import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
-
-    const shuffleIconSvg =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shuffle-icon lucide-shuffle"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></svg>';
-
-    const gitCompareArrowsIconSvg =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-compare-arrows-icon lucide-git-compare-arrows"><circle cx="5" cy="6" r="3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/><path d="m15 9-3-3 3-3"/><circle cx="19" cy="18" r="3"/><path d="M12 18H7a2 2 0 0 1-2-2V9"/><path d="m9 15 3 3-3 3"/></svg>';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
 
     interface CityWeather {
         location: string;
@@ -57,6 +52,12 @@
                     disabled: false
                 });
             }
+
+            // Enable/disable fullForecast based on whether we have cities
+            const hasCities = cities && cities.length > 0;
+            widgetMetadataApi.updateAction('fullForecast', {
+                disabled: !hasCities
+            });
         }
     });
 
@@ -69,15 +70,29 @@
 
         const metadataToSet = {
             title: 'Weather Comparison',
-            iconSvg: gitCompareArrowsIconSvg,
+            iconSvg: await getIconSvg('git-compare-arrows', 'lucide'),
             iconColor: '#3b82f6', // Brighter blue (Tailwind blue-500)
             actions: [
                 {
                     id: compareActionId,
                     title: compareActionTitle,
-                    iconSvg: shuffleIconSvg,
+                    iconSvg: await getIconSvg('shuffle', 'lucide'),
                     callback: async () => {
                         await compareRandomCities();
+                    }
+                },
+                {
+                    id: 'fullForecast',
+                    title: 'Open Full Forecast',
+                    iconSvg: await getIconSvg('panel-right-open', 'lucide'),
+                    callback: async () => {
+                        // Randomly pick one of the cities
+                        if (cities && cities.length > 0) {
+                            const randomCity = cities[Math.floor(Math.random() * cities.length)];
+                            await context.chatAppState.renderTag('weather.full-forecast', 'canvas', {
+                                location: randomCity.location
+                            });
+                        }
                     }
                 }
             ]
@@ -110,6 +125,8 @@
         try {
             const options: InvokeAgentAsComponentOptions = {
                 onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
                     thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
                 },
                 onToolCall: (call: { name: string; params: any }) => {
@@ -195,11 +212,11 @@
             {@const accentColor =
                 tempCategory === 'hot' ? 'border-amber-500' : tempCategory === 'warm' ? 'border-blue-500' : tempCategory === 'cool' ? 'border-indigo-500' : 'border-cyan-500'}
             <div class="flex-1 text-center px-1">
-                <h4 class="text-[0.7rem] text-gray-600 font-medium mb-2 leading-tight">{city.location}</h4>
+                <div class="text-xs text-gray-600 font-bold mb-2 leading-tight">{city.location}</div>
                 <div class="text-sm font-bold text-gray-900 leading-none">{Math.round(city.tempF)}°F</div>
-                <div class="text-[0.7rem] text-gray-400 mb-2">{Math.round(city.tempC)}°C</div>
+                <div class="text-xs text-gray-400 mb-2">{Math.round(city.tempC)}°C</div>
                 {#if city.condition}
-                    <div class="text-[0.7rem] text-gray-500 italic leading-snug">{city.condition}</div>
+                    <div class="text-xs text-gray-500 italic leading-snug">{city.condition}</div>
                 {/if}
                 <div class="mt-2 mx-auto w-8 h-0.5 rounded-full {accentColor}"></div>
             </div>

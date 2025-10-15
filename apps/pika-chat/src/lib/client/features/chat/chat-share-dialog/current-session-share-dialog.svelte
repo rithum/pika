@@ -73,7 +73,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="w-[800px] max-w-[590px] sm:max-w-[590px] max-h-[90vh] overflow-y-auto">
         <Dialog.Header>
             <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Description>{description}</Dialog.Description>

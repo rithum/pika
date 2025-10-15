@@ -138,6 +138,8 @@ interface PikaWCContext {
     chatAppState: IChatAppState;   // Chat-specific state
     renderingContext: WidgetRenderingContextType; // spotlight, inline, dialog, canvas
     chatAppId: string;
+    instanceId: string;            // Unique ID for this component instance
+    dataForWidget: Record<string, any>; // Data passed when opening this widget
 }
 ```
 
@@ -253,6 +255,107 @@ await context.chatAppState.renderTag('acme.editor', 'canvas', {
 
 // Add widget to spotlight
 await context.chatAppState.renderTag('acme.quick-actions', 'spotlight');
+```
+
+### Passing Data Between Widgets
+
+When opening a widget programmatically via `renderTag()`, you can pass arbitrary data to the receiving component using the third parameter. This data becomes available to the widget through `context.dataForWidget`.
+
+**Passing Data:**
+
+```js
+// From a parent widget, open another widget with data
+async function openProductDetails(productId: string) {
+    await context.chatAppState.renderTag('acme.product-details', 'dialog', {
+        productId: productId,
+        source: 'dashboard',
+        timestamp: Date.now()
+    });
+}
+```
+
+**Receiving Data:**
+
+```js
+<svelte:options customElement="acme-product-details" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let productId = $state<string>('');
+    let source = $state<string>('');
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Access data passed from parent widget
+        productId = context.dataForWidget.productId || '';
+        source = context.dataForWidget.source || 'unknown';
+
+        console.log('Opened from:', source, 'at', context.dataForWidget.timestamp);
+
+        // Load product data
+        await loadProduct(productId);
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    <h2>Product Details</h2>
+    <p>Product ID: {productId}</p>
+    <p>Opened from: {source}</p>
+</div>
+```
+
+**Important Notes:**
+
+- Data can only be passed to `dialog` and `canvas` contexts (not `spotlight` or `inline`)
+- Data is available immediately when the component initializes via `context.dataForWidget`
+- `dataForWidget` is always an object (defaults to `{}` if no data provided)
+- Use TypeScript interfaces to type-check your data contracts between components
+
+**Example: Multi-Step Workflow:**
+
+```js
+// Step 1: List widget opens detail dialog with item data
+<script lang="ts">
+    async function showDetails(item: any) {
+        await context.chatAppState.renderTag('acme.item-details', 'dialog', {
+            itemId: item.id,
+            itemName: item.name,
+            returnTo: 'item-list'
+        });
+    }
+</script>
+
+// Step 2: Detail widget receives data and can open an editor
+<script lang="ts">
+    let itemId = $state<string>('');
+    let itemName = $state<string>('');
+
+    async function init() {
+        context = await getPikaContext($host());
+        itemId = context.dataForWidget.itemId;
+        itemName = context.dataForWidget.itemName;
+    }
+
+    async function openEditor() {
+        // Close this dialog first
+        context.chatAppState.closeDialog();
+
+        // Open editor in canvas with same item data
+        await context.chatAppState.renderTag('acme.item-editor', 'canvas', {
+            itemId: itemId,
+            itemName: itemName,
+            mode: 'edit'
+        });
+    }
+</script>
 ```
 
 ## Styling

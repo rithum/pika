@@ -30,6 +30,7 @@
                     appState: appState,
                     chatAppState: chat,
                     chatAppId: chat.chatApp.chatAppId,
+                    dataForWidget: canvasWidget.data || {},
                 },
                 true
             )

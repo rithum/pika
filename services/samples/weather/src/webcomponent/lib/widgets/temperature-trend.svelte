@@ -1,11 +1,14 @@
 <svelte:options customElement={{ tag: 'temperature-trend', shadow: 'none' }} />
 
 <script lang="ts">
-    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Button from 'pika-ux/shadcn/button/button.svelte';
-    import RefreshCw from '$icons/lucide/refresh-cw';
-    import MapPin from '$icons/lucide/map-pin';
+    import Input from 'pika-ux/shadcn/input/input.svelte';
+    import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
+    import SearchIcon from '$icons/lucide/search';
 
     interface TemperatureDataPoint {
         timestamp: string;
@@ -27,16 +30,21 @@
 
     const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-    let location = $state('San Francisco');
+    let searchCity = $state('');
+    let location = $state('');
     let temps: number[] = $state([]);
     let hours: string[] = $state([]);
     let highF = $state(0);
     let lowF = $state(0);
-    let loading = $state(true);
+    let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
     let context = $state<PikaWCContext>() as PikaWCContext;
-    let lastRefreshTime = $state<string>('');
+    let lastRefreshTime = $state<string | undefined>();
+    let widgetMetadataApi = $state<IWidgetMetadataAPI | undefined>();
+    let thinkingStatus = $state('');
+    let toolStatus = $state('');
+    let showSearch = $state(true);
 
     $effect(() => {
         if (!initialized) {
@@ -44,28 +52,39 @@
         }
     });
 
+    $effect(() => {
+        const wmd = widgetMetadataApi;
+        const ss = showSearch;
+        if (wmd && !ss) {
+            addSearchAction();
+        } else if (wmd && ss) {
+            wmd.removeAction('search');
+        }
+    });
+
+    async function addSearchAction() {
+        widgetMetadataApi?.addAction({
+            id: 'search',
+            title: 'Search',
+            iconSvg: await getIconSvg('search', 'lucide'),
+            callback: async () => {
+                showSearch = true;
+            }
+        });
+    }
+
     async function init() {
-        // $host() is svelte's way to get the host element of the web component
         context = await getPikaContext($host());
         initialized = true;
 
         // Register widget metadata
-        const metadata = context.chatAppState.getWidgetMetadataAPI('weather', 'temperature-trend', context.instanceId, context.renderingContext);
+        widgetMetadataApi = context.chatAppState.getWidgetMetadataAPI('weather', 'temperature-trend', context.instanceId, context.renderingContext);
 
-        metadata.setMetadata({
-            title: `Temperature Trend - ${location}`,
-            actions: [
-                {
-                    id: 'refresh',
-                    title: 'Refresh Data',
-                    // refresh-cw icon svg
-                    iconSvg:
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
-                    callback: async () => {
-                        await fetchTrend();
-                    }
-                }
-            ]
+        widgetMetadataApi.setMetadata({
+            title: 'Temp Trend',
+            iconSvg: await getIconSvg('activity', 'lucide'),
+            iconColor: '#f59e0b', // Amber/Orange
+            actions: []
         });
 
         // Load cached trend data
@@ -73,49 +92,72 @@
         const cachedData = await userWidgetData.getValue<CachedTrendData>('trendData');
 
         if (cachedData) {
-            lastRefreshTime = cachedData.timestamp;
-            location = cachedData.location;
-            temps = cachedData.response.dataPoints.map((dp) => dp.tempF);
-            hours = cachedData.response.dataPoints.map((dp) => {
-                const date = new Date(dp.timestamp);
-                const hour = date.getHours();
-                const ampm = hour >= 12 ? 'pm' : 'am';
-                const displayHour = hour % 12 || 12;
-                return `${displayHour}${ampm}`;
-            });
-            highF = cachedData.response.highF;
-            lowF = cachedData.response.lowF;
+            if (typeof cachedData.response === 'string' && (cachedData.response as string).toLowerCase().includes('oops')) {
+                error = 'Failed to load temperature trend';
+                console.error('Temperature Trend bad data:', cachedData.response);
+            } else {
+                lastRefreshTime = cachedData.timestamp;
+                location = cachedData.location;
+                searchCity = cachedData.location;
+                applyTrendData(cachedData.response);
+                showSearch = false;
 
-            // Check if data is stale (older than 1 hour)
-            const cacheAge = Date.now() - new Date(cachedData.timestamp).getTime();
-            if (cacheAge > REFRESH_INTERVAL_MS) {
-                // Auto-refresh stale data
-                await fetchTrend();
+                // Check if data is stale (older than 1 hour)
+                const cacheAge = Date.now() - new Date(cachedData.timestamp).getTime();
+                if (cacheAge > REFRESH_INTERVAL_MS) {
+                    // Auto-refresh stale data
+                    await fetchTrend();
+                }
             }
-        } else {
-            // No cached data, fetch immediately
-            await fetchTrend();
         }
+    }
 
-        loading = false;
+    function applyTrendData(response: TemperatureTrendResponse) {
+        if (!response || !response.dataPoints) return;
+        temps = response.dataPoints.map((dp) => dp.tempF);
+        hours = response.dataPoints.map((dp) => {
+            const date = new Date(dp.timestamp);
+            const hour = date.getHours();
+            const ampm = hour >= 12 ? 'pm' : 'am';
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}${ampm}`;
+        });
+        highF = response.highF;
+        lowF = response.lowF;
     }
 
     async function fetchTrend() {
-        if (!context) return;
+        if (!context || loading || !searchCity || !searchCity.trim()) return;
 
         loading = true;
         error = '';
+        thinkingStatus = '';
+        toolStatus = '';
 
         try {
+            const options: InvokeAgentAsComponentOptions = {
+                onThinking: (text: string) => {
+                    // Skip semantic-directives messages
+                    if (text.startsWith('{"type":"semantic-directives"')) return;
+                    thinkingStatus = text.length > 70 ? text.substring(0, 70) + '...' : text;
+                },
+                onToolCall: (call: { name: string; params: any }) => {
+                    const funcName = call.name.split('__')[1] || call.name;
+                    toolStatus = `Calling AI tool: ${funcName}...`;
+                }
+            };
+
             const response = await context.chatAppState.invokeAgentAsComponent<TemperatureTrendResponse>(
                 'weather',
                 'temperature-trend',
                 'get24hTrend',
-                `Get 24-hour temperature trend for ${location}`
+                `Get 24-hour temperature trend for ${searchCity}`,
+                options
             );
 
             // Save to component values
             const timestamp = new Date().toISOString();
+            location = response.location;
             const userWidgetData = context.chatAppState.getUserWidgetDataStoreState('weather', 'temperature-trend');
             await userWidgetData.setValue('trendData', {
                 response,
@@ -124,22 +166,21 @@
             } as CachedTrendData);
             lastRefreshTime = timestamp;
 
-            // Extract temperatures and format times
-            temps = response.dataPoints.map((dp) => dp.tempF);
-            hours = response.dataPoints.map((dp) => {
-                const date = new Date(dp.timestamp);
-                const hour = date.getHours();
-                const ampm = hour >= 12 ? 'pm' : 'am';
-                const displayHour = hour % 12 || 12;
-                return `${displayHour}${ampm}`;
-            });
-            highF = response.highF;
-            lowF = response.lowF;
+            applyTrendData(response);
+            thinkingStatus = '';
+            toolStatus = '';
+            showSearch = false;
         } catch (e) {
             console.error('Error fetching temperature trend:', e);
             error = 'Failed to fetch temperature trend';
         } finally {
             loading = false;
+        }
+    }
+
+    function handleKeypress(event: KeyboardEvent) {
+        if (event.key === 'Enter') {
+            fetchTrend();
         }
     }
 
@@ -152,152 +193,90 @@
         return ((temp - min) / range) * 100;
     }
 
-    function changeLocation() {
-        const newLocation = prompt('Enter city name:', location);
-        if (newLocation) {
-            location = newLocation;
-        }
+    function getBarColor(temp: number): string {
+        if (temp >= 80) return 'from-orange-500 to-red-500';
+        if (temp >= 60) return 'from-amber-400 to-orange-500';
+        if (temp >= 40) return 'from-blue-400 to-indigo-500';
+        return 'from-cyan-400 to-blue-500';
     }
 </script>
 
-<div class="temperature-trend">
-    <div class="header">
-        <div class="title">
-            <h3 class="text-base font-semibold m-0">🌡️ Temperature Trend (24h)</h3>
-            {#if lastRefreshTime}
-                <span class="last-update">Updated {new Date(lastRefreshTime).toLocaleTimeString()}</span>
-            {/if}
-            <Button variant="ghost" size="sm" onclick={changeLocation} disabled={loading} class="h-7 px-2">
-                <MapPin class="h-3 w-3 mr-1" />
-                {location}
-            </Button>
-        </div>
-        <Button variant="outline" size="sm" onclick={fetchTrend} disabled={loading}>
-            <RefreshCw class="h-3 w-3 mr-1" />
-            {loading ? 'Loading...' : 'Refresh'}
-        </Button>
-    </div>
-
-    {#if loading}
-        <p class="loading">Loading data...</p>
-    {:else if error}
-        <p class="error">{error}</p>
-    {:else if temps.length === 0}
-        <p class="no-data">Click Refresh to load data</p>
-    {:else}
-        <div class="stats">
-            <span class="stat">High: <strong>{Math.round(highF)}°F</strong></span>
-            <span class="stat">Low: <strong>{Math.round(lowF)}°F</strong></span>
-        </div>
-        <div class="chart">
-            {#each temps as temp, i}
-                <div class="bar-container">
-                    <div class="bar" style="height: {getBarHeight(temp)}%">
-                        <span class="temp-label">{Math.round(temp)}°</span>
-                    </div>
-                    <span class="hour-label">{hours[i]}</span>
-                </div>
-            {/each}
+<div class="h-full w-full flex flex-col">
+    {#if showSearch}
+        <div class="px-3 py-2.5">
+            <div class="flex gap-2">
+                <Input type="text" bind:value={searchCity} onkeypress={handleKeypress} placeholder="Enter city name..." disabled={loading} class="flex-1 text-sm" />
+                <Button variant="outline" size="icon" onclick={fetchTrend} disabled={loading || !searchCity || !searchCity.trim()}>
+                    <SearchIcon class="h-4 w-4" />
+                </Button>
+            </div>
         </div>
     {/if}
+
+    <div class="flex-1 overflow-hidden px-3 {showSearch ? 'pt-0' : 'pt-2.5'} pb-2">
+        {#if loading}
+            <div class="space-y-2">
+                <div class="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                    <Spinner class="h-3.5 w-3.5 text-amber-500" />
+                    <span>One sec, AI is on it...</span>
+                </div>
+                {#if thinkingStatus}
+                    <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                        <p class="font-bold">AI Reasoning</p>
+                        <p class="text-indigo-600 italic">{thinkingStatus}</p>
+                    </div>
+                {/if}
+                {#if toolStatus}
+                    <div class="space-y-1.5 text-xs text-gray-500 pt-2">
+                        <p class="font-bold">AI Tooling</p>
+                        <p class="text-emerald-600 italic">{toolStatus}</p>
+                    </div>
+                {/if}
+            </div>
+        {:else if error}
+            <p class="text-center py-6 text-red-500 text-sm">{error}</p>
+        {:else if temps.length === 0}
+            <p class="text-center py-6 text-gray-500 text-sm">Enter a city to view temperature trend</p>
+        {:else}
+            <div class="h-full flex flex-col">
+                <div class="text-center text-xs text-gray-500 mt-2">
+                    <span class="font-bold">{location}</span> • 24-hour trend
+                </div>
+
+                <div class="flex gap-2 mb-2 mt-4">
+                    <div class="flex-1 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-2 border border-orange-200">
+                        <div class="text-sm text-gray-600 mb-0.5">High</div>
+                        <div class="text-sm font-bold text-orange-600">{Math.round(highF)}°F</div>
+                    </div>
+                    <div class="flex-1 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-2 border border-blue-200">
+                        <div class="text-sm text-gray-600 mb-0.5">Low</div>
+                        <div class="text-sm font-bold text-blue-600">{Math.round(lowF)}°F</div>
+                    </div>
+                </div>
+
+                <div class="relative h-24 text-xs flex items-end justify-between gap-0.5 px-0.5 mt-4">
+                    {#each temps as temp, i}
+                        {@const height = getBarHeight(temp)}
+                        {@const colorClass = getBarColor(temp)}
+                        <div class="flex-1 flex flex-col items-center justify-end h-full">
+                            <div class="w-full bg-gradient-to-t {colorClass} rounded-t-sm relative" style="height: {height}%;">
+                                {#if i % 4 === 0}
+                                    <span class="absolute -top-3 left-1/2 -translate-x-1/2 text-[0.5rem] font-semibold text-gray-700 whitespace-nowrap">{Math.round(temp)}°</span>
+                                {/if}
+                            </div>
+                            {#if i % 4 === 0}
+                                <span class="text-[0.5rem] text-gray-500 mt-0.5">{hours[i]}</span>
+                            {/if}
+                        </div>
+                    {/each}
+                </div>
+
+                {#if lastRefreshTime}
+                    <div class="text-right w-full italic text-gray-400 mt-1" style="font-size: 0.5rem;">
+                        Updated: {new Date(lastRefreshTime).toLocaleString()}
+                    </div>
+                {/if}
+            </div>
+        {/if}
+    </div>
 </div>
-
-<style>
-    .temperature-trend {
-        padding: 0.75rem;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 0.75rem;
-    }
-
-    .title {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .last-update {
-        font-size: 0.65rem;
-        color: #6b7280;
-    }
-
-    .stats {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 0.75rem;
-        padding: 0.5rem;
-        background: #f9fafb;
-        border-radius: 4px;
-    }
-
-    .stat {
-        font-size: 0.75rem;
-        color: #6b7280;
-    }
-
-    .stat strong {
-        color: #111827;
-        font-size: 0.875rem;
-    }
-
-    .chart {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        height: 120px;
-        padding: 0.75rem 0;
-    }
-
-    .bar-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        flex: 1;
-        height: 100%;
-        position: relative;
-    }
-
-    .bar {
-        width: 80%;
-        background: linear-gradient(to top, #3b82f6, #60a5fa);
-        border-radius: 3px 3px 0 0;
-        position: relative;
-        min-height: 20%;
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-    }
-
-    .temp-label {
-        font-size: 0.625rem;
-        font-weight: bold;
-        color: #1e40af;
-        margin-top: 0.125rem;
-    }
-
-    .hour-label {
-        font-size: 0.625rem;
-        color: #6b7280;
-        margin-top: 0.375rem;
-    }
-
-    .loading,
-    .no-data,
-    .error {
-        text-align: center;
-        padding: 1.5rem;
-        color: #6b7280;
-        font-size: 0.875rem;
-    }
-
-    .error {
-        color: #ef4444;
-    }
-</style>

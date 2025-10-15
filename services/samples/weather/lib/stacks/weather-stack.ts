@@ -150,8 +150,8 @@ export class WeatherStack extends cdk.Stack {
             const sourcePath = path.join(buildDir, file);
             const meta = gzipAndHashFile(sourcePath);
 
-            // Save metadata for hello-world.js (used in tag definitions)
-            if (file === 'hello-world.js') {
+            // Save metadata for weather.js (used in tag definitions)
+            if (file === 'weather.js') {
                 webcomponentMeta = meta;
             }
 
@@ -162,7 +162,7 @@ export class WeatherStack extends cdk.Stack {
         });
 
         if (!webcomponentMeta) {
-            throw new Error('hello-world.js not found in build directory');
+            throw new Error('weather.js not found in build directory');
         }
 
         // Deploy entire dist/ directory to S3

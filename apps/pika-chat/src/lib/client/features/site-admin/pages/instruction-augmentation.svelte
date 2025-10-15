@@ -54,7 +54,24 @@
     // }
 
     async function refreshData() {
+        const currentDirectiveScope = iaState.currentDirective?.scope;
+        const currentDirectiveId = iaState.currentDirective?.id;
+
         await iaState.performSearch();
+
+        // If we had a current directive, update it with fresh data from the search results
+        if (currentDirectiveScope && currentDirectiveId) {
+            const updatedDirective = iaState.semanticDirectives.find(
+                (d) => d.scope === currentDirectiveScope && d.id === currentDirectiveId
+            );
+            if (updatedDirective) {
+                iaState.setCurrentDirective(updatedDirective, true);
+            } else {
+                // If we can't find the directive with the original scope/id, it might have been
+                // deleted/replaced during editing. Clear the current directive.
+                iaState.setCurrentDirective(undefined, true);
+            }
+        }
     }
 
     function confirmChangeDirective() {
@@ -95,8 +112,8 @@
                 </div>
 
                 <!-- Detail content -->
-                <div class="flex-1">
-                    <ScrollArea class="h-full">
+                <div class="flex-1 overflow-hidden">
+                    <ScrollArea class="h-full w-full">
                         <div class="p-4">
                             <SemanticDirectiveDetail
                                 directive={iaState.currentDirective}

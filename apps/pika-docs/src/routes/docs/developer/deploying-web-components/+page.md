@@ -29,7 +29,7 @@ Deploying involves:
 - Create a script that directly uploads to S3 and invokes the tag definition Lambda
 - Much faster than full stack deployments (seconds vs minutes)
 - Perfect for rapid iteration during development
-- See [Rapid Tag Definition Deployment Tool](#rapid-tag-definition-deployment-tool) for a complete reference implementation
+- See [Rapid Tag Definition Deployment Tool](#Rapid-Tag-Definition-Deployment-Tool) for a complete reference implementation
 
 :::note[Using Serverless Framework?]
 The `pika-serverless` npm module includes a plugin to make this easy for you if you are using the Serverless Framework for IAC.
@@ -787,7 +787,7 @@ cdk deploy
 
 **Alternative: Direct upload tool (faster):**
 
-For quicker iterations during development, use a direct upload tool instead. See the [Rapid Tag Definition Deployment Tool](#rapid-tag-definition-deployment-tool) section below for details and a complete reference implementation.
+For quicker iterations during development, use a direct upload tool instead. See the [Rapid Tag Definition Deployment Tool](#Rapid-Tag-Definition-Deployment-Tool) section below for details and a complete reference implementation.
 
 ```bash
 # Much faster than CDK deploy
@@ -910,7 +910,7 @@ pnpm run dev
 - Local dev server must be running
 - Overrides are local to your machine
 
-See [Building Web Components - Rapid Development](/docs/developer/building-web-components#rapid-development-with-local-overrides) for more details.
+See [Building Web Components - Rapid Development](/docs/developer/building-web-components#Rapid-Development-with-Local-Overrides) for more details.
 
 ## Testing Your Deployment
 

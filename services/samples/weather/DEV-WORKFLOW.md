@@ -180,7 +180,7 @@ services/samples/weather/
 **Production Build** (`pnpm run build`):
 
 - Uses `vite.config.ts`
-- Bundles all components into single `hello-world.js.gz`
+- Bundles all components into single `weather.js.gz`
 - Minified and optimized
 - Deployed to S3
 

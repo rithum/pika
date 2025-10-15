@@ -219,7 +219,7 @@
             }
         }}
     >
-        <Dialog.Content>
+        <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
             <Dialog.Title>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Dialog.Title>
 
             {appState.logoutSiteFeature.dialogDescription ?? 'Are you sure you want to logout?'}
