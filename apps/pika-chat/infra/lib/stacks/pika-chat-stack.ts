@@ -30,10 +30,12 @@ export class PikaChatStack extends cdk.Stack {
     public readonly webapp: PikaChatConstruct;
     public stageParam: cdk.CfnParameter;
     public stageCappedParam: cdk.CfnParameter;
+    public readonly stackProps: PikaChatStackProps;
 
     constructor(scope: Construct, id: string, props: PikaChatStackProps) {
         super(scope, id, props);
 
+        this.stackProps = props;
         this.stage = props.stage;
 
         //TODO: check for the existence of an input param named stage and if not provided, add it as a required input param with no default value
