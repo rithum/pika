@@ -684,6 +684,20 @@ export default class CompanyAuthProvider extends AuthProvider<CompanyAuthData, C
             value: `${accountDetails.name} (${accountId})`
         };
     }
+
+    // Optional: Provide custom data for a specific chat app
+    // This data will be accessible in web components via context.chatAppState.customDataForChatApp
+    async getCustomDataForChatApp(user: AuthenticatedUser<CompanyAuthData, CompanyCustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+        // Example: Return environment-specific config for web components
+        return {
+            apiEndpoint: process.env.API_ENDPOINT,
+            mapApiKey: process.env.MAP_API_KEY,
+            featureFlags: {
+                enableAdvancedSearch: true,
+                enableExport: user.userType === 'internal-user'
+            }
+        };
+    }
 }
 ```
 
@@ -1191,6 +1205,240 @@ This pattern is ideal for:
 - **Implement proper state parameter** validation for OAuth flows
 - **Set appropriate cookie security** settings for your domain
 - **Handle authentication errors** gracefully on both client and server
+
+## Custom Chat App Data Extension Point
+
+### Overview
+
+The `getCustomDataForChatApp` method allows your auth provider to supply custom configuration data to web components for a specific chat app. This is particularly useful for passing environment variables, API keys, or user-specific configuration to web components without hardcoding values.
+
+### Purpose
+
+Web components often need access to:
+
+- **API endpoints** that vary by environment (dev, staging, prod)
+- **API keys** for third-party services (maps, weather, analytics)
+- **Feature flags** that control component behavior
+- **User-specific configuration** derived from authentication state
+- **Environment-specific settings** that shouldn't be bundled with the component
+
+### Implementation
+
+Add the optional `getCustomDataForChatApp` method to your auth provider:
+
+```js
+export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    // ... other methods
+
+    async getCustomDataForChatApp(
+        user: AuthenticatedUser<YourAuthData, YourCustomData>,
+        chatAppId: string
+    ): Promise<Record<string, unknown> | undefined> {
+        // Return custom data that will be accessible to web components
+        // This method is called when the chat app layout loads
+
+        return {
+            // Environment-specific configuration
+            apiEndpoint: process.env.API_ENDPOINT,
+            apiKey: process.env.THIRD_PARTY_API_KEY,
+
+            // User-specific configuration
+            canExport: user.userType === 'internal-user',
+            maxResults: user.userType === 'internal-user' ? 1000 : 100,
+
+            // Feature flags
+            featureFlags: {
+                enableAdvancedSearch: true,
+                enableBulkOperations: user.roles?.includes('admin')
+            }
+        };
+    }
+}
+```
+
+### Accessing Data in Web Components
+
+Web components can access this data through the chat app state:
+
+```js
+<svelte:options customElement="acme-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let apiEndpoint = $state<string>('');
+    let apiKey = $state<string>('');
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Access custom data provided by auth provider
+        const customData = context.chatAppState.customDataForChatApp;
+
+        if (customData) {
+            apiEndpoint = customData.apiEndpoint as string;
+            apiKey = customData.apiKey as string;
+
+            // Use the configuration
+            await fetchDataFromAPI(apiEndpoint, apiKey);
+        }
+    }
+
+    async function fetchDataFromAPI(endpoint: string, key: string) {
+        const response = await fetch(endpoint, {
+            headers: {
+                'Authorization': `Bearer ${key}`
+            }
+        });
+        return response.json();
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+```
+
+### Use Cases
+
+<Tabs activeName="Environment Config">
+  <TabPanel name="Environment Config">
+
+```js
+// Pass environment-specific configuration to components
+async getCustomDataForChatApp(user: AuthenticatedUser<AuthData, CustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+    return {
+        environment: process.env.NODE_ENV,
+        apiEndpoint: process.env.API_ENDPOINT,
+        websocketUrl: process.env.WS_ENDPOINT,
+        cdnUrl: process.env.CDN_URL
+    };
+}
+```
+
+  </TabPanel>
+  <TabPanel name="Third-Party APIs">
+
+```js
+// Provide API keys for third-party services
+async getCustomDataForChatApp(user: AuthenticatedUser<AuthData, CustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+    return {
+        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+        weatherApiKey: process.env.WEATHER_API_KEY,
+        analyticsTrackingId: process.env.ANALYTICS_ID
+    };
+}
+```
+
+  </TabPanel>
+  <TabPanel name="User Permissions">
+
+```js
+// Pass user-specific permissions and limits
+async getCustomDataForChatApp(user: AuthenticatedUser<AuthData, CustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+    const isInternal = user.userType === 'internal-user';
+    const isAdmin = user.roles?.includes('admin');
+
+    return {
+        permissions: {
+            canExport: isInternal,
+            canDelete: isAdmin,
+            canBulkEdit: isAdmin
+        },
+        limits: {
+            maxResults: isInternal ? 1000 : 100,
+            maxFileSize: isInternal ? 100 * 1024 * 1024 : 10 * 1024 * 1024,
+            rateLimit: isInternal ? 1000 : 100
+        }
+    };
+}
+```
+
+  </TabPanel>
+  <TabPanel name="Chat App Specific">
+
+```js
+// Return different config per chat app
+async getCustomDataForChatApp(user: AuthenticatedUser<AuthData, CustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+    if (chatAppId === 'weather-app') {
+        return {
+            weatherApiKey: process.env.WEATHER_API_KEY,
+            defaultLocation: user.customData?.location || 'San Francisco',
+            units: user.customData?.preferredUnits || 'imperial'
+        };
+    }
+
+    if (chatAppId === 'sales-app') {
+        return {
+            salesforceApiKey: process.env.SALESFORCE_API_KEY,
+            accountId: user.customData?.accountId,
+            region: user.customData?.region
+        };
+    }
+
+    return undefined;
+}
+```
+
+  </TabPanel>
+</Tabs>
+
+### Best Practices
+
+**Security:**
+
+- **Never expose sensitive secrets** directly - use this for configuration, not authentication tokens
+- **Validate data access** - ensure users only get data they're authorized to see
+- **Use environment variables** - don't hardcode sensitive values in your code
+- **Consider data sensitivity** - this data is sent to the browser, so treat it accordingly
+
+**Performance:**
+
+- **Keep data minimal** - only return what components actually need
+- **Avoid expensive operations** - this method is called on every chat app layout load
+- **Cache when appropriate** - consider caching results if data doesn't change often
+
+**Type Safety:**
+
+```js
+// Define a type for your custom data
+interface MyChatAppCustomData {
+    apiEndpoint: string;
+    apiKey: string;
+    featureFlags: {
+        enableExport: boolean;
+        enableAdvancedSearch: boolean;
+    };
+}
+
+// Use in web component with type safety
+const customData = context.chatAppState.customDataForChatApp as MyChatAppCustomData;
+if (customData) {
+    const endpoint = customData.apiEndpoint; // Type-safe access
+}
+```
+
+### Error Handling
+
+If your method throws an error or returns undefined, web components should handle the absence of data gracefully:
+
+```js
+async function init() {
+    context = await getPikaContext($host());
+
+    const customData = context.chatAppState.customDataForChatApp;
+
+    if (!customData) {
+        console.warn('No custom data available for this chat app');
+        // Use fallback values or disable features
+        return;
+    }
+
+    // Use custom data
+}
+```
 
 ## AWS Credentials Integration
 

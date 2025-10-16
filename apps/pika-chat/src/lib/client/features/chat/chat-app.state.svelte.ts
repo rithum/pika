@@ -158,6 +158,7 @@ export class ChatAppState implements IChatAppState {
             return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
         });
     });
+    #customDataForChatApp = $state<Record<string, unknown> | undefined>(undefined);
 
     // Sharing-related state
     #recentSharedSessionVisits = $state<SharedSessionVisitHistory[]>([]);
@@ -817,7 +818,8 @@ export class ChatAppState implements IChatAppState {
         tagDefinitions: TagDefinition<TagDefinitionWidget>[],
         showToast: ShowToastFn,
         webComponentRenderer: Component<any>,
-        webComponentUrls: Record<string, string> | undefined
+        webComponentUrls: Record<string, string> | undefined,
+        customDataForChatApp: Record<string, unknown> | undefined
     ) {
         this.#chatApp = chatApp;
         this.#appState = appState;
@@ -828,6 +830,7 @@ export class ChatAppState implements IChatAppState {
         this.#componentRegistry = componentRegistry;
         this.#widgetRegistry = new WidgetRegistry();
         this.#webComponentUrls = webComponentUrls;
+        this.#customDataForChatApp = customDataForChatApp;
 
         // Apply local URL overrides to tag definitions for rapid development
         const tagDefinitionsWithOverrides = this.#applyWebComponentUrlOverrides(tagDefinitions);
@@ -2348,6 +2351,10 @@ export class ChatAppState implements IChatAppState {
 
         await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
         await this.initializeSpotlight();
+    }
+
+    get customDataForChatApp(): Record<string, unknown> | undefined {
+        return this.#customDataForChatApp;
     }
 
     /**

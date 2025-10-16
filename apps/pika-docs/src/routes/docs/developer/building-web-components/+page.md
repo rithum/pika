@@ -168,6 +168,13 @@ const session = context.chatAppState.currentSession;
 // Access messages
 const messages = context.chatAppState.currentSessionMessages;
 
+// Access custom data provided by auth provider (API keys, config, etc.)
+const customData = context.chatAppState.customDataForChatApp;
+if (customData) {
+    const apiKey = customData.apiKey as string;
+    const endpoint = customData.apiEndpoint as string;
+}
+
 // Send a message programmatically
 context.chatAppState.chatInput = 'Show me the sales report';
 await context.chatAppState.sendMessage();
@@ -1069,6 +1076,228 @@ const weather = await context.chatAppState.invokeAgentAsComponent<WeatherRespons
 console.log(weather.tempF); // Type-safe
 console.log(weather.invalid); // TypeScript error
 ```
+
+## Accessing Custom Chat App Data
+
+### Overview
+
+Your auth provider can supply custom configuration data (like API keys, endpoints, or feature flags) to web components through the `customDataForChatApp` property. This enables web components to access environment-specific configuration without hardcoding values.
+
+### When to Use This
+
+Use `customDataForChatApp` when your web component needs:
+
+- **Environment-specific configuration** (API endpoints that differ between dev/staging/prod)
+- **Third-party API keys** (Google Maps, weather services, analytics)
+- **Feature flags** derived from user permissions
+- **User-specific limits or settings**
+
+### How It Works
+
+1. **Auth Provider**: Implements `getCustomDataForChatApp` method to return configuration
+2. **Framework**: Calls the method when the chat app layout loads
+3. **Web Component**: Accesses the data via `context.chatAppState.customDataForChatApp`
+
+### Example: Using API Keys
+
+**Auth Provider Setup:**
+
+```js
+// In your auth provider (apps/pika-chat/src/lib/server/auth-provider/index.ts)
+export default class MyAuthProvider extends AuthProvider<MyAuthData, MyCustomData> {
+    async getCustomDataForChatApp(user: AuthenticatedUser<MyAuthData, MyCustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+        return {
+            weatherApiKey: process.env.WEATHER_API_KEY,
+            weatherApiEndpoint: process.env.WEATHER_API_ENDPOINT,
+            maxResults: user.userType === 'internal-user' ? 1000 : 100
+        };
+    }
+}
+```
+
+**Web Component Usage:**
+
+```js
+<svelte:options customElement="weather-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let weatherData = $state<any>(null);
+    let loading = $state(false);
+    let error = $state<string>('');
+
+    async function init() {
+        context = await getPikaContext($host());
+    }
+
+    async function fetchWeather(city: string) {
+        const customData = context.chatAppState.customDataForChatApp;
+
+        if (!customData) {
+            error = 'Configuration not available';
+            return;
+        }
+
+        loading = true;
+        error = '';
+
+        try {
+            const response = await fetch(`${customData.weatherApiEndpoint}/weather?city=${city}`, {
+                headers: {
+                    'Authorization': `Bearer ${customData.weatherApiKey}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch weather');
+
+            weatherData = await response.json();
+        } catch (e) {
+            error = 'Failed to load weather data';
+            console.error('Weather fetch error:', e);
+        } finally {
+            loading = false;
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="weather-widget">
+    {#if error}
+        <p class="error">{error}</p>
+    {:else if loading}
+        <p>Loading...</p>
+    {:else if weatherData}
+        <div>
+            <h3>{weatherData.city}</h3>
+            <p>Temperature: {weatherData.temp}°F</p>
+            <p>Condition: {weatherData.condition}</p>
+        </div>
+    {:else}
+        <button onclick={() => fetchWeather('San Francisco')}>
+            Get Weather
+        </button>
+    {/if}
+</div>
+```
+
+### Example: Type-Safe Access
+
+Define TypeScript interfaces for type-safe access to custom data:
+
+```js
+// Define the expected structure
+interface WeatherCustomData {
+    weatherApiKey: string;
+    weatherApiEndpoint: string;
+    maxResults: number;
+}
+
+// Use in your component with type safety
+async function init() {
+    context = await getPikaContext($host());
+
+    const customData = context.chatAppState.customDataForChatApp as WeatherCustomData | undefined;
+
+    if (!customData) {
+        console.warn('Custom data not available');
+        return;
+    }
+
+    // Now TypeScript knows the exact structure
+    const apiKey: string = customData.weatherApiKey;
+    const endpoint: string = customData.weatherApiEndpoint;
+    const limit: number = customData.maxResults;
+}
+```
+
+### Example: Chat App-Specific Configuration
+
+Your auth provider can return different configuration for different chat apps:
+
+```js
+// In auth provider
+async getCustomDataForChatApp(user: AuthenticatedUser<AuthData, CustomData>, chatAppId: string): Promise<Record<string, unknown> | undefined> {
+    if (chatAppId === 'weather-app') {
+        return {
+            apiKey: process.env.WEATHER_API_KEY,
+            apiEndpoint: process.env.WEATHER_API_ENDPOINT,
+            defaultLocation: user.customData?.location || 'San Francisco'
+        };
+    }
+
+    if (chatAppId === 'maps-app') {
+        return {
+            googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+            defaultZoom: 12,
+            defaultCenter: user.customData?.coordinates || { lat: 37.7749, lng: -122.4194 }
+        };
+    }
+
+    return undefined;
+}
+```
+
+### Best Practices
+
+**Always Check for Availability:**
+
+```js
+async function init() {
+    context = await getPikaContext($host());
+
+    const customData = context.chatAppState.customDataForChatApp;
+
+    if (!customData) {
+        // Handle missing data gracefully
+        console.warn('Custom configuration not available');
+        // Use fallback values or disable features
+        return;
+    }
+
+    // Proceed with configuration
+}
+```
+
+**Validate Data:**
+
+```js
+function validateCustomData(data: any): data is WeatherCustomData {
+    return (
+        data &&
+        typeof data.weatherApiKey === 'string' &&
+        typeof data.weatherApiEndpoint === 'string' &&
+        typeof data.maxResults === 'number'
+    );
+}
+
+async function init() {
+    context = await getPikaContext($host());
+    const customData = context.chatAppState.customDataForChatApp;
+
+    if (!validateCustomData(customData)) {
+        console.error('Invalid custom data structure');
+        return;
+    }
+
+    // Safe to use with correct types
+}
+```
+
+**Security Considerations:**
+
+- Custom data is sent to the browser - don't include sensitive secrets
+- Use this for configuration, not authentication tokens
+- API keys sent to the browser should have appropriate restrictions (IP, referer, rate limits)
+
+:::info[Learn More]
+See the [Authentication Guide](/docs/developer/authentication/#custom-chat-app-data-extension-point) for complete details on implementing `getCustomDataForChatApp` in your auth provider.
+:::
 
 ## Component Values (Persistent Storage)
 
