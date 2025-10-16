@@ -236,6 +236,11 @@ export class AppConfigProxy implements AppConfig {
         return value;
     }
 
+    public getArbitraryConfigValueNotRequired(key: string): string | undefined {
+        const value = env[key] ?? process.env[key];
+        return value;
+    }
+
     public get webappUrl(): string {
         if (!this._webappUrl) throw new Error('App config not initialized');
         return this._webappUrl;

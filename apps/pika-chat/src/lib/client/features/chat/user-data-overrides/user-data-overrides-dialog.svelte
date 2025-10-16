@@ -68,7 +68,7 @@
 
 {#if chat.userDataOverrideSettings.enabled}
     <Dialog.Root bind:open={chat.userDataOverrideDialogOpen}>
-        <Dialog.Content>
+        <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
             {#if showSuccessMessage}
                 <Dialog.Header>
                     <Dialog.Title>Success</Dialog.Title>
