@@ -50,7 +50,7 @@ export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, Re
 }
 
 function addDefaultGetUserCognitoIdentityMethodIfSupposedTo(authProvider: AuthProvider<RecordOrUndef, RecordOrUndef>): AuthProvider<RecordOrUndef, RecordOrUndef> {
-    if (appConfig.isLocal && appConfig.getArbitraryConfigValue('USE_LOCAL_COGNITO_IDENTITY') === 'true') {
+    if (appConfig.isLocal && appConfig.getArbitraryConfigValueNotRequired('USE_LOCAL_COGNITO_IDENTITY') === 'true') {
         authProvider.getUserCognitoIdentity = async (_user) => {
             return {
                 cognitoIdentityId: appConfig.getArbitraryConfigValue('LOCAL_COGNITO_IDENTITY_ID'),
