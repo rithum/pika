@@ -149,4 +149,15 @@ export abstract class AuthProvider<T extends RecordOrUndef = undefined, U extend
      * @returns The Cognito identity for the user
      */
     async getUserCognitoIdentity?(user: AuthenticatedUser<T, U>): Promise<UserCognitoIdentity | undefined>;
+
+    /**
+     * Get the custom data for the chat app.  This is used to get the custom data for the chat app that will be accessible in the
+     * ChatAppState.customData property.  This is often used to get environment variables or other config to webcomponents that
+     * use the ChatAppState.customData to get a piece of custom config that they need to use in their component.
+     *
+     * @param user - The authenticated user (if there is one)
+     * @param chatAppId - The chat app ID (if there is one), useful to know which custom data to use if needed
+     * @returns The custom data for the chat app
+     */
+    async getCustomDataForChatApp?(user: AuthenticatedUser<T, U>, chatAppId: string): Promise<Record<string, unknown> | undefined>;
 }

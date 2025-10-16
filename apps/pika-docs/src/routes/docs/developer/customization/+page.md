@@ -504,6 +504,7 @@ See [Custom Message Tags Guide](/docs/developer/custom-message-tags/) for detail
 - OAuth flow handlers
 - SSO integration logic
 - Custom user data types
+- Custom chat app configuration provider (for web components)
 
 **Example use cases:**
 
@@ -511,6 +512,7 @@ See [Custom Message Tags Guide](/docs/developer/custom-message-tags/) for detail
 - Custom OAuth providers
 - Multi-tenant authentication
 - Role-based access control
+- Supplying API keys and configuration to web components
 
 :::info[Documentation]
 See [Authentication Guide](/docs/developer/authentication/) for detailed implementation instructions.

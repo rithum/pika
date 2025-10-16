@@ -34,7 +34,8 @@
         data.mode,
         data.tagDefinitions,
         WebComponentRenderer,
-        data.webComponentUrls
+        data.webComponentUrls,
+        data.customDataForChatApp
     );
 
     let showShareErrorDialogTitle = $state('');

@@ -45,6 +45,11 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
     }
 
+    let customDataForChatApp: Record<string, unknown> | undefined;
+    if (authProvider.getCustomDataForChatApp) {
+        customDataForChatApp = await authProvider.getCustomDataForChatApp(locals.user, chatAppId);
+    }
+
     try {
         const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
         if (matchingChatApps && matchingChatApps.length === 1) {
@@ -137,6 +142,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
         mode: (modeParam ?? 'standalone') as ChatAppMode,
         error: errorParam,
         shareId: shareParam,
-        ...(webComponentUrls ? { webComponentUrls } : {})
+        ...(webComponentUrls ? { webComponentUrls } : {}),
+        customDataForChatApp
     };
 };
