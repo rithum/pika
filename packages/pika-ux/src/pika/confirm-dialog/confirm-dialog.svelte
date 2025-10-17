@@ -37,7 +37,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Title>{title ?? 'Confirm'}</Dialog.Title>
         {confirmQuestion}
         <Dialog.Footer>

@@ -149,7 +149,7 @@
 </Sidebar.Provider>
 
 <Dialog.Root bind:open={showShareErrorDialog}>
-    <Dialog.Content>
+    <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Header>
             <Dialog.Title>{showShareErrorDialogTitle}</Dialog.Title>
         </Dialog.Header>

@@ -8,7 +8,7 @@
 </script>
 
 <Dialog.Root bind:open={appState.settings.dialogOpen}>
-    <Dialog.Content>
+    <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Header>
             <Dialog.Title>Chatbot Settings</Dialog.Title>
         </Dialog.Header>

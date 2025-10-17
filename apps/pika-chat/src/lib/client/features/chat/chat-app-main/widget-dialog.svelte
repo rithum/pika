@@ -69,7 +69,7 @@
 <!-- Only render dialog when BOTH dialogOpen AND dialogWidget are present -->
 {#if chat.widgetDialogOpen && chat.dialogWidget}
     <Dialog.Root bind:open={chat.widgetDialogOpen}>
-        <Dialog.Content class="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <Dialog.Content class="w-[95vw] h-[90vh] overflow-hidden flex flex-col">
             <Dialog.Header>
                 <Dialog.Title>
                     <div class="flex items-center gap-2">
@@ -82,7 +82,7 @@
                 </Dialog.Title>
             </Dialog.Header>
 
-            <div bind:this={containerEl} class="flex-1 overflow-auto p-4">
+            <div bind:this={containerEl} class="flex-1 overflow-auto p-2">
                 <!-- Web component injected here -->
             </div>
 

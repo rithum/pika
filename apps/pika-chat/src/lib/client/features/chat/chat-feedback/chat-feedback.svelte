@@ -86,7 +86,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="max-w-[500px] max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Header>
             <Dialog.Title>Feedback</Dialog.Title>
             <Dialog.Description>Please provide feedback on the response you received.</Dialog.Description>

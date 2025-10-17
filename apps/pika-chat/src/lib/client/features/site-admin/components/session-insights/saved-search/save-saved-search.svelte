@@ -30,7 +30,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Title>Save Current Search</Dialog.Title>
         <div class="flex flex-col gap-2">
             <Label class="text-sm text-muted-foreground"

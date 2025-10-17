@@ -62,7 +62,7 @@
 
 {#if chat.userIsContentAdmin}
     <Dialog.Root bind:open={chat.contentAdminDialogOpen}>
-        <Dialog.Content>
+        <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
             {#if showSuccessMessage}
                 <Dialog.Header>
                     <Dialog.Title>Success</Dialog.Title>
@@ -82,7 +82,7 @@
                         another user.
                     </Dialog.Description>
                 </Dialog.Header>
-                <div class="p-6 pt-3 max-w-3xl mx-auto w-full">
+                <div class="p-6 pt-3 max-w-lg mx-auto w-full">
                     <!-- This is your custom UI component that will be rendered here -->
                     <ContentAdminUi
                         bind:this={uiComponent}
