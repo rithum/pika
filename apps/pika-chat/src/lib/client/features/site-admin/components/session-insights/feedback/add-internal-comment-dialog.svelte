@@ -173,7 +173,7 @@
         }
     }}
 >
-    <Dialog.Content onpaste={handlePaste}>
+    <Dialog.Content onpaste={handlePaste} class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Header>
             <Dialog.Title>Add Internal Comment</Dialog.Title>
         </Dialog.Header>

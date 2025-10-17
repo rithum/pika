@@ -206,6 +206,7 @@ export interface IChatAppState {
     readonly chatApp: ChatApp;
     readonly retrievingMessages: boolean;
     readonly pageTitle: string | undefined;
+    readonly customDataForChatApp: Record<string, unknown> | undefined;
 
     setCurrentSessionById(sessionId: string): void;
     removeFile(s3Key: string): void;

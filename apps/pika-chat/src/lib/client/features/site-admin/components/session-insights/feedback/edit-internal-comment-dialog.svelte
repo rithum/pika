@@ -169,6 +169,7 @@
     }}
 >
     <Dialog.Content
+        class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col"
         onpaste={(e: ClipboardEvent) => {
             const dt = e.clipboardData;
             if (!dt) return;

@@ -26,7 +26,7 @@
         }
     }}
 >
-    <Dialog.Content>
+    <Dialog.Content class="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
         <Dialog.Title>Saved Searches</Dialog.Title>
         {#if sessionInsights.savedSearches.length === 0}
             <div class="text-sm text-muted-foreground">

@@ -36,6 +36,7 @@ catalog:
   '@aws-sdk/client-kms': ^3.887.0
   '@aws-sdk/client-sqs': ^3.887.0
   '@aws-sdk/credential-provider-node': ^3.887.0
+  '@aws-sdk/client-location': ^3.887.0
   '@aws-sdk/types': ^3.887.0
   '@smithy/signature-v4': ^5.1.2
   '@aws-crypto/sha256-js': ^5.2.0
@@ -149,6 +150,7 @@ catalog:
   '@cartamd/plugin-code': ^4.2.0
   paneforge: ^1.0.2
   'json-like-parse': ^1.0.3
+  'maplibre-gl': ^5.9.0
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
