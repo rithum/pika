@@ -1,7 +1,20 @@
 {
-  "latestVersion": "0.5.2",
-  "currentDevelopment": "0.5.2",
+  "latestVersion": "0.6.0",
+  "currentDevelopment": "0.6.0",
   "releases": [
+    {
+      "version": "0.6.0",
+      "date": "2025-10-21",
+      "status": "released",
+      "breaking": false,
+      "summary": "S3 file access for web components",
+      "highlights": [
+        "Secure S3 file retrieval for web components",
+        "getS3TextFileContent() method for loading text files",
+        "No AWS credential management required",
+        "Support for JSON, CSV, TXT, XML, and other text files"
+      ]
+    },
     {
       "version": "0.5.2",
       "date": "2025-10-21",

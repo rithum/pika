@@ -75,6 +75,7 @@ These will be included in the next release after {{existingVersion}}.
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Release Documentation Note:**
 If adding breaking changes, also update:
@@ -151,6 +152,7 @@ These feature updates should be included in [{{finalizeVersion}}].
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Release Documentation Note:**
 If adding breaking changes to [{{finalizeVersion}}], ensure:
@@ -221,14 +223,15 @@ Ensure these feature updates are documented in the release notes.
     - Remove or update "Upcoming Release" section (if no new unreleased versions exist)
 
 4. **releases.json** - Update the {{finalizeVersion}} entry:
-    - Change \`status: "unreleased"\` → \`status: "released"\`
     - Update \`date: "TBD"\` → \`date: "{{currentDate}}"\`
+    - **Keep** \`status: "unreleased"\` (the publish command will change it to "released")
     - Verify \`breaking\` flag, \`summary\`, \`highlights\`, and \`migrationGuideUrl\` are accurate
 
 **CRITICAL Documentation Rules:**
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Breaking Changes Check:**
 If [{{finalizeVersion}}] has breaking changes:
@@ -238,7 +241,7 @@ If [{{finalizeVersion}}] has breaking changes:
 - Verify \`releases.json\` entry has \`breaking: true\` and migration guide URL
 - Update \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` to move from unreleased to current
 
-**Action Required:** Mark [{{finalizeVersion}}] as released with today's date. The release tool will update latestVersion when published.
+**Action Required:** Update [{{finalizeVersion}}] date to today but keep status as "unreleased". Run "pnpm release publish" next to mark as released and create git tag.
 ```
 
 ---
@@ -303,6 +306,7 @@ Feature doc updates should be reflected in the release notes under **Added** or 
 
 - TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
 - Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Breaking Changes Protocol:**
 
@@ -426,6 +430,7 @@ Add a comment or issue that includes:
 
 - TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
 - Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 - Migration guides must be clear and actionable
 - Include "before/after" code examples
 - Test all commands and code snippets
