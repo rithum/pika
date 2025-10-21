@@ -2,6 +2,18 @@
 
 Complete version history of the Pika Framework.
 
+## [0.6.1] - 2025-10-21
+
+### Fixed
+
+- **S3 File Content Route** - Improved reliability and safety for S3 text file retrieval
+    - Added 50MB file size limit to prevent memory exhaustion
+    - Fixed route path structure for proper parameter handling in SvelteKit
+    - Implemented streaming with size checks for safer file loading
+    - Better error handling for oversized files (returns 413 status)
+
+---
+
 ## [0.6.0] - 2025-10-21
 
 ### Added

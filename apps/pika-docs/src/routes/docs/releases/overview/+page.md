@@ -4,13 +4,20 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.6.0` (October 21, 2025)
+**Latest Stable:** `0.6.1` (October 21, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+**What's New in 0.6.1:**
+
+- **S3 File Content Route Fix** - Improved reliability and safety for S3 text file retrieval
+- Added 50MB file size limit to prevent memory issues
+- Fixed route path structure for proper parameter handling
+- Better error handling for oversized files
 
 **What's New in 0.6.0:**
 
@@ -84,6 +91,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.6.1   | Oct 21 2025 | Patch    | S3 file content route fixes                   |
 | 0.6.0   | Oct 21 2025 | Feature  | S3 file access for web components             |
 | 0.5.2   | Oct 21 2025 | Patch    | Instruction augmentation fixes                |
 | 0.5.1   | Oct 21 2025 | Patch    | Session source field fix                      |
