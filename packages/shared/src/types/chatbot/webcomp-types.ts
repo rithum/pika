@@ -317,6 +317,29 @@ export interface IChatAppState {
      * ```
      */
     getWidgetMetadataAPI(scope: string, tag: string, instanceId: string, renderingContext: WidgetRenderingContextType): IWidgetMetadataAPI;
+
+    /**
+     * Retrieve text content from an S3 file stored in the Pika S3 bucket.
+     * This is a secure helper that allows web components to access files without
+     * needing to manage AWS credentials or know the bucket name.
+     *
+     * @param s3Key - The S3 key (path) to the file in the Pika S3 bucket
+     * @returns Promise that resolves to the file content as a string
+     * @throws Error if the file doesn't exist or cannot be accessed
+     *
+     * @example
+     * ```js
+     * const context = await getPikaContext($host());
+     * try {
+     *   const content = await context.chatAppState.getS3TextFileContent('data/config.json');
+     *   const config = JSON.parse(content);
+     *   console.log('Config loaded:', config);
+     * } catch (error) {
+     *   console.error('Failed to load config:', error);
+     * }
+     * ```
+     */
+    getS3TextFileContent(s3Key: string): Promise<string>;
 }
 
 // Supporting interfaces

@@ -182,6 +182,10 @@ await context.chatAppState.sendMessage();
 // Upload files
 await context.chatAppState.uploadFiles(selectedFiles);
 
+// Retrieve text content from S3 files (see "Accessing S3 Files" section)
+const content = await context.chatAppState.getS3TextFileContent('config/widget-config.json');
+const config = JSON.parse(content);
+
 // Render another webcomponent widget.  This will show a dialog.
 await context.chatAppState.renderTag('acme.details', 'dialog', { itemId: '123' });
 
@@ -1642,6 +1646,425 @@ async function init() {
 :::info[Learn More]
 See the [Authentication Guide](/docs/developer/authentication/#custom-chat-app-data-extension-point) for complete details on implementing `getCustomDataForChatApp` in your auth provider.
 :::
+
+## Accessing S3 Files
+
+### Overview
+
+Web components can securely retrieve text content from files stored in the Pika S3 bucket using the `getS3TextFileContent` method. This provides a simple way to access configuration files, data files, or any text-based content without managing AWS credentials or knowing the bucket name.
+
+**Key Benefits:**
+
+- **Secure**: Only accesses files in the configured Pika S3 bucket
+- **Simple**: No need to manage AWS credentials in your component
+- **Authenticated**: Requires user authentication automatically
+
+### Basic Usage
+
+```js
+<svelte:options customElement="my-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let config = $state<any>(null);
+    let loading = $state(false);
+    let error = $state<string>('');
+
+    async function init() {
+        context = await getPikaContext($host());
+    }
+
+    async function loadConfig() {
+        loading = true;
+        error = '';
+
+        try {
+            // Retrieve text content from S3
+            const content = await context.chatAppState.getS3TextFileContent('config/widget-config.json');
+
+            // Parse JSON content
+            config = JSON.parse(content);
+
+            console.log('Config loaded:', config);
+        } catch (e) {
+            error = 'Failed to load configuration';
+            console.error('Error loading config:', e);
+        } finally {
+            loading = false;
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    {#if loading}
+        <p>Loading configuration...</p>
+    {:else if error}
+        <p class="text-red-500">{error}</p>
+    {:else if config}
+        <div>
+            <h3>Configuration Loaded</h3>
+            <pre>{JSON.stringify(config, null, 2)}</pre>
+        </div>
+    {:else}
+        <button onclick={loadConfig}>Load Config</button>
+    {/if}
+</div>
+```
+
+### Method Signature
+
+```js
+async getS3TextFileContent(s3Key: string): Promise<string>
+```
+
+**Parameters:**
+
+- `s3Key` - The S3 key (path) to the file in the Pika S3 bucket
+
+**Returns:**
+
+- Promise that resolves to the file content as a string
+
+**Throws:**
+
+- Error if the file doesn't exist (404)
+- Error if access is denied (403)
+- Error if authentication fails (401)
+- Error if the request fails for any other reason
+
+### Example: Loading CSV Data
+
+```js
+<svelte:options customElement="data-viewer" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    interface DataRow {
+        name: string;
+        value: number;
+    }
+
+    let context = $state<PikaWCContext>();
+    let data = $state<DataRow[]>([]);
+    let loading = $state(false);
+
+    async function init() {
+        context = await getPikaContext($host());
+        await loadData();
+    }
+
+    async function loadData() {
+        loading = true;
+
+        try {
+            // Load CSV file from S3
+            const csvContent = await context.chatAppState.getS3TextFileContent('data/report.csv');
+
+            // Parse CSV (simple example)
+            const lines = csvContent.trim().split('\n');
+            const headers = lines[0].split(',');
+
+            data = lines.slice(1).map(line => {
+                const values = line.split(',');
+                return {
+                    name: values[0],
+                    value: parseFloat(values[1])
+                };
+            });
+
+            console.log(`Loaded ${data.length} rows`);
+        } catch (error) {
+            console.error('Failed to load data:', error);
+            context.appState.showToast('Failed to load data file', { type: 'error' });
+        } finally {
+            loading = false;
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    {#if loading}
+        <p>Loading data...</p>
+    {:else}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#each data as row}
+                    <tr>
+                        <td>{row.name}</td>
+                        <td>{row.value}</td>
+                    </tr>
+                {/each}
+            </tbody>
+        </table>
+    {/if}
+</div>
+```
+
+### Example: Loading Configuration on Init
+
+```js
+<svelte:options customElement="weather-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    interface WidgetConfig {
+        apiEndpoint: string;
+        refreshInterval: number;
+        defaultCities: string[];
+    }
+
+    let context = $state<PikaWCContext>();
+    let config = $state<WidgetConfig | null>(null);
+    let initialized = $state(false);
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        try {
+            // Load configuration on component init
+            const configContent = await context.chatAppState.getS3TextFileContent(
+                'config/weather-widget-config.json'
+            );
+            config = JSON.parse(configContent);
+            initialized = true;
+
+            console.log('Widget initialized with config:', config);
+        } catch (error) {
+            console.error('Failed to load widget config:', error);
+            // Use fallback defaults
+            config = {
+                apiEndpoint: 'https://api.weather.com',
+                refreshInterval: 300000,
+                defaultCities: ['San Francisco', 'New York']
+            };
+            initialized = true;
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+{#if initialized && config}
+    <div class="p-4">
+        <h3>Weather Widget</h3>
+        <p>Refresh interval: {config.refreshInterval / 1000}s</p>
+        <ul>
+            {#each config.defaultCities as city}
+                <li>{city}</li>
+            {/each}
+        </ul>
+    </div>
+{:else}
+    <p>Loading...</p>
+{/if}
+```
+
+### Example: Caching with User Widget Data Store
+
+You can combine S3 file retrieval with the user widget data store to cache content and reduce API calls:
+
+```js
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let content = $state<string>('');
+
+    async function loadWithCache() {
+        const storage = context.chatAppState.getUserWidgetDataStoreState('acme', 'my-widget');
+
+        // Check cache first
+        const cached = await storage.getValue<string>('file-content');
+        const cacheTime = await storage.getValue<number>('cache-time');
+
+        const oneHour = 60 * 60 * 1000;
+        if (cached && cacheTime && Date.now() - cacheTime < oneHour) {
+            console.log('Using cached content');
+            content = cached;
+            return;
+        }
+
+        // Load from S3
+        console.log('Loading from S3...');
+        content = await context.chatAppState.getS3TextFileContent('data/content.txt');
+
+        // Update cache
+        await storage.setValue('file-content', content);
+        await storage.setValue('cache-time', Date.now());
+    }
+</script>
+```
+
+### Best Practices
+
+**1. Error Handling:**
+
+Always wrap S3 calls in try-catch and provide user feedback:
+
+```js
+try {
+    const content = await context.chatAppState.getS3TextFileContent('data/file.txt');
+    // Process content
+} catch (error) {
+    console.error('Failed to load file:', error);
+    context.appState.showToast('Failed to load data', { type: 'error' });
+}
+```
+
+**2. Loading States:**
+
+Show loading indicators to users:
+
+```js
+let loading = $state(false);
+
+async function loadFile() {
+    loading = true;
+    try {
+        const content = await context.chatAppState.getS3TextFileContent('data/file.txt');
+        // Process content
+    } finally {
+        loading = false;
+    }
+}
+```
+
+**3. Lazy Loading:**
+
+Don't load files automatically on component init unless necessary. Load on user action:
+
+```js
+// Good - User-initiated
+<button onclick={loadData}>Load Data</button>;
+
+// Avoid - Automatic load on every render
+$effect(() => {
+    if (initialized) {
+        loadData(); // Don't do this unless really needed
+    }
+});
+```
+
+**4. Caching:**
+
+Use the user widget data store to cache frequently accessed files:
+
+```js
+const storage = context.chatAppState.getUserWidgetDataStoreState('scope', 'tag');
+const cached = (await storage.getValue) < string > 'cached-content';
+
+if (!cached) {
+    const fresh = await context.chatAppState.getS3TextFileContent('data/file.txt');
+    await storage.setValue('cached-content', fresh);
+}
+```
+
+**5. Validate Content:**
+
+Always validate content after loading, especially for JSON:
+
+```js
+try {
+    const content = await context.chatAppState.getS3TextFileContent('config.json');
+    const config = JSON.parse(content);
+
+    // Validate structure
+    if (!config.apiEndpoint || !config.refreshInterval) {
+        throw new Error('Invalid config structure');
+    }
+
+    // Use config
+} catch (error) {
+    console.error('Invalid config file:', error);
+    // Use fallback defaults
+}
+```
+
+### Security Considerations
+
+**What This Method Does:**
+
+- ✅ Requires user authentication
+- ✅ Only accesses files in the configured Pika S3 bucket
+- ✅ Uses secure server-side AWS credentials
+- ✅ Returns content as text
+
+**What It Doesn't Do:**
+
+- ❌ Doesn't expose AWS credentials to the browser
+- ❌ Doesn't allow access to arbitrary S3 buckets
+- ❌ Doesn't allow writing or deleting files
+- ❌ Doesn't support binary files (use for text only)
+
+**File Types:**
+
+This method is designed for text-based files:
+
+- ✅ JSON files (`.json`)
+- ✅ CSV files (`.csv`)
+- ✅ Text files (`.txt`)
+- ✅ XML files (`.xml`)
+- ✅ Markdown files (`.md`)
+- ❌ Binary files (images, PDFs, etc.) - not supported
+
+### Troubleshooting
+
+**404 - File Not Found:**
+
+- Verify the S3 key path is correct
+- Check that the file exists in the Pika S3 bucket
+- Ensure you're using the correct path separator (`/`)
+
+**403 - Access Denied:**
+
+- Verify the Lambda execution role has S3 read permissions
+- Check the S3 bucket policy allows access
+- Ensure the file isn't encrypted with a KMS key the Lambda can't access
+
+**401 - Unauthorized:**
+
+- User session may have expired
+- Authentication may not be properly configured
+
+**Parse Errors:**
+
+```js
+// Handle JSON parse errors
+try {
+    const content = await context.chatAppState.getS3TextFileContent('config.json');
+    const config = JSON.parse(content);
+} catch (error) {
+    if (error instanceof SyntaxError) {
+        console.error('Invalid JSON in config file');
+    } else {
+        console.error('Failed to load config file');
+    }
+}
+```
 
 ## Component Values (Persistent Storage)
 
