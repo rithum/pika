@@ -26,31 +26,35 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
                   echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Check if tag exists and version is released
-              id: check_tag
+            - name: Check if release should be created
+              id: check_release
               run: |
                   VERSION="${{ steps.get_version.outputs.version }}"
-
-                  # Check if tag already exists
-                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-                    echo "exists=true" >> $GITHUB_OUTPUT
-                    echo "Tag v$VERSION already exists, skipping release"
-                    exit 0
-                  fi
 
                   # Check if version is marked as released in releases.json
                   STATUS=$(node -p "require('./releases.json').releases.find(r => r.version === '$VERSION')?.status || 'unknown'")
 
                   if [ "$STATUS" != "released" ]; then
-                    echo "exists=true" >> $GITHUB_OUTPUT
+                    echo "should_create=false" >> $GITHUB_OUTPUT
                     echo "Version $VERSION has status '$STATUS' (not 'released'), skipping release creation"
+                    exit 0
+                  fi
+
+                  # Check if GitHub release already exists (using GitHub API)
+                  RELEASE_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                    "https://api.github.com/repos/${{ github.repository }}/releases/tags/v$VERSION")
+
+                  if [ "$RELEASE_EXISTS" = "200" ]; then
+                    echo "should_create=false" >> $GITHUB_OUTPUT
+                    echo "GitHub release for v$VERSION already exists, skipping"
                   else
-                    echo "exists=false" >> $GITHUB_OUTPUT
-                    echo "Version $VERSION is marked as released, will create release"
+                    echo "should_create=true" >> $GITHUB_OUTPUT
+                    echo "Version $VERSION is marked as released and no GitHub release exists, will create release"
                   fi
 
             - name: Extract release notes
-              if: steps.check_tag.outputs.exists == 'false'
+              if: steps.check_release.outputs.should_create == 'true'
               id: extract_notes
               run: |
                   VERSION="${{ steps.get_version.outputs.version }}"
@@ -68,7 +72,7 @@ jobs:
                   echo "$NOTES" > release_notes.txt
 
             - name: Create Release
-              if: steps.check_tag.outputs.exists == 'false'
+              if: steps.check_release.outputs.should_create == 'true'
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.get_version.outputs.tag }}
@@ -80,7 +84,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Release created
-              if: steps.check_tag.outputs.exists == 'false'
+              if: steps.check_release.outputs.should_create == 'true'
               run: |
                   echo "Release ${{ steps.get_version.outputs.tag }} created successfully!"
                   echo "View it at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag }}"
