@@ -5,6 +5,17 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-10-21
+
+### Added
+
+- **S3 File Access for Web Components** - New `getS3TextFileContent()` method on `IChatAppState`
+    - Secure retrieval of text files from Pika S3 bucket
+    - No AWS credential management required for components
+    - Supports JSON, CSV, TXT, XML, and other text-based files
+    - Authentication and bucket restrictions enforced server-side
+    - Perfect for loading configuration files, data files, or content
+
 ## [0.5.2]
 
 ### Fixed

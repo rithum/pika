@@ -75,6 +75,7 @@ These will be included in the next release after {{existingVersion}}.
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Release Documentation Note:**
 If adding breaking changes, also update:
@@ -151,6 +152,7 @@ These feature updates should be included in [{{finalizeVersion}}].
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Release Documentation Note:**
 If adding breaking changes to [{{finalizeVersion}}], ensure:
@@ -229,6 +231,7 @@ Ensure these feature updates are documented in the release notes.
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
 - Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Breaking Changes Check:**
 If [{{finalizeVersion}}] has breaking changes:
@@ -303,6 +306,7 @@ Feature doc updates should be reflected in the release notes under **Added** or 
 
 - TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
 - Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 
 **Breaking Changes Protocol:**
 
@@ -426,6 +430,7 @@ Add a comment or issue that includes:
 
 - TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
 - Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
+- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
 - Migration guides must be clear and actionable
 - Include "before/after" code examples
 - Test all commands and code snippets

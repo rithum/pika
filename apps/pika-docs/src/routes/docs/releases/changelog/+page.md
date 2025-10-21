@@ -2,6 +2,21 @@
 
 Complete version history of the Pika Framework.
 
+## [0.6.0] - 2025-10-21
+
+### Added
+
+- **S3 File Access for Web Components** - Secure file retrieval capability for web components
+    - New `getS3TextFileContent()` method on `IChatAppState` interface
+    - Retrieves text content from files stored in the Pika S3 bucket
+    - No AWS credential management required in component code
+    - Server-side authentication and bucket access controls enforced
+    - Supports JSON, CSV, TXT, XML, Markdown, and other text-based file formats
+    - Ideal for loading configuration files, data files, or dynamic content
+    - Comprehensive documentation in [Building Web Components](/docs/developer/building-web-components#Accessing-S3-Files) guide
+
+---
+
 ## [0.5.2]
 
 ### Fixed

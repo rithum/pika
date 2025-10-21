@@ -4,7 +4,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.5.1` (October 21, 2025)
+**Latest Stable:** `0.6.0` (October 21, 2025)
 
 Check your project version:
 
@@ -12,9 +12,12 @@ Check your project version:
 cat .pika-sync.json | grep pikaVersion
 ```
 
-**What's New in 0.5.1:**
+**What's New in 0.6.0:**
 
-- Fixed interim chat sessions to properly include `source` field for consistent session tracking
+- **S3 File Access for Web Components** - New `getS3TextFileContent()` method enables secure retrieval of text files from the Pika S3 bucket
+- No AWS credential management required for web components
+- Perfect for loading configuration files, data files, or dynamic content
+- Comprehensive documentation with examples
 
 **Note:** If upgrading from 0.4.0 or earlier, be aware that 0.5.0 introduced breaking changes. See [Migration Guide](/docs/releases/migration-guides/upgrading-to-0-5-0) for upgrade instructions.
 
@@ -81,7 +84,9 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
-| 0.5.1   | Oct 21 2025 | Patch    | Bug fixes                                     |
+| 0.6.0   | Oct 21 2025 | Feature  | S3 file access for web components             |
+| 0.5.2   | Oct 21 2025 | Patch    | Instruction augmentation fixes                |
+| 0.5.1   | Oct 21 2025 | Patch    | Session source field fix                      |
 | 0.5.0   | Oct 21 2025 | Breaking | Tag system refactor + Chat session GSI update |
 | 0.4.0   | Oct 20 2025 | Stable   | Initial tracked release                       |
 
