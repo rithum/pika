@@ -5,7 +5,7 @@
     {
       "version": "0.6.1",
       "date": "2025-10-21",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "S3 file content route fixes",
       "highlights": [
