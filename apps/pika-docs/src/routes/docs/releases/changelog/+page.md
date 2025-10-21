@@ -18,6 +18,12 @@ Complete version history of the Pika Framework.
     - Enables correct chronological ordering and filtering by session source
     - Added `source` field to sessions to distinguish user vs component-initiated sessions
     - See [Migration Guide](/docs/releases/migration-guides/upgrading-to-0-5-0)
+- **Site Tag Configuration** - `tagsProhibited` renamed to `tagsDisabled`
+    - Update site configuration to use new field name
+    - Semantic change: disables global tags rather than prohibiting all tags
+- **Tag Search API** - `TagDefinitionSearchRequest` interface updated
+    - Removed `chatAppId` parameter (no longer used with new tag system)
+    - Added `includeGlobal` boolean to optionally include global tags alongside specific tags
 
 ### Added
 
@@ -25,6 +31,7 @@ Complete version history of the Pika Framework.
     - New `setOrUpdateCustomTitleBarAction()` and `removeCustomTitleBarAction()` methods
     - Enables widgets to add persistent global actions visible across sessions
     - Supports both single actions and dropdown menus
+    - Support for action groups with titles to organize related actions in menus
 - **Static Widget Context** - New rendering context for widgets that execute initialization code
     - Runs once when chat app loads, no visual UI rendered
     - Optional `shutDownAfterMs` to auto-remove container after initialization
@@ -36,13 +43,20 @@ Complete version history of the Pika Framework.
     - Automatic breaking change warnings with migration guide links
     - `--acknowledge-breaking-changes` flag for explicit upgrade consent
 - **Agent Tool Management Enhancement** - Flexible tool definition patterns
+    - Made `agent.toolIds` optional - no longer required when defining new tools
     - Mixed pattern: provide both `tools` (new definitions) and `agent.toolIds` (references) simultaneously
     - Create new tools while referencing existing ones in a single operation
-    - Clearer documentation of three supported patterns: tools only, toolIds only, or mixed
+    - Three supported patterns: tools only, toolIds only, or mixed approach
+    - Clearer documentation of three supported patterns with examples
+- **Widget Sizing Configuration** - Comprehensive sizing system for web components
+    - Dialog preset sizes: `'fullscreen'` (95vw x 90vh), `'large'` (85vw x 80vh), `'medium'` (70vw x 70vh), `'small'` (50vw x 50vh)
+    - Custom dialog dimensions with viewport-relative units or percentages
+    - Inline auto-height support with `sizing.inline.height: "auto"` for content-driven sizing
+    - Configurable fixed heights for inline widgets (defaults to 400px)
 - **Global Tag System** - Tags automatically available to all chat apps
 - **Chat-App Tags** - Explicit enablement for app-specific tags
 - **Tag Configuration** - `tagsEnabled` and `tagsDisabled` in chat app config
-- **Auto-Height Web Components** - Set `sizing.inline.height: "auto"` for content-driven height
+- **Component Session Source** - `source` field on `InvokeAgentAsComponentOptions` to control session visibility
 
 ### Changed
 
@@ -50,6 +64,11 @@ Complete version history of the Pika Framework.
 - Built-in tags (chart, image, prompt) are now global by default
 - README includes release and update documentation
 - Web component inline rendering supports configurable height (defaults to 400px)
+- Feature documentation enhanced with detailed examples and usage patterns for:
+    - Agent tool definition patterns (3 approaches: new tools, existing references, or mixed)
+    - Tag visibility model (global vs chat-app tags)
+    - Widget contexts and sizing options
+    - Instruction assistance placeholder system
 
 ### Fixed
 
