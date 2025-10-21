@@ -35,7 +35,7 @@ export async function getAdditionalUserPromptInstructions(
 
     const prompt = `Given this user query determine if any of the additional instructions need to be applied.
 
-Return only the ids that should be added as a json array inside an <answer></answer> tag.  If no instructions apply return and empty array []
+Return only the ids that should be added as a json array inside an <answer></answer> tag.  If no instructions apply return an empty array []
 Do not include any other text or reasoning.  Just the json array inside the <answer></answer> tag.
 <instructions>
 ${directivesString}
@@ -44,6 +44,8 @@ ${directivesString}
 <example_output><answer>["instruction-id-1", "instruction-id-2", "instruction-id-3"]</answer></example_output>
 
 <user_query>${userPrompt}</user_query>`;
+
+    console.log('[instruction-augmentation] Prompt:', prompt);
 
     // Call LLM to determine applicable instructions
     const body = buildModelInvokeBody(model, {
