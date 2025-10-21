@@ -1173,6 +1173,12 @@ export class ChatAppState implements IChatAppState {
         }
     }
 
+    async getS3TextFileContent(s3Key: string) {
+        const resp = await this.fetchz(`/api/s3-file-content/${encodeURIComponent(s3Key)}`);
+        const blob = await resp.blob();
+        return await blob.text();
+    }
+
     async refreshMessagesForCurrentSession() {
         if (this.#isInterimSession) return; // Not a real session yet
 
