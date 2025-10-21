@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tag System Refactor** - Moved from `chatAppId` to `usageMode` model
     - Requires manual DynamoDB migration (GSI replacement)
-    - See [Migration Guide](https://pika-framework.dev/docs/releases/migration-guides/upgrading-to-0-5-0)
+    - See [Migration Guide](https://pika.tools/docs/releases/migration-guides/upgrading-to-0-5-0)
 - **Chat Session GSI Update** - Fixed session sorting and added source filtering
     - Updated `user-chat-app-index` to use composite sort key (`chat_app_sk` with format `chatAppId#source#lastUpdate`)
     - Added `source` field to distinguish user vs component-initiated sessions
     - Requires manual DynamoDB GSI replacement and data migration
-    - See [Migration Guide](https://pika-framework.dev/docs/releases/migration-guides/upgrading-to-0-5-0)
+    - See [Migration Guide](https://pika.tools/docs/releases/migration-guides/upgrading-to-0-5-0)
 - **Site Tag Configuration** - `tagsProhibited` renamed to `tagsDisabled`
     - Update site configuration to use new field name
     - Semantic change: disables global tags rather than prohibiting all tags
