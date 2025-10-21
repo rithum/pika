@@ -2,6 +2,18 @@
 
 Complete version history of the Pika Framework.
 
+## [0.5.2]
+
+### Fixed
+
+- Instruction augmentation prompt now correctly reads "return an empty array" instead of "return and empty array"
+    - Fixes grammar in LLM prompt that determines which additional instructions to apply
+    - Improves prompt clarity for better instruction matching
+- Added logging to instruction augmentation for improved debugging
+    - Helps troubleshoot instruction selection issues
+
+---
+
 ## [0.5.1]
 
 ### Fixed
