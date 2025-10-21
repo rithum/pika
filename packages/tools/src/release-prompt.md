@@ -223,8 +223,8 @@ Ensure these feature updates are documented in the release notes.
     - Remove or update "Upcoming Release" section (if no new unreleased versions exist)
 
 4. **releases.json** - Update the {{finalizeVersion}} entry:
-    - Change \`status: "unreleased"\` → \`status: "released"\`
     - Update \`date: "TBD"\` → \`date: "{{currentDate}}"\`
+    - **Keep** \`status: "unreleased"\` (the publish command will change it to "released")
     - Verify \`breaking\` flag, \`summary\`, \`highlights\`, and \`migrationGuideUrl\` are accurate
 
 **CRITICAL Documentation Rules:**
@@ -241,7 +241,7 @@ If [{{finalizeVersion}}] has breaking changes:
 - Verify \`releases.json\` entry has \`breaking: true\` and migration guide URL
 - Update \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` to move from unreleased to current
 
-**Action Required:** Mark [{{finalizeVersion}}] as released with today's date. The release tool will update latestVersion when published.
+**Action Required:** Update [{{finalizeVersion}}] date to today but keep status as "unreleased". Run "pnpm release publish" next to mark as released and create git tag.
 ```
 
 ---

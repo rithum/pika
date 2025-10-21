@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.6.0",
+  "latestVersion": "0.5.2",
   "currentDevelopment": "0.6.0",
   "releases": [
     {
       "version": "0.6.0",
       "date": "2025-10-21",
-      "status": "released",
+      "status": "unreleased",
       "breaking": false,
       "summary": "S3 file access for web components",
       "highlights": [
