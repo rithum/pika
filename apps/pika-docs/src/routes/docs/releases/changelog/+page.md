@@ -2,6 +2,16 @@
 
 Complete version history of the Pika Framework.
 
+## [0.5.1]
+
+### Fixed
+
+- Interim chat sessions now properly include `source` field for consistent session tracking and filtering
+    - Ensures all sessions created during chat app initialization have correct source attribution
+    - Fixes filtering behavior when querying sessions by source type
+
+---
+
 ## [0.5.0]
 
 ### Breaking Changes
