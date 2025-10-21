@@ -1065,6 +1065,7 @@ export class ChatAppState implements IChatAppState {
                 chatAppId: this.#chatApp.chatAppId,
                 agentId: 'interim-agent-id',
                 identityId: this.#user.userId,
+                source: 'user',
                 entityId: '', // Don't need a real value for this on an interim session
                 invocationMode: 'chat-app',
                 sessionAttributes: {
