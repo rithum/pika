@@ -83,7 +83,8 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
             websiteEnabled: false
         },
         tags: {
-            tagsEnabled: [] as TagDefinitionLite[]
+            tagsEnabled: [] as TagDefinitionLite[],
+            tagsDisabled: [] as TagDefinitionLite[]
         },
         agentInstructionAssistance: {
             enabled: false,
@@ -210,7 +211,8 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
     // Admin override takes precedence over chat app configuration
     const effectiveTagsFeature = chatApp.override?.features?.tags || chatApp.features?.tags;
     result.tags = handleSimpleFeature('tags', effectiveTagsFeature, siteFeatures?.tags, result.tags, (feature) => ({
-        tagsEnabled: feature.tagsEnabled ?? []
+        tagsEnabled: feature.tagsEnabled ?? [],
+        tagsDisabled: feature.tagsDisabled ?? []
     }));
 
     // Handle agentInstructionAssistance feature

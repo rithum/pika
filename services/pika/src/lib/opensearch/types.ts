@@ -78,6 +78,7 @@ export const chatSessionOpenSearchMappings = {
             title: { type: 'text' },
             last_message_id: { type: 'keyword' },
             test_type: { type: 'keyword' },
+            source: { type: 'keyword' },
 
             // Cost and token fields
             input_cost: { type: 'double' },

@@ -25,7 +25,9 @@ import type {
     WidgetAction,
     WidgetMetadata,
     WidgetRenderingContextType,
-    IUserWidgetDataStoreState
+    IUserWidgetDataStoreState,
+    ChatAppActionMenu,
+    ChatAppAction
 } from './chatbot-types';
 
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
@@ -207,6 +209,7 @@ export interface IChatAppState {
     readonly retrievingMessages: boolean;
     readonly pageTitle: string | undefined;
     readonly customDataForChatApp: Record<string, unknown> | undefined;
+    readonly customTitleBarActions: (ChatAppActionMenu | ChatAppAction)[];
 
     setCurrentSessionById(sessionId: string): void;
     removeFile(s3Key: string): void;
@@ -221,6 +224,9 @@ export interface IChatAppState {
     renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas', data?: Record<string, any>): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
+    setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction): void;
+    removeCustomTitleBarAction(actionId: string): void;
+
     /**
      * Invoke the agent directly from a web component using the 'chat-app-component' invocation mode.
      * This allows components to make out-of-band requests to the LLM without creating user sessions.

@@ -48,9 +48,39 @@
     let tagsEnabled = $derived.by(() => {
         const availableTags = availableTagDefinitions;
         const enabledTags = featureToShow?.tagsEnabled || [];
-        return availableTags.filter((tag) =>
-            enabledTags.some((enabled) => enabled.scope === tag.scope && enabled.tag === tag.tag)
+        // Only show chat-app specific tags (usageMode='chat-app'), not global tags
+        // Global tags are available by default and don't need to be explicitly enabled
+        return availableTags.filter(
+            (tag) =>
+                tag.usageMode === 'chat-app' &&
+                enabledTags.some((enabled) => enabled.scope === tag.scope && enabled.tag === tag.tag)
         );
+    });
+
+    let tagsDisabled = $derived.by(() => {
+        const availableTags = availableTagDefinitions;
+        const disabledTags = featureToShow?.tagsDisabled || [];
+        return availableTags.filter((tag) =>
+            disabledTags.some((disabled) => disabled.scope === tag.scope && disabled.tag === tag.tag)
+        );
+    });
+
+    // Global tags that can be disabled (scope='pika' or usageMode='global')
+    let globalTags = $derived.by(() => {
+        return availableTagDefinitions.filter((tag) => tag.usageMode === 'global');
+    });
+
+    // Enabled global tags (global tags that are NOT disabled)
+    let enabledGlobalTags = $derived.by(() => {
+        const disabledTags = featureToShow?.tagsDisabled || [];
+        return globalTags.filter(
+            (tag) => !disabledTags.some((disabled) => disabled.scope === tag.scope && disabled.tag === tag.tag)
+        );
+    });
+
+    // Chat-app specific tags that can be enabled
+    let chatAppTags = $derived.by(() => {
+        return availableTagDefinitions.filter((tag) => tag.usageMode === 'chat-app');
     });
 
     function ensureFeature(): TagsFeatureForChatApp {
@@ -63,11 +93,15 @@
                 featureId: 'tags',
                 enabled: originalFeature?.enabled ?? false,
                 tagsEnabled: [],
+                tagsDisabled: [],
                 ...originalFeature,
             } as TagsFeatureForChatApp;
         } else {
             if (!overriddenFeature.tagsEnabled) {
                 overriddenFeature.tagsEnabled = [];
+            }
+            if (!overriddenFeature.tagsDisabled) {
+                overriddenFeature.tagsDisabled = [];
             }
         }
 
@@ -86,9 +120,9 @@
     let tagDefinitionsLoaded = $state(false);
 
     $effect(() => {
-        // Only load if we haven't tried loading before AND tagDefinitions is null/undefined
-        // Don't reload just because the array is empty (that's a valid response)
-        if (siteAdminState && !tagDefinitionsLoaded && !siteAdminState.tagDefinitions) {
+        // Only load if we haven't tried loading before
+        // tagDefinitions is initialized as empty array [], so we check if not loaded yet
+        if (siteAdminState && !tagDefinitionsLoaded) {
             tagDefinitionsLoaded = true; // Mark as attempted BEFORE calling API
             siteAdminState.loadTagDefinitions();
         }
@@ -101,22 +135,32 @@
             This feature is not enabled at the site level and cannot be configured.
         </p>
     {:else}
-        <div class="flex items-center gap-2 mb-2">
-            <Label class="text-sm font-medium">Enabled Tags:</Label>
-            <PopupHelp popoverClasses="max-w-[500px] text-xs text-muted-foreground">
-                <div class="text-xs text-muted-foreground">
-                    <p class="mb-2">The Tags feature enables AI-driven UI components in chat responses.</p>
-                    <p class="mb-2">
-                        When enabled, the AI can use special tags in its responses to create interactive components like
-                        charts, images, prompts, and other rich UI elements.
-                    </p>
-                    <p class="mb-2">
-                        Each tag definition has a scope (category) and tag name. You can enable specific tags that will
-                        be available to the AI for this chat app.
-                    </p>
-                    <p>Only enabled tags will be accessible - the AI cannot use tags that aren't in this list.</p>
-                </div>
-            </PopupHelp>
+        <div class="mb-4">
+            <div class="flex items-center gap-2 mb-2">
+                <Label class="text-sm font-medium">Tags Configuration</Label>
+                <PopupHelp popoverClasses="max-w-[600px] text-xs text-muted-foreground">
+                    <div class="text-xs text-muted-foreground space-y-2">
+                        <p class="font-semibold">Tag System Overview:</p>
+                        <p>Tags enable AI-driven UI components in chat responses. There are two types:</p>
+                        <ul class="list-disc pl-4 space-y-1">
+                            <li>
+                                <strong>Global Tags:</strong> Available to all chat apps by default (e.g., chart, image,
+                                prompt). Can be disabled if not needed.
+                            </li>
+                            <li>
+                                <strong>Chat-App Tags:</strong> Must be explicitly enabled per chat app (e.g., download).
+                            </li>
+                        </ul>
+                        <p class="pt-2">
+                            <strong>Built-in Pika Tags (scope='pika'):</strong> Core platform tags like chart, image, and
+                            prompt that provide standard UI components.
+                        </p>
+                    </div>
+                </PopupHelp>
+            </div>
+            <p class="text-xs text-muted-foreground">
+                Manage which tags are available for this chat app. Global tags are included by default unless disabled.
+            </p>
         </div>
 
         {#if siteAdminState.siteAdminOperationInProgress.searchTagDefinitions}
@@ -129,15 +173,32 @@
                 </p>
             </div>
         {:else}
-            <div class="flex gap-4">
-                <!-- List column -->
-                <div class="flex-shrink-0">
+            <!-- Two columns: Enabled Tags and Disabled Global Tags -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <!-- Enabled Chat-App Tags List -->
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">Enabled Chat-App Tags</Label>
+                        <PopupHelp popoverClasses="w-80">
+                            <div class="text-xs text-muted-foreground">
+                                <p class="mb-2">Chat-app specific tags that must be explicitly enabled.</p>
+                                <p class="mb-2">
+                                    These tags (usageMode='chat-app') are only available if you add them here.
+                                </p>
+                                <p>Note: Global tags are automatically included (see right panel to disable them).</p>
+                            </div>
+                        </PopupHelp>
+                    </div>
                     <List
-                        classes="w-[300px] h-[300px]"
+                        classes="w-full h-[300px]"
                         items={tagsEnabled}
                         mapping={{
-                            value: (item) => `${item.scope}:${item.tag}`,
-                            label: (item) => `${item.scope}:${item.tag}`,
+                            value: (item) => `${item.scope}.${item.tag}`,
+                            label: (item) => {
+                                const isPika = item.scope === 'pika';
+                                const prefix = isPika ? '⭐ ' : '';
+                                return `${prefix}${item.scope}.${item.tag}`;
+                            },
                         }}
                         allowSelection={true}
                         multiSelect={false}
@@ -152,13 +213,12 @@
                                 }
                             }
                         }
-                        emptyMessage="No tags are currently enabled. Add tags to designate tags that are available for either the LLM or the tool to return."
+                        emptyMessage="No chat-app tags enabled. Add tags that require explicit configuration."
                         addRemove={{
                             addItem: (tag) => {
                                 assert(isOverrideMode, 'isOverrideMode must be true');
                                 const feature = ensureFeature();
                                 feature.tagsEnabled = feature.tagsEnabled || [];
-                                // Check if tag is already enabled
                                 const alreadyEnabled = feature.tagsEnabled.some(
                                     (enabled) => enabled.scope === tag.scope && enabled.tag === tag.tag
                                 );
@@ -176,21 +236,165 @@
                                 }
                             },
                             predefinedOptions: {
-                                items: availableTagDefinitions,
-                                optionTypeName: 'Tag Definition',
-                                optionTypeNamePlural: 'Tag Definitions',
+                                items: chatAppTags,
+                                optionTypeName: 'Chat-App Tag',
+                                optionTypeNamePlural: 'Chat-App Tags',
                                 mapping: {
-                                    value: (item) => `${item.scope}:${item.tag}`,
-                                    label: (item) => `${item.scope}:${item.tag}`,
+                                    value: (item) => `${item.scope}.${item.tag}`,
+                                    label: (item) => {
+                                        const isPika = item.scope === 'pika';
+                                        const prefix = isPika ? '⭐ ' : '';
+                                        return `${prefix}${item.scope}.${item.tag}`;
+                                    },
                                 },
                             },
                         }}
                     />
-                    <p class="text-xs text-muted-foreground mt-2">Click a tag to view details</p>
+                    <p class="text-xs text-muted-foreground">⭐ = Built-in Pika tag</p>
+
+                    <!-- Show base config tags when in override mode -->
+                    {#if isOverrideMode && originalFeature?.tagsEnabled && originalFeature.tagsEnabled.length > 0}
+                        <div class="mt-3 p-3 bg-muted/50 rounded-md border border-border">
+                            <p class="text-xs font-medium text-muted-foreground mb-2">
+                                In Base Config ({originalFeature.tagsEnabled.length}):
+                            </p>
+                            <div class="flex flex-wrap gap-1">
+                                {#each originalFeature.tagsEnabled as tagLite}
+                                    {@const fullTag = availableTagDefinitions.find(
+                                        (t) => t.scope === tagLite.scope && t.tag === tagLite.tag
+                                    )}
+                                    {#if fullTag && fullTag.usageMode === 'chat-app'}
+                                        <span
+                                            class="inline-flex items-center px-2 py-1 rounded-md bg-background border border-border text-xs"
+                                        >
+                                            {#if fullTag.scope === 'pika'}⭐{/if}
+                                            {fullTag.scope}.{fullTag.tag}
+                                        </span>
+                                    {/if}
+                                {/each}
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-2">
+                                {#if tagsEnabled.length === 0}
+                                    These are configured in the base chat app. Override is empty.
+                                {:else}
+                                    These are configured in the base chat app. Override adds {tagsEnabled.length} tag(s).
+                                {/if}
+                            </p>
+                        </div>
+                    {/if}
                 </div>
 
-                <!-- Details pane -->
-                <div class="flex-1 min-w-0">
+                <!-- Disabled Global Tags List -->
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">Disabled Global Tags</Label>
+                        <PopupHelp popoverClasses="w-80">
+                            <div class="text-xs text-muted-foreground">
+                                <p class="mb-2">Global tags are automatically available to all chat apps.</p>
+                                <p class="mb-2">Add tags here to explicitly disable them for this chat app.</p>
+                                <p>Example: Disable 'chart' if you don't want charts in this chat app.</p>
+                            </div>
+                        </PopupHelp>
+                    </div>
+                    <List
+                        classes="w-full h-[300px]"
+                        items={tagsDisabled}
+                        mapping={{
+                            value: (item) => `${item.scope}.${item.tag}`,
+                            label: (item) => {
+                                const isPika = item.scope === 'pika';
+                                const prefix = isPika ? '⭐ ' : '';
+                                return `${prefix}${item.scope}.${item.tag}`;
+                            },
+                        }}
+                        allowSelection={true}
+                        multiSelect={false}
+                        disabled={!isOverrideMode || disabled}
+                        bind:selectedItems={
+                            () => (selectedTag ? [selectedTag] : []),
+                            (value) => {
+                                if (!value || value.length === 0) {
+                                    selectedTag = undefined;
+                                } else {
+                                    selectedTag = value[0];
+                                }
+                            }
+                        }
+                        emptyMessage="No global tags disabled. All global tags are available."
+                        addRemove={{
+                            addItem: (tag) => {
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                const feature = ensureFeature();
+                                feature.tagsDisabled = feature.tagsDisabled || [];
+                                const alreadyDisabled = feature.tagsDisabled.some(
+                                    (disabled) => disabled.scope === tag.scope && disabled.tag === tag.tag
+                                );
+                                if (!alreadyDisabled) {
+                                    feature.tagsDisabled.push({ tag: tag.tag, scope: tag.scope });
+                                }
+                            },
+                            removeItem: (tag) => {
+                                assert(isOverrideMode, 'isOverrideMode must be true');
+                                const feature = ensureFeature();
+                                if (feature.tagsDisabled) {
+                                    feature.tagsDisabled = feature.tagsDisabled.filter(
+                                        (disabled) => !(disabled.scope === tag.scope && disabled.tag === tag.tag)
+                                    );
+                                }
+                            },
+                            predefinedOptions: {
+                                items: globalTags,
+                                optionTypeName: 'Global Tag',
+                                optionTypeNamePlural: 'Global Tags',
+                                mapping: {
+                                    value: (item) => `${item.scope}.${item.tag}`,
+                                    label: (item) => {
+                                        const isPika = item.scope === 'pika';
+                                        const prefix = isPika ? '⭐ ' : '';
+                                        return `${prefix}${item.scope}.${item.tag}`;
+                                    },
+                                },
+                            },
+                        }}
+                    />
+                    <p class="text-xs text-muted-foreground">⭐ = Built-in Pika tag</p>
+
+                    <!-- Show enabled global tags info -->
+                    {#if enabledGlobalTags.length > 0}
+                        <div class="mt-3 p-3 bg-muted/50 rounded-md border border-border">
+                            <p class="text-xs font-medium text-muted-foreground mb-2">
+                                {#if tagsDisabled.length > 0}
+                                    Enabled Global Tags ({enabledGlobalTags.length} of {globalTags.length}):
+                                {:else}
+                                    Available Global Tags ({enabledGlobalTags.length}):
+                                {/if}
+                            </p>
+                            <div class="flex flex-wrap gap-1">
+                                {#each enabledGlobalTags as tag}
+                                    <span
+                                        class="inline-flex items-center px-2 py-1 rounded-md bg-background border border-border text-xs"
+                                    >
+                                        {#if tag.scope === 'pika'}⭐{/if}
+                                        {tag.scope}.{tag.tag}
+                                    </span>
+                                {/each}
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-2">
+                                {#if tagsDisabled.length > 0}
+                                    These global tags are enabled. {tagsDisabled.length} tag(s) disabled.
+                                {:else}
+                                    These tags are automatically included. Use the dropdown above to disable any.
+                                {/if}
+                            </p>
+                        </div>
+                    {/if}
+                </div>
+            </div>
+
+            <!-- Tag Details Section (below both lists) -->
+            <div class="mt-4">
+                <Label class="text-sm font-medium mb-2 block">Tag Details</Label>
+                <div>
                     {#if selectedTag}
                         <div class="border rounded-md p-4 space-y-4">
                             <div class="border-b pb-2 mb-4">
@@ -201,8 +405,40 @@
                             <div class="space-y-1">
                                 <Label class="text-sm font-medium">Tag Name</Label>
                                 <p class="text-sm font-mono bg-gray-50 p-2 rounded border">
-                                    {selectedTag.scope}.{selectedTag.tag}
+                                    {selectedTag.scope === 'pika' ? '⭐ ' : ''}{selectedTag.scope}.{selectedTag.tag}
                                 </p>
+                                {#if selectedTag.scope === 'pika'}
+                                    <p class="text-xs text-blue-600">Built-in Pika tag</p>
+                                {/if}
+                            </div>
+
+                            <!-- Usage Mode -->
+                            <div class="space-y-1">
+                                <Label class="text-sm font-medium">Usage Mode</Label>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="text-sm px-2 py-1 rounded-md {selectedTag.usageMode === 'global'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-purple-100 text-purple-800'}"
+                                    >
+                                        {selectedTag.usageMode === 'global' ? 'Global' : 'Chat-App'}
+                                    </span>
+                                    <PopupHelp popoverClasses="w-60">
+                                        <div class="text-xs text-muted-foreground">
+                                            {#if selectedTag.usageMode === 'global'}
+                                                <p>
+                                                    Global tags are automatically available to all chat apps unless
+                                                    explicitly disabled.
+                                                </p>
+                                            {:else}
+                                                <p>
+                                                    Chat-app tags must be explicitly enabled in each chat app's
+                                                    configuration.
+                                                </p>
+                                            {/if}
+                                        </div>
+                                    </PopupHelp>
+                                </div>
                             </div>
 
                             <!-- Description -->

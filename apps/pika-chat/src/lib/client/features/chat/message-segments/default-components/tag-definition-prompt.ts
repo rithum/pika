@@ -15,7 +15,7 @@ const tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompi
     canBeGeneratedByTool: true,
     shortTagEx: '<pika.prompt></pika.prompt>',
     status: 'enabled',
-    chatAppId: 'chat-app-global',
+    usageMode: 'global',
     renderingContexts: {
         inline: { enabled: true }
     },

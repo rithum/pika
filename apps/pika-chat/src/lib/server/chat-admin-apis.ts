@@ -479,6 +479,8 @@ export async function deleteTagDefinition(request: TagDefinitionDeleteRequest): 
 }
 
 export async function searchTagDefinitions(request: TagDefinitionSearchRequest): Promise<TagDefinitionSearchResponse> {
+    console.log('chat-admin-apis.ts - searchTagDefinitions request:', request);
+
     // Generate cache key based on request parameters
     const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
     const cacheKey = `search:admin:${requestHash}`;
@@ -486,6 +488,9 @@ export async function searchTagDefinitions(request: TagDefinitionSearchRequest):
     // Check if any tag definition has dontCacheThis set to true
     const cachedResponse = tagDefinitionsCache.get(cacheKey) as TagDefinitionSearchResponse | undefined;
     if (cachedResponse && !cachedResponse.tagDefinitions.some((def) => def.dontCacheThis)) {
+        console.log('chat-admin-apis.ts - Returning cached response:', {
+            tagDefinitionsCount: cachedResponse.tagDefinitions.length
+        });
         return cachedResponse;
     }
 
@@ -501,6 +506,12 @@ export async function searchTagDefinitions(request: TagDefinitionSearchRequest):
             operation: 'searchTagDefinitions',
             resourceName: 'tag definitions'
         }
+    });
+
+    console.log('chat-admin-apis.ts - Backend API response:', {
+        success: response.body.success,
+        tagDefinitionsCount: response.body.tagDefinitions?.length ?? 0,
+        tagDefinitions: response.body.tagDefinitions?.map((t) => ({ scope: t.scope, tag: t.tag, usageMode: t.usageMode }))
     });
 
     // Cache the response only if no tag definition has dontCacheThis set

@@ -1,6 +1,6 @@
 <script lang="ts">
     import PinOff from '$icons/lucide/pin-off';
-    import Share from '$icons/lucide/share';
+    import Share from '$icons/lucide/share-2';
     import { Button } from 'pika-ux/shadcn/button';
     import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
@@ -145,7 +145,7 @@
 <Sidebar.Group>
     <Sidebar.GroupLabel>My Chats</Sidebar.GroupLabel>
     <div class="flex flex-col w-full pl-2">
-        {#each chat.chatSessions as session}
+        {#each chat.sortedChatSessions as session}
             {#if session.sessionId === chat.currentSession?.sessionId}
                 <div class="flex gap-2 items-center w-full justify-between">
                     <div

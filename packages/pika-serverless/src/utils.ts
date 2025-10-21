@@ -155,6 +155,12 @@ export function buildToolIdToLambdaArnMapFromCustomConfig(agentDef: AgentDefinit
 
 /**
  * Prepare agent data from custom.pika configuration format
+ * Handles three scenarios:
+ * 1. Only tools array - defines new tools
+ * 2. Only agent.toolIds - references existing tools
+ * 3. Both tools array and agent.toolIds - defines new tools AND references existing ones
+ *
+ * Note: The backend API handles merging toolIds from both sources, so we just pass them through as-is.
  */
 export function prepareAgentDataFromCustomConfig(agentDef: AgentDefinitionWithToolRefs): AgentDataRequest {
     const processedData: AgentDataRequest = {
@@ -162,7 +168,8 @@ export function prepareAgentDataFromCustomConfig(agentDef: AgentDefinitionWithTo
         agent: { ...agentDef.agent }
     };
 
-    if (agentDef.tools) {
+    // Handle tools array if provided (defining new tools)
+    if (agentDef.tools && agentDef.tools.length > 0) {
         processedData.tools = agentDef.tools.map((tool: PikaToolWithLambdaRef) => {
             // Convert PikaToolWithLambdaRef to ToolDefinitionForIdempotentCreateOrUpdate
             const baseToolProps = {
@@ -205,6 +212,9 @@ export function prepareAgentDataFromCustomConfig(agentDef: AgentDefinitionWithTo
             }
         });
     }
+
+    // agent.toolIds is already set in processedData.agent if it was provided
+    // The backend will handle merging toolIds from both tools array and agent.toolIds
 
     return processedData;
 }
@@ -306,6 +316,14 @@ export function validateAgentConfig(agentConfig: AgentDefinitionWithToolRefs): v
 
     if (typeof agentConfig.userId !== 'string' || agentConfig.userId.trim() === '') {
         throw new Error('Expected agent configuration "userId" to be a non-empty string');
+    }
+
+    // Validate that at least one of tools or agent.toolIds is provided
+    const hasTools = agentConfig.tools !== undefined && agentConfig.tools.length > 0;
+    const hasToolIds = agentConfig.agent.toolIds !== undefined && agentConfig.agent.toolIds.length > 0;
+
+    if (!hasTools && !hasToolIds) {
+        throw new Error('Must provide either "tools" array (to define new tools), "agent.toolIds" (to reference existing tools), or both.');
     }
 
     // Validate optional tools array

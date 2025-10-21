@@ -44,6 +44,15 @@ export default defineConfig(async ({ mode }) => {
                         { title: 'Admin Site', to: '/docs/features/admin-site/' }
                     ]
                 },
+                {
+                    title: 'Releases',
+                    collapsible: true,
+                    items: [
+                        { title: 'Overview', to: '/docs/releases/overview/' },
+                        { title: 'Changelog', to: '/docs/releases/changelog/' },
+                        { title: 'Migration Guides', to: '/docs/releases/migration-guides/' }
+                    ]
+                },
                 // {
                 //     title: 'Cheatsheets',
                 //     collapsible: false,

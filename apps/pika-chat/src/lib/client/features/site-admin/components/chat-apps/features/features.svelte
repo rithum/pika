@@ -87,20 +87,26 @@
     const featureValid = $state<Partial<Record<FeatureIdType, boolean>>>({});
 
     const tagsToUse = $derived.by(() => {
-        const tags: TagDefinitionLite[] = [];
-
         const originalTagsFeature = chatApp.features?.tags as TagsFeatureForChatApp | undefined;
         const overriddenTagsFeature = chatApp.override?.features?.tags as TagsFeatureForChatApp | undefined;
         const isEnabled = isOverrideMode ? overriddenTagsFeature?.enabled : originalTagsFeature?.enabled;
 
         if (isEnabled) {
             const tagsEnabled = isOverrideMode ? overriddenTagsFeature?.tagsEnabled : originalTagsFeature?.tagsEnabled;
-            if (tagsEnabled) {
-                tags.push(...tagsEnabled);
-            }
+            const tagsDisabled = isOverrideMode
+                ? overriddenTagsFeature?.tagsDisabled
+                : originalTagsFeature?.tagsDisabled;
+
+            return {
+                tagsEnabled: tagsEnabled ?? [],
+                tagsDisabled: tagsDisabled ?? [],
+            };
         }
 
-        return tags;
+        return {
+            tagsEnabled: [],
+            tagsDisabled: [],
+        };
     });
 
     // Phase 2: Site-level feature status tracking

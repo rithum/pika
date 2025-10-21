@@ -270,17 +270,133 @@ async function updateAgentData(agentData: AgentDataRequest, existingAgent: Agent
 }
 
 /**
+ * Processes tool definitions: creates new tools or updates existing ones.
+ * This is the core tool processing logic used by both "tools only" and "mixed" scenarios.
+ *
+ * @param requestToolDefs Tool definitions to create/update
+ * @param userId User performing the operation
+ * @param now Current timestamp for metadata
+ * @returns Array of processed tool definitions
+ */
+async function processToolDefinitions(requestToolDefs: any[], userId: string, now: string): Promise<ToolDefinition[]> {
+    const processedTools: ToolDefinition[] = [];
+
+    // Check which tools exist in database
+    const existingToolsInDb = await getToolsByIds(requestToolDefs.map((tool) => tool.toolId));
+    const existingToolMap = new Map(existingToolsInDb.map((tool) => [tool.toolId, tool]));
+
+    // Process each requested tool definition
+    for (const requestedTool of requestToolDefs) {
+        const existingTool = existingToolMap.get(requestedTool.toolId);
+
+        if (existingTool) {
+            // Tool exists - check if update needed
+            if (!toolsAreSame(requestedTool as ToolDefinition, existingTool)) {
+                // Tool changed - update it
+                const fieldsToUpdate = {} as Record<UpdateableToolDefinitionFields, any>;
+                const fieldsToRemove: UpdateableToolDefinitionFields[] = [];
+
+                // Handle required fields
+                handleRequiredFieldUpdate(requestedTool.name, existingTool.name, 'name', fieldsToUpdate);
+                handleRequiredFieldUpdate(requestedTool.displayName, existingTool.displayName, 'displayName', fieldsToUpdate);
+                handleRequiredFieldUpdate(requestedTool.description, existingTool.description, 'description', fieldsToUpdate);
+                handleRequiredFieldUpdate(requestedTool.executionType, existingTool.executionType, 'executionType', fieldsToUpdate);
+                handleRequiredArrayFieldUpdate(requestedTool.supportedAgentFrameworks, existingTool.supportedAgentFrameworks, 'supportedAgentFrameworks', fieldsToUpdate);
+
+                // Handle optional fields that can be updated or removed
+                handleOptionalFieldUpdate(requestedTool.executionTimeout, existingTool.executionTimeout, 'executionTimeout', fieldsToUpdate, fieldsToRemove);
+
+                // Handle execution-type-specific fields
+                if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'lambda') {
+                    handleOptionalFieldUpdate(requestedTool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
+                } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'mcp') {
+                    // Changing from MCP to lambda
+                    if (requestedTool.lambdaArn) {
+                        fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
+                    }
+                    fieldsToRemove.push('url');
+                    if ('auth' in existingTool) fieldsToRemove.push('auth');
+                } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'lambda') {
+                    // Changing from lambda to MCP
+                    if (requestedTool.url) {
+                        fieldsToUpdate.url = requestedTool.url;
+                    }
+                    if (requestedTool.auth) {
+                        fieldsToUpdate.auth = requestedTool.auth;
+                    }
+                    fieldsToRemove.push('lambdaArn');
+                } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'mcp') {
+                    // Both MCP tools
+                    handleOptionalFieldUpdate(requestedTool.url, existingTool.url, 'url', fieldsToUpdate, fieldsToRemove);
+                    handleOptionalFieldUpdate(requestedTool.auth, existingTool.auth, 'auth', fieldsToUpdate, fieldsToRemove);
+                } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'inline') {
+                    // Both inline tools
+                    handleRequiredFieldUpdate(requestedTool.code, existingTool.code, 'code', fieldsToUpdate);
+                } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'lambda') {
+                    // Changing from lambda to inline
+                    if (requestedTool.code) {
+                        fieldsToUpdate.code = requestedTool.code;
+                    }
+                    fieldsToRemove.push('lambdaArn');
+                } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'mcp') {
+                    // Changing from MCP to inline
+                    if (requestedTool.code) {
+                        fieldsToUpdate.code = requestedTool.code;
+                    }
+                    fieldsToRemove.push('url');
+                    if ('auth' in existingTool) fieldsToRemove.push('auth');
+                } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'inline') {
+                    // Changing from inline to lambda
+                    if (requestedTool.lambdaArn) {
+                        fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
+                    }
+                    fieldsToRemove.push('code');
+                } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'inline') {
+                    // Changing from inline to MCP
+                    if (requestedTool.url) {
+                        fieldsToUpdate.url = requestedTool.url;
+                    }
+                    if (requestedTool.auth) {
+                        fieldsToUpdate.auth = requestedTool.auth;
+                    }
+                    fieldsToRemove.push('code');
+                }
+
+                handleObjectFieldUpdate(requestedTool.functionSchema, existingTool.functionSchema, 'functionSchema', fieldsToUpdate, fieldsToRemove, true);
+                handleObjectFieldUpdate(requestedTool.tags, existingTool.tags, 'tags', fieldsToUpdate, fieldsToRemove, true);
+                handleObjectFieldUpdate(requestedTool.lifecycle, existingTool.lifecycle, 'lifecycle', fieldsToUpdate, fieldsToRemove, true);
+                handleArrayFieldUpdate(requestedTool.accessRules, existingTool.accessRules, 'accessRules', fieldsToUpdate, fieldsToRemove, true);
+
+                const updatedTool = await updateTool(existingTool, fieldsToUpdate, fieldsToRemove, userId);
+                processedTools.push(updatedTool);
+            } else {
+                // Tool unchanged - use existing
+                processedTools.push(existingTool);
+            }
+        } else {
+            // Tool doesn't exist - create it
+            const newTool = createEntityWithMetadata(requestedTool, userId, now) as ToolDefinition;
+            const createdTool = await createTool(newTool);
+            processedTools.push(createdTool);
+        }
+    }
+
+    return processedTools;
+}
+
+/**
  * Handles tool management for idempotent agent create/update operations.
  *
- * This function reconciles the desired tool state with the existing state:
- * 1. If toolIds are provided: validates they exist and compares with current agent tools
- * 2. If tool definitions are provided: creates missing tools, updates changed tools
- * 3. Returns the final tool list and whether the agent's tool associations changed
+ * This function reconciles the desired tool state with the existing state and supports three patterns:
+ * 1. Only toolIds: Validates they exist and compares with current agent tools
+ * 2. Only tool definitions: Creates missing tools, updates changed tools
+ * 3. Both toolIds AND tool definitions (mixed): Validates referenced tools exist, creates/updates defined tools, merges both
  *
  * @param userId User performing the operation
- * @param toolIdsFromAgentRequest Tool IDs specified in the request (if using existing tools)
+ * @param toolIdsFromAgentRequest Tool IDs specified in the request (for referencing existing tools)
  * @param toolIdsOnExistingAgent Current tool IDs on the existing agent (empty for new agents)
- * @param requestToolDefs Tool definitions to create/update (if providing tool definitions)
+ * @param requestToolDefs Tool definitions to create/update (for defining new tools)
+ * @param now Current timestamp for metadata
  * @returns Tuple of [final tool definitions, whether tool list changed]
  */
 async function handleToolsIdempotent(
@@ -290,18 +406,13 @@ async function handleToolsIdempotent(
     requestToolDefs: any[],
     now: string
 ): Promise<[ToolDefinition[], boolean]> {
-    // Validate input: cannot provide both tool IDs and tool definitions
-    if (toolIdsFromAgentRequest.length > 0 && requestToolDefs.length > 0) {
-        throw new BadRequestError('Both toolIdsFromAgentRequest and newTools cannot be provided');
-    }
-
     // Early return if no tools specified
     if (toolIdsFromAgentRequest.length === 0 && requestToolDefs.length === 0) {
         return [[], toolIdsOnExistingAgent.length > 0];
     }
 
-    // Scenario 1: Tool IDs provided - validate existence and check for changes
-    if (toolIdsFromAgentRequest.length > 0) {
+    // Scenario 1: Only tool IDs provided - validate existence and check for changes
+    if (toolIdsFromAgentRequest.length > 0 && requestToolDefs.length === 0) {
         // Verify all requested tools exist in database
         const requestedTools = await getToolsByIds(toolIdsFromAgentRequest);
         validateEntitiesExist(toolIdsFromAgentRequest, requestedTools, 'tools', 'toolId');
@@ -312,125 +423,67 @@ async function handleToolsIdempotent(
         return [requestedTools, toolListChanged];
     }
 
-    // Scenario 2: Tool definitions provided - create/update as needed
-    if (requestToolDefs.length > 0) {
-        const finalTools: ToolDefinition[] = [];
-
-        // Check which tools exist in database
-        const existingToolsInDb = await getToolsByIds(requestToolDefs.map((tool) => tool.toolId));
-        const existingToolMap = new Map(existingToolsInDb.map((tool) => [tool.toolId, tool]));
-
-        // Process each requested tool definition
-        for (const requestedTool of requestToolDefs) {
-            const existingTool = existingToolMap.get(requestedTool.toolId);
-
-            if (existingTool) {
-                // Tool exists - check if update needed
-                if (!toolsAreSame(requestedTool as ToolDefinition, existingTool)) {
-                    // Tool changed - update it
-                    const fieldsToUpdate = {} as Record<UpdateableToolDefinitionFields, any>;
-                    const fieldsToRemove: UpdateableToolDefinitionFields[] = [];
-
-                    // Handle required fields
-                    handleRequiredFieldUpdate(requestedTool.name, existingTool.name, 'name', fieldsToUpdate);
-                    handleRequiredFieldUpdate(requestedTool.displayName, existingTool.displayName, 'displayName', fieldsToUpdate);
-                    handleRequiredFieldUpdate(requestedTool.description, existingTool.description, 'description', fieldsToUpdate);
-                    handleRequiredFieldUpdate(requestedTool.executionType, existingTool.executionType, 'executionType', fieldsToUpdate);
-                    handleRequiredArrayFieldUpdate(requestedTool.supportedAgentFrameworks, existingTool.supportedAgentFrameworks, 'supportedAgentFrameworks', fieldsToUpdate);
-
-                    // Handle optional fields that can be updated or removed
-                    handleOptionalFieldUpdate(requestedTool.executionTimeout, existingTool.executionTimeout, 'executionTimeout', fieldsToUpdate, fieldsToRemove);
-
-                    // Handle lambda-specific fields
-                    if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'lambda') {
-                        handleOptionalFieldUpdate(requestedTool.lambdaArn, existingTool.lambdaArn, 'lambdaArn', fieldsToUpdate, fieldsToRemove);
-                    } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'mcp') {
-                        // Changing from MCP to lambda
-                        if (requestedTool.lambdaArn) {
-                            fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
-                        }
-                        // Remove MCP-specific fields
-                        fieldsToRemove.push('url');
-                        if ('auth' in existingTool) fieldsToRemove.push('auth');
-                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'lambda') {
-                        // Changing from lambda to MCP
-                        if (requestedTool.url) {
-                            fieldsToUpdate.url = requestedTool.url;
-                        }
-                        if (requestedTool.auth) {
-                            fieldsToUpdate.auth = requestedTool.auth;
-                        }
-                        // Remove lambda-specific field
-                        fieldsToRemove.push('lambdaArn');
-                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'mcp') {
-                        // Both MCP tools
-                        handleOptionalFieldUpdate(requestedTool.url, existingTool.url, 'url', fieldsToUpdate, fieldsToRemove);
-                        handleOptionalFieldUpdate(requestedTool.auth, existingTool.auth, 'auth', fieldsToUpdate, fieldsToRemove);
-                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'inline') {
-                        // Both inline tools
-                        handleRequiredFieldUpdate(requestedTool.code, existingTool.code, 'code', fieldsToUpdate);
-                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'lambda') {
-                        // Changing from lambda to inline
-                        if (requestedTool.code) {
-                            fieldsToUpdate.code = requestedTool.code;
-                        }
-                        // Remove lambda-specific field
-                        fieldsToRemove.push('lambdaArn');
-                    } else if (requestedTool.executionType === 'inline' && existingTool.executionType === 'mcp') {
-                        // Changing from MCP to inline
-                        if (requestedTool.code) {
-                            fieldsToUpdate.code = requestedTool.code;
-                        }
-                        // Remove MCP-specific fields
-                        fieldsToRemove.push('url');
-                        if ('auth' in existingTool) fieldsToRemove.push('auth');
-                    } else if (requestedTool.executionType === 'lambda' && existingTool.executionType === 'inline') {
-                        // Changing from inline to lambda
-                        if (requestedTool.lambdaArn) {
-                            fieldsToUpdate.lambdaArn = requestedTool.lambdaArn;
-                        }
-                        // Remove inline-specific field
-                        fieldsToRemove.push('code');
-                    } else if (requestedTool.executionType === 'mcp' && existingTool.executionType === 'inline') {
-                        // Changing from inline to MCP
-                        if (requestedTool.url) {
-                            fieldsToUpdate.url = requestedTool.url;
-                        }
-                        if (requestedTool.auth) {
-                            fieldsToUpdate.auth = requestedTool.auth;
-                        }
-                        // Remove inline-specific field
-                        fieldsToRemove.push('code');
-                    }
-
-                    handleObjectFieldUpdate(requestedTool.functionSchema, existingTool.functionSchema, 'functionSchema', fieldsToUpdate, fieldsToRemove, true);
-                    handleObjectFieldUpdate(requestedTool.tags, existingTool.tags, 'tags', fieldsToUpdate, fieldsToRemove, true);
-                    handleObjectFieldUpdate(requestedTool.lifecycle, existingTool.lifecycle, 'lifecycle', fieldsToUpdate, fieldsToRemove, true);
-                    handleArrayFieldUpdate(requestedTool.accessRules, existingTool.accessRules, 'accessRules', fieldsToUpdate, fieldsToRemove, true);
-
-                    const updatedTool = await updateTool(existingTool, fieldsToUpdate, fieldsToRemove, userId);
-                    finalTools.push(updatedTool);
-                } else {
-                    // Tool unchanged - use existing
-                    finalTools.push(existingTool);
-                }
-            } else {
-                // Tool doesn't exist - create it
-                const newTool = createEntityWithMetadata(requestedTool, userId, now) as ToolDefinition;
-                const createdTool = await createTool(newTool);
-                finalTools.push(createdTool);
-            }
-        }
+    // Scenario 2: Only tool definitions provided - create/update as needed
+    if (toolIdsFromAgentRequest.length === 0 && requestToolDefs.length > 0) {
+        console.log('handleToolsIdempotent - Processing tool definitions only');
+        const finalTools = await processToolDefinitions(requestToolDefs, userId, now);
 
         // Check if final tool list differs from existing agent's tools
         const finalToolIds = finalTools.map((tool) => tool.toolId);
         const toolListChanged = !arraysHaveSameElements(finalToolIds, toolIdsOnExistingAgent);
 
         return [finalTools, toolListChanged];
-    } else {
-        // Should never reach here due to early validation, but TypeScript requires it
-        return [[], false];
     }
+
+    // Scenario 3: BOTH tool IDs and tool definitions provided (mixed approach)
+    if (toolIdsFromAgentRequest.length > 0 && requestToolDefs.length > 0) {
+        console.log('handleToolsIdempotent - Mixed approach: processing both tool IDs and tool definitions');
+
+        // Step 1: Validate that referenced tools exist
+        console.log('handleToolsIdempotent - Validating referenced tool IDs:', toolIdsFromAgentRequest);
+        const referencedTools = await getToolsByIds(toolIdsFromAgentRequest);
+        validateEntitiesExist(toolIdsFromAgentRequest, referencedTools, 'tools', 'toolId');
+        console.log(
+            'handleToolsIdempotent - Referenced tools validated:',
+            referencedTools.map((t) => t.toolId)
+        );
+
+        // Step 2: Process tool definitions (create/update)
+        console.log(
+            'handleToolsIdempotent - Processing tool definitions:',
+            requestToolDefs.map((t) => t.toolId)
+        );
+        const definedTools = await processToolDefinitions(requestToolDefs, userId, now);
+        console.log(
+            'handleToolsIdempotent - Tool definitions processed:',
+            definedTools.map((t) => t.toolId)
+        );
+
+        // Step 3: Merge referenced tools and defined tools, deduplicate
+        const toolMap = new Map<string, ToolDefinition>();
+
+        // Add referenced tools first
+        for (const tool of referencedTools) {
+            toolMap.set(tool.toolId, tool);
+        }
+
+        // Add/override with defined tools (in case someone references and also defines the same tool)
+        for (const tool of definedTools) {
+            toolMap.set(tool.toolId, tool);
+        }
+
+        const finalTools = Array.from(toolMap.values());
+        const finalToolIds = finalTools.map((tool) => tool.toolId);
+        console.log('handleToolsIdempotent - Final merged tool list:', finalToolIds);
+
+        // Check if tool list changed from existing agent
+        const toolListChanged = !arraysHaveSameElements(finalToolIds, toolIdsOnExistingAgent);
+
+        return [finalTools, toolListChanged];
+    }
+
+    // Should never reach here due to early validation, but TypeScript requires it
+    return [[], false];
 }
 
 /**

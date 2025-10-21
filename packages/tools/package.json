@@ -1,0 +1,39 @@
+{
+    "name": "@pika/tools",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Internal tools for Pika Framework development and releases",
+    "scripts": {
+        "release:help": "pnpm tsx src/release.ts --help",
+        "release:help:notes": "pnpm tsx src/release.ts notes --help",
+        "release:help:plan-breaking": "pnpm tsx src/release.ts plan-breaking --help",
+        "release:help:publish": "pnpm tsx src/release.ts publish --help",
+        "release:info": "pnpm tsx src/release.ts info",
+        "release": "pnpm tsx src/release.ts",
+        "release:notes": "pnpm tsx src/release.ts notes",
+        "release:notes:finalize": "pnpm tsx src/release.ts notes --finalize",
+        "release:publish": "pnpm tsx src/release.ts publish",
+        "release:validate": "pnpm tsx src/release.ts validate",
+        "release:plan-breaking": "pnpm tsx src/release.ts plan-breaking",
+        "clean": "rm -rf node_modules"
+    },
+    "dependencies": {
+        "chalk": "catalog:",
+        "clipboardy": "^5.0.0",
+        "commander": "catalog:",
+        "inquirer": "catalog:",
+        "ora": "catalog:"
+    },
+    "devDependencies": {
+        "@pika/typescript-config": "workspace:*",
+        "@types/node": "catalog:",
+        "tsx": "catalog:",
+        "typescript": "catalog:"
+    },
+    "keywords": [
+        "pika",
+        "internal",
+        "tools"
+    ]
+}

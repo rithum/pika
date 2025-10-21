@@ -52,6 +52,7 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
 
     try {
         const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
+
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {
@@ -95,16 +96,41 @@ export const load: LayoutServerLoad = async ({ params, url, locals, depends }) =
     let tagDefinitions: TagDefinition<TagDefinitionWidget>[] = [];
     try {
         let paginationToken: Record<string, any> | undefined;
+
+        // Compute which tags to fetch based on feature configuration
+        const tagsEnabled = features.tags?.tagsEnabled ?? [];
+        const tagsDisabled = features.tags?.tagsDisabled ?? [];
+
+        // Global tags are included unless they're in the disabled list
+        const includeGlobal = tagsDisabled.length === 0; // If no tags are disabled, include all globals
+        // Note: If there are disabled tags, we'll need to filter them out after fetching
+
+        console.log('tagsEnabled', tagsEnabled);
+        console.log('tagsDisabled', tagsDisabled);
+        console.log('includeGlobal', includeGlobal);
+
         do {
             const response = await searchTagDefinitions(locals.user.userId, {
                 includeInstructions: false, // We don't need instructions for frontend display
                 paginationToken,
-                chatAppId: chatApp.chatAppId
+                tagsDesired: tagsEnabled.length > 0 ? tagsEnabled : undefined,
+                includeGlobal
             });
+
+            console.log('response.tagDefinitions', response.tagDefinitions);
 
             tagDefinitions.push(...response.tagDefinitions);
             paginationToken = response.paginationToken;
         } while (paginationToken);
+
+        console.log('tagDefinitions', tagDefinitions);
+
+        // Filter out disabled global tags if any
+        if (tagsDisabled.length > 0) {
+            tagDefinitions = tagDefinitions.filter((tag) => {
+                return !tagsDisabled.some((disabled) => disabled.scope === tag.scope && disabled.tag === tag.tag);
+            });
+        }
     } catch (e) {
         // For tag definitions, we log the error but don't fail the entire page load
         // since this is not critical functionality

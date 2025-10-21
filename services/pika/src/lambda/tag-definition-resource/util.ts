@@ -2,6 +2,7 @@ import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse
 import pRetry, { AbortError } from 'p-retry';
 import {
     TAG_DEFINITION_STATUSES,
+    TAG_DEFINITION_USAGE_MODES,
     TAG_DEFINITION_WIDGET_TYPES,
     TagDefinitionCreateOrUpdateResponse,
     TagDefinitionDeleteResponse,
@@ -55,14 +56,23 @@ export function parseTagDefinitionCustomResourceProperties(str: string): TagDefi
         );
     }
 
-    // Validate chatAppId
-    if (!tagDefDataObj.chatAppId || typeof tagDefDataObj.chatAppId !== 'string' || tagDefDataObj.chatAppId.trim() === '') {
-        throw new Error(`Tag definition must have a non-empty chatAppId. ` + `Use 'chat-app-global' for global tags. ` + `Tag: ${tagDefDataObj.scope}.${tagDefDataObj.tag}`);
+    // Default and validate usageMode
+    if (!tagDefDataObj.usageMode) {
+        tagDefDataObj.usageMode = 'chat-app';
+        console.log('usageMode not provided, defaulting to "chat-app"');
+    }
+
+    if (!TAG_DEFINITION_USAGE_MODES.includes(tagDefDataObj.usageMode)) {
+        throw new Error(
+            `Tag definition usageMode must be one of: ${TAG_DEFINITION_USAGE_MODES.join(', ')}. ` +
+                `Got: ${tagDefDataObj.usageMode}. ` +
+                `Tag: ${tagDefDataObj.scope}.${tagDefDataObj.tag}`
+        );
     }
 
     console.log('Tag definition validation passed:', {
         tag: `${tagDefDataObj.scope}.${tagDefDataObj.tag}`,
-        chatAppId: tagDefDataObj.chatAppId,
+        usageMode: tagDefDataObj.usageMode,
         status: tagDefDataObj.status,
         widgetType: tagDefDataObj.widget.type
     });

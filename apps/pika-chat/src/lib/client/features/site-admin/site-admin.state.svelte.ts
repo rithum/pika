@@ -293,11 +293,24 @@ export class SiteAdminState {
                     CLIENT_RESOURCE_NAMES.TAG_DEFINITION
                 );
 
+                console.log('loadTagDefinitions - API response:', {
+                    success: json.success,
+                    tagDefinitionsCount: json.tagDefinitions?.length ?? 0,
+                    hasPaginationToken: !!json.paginationToken,
+                    tagDefinitions: json.tagDefinitions
+                });
+
                 paginationToken = json.paginationToken;
                 if (json.tagDefinitions) {
                     tagDefinitions.push(...json.tagDefinitions);
                 }
             } while (paginationToken);
+
+            console.log('loadTagDefinitions - Final result:', {
+                totalTagDefinitions: tagDefinitions.length,
+                tags: tagDefinitions.map((t) => ({ scope: t.scope, tag: t.tag, usageMode: t.usageMode }))
+            });
+
             this.#tagDefinitions = tagDefinitions;
         } catch (e) {
             handleClientError(e, 'loading tag definitions', this.#showToast);

@@ -16,6 +16,7 @@
     const features: ChatAppOverridableFeatures = {
         tags: {
             tagsEnabled: [],
+            tagsDisabled: [],
         },
         agentInstructionAssistance: {
             enabled: false,

@@ -1,0 +1,86 @@
+name: Auto Release
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'releases.json'
+
+permissions:
+    contents: write
+
+jobs:
+    auto-release:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Read version from releases.json
+              id: get_version
+              run: |
+                  VERSION=$(node -p "require('./releases.json').latestVersion")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Check if tag exists and version is released
+              id: check_tag
+              run: |
+                  VERSION="${{ steps.get_version.outputs.version }}"
+
+                  # Check if tag already exists
+                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+                    echo "exists=true" >> $GITHUB_OUTPUT
+                    echo "Tag v$VERSION already exists, skipping release"
+                    exit 0
+                  fi
+
+                  # Check if version is marked as released in releases.json
+                  STATUS=$(node -p "require('./releases.json').releases.find(r => r.version === '$VERSION')?.status || 'unknown'")
+
+                  if [ "$STATUS" != "released" ]; then
+                    echo "exists=true" >> $GITHUB_OUTPUT
+                    echo "Version $VERSION has status '$STATUS' (not 'released'), skipping release creation"
+                  else
+                    echo "exists=false" >> $GITHUB_OUTPUT
+                    echo "Version $VERSION is marked as released, will create release"
+                  fi
+
+            - name: Extract release notes
+              if: steps.check_tag.outputs.exists == 'false'
+              id: extract_notes
+              run: |
+                  VERSION="${{ steps.get_version.outputs.version }}"
+
+                  # Extract release notes for this version from CHANGELOG.md
+                  # This uses awk to extract everything between ## [$VERSION] and the next ## heading
+                  NOTES=$(awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '1d;$d' | sed '/^$/d')
+
+                  if [ -z "$NOTES" ]; then
+                    echo "No release notes found for version $VERSION in CHANGELOG.md"
+                    NOTES="Release $VERSION - See CHANGELOG.md for details"
+                  fi
+
+                  # Save to file for multiline handling
+                  echo "$NOTES" > release_notes.txt
+
+            - name: Create Release
+              if: steps.check_tag.outputs.exists == 'false'
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ steps.get_version.outputs.tag }}
+                  name: Release ${{ steps.get_version.outputs.tag }}
+                  body_path: release_notes.txt
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Release created
+              if: steps.check_tag.outputs.exists == 'false'
+              run: |
+                  echo "Release ${{ steps.get_version.outputs.tag }} created successfully!"
+                  echo "View it at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag }}"

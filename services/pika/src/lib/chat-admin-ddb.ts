@@ -25,7 +25,7 @@ import type {
     UpdateableChatAppOverrideFields,
     UpdateableToolDefinitionFields
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, TAG_DEFINITION_STATUSES } from 'pika-shared/types/chatbot/chatbot-types';
+import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, TAG_DEFINITION_STATUSES, TAG_DEFINITION_USAGE_MODES } from 'pika-shared/types/chatbot/chatbot-types';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { ForbiddenError } from 'pika-shared/util/forbidden-error';
@@ -1402,9 +1402,14 @@ function validateAndNormalizeTagDefinition(tagDef: TagDefinitionForCreateOrUpdat
         tagDef.status = 'enabled';
     }
 
-    // Validate chatAppId
-    if (!tagDef.chatAppId || typeof tagDef.chatAppId !== 'string' || tagDef.chatAppId.trim() === '') {
-        throw new BadRequestError(`Tag definition must have a non-empty chatAppId. ` + `Use 'chat-app-global' for global tags. ` + `Tag: ${tagDef.scope}.${tagDef.tag}`);
+    // Ensure usageMode is set (default to 'chat-app' if missing)
+    if (!tagDef.usageMode) {
+        tagDef.usageMode = 'chat-app';
+    }
+
+    // Validate usageMode
+    if (!TAG_DEFINITION_USAGE_MODES.includes(tagDef.usageMode)) {
+        throw new BadRequestError(`Invalid usageMode value: ${tagDef.usageMode}. Must be one of: ${TAG_DEFINITION_USAGE_MODES.join(', ')}. Tag: ${tagDef.scope}.${tagDef.tag}`);
     }
 
     // Validate status
@@ -1454,6 +1459,7 @@ export async function createOrUpdateTagDefinition(
     const tagDefToStore: TagDefinition<TagDefinitionWidget> = {
         ...tagDefinition,
         widget,
+        usageMode: tagDefinition.usageMode!, // Safe after validateAndNormalizeTagDefinition
         createdBy: existingTagDef?.createdBy ?? userId,
         lastUpdatedBy: userId,
         createDate: existingTagDef?.createDate ?? now,
@@ -1486,23 +1492,18 @@ export async function deleteTagDefinition(scope: string, tag: string): Promise<v
 }
 
 /**
- * Search for tag definitions with three primary modes:
+ * Search for tag definitions with two primary modes:
  *
- * MODE 1 - Get all tags for a chat app (including global):
- *   - Pass chatAppId
- *   - System automatically queries BOTH the specified chatAppId AND 'chat-app-global'
- *   - Uses GSI (chatappid-status-index) for efficient retrieval
- *   - Returns all enabled tags for the chat app + all global tags
- *   - Supports pagination with separate tokens for each query
+ * MODE 1 - Get specific tags (optionally including globals):
+ *   - Pass tagsDesired array for specific tags to retrieve
+ *   - Set includeGlobal=true to also include all global tags
+ *   - Uses primary key lookup (scope + tag) for specified tags via BatchGetItem
+ *   - Uses GSI (scope-status-index) for global tags if includeGlobal=true
+ *   - Returns requested tags + global tags (if includeGlobal=true)
+ *   - Supports pagination for both tagsDesired and global queries
  *
- * MODE 2 - Get specific tags by scope/tag:
- *   - Pass tagsDesired array
- *   - Returns only the requested tags (if they exist and user has access)
- *   - Uses BatchGetItem for efficiency (up to 100 items per batch)
- *   - Supports pagination for large lists via unprocessedKeys
- *
- * MODE 3 - Get all tags (scan):
- *   - No chatAppId or tagsDesired provided
+ * MODE 2 - Get all tags (scan):
+ *   - Don't pass tagsDesired or includeGlobal
  *   - Scans entire table with pagination
  *   - Returns all tag definitions
  *
@@ -1513,13 +1514,21 @@ export async function searchTagDefinitions(
     request: TagDefinitionSearchRequest,
     includeDisabled: boolean = false
 ): Promise<[TagDefinition<TagDefinitionWidget>[], Record<string, any> | undefined]> {
-    // MODE 2: Get specific tags by scope/tag (batch get with pagination)
+    console.log('chat-admin-ddb.ts - searchTagDefinitions called:', {
+        request,
+        includeDisabled,
+        hasTagsDesired: !!(request.tagsDesired && request.tagsDesired.length > 0),
+        includeGlobal: request.includeGlobal
+    });
+
+    // MODE 1: Get specific tags + optionally include global tags
     if (request.tagsDesired && request.tagsDesired.length > 0) {
         const tagDefs: TagDefinition<TagDefinitionWidget>[] = [];
+        let nextPaginationToken: Record<string, any> = {};
 
-        // Determine starting point from pagination token
+        // Determine starting point from pagination token for tagsDesired
         let startIndex = 0;
-        if (request.paginationToken?.mode === 'tagsDesired' && request.paginationToken.startIndex) {
+        if (request.paginationToken?.mode === 'tagsDesired' && request.paginationToken.startIndex !== undefined) {
             startIndex = request.paginationToken.startIndex;
         }
 
@@ -1528,7 +1537,7 @@ export async function searchTagDefinitions(
         const endIndex = Math.min(startIndex + batchSize, request.tagsDesired.length);
         const batchTags = request.tagsDesired.slice(startIndex, endIndex);
 
-        // Fetch batch of tags
+        // Fetch batch of requested tags
         const keys = batchTags.map((tagLite) => ({
             scope: tagLite.scope,
             tag: tagLite.tag
@@ -1559,63 +1568,41 @@ export async function searchTagDefinitions(
             }
         }
 
-        // Create pagination token if there are more tags to fetch
-        let nextPaginationToken: Record<string, any> | undefined;
+        // Create pagination token if there are more tags to fetch from tagsDesired
         if (endIndex < request.tagsDesired.length) {
-            nextPaginationToken = {
-                mode: 'tagsDesired',
-                startIndex: endIndex
-            };
+            nextPaginationToken.mode = 'tagsDesired';
+            nextPaginationToken.startIndex = endIndex;
         }
 
-        return [tagDefs, nextPaginationToken];
-    }
+        // If includeGlobal is true, also query for global tags
+        if (request.includeGlobal) {
+            const globalPaginationToken = request.paginationToken?.globalQuery;
 
-    // MODE 1: Get all tags for a chat app + global tags (using GSI with pagination)
-    if (request.chatAppId) {
-        const tagDefs: TagDefinition<TagDefinitionWidget>[] = [];
-        let nextPaginationToken: Record<string, any> = {};
-
-        // Extract pagination tokens from request
-        const chatAppPaginationToken = request.paginationToken?.chatAppQuery;
-        const globalPaginationToken = request.paginationToken?.globalQuery;
-
-        // Query 1: Get tags for the specific chat app
-        const chatAppQuery = new QueryCommand({
-            TableName: getTagDefinitionsTable(),
-            IndexName: 'chatappid-status-index',
-            KeyConditionExpression: 'chat_app_id = :chatAppId',
-            ExpressionAttributeValues: {
-                ':chatAppId': request.chatAppId
-            },
-            ExclusiveStartKey: chatAppPaginationToken
-        });
-
-        const chatAppResult = await ddbDocClient.send(chatAppQuery);
-        if (chatAppResult.Items) {
-            tagDefs.push(...(chatAppResult.Items.map((item) => convertTagDefinitionToCamelFromSnakeCase(item)) as TagDefinition<TagDefinitionWidget>[]));
-        }
-
-        // Store pagination token for chatApp query if there are more results
-        if (chatAppResult.LastEvaluatedKey) {
-            nextPaginationToken.chatAppQuery = chatAppResult.LastEvaluatedKey;
-        }
-
-        // Query 2: Get global tags (only if chatAppId is not already 'chat-app-global' to avoid duplicates)
-        if (request.chatAppId !== 'chat-app-global') {
+            // Query global tags using the new scope-status-index GSI
             const globalQuery = new QueryCommand({
                 TableName: getTagDefinitionsTable(),
-                IndexName: 'chatappid-status-index',
-                KeyConditionExpression: 'chat_app_id = :chatAppId',
+                IndexName: 'scope-status-index',
+                KeyConditionExpression: 'usage_mode = :usageMode',
                 ExpressionAttributeValues: {
-                    ':chatAppId': 'chat-app-global'
+                    ':usageMode': 'global'
                 },
                 ExclusiveStartKey: globalPaginationToken
             });
 
             const globalResult = await ddbDocClient.send(globalQuery);
             if (globalResult.Items) {
-                tagDefs.push(...(globalResult.Items.map((item) => convertTagDefinitionToCamelFromSnakeCase(item)) as TagDefinition<TagDefinitionWidget>[]));
+                for (const item of globalResult.Items) {
+                    const tagDef = convertTagDefinitionToCamelFromSnakeCase(item) as TagDefinition<TagDefinitionWidget>;
+
+                    // Filter by status unless includeDisabled is true
+                    if (includeDisabled || tagDef.status === 'enabled') {
+                        // Remove instructions if not requested
+                        if (!request.includeInstructions && tagDef.llmInstructionsMd) {
+                            delete tagDef.llmInstructionsMd;
+                        }
+                        tagDefs.push(tagDef);
+                    }
+                }
             }
 
             // Store pagination token for global query if there are more results
@@ -1624,31 +1611,51 @@ export async function searchTagDefinitions(
             }
         }
 
-        // Filter by status unless includeDisabled is true
-        let filteredTagDefs = tagDefs;
-        if (!includeDisabled) {
-            filteredTagDefs = tagDefs.filter((t) => t.status === 'enabled');
-        }
-
-        // Remove instructions if not requested
-        if (!request.includeInstructions) {
-            filteredTagDefs = filteredTagDefs.map((tagDef) => {
-                if (tagDef.llmInstructionsMd) {
-                    const { llmInstructionsMd, ...rest } = tagDef;
-                    return rest as TagDefinition<TagDefinitionWidget>;
-                }
-                return tagDef;
-            });
-        }
-
         // Only return pagination token if there are actually more results
         const finalPaginationToken = Object.keys(nextPaginationToken).length > 0 ? nextPaginationToken : undefined;
 
-        return [filteredTagDefs, finalPaginationToken];
+        return [tagDefs, finalPaginationToken];
+    }
+
+    // MODE 2: includeGlobal without tagsDesired - get only global tags
+    if (request.includeGlobal) {
+        const tagDefs: TagDefinition<TagDefinitionWidget>[] = [];
+        const globalPaginationToken = request.paginationToken;
+
+        // Query global tags using the new scope-status-index GSI
+        const globalQuery = new QueryCommand({
+            TableName: getTagDefinitionsTable(),
+            IndexName: 'scope-status-index',
+            KeyConditionExpression: 'usage_mode = :usageMode',
+            ExpressionAttributeValues: {
+                ':usageMode': 'global'
+            },
+            ExclusiveStartKey: globalPaginationToken
+        });
+
+        const globalResult = await ddbDocClient.send(globalQuery);
+        if (globalResult.Items) {
+            for (const item of globalResult.Items) {
+                const tagDef = convertTagDefinitionToCamelFromSnakeCase(item) as TagDefinition<TagDefinitionWidget>;
+
+                // Filter by status unless includeDisabled is true
+                if (includeDisabled || tagDef.status === 'enabled') {
+                    // Remove instructions if not requested
+                    if (!request.includeInstructions && tagDef.llmInstructionsMd) {
+                        delete tagDef.llmInstructionsMd;
+                    }
+                    tagDefs.push(tagDef);
+                }
+            }
+        }
+
+        return [tagDefs, globalResult.LastEvaluatedKey];
     }
 
     // MODE 3: No search criteria provided - scan all tag definitions
-    return await getAllTagDefinitions(includeDisabled, request.includeInstructions, request.paginationToken);
+    const [allTags, paginationToken] = await getAllTagDefinitions(includeDisabled, request.includeInstructions, request.paginationToken);
+
+    return [allTags, paginationToken];
 }
 
 /**

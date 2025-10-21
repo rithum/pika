@@ -245,11 +245,13 @@ export const pikaConfig: PikaConfig = {
         tags: {
             enabled: true,
             tagsEnabled: [
-                { tag: 'chart', scope: 'builtin' },
-                { tag: 'table', scope: 'builtin' }
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'image' },
+                { scope: 'pika', tag: 'prompt' }
             ],
-            tagsProhibited: [
-                // Define tags that should never be used
+            tagsDisabled: [
+                // Disable specific global tags if needed
+                { scope: 'pika', tag: 'download' }
             ]
         }
     }

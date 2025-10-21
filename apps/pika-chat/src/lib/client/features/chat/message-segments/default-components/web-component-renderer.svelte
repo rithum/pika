@@ -20,6 +20,20 @@
     let previousSegment = $state<ProcessedTagSegment | undefined>(undefined);
 
     /**
+     * Get the inline height for the widget container.
+     * Supports "auto" for content-driven height or any CSS height value.
+     * Defaults to "400px" if not specified.
+     */
+    function getInlineHeight(tagDef: TagDefinition<TagDefinitionWidgetWebComponent> | undefined): string | 'auto' {
+        if (!tagDef || tagDef.widget.type !== 'web-component') {
+            return '400px';
+        }
+
+        const configuredHeight = tagDef.widget.webComponent.sizing?.inline?.height;
+        return configuredHeight || '400px';
+    }
+
+    /**
      * Parse tag content robustly, handling JSON and fallback cases
      */
     function parseTagContent(rawContent: string): any {
@@ -93,9 +107,25 @@
             initialized = true;
         }
     });
+
+    // Compute the height style for the container
+    const containerHeight = $derived(() => {
+        const tagDef = chat.widgetRegistry.getTagDefinition(segment.tag.split('.')[0], segment.tag.split('.')[1]);
+        const height = getInlineHeight(tagDef as TagDefinition<TagDefinitionWidgetWebComponent> | undefined);
+        return height;
+    });
+
+    // Compute container style - apply height unless it's "auto"
+    const containerStyle = $derived(() => {
+        const height = containerHeight();
+        if (height === 'auto') {
+            return ''; // No height constraint, let content determine height
+        }
+        return `height: ${height};`;
+    });
 </script>
 
-<div bind:this={containerEl} class="my-2 h-[400px] max-h-[500px]">
+<div bind:this={containerEl} class="my-2" style={containerStyle()}>
     {#if segment.streamingStatus === 'incomplete' || segment.streamingStatus === 'streaming'}
         <div
             class="animate-pulse bg-gray-100 rounded-lg p-6 text-center text-gray-500"

@@ -112,7 +112,7 @@ Each widget is defined by a `TagDefinition` that includes:
   "tag": "dashboard",
   "scope": "acme",
   "tagTitle": "Sales Dashboard",
-  "chatAppId": "sales-chat",  // or "chat-app-global" for all chat apps
+  "usageMode": "chat-app",  // "global" or "chat-app"
   "status": "enabled",  // "enabled", "disabled", or "retired"
   "renderingContexts": {
     "spotlight": { "enabled": true, "isDefault": true },
@@ -130,11 +130,23 @@ Each widget is defined by a `TagDefinition` that includes:
 
 ### Tag Visibility Model
 
-Tags are scoped to chat apps using the `chatAppId` field:
+Tags use a two-tier visibility model combining tag definitions and chat app configuration:
 
-- **Global tags**: `chatAppId: "chat-app-global"` - available to all chat apps
-- **App-specific tags**: `chatAppId: "my-chat-app"` - only available to specified chat app
-- **Status lifecycle**: `status: "enabled"` (active), `"disabled"` (hidden), `"retired"` (archived)
+**Tag Definitions** specify availability model via `usageMode`:
+
+- **Global tags**: `usageMode: "global"` - automatically available to all chat apps (unless explicitly disabled)
+- **Chat-app tags**: `usageMode: "chat-app"` - must be explicitly enabled by each chat app
+
+**Chat Apps** control which tags they use via `features.tags`:
+
+- **`tagsEnabled`**: List of chat-app tags to enable
+- **`tagsDisabled`**: List of global tags to disable
+
+**Status Lifecycle:**
+
+- `"enabled"` - Active and available
+- `"disabled"` - Temporarily hidden
+- `"retired"` - Permanently archived
 
 ### Web Component Integration
 

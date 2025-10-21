@@ -215,13 +215,15 @@ This placeholder gets replaced with instructions for all enabled tags, wrapped i
 </tag-instructions>
 ```
 
-#### Fallback Behavior
+#### Placeholder Resolution Behavior
 
 The system uses a hierarchical approach to determine where to inject instruction content:
 
 1. **Primary Placeholder**: If `{{prompt-assistance}}` is found, all instruction content is injected at that location
-2. **Fine-Grained Placeholders**: If `{{prompt-assistance}}` is not found, the system looks for individual component placeholders (`{{output-formatting-requirements}}`, `{{tag-instructions}}`, etc.)
-3. **Automatic Append**: If neither `{{prompt-assistance}}` nor the specific placeholders are found, content is automatically appended to the end of the prompt in the standard order
+2. **Fine-Grained Placeholders**: If `{{prompt-assistance}}` is not found, the system looks for individual component placeholders (`{{output-formatting-requirements}}`, `{{tag-instructions}}`, etc.) and replaces only those that are present
+3. **Automatic Append**: If no placeholders are found anywhere in the prompt and this feature is enabled, all instruction content is automatically appended to the end of the prompt (as if `{{prompt-assistance}}` was placed at the very last line)
+
+**Important**: If any placeholder is found in your prompt, only those specific placeholders will be replaced. The automatic append only happens when no placeholders are present at all.
 
 This approach provides maximum flexibility while ensuring instruction content is always included when the feature is enabled.
 
@@ -393,15 +395,15 @@ jsonOnlyImperativeInstructionLine: {
 
 ### Conditional Instruction Loading
 
-Tag visibility is automatically determined by the tag definition's `chatAppId` and `status` fields:
+Tag visibility is automatically determined by the tag definition's `usageMode` and `status` fields, combined with chat app configuration:
 
 ```js
-// Tag definitions control which tags are available
+// Tag definitions control tag availability model
 // Example tag definition:
 {
     tag: 'chart',
     scope: 'pika',
-    chatAppId: 'chat-app-global',  // Available to all chat apps
+    usageMode: 'global',            // Available everywhere by default
     status: 'enabled',              // Active and visible
     renderingContexts: {
         inline: { enabled: true }   // Available for inline rendering
@@ -409,22 +411,37 @@ Tag visibility is automatically determined by the tag definition's `chatAppId` a
     llmInstructionsMd: '...'        // Instructions for the LLM
 }
 
-// The instruction assistance feature automatically discovers tags:
-// 1. Queries for tags with matching chatAppId (and 'chat-app-global')
-// 2. Filters to status === 'enabled'
-// 3. Filters to contexts.inline.enabled === true
-// 4. Injects instructions for matching tags
-
+// Chat apps explicitly declare which tags they want
 const chatAppFeatures = {
     agentInstructionAssistance: {
         enabled: true,
         includeOutputFormattingRequirements: { enabled: true },
         includeInstructionsForTags: { enabled: true }
+    },
+    tags: {
+        enabled: true,
+        tagsEnabled: [
+            { scope: 'pika', tag: 'chart' },      // Enable specific tags
+            { scope: 'mycompany', tag: 'widget' }
+        ],
+        tagsDisabled: [
+            { scope: 'pika', tag: 'chart' }    // Disable specific global tags
+        ]
     }
 };
+
+// The instruction assistance feature automatically discovers tags:
+// 1. Gets tags listed in tagsEnabled (for chat-app mode tags)
+// 2. Queries for global tags (unless explicitly disabled in tagsDisabled)
+// 3. Filters to status === 'enabled'
+// 4. Filters to contexts.inline.enabled === true
+// 5. Injects instructions for matching tags
 ```
 
-To make a tag available to a specific chat app, set its `chatAppId` field to match the chat app ID. To make it available to all chat apps, use `chatAppId: 'chat-app-global'`.
+**Tag Visibility Model:**
+
+- **Global tags** (`usageMode: 'global'`): Automatically available to all chat apps unless explicitly disabled via `tagsDisabled`
+- **Chat-app tags** (`usageMode: 'chat-app'`): Only available when explicitly enabled via `tagsEnabled`
 
 ## Testing and Debugging
 

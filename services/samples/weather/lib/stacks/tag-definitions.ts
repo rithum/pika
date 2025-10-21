@@ -9,7 +9,7 @@ const weatherSpotlight1: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     description: 'Displays saved favorite cities with quick access to their weather',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -79,7 +79,7 @@ const weatherSpotlight2: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     description: 'Shows active weather alerts and warnings for watched locations',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -150,7 +150,7 @@ const weatherSpotlightFixed: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetW
     description: 'Mini chart showing temperature trend over the last 24 hours',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -212,7 +212,7 @@ const weatherCanvas: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     description: 'Full-screen 5-day weather forecast with detailed information',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -277,7 +277,7 @@ const weatherDialog: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     description: 'Dialog for selecting and managing favorite cities',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -302,15 +302,15 @@ const weatherDialog: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
 };
 
 // Weather Inline Widget
-const weatherInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
-    tag: 'inline',
+const weatherSummary: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    tag: 'summary',
     scope: 'weather',
-    shortTagEx: '<weather.inline></weather.inline>',
-    tagTitle: 'Weather Inline Widget',
-    description: 'A weather widget for testing inline message rendering',
+    shortTagEx: '<weather.summary></weather.summary>',
+    tagTitle: 'Weather Summary',
+    description: 'An inline widget that displays the current weather conditions for a given location.',
     canBeGeneratedByLlm: true,
-    canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    canBeGeneratedByTool: true,
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -322,19 +322,25 @@ const weatherInline: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompon
     widget: {
         type: 'web-component',
         webComponent: {
-            customElementName: 'weather-app',
+            customElementName: 'weather-summary',
             s3: {
                 s3Key: 'wc/weather/weather.js.gz'
             },
             encoding: 'gzip',
             mediaType: 'application/javascript',
             encodedSizeBytes: 0,
-            encodedSha256Base64: ''
+            encodedSha256Base64: '',
+            sizing: {
+                inline: {
+                    height: 'auto'
+                }
+            }
         }
     },
-    llmInstructionsMd: `  - To include a weather inline widget, use the \`<weather.inline></weather.inline>\` tags.
-  - This is a test widget for weather-related development and testing purposes.
-  - Example: \`<weather.inline>Weather data display</weather.inline>\``
+    llmInstructionsMd: `  - To include a weather summary, use the \`<weather.summary></weather.summary>\` tags.
+  - The content within the tags MUST be exclusively JSON conforming to this type: \`\`\`interface WeatherSummaryInput {location: string;tempF: number;tempC: number;condition: string;humidity?: number;windSpeed?: number}\`\`\`
+  - **Example:** \`<weather.summary>{"location": "New York", "tempF": 68, "tempC": 20, "condition": "Sunny", "humidity": 50, "windSpeed": 10}\</weather.summary>\`
+  - **Usage:** Include a weather summary whenever you can provide a concise overview of the current weather conditions for a given location.`
 };
 
 // Weather Comparison (Spotlight)
@@ -346,7 +352,7 @@ const weatherComparison: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     description: 'Compare weather across multiple cities side-by-side',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -407,7 +413,7 @@ const weatherFunFact: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCompo
     description: 'Daily weather trivia and interesting facts',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -459,7 +465,7 @@ const quickWeatherSearch: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebC
     description: 'Quick weather lookup without full chat conversation',
     canBeGeneratedByLlm: false,
     canBeGeneratedByTool: false,
-    chatAppId: 'weather',
+    usageMode: 'chat-app',
     status: 'enabled',
     isMock: false,
     dontCacheThis: true,
@@ -510,6 +516,40 @@ interface QuickWeatherResponse {
     }
 };
 
+// Weather Static Init (Static Context - runs on app load)
+const weatherStaticInit: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    tag: 'static-init',
+    scope: 'weather',
+    shortTagEx: '<weather.static-init></weather.static-init>',
+    tagTitle: 'Weather App Initialization',
+    description: 'Static context component that initializes weather app features on load',
+    canBeGeneratedByLlm: false,
+    canBeGeneratedByTool: false,
+    usageMode: 'chat-app',
+    status: 'enabled',
+    isMock: false,
+    dontCacheThis: true,
+    renderingContexts: {
+        static: {
+            enabled: true,
+            shutDownAfterMs: 5000 // Clean up after 5 seconds
+        }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'weather-static-init',
+            s3: {
+                s3Key: 'wc/weather/weather.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 0,
+            encodedSha256Base64: ''
+        }
+    }
+};
+
 // Export all tag definitions
 export const weatherTagDefinitions: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate>[] = [
     weatherSpotlight1,
@@ -517,8 +557,9 @@ export const weatherTagDefinitions: TagDefinitionForCreateOrUpdate<TagDefinition
     weatherSpotlightFixed,
     weatherCanvas,
     weatherDialog,
-    weatherInline,
+    weatherSummary,
     weatherComparison,
     weatherFunFact,
-    quickWeatherSearch
+    quickWeatherSearch,
+    weatherStaticInit
 ];

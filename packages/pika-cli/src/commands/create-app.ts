@@ -15,6 +15,22 @@ const execAsync = promisify(exec);
 // GitHub repository URL - update this to your actual repo
 const PIKA_REPO_URL = 'https://github.com/rithum/pika.git';
 
+// Get current framework version from releases.json
+function getFrameworkVersion(tempDir?: string): string {
+    try {
+        const basePath = tempDir || process.cwd();
+        const releasesPath = path.join(basePath, 'releases.json');
+        if (existsSync(releasesPath)) {
+            const releases = JSON.parse(readFileSync(releasesPath, 'utf8'));
+            return releases.latestVersion || '0.4.0';
+        }
+    } catch (error) {
+        logger.debug('Failed to read releases.json, using baseline version:', error);
+    }
+    // Fallback to 0.4.0 - predates versioning system
+    return '0.4.0';
+}
+
 function getDefaultProtectedAreas(): string[] {
     try {
         // Try to load from the centralized config file
@@ -124,8 +140,8 @@ export async function createApp(projectName?: string, options: CreateAppOptions 
             // 3. Remove CLI package (users don't need it)
             await removeCLIPackage(config.projectPath);
 
-            // 4. Update project metadata
-            await updateProjectMetadata(config);
+            // 4. Update project metadata (pass projectPath to read releases.json from cloned repo)
+            await updateProjectMetadata(config, config.projectPath);
 
             // 5. Install dependencies
             if (!options.skipInstall) {
@@ -254,12 +270,12 @@ async function removeCLIPackage(projectPath: string): Promise<void> {
     }
 }
 
-async function updateProjectMetadata(config: ProjectConfig): Promise<void> {
+async function updateProjectMetadata(config: ProjectConfig, tempDir?: string): Promise<void> {
     // Create .pika-sync.json
     const syncConfigPath = path.join(config.projectPath, '.pika-sync.json');
 
     const syncConfig = {
-        pikaVersion: '1.0.0', // This should match the CLI version
+        pikaVersion: getFrameworkVersion(tempDir),
         createdAt: new Date().toISOString(),
         lastSync: new Date().toISOString(),
         protectedAreas: getDefaultProtectedAreas(),

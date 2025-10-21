@@ -270,7 +270,13 @@ export const POST: RequestHandler = async (event) => {
                 throw error(400, 'request is required');
             }
 
+            console.log('site-admin/+server.ts - searchTagDefinitions request:', siteAdminReq.request);
             const response = await searchTagDefinitions(siteAdminReq.request);
+            console.log('site-admin/+server.ts - searchTagDefinitions response:', {
+                success: response.success,
+                tagDefinitionsCount: response.tagDefinitions?.length ?? 0,
+                tagDefinitions: response.tagDefinitions?.map((t) => ({ scope: t.scope, tag: t.tag, usageMode: t.usageMode }))
+            });
             return json(response);
         } else if (siteAdminReq.command === 'createOrUpdateSemanticDirective') {
             if (!('request' in siteAdminReq)) {

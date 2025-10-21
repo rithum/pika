@@ -17,6 +17,7 @@ import type {
     RecordOrUndef,
     SimpleAuthenticatedUser,
     TagDefinition,
+    TagDefinitionLite,
     TagDefinitionSearchRequest,
     TagDefinitionSearchResponse,
     TagDefinitionWidget,
@@ -276,7 +277,8 @@ export const handler = enhancedStreamifyResponse(
                 simpleUser,
                 invocationMode,
                 features?.entity?.enabled ?? false,
-                entityValue
+                entityValue,
+                converseRequest.source ?? 'user'
             );
             console.log('Chat session ensured:', {
                 sessionId: chatSession.sessionId,
@@ -388,30 +390,38 @@ async function getAgentAndToolsFromDbOrCache(agentId: string): Promise<AgentAndT
 }
 
 /**
- * Get tag definitions for a chat app (including global tags).
- * Automatically queries both the specified chatAppId AND 'chat-app-global'.
- * Filters to only include tags with status === 'enabled' AND contexts.inline.enabled === true.
+ * Get tag definitions for a chat app based on its tag configuration.
+ * Fetches explicitly enabled tags plus global tags (unless disabled).
+ * Filters to only include tags with status === 'enabled' AND matching the filterToThisType context.
  */
-async function getTagDefinitionsForChatApp(chatAppId: string, filterToThisType?: WidgetRenderingContextType): Promise<TagDefinition<TagDefinitionWidget>[]> {
+async function getTagDefinitionsForChatApp(
+    chatAppId: string,
+    tagsConfig: { tagsEnabled: TagDefinitionLite[]; tagsDisabled: TagDefinitionLite[] },
+    filterToThisType?: WidgetRenderingContextType
+): Promise<TagDefinition<TagDefinitionWidget>[]> {
     if (!chatAppId) {
         return [];
     }
 
-    // Create cache key based on chat app ID
-    const cacheKey = `tags-${chatAppId}${filterToThisType ? `-${filterToThisType}` : ''}`;
+    // Create cache key based on chat app ID and tags configuration
+    const configHash = JSON.stringify({ enabled: tagsConfig.tagsEnabled, disabled: tagsConfig.tagsDisabled });
+    const cacheKey = `tags-${chatAppId}-${configHash}${filterToThisType ? `-${filterToThisType}` : ''}`;
 
     let result = tagDefinitionCache.get(cacheKey) as TagDefinition<TagDefinitionWidget>[] | undefined;
     if (result) {
-        console.log('Inline tag definitions retrieved from cache:', { chatAppId, count: result.length });
+        console.log('Tag definitions retrieved from cache:', { chatAppId, count: result.length });
         return result;
     }
 
-    console.log('Fetching inline tag definitions from API:', { chatAppId });
+    console.log('Fetching tag definitions from API:', { chatAppId, tagsEnabled: tagsConfig.tagsEnabled.length, tagsDisabled: tagsConfig.tagsDisabled.length });
 
-    // Search for all tags available to this chat app
-    // Note: Automatically includes both chatAppId-specific tags AND 'chat-app-global' tags
+    // Determine if we should include global tags
+    const includeGlobal = tagsConfig.tagsDisabled.length === 0;
+
+    // Search for tags based on configuration
     const searchRequest: TagDefinitionSearchRequest = {
-        chatAppId: chatAppId,
+        tagsDesired: tagsConfig.tagsEnabled.length > 0 ? tagsConfig.tagsEnabled : undefined,
+        includeGlobal,
         includeInstructions: true
     };
 
@@ -421,8 +431,16 @@ async function getTagDefinitionsForChatApp(chatAppId: string, filterToThisType?:
         return [];
     }
 
-    // Filter to only include inline-enabled tags with status 'enabled'
-    result = response.tagDefinitions.filter((tagDef) => {
+    // Filter out globally disabled tags
+    let tagDefs = response.tagDefinitions;
+    if (tagsConfig.tagsDisabled.length > 0) {
+        tagDefs = tagDefs.filter((tag) => {
+            return !tagsConfig.tagsDisabled.some((disabled) => disabled.scope === tag.scope && disabled.tag === tag.tag);
+        });
+    }
+
+    // Filter to only include tags with status 'enabled' and matching rendering context
+    result = tagDefs.filter((tagDef) => {
         if (tagDef.status === 'enabled') {
             if (filterToThisType) {
                 return tagDef.renderingContexts?.[filterToThisType]?.enabled === true;
@@ -438,9 +456,9 @@ async function getTagDefinitionsForChatApp(chatAppId: string, filterToThisType?:
     const shouldCache = result.every((tagDef) => !tagDef.dontCacheThis);
     if (shouldCache) {
         tagDefinitionCache.set(cacheKey, result);
-        console.log('Inline tag definitions cached:', { chatAppId, count: result.length });
+        console.log('Tag definitions cached:', { chatAppId, count: result.length });
     } else {
-        console.log('Inline tag definitions not cached due to dontCacheThis flag');
+        console.log('Tag definitions not cached due to dontCacheThis flag');
     }
 
     return result;
@@ -667,7 +685,11 @@ async function converse(
         });
     } else {
         // Standard chat-app or direct-agent-invoke mode: apply standard instruction assistance
-        const tagDefinitions = await getTagDefinitionsForChatApp(chatSession.chatAppId, 'inline');
+        const tagsConfig = {
+            tagsEnabled: features.tags?.tagsEnabled ?? [],
+            tagsDisabled: features.tags?.tagsDisabled ?? []
+        };
+        const tagDefinitions = await getTagDefinitionsForChatApp(chatSession.chatAppId, tagsConfig, 'inline');
         const instructionContent = generateInstructionAssistanceContent(instructionAssistanceConfig!, features.tags, features.agentInstructionAssistance, tagDefinitions);
         enhancedPrompt = applyInstructionAssistance(originalPrompt, instructionContent);
     }

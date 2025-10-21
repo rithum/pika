@@ -26,7 +26,7 @@
     }
 
     let searchCity = $state('');
-    let weatherData = $state<QuickWeatherResponse | null>(null);
+    let weatherData = $state<QuickWeatherResponse | undefined>(undefined);
     let loading = $state(false);
     let error = $state('');
     let initialized = $state(false);
@@ -98,7 +98,7 @@
 
         loading = true;
         error = '';
-        weatherData = null;
+        weatherData = undefined;
         thinkingStatus = '';
         toolStatus = '';
 

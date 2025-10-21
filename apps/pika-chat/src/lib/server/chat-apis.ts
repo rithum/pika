@@ -159,6 +159,7 @@ export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSes
 }
 
 export async function getChatSessions(userId: string, chatAppId: string): Promise<ChatSession<RecordOrUndef>[]> {
+    console.log('ZZgetChatSessions', userId, chatAppId);
     const response = await invokeApi<ChatSessionsResponse>({
         apiId: appConfig.chatApiId,
         path: `${appConfig.stage}/api/chat/conversations/${chatAppId}`,

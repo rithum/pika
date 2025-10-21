@@ -159,6 +159,16 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
 
     /** If set to 'mock', this session is used for integration testing purposes. */
     testType?: 'mock';
+
+    /**
+     * The source of the converse request. Defaults to 'user'.  The composite key chat_app_sk looks like this:
+     *
+     * ${chatAppId}#${source}#${updateDate}
+     *
+     * The source in the composite key here will only ever be either `user` or `component`.  If this attribute's value is missing or is `user` or `component-as-user`,
+     * then the composite key will be set to `user` so when we query on behalf of the user, we will get all sessions for that user.
+     */
+    source: ConverseSource;
 }
 
 /**
@@ -895,6 +905,7 @@ export interface InstructionAssistanceConfig {
 
 export interface TagsChatAppOverridableFeature {
     tagsEnabled: TagDefinitionLite[];
+    tagsDisabled: TagDefinitionLite[];
 }
 
 export type ChatAppOverridableFeaturesForConverseFn = Omit<
@@ -1044,8 +1055,24 @@ export interface ConverseRequest extends BaseRequestData {
      * When invocationMode is 'chat-app-component', then this is the requiredconfiguration for the chat app component invocation.
      */
     chatAppComponentConfig?: ChatAppComponentConfig;
+
+    /**
+     * The source of the converse request. Defaults to 'user'.  The composite key chat_app_sk looks like this:
+     *
+     * ${chatAppId}#${source}#${updateDate}
+     *
+     * The source in the composite key here will only ever be either `user` or `component`.  If this attribute's value is missing or is `user` or `component-as-user`,
+     * then the composite key will be set to `user` so when we query on behalf of the user, we will get all sessions for that user.
+     *
+     * If 'user', then the converse request is coming from the user.
+     * If 'component-as-user', then the converse request is coming from a component acting as a user and thus sessions should show up in the user's sessions list.
+     * If 'component', then the converse request is coming from a component.
+     */
+    source: ConverseSource;
 }
 
+export const ConverseSource = ['user', 'component-as-user', 'component'] as const;
+export type ConverseSource = (typeof ConverseSource)[number];
 /**
  * This is the configuration for a chat app component invocation to the converse lambda function.
  */
@@ -1577,7 +1604,11 @@ export type AgentDefinitionForCreate = Omit<AgentDefinition, 'version' | 'create
  *
  * If you use this you must provide an agentId so we can match up what's there already with what is being provided.
  * If you provide tools then you must provide a toolId for each tool so we can match up what's there already with what is being provided.
- * You may either provide agent.toolIds or tools but not both.
+ *
+ * Three patterns are supported:
+ * 1. tools only: Define new tools (create/update)
+ * 2. agent.toolIds only: Reference existing tools by ID
+ * 3. Both tools AND agent.toolIds: Mixed approach - define new tools while referencing existing ones
  */
 export interface AgentDataRequest {
     /**
@@ -3981,10 +4012,9 @@ export interface TagsSiteFeature {
     tagsEnabled?: TagDefinitionLite[];
 
     /**
-     * The tag definitions that are prohibited by default.  If not provided, then no tag definitions are prohibited.
-     * Chat apps may not override this list.
+     * Global tags are enabled by default.  Turn them off here if you don't want them.
      */
-    tagsProhibited?: TagDefinitionLite[];
+    tagsDisabled?: TagDefinitionLite[];
 }
 
 /**
@@ -4037,10 +4067,18 @@ export interface TagsFeatureForChatApp extends Feature {
     featureId: 'tags';
 
     /**
-     * The tag definitions that are enabled by default.  If not provided, then no tag definitions are enabled.
-     * Each chat app can override this list by providing its own list of tagsEnabled in its chat app config.
+     * The tag definitions that are explicitly enabled for this chat app.
+     * These are chat-app specific tags (usageMode='chat-app') that must be explicitly enabled.
+     * Global tags (usageMode='global') are automatically included unless listed in tagsDisabled.
      */
     tagsEnabled?: TagDefinitionLite[];
+
+    /**
+     * Global tag definitions that should be disabled for this chat app.
+     * Only applies to global tags (usageMode='global').
+     * Use this to exclude specific global tags that you don't want available.
+     */
+    tagsDisabled?: TagDefinitionLite[];
 }
 
 export interface SessionInsightsFeatureForChatApp extends Feature {
@@ -4326,7 +4364,40 @@ export interface CanvasContextConfig {
     enabled: boolean;
 }
 
-export const WIDGET_RENDERING_CONTEXT_TYPES = ['spotlight', 'inline', 'dialog', 'canvas'] as const;
+/**
+ * Tag definition for widgets that have static context enabled.
+ * Static widgets can run initialization code (like registering title bar actions)
+ * when the chat app loads. They can also have other rendering contexts for visual UI.
+ */
+export type StaticWidgetTagDefinition = TagDefinition<TagDefinitionWidgetWebComponent> & {
+    renderingContexts: {
+        static: StaticContextConfig;
+        spotlight?: SpotlightContextConfig;
+        inline?: InlineContextConfig;
+        dialog?: DialogContextConfig;
+        canvas?: CanvasContextConfig;
+    };
+};
+
+/**
+ * The static context is used to render a static component that doesn't render visually but is used to run code that needs to be run once.
+ * For example, you might want to run a code snippet that puts an icon in the title bar of the chat app.
+ */
+export interface StaticContextConfig {
+    enabled: boolean;
+    /**
+     * If provided, the static context container will be removed from the DOM after this many milliseconds.
+     * If not provided, the container stays in the DOM (hidden) indefinitely.
+     *
+     * Use this when the static component only needs to run initialization code and doesn't need to
+     * persist in the DOM afterwards.
+     *
+     * Example: 1000 (remove after 1 second)
+     */
+    shutDownAfterMs?: number;
+}
+
+export const WIDGET_RENDERING_CONTEXT_TYPES = ['spotlight', 'inline', 'dialog', 'canvas', 'static'] as const;
 export type WidgetRenderingContextType = (typeof WIDGET_RENDERING_CONTEXT_TYPES)[number];
 
 export interface WidgetRenderingContexts {
@@ -4334,6 +4405,7 @@ export interface WidgetRenderingContexts {
     inline?: InlineContextConfig;
     dialog?: DialogContextConfig;
     canvas?: CanvasContextConfig;
+    static?: StaticContextConfig;
 }
 
 export interface TagDefinition<T extends TagDefinitionWidget> {
@@ -4414,11 +4486,14 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
     widget: T;
 
     /**
-     * The chat app ID this tag is associated with.
-     * Use the special value 'chat-app-global' for tags available to all chat apps.
-     * REQUIRED: Every tag must be associated with either a specific chat app or be global.
+     * Determines how this tag can be used across chat apps.
+     * - 'global': Tag is available to all chat apps by default (unless explicitly disabled)
+     * - 'chat-app': Tag must be explicitly enabled in a chat app's configuration to be available
+     *
+     * REQUIRED: Must be explicitly set.
+     * Built-in Pika tags (scope='pika') are typically 'global', while custom tags are typically 'chat-app'.
      */
-    chatAppId: string;
+    usageMode: TagDefinitionUsageMode;
 
     /**
      * The status of this tag definition.
@@ -4581,13 +4656,19 @@ export type TagDefinitionWidgetForCreateOrUpdate =
  * Tag definition for create/update operations.
  * Omits backend-managed fields and uses TagDefinitionWidgetForCreateOrUpdate which excludes
  * backend-managed fields from nested structures (like s3Bucket in web components).
+ *
+ * The usageMode field is optional and defaults to 'chat-app' if not provided.
  */
 export type TagDefinitionForCreateOrUpdate<T extends TagDefinitionWidgetForCreateOrUpdate = TagDefinitionWidgetForCreateOrUpdate> = Omit<
     TagDefinition<TagDefinitionWidget>,
-    'createdBy' | 'lastUpdatedBy' | 'createDate' | 'lastUpdate' | 'widget'
+    'createdBy' | 'lastUpdatedBy' | 'createDate' | 'lastUpdate' | 'widget' | 'usageMode'
 > & {
     widget: T;
+    usageMode?: TagDefinitionUsageMode;
 };
+
+export const TAG_DEFINITION_USAGE_MODES = ['global', 'chat-app'] as const;
+export type TagDefinitionUsageMode = (typeof TAG_DEFINITION_USAGE_MODES)[number];
 
 export const TAG_DEFINITION_WIDGET_TYPES = ['pass-through', 'pika-compiled-in', 'custom-compiled-in', 'web-component'] as const;
 
@@ -4631,6 +4712,92 @@ export type TagDefinitionWidget = TagDefinitionWidgetPassThrough | TagDefinition
 
 export type TagWebComponentEncoding = 'gzip';
 
+/**
+ * Preset dialog size options for web component widgets.
+ * - 'fullscreen': 95vw x 90vh (default)
+ * - 'large': 85vw x 80vh
+ * - 'medium': 70vw x 70vh
+ * - 'small': 50vw x 50vh
+ */
+export type WidgetDialogSizePreset = 'fullscreen' | 'large' | 'medium' | 'small';
+
+/**
+ * Custom dimensions for dialog sizing.
+ * Values must be viewport-relative units (vh, vw, vmin, vmax) or percentages.
+ * Pixel values are not supported to ensure responsive behavior.
+ *
+ * Examples:
+ * - { width: "80vw", height: "70vh" }
+ * - { width: "90%", height: "85%" }
+ */
+export interface WidgetDialogSizeCustom {
+    /**
+     * Dialog width as viewport-relative unit or percentage.
+     * Examples: "80vw", "90%", "85vw"
+     */
+    width?: string;
+
+    /**
+     * Dialog height as viewport-relative unit or percentage.
+     * Examples: "70vh", "80%", "60vh"
+     */
+    height?: string;
+}
+
+/**
+ * Sizing configuration for dialog rendering context.
+ * Can be either a preset size or custom dimensions.
+ */
+export type WidgetDialogSizing = WidgetDialogSizePreset | WidgetDialogSizeCustom;
+
+/**
+ * Sizing configuration for inline rendering context.
+ * Inline widgets appear within the chat message flow.
+ */
+export interface WidgetInlineSizing {
+    /**
+     * Widget height for inline rendering.
+     * Supports any valid CSS height value, or "auto" to grow to content height.
+     * Defaults to "400px" if not specified.
+     *
+     * Special values:
+     * - "auto": Widget grows to fit its content height (no fixed height constraint)
+     *
+     * Fixed height examples: "400px", "50vh", "500px", "30rem"
+     */
+    height?: string;
+
+    /**
+     * Widget width for inline rendering.
+     * Reserved for future use. Currently, inline widgets always fill available width.
+     *
+     * Examples: "100%", "80vw", "600px"
+     */
+    width?: string;
+}
+
+/**
+ * Sizing configuration for web component widgets across different rendering contexts.
+ * Allows widget authors to control how their widget is sized in different visual contexts.
+ */
+export interface WidgetSizing {
+    /**
+     * Sizing for dialog (modal) rendering context.
+     * When a widget is opened in a dialog, this controls its dimensions.
+     *
+     * Defaults to 'fullscreen' (95vw x 90vh) if not specified.
+     */
+    dialog?: WidgetDialogSizing;
+
+    /**
+     * Sizing for inline rendering context.
+     * When a widget is rendered inline within a chat message.
+     *
+     * Defaults to { height: "400px" } if not specified.
+     */
+    inline?: WidgetInlineSizing;
+}
+
 export interface TagDefinitionWebComponent {
     /**
      * Direct URL to the web component JavaScript file.
@@ -4670,6 +4837,27 @@ export interface TagDefinitionWebComponent {
      */
     customElementName?: string;
 
+    /**
+     * Optional sizing configuration for this widget across different rendering contexts.
+     *
+     * If not provided, defaults are:
+     * - dialog: 'fullscreen' (95vw x 90vh)
+     * - inline: { height: "400px" }
+     *
+     * Examples:
+     * ```typescript
+     * // Preset dialog size
+     * sizing: { dialog: 'medium', inline: { height: '300px' } }
+     *
+     * // Custom dialog size
+     * sizing: { dialog: { width: '80vw', height: '60vh' } }
+     *
+     * // Only specify inline height
+     * sizing: { inline: { height: '500px' } }
+     * ```
+     */
+    sizing?: WidgetSizing;
+
     encoding: TagWebComponentEncoding;
     mediaType: 'application/javascript';
     encodedSizeBytes: number; // size of the stored object (post-encoding)
@@ -4702,26 +4890,27 @@ export interface TagDefinitionCreateOrUpdateResponse {
 /**
  * Search for tag definitions with two primary modes:
  *
- * MODE 1 - Get all tags for a chat app (including global):
- *   - Pass chatAppId
- *   - System automatically queries BOTH the specified chatAppId AND 'chat-app-global'
- *   - Uses GSI (chatAppId-status-index) for efficient retrieval
- *   - Returns all enabled tags for the chat app + all global tags
+ * MODE 1 - Get specific tags (optionally including globals):
+ *   - Pass tagsDesired array for specific tags to retrieve
+ *   - Set includeGlobal=true to also include all global tags
+ *   - Uses primary key lookup (scope + tag) for specified tags
+ *   - Uses GSI (scope-status-index) for global tags if includeGlobal=true
+ *   - Returns requested tags + global tags (if includeGlobal=true)
  *
- * MODE 2 - Get specific tags by scope/tag:
- *   - Pass tagsDesired array
- *   - Returns only the requested tags (if they exist and user has access)
- *   - Uses primary key lookup (scope + tag)
+ * MODE 2 - Get all tags:
+ *   - Don't pass tagsDesired or includeGlobal
+ *   - Scans entire table with pagination
+ *   - Returns all tag definitions
  *
  * If used in admin context, returns all tag definitions (including disabled/retired).
  * If used in chat app context, filters to only 'enabled' status.
  */
 export interface TagDefinitionSearchRequest {
-    /** Specific tags to retrieve (MODE 2) */
+    /** Specific tags to retrieve by scope+tag */
     tagsDesired?: TagDefinitionLite[];
 
-    /** Chat app ID to filter tags for (MODE 1) - system automatically includes global tags */
-    chatAppId?: string;
+    /** If true, also includes all global tags (usageMode='global') in addition to tagsDesired */
+    includeGlobal?: boolean;
 
     /** If not true, instructions will not be returned to save space */
     includeInstructions?: boolean;
@@ -4948,6 +5137,16 @@ export interface InvokeAgentAsComponentOptions {
      * Request timeout in milliseconds (default: 60000)
      */
     timeout?: number;
+
+    /**
+     * The source of the converse request. Defaults to 'user'.  The composite key chat_app_sk looks like this:
+     *
+     * ${chatAppId}#${source}#${updateDate}
+     *
+     * The source in the composite key here will only ever be either `user` or `component`.  If this attribute's value is missing or is `user` or `component-as-user`,
+     * then the composite key will be set to `user` so when we query on behalf of the user, we will get all sessions for that user.
+     */
+    source: ConverseSource;
 }
 
 /**
@@ -4981,6 +5180,87 @@ export interface WidgetAction {
 
     /** Handler when clicked */
     callback: () => void | Promise<void>;
+}
+
+/**
+ * A single action button that will appear at the top of the chat app in the title bar or
+ * that will appear in a button menu that pops up when the user clicks the title bar action button.
+ *
+ * @example
+ * ```js
+ * const action: ChatAppAction = {
+ *   id: 'refresh',
+ *   title: 'Refresh',
+ *   iconSvg: '<svg>...</svg>',
+ *   callback: () => refresh()
+ * };
+ * ```
+ */
+export interface ChatAppAction {
+    /** Unique identifier for this action */
+    id: string;
+    /** Discriminator for the type */
+    type: 'action';
+
+    /** Tooltip or menu item description for the action */
+    title: string;
+
+    /** SVG markup string for the icon (e.g., from extractIconSvg() helper) */
+    iconSvg: string;
+
+    /** Whether action is currently disabled */
+    disabled?: boolean;
+
+    /** Handler when clicked */
+    callback: () => void | Promise<void>;
+}
+
+/**
+ * The only reason to use this is to get a title for the action group.
+ */
+export interface ChatAppActionGroup {
+    /** Discriminator for the type */
+    type: 'group';
+    /** Title of the action group. The whole point of an action group is to get a title above the group. */
+    title: string;
+    /** Actions to display in the group */
+    actions: (ChatAppAction | 'separator')[];
+}
+
+/**
+ * The elements that can be displayed in a ChatAppActionMenu.
+ */
+export type ChatAppActionMenuElements = ChatAppActionGroup | ChatAppAction | 'separator';
+
+/**
+ * Widgets can register a single icon button or icon button with a menu that will appear at the top of the chat app in the title bar.
+ */
+export interface ChatAppActionMenu {
+    /** Unique identifier for this action */
+    id: string;
+    /** Tooltip/label for the action (also button text in dialog context) */
+    title: string;
+    /** SVG markup string for the icon (e.g., from extractIconSvg() helper) */
+    iconSvg: string;
+    /** Whether the action menu is currently disabled */
+    disabled?: boolean;
+    /**
+     * Actions to display in the menu
+     * Here are some common examples:
+     * - [
+     *     { type: 'action', id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() },
+     *     'separator',
+     *     { id: 'settings', title: 'Settings', iconSvg: '<svg>...</svg>', callback: () => showSettings() }
+     *   ]
+     * - [
+     *     { type: 'group', title: 'Settings', actions: [
+     *       { type: 'action', id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() },
+     *       'separator',
+     *       { type: 'action', id: 'settings', title: 'Settings', iconSvg: '<svg>...</svg>', callback: () => showSettings() }
+     *     ] }
+     *   ]
+     */
+    actions: ChatAppActionMenuElements[];
 }
 
 /**
