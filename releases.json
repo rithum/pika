@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.5.0",
+  "latestVersion": "0.5.1",
   "currentDevelopment": "0.5.1",
   "releases": [
     {
       "version": "0.5.1",
-      "date": "TBD",
-      "status": "unreleased",
+      "date": "2025-10-21",
+      "status": "released",
       "breaking": false,
       "summary": "Version 0.5.1 (in development)",
       "highlights": []
