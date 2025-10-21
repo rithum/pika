@@ -38,6 +38,7 @@ program
     .option('--visual-diff', 'Open diffs in Cursor or VS Code for all changes without applying them')
     .option('--debug', 'Enable debug logging')
     .option('--verbose', 'Show detailed sync information and configuration')
+    .option('--acknowledge-breaking-changes', 'Acknowledge breaking changes and proceed with sync')
     .option('--help', 'Show detailed help about the sync system')
     .action(syncCommand);
 
