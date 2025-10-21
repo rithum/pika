@@ -4,6 +4,8 @@ import { error, type RequestHandler } from '@sveltejs/kit';
 
 let s3Client: S3Client | undefined;
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit
+
 /**
  * API endpoint to retrieve text content from S3 files in the Pika S3 bucket.
  * This is used by web components via chatAppState.getS3TextFileContent().
@@ -41,8 +43,27 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             throw error(404, 'File not found');
         }
 
-        // Convert the body to text
-        const bodyContents = await response.Body.transformToString();
+        // Check content length if available
+        if (response.ContentLength && response.ContentLength > MAX_FILE_SIZE) {
+            throw error(413, 'File too large to read as text');
+        }
+
+        // Stream the body with size limit
+        const chunks: Uint8Array[] = [];
+        let totalSize = 0;
+
+        // Cast to async iterable since AWS SDK types don't expose this properly
+        const stream = response.Body as AsyncIterable<Uint8Array>;
+
+        for await (const chunk of stream) {
+            totalSize += chunk.length;
+            if (totalSize > MAX_FILE_SIZE) {
+                throw error(413, 'File too large to read as text');
+            }
+            chunks.push(chunk);
+        }
+
+        const bodyContents = Buffer.concat(chunks).toString('utf-8');
 
         const headers = new Headers();
         headers.set('Content-Type', 'text/plain; charset=utf-8');
