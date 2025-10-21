@@ -15,7 +15,7 @@
         "Auto-height web components",
         "Release system infrastructure"
       ],
-      "migrationGuideUrl": "https://pika-framework.dev/docs/releases/migration-guides/upgrading-to-0-5-0",
+      "migrationGuideUrl": "https://pika.tools/docs/releases/migration-guides/upgrading-to-0-5-0",
       "requiresManualSteps": true,
       "affectedComponents": [
         "Tag definitions DynamoDB table (GSI replacement)",

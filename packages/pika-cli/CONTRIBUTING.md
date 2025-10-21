@@ -458,7 +458,7 @@ We welcome contributions in these areas:
 - **Issues**: [GitHub Issues](https://github.com/pika-framework/pika/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/pika-framework/pika/discussions)
 - **Discord**: [Pika Community](https://discord.gg/pika-framework)
-- **Email**: [maintainers@pika-framework.dev](mailto:maintainers@pika-framework.dev)
+- **Email**: [maintainers@pika.tools](mailto:maintainers@pika.tools)
 
 ## 🙏 Recognition
 

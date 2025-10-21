@@ -10,10 +10,10 @@ Pika CLI simplifies the process of creating AWS-powered chat applications with t
 
 ```bash
 # Install globally
-npm install -g pika-cli
+npm install -g pika-app
 
 # Or use with npx
-npx pika-cli --help
+npx pika-app --help
 ```
 
 ### Create Your First App
@@ -643,7 +643,7 @@ pnpm --version  # Recommended package manager
 
 ## 🔗 Related Links
 
-- [Pika Framework Documentation](https://pika-framework.dev)
+- [Pika Framework Documentation](https://pika.tools)
 - [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 - [SvelteKit Documentation](https://kit.svelte.dev/)
 - [Auth.js Documentation](https://authjs.dev/)
@@ -663,4 +663,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **Happy building with Pika! 🐦✨**
 
-For more information, visit our [documentation](https://pika-framework.dev) or join our [community](https://discord.gg/pika-framework).
+For more information, visit our [documentation](https://pika.tools) or join our [community](https://discord.gg/pika-framework).
