@@ -45,8 +45,9 @@ custom:
         chatAppCustomResourceArn: '{"Fn::Sub": "{{resolve:ssm:/stack/pika/${self:provider.stage}/lambda/chat_app_custom_resource_arn}}"}}'
         semanticDirectiveCustomResourceArn: '{"Fn::Sub": "{{resolve:ssm:/stack/pika/${self:provider.stage}/lambda/semantic_directive_custom_resource_arn}}"}}'
 
-        # Agent definitions
+        # Agent definitions - Three approaches supported
         agents:
+            # Approach 1: Define NEW tools with the agent
             - userId: 'cloudformation/${self:service}'
               agent:
                   agentId: '${self:service}-agent'
@@ -80,6 +81,40 @@ custom:
                                       type: 'string'
                                       description: 'Location name (e.g., San Francisco)'
                               required: ['name']
+                    supportedAgentFrameworks: ['bedrock']
+
+            # Approach 2: Reference EXISTING tools only
+            - userId: 'cloudformation/${self:service}'
+              agent:
+                  agentId: '${self:service}-reuse-agent'
+                  basePrompt: 'I reuse existing tools from other agents.'
+                  toolIds: ['shared-weather-tool-prod', 'shared-geocoding-tool-prod']
+              # No tools array - just references existing tools
+
+            # Approach 3: MIXED - define new tools AND reference existing ones
+            - userId: 'cloudformation/${self:service}'
+              agent:
+                  agentId: '${self:service}-mixed-agent'
+                  basePrompt: 'I use both shared and specialized tools.'
+                  toolIds: ['shared-geocoding-tool-prod'] # Reference existing tool
+              tools:
+                  # Define a NEW specialized tool
+                  - toolId: '${self:service}-specialized-tool'
+                    name: 'specialized-weather'
+                    displayName: 'Specialized Weather Tool'
+                    description: 'A specialized weather tool for this agent'
+                    executionType: 'lambda'
+                    lambdaFunctionLogicalId: 'specializedWeatherFunction'
+                    functionSchema:
+                        - name: 'getDetailedWeather'
+                          description: 'Get detailed weather analysis'
+                          parameters:
+                              type: 'object'
+                              properties:
+                                  location:
+                                      type: 'string'
+                                      description: 'Location name'
+                              required: ['location']
                     supportedAgentFrameworks: ['bedrock']
 
         # Chat app definitions
@@ -153,6 +188,69 @@ The plugin automatically handles all the integration work that matches your CDK 
 
 ## Configuration Formats
 
+## Tool Definition Patterns
+
+The plugin supports three patterns for defining agent tools:
+
+### Pattern 1: Define New Tools
+
+Define tools inline with the agent. Tool IDs are automatically associated with the agent.
+
+```yaml
+agents:
+    - userId: 'cloudformation/${self:service}'
+      agent:
+          agentId: 'my-agent'
+          basePrompt: 'You are a helpful assistant.'
+      tools:
+          - toolId: 'my-new-tool'
+            name: 'my-tool'
+            displayName: 'My Tool'
+            description: 'A new tool'
+            executionType: 'lambda'
+            lambdaFunctionLogicalId: 'myFunction'
+            functionSchema: [...]
+            supportedAgentFrameworks: ['bedrock']
+```
+
+**Use when**: Creating new tools or updating tool definitions.
+
+### Pattern 2: Reference Existing Tools
+
+Reference tools by ID that were previously defined (by other agents or deployments).
+
+```yaml
+agents:
+    - userId: 'cloudformation/${self:service}'
+      agent:
+          agentId: 'my-agent'
+          basePrompt: 'You are a helpful assistant.'
+          toolIds: ['existing-tool-1', 'existing-tool-2']
+      # No tools array - references existing tools only
+```
+
+**Use when**: Sharing tools across agents or reusing common utilities.
+
+### Pattern 3: Mixed Approach
+
+Combine new tool definitions with existing tool references.
+
+```yaml
+agents:
+    - userId: 'cloudformation/${self:service}'
+      agent:
+          agentId: 'my-agent'
+          basePrompt: 'You are a helpful assistant.'
+          toolIds: ['shared-tool-1'] # Reference existing tool
+      tools:
+          - toolId: 'specialized-tool'
+            name: 'specialized'
+            # ... new tool definition
+            lambdaFunctionLogicalId: 'specializedFunction'
+```
+
+**Use when**: Agent needs both shared tools and specialized tools.
+
 ### Config
 
 ```yaml
@@ -163,8 +261,9 @@ custom:
         chatAppCustomResourceArn: '{"Fn::Sub": "{{resolve:ssm:/stack/pika/${stage}/lambda/chat_app_custom_resource_arn}}"}}'
         semanticDirectiveCustomResourceArn: '{"Fn::Sub": "{{resolve:ssm:/stack/pika/${stage}/lambda/semantic_directive_custom_resource_arn}}"}}'
 
-        # Multiple agents can reference different combinations of tools
+        # Multiple agents can use different tool patterns
         agents:
+            # Agent with new tool definition
             - userId: 'cloudformation/${self:service}'
               agent:
                   agentId: 'weather-agent-${self:provider.stage}'
@@ -173,20 +272,26 @@ custom:
                   - toolId: 'weather-tool-${self:provider.stage}'
                     name: 'weather-tool'
                     displayName: 'Weather Tool'
-                    lambdaFunctionLogicalId: 'weatherFunction' # References any function
+                    lambdaFunctionLogicalId: 'weatherFunction'
                     # ... other tool properties
 
+            # Agent referencing existing tools only
+            - userId: 'cloudformation/${self:service}'
+              agent:
+                  agentId: 'reuse-agent-${self:provider.stage}'
+                  basePrompt: 'I reuse existing tools.'
+                  toolIds: ['weather-tool-${self:provider.stage}', 'calc-tool-${self:provider.stage}']
+
+            # Agent with mixed approach
             - userId: 'cloudformation/${self:service}'
               agent:
                   agentId: 'multi-tool-agent-${self:provider.stage}'
-                  basePrompt: 'I can help with weather and calculations.'
+                  basePrompt: 'I use both shared and new tools.'
+                  toolIds: ['weather-tool-${self:provider.stage}'] # Reference existing
               tools:
-                  - toolId: 'weather-tool-${self:provider.stage}'
-                    lambdaFunctionLogicalId: 'weatherFunction'
-                    # ... tool definition
                   - toolId: 'calc-tool-${self:provider.stage}'
                     lambdaFunctionLogicalId: 'calculatorFunction'
-                    # ... tool definition
+                    # ... new tool definition
 
         # Chat apps reference agents
         chatApps:

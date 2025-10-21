@@ -26,6 +26,7 @@ interface SyncOptions {
     debug?: boolean;
     help?: boolean;
     verbose?: boolean;
+    acknowledgeBreakingChanges?: boolean;
 }
 
 interface SyncChange {
@@ -99,6 +100,207 @@ interface PackageJsonSyncResult {
     shouldSync: boolean;
     diff: PackageJsonDiff;
     mergedContent?: any;
+}
+
+interface ReleaseMetadata {
+    latestVersion: string;
+    currentDevelopment: string;
+    releases: Release[];
+}
+
+interface Release {
+    version: string;
+    date: string;
+    status: 'released' | 'unreleased';
+    breaking: boolean;
+    summary: string;
+    highlights?: string[];
+    migrationGuideUrl?: string;
+    requiresManualSteps?: boolean;
+    affectedComponents?: string[];
+}
+
+interface VersionDiff {
+    currentVersion: string;
+    latestVersion: string;
+    hasBreakingChanges: boolean;
+    releases: Release[];
+    breakingChanges: Release[];
+}
+
+async function fetchReleaseMetadata(tempDir: string): Promise<ReleaseMetadata | null> {
+    try {
+        const releasesPath = path.join(tempDir, 'releases.json');
+        if (existsSync(releasesPath)) {
+            const content = readFileSync(releasesPath, 'utf8');
+            return JSON.parse(content);
+        }
+    } catch (error) {
+        logger.debug('[DEBUG] Failed to fetch release metadata:', error);
+    }
+
+    // Fallback: No releases.json means pre-versioning (baseline 0.4.0)
+    logger.debug('[DEBUG] No releases.json found, using baseline version 0.4.0');
+    return {
+        latestVersion: '0.4.0',
+        currentDevelopment: '0.5.0',
+        releases: [
+            {
+                version: '0.4.0',
+                date: '2025-10-20',
+                status: 'released',
+                breaking: false,
+                summary: 'Baseline release (pre-versioning)'
+            }
+        ]
+    };
+}
+
+function compareVersions(currentVersion: string, metadata: ReleaseMetadata | null): VersionDiff {
+    const defaultDiff: VersionDiff = {
+        currentVersion,
+        latestVersion: currentVersion || '0.4.0',
+        hasBreakingChanges: false,
+        releases: [],
+        breakingChanges: []
+    };
+
+    if (!metadata) {
+        return defaultDiff;
+    }
+
+    // Fallback to 0.4.0 if current version is missing/invalid
+    const safeCurrentVersion = currentVersion || '0.4.0';
+
+    const latestVersion = metadata.latestVersion;
+    const releases: Release[] = [];
+    const breakingChanges: Release[] = [];
+
+    // Get releases between current and latest (including unreleased)
+    for (const release of metadata.releases) {
+        // Simple version comparison: if release version > current version and <= latest
+        if (isVersionNewer(release.version, safeCurrentVersion) && !isVersionNewer(release.version, latestVersion)) {
+            releases.push(release);
+            if (release.breaking) {
+                breakingChanges.push(release);
+            }
+        }
+    }
+
+    // Also check for unreleased breaking changes
+    for (const release of metadata.releases) {
+        if (release.status === 'unreleased' && release.breaking) {
+            // Include if version is newer than current
+            if (isVersionNewer(release.version, safeCurrentVersion)) {
+                if (!breakingChanges.find((bc) => bc.version === release.version)) {
+                    breakingChanges.push(release);
+                }
+            }
+        }
+    }
+
+    return {
+        currentVersion: safeCurrentVersion,
+        latestVersion,
+        hasBreakingChanges: breakingChanges.length > 0,
+        releases,
+        breakingChanges
+    };
+}
+
+function isVersionNewer(version: string, compareVersion: string): boolean {
+    // Simple semantic version comparison
+    const parseVersion = (v: string) => {
+        const parts = v.replace(/^v/, '').split('.').map(Number);
+        return { major: parts[0] || 0, minor: parts[1] || 0, patch: parts[2] || 0 };
+    };
+
+    const a = parseVersion(version);
+    const b = parseVersion(compareVersion);
+
+    if (a.major !== b.major) return a.major > b.major;
+    if (a.minor !== b.minor) return a.minor > b.minor;
+    return a.patch > b.patch;
+}
+
+function showVersionComparison(diff: VersionDiff): void {
+    console.log();
+    console.log(chalk.bold.underline('Version Information:'));
+    console.log(chalk.gray(`  • Current version: ${diff.currentVersion}`));
+    console.log(chalk.gray(`  • Latest version: ${diff.latestVersion}`));
+
+    if (diff.currentVersion === diff.latestVersion) {
+        console.log(chalk.green('  ✓ You are on the latest version!'));
+    } else {
+        console.log(chalk.cyan(`  • Updating from ${diff.currentVersion} → ${diff.latestVersion}`));
+    }
+    console.log();
+}
+
+function showChangelog(diff: VersionDiff): void {
+    if (diff.releases.length === 0) {
+        return;
+    }
+
+    console.log(chalk.bold.underline('Changes in this update:'));
+    console.log(chalk.gray('─'.repeat(60)));
+    console.log();
+
+    for (const release of diff.releases) {
+        if (release.breaking) {
+            console.log(chalk.red.bold(`🔴 BREAKING: ${release.summary}`));
+        } else {
+            console.log(chalk.cyan(`🟢 ${release.version}: ${release.summary}`));
+        }
+
+        if (release.highlights && release.highlights.length > 0) {
+            release.highlights.forEach((highlight) => {
+                console.log(chalk.gray(`   - ${highlight}`));
+            });
+        }
+
+        if (release.migrationGuideUrl) {
+            console.log(chalk.yellow(`   📖 Migration guide: ${release.migrationGuideUrl}`));
+        }
+        console.log();
+    }
+
+    console.log(chalk.gray('─'.repeat(60)));
+    console.log();
+}
+
+function showBreakingChangeWarning(diff: VersionDiff): boolean {
+    if (!diff.hasBreakingChanges) {
+        return false;
+    }
+
+    console.log();
+    console.log(chalk.red.bold('⚠️  BREAKING CHANGES DETECTED!'));
+    console.log();
+
+    for (const bc of diff.breakingChanges) {
+        const statusBadge = bc.status === 'unreleased' ? chalk.yellow('[UNRELEASED] ') : '';
+        console.log(chalk.red.bold(`${statusBadge}Version ${bc.version}:`));
+        console.log(chalk.gray(`  ${bc.summary}`));
+
+        if (bc.affectedComponents && bc.affectedComponents.length > 0) {
+            console.log(chalk.gray('  Affected components:'));
+            bc.affectedComponents.forEach((comp) => {
+                console.log(chalk.gray(`    - ${comp}`));
+            });
+        }
+
+        if (bc.migrationGuideUrl) {
+            console.log(chalk.yellow(`  📖 Migration guide: ${bc.migrationGuideUrl}`));
+        }
+        console.log();
+    }
+
+    console.log(chalk.yellow('This update requires manual migration steps.'));
+    console.log(chalk.yellow('Please read the migration guide before proceeding.'));
+    console.log();
+
+    return true;
 }
 
 async function findPikaProjectRoot(startDir: string): Promise<string | null> {
@@ -515,6 +717,33 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 const tempDir = await downloadPikaFramework(targetVersion, targetBranch);
                 logger.stopSpinner(true, 'Framework downloaded');
 
+                // Check version and breaking changes
+                const releaseMetadata = await fetchReleaseMetadata(tempDir);
+                const versionDiff = compareVersions(syncConfig.pikaVersion, releaseMetadata);
+
+                showVersionComparison(versionDiff);
+                showChangelog(versionDiff);
+
+                // Check for breaking changes and require acknowledgment
+                if (versionDiff.hasBreakingChanges) {
+                    const hasBreaking = showBreakingChangeWarning(versionDiff);
+
+                    if (hasBreaking && !options.acknowledgeBreakingChanges && !options.dryRun) {
+                        console.log(chalk.red('Cannot proceed with sync due to breaking changes.'));
+                        console.log();
+                        console.log(chalk.yellow('To proceed after reading the migration guide, run:'));
+                        console.log(chalk.cyan(`  pika sync --acknowledge-breaking-changes`));
+                        console.log();
+                        await cleanupTempDir(tempDir);
+                        return;
+                    }
+
+                    if (hasBreaking && options.acknowledgeBreakingChanges) {
+                        console.log(chalk.green('✓ Breaking changes acknowledged, proceeding with sync...'));
+                        console.log();
+                    }
+                }
+
                 // Immediately update protected areas from the downloaded framework
                 const protectedAreasSpinner = logger.startSpinner('Updating protected areas from framework...');
                 logger.debug(`[DEBUG] syncCommand: About to call updateProtectedAreasFromFramework`);
@@ -626,7 +855,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
                 // Update sync config
                 const configSpinner = logger.startSpinner('Updating sync configuration...');
-                await updateSyncConfig(syncConfigPath, syncConfig, targetVersion, targetBranch);
+                await updateSyncConfig(syncConfigPath, syncConfig, targetVersion, targetBranch, releaseMetadata);
                 logger.stopSpinner(true, 'Configuration updated');
 
                 // Cleanup
@@ -1111,9 +1340,16 @@ async function applyChanges(changes: SyncChange[], options: SyncOptions): Promis
     }
 }
 
-async function updateSyncConfig(syncConfigPath: string, syncConfig: SyncConfig, targetVersion: string, targetBranch: string): Promise<void> {
+async function updateSyncConfig(
+    syncConfigPath: string,
+    syncConfig: SyncConfig,
+    targetVersion: string,
+    targetBranch: string,
+    releaseMetadata: ReleaseMetadata | null
+): Promise<void> {
     syncConfig.lastSync = new Date().toISOString();
-    syncConfig.pikaVersion = targetVersion;
+    // Use actual version from release metadata if available, otherwise fall back to targetVersion
+    syncConfig.pikaVersion = releaseMetadata?.latestVersion || targetVersion;
     syncConfig.pikaBranch = targetBranch;
 
     await fileManager.writeFile(syncConfigPath, JSON.stringify(syncConfig, null, 2));

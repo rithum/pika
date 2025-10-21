@@ -19,43 +19,75 @@ Enable the tags feature in your `pika-config.ts`:
 ```js
 export const siteFeatures: SiteFeatures = {
     tags: {
-        enabled: true
-        // Tag visibility is controlled at the tag definition level via:
-        // - TagDefinition.chatAppId: 'chat-app-global' = available to all chat apps
-        // - TagDefinition.chatAppId: 'weather' = available only to 'weather' chat app
-        // - TagDefinition.status: 'enabled' | 'disabled' | 'retired' = lifecycle state
+        enabled: true,
+        // Optional: Enable specific tags by default for all chat apps
+        tagsEnabled: [
+            { scope: 'mycompany', tag: 'custom-widget' }
+        ],
+        // Optional: Disable specific global tags by default
+        tagsDisabled: [
+            { scope: 'pika', tag: 'chart' }  // Disable charts globally
+        ]
     }
     // ... other features
 };
 ```
 
+### Chat App Configuration
+
+Chat apps can override the site-level tag configuration in their `features` object:
+
+```js
+{
+    chatAppId: 'sales-chat',
+    features: {
+        tags: {
+            enabled: true,
+            // Enable specific chat-app tags for this app
+            tagsEnabled: [
+                { scope: 'pika', tag: 'download' },
+                { scope: 'acme', tag: 'order-status' }
+            ],
+            // Disable specific global tags for this app
+            tagsDisabled: [
+                { scope: 'pika', tag: 'image' }  // No images in this chat app
+            ]
+        }
+    }
+}
+```
+
 ### Tag Visibility Model
 
-Tag visibility is controlled by fields on the `TagDefinition` itself, not through site or chat app configuration:
+The tag system uses two usage modes to control visibility:
 
-**Global Tags** - Available to all chat apps:
+**Global Tags** (`usageMode: 'global'`) - Automatically available to all chat apps:
 
 ```js
 {
     tag: 'chart',
     scope: 'pika',
-    chatAppId: 'chat-app-global',  // Special value for global tags
-    status: 'enabled',              // Active and visible
+    usageMode: 'global',  // Available everywhere by default
+    status: 'enabled',
     // ... rest of definition
 }
 ```
 
-**App-Specific Tags** - Available to specific chat app(s):
+Global tags (like `chart`, `image`, `prompt`) are automatically included in all chat apps unless explicitly disabled via the `tagsDisabled` configuration.
+
+**Chat-App Tags** (`usageMode: 'chat-app'`) - Must be explicitly enabled:
 
 ```js
 {
     tag: 'order-status',
     scope: 'acme',
-    chatAppId: 'sales-chat',       // Only visible in 'sales-chat' app
+    usageMode: 'chat-app',  // Requires explicit enablement
     status: 'enabled',
     // ... rest of definition
 }
 ```
+
+Chat-app tags must be added to a chat app's `tagsEnabled` list to be available.
 
 **Status Lifecycle:**
 
@@ -131,10 +163,15 @@ A complete tag definition includes:
 ```js
 interface TagDefinition<T extends TagDefinitionWidget> {
     tag: string; // The tag name (e.g., 'chart')
-    scope: string; // Namespace/scope (e.g., 'builtin', 'custom')
+    scope: string; // Namespace/scope (e.g., 'pika', 'mycompany')
+    usageMode: 'global' | 'chat-app'; // How tag is made available
     widget: T; // Widget configuration
-    llmInstructions: TagInstructionForLlm[]; // Instructions for the LLM
-    enabled: boolean; // Whether this tag is active
+    llmInstructionsMd?: string; // Markdown instructions for the LLM when injected into prompt
+    status: 'enabled' | 'disabled' | 'retired'; // Lifecycle status
+    renderingContexts: WidgetRenderingContexts; // Where tag can render
+    canBeGeneratedByLlm: boolean; // If LLM can generate this tag
+    canBeGeneratedByTool: boolean; // If agent tools can generate this tag
+    description: string; // Admin-facing description
     dontCacheThis?: boolean; // Whether to skip caching
     createdBy: string; // User who created the definition
     lastUpdatedBy: string; // User who last updated it
@@ -142,6 +179,15 @@ interface TagDefinition<T extends TagDefinitionWidget> {
     lastUpdate: string; // ISO 8601 last update timestamp
 }
 ```
+
+**Key Fields:**
+
+- `usageMode`: Determines availability model
+    - `'global'`: Automatically available everywhere (unless disabled)
+    - `'chat-app'`: Requires explicit enablement per chat app
+- `scope`: Namespace to prevent name collisions (e.g., 'pika' for built-in tags)
+- `status`: Lifecycle management for tags
+- `renderingContexts`: Controls where the tag can be rendered (inline, canvas, dialog, spotlight)
 
 ## LLM Instructions
 

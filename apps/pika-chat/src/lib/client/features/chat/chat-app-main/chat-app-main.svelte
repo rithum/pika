@@ -1,5 +1,6 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
+    import { injectChatAppWebComponent } from '$client/webcomponent-utils';
     import Loader from '$icons/lucide/loader';
     import MessageSquarePlus from '$icons/lucide/message-square-plus';
     import ThumbsDown from '$icons/lucide/thumbs-down';
@@ -28,10 +29,17 @@
     import Spotlight from '../spotlight/index.svelte';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
     import WidgetDialog from './widget-dialog.svelte';
+    import { SvelteSet, SvelteMap } from 'svelte/reactivity';
+
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
+    let spotlightIsVisible = $state(true);
 
     const fullScreen = $derived(chat.mode === 'standalone');
+
+    // Static widgets state - track which widgets have been injected to prevent double-injection
+    let injectedStaticWidgets = $state<Set<string>>(new SvelteSet());
+    let staticWidgetContainers = $state<Map<string, HTMLElement>>(new SvelteMap());
 
     // File drag/drop state
     let isDraggingFile = $state(false);
@@ -51,9 +59,9 @@
 
     $effect(() => {
         let height = document.getElementById('cam-input-region-container')?.getBoundingClientRect()?.height;
-        if (resizeHeightEl && height) {
-            resizeHeightEl.style.paddingBottom = `${height}px`;
-            resizeHeightEl.style.scrollPaddingBottom = `${height}px`;
+        if (scrollToDiv && height) {
+            scrollToDiv.style.paddingBottom = `${height}px`;
+            scrollToDiv.style.scrollPaddingBottom = `${height}px`;
         }
     });
 
@@ -138,6 +146,66 @@
         return () => {
             resizeObserver.disconnect();
         };
+    });
+
+    // Effect to inject static context widgets
+    $effect(() => {
+        const staticWidgets = chat.staticWidgets;
+
+        // Inject each static widget that hasn't been injected yet
+        for (const tagDef of staticWidgets) {
+            const tagId = `${tagDef.scope}.${tagDef.tag}`;
+
+            // Skip if already injected
+            if (injectedStaticWidgets.has(tagId)) {
+                continue;
+            }
+
+            // Create hidden container for this static widget
+            const container = document.createElement('div');
+            container.style.display = 'none';
+            container.setAttribute('data-static-widget', tagId);
+            document.body.appendChild(container);
+
+            // Track the container
+            staticWidgetContainers.set(tagId, container);
+
+            // Inject the web component
+            injectChatAppWebComponent(
+                tagDef,
+                container,
+                {
+                    renderingContext: 'static',
+                    appState: appState,
+                    chatAppState: chat,
+                    chatAppId: chat.chatApp.chatAppId,
+                    dataForWidget: {},
+                },
+                false // Don't track in widget metadata
+            )
+                .then(() => {
+                    console.log(`[Static Widget] Successfully injected ${tagId}`);
+
+                    // Mark as injected
+                    injectedStaticWidgets.add(tagId);
+
+                    // Handle shutDownAfterMs cleanup
+                    const shutDownAfterMs = tagDef.renderingContexts.static.shutDownAfterMs;
+                    if (shutDownAfterMs && shutDownAfterMs > 0) {
+                        setTimeout(() => {
+                            const containerToRemove = staticWidgetContainers.get(tagId);
+                            if (containerToRemove) {
+                                containerToRemove.remove();
+                                staticWidgetContainers.delete(tagId);
+                                console.log(`[Static Widget] Cleaned up ${tagId} after ${shutDownAfterMs}ms`);
+                            }
+                        }, shutDownAfterMs);
+                    }
+                })
+                .catch((error) => {
+                    console.error(`[Static Widget] Failed to inject ${tagId}:`, error);
+                });
+        }
     });
 
     // File drag handlers
@@ -254,13 +322,21 @@
         </div>
     {/if}
 
-    <Spotlight mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'} />
+    <!-- Spotlight spans full width without max-w constraint -->
+    <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} min-h-[80px]">
+        <div class="max-w-full">
+            <Spotlight
+                bind:isVisible={spotlightIsVisible}
+                mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
+            />
+        </div>
+    </div>
 
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
         <!-- Scrollable area that spans full width with right-aligned scrollbar -->
-        <div class="inset-0 pb-[150px] scroll-pb-[150px] overflow-y-auto" bind:this={resizeHeightEl}>
+        <div class="flex-1 overflow-y-auto" bind:this={resizeHeightEl}>
             <!-- Centered content container -->
-            <div class="w-full max-w-[768px] mx-auto" bind:this={scrollToDiv}>
+            <div class="w-full max-w-[768px] mx-auto pb-[150px]" bind:this={scrollToDiv}>
                 <div class="pb-4 px-4 pt-10">
                     {#each chat.currentSessionMessages as message}
                         <div class="flex flex-col gap-8 mb-10">
@@ -376,7 +452,7 @@
         </div>
     {:else}
         <!-- No messages case -->
-        <div class="flex-grow flex flex-col" style="padding-top: {fullScreen ? '20vh' : '2vh'}">
+        <div class="flex-1 flex flex-col justify-center min-h-[300px]">
             <div class="w-full max-w-[768px] mx-auto">
                 <div class="flex flex-col px-4">
                     {#if chat.features.promptInputFieldLabel.label}

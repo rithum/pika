@@ -72,6 +72,19 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
         let agentData = parseAgentCustomResourceProperties(agentDataStr);
         console.log('Successfully parsed AgentData for agent:', agentData.agent.agentId);
 
+        // Log the approach being used for better debugging
+        const hasReferencedTools = agentData.agent.toolIds && agentData.agent.toolIds.length > 0;
+        const hasDefinedTools = agentData.tools && agentData.tools.length > 0;
+        if (hasReferencedTools && hasDefinedTools) {
+            console.log('Mixed approach: Agent references', agentData.agent.toolIds!.length, 'existing tools and defines', agentData.tools!.length, 'new tools');
+        } else if (hasReferencedTools) {
+            console.log('Reference-only approach: Agent references', agentData.agent.toolIds!.length, 'existing tools');
+        } else if (hasDefinedTools) {
+            console.log('Definition-only approach: Agent defines', agentData.tools!.length, 'new tools');
+        } else {
+            console.log('Warning: Agent has no tools defined or referenced');
+        }
+
         // Helper function to check if a tool is a lambda tool (has lambdaArn property)
         const isLambdaTool = (tool: ToolDefinitionForIdempotentCreateOrUpdate): tool is ToolDefinitionForIdempotentCreateOrUpdate & { lambdaArn: string } => {
             // If executionType is explicitly set, check if it's 'lambda'

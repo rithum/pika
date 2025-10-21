@@ -520,7 +520,11 @@ async function handleCreateAgent(event: APIGatewayProxyEventPika<CreateAgentRequ
  *
  * If you use this you must provide an agentId so we can match up what's there already with what is being provided.
  * If you provide tools then you must provide a toolId for each tool so we can match up what's there already with what is being provided.
- * You may either provide agent.toolIds or tools but not both.
+ *
+ * Three patterns are supported:
+ * 1. tools only: Define new tools (create/update)
+ * 2. agent.toolIds only: Reference existing tools by ID
+ * 3. Both tools AND agent.toolIds: Mixed approach - define new tools while referencing existing ones
  */
 async function handleCreateOrUpdateAgentIdempotently(event: APIGatewayProxyEventPika<AgentDataRequest>): Promise<AgentDataResponse> {
     console.log('handleCreateOrUpdateAgentIdempotently - Request body received:', JSON.stringify(event.body, null, 2));

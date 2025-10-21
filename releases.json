@@ -1,0 +1,42 @@
+{
+    "latestVersion": "0.4.0",
+    "currentDevelopment": "0.5.0",
+    "releases": [
+        {
+            "version": "0.5.0",
+            "date": "TBD",
+            "status": "unreleased",
+            "breaking": true,
+            "summary": "Tag system refactor + Chat session GSI update",
+            "highlights": [
+                "Custom title bar actions for web components",
+                "Static widget context for initialization code",
+                "Global tag system with chat-app specific configuration",
+                "Auto-height web components",
+                "Release system infrastructure"
+            ],
+            "migrationGuideUrl": "https://pika-framework.dev/docs/releases/migration-guides/upgrading-to-0-5-0",
+            "requiresManualSteps": true,
+            "affectedComponents": [
+                "Tag definitions DynamoDB table (GSI replacement)",
+                "Chat session DynamoDB table (GSI replacement)",
+                "Chat app tag configuration",
+                "Site admin tag UI",
+                "Session queries by chat app"
+            ]
+        },
+        {
+            "version": "0.4.0",
+            "date": "2025-10-20",
+            "status": "released",
+            "breaking": false,
+            "summary": "Initial tracked release with core features stable",
+            "highlights": [
+                "Tag system with chat app integration",
+                "Multi-agent collaboration",
+                "User memory feature",
+                "Session management"
+            ]
+        }
+    ]
+}

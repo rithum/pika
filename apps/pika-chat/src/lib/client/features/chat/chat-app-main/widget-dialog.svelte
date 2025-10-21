@@ -15,6 +15,50 @@
     let instanceId = $state<string | undefined>(undefined);
     let iconComponent = $state<any>(null);
 
+    /**
+     * Get dialog dimensions based on sizing configuration.
+     * Supports presets ('fullscreen', 'large', 'medium', 'small') and custom dimensions.
+     * Returns width and height as CSS values.
+     */
+    function getDialogDimensions(): { width: string; height: string } {
+        const tagDef = chat.dialogWidget?.tagDefinition;
+
+        // Default to fullscreen
+        const defaults = { width: '95vw', height: '90vh' };
+
+        if (!tagDef || tagDef.widget.type !== 'web-component') {
+            return defaults;
+        }
+
+        const sizing = tagDef.widget.webComponent.sizing?.dialog;
+
+        if (!sizing) {
+            return defaults;
+        }
+
+        // Handle preset strings
+        if (typeof sizing === 'string') {
+            switch (sizing) {
+                case 'fullscreen':
+                    return { width: '95vw', height: '90vh' };
+                case 'large':
+                    return { width: '85vw', height: '80vh' };
+                case 'medium':
+                    return { width: '70vw', height: '70vh' };
+                case 'small':
+                    return { width: '50vw', height: '50vh' };
+                default:
+                    return defaults;
+            }
+        }
+
+        // Handle custom object - use specified values or fall back to defaults
+        return {
+            width: sizing.width || defaults.width,
+            height: sizing.height || defaults.height,
+        };
+    }
+
     $effect(() => {
         const dialogWidget = chat.dialogWidget;
         const dialogOpen = chat.widgetDialogOpen;
@@ -64,12 +108,16 @@
     const metadata = $derived(instanceId ? chat.widgetMetadata.get(instanceId) : undefined);
     const title = $derived(metadata?.title ?? chat.dialogWidget?.tagDefinition.tagTitle ?? 'Widget');
     const actions = $derived(metadata?.actions ?? []);
+
+    // Compute dialog dimensions dynamically
+    const dimensions = $derived(getDialogDimensions());
+    const dialogStyle = $derived(`width: ${dimensions.width}; height: ${dimensions.height};`);
 </script>
 
 <!-- Only render dialog when BOTH dialogOpen AND dialogWidget are present -->
 {#if chat.widgetDialogOpen && chat.dialogWidget}
     <Dialog.Root bind:open={chat.widgetDialogOpen}>
-        <Dialog.Content class="w-[95vw] h-[90vh] overflow-hidden flex flex-col">
+        <Dialog.Content class="overflow-hidden flex flex-col" style={dialogStyle}>
             <Dialog.Header>
                 <Dialog.Title>
                     <div class="flex items-center gap-2">

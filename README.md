@@ -116,6 +116,36 @@ Perfect for organizations looking to add AI capabilities to:
 - **Business Operations** - Metrics, trends, and automated reporting
 - **Domain-Specific Tools** - Custom agents for specialized workflows
 
+## Releases & Updates
+
+### Stay Updated
+
+```bash
+# Check your project version
+cat .pika-sync.json | grep pikaVersion
+
+# See what's new
+pika sync --dry-run
+
+# Update to latest
+pika sync
+```
+
+### Release Information
+
+- **[Release Overview](https://pika.tools/docs/releases/overview)** - Current version and release notes
+- **[Changelog](https://pika.tools/docs/releases/changelog)** - Complete version history
+- **[Migration Guides](https://pika.tools/docs/releases/migration-guides)** - Upgrade instructions for breaking changes
+
+### Version Tracking
+
+Pika uses semantic versioning (while pre-1.0, expect breaking changes):
+
+- `0.x.0` - Breaking changes or major features
+- `0.x.y` - Bug fixes and improvements
+
+Your `.pika-sync.json` tracks your framework version and enables smart updates.
+
 ## Contributing
 
 We welcome contributions! Pika is an open source project and we'd love your help making it better.
@@ -124,6 +154,10 @@ We welcome contributions! Pika is an open source project and we'd love your help
 - **Pull Requests** - Submit improvements via pull requests
 - **Documentation** - Help improve our docs and examples
 - **Discussions** - Join conversations about the project
+
+### For Maintainers
+
+See [RELEASING.md](./RELEASING.md) for the release workflow (not synced to downstream projects).
 
 ## 📄 License
 

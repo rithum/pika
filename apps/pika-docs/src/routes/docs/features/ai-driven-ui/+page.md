@@ -94,23 +94,39 @@ This creates a fluid experience where the UI adapts to serve the user's needs in
 
 ## Widget Visibility Model
 
-Widget visibility is controlled at the tag definition level using `chatAppId` and `status` fields:
+Widget visibility uses a two-tier model combining tag definitions and chat app configuration:
 
-**Global Widgets** - Available to all chat apps:
+**Tag Definitions** specify availability model via `usageMode`:
 
 ```js
 {
-    chatAppId: 'chat-app-global',
+    usageMode: 'global',  // Available to all chat apps by default
     status: 'enabled'
 }
 ```
 
-**App-Specific Widgets** - Available to specific chat apps:
+or
 
 ```js
 {
-    chatAppId: 'sales-chat',  // Only visible in 'sales-chat' app
+    usageMode: 'chat-app',  // Requires explicit enablement per chat app
     status: 'enabled'
+}
+```
+
+**Chat Apps** control which tags they use:
+
+```js
+features: {
+    tags: {
+        enabled: true,
+        tagsEnabled: [
+            { scope: 'mycompany', tag: 'dashboard' }  // Enable specific chat-app tags
+        ],
+        tagsDisabled: [
+            { scope: 'pika', tag: 'download' }  // Disable specific global tags
+        ]
+    }
 }
 ```
 
@@ -127,10 +143,11 @@ Widget visibility is controlled at the tag definition level using `chatAppId` an
 To start using widgets in your chat app:
 
 1. Enable the tags feature in site configuration: `tags: { enabled: true }`
-2. Create tag definitions with appropriate `chatAppId` and `status` values
-3. Build custom web components if needed (optional)
-4. Configure rendering contexts (`spotlight`, `inline`, `dialog`, `canvas`)
-5. Enable instruction assistance for inline widgets
+2. Create tag definitions with appropriate `usageMode` and `status` values
+3. Configure chat app to enable desired tags via `features.tags.tagsEnabled`
+4. Build custom web components if needed (optional)
+5. Configure rendering contexts (`spotlight`, `inline`, `dialog`, `canvas`)
+6. Enable instruction assistance for inline widgets
 
 For detailed implementation instructions:
 

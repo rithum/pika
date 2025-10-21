@@ -20,6 +20,7 @@ import type {
     ChatUser,
     ChatUserLite,
     ConverseInvocationMode,
+    ConverseSource,
     CreateSharedSessionRequest,
     CreateSharedSessionResponse,
     PinnedObjAndChatSession,
@@ -149,7 +150,8 @@ export async function ensureChatSession(
     simpleUser: SimpleAuthenticatedUser<RecordOrUndef>,
     invocationMode: ConverseInvocationMode,
     entityEnabled: boolean,
-    entityValue: string | undefined
+    entityValue: string | undefined,
+    source: ConverseSource
 ): Promise<[ChatSession<RecordOrUndef>, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
@@ -178,6 +180,7 @@ export async function ensureChatSession(
             chatAppId,
             agentId, //'weather-agent',//requestData.agentId ?? getAgentId(),
             invocationMode,
+            source,
             sessionAttributes: {
                 ...(user.customData ? user.customData : {}),
                 ...(simpleUser.customUserData ? simpleUser.customUserData : {}),
@@ -313,7 +316,10 @@ export async function addChatMessage(
     });
 
     console.log('Adding message and updating session in parallel');
-    await Promise.all([addMessage(chatMessage), updateSession(chatMessage.sessionId, chatSession.userId, chatMessage.messageId, chatMessage.timestamp, chatMessage.usage)]);
+    await Promise.all([
+        addMessage(chatMessage),
+        updateSession(chatMessage.sessionId, chatSession.userId, chatMessage.messageId, chatMessage.timestamp, chatMessage.usage, chatSession.chatAppId, chatSession.source)
+    ]);
     console.log('Message added and session updated');
 
     // Update the local object with the new message id and update timestamp

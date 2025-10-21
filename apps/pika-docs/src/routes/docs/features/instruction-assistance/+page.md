@@ -26,12 +26,12 @@ The instruction assistance system uses several placeholders that get replaced wi
 
 When you enable the `includeInstructionsForTags` option, this placeholder gets replaced with detailed instructions for all tags that are available to your chat app. The system automatically:
 
-- Discovers tags based on `chatAppId` (both app-specific and `'chat-app-global'` tags)
+- Discovers tags based on chat app configuration (`tagsEnabled` and global tags not in `tagsDisabled`)
 - Filters to only `status === 'enabled'` tags with `contexts.inline.enabled === true`
 - Formats their LLM instructions according to Pika's structured format
 - Injects them at the placeholder location (or appends them if no placeholder exists)
 
-Tag visibility is controlled at the tag definition level via the `chatAppId` and `status` fields, not through site-level configuration.
+Tag visibility is controlled by a combination of tag definition `usageMode` ('global' or 'chat-app') and chat app configuration (`tagsEnabled` and `tagsDisabled`).
 
 ### typescript-backed-output-formatting-requirements placeholder
 
@@ -137,9 +137,13 @@ agentInstructionAssistance: {
 
 ## Prompt Integration
 
-### Automatic Placement
+### Placeholder Resolution
 
-By default, instruction assistance content is appended to the end of your prompt. For precise control, use the `{{prompt-assistance}}` placeholder:
+The Agent Instruction Assistance feature uses a smart placeholder system:
+
+**Placeholder Options:**
+
+1. **Single placeholder**: Use `{{prompt-assistance}}` to inject all enabled instruction content in one location:
 
 ```markdown
 You are a helpful assistant.
@@ -151,7 +155,18 @@ Core instructions here...
 Additional context...
 ```
 
-For even more precise control, you can use fine-grained placeholders like `{{output-formatting-requirements}}`, `{{tag-instructions}}`, `{{complete-example-instruction-line}}`, and `{{json-only-imperative-instruction-line}}` to control exactly where each component is placed.
+2. **Fine-grained placeholders**: Use individual placeholders for precise control over where each component appears:
+    - `{{output-formatting-requirements}}` - Basic formatting requirements
+    - `{{tag-instructions}}` - Tag-specific instructions
+    - `{{complete-example-instruction-line}}` - Complete example
+    - `{{json-only-imperative-instruction-line}}` - JSON validation instructions
+
+**Resolution Behavior:**
+
+- If **any** placeholder is found in your prompt, only those specific placeholders will be replaced
+- If **no** placeholders are found and this feature is enabled, all instruction content will be automatically appended to the end of your prompt (as if `{{prompt-assistance}}` was placed at the very last line)
+
+This ensures that instruction content is always included when the feature is enabled, whether you use placeholders or not.
 
 ### Custom Integration
 

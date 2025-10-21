@@ -9,7 +9,18 @@
         "format": "prettier --write .",
         "check-types": "turbo check-types",
         "clean": "rm -rf node_modules && rm -rf .turbo && rm -rf dist && rm -rf build && find . -path './.github' -prune -o -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -path './.github' -prune -o -name 'dist' -type d -prune -exec rm -rf '{}' + && find . -path './.github' -prune -o -name 'build' -type d -prune -exec rm -rf '{}' +",
-        "deploy": "turbo run deploy"
+        "deploy": "turbo run deploy",
+        "release:help": "pnpm --filter @pika/tools release:help",
+        "release:help:notes": "pnpm --filter @pika/tools release:help:notes",
+        "release:help:plan-breaking": "pnpm --filter @pika/tools release:help:plan-breaking",
+        "release:help:publish": "pnpm --filter @pika/tools release:help:publish",
+        "release": "pnpm --filter @pika/tools release",
+        "release:info": "pnpm --filter @pika/tools release:info",
+        "release:notes": "pnpm --filter @pika/tools release:notes",
+        "release:notes:finalize": "pnpm --filter @pika/tools release:notes:finalize",
+        "release:publish": "pnpm --filter @pika/tools release:publish",
+        "release:validate": "pnpm --filter @pika/tools release:validate",
+        "release:plan-breaking": "pnpm --filter @pika/tools release:plan-breaking"
     },
     "devDependencies": {
         "@typescript-eslint/eslint-plugin": "catalog:",

@@ -6,7 +6,7 @@
         AgentDefinition,
         AgentInstructionAssistanceFeature,
         AgentInstructionAssistanceFeatureForChatApp,
-        TagDefinitionLite,
+        TagsChatAppOverridableFeature,
     } from 'pika-shared/types/chatbot/chatbot-types';
     import {
         applyInstructionAssistance,
@@ -27,7 +27,7 @@
         disabled: boolean;
         setValid?: (valid: boolean) => void;
         agent?: AgentDefinition;
-        tagsToUse?: TagDefinitionLite[];
+        tagsToUse?: TagsChatAppOverridableFeature;
     }
 
     let {
@@ -52,21 +52,21 @@
         const agentToUse = agent;
         const instructionAssistanceConfig = siteAdminState.instructionAssistanceConfig;
         const tags = siteAdminState.tagDefinitions;
-        const tagsEnabled = tagsToUse;
+        const tagsConfig = tagsToUse;
         const feature = effectiveFeature;
 
         // console.log('instructions', {
         //     featureEnabled,
         //     agentToUse,
         //     instructionAssistanceConfig,
-        //     tagsEnabled,
+        //     tagsConfig,
         //     feature,
         // });
 
         if (featureEnabled && agentToUse && instructionAssistanceConfig) {
             const instructionContent = generateInstructionAssistanceContent(
                 instructionAssistanceConfig,
-                { tagsEnabled: tagsEnabled ?? [] },
+                tagsConfig,
                 {
                     enabled: feature?.enabled ?? false,
                     includeOutputFormattingRequirements: feature?.includeOutputFormattingRequirements?.enabled ?? false,
@@ -419,6 +419,18 @@
                             • <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
                                 >json-only-imperative-instruction-line</code
                             ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> - JSON validation instructions
+                        </p>
+                        <p class="mt-2"><strong>Automatic Injection:</strong></p>
+                        <p>
+                            • If <strong>any</strong> placeholder is found in your prompt, only those placeholders will be
+                            replaced
+                        </p>
+                        <p>
+                            • If <strong>no</strong> placeholders are found and this feature is enabled, all instruction
+                            content will be automatically appended to the end of your prompt (as if
+                            <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                                >prompt-assistance</code
+                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> was placed at the very last line)
                         </p>
                     </div>
                 </div>

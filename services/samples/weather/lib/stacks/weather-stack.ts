@@ -258,6 +258,21 @@ export class WeatherStack extends cdk.Stack {
                     agentInstructionAssistance: {
                         featureId: 'agentInstructionAssistance',
                         enabled: true
+                    },
+                    tags: {
+                        featureId: 'tags',
+                        enabled: true,
+                        tagsEnabled: [
+                            { scope: 'weather', tag: 'favorite-cities' },
+                            { scope: 'weather', tag: 'weather-alerts' },
+                            { scope: 'weather', tag: 'temperature-trend' },
+                            { scope: 'weather', tag: 'full-forecast' },
+                            { scope: 'weather', tag: 'city-selector' },
+                            { scope: 'weather', tag: 'inline' },
+                            { scope: 'weather', tag: 'weather-comparison' },
+                            { scope: 'weather', tag: 'weather-fun-fact' },
+                            { scope: 'weather', tag: 'quick-weather-search' }
+                        ]
                     }
                 },
                 enabled: true

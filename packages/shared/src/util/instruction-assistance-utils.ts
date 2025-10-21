@@ -36,15 +36,6 @@ export function generateInstructionAssistanceContent(
     agentInstructionFeature: AgentInstructionChatAppOverridableFeature | undefined,
     tagDefinitions: TagDefinition<TagDefinitionWidget>[]
 ): InstructionAssistanceConfig {
-    console.log('Generating instruction assistance content:', {
-        enabled: agentInstructionFeature?.enabled,
-        includeOutputFormattingRequirements: agentInstructionFeature?.includeOutputFormattingRequirements,
-        includeInstructionsForTags: agentInstructionFeature?.includeInstructionsForTags,
-        completeExampleEnabled: agentInstructionFeature?.completeExampleInstructionEnabled,
-        jsonOnlyEnabled: agentInstructionFeature?.jsonOnlyImperativeInstructionEnabled,
-        includeTypescriptBackedOutputFormattingRequirements: agentInstructionFeature?.includeTypescriptBackedOutputFormattingRequirements
-    });
-
     let outputFormattingRequirements = '';
     let tagInstructions = '';
     let completeExampleInstructionLine = '';
@@ -71,15 +62,45 @@ export function generateInstructionAssistanceContent(
     }
 
     // Generate tag instructions
-    if (agentInstructionFeature.includeInstructionsForTags && tags && tags.tagsEnabled?.length > 0) {
-        console.log('Fetching tag definitions for instruction generation:', tags.tagsEnabled);
-
+    if (agentInstructionFeature.includeInstructionsForTags && tags) {
         if (tagDefinitions.length > 0) {
+            // Build a set of enabled tag identifiers
+            const enabledTagIds = new Set<string>();
+
+            // Add all explicitly enabled chat-app tags
+            if (tags.tagsEnabled) {
+                for (const tag of tags.tagsEnabled) {
+                    const tagId = `${tag.scope}.${tag.tag}`;
+                    enabledTagIds.add(tagId);
+                }
+            }
+
+            // Add all global tags that aren't explicitly disabled
+            const disabledTagIds = new Set<string>();
+            if (tags.tagsDisabled) {
+                for (const tag of tags.tagsDisabled) {
+                    const tagId = `${tag.scope}.${tag.tag}`;
+                    disabledTagIds.add(tagId);
+                }
+            }
+
+            for (const tagDef of tagDefinitions) {
+                if (tagDef.usageMode === 'global') {
+                    const tagId = `${tagDef.scope}.${tagDef.tag}`;
+                    if (!disabledTagIds.has(tagId)) {
+                        enabledTagIds.add(tagId);
+                    }
+                }
+            }
+
+            // Filter to only include enabled tags
+            const enabledTagDefinitions = tagDefinitions.filter((tagDef) => {
+                const tagId = `${tagDef.scope}.${tagDef.tag}`;
+                return enabledTagIds.has(tagId) && tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled';
+            });
+
             // First create a dictionary listing all supported tags
-            const tagDictionary = tagDefinitions
-                .filter((tagDef) => tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled')
-                .map((tagDef) => `  - ${tagDef.tagTitle}: \`${tagDef.shortTagEx}\``)
-                .join('\n');
+            const tagDictionary = enabledTagDefinitions.map((tagDef) => `  - ${tagDef.tagTitle}: \`${tagDef.shortTagEx}\``).join('\n');
 
             let tagInstructionsContent = '';
             if (tagDictionary) {
@@ -87,8 +108,8 @@ export function generateInstructionAssistanceContent(
             }
 
             // Then add detailed instructions for each tag
-            for (const tagDef of tagDefinitions) {
-                if (tagDef.canBeGeneratedByLlm && tagDef.status === 'enabled' && tagDef.llmInstructionsMd) {
+            for (const tagDef of enabledTagDefinitions) {
+                if (tagDef.llmInstructionsMd) {
                     const tagType = `${tagDef.scope}.${tagDef.tag}`;
                     tagInstructionsContent += `- **${tagDef.tagTitle}:**\n  <tag-instructions type="${tagType}">\n${tagDef.llmInstructionsMd}\n  </tag-instructions>\n`;
                 }
@@ -115,14 +136,6 @@ export function generateInstructionAssistanceContent(
             instructionAssistanceConfig?.jsonOnlyImperativeInstructionLine ||
             'BE ABSOLUTELY CERTAIN ANY JSON INCLUDED IS 100% VALID (especially for charts). Invalid JSON will break the user experience.';
     }
-
-    console.log('Generated instruction assistance content:', {
-        hasOutputFormatting: !!outputFormattingRequirements,
-        hasTagInstructions: !!tagInstructions,
-        hasCompleteExample: !!completeExampleInstructionLine,
-        hasJsonValidation: !!jsonOnlyImperativeInstructionLine,
-        hasTypescriptBackedOutputFormattingRequirements: !!typescriptBackedOutputFormattingRequirements
-    });
 
     return {
         outputFormattingRequirements,

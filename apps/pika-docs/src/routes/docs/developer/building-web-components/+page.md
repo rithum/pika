@@ -401,6 +401,351 @@ These classes ensure:
 Do NOT use viewport-relative sizes like `h-screen` or `w-screen` in your root element. These will break the component's ability to fit within its designated rendering context (spotlight cards, dialogs, canvas, etc.). Always use `h-full` and `w-full` instead.
 :::
 
+### Configuring Widget Dimensions
+
+You can control how your widget is sized in different rendering contexts by adding the `sizing` property to your tag definition's `webComponent` configuration. This allows you to specify different dimensions for inline and dialog rendering.
+
+#### Overview
+
+The `sizing` configuration supports two rendering contexts:
+
+- **`inline`** - When your widget appears within the chat message flow
+- **`dialog`** - When your widget opens in a modal dialog
+
+**Default Behavior (if you don't specify sizing):**
+
+- Inline: `400px` height (can be set to `"auto"` to grow with content)
+- Dialog: `fullscreen` (95vw × 90vh)
+
+#### Inline Sizing
+
+For inline rendering, you can control the height of your widget. Width is always 100% of the available chat area.
+
+**Type Definition:**
+
+```js
+interface WidgetInlineSizing {
+    height?: string; // Any valid CSS height value, or "auto" to grow to content
+    width?: string; // Reserved for future use
+}
+```
+
+**Height Options:**
+
+- **Fixed height**: Use any CSS height value (`"400px"`, `"50vh"`, etc.)
+- **Auto-grow**: Use `"auto"` to let the widget grow to fit its content height
+- **Default**: `"400px"` if not specified
+
+**Examples:**
+
+```js
+// In your tag definition (deployment code)
+const tagDef = {
+    tag: 'weather-summary',
+    scope: 'acme',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            url: 'https://example.com/widgets.js',
+
+            // Custom inline height
+            sizing: {
+                inline: {
+                    height: '300px' // Shorter widget
+                }
+            },
+
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 12345,
+            encodedSha256Base64: 'abc123...'
+        }
+    }
+};
+```
+
+**Common inline height values:**
+
+```js
+// Auto-grow to content height (no scrolling, widget expands as needed)
+sizing: {
+    inline: {
+        height: 'auto';
+    }
+}
+
+// Small widget (charts, summaries)
+sizing: {
+    inline: {
+        height: '250px';
+    }
+}
+
+// Default height (if not specified)
+sizing: {
+    inline: {
+        height: '400px';
+    }
+}
+
+// Tall widget (tables, detailed views)
+sizing: {
+    inline: {
+        height: '600px';
+    }
+}
+
+// Viewport-relative (responsive)
+sizing: {
+    inline: {
+        height: '50vh';
+    }
+}
+```
+
+**When to use `"auto"`:**
+
+Use `height: "auto"` when:
+
+- Your widget's content height varies significantly based on data
+- You want to avoid vertical scrolling within the widget
+- Your widget renders a list or content that should flow naturally in the chat
+- You want the widget to expand/contract based on its internal state
+
+**When to use fixed heights:**
+
+Use fixed heights (like `"400px"`) when:
+
+- Your widget has consistent, predictable content (dashboards, charts, maps)
+- You want to enforce a compact presentation with internal scrolling
+- Your widget could potentially grow very large and you want to constrain it
+- You're displaying data in a fixed-size visualization or table
+
+:::tip[Auto-Height Best Practices]
+When using `height: "auto"`, ensure your widget has a reasonable maximum height in mind. Consider adding internal constraints or pagination for very large content to avoid creating extremely tall inline widgets that disrupt the chat flow.
+:::
+
+#### Dialog Sizing
+
+For dialog rendering, you can use preset sizes or specify custom viewport-relative dimensions.
+
+**Preset Sizes:**
+
+```js
+type WidgetDialogSizePreset = 'fullscreen' | 'large' | 'medium' | 'small';
+
+// Preset mappings:
+// - 'fullscreen': 95vw × 90vh (default)
+// - 'large':      85vw × 80vh
+// - 'medium':     70vw × 70vh
+// - 'small':      50vw × 50vh
+```
+
+**Custom Dimensions:**
+
+```js
+interface WidgetDialogSizeCustom {
+    width?: string; // Viewport-relative unit or percentage
+    height?: string; // Viewport-relative unit or percentage
+}
+```
+
+:::warning[Dialog Size Requirements]
+Dialog dimensions must use viewport-relative units (`vh`, `vw`, `vmin`, `vmax`) or percentages. Pixel values are not supported to ensure responsive behavior across different screen sizes.
+:::
+
+**Examples:**
+
+```js
+const tagDef = {
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            sizing: {
+                dialog: 'small'
+            }
+        }
+    }
+};
+
+// Medium dialog (good for forms, settings)
+sizing: {
+    dialog: 'medium'
+}
+
+// Custom dialog size
+sizing: {
+    dialog: {
+        width: '80vw',
+        height: '60vh'
+    }
+}
+
+// Custom with only height (width defaults to 95vw)
+sizing: {
+    dialog: {
+        height: '75vh'
+    }
+}
+
+// Custom with only width (height defaults to 90vh)
+sizing: {
+    dialog: {
+        width: '60vw'
+    }
+}
+```
+
+#### Complete Examples
+
+**Example 1: Compact Inline Widget with Medium Dialog**
+
+```js
+const tagDef = {
+    tag: 'quick-search',
+    scope: 'acme',
+    tagTitle: 'Quick Search',
+    chatAppId: 'my-app',
+    status: 'enabled',
+    renderingContexts: {
+        inline: { enabled: true },
+        dialog: { enabled: true }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3: {
+                s3Bucket: 'my-bucket',
+                s3Key: 'wc/acme/quick-search.js.gz'
+            },
+            sizing: {
+                inline: {
+                    height: '250px' // Compact inline height
+                },
+                dialog: 'medium' // Medium dialog when expanded
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 12345,
+            encodedSha256Base64: 'abc123...'
+        }
+    }
+};
+```
+
+**Example 2: Tall Inline Widget with Custom Dialog**
+
+```js
+const tagDef = {
+    tag: 'data-table',
+    scope: 'acme',
+    tagTitle: 'Data Table',
+    chatAppId: 'my-app',
+    status: 'enabled',
+    renderingContexts: {
+        inline: { enabled: true },
+        dialog: { enabled: true }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            url: 'https://cdn.example.com/data-table.js',
+            sizing: {
+                inline: {
+                    height: '600px' // Tall table view
+                },
+                dialog: {
+                    width: '90vw', // Wide dialog for more columns
+                    height: '85vh' // Tall dialog for more rows
+                }
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 54321,
+            encodedSha256Base64: 'xyz789...'
+        }
+    }
+};
+```
+
+**Example 3: Auto-Growing Inline Widget**
+
+```js
+const tagDef = {
+    tag: 'task-list',
+    scope: 'acme',
+    tagTitle: 'Task List',
+    chatAppId: 'my-app',
+    status: 'enabled',
+    renderingContexts: {
+        inline: { enabled: true }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            url: 'https://cdn.example.com/task-list.js',
+            sizing: {
+                inline: {
+                    height: 'auto' // Grows to fit content (perfect for dynamic lists)
+                }
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 23456,
+            encodedSha256Base64: 'def456...'
+        }
+    }
+};
+```
+
+**Example 4: Only Customizing Inline (Dialog Uses Default)**
+
+```js
+// If you only care about inline sizing
+sizing: {
+    inline: {
+        height: '500px';
+    }
+    // dialog will default to 'fullscreen' (95vw × 90vh)
+}
+```
+
+**Example 5: Only Customizing Dialog (Inline Uses Default)**
+
+```js
+// If you only care about dialog sizing
+sizing: {
+    dialog: 'small'; // 50vw × 50vh
+    // inline will default to 400px height
+}
+```
+
+#### Best Practices
+
+**For Inline Widgets:**
+
+- Use **`"auto"`** for widgets with variable content that should flow naturally (lists, dynamic content, text-heavy widgets)
+- Use **250-300px** for compact widgets (summaries, quick views, small charts)
+- Use **400px** (default) for standard widgets (balanced content)
+- Use **500-600px** for data-rich widgets (tables, detailed visualizations)
+- Consider using viewport units (`vh`) for responsive behavior on mobile devices
+
+**For Dialog Widgets:**
+
+- Use **`'small'`** for quick forms, confirmations, simple settings
+- Use **`'medium'`** for most dialogs (forms, detailed views, settings panels)
+- Use **`'large'`** for data-heavy dialogs (large tables, multi-section forms)
+- Use **`'fullscreen'`** (default) for immersive experiences (editors, dashboards)
+- Use **custom dimensions** when presets don't match your specific layout needs
+
+**General Guidelines:**
+
+- Test your widget at different screen sizes to ensure sizing works well
+- Remember: your widget must use `h-full w-full` to fill the container provided by these sizing constraints
+- Inline widgets with fixed heights should be vertically scrollable if content exceeds the height
+- Inline widgets with `height: "auto"` will grow to fit their content without scrolling
+- Dialog widgets should handle overflow appropriately within their bounds
+
 ### Using Tailwind CSS
 
 Pika chat apps use Tailwind CSS. Your components can use the same classes:
@@ -627,7 +972,6 @@ Web components can invoke the chat app's agent directly using the `invokeAgentAs
 const tagDef = {
     tag: 'weather-widget',
     scope: 'acme',
-    // ... other fields
     componentAgentInstructionsMd: {
         getWeather: `You are a weather assistant. When invoked:
 
@@ -1943,6 +2287,1206 @@ Visit [lucide.dev](https://lucide.dev) to find icons. Common ones include:
 - Ensure you're using the same metadata API instance
 - Check that action ID matches exactly
 - Verify you're calling update methods after state changes
+
+## Static Context (Bootstrap / Initialization)
+
+### Overview
+
+The **static context** is a special rendering context that allows web components to run initialization code when the chat app loads, **without rendering any visible UI**. This is useful for registering global actions (like title bar buttons), setting up event listeners, or performing other bootstrap tasks.
+
+Note a web component may have static and other visual rendering contexts which means you will need to check what rendering context the web component is running and choose to render or not render any UI accordingly.
+
+**Key Characteristics:**
+
+- No visible UI rendered
+- Runs automatically when chat app loads
+- Has access to full `PikaWCContext` via `getPikaContext()`
+- Can register title bar actions, set up listeners, etc.
+- Optional automatic cleanup via `shutDownAfterMs`
+
+**Use Cases:**
+
+- Register custom title bar actions that are always available
+- Initialize app-level features or services
+- Set up global event listeners
+- Perform one-time setup tasks
+
+### How It Works
+
+1. **Tag Definition**: Define a tag with `renderingContexts.static.enabled: true`
+2. **Auto-Injection**: Pika creates a hidden DOM element and injects your component
+3. **Initialization**: Your component's initialization code runs with full context access
+4. **Optional Cleanup**: If `shutDownAfterMs` is specified, the hidden element is removed after that duration
+
+### Basic Example
+
+**Static Context Component:**
+
+```js
+<svelte:options customElement={{ tag: 'my-static-init', shadow: 'none' }} />
+
+<script lang="ts">
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+
+    let context = $state<PikaWCContext>();
+    let initialized = $state(false);
+
+    $effect(() => {
+        if (!initialized) {
+            init();
+        }
+    });
+
+    async function init() {
+        try {
+            // Get Pika context from the hidden DOM element
+            context = await getPikaContext($host());
+            initialized = true;
+
+            console.log('[My App] Initializing features...');
+
+            // Register a custom title bar action
+            context.chatAppState.setOrUpdateCustomTitleBarAction({
+                id: 'my-quick-action',
+                type: 'action',
+                title: 'Quick Action',
+                iconSvg: await getIconSvg('zap', 'lucide'),
+                callback: async () => {
+                    // Open a widget when clicked
+                    await context.chatAppState.renderTag('myapp.my-widget', 'canvas');
+                }
+            });
+
+            console.log('[My App] Initialization complete');
+        } catch (error) {
+            console.error('[My App] Initialization failed:', error);
+        }
+    }
+</script>
+
+<!--
+    This is a static context component - it doesn't render any visible UI.
+    It runs initialization code when the chat app loads.
+-->
+```
+
+**Tag Definition:**
+
+```js
+const myStaticInit: TagDefinitionForCreateOrUpdate = {
+    tag: 'static-init',
+    scope: 'myapp',
+    tagTitle: 'My App Initialization',
+    description: 'Initializes app features on load',
+    canBeGeneratedByLlm: false,
+    canBeGeneratedByTool: false,
+    usageMode: 'chat-app',
+    status: 'enabled',
+    renderingContexts: {
+        static: {
+            enabled: true,
+            shutDownAfterMs: 5000  // Optional: clean up after 5 seconds
+        }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'my-static-init',
+            s3: {
+                s3Key: 'wc/myapp/myapp.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 0,
+            encodedSha256Base64: ''
+        }
+    }
+};
+```
+
+### Real-World Example: Weather App
+
+The weather sample app uses a static context component to register a quick search button in the title bar:
+
+**Component (`weather-static-init.svelte`):**
+
+```js
+<svelte:options customElement={{ tag: 'weather-static-init', shadow: 'none' }} />
+
+<script lang="ts">
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+
+    let context = $state<PikaWCContext>();
+    let initialized = $state(false);
+
+    $effect(() => {
+        if (!initialized) {
+            init();
+        }
+    });
+
+    async function init() {
+        try {
+            context = await getPikaContext($host());
+            initialized = true;
+
+            console.log('[Weather] Initializing weather app features...');
+
+            // Register title bar action for quick weather search
+            context.chatAppState.setOrUpdateCustomTitleBarAction({
+                id: 'weather-quick-search',
+                type: 'action',
+                title: 'Quick Weather Search',
+                iconSvg: await getIconSvg('search', 'lucide'),
+                callback: async () => {
+                    await context.chatAppState.renderTag(
+                        'weather.quick-weather-search',
+                        'canvas'
+                    );
+                }
+            });
+
+            console.log('[Weather] Successfully registered quick search action');
+        } catch (error) {
+            console.error('[Weather] Initialization failed:', error);
+        }
+    }
+</script>
+```
+
+**Tag Definition:**
+
+```js
+const weatherStaticInit: TagDefinitionForCreateOrUpdate = {
+    tag: 'static-init',
+    scope: 'weather',
+    tagTitle: 'Weather App Initialization',
+    description: 'Initializes weather app features on load',
+    status: 'enabled',
+    renderingContexts: {
+        static: {
+            enabled: true,
+            shutDownAfterMs: 5000  // Clean up after 5 seconds
+        }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'weather-static-init',
+            s3: {
+                s3Key: 'wc/weather/weather.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 0,
+            encodedSha256Base64: ''
+        }
+    }
+};
+```
+
+### Configuration Options
+
+#### StaticContextConfig
+
+```js
+interface StaticContextConfig {
+    /** Enable static context rendering */
+    enabled: boolean;
+
+    /**
+     * Optional: Remove the hidden container after this many milliseconds.
+     * If not provided, the container stays in the DOM (hidden) indefinitely.
+     *
+     * Use this when your component only needs to run initialization code
+     * and doesn't need to persist afterwards.
+     *
+     * @example 5000 (remove after 5 seconds)
+     */
+    shutDownAfterMs?: number;
+}
+```
+
+**When to use `shutDownAfterMs`:**
+
+- **Use it** when your component only runs initialization code and doesn't need to stay mounted
+- **Don't use it** when your component needs to maintain state or respond to events over time
+- **Typical value**: 3000-10000ms (3-10 seconds) to ensure initialization completes
+
+### Combining Static with Other Contexts
+
+You can combine static context with other rendering contexts. Use conditional rendering based on `context.renderingContext`:
+
+```js
+<svelte:options customElement={{ tag: 'my-widget', shadow: 'none' }} />
+
+<script lang="ts">
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
+
+    let context = $state<PikaWCContext>();
+    let initialized = $state(false);
+
+    $effect(() => {
+        if (!initialized) {
+            init();
+        }
+    });
+
+    async function init() {
+        const ctx = await getPikaContext($host());
+        context = ctx;
+        initialized = true;
+
+        // Always run initialization code
+        await registerTitleBarAction(ctx);
+
+        // Only load data if rendering visually
+        if (ctx.renderingContext !== 'static') {
+            await loadData();
+        }
+    }
+
+    async function registerTitleBarAction(ctx: PikaWCContext) {
+        ctx.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'my-action',
+            type: 'action',
+            title: 'My Action',
+            iconSvg: await getIconSvg('zap', 'lucide'),
+            callback: async () => {
+                await ctx.chatAppState.renderTag('myapp.my-widget', 'canvas');
+            }
+        });
+    }
+
+    async function loadData() {
+        // Load data for visual rendering
+    }
+</script>
+
+{#if context && context.renderingContext !== 'static'}
+    <!-- Render UI only for non-static contexts -->
+    <div class="p-4">
+        <h2>My Widget</h2>
+        <!-- Your UI here -->
+    </div>
+{/if}
+```
+
+**Tag Definition with Multiple Contexts:**
+
+```js
+const myWidget: TagDefinitionForCreateOrUpdate = {
+    tag: 'my-widget',
+    scope: 'myapp',
+    // ... other fields ...
+    renderingContexts: {
+        static: {
+            enabled: true,
+            shutDownAfterMs: 5000  // Clean up static instance
+        },
+        canvas: {
+            enabled: true
+        },
+        dialog: {
+            enabled: true
+        }
+    }
+    // ... widget config ...
+};
+```
+
+### Best Practices
+
+**1. Keep It Fast:**
+
+Static init code runs on app load, so keep it lightweight:
+
+```js
+// Good - Fast initialization
+async function init() {
+    context = await getPikaContext($host());
+
+    // Register actions
+    context.chatAppState.setOrUpdateCustomTitleBarAction({ ... });
+
+    console.log('Initialized!');
+}
+
+// Avoid - Slow initialization that delays app load
+async function init() {
+    context = await getPikaContext($host());
+
+    // Don't make API calls during init
+    const data = await fetch('https://api.example.com/data');  // BAD
+
+    // Don't do heavy computation
+    processLargeDataset();  // BAD
+}
+```
+
+**2. Use Appropriate Cleanup:**
+
+```js
+// Component only registers actions (no ongoing work)
+renderingContexts: {
+    static: {
+        enabled: true,
+        shutDownAfterMs: 5000  // Clean up after init
+    }
+}
+
+// Component maintains listeners or state
+renderingContexts: {
+    static: {
+        enabled: true
+        // No shutDownAfterMs - keep it mounted
+    }
+}
+```
+
+**3. Error Handling:**
+
+Always wrap initialization in try-catch:
+
+```js
+async function init() {
+    try {
+        context = await getPikaContext($host());
+
+        // Your initialization code here
+        await registerFeatures();
+
+        console.log('Initialization successful');
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        // Optionally show user-facing error
+        // context?.appState.showToast('Failed to initialize features', { type: 'error' });
+    }
+}
+```
+
+**4. Logging:**
+
+Add console logs to help with debugging:
+
+```js
+console.log('[My App] Starting initialization...');
+// ... init code ...
+console.log('[My App] Successfully registered 3 title bar actions');
+```
+
+**5. Cleanup on Unmount:**
+
+If your static component doesn't use `shutDownAfterMs`, clean up when it unmounts:
+
+```js
+import { onDestroy } from 'svelte';
+
+onDestroy(() => {
+    if (context) {
+        // Remove registered actions
+        context.chatAppState.removeCustomTitleBarAction('my-action');
+        console.log('[My App] Cleaned up on unmount');
+    }
+});
+```
+
+### Use Cases
+
+**1. Register Global Title Bar Actions:**
+
+```js
+// Add a "New Search" button to the title bar
+context.chatAppState.setOrUpdateCustomTitleBarAction({
+    id: 'new-search',
+    type: 'action',
+    title: 'New Search',
+    iconSvg: await getIconSvg('search', 'lucide'),
+    callback: async () => {
+        await context.chatAppState.renderTag('myapp.search', 'dialog');
+    }
+});
+```
+
+**2. Initialize App-Wide Services:**
+
+```js
+// Set up a background sync service
+const syncService = new DataSyncService(context);
+syncService.start();
+
+// Store reference in widget data for other components to access
+const storage = context.chatAppState.getUserWidgetDataStoreState('myapp', 'core');
+await storage.setValue('syncService', syncService);
+```
+
+**3. Pre-load User Preferences:**
+
+```js
+// Load and cache user preferences
+const storage = context.chatAppState.getUserWidgetDataStoreState('myapp', 'preferences');
+const prefs = (await storage.getValue) < UserPreferences > 'prefs';
+
+if (!prefs) {
+    // Set defaults
+    await storage.setValue('prefs', {
+        theme: 'light',
+        notifications: true
+    });
+}
+```
+
+**4. Register Event Listeners:**
+
+```js
+// Listen for app-wide events
+context.chatAppState.addEventListener('session-changed', () => {
+    console.log('Session changed - refresh widgets');
+    // Notify other components or refresh data
+});
+```
+
+### Troubleshooting
+
+**Component doesn't run:**
+
+- Verify `static.enabled: true` in tag definition
+- Check that tag definition is properly deployed to DynamoDB
+- Check browser console for errors during injection
+
+**`getPikaContext()` fails:**
+
+- Ensure you're calling it with `$host()` in Svelte: `getPikaContext($host())`
+- Check that the component is properly mounted (even though hidden)
+
+**Actions not appearing:**
+
+- Verify the static component ran (check console logs)
+- Ensure no JavaScript errors in the init code
+- Check that icon SVG is valid
+
+**Memory concerns:**
+
+- Use `shutDownAfterMs` if your component doesn't need to stay mounted
+- Clean up event listeners in `onDestroy()` if not using `shutDownAfterMs`
+
+## Custom Chat App Toolbar Actions
+
+### Overview
+
+Web components can add custom icon buttons to the main chat app toolbar (the top bar of the entire chat application, not widget-specific chrome). These actions appear alongside system actions and are available to users regardless of which context your component is rendered in.
+
+**Use Cases:**
+
+- Global actions that should always be accessible (e.g., "New Search", "Settings", "Help")
+- Cross-component functionality (e.g., "Export All", "Sync Data")
+- Quick access to common workflows
+
+**Two Types of Actions:**
+
+1. **Single Action Button** - Clicking immediately invokes a callback
+2. **Menu Button** - Clicking opens a dropdown menu with multiple actions
+
+### Single Action Button
+
+Add a simple icon button that performs an action when clicked:
+
+```js
+<svelte:options customElement="my-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Add a single action button to the chat app toolbar
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'refresh-all',
+            type: 'action',
+            title: 'Refresh all data',
+            iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+            callback: async () => {
+                await refreshAllData();
+            }
+        });
+    }
+
+    async function refreshAllData() {
+        // Refresh logic here
+        console.log('Refreshing all data...');
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    <!-- Your component content -->
+</div>
+```
+
+### Menu Button
+
+Add a button that opens a menu with multiple actions:
+
+```js
+<svelte:options customElement="my-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Add a menu button to the chat app toolbar
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'widget-menu',
+            title: 'Widget actions',
+            iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>',
+            actions: [
+                {
+                    type: 'action',
+                    id: 'refresh',
+                    title: 'Refresh data',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+                    callback: async () => {
+                        await refreshData();
+                    }
+                },
+                'separator',
+                {
+                    type: 'action',
+                    id: 'export',
+                    title: 'Export to CSV',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+                    callback: async () => {
+                        await exportData();
+                    }
+                },
+                {
+                    type: 'action',
+                    id: 'settings',
+                    title: 'Settings',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+                    callback: () => {
+                        openSettings();
+                    }
+                }
+            ]
+        });
+    }
+
+    async function refreshData() {
+        console.log('Refreshing...');
+    }
+
+    async function exportData() {
+        console.log('Exporting...');
+    }
+
+    function openSettings() {
+        console.log('Opening settings...');
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    <!-- Your component content -->
+</div>
+```
+
+### Menu with Action Groups
+
+Organize menu items into titled groups:
+
+```js
+context.chatAppState.setOrUpdateCustomTitleBarAction({
+    id: 'data-menu',
+    title: 'Data operations',
+    iconSvg:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>',
+    actions: [
+        {
+            type: 'group',
+            title: 'Import/Export',
+            actions: [
+                {
+                    type: 'action',
+                    id: 'import',
+                    title: 'Import data',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>',
+                    callback: async () => {
+                        await importData();
+                    }
+                },
+                {
+                    type: 'action',
+                    id: 'export',
+                    title: 'Export data',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+                    callback: async () => {
+                        await exportData();
+                    }
+                }
+            ]
+        },
+        'separator',
+        {
+            type: 'group',
+            title: 'Maintenance',
+            actions: [
+                {
+                    type: 'action',
+                    id: 'clear-cache',
+                    title: 'Clear cache',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+                    callback: async () => {
+                        await clearCache();
+                    }
+                },
+                {
+                    type: 'action',
+                    id: 'reset',
+                    title: 'Reset to defaults',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+                    callback: async () => {
+                        await resetToDefaults();
+                    }
+                }
+            ]
+        }
+    ]
+});
+```
+
+### API Reference
+
+#### setOrUpdateCustomTitleBarAction()
+
+Add or update a custom toolbar action. If an action with the same ID exists, it will be updated; otherwise, a new action will be added.
+
+**Signature:**
+
+```js
+context.chatAppState.setOrUpdateCustomTitleBarAction(
+    action: ChatAppActionMenu | ChatAppAction
+): void
+```
+
+**Parameters:**
+
+- `action` - Either a single action button or a menu button (see types below)
+
+**Single Action Button Type (`ChatAppAction`):**
+
+```js
+interface ChatAppAction {
+    /** Unique identifier for this action */
+    id: string;
+
+    /** Discriminator for the type */
+    type: 'action';
+
+    /** Tooltip text shown on hover */
+    title: string;
+
+    /** SVG markup string for the icon */
+    iconSvg: string;
+
+    /** Whether action is currently disabled (optional) */
+    disabled?: boolean;
+
+    /** Handler function called when clicked */
+    callback: () => void | Promise<void>;
+}
+```
+
+**Menu Button Type (`ChatAppActionMenu`):**
+
+```js
+interface ChatAppActionMenu {
+    /** Unique identifier for this action menu */
+    id: string;
+
+    /** Tooltip text shown on hover */
+    title: string;
+
+    /** SVG markup string for the icon */
+    iconSvg: string;
+
+    /** Whether the menu button is currently disabled (optional) */
+    disabled?: boolean;
+
+    /** Array of menu items (actions, groups, or separators) */
+    actions: ChatAppActionMenuElements[];
+}
+```
+
+**Action Group Type (`ChatAppActionGroup`):**
+
+```js
+interface ChatAppActionGroup {
+    /** Discriminator for the type */
+    type: 'group';
+
+    /** Title displayed above the group in the menu */
+    title: string;
+
+    /** Actions to display in this group */
+    actions: (ChatAppAction | 'separator')[];
+}
+```
+
+**Menu Elements:**
+
+```js
+type ChatAppActionMenuElements = ChatAppActionGroup | ChatAppAction | 'separator';
+```
+
+#### removeCustomTitleBarAction()
+
+Remove a custom toolbar action by its ID.
+
+**Signature:**
+
+```js
+context.chatAppState.removeCustomTitleBarAction(actionId: string): void
+```
+
+**Parameters:**
+
+- `actionId` - The unique ID of the action to remove
+
+**Example:**
+
+```js
+// Remove an action
+context.chatAppState.removeCustomTitleBarAction('my-action');
+```
+
+### Dynamic Updates
+
+#### Updating Actions
+
+To update an existing action, call `setOrUpdateCustomTitleBarAction()` again with the same ID:
+
+```js
+let refreshing = $state(false);
+
+async function startRefresh() {
+    refreshing = true;
+
+    // Disable the action while refreshing
+    context.chatAppState.setOrUpdateCustomTitleBarAction({
+        id: 'refresh',
+        type: 'action',
+        title: 'Refreshing...',
+        iconSvg:
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+        disabled: true,
+        callback: async () => {
+            await refreshData();
+        }
+    });
+
+    try {
+        await refreshData();
+    } finally {
+        refreshing = false;
+
+        // Re-enable the action
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'refresh',
+            type: 'action',
+            title: 'Refresh data',
+            iconSvg:
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+            disabled: false,
+            callback: async () => {
+                await startRefresh();
+            }
+        });
+    }
+}
+```
+
+#### Conditional Actions
+
+Add or remove actions based on component state:
+
+```js
+let editMode = $state(false);
+
+function toggleEditMode() {
+    editMode = !editMode;
+
+    if (editMode) {
+        // Add save/cancel actions when entering edit mode
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'edit-actions',
+            title: 'Edit mode actions',
+            iconSvg:
+                '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>',
+            actions: [
+                {
+                    type: 'action',
+                    id: 'save',
+                    title: 'Save changes',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+                    callback: async () => {
+                        await saveChanges();
+                        toggleEditMode();
+                    }
+                },
+                {
+                    type: 'action',
+                    id: 'cancel',
+                    title: 'Cancel',
+                    iconSvg:
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+                    callback: () => {
+                        toggleEditMode();
+                    }
+                }
+            ]
+        });
+    } else {
+        // Remove edit actions when exiting edit mode
+        context.chatAppState.removeCustomTitleBarAction('edit-actions');
+    }
+}
+```
+
+### Real-World Examples
+
+#### Example 1: Weather Widget with Quick Search
+
+```js
+<svelte:options customElement="weather-widget" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let cities = $state<string[]>(['San Francisco', 'New York', 'London']);
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Add a menu with city management actions
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'weather-menu',
+            title: 'Weather actions',
+            iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>',
+            actions: [
+                {
+                    type: 'action',
+                    id: 'add-city',
+                    title: 'Add city',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+                    callback: () => {
+                        promptAddCity();
+                    }
+                },
+                {
+                    type: 'action',
+                    id: 'refresh-all',
+                    title: 'Refresh all cities',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+                    callback: async () => {
+                        await refreshAllCities();
+                    }
+                },
+                'separator',
+                {
+                    type: 'action',
+                    id: 'settings',
+                    title: 'Weather settings',
+                    iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+                    callback: () => {
+                        openSettings();
+                    }
+                }
+            ]
+        });
+    }
+
+    function promptAddCity() {
+        // Show dialog to add city
+        context.chatAppState.renderTag('weather.city-selector', 'dialog');
+    }
+
+    async function refreshAllCities() {
+        // Refresh all cities
+        context.appState.showToast('Refreshing all cities...', { type: 'info' });
+    }
+
+    function openSettings() {
+        // Open settings dialog
+        context.chatAppState.renderTag('weather.settings', 'dialog');
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    {#each cities as city}
+        <div class="city-card">{city}</div>
+    {/each}
+</div>
+```
+
+#### Example 2: Data Dashboard with Export
+
+```js
+<svelte:options customElement="data-dashboard" />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+    let exporting = $state(false);
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Add a single export action
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'export',
+            type: 'action',
+            title: 'Export dashboard data',
+            iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+            callback: async () => {
+                await exportDashboard();
+            }
+        });
+    }
+
+    async function exportDashboard() {
+        exporting = true;
+
+        // Disable the button while exporting
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'export',
+            type: 'action',
+            title: 'Exporting...',
+            iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+            disabled: true,
+            callback: async () => {
+                await exportDashboard();
+            }
+        });
+
+        try {
+            // Export logic here
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            context.appState.showToast('Dashboard exported successfully', { type: 'success' });
+        } catch (error) {
+            context.appState.showToast('Export failed', { type: 'error' });
+        } finally {
+            exporting = false;
+
+            // Re-enable the button
+            context.chatAppState.setOrUpdateCustomTitleBarAction({
+                id: 'export',
+                type: 'action',
+                title: 'Export dashboard data',
+                iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+                disabled: false,
+                callback: async () => {
+                    await exportDashboard();
+                }
+            });
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="p-4">
+    <h2>Dashboard</h2>
+    <!-- Dashboard content -->
+</div>
+```
+
+### Best Practices
+
+**1. Use Unique IDs:**
+
+```js
+// Good - Scoped with component prefix
+id: 'weather-widget-refresh';
+
+// Avoid - Generic ID might conflict with other components
+id: 'refresh';
+```
+
+**2. Keep Menus Focused:**
+
+```js
+// Good - 3-5 related actions
+actions: [action1, 'separator', action2, action3];
+
+// Avoid - Too many unrelated actions
+actions: [
+    /* 15 different actions */
+];
+```
+
+**3. Use Descriptive Titles:**
+
+```js
+// Good - Clear and specific
+title: 'Export all weather data to CSV';
+
+// Avoid - Too vague
+title: 'Export';
+```
+
+**4. Clean Up on Unmount:**
+
+If your component is removed or context changes, clean up your actions:
+
+```js
+import { onDestroy } from 'svelte';
+
+onDestroy(() => {
+    if (context) {
+        context.chatAppState.removeCustomTitleBarAction('my-action');
+    }
+});
+```
+
+**5. Provide Visual Feedback:**
+
+Disable actions during async operations and show toast notifications:
+
+```js
+async function performAction() {
+    // Disable
+    context.chatAppState.setOrUpdateCustomTitleBarAction({
+        id: 'my-action',
+        type: 'action',
+        title: 'Processing...',
+        iconSvg: '...',
+        disabled: true,
+        callback: performAction
+    });
+
+    try {
+        await doWork();
+        context.appState.showToast('Success!', { type: 'success' });
+    } finally {
+        // Re-enable
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'my-action',
+            type: 'action',
+            title: 'Do work',
+            iconSvg: '...',
+            disabled: false,
+            callback: performAction
+        });
+    }
+}
+```
+
+**6. Consider Component Lifecycle:**
+
+Only add toolbar actions when your component is in a context where they make sense:
+
+```js
+async function init() {
+    context = await getPikaContext($host());
+
+    // Only add global actions for canvas or spotlight views
+    if (context.renderingContext === 'canvas' || context.renderingContext === 'spotlight') {
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            // ... action definition
+        });
+    }
+}
+```
+
+**7. Use Action Groups for Organization:**
+
+When you have many related actions, use groups to keep the menu organized:
+
+```js
+// Good - Grouped by category
+actions: [
+    {
+        type: 'group',
+        title: 'Data',
+        actions: [
+            /* data actions */
+        ]
+    },
+    'separator',
+    {
+        type: 'group',
+        title: 'View',
+        actions: [
+            /* view actions */
+        ]
+    }
+];
+```
+
+### Troubleshooting
+
+#### Action doesn't appear
+
+- Verify you called `setOrUpdateCustomTitleBarAction()` after getting context
+- Check browser console for errors
+- Ensure `iconSvg` contains valid SVG markup
+- Verify the action ID is unique
+
+#### Icon not rendering
+
+- Verify the SVG string is valid and properly formatted
+- Check icon exists at [lucide.dev](https://lucide.dev)
+- Ensure SVG includes proper namespace: `xmlns="http://www.w3.org/2000/svg"`
+
+#### Menu doesn't open
+
+- Ensure you're passing an `actions` array (not just a single action)
+- Check that each menu item has the correct structure
+- Verify `type: 'action'` is set for each action in the menu
+
+#### Action callback not firing
+
+- Check browser console for JavaScript errors
+- Verify the callback function is defined and accessible
+- Ensure the action is not disabled
 
 ## Best Practices
 

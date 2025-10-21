@@ -3,11 +3,13 @@ import type { FetchZ } from '$client/app/types';
 import { UserWidgetDataStoreState } from '$client/features/chat/user-widget-data-store.state.svelte';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
 import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
-import findAndParseJsonLikeText from 'json-like-parse';
+import { initializeCanonicalTagMap } from '$lib/client/webcomponent-utils';
 import type { Page } from '@sveltejs/kit';
-import { SvelteMap } from 'svelte/reactivity';
+import findAndParseJsonLikeText from 'json-like-parse';
 import type {
     AddChatSessionFeedbackRequest,
+    ChatAppAction,
+    ChatAppActionMenu,
     ChatAppMode,
     ChatSessionFeedbackForCreate,
     CreateSharedSessionRequest,
@@ -26,6 +28,7 @@ import type {
     SharedSessionVisitHistory,
     ShareSessionState,
     ShowToastFn,
+    StaticWidgetTagDefinition,
     TagDefinition,
     TagDefinitionWidget,
     TagDefinitionWidgetWebComponent,
@@ -68,6 +71,7 @@ import type { IChatAppState, IWidgetMetadataAPI } from 'pika-shared/types/chatbo
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import type { Component, Snippet } from 'svelte';
+import { SvelteMap } from 'svelte/reactivity';
 import { v7 as uuidv7 } from 'uuid';
 import { UploadInstance } from '../upload/upload-instance.svelte';
 import { UploadState } from '../upload/upload.state.svelte';
@@ -76,7 +80,6 @@ import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
 import { WidgetRegistry } from './widgets/widget-registry';
-import { initializeCanonicalTagMap } from '$lib/client/webcomponent-utils';
 
 const MAX_FILES = 5;
 
@@ -110,6 +113,9 @@ export class ChatAppState implements IChatAppState {
 
     // Widget metadata storage - keyed by instanceId
     #widgetMetadata = $state<Map<string, WidgetMetadataState>>(new SvelteMap());
+
+    // Action button/action button menu that will appear at the top of the chat app in the title bar. Used by widgets to register global actions.
+    #customTitleBarActions = $state<(ChatAppActionMenu | ChatAppAction)[]>([]);
 
     #chatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #sortedChatSessions = $derived.by(() => {
@@ -279,6 +285,7 @@ export class ChatAppState implements IChatAppState {
     });
 
     #spotlightWidgets = $state<SpotlightWidget[]>([]);
+    #staticWidgets = $state<StaticWidgetTagDefinition[]>([]);
     #spotlightUserPrefs = $state<UserSpotlightPreferences | undefined>(undefined);
     #canvasWidget = $state<CanvasWidgetState | undefined>(undefined);
     #canvasOpen = $state(false);
@@ -334,6 +341,10 @@ export class ChatAppState implements IChatAppState {
         return result.length > maxToShow ? result.slice(0, maxToShow) : result;
     });
 
+    get customTitleBarActions(): (ChatAppActionMenu | ChatAppAction)[] {
+        return this.#customTitleBarActions;
+    }
+
     get entityFeatureEnabled() {
         return this.#entityFeatureEnabled;
     }
@@ -345,6 +356,10 @@ export class ChatAppState implements IChatAppState {
     // Spotlight getters
     get spotlightWidgets() {
         return this.#spotlightWidgets;
+    }
+
+    get staticWidgets() {
+        return this.#staticWidgets;
     }
 
     // Canvas getters
@@ -432,6 +447,44 @@ export class ChatAppState implements IChatAppState {
      */
     get widgetMetadata(): Map<string, WidgetMetadataState> {
         return this.#widgetMetadata;
+    }
+
+    /**
+     * You set or update a custom title bar action by passing in a ChatAppActionMenu or ChatAppAction.
+     * If you want to disable an action in the action menu, still just pass in the whole menu object that
+     * includes the action you want to disable.
+     *
+     * @param action - The action to set or update
+     * @example
+     * ```
+     * ctx.chatAppState.setOrUpdateCustomTitleBarAction({
+     *   id: 'refresh',
+     *   title: 'Refresh',
+     *   iconSvg: '<svg>...</svg>',
+     *   callback: () => refresh()
+     * });
+     * ```
+     */
+    setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction) {
+        // Loop through and if this ID exists, replace it, otherwise add it to the end.
+        const existingIndex = this.#customTitleBarActions.findIndex((a) => a.id === action.id);
+        if (existingIndex !== -1) {
+            this.#customTitleBarActions[existingIndex] = action;
+        } else {
+            this.#customTitleBarActions.push(action);
+        }
+    }
+
+    /**
+     * Remove a custom title bar action by its ID.
+     * @param actionId - The ID of the action to remove
+     * @example
+     * ```
+     * ctx.chatAppState.removeCustomTitleBarAction('refresh');
+     * ```
+     */
+    removeCustomTitleBarAction(actionId: string) {
+        this.#customTitleBarActions = this.#customTitleBarActions.filter((a) => a.id !== actionId);
     }
 
     /**
@@ -853,6 +906,9 @@ export class ChatAppState implements IChatAppState {
         this.#tagDefs = tagDefinitionsWithOverrides;
         this.#mode = mode;
         this.#userPrefs = new UserPrefsState(this.fetchz, showToast);
+
+        // Initialize static widgets
+        this.#initializeStaticWidgets();
         this.#showToast = showToast;
 
         if (this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides) {
@@ -1238,6 +1294,7 @@ export class ChatAppState implements IChatAppState {
             const converseRequest: ConverseRequest = {
                 message: messageToSendToServer,
                 userId: this.#user.userId,
+                source: 'user',
                 sessionId: wasInterimSession ? undefined : sessionId,
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
@@ -1399,6 +1456,7 @@ export class ChatAppState implements IChatAppState {
             const converseRequest: ConverseRequest = {
                 message: userMessage,
                 userId: this.#user.userId,
+                source: options?.source ?? 'component',
                 agentId: this.#chatApp.agentId,
                 chatAppId: this.#chatApp.chatAppId,
                 features: {} as ChatAppOverridableFeatures, // This will be set server side
@@ -2273,6 +2331,16 @@ export class ChatAppState implements IChatAppState {
 
         // 3. Resolve which widgets to show and in what order
         this.#spotlightWidgets = this.resolveSpotlightWidgets(spotlightTags, this.#spotlightUserPrefs);
+    }
+
+    /**
+     * Initialize static context widgets.
+     * These are widgets that run initialization code but don't render visually.
+     * Called once during chat app state construction.
+     */
+    #initializeStaticWidgets() {
+        // Filter tag definitions for static-enabled widgets and cast to StaticWidgetTagDefinition
+        this.#staticWidgets = this.#tagDefs.filter((tag) => tag.widget.type === 'web-component' && tag.renderingContexts?.static?.enabled === true) as StaticWidgetTagDefinition[];
     }
 
     /**

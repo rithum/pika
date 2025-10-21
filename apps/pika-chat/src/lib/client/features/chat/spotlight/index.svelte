@@ -25,9 +25,10 @@
     interface Props {
         children?: Snippet<[]>;
         mode: 'thumbnail' | 'card';
+        isVisible: boolean;
     }
 
-    const { children, mode }: Props = $props();
+    let { children, mode, isVisible = $bindable() }: Props = $props();
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
@@ -35,7 +36,6 @@
     let current = $state(0);
     let count = $state(0);
     let userOverriddenMode = $state<'thumbnail' | 'card' | undefined>(undefined);
-    let isVisible = $state(true);
     let hoveredCardId = $state<string | undefined>(undefined);
     let widgetContainers = $state<Map<string, HTMLElement>>(new Map());
     let widgetInstanceIds = $state<Map<string, string>>(new Map()); // tagId -> instanceId mapping
@@ -223,7 +223,7 @@
 </script>
 
 {#if spotlightWidgets.length > 0}
-    <div class="w-full max-w-5xl mx-auto mt-2 px-4">
+    <div class="w-full mx-auto mt-2 px-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 min-h-9">
                 <SpotlightIcon class="w-5 h-5" />

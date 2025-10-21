@@ -625,16 +625,18 @@ export class MyWidgetStack extends Construct {
 
 ### For Global Tags (All Chat Apps)
 
-Use `chatAppId: 'chat-app-global'` for tags available to all chat apps:
+Use `usageMode: 'global'` for tags automatically available to all chat apps:
 
 ```js
 const globalTag: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
     tag: 'my-widget',
     scope: 'acme',
-    chatAppId: 'chat-app-global', // Available to all chat apps
+    usageMode: 'global', // Automatically available to all chat apps
     // ... rest of definition
 };
 ```
+
+**Note:** Chat apps can disable global tags by adding them to `features.tags.tagsDisabled`.
 
 ### Complete Deployment Example
 

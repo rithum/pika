@@ -267,9 +267,9 @@ export function convertChatSessionToSnakeFromCamelCase<T extends RecordOrUndef =
 
 // Convert ChatSession from snake_case (from OpenSearch) to camelCase
 export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef = undefined>(session: SnakeCase<ChatSession<T>>): ChatSession<T> {
-    const { session_attributes, ...sessionWithoutAttributes } = session;
+    const { session_attributes, chat_app_sk, ...sessionWithoutAttributes } = session as any;
 
-    // Convert everything except session_attributes
+    // Convert everything except session_attributes and chat_app_sk (internal GSI field)
     const converted = convertToCamelCase(sessionWithoutAttributes as any) as any;
 
     // Add sessionAttributes back with camelCase key but preserve custom data structure

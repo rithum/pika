@@ -290,11 +290,12 @@ export async function getSessionsByUserIdAndChatAppId(userId: string, chatAppId:
     const sessions = await ddbDocClient.query({
         TableName: getChatSessionTable(),
         IndexName: 'user-chat-app-index',
-        KeyConditionExpression: 'user_id = :userId and chat_app_id = :chatAppId',
+        KeyConditionExpression: 'user_id = :userId and begins_with(chat_app_sk, :chatAppSkPrefix)',
         ExpressionAttributeValues: {
             ':userId': userId,
-            ':chatAppId': chatAppId
-        }
+            ':chatAppSkPrefix': `${chatAppId}#user#`
+        },
+        ScanIndexForward: false // Newest first (descending order by lastUpdate)
     });
 
     return (sessions.Items || []).map((item) => convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(item as SnakeCase<ChatSession<RecordOrUndef>>));
@@ -313,9 +314,26 @@ export async function getChatSessionByUserIdAndSessionId(userId: string, session
 }
 
 export async function addChatSession(chatSession: ChatSession<RecordOrUndef>): Promise<ChatSession<RecordOrUndef>> {
+    const item = convertChatSessionToSnakeFromCamelCase<RecordOrUndef>(chatSession);
+
+    // Default source to 'user' if not present
+    const source = chatSession.source || 'user';
+    if (!chatSession.source) {
+        (item as any).source = 'user';
+    }
+
+    // Map source to the value used in composite key
+    // If source is missing, 'user', or 'component-as-user', use 'user' in the key
+    // If source is 'component', use 'component' in the key
+    const sourceForKey = !chatSession.source || chatSession.source === 'user' || chatSession.source === 'component-as-user' ? 'user' : 'component';
+
+    // Add composite key for user-chat-app-index GSI sorting
+    // Format: ${chatAppId}#${source}#${lastUpdate}
+    (item as any).chat_app_sk = `${chatSession.chatAppId}#${sourceForKey}#${chatSession.lastUpdate}`;
+
     await ddbDocClient.put({
         TableName: getChatSessionTable(),
-        Item: convertChatSessionToSnakeFromCamelCase<RecordOrUndef>(chatSession)
+        Item: item
     });
 
     return chatSession;
@@ -376,29 +394,51 @@ export async function getFeedbackBySessionId(sessionId: string): Promise<ChatSes
  * update timestamp.  Then, we also increment the usage stats for the session in the session row using
  * dynamodb's add operation.
  */
-export async function updateSession(sessionId: string, userId: string, lastMessageId: string, timestamp: string, usage?: ChatMessageUsage): Promise<void> {
+export async function updateSession(
+    sessionId: string,
+    userId: string,
+    lastMessageId: string,
+    timestamp: string,
+    usage?: ChatMessageUsage,
+    chatAppId?: string,
+    source?: string
+): Promise<void> {
+    // Build the SET expression dynamically to include composite key if chatAppId is provided
+    let setExpression = 'last_message_id = :messageId, last_update = :timestamp';
+    const expressionAttributeValues: any = {
+        ':messageId': lastMessageId,
+        ':timestamp': timestamp,
+        ':inputCost': usage?.inputCost ?? 0,
+        ':inputTokens': usage?.inputTokens ?? 0,
+        ':outputCost': usage?.outputCost ?? 0,
+        ':outputTokens': usage?.outputTokens ?? 0,
+        ':totalCost': usage?.totalCost ?? 0
+    };
+
+    // Update composite key for GSI if chatAppId is provided
+    if (chatAppId) {
+        // Map source to the value used in composite key
+        // If source is missing, 'user', or 'component-as-user', use 'user' in the key
+        // If source is 'component', use 'component' in the key
+        const sourceForKey = !source || source === 'user' || source === 'component-as-user' ? 'user' : 'component';
+
+        setExpression += ', chat_app_sk = :chatAppSk';
+        expressionAttributeValues[':chatAppSk'] = `${chatAppId}#${sourceForKey}#${timestamp}`;
+    }
+
     await ddbDocClient.update({
         TableName: getChatSessionTable(),
         Key: {
             user_id: userId,
             session_id: sessionId
         },
-        UpdateExpression: `SET last_message_id = :messageId, 
-                               last_update = :timestamp
+        UpdateExpression: `SET ${setExpression}
                            ADD input_cost :inputCost,
                                input_tokens :inputTokens,
                                output_cost :outputCost,
                                output_tokens :outputTokens,
                                total_cost :totalCost`,
-        ExpressionAttributeValues: {
-            ':messageId': lastMessageId,
-            ':timestamp': timestamp,
-            ':inputCost': usage?.inputCost ?? 0,
-            ':inputTokens': usage?.inputTokens ?? 0,
-            ':outputCost': usage?.outputCost ?? 0,
-            ':outputTokens': usage?.outputTokens ?? 0,
-            ':totalCost': usage?.totalCost ?? 0
-        }
+        ExpressionAttributeValues: expressionAttributeValues
     });
 }
 

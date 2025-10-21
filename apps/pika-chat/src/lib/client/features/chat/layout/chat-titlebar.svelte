@@ -5,7 +5,7 @@
     import Pin from '$icons/lucide/pin';
     import PinOff from '$icons/lucide/pin-off';
     import Settings2 from '$icons/lucide/settings-2';
-    import Share from '$icons/lucide/share';
+    import Share from '$icons/lucide/share-2';
     import SquarePen from '$icons/lucide/square-pen';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
@@ -134,6 +134,7 @@
         {#if !standalone}
             <div class="flex items-center gap-1">
                 {@render newChatButton()}
+                {#if chat.customTitleBarActions.length > 0}{@render customTitleBarActions()}{/if}
                 {@render shareAndPin()}
                 {@render settingsDropdown(true)}
                 <Button
@@ -147,6 +148,7 @@
             </div>
         {:else}
             <div class="flex items-center gap-1">
+                {#if chat.customTitleBarActions.length > 0}{@render customTitleBarActions()}{/if}
                 {@render shareAndPin()}
                 {@render settingsDropdown(false)}
             </div>
@@ -154,6 +156,82 @@
         {#if chat.pageHeaderRight}{@render chat.pageHeaderRight()}{/if}
     </div>
 </div>
+
+{#snippet customTitleBarActions()}
+    {#each chat.customTitleBarActions as action}
+        {#if 'actions' in action}
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                    <!-- This is a ChatAppActionMenu (menu button) -->
+                    <TooltipPlus tooltip={action.title}>
+                        <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8" disabled={action.disabled}>
+                            {#if action.iconSvg}
+                                <div class="icon-wrapper" style="width: 1.3rem; height: 1.2rem;">
+                                    {@html action.iconSvg}
+                                </div>
+                            {/if}
+                        </Button>
+                    </TooltipPlus>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                    {#each action.actions as menuElement}
+                        {#if menuElement === 'separator'}
+                            <DropdownMenu.Separator />
+                        {:else if menuElement.type === 'group'}
+                            <DropdownMenu.Group>
+                                <DropdownMenu.Label>{menuElement.title}</DropdownMenu.Label>
+                                {#each menuElement.actions as groupAction}
+                                    {#if groupAction === 'separator'}
+                                        <DropdownMenu.Separator />
+                                    {:else}
+                                        <DropdownMenu.Item
+                                            disabled={groupAction.disabled}
+                                            onclick={groupAction.callback}
+                                        >
+                                            {#if groupAction.iconSvg}
+                                                <div class="icon-wrapper h-4 w-4 flex-shrink-0 mr-2">
+                                                    {@html groupAction.iconSvg}
+                                                </div>
+                                            {/if}
+                                            {groupAction.title}
+                                        </DropdownMenu.Item>
+                                    {/if}
+                                {/each}
+                            </DropdownMenu.Group>
+                        {:else}
+                            <!-- This is a ChatAppAction in the menu -->
+                            <DropdownMenu.Item disabled={menuElement.disabled} onclick={menuElement.callback}>
+                                {#if menuElement.iconSvg}
+                                    <div class="icon-wrapper h-4 w-4 flex-shrink-0 mr-2">
+                                        {@html menuElement.iconSvg}
+                                    </div>
+                                {/if}
+                                {menuElement.title}
+                            </DropdownMenu.Item>
+                        {/if}
+                    {/each}
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+        {:else}
+            <!-- This is a ChatAppAction (single action button) -->
+            <TooltipPlus tooltip={action.title}>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="pl-0 pr-0 w-8"
+                    disabled={action.disabled}
+                    onclick={action.callback}
+                >
+                    {#if action.iconSvg}
+                        <div class="icon-wrapper" style="width: 1.3rem; height: 1.2rem;">
+                            {@html action.iconSvg}
+                        </div>
+                    {/if}
+                </Button>
+            </TooltipPlus>
+        {/if}
+    {/each}
+{/snippet}
 
 {#snippet shareAndPin()}
     {#if chat.pinningSession || chat.unpinningSession || chat.unsharingSession}

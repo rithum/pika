@@ -14,7 +14,7 @@ const tagDefinition: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetPikaCompi
     canBeGeneratedByLlm: true,
     canBeGeneratedByTool: true,
     status: 'enabled',
-    chatAppId: 'chat-app-global',
+    usageMode: 'global',
     renderingContexts: {
         inline: { enabled: true },
         canvas: { enabled: true },

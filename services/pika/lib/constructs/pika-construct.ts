@@ -650,6 +650,8 @@ export class PikaConstruct extends Construct {
             timeToLiveAttribute: 'exp_date_unix_seconds'
         });
 
+        // Add GSI for querying sessions by user and chat app with chronological sorting
+        // Sort key is composite: ${chatAppId}#${user|component}#${lastUpdate} for correct chronological ordering
         chatSessionTable.addGlobalSecondaryIndex({
             indexName: 'user-chat-app-index',
             partitionKey: {
@@ -657,7 +659,7 @@ export class PikaConstruct extends Construct {
                 type: dynamodb.AttributeType.STRING
             },
             sortKey: {
-                name: 'chat_app_id',
+                name: 'chat_app_sk',
                 type: dynamodb.AttributeType.STRING
             },
             projectionType: dynamodb.ProjectionType.ALL
@@ -1152,11 +1154,17 @@ export class PikaConstruct extends Construct {
             removalPolicy: this.props.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
         });
 
-        // Add GSI for querying by chatAppId and status
+        // DEPLOYMENT NOTE: When upgrading from chatappid-status-index to scope-status-index:
+        // 1. First deploy: Keep this new GSI commented out, deploy to remove old index
+        // 2. Wait for deletion to complete in AWS Console (check DynamoDB table)
+        // 3. Second deploy: Uncomment the new GSI below and deploy again
+
+        // Add GSI for querying by usage_mode (scope field) and status
+        // This enables efficient queries for global tags (usage_mode='global')
         tagDefinitionsTable.addGlobalSecondaryIndex({
-            indexName: 'chatappid-status-index',
+            indexName: 'scope-status-index',
             partitionKey: {
-                name: 'chat_app_id',
+                name: 'usage_mode',
                 type: dynamodb.AttributeType.STRING
             },
             sortKey: {
