@@ -142,6 +142,11 @@ These feature updates should be included in [{{finalizeVersion}}].
 
 2. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** - Keep in sync
 
+3. **apps/pika-docs/src/routes/docs/releases/overview/+page.md** - Update if needed:
+    - Check if "Upcoming Release" section mentions {{finalizeVersion}}
+    - If yes, update it with the new changes/summary
+    - If no, the overview is fine as-is
+
 **CRITICAL Documentation Rules:**
 
 - TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
@@ -150,8 +155,8 @@ These feature updates should be included in [{{finalizeVersion}}].
 **Release Documentation Note:**
 If adding breaking changes to [{{finalizeVersion}}], ensure:
 
-- \`releases.json\` - upcomingBreakingChanges array is accurate for this version
-- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Reflects the upcoming release details
+- \`releases.json\` - Ensure {{finalizeVersion}} entry has \`breaking: true\` if adding breaking changes
+- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Update "Upcoming Release" section to reflect breaking changes
 
 **Action Required:** Add to [{{finalizeVersion}}] - perfect for last-minute fixes!
 ```

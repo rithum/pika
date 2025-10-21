@@ -4,7 +4,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.4.0` (October 20, 2025)
+**Latest Stable:** `0.5.1` (October 21, 2025)
 
 Check your project version:
 
@@ -12,19 +12,11 @@ Check your project version:
 cat .pika-sync.json | grep pikaVersion
 ```
 
-## Upcoming Release
+**What's New in 0.5.1:**
 
-**Next Version:** `0.5.0` (Breaking Changes)
+- Fixed interim chat sessions to properly include `source` field for consistent session tracking
 
-⚠️ **Breaking Change Alert:** Two breaking changes in this release:
-
-1. **Tag System Refactor** - `chatAppId` → `usageMode` model
-    - Requires manual DynamoDB migration (GSI replacement)
-2. **Chat Session GSI Update** - Fixed chronological sorting and added source filtering
-    - Updated `user-chat-app-index` with composite sort key (`chat_app_sk`)
-    - Added `source` field to distinguish user vs component-initiated sessions
-
-- See [Migration Guide](/docs/releases/migration-guides/upgrading-to-0-5-0) for complete upgrade instructions
+**Note:** If upgrading from 0.4.0 or earlier, be aware that 0.5.0 introduced breaking changes. See [Migration Guide](/docs/releases/migration-guides/upgrading-to-0-5-0) for upgrade instructions.
 
 ## How Releases Work
 
@@ -87,10 +79,11 @@ When breaking changes are introduced:
 
 ## Version History
 
-| Version | Date     | Type     | Summary                                       |
-| ------- | -------- | -------- | --------------------------------------------- |
-| 0.5.0   | TBD      | Breaking | Tag system refactor + Chat session GSI update |
-| 0.4.0   | Oct 2025 | Stable   | Initial tracked release                       |
+| Version | Date        | Type     | Summary                                       |
+| ------- | ----------- | -------- | --------------------------------------------- |
+| 0.5.1   | Oct 21 2025 | Patch    | Bug fixes                                     |
+| 0.5.0   | Oct 21 2025 | Breaking | Tag system refactor + Chat session GSI update |
+| 0.4.0   | Oct 20 2025 | Stable   | Initial tracked release                       |
 
 ## Learn More
 
