@@ -5,7 +5,7 @@
     {
       "version": "0.6.2",
       "date": "2025-10-22",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Chat input height fix",
       "highlights": [
