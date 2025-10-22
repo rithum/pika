@@ -2,6 +2,17 @@
 
 Complete version history of the Pika Framework.
 
+## [0.6.2] - 2025-10-22
+
+### Fixed
+
+- **Chat Input Height** - Textarea now properly resets to original size after submitting questions
+    - Fixed height reset behavior in chat input component
+    - Ensures consistent UI appearance after message submission
+    - Improves user experience with predictable input field sizing
+
+---
+
 ## [0.6.1] - 2025-10-21
 
 ### Fixed

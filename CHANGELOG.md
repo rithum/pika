@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2025-10-22
+
+### Fixed
+
+- Chat input textarea now properly shrinks back to original size after submitting a question
+    - Fixed textarea height reset behavior in chat input component
+    - Ensures consistent UI appearance after message submission
+
 ## [0.6.1] - 2025-10-21
 
 ### Fixed

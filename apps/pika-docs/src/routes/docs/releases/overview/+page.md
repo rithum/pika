@@ -4,13 +4,19 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.6.1` (October 21, 2025)
+**Latest Stable:** `0.6.2` (October 22, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+**What's New in 0.6.2:**
+
+- **Chat Input Height Fix** - Textarea now properly resets to original size after submitting questions
+- Improved user experience with predictable input field sizing
+- Fixed height reset behavior in chat input component
 
 **What's New in 0.6.1:**
 
@@ -91,6 +97,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.6.2   | Oct 22 2025 | Patch    | Chat input height fix                         |
 | 0.6.1   | Oct 21 2025 | Patch    | S3 file content route fixes                   |
 | 0.6.0   | Oct 21 2025 | Feature  | S3 file access for web components             |
 | 0.5.2   | Oct 21 2025 | Patch    | Instruction augmentation fixes                |

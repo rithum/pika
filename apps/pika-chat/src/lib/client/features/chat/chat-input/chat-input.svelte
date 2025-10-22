@@ -103,6 +103,13 @@
         // Initial height adjustment, triggers just once on mount
         autoResizeTextarea();
     });
+
+    $effect(() => {
+        // Watch for changes to chat.chatInput and resize accordingly
+        // This handles programmatic changes (like clearing after send)
+        chat.chatInput;
+        autoResizeTextarea();
+    });
 </script>
 
 <div
