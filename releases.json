@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.6.1",
-  "currentDevelopment": "0.6.1",
+  "latestVersion": "0.6.2",
+  "currentDevelopment": "0.6.2",
   "releases": [
+    {
+      "version": "0.6.2",
+      "date": "2025-10-22",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Chat input height fix",
+      "highlights": [
+        "Fixed chat input not shrinking after submit",
+        "Improved textarea height reset behavior"
+      ]
+    },
     {
       "version": "0.6.1",
       "date": "2025-10-21",
