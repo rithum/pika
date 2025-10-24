@@ -5,7 +5,7 @@
     {
       "version": "0.7.0",
       "date": "2025-10-24",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Web component initialization enhancement",
       "highlights": [
