@@ -4,13 +4,22 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.7.0` (October 24, 2025)
+**Latest Stable:** `0.8.0` (October 24, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+**What's New in 0.8.0:**
+
+- **Widget Instance Registry** - Comprehensive tracking system for all rendered web components
+- Centralized registry accessible via `chatAppState.widgetInstances` with DOM element references
+- Automatic lifecycle tracking across all rendering contexts (spotlight, canvas, dialog, inline, static)
+- Cross-widget communication, debugging, and programmatic manipulation capabilities
+- Memory leak prevention with automatic cleanup when widgets are removed
+- Enhanced API returning both instanceId and element reference
 
 **What's New in 0.7.0:**
 
@@ -105,6 +114,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.8.0   | Oct 24 2025 | Feature  | Widget instance registry with DOM tracking    |
 | 0.7.0   | Oct 24 2025 | Feature  | Web component initialization enhancement      |
 | 0.6.2   | Oct 22 2025 | Patch    | Chat input height fix                         |
 | 0.6.1   | Oct 21 2025 | Patch    | S3 file content route fixes                   |

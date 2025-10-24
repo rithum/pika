@@ -1,7 +1,22 @@
 {
-  "latestVersion": "0.7.0",
-  "currentDevelopment": "0.7.0",
+  "latestVersion": "0.8.0",
+  "currentDevelopment": "0.8.0",
   "releases": [
+    {
+      "version": "0.8.0",
+      "date": "2025-10-24",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Widget instance registry with DOM element tracking",
+      "highlights": [
+        "Centralized registry for all rendered web components",
+        "Direct DOM element references via chatAppState.widgetInstances",
+        "Automatic lifecycle tracking across all rendering contexts",
+        "Cross-widget communication and programmatic manipulation",
+        "Memory leak prevention with automatic cleanup",
+        "Enhanced API returning both instanceId and element reference"
+      ]
+    },
     {
       "version": "0.7.0",
       "date": "2025-10-24",

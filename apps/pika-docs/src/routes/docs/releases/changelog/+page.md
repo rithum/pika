@@ -2,6 +2,32 @@
 
 Complete version history of the Pika Framework.
 
+## [0.8.0] - 2025-10-24
+
+### Added
+
+- **Widget Instance Registry** - Comprehensive tracking system for all rendered web components
+    - Centralized registry accessible via `chatAppState.widgetInstances` Map keyed by instanceId
+    - Tracks all widget types: spotlight, canvas, dialog, inline, and static rendering contexts
+    - Each `WidgetInstance` includes: DOM element reference, instanceId, tagId, customElementName, renderingContext, tagDefinition, and creation timestamp
+    - New public API methods on `ChatAppState`:
+        - `widgetInstances` getter - Access the complete Map of all tracked instances
+        - `registerWidgetInstance(instance)` - Register new widget (called automatically by renderers)
+        - `unregisterWidgetInstance(instanceId)` - Unregister widget (called automatically on cleanup)
+        - `getWidgetInstance(instanceId)` - Get specific instance by ID
+    - Automatic lifecycle tracking with proper cleanup when widgets are removed from DOM
+    - Canvas and dialog widgets unregistered on `closeCanvas()` / `closeDialog()`
+    - Spotlight widgets unregistered when unpinned from spotlight list
+    - Static widgets unregistered after `shutDownAfterMs` timeout expires
+    - Inline widgets unregistered via Svelte `onDestroy` when message component unmounts
+    - Enhanced `injectChatAppWebComponent()` function returns `{ instanceId, element }` instead of just instanceId
+    - Enables cross-widget communication via custom events, direct DOM manipulation, and programmatic widget discovery
+    - Perfect for debugging widget state, testing, and advanced widget coordination
+    - Memory leak prevention with comprehensive automatic cleanup across all rendering contexts
+    - Comprehensive documentation with examples in [Building Web Components](/docs/developer/building-web-components#Accessing-All-Widget-Instances) guide
+
+---
+
 ## [0.7.0] - 2025-10-24
 
 ### Added
