@@ -39,6 +39,7 @@ import type {
     ValidateShareAccessRequest,
     ValidateShareAccessResponse,
     WidgetAction,
+    WidgetInstance,
     WidgetMetadata,
     WidgetMetadataState,
     WidgetRenderingContextType
@@ -113,6 +114,9 @@ export class ChatAppState implements IChatAppState {
 
     // Widget metadata storage - keyed by instanceId
     #widgetMetadata = $state<Map<string, WidgetMetadataState>>(new SvelteMap());
+
+    // Widget instance tracking - maps instanceId to WidgetInstance (includes DOM element reference)
+    #widgetInstances = $state<Map<string, WidgetInstance>>(new SvelteMap());
 
     // Action button/action button menu that will appear at the top of the chat app in the title bar. Used by widgets to register global actions.
     #customTitleBarActions = $state<(ChatAppActionMenu | ChatAppAction)[]>([]);
@@ -447,6 +451,37 @@ export class ChatAppState implements IChatAppState {
      */
     get widgetMetadata(): Map<string, WidgetMetadataState> {
         return this.#widgetMetadata;
+    }
+
+    /**
+     * Get all tracked widget instances (includes DOM element references).
+     * Map is keyed by instanceId.
+     */
+    get widgetInstances(): Map<string, WidgetInstance> {
+        return this.#widgetInstances;
+    }
+
+    /**
+     * Register a widget instance with its DOM element and metadata.
+     * Called by renderers after injecting a web component.
+     */
+    registerWidgetInstance(instance: WidgetInstance): void {
+        this.#widgetInstances.set(instance.instanceId, instance);
+    }
+
+    /**
+     * Unregister a widget instance.
+     * Called when a widget is removed/destroyed.
+     */
+    unregisterWidgetInstance(instanceId: string): void {
+        this.#widgetInstances.delete(instanceId);
+    }
+
+    /**
+     * Get a widget instance by its instanceId.
+     */
+    getWidgetInstance(instanceId: string): WidgetInstance | undefined {
+        return this.#widgetInstances.get(instanceId);
     }
 
     /**
@@ -2529,6 +2564,11 @@ export class ChatAppState implements IChatAppState {
      * Close the canvas view.
      */
     closeCanvas() {
+        // Unregister widget instance if it exists
+        if (this.#canvasWidget?.instanceId) {
+            this.unregisterWidgetInstance(this.#canvasWidget.instanceId);
+        }
+
         this.#canvasOpen = false;
         this.#canvasWidget = undefined;
     }
@@ -2537,6 +2577,11 @@ export class ChatAppState implements IChatAppState {
      * Close the dialog.
      */
     closeDialog() {
+        // Unregister widget instance if it exists
+        if (this.#dialogWidget?.instanceId) {
+            this.unregisterWidgetInstance(this.#dialogWidget.instanceId);
+        }
+
         this.#widgetDialogOpen = false;
         this.#dialogWidget = undefined;
     }
@@ -2558,6 +2603,10 @@ export interface SpotlightWidget {
     renderOrder: number;
     isVisible: boolean;
     contextConfig: any;
+    /** Instance ID of the injected widget (set after injection) */
+    instanceId?: string;
+    /** DOM element reference of the injected widget (set after injection) */
+    element?: HTMLElement;
 }
 
 /**
@@ -2574,6 +2623,10 @@ export interface CanvasWidgetState {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     contextConfig: any;
     data?: Record<string, any>;
+    /** Instance ID of the injected widget */
+    instanceId?: string;
+    /** DOM element reference of the injected widget */
+    element?: HTMLElement;
 }
 
 /**
@@ -2583,4 +2636,8 @@ export interface DialogWidgetState {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     contextConfig: any;
     data?: Record<string, any>;
+    /** Instance ID of the injected widget */
+    instanceId?: string;
+    /** DOM element reference of the injected widget */
+    element?: HTMLElement;
 }

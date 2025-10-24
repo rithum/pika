@@ -4408,6 +4408,26 @@ export interface WidgetRenderingContexts {
     static?: StaticContextConfig;
 }
 
+/**
+ * Represents a tracked widget instance with its DOM element and metadata.
+ */
+export interface WidgetInstance {
+    /** Unique instance ID */
+    instanceId: string;
+    /** The actual DOM element */
+    element: HTMLElement;
+    /** Tag identifier (scope.tag) */
+    tagId: string;
+    /** Custom element name */
+    customElementName: string;
+    /** Rendering context where this widget appears */
+    renderingContext: WidgetRenderingContextType;
+    /** Tag definition */
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    /** When this instance was created */
+    createdAt: number;
+}
+
 export interface TagDefinition<T extends TagDefinitionWidget> {
     /**
      * The tag type this definition is for.  If the tag is one of the built-in pika tags, then you are overriding the built-in pika tag instructions

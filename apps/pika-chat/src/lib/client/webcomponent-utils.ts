@@ -185,6 +185,16 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
 }
 
 /**
+ * Result from injecting a web component.
+ */
+export interface WebComponentInjectionResult {
+    /** Unique instance ID for this component */
+    instanceId: string;
+    /** The injected DOM element */
+    element: HTMLElement;
+}
+
+/**
  * Inject a web component into a DOM element with Pika context.
  * Handles URL resolution automatically based on tag definition.
  *
@@ -192,14 +202,14 @@ export async function loadWebComponentByUrl(tagName: string, url: string): Promi
  * @param el The container element to inject into
  * @param contextRequest The Pika context to provide
  * @param replaceEl If true, replaces all children; if false, appends
- * @returns Promise that resolves to the unique instance ID for this component
+ * @returns Promise that resolves to injection result with instanceId and element
  */
 export async function injectChatAppWebComponent(
     tagDef: TagDefinition<TagDefinitionWidgetWebComponent>,
     el: HTMLElement,
     contextRequestWithoutInstanceId: PikaWCContextWithoutInstanceId,
     replaceEl: boolean = true
-): Promise<string> {
+): Promise<WebComponentInjectionResult> {
     // Generate unique instance ID for this component
     const instanceId = uuidv7();
 
@@ -360,6 +370,9 @@ export async function injectChatAppWebComponent(
         });
     }
 
-    // Return the instance ID for parent components to track
-    return instanceId;
+    // Return both instanceId and element for parent components to track
+    return {
+        instanceId,
+        element: newEl
+    };
 }

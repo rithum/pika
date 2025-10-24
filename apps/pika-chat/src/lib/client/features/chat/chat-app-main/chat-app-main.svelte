@@ -181,10 +181,22 @@
                     chatAppId: chat.chatApp.chatAppId,
                     dataForWidget: {},
                 },
-                false // Don't track in widget metadata
+                false // Don't replace, append
             )
-                .then(() => {
+                .then((result) => {
                     console.log(`[Static Widget] Successfully injected ${tagId}`);
+
+                    // Register widget instance with ChatAppState
+                    const customElementName = tagDef.widget.webComponent.customElementName || tagId;
+                    chat.registerWidgetInstance({
+                        instanceId: result.instanceId,
+                        element: result.element,
+                        tagId,
+                        customElementName,
+                        renderingContext: 'static',
+                        tagDefinition: tagDef,
+                        createdAt: Date.now(),
+                    });
 
                     // Mark as injected
                     injectedStaticWidgets.add(tagId);
@@ -195,6 +207,9 @@
                         setTimeout(() => {
                             const containerToRemove = staticWidgetContainers.get(tagId);
                             if (containerToRemove) {
+                                // Unregister from ChatAppState
+                                chat.unregisterWidgetInstance(result.instanceId);
+
                                 containerToRemove.remove();
                                 staticWidgetContainers.delete(tagId);
                                 console.log(`[Static Widget] Cleaned up ${tagId} after ${shutDownAfterMs}ms`);
