@@ -2,6 +2,22 @@
 
 Complete version history of the Pika Framework.
 
+## [0.7.0] - 2025-10-24
+
+### Added
+
+- **Web Component Initialization Enhancement** - Direct property and attribute setting when rendering components
+    - New `DataForWidget` interface with three reserved fields for component initialization
+    - **`attributes`** - Set as HTML attributes (stringified via `setAttributeNS()`). If a corresponding property exists on the element, it's also set with the original (non-stringified) value
+    - **`properties`** - Set as JavaScript properties only (not as HTML attributes). Only properties that exist on the element will be set. Perfect for complex objects, arrays, functions, etc.
+    - **`onReady`** - Callback invoked when the web component is created and ready. Called after element creation, property/attribute setting, and context setup, but before the element is added to the DOM
+    - Provides element reference, instance ID, and full Pika context in the `onReady` callback
+    - All other fields in `dataForWidget` remain available through `context.dataForWidget` but are not automatically set on the element
+    - Enables passing configuration, initial data, or complex objects to web components programmatically
+    - Comprehensive documentation with detailed examples in [Building Web Components](/docs/developer/building-web-components#Initializing-Components-with-Data) guide
+
+---
+
 ## [0.6.2] - 2025-10-22
 
 ### Fixed

@@ -369,6 +369,628 @@ async function openProductDetails(productId: string) {
 </script>
 ```
 
+## Initializing Components with Data
+
+### Overview
+
+When injecting web components programmatically (via `renderTag()`), you can pass structured data that controls how the component is initialized. The `dataForWidget` parameter accepts a special structure with three reserved fields for component initialization:
+
+- **`attributes`** - Set as HTML attributes (and also as properties if they exist)
+- **`properties`** - Set as JavaScript properties only (not as attributes)
+- **`onReady`** - Callback invoked when the component is created and ready
+
+All other fields in `dataForWidget` are available through `context.dataForWidget` but are not automatically set on the element.
+
+### The DataForWidget Interface
+
+```js
+interface DataForWidget {
+    /**
+     * HTML attributes to set on the element.
+     * Values are stringified and set via setAttributeNS().
+     * If a corresponding property exists on the element, it's also set with the original value.
+     */
+    attributes?: Record<string, any>;
+
+    /**
+     * JavaScript properties to set on the element (not as HTML attributes).
+     * Only properties that exist on the element will be set.
+     * Use this for complex objects, arrays, functions, etc.
+     */
+    properties?: Record<string, any>;
+
+    /**
+     * Callback invoked when the web component is created and ready.
+     * Called after element creation, property/attribute setting, and context setup,
+     * but before the element is added to the DOM.
+     */
+    onReady?: (params: { element: HTMLElement; instanceId: string; context: PikaWCContext }) => void;
+
+    /** Any other data available through context (not set on the element) */
+    [key: string]: any;
+}
+```
+
+### Using `attributes`
+
+The `attributes` field sets HTML attributes on the web component element. Values are converted to strings and set via `setAttributeNS()`. If a corresponding property exists on the element, it's also set with the original (non-stringified) value.
+
+**When to use:**
+
+- Simple string values that should be visible in HTML
+- When you need both an HTML attribute and a JavaScript property
+- For web components that read their initial configuration from attributes
+
+**Example:**
+
+```js
+// Parent component opening a widget
+await context.chatAppState.renderTag('acme.weather-card', 'dialog', {
+    attributes: {
+        'data-city': 'San Francisco',
+        theme: 'dark',
+        'show-forecast': 'true'
+    }
+});
+
+// Result: The web component element will have these attributes set:
+// <acme-weather-card data-city="San Francisco" theme="dark" show-forecast="true">
+```
+
+**Web component receiving attributes:**
+
+```js
+<svelte:options customElement={{ tag: 'acme-weather-card', shadow: 'none' }} />
+
+<script lang="ts">
+    import { onMount } from 'svelte';
+
+    // These will be set as attributes
+    let city = $state<string>('');
+    let theme = $state<string>('light');
+
+    onMount(() => {
+        // Read from attributes if needed
+        city = $host().getAttribute('data-city') || '';
+        theme = $host().getAttribute('theme') || 'light';
+    });
+</script>
+```
+
+### Using `properties`
+
+The `properties` field sets JavaScript properties directly on the web component element (without creating HTML attributes). This is ideal for complex data types like objects, arrays, or functions.
+
+**When to use:**
+
+- Complex objects or arrays
+- Functions or callbacks
+- Data that doesn't need to be visible in HTML
+- When you only want a property (not an attribute)
+- Integration with reactive property systems (e.g., Lit's `@property`)
+
+**Example:**
+
+```js
+// Parent component opening a widget with complex data
+await context.chatAppState.renderTag('acme.data-table', 'canvas', {
+    properties: {
+        initialData: [
+            { id: 1, name: 'Item 1', value: 100 },
+            { id: 2, name: 'Item 2', value: 200 }
+        ],
+        config: {
+            sortable: true,
+            filterable: true,
+            pageSize: 20
+        },
+        onRowClick: (row: any) => {
+            console.log('Row clicked:', row);
+        }
+    }
+});
+```
+
+**Web component receiving properties:**
+
+```js
+<svelte:options customElement={{ tag: 'acme-data-table', shadow: 'none' }} />
+
+<script lang="ts">
+    import { onMount } from 'svelte';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    // Declare properties that can be set from outside
+    let initialData = $state<any[]>([]);
+    let config = $state<any>({});
+    let onRowClick = $state<((row: any) => void) | undefined>(undefined);
+
+    // These properties are automatically set by Pika before the component is mounted
+    // You can use them immediately in your component logic
+</script>
+
+{#if initialData.length > 0}
+    <table>
+        {#each initialData as row}
+            <tr onclick={() => onRowClick?.(row)}>
+                <td>{row.name}</td>
+                <td>{row.value}</td>
+            </tr>
+        {/each}
+    </table>
+{/if}
+```
+
+### Special Property: `pikaContext`
+
+In addition to the properties you explicitly set via `dataForWidget.properties`, Pika automatically checks for and sets a special `pikaContext` property on your web component if it exists. This provides an alternative way to access the Pika context without using the event listener pattern.
+
+**How it works:**
+
+If your web component declares a `pikaContext` property, Pika will automatically set it with the full `PikaWCContext` (including the `instanceId`) when the component is injected.
+
+**When to use:**
+
+- You want direct access to context as a property
+- You prefer property-based access over event-based access
+- You're using a reactive framework that responds to property changes (e.g., Lit's `@property`)
+- You want both the property and event listener approaches (they work together)
+
+**Example with Svelte:**
+
+```js
+<svelte:options customElement={{ tag: 'acme-weather-card', shadow: 'none' }} />
+
+<script lang="ts">
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    // Declare pikaContext property - Pika will automatically set this
+    let pikaContext = $state<PikaWCContext | undefined>(undefined);
+
+    // Watch for pikaContext to be set
+    $effect(() => {
+        if (pikaContext) {
+            console.log('Context received via property:', pikaContext);
+            console.log('Instance ID:', pikaContext.instanceId);
+            console.log('User:', pikaContext.appState.identity.user.firstName);
+
+            // Use context
+            loadData();
+        }
+    });
+
+    async function loadData() {
+        if (!pikaContext) return;
+
+        // Access chat app state
+        const storage = pikaContext.chatAppState.getUserWidgetDataStoreState('acme', 'weather-card');
+        const saved = await storage.getValue<any>('weatherData');
+        // ...
+    }
+</script>
+
+{#if pikaContext}
+    <div class="p-4">
+        <h2>Weather for {pikaContext.appState.identity.user.firstName}</h2>
+        <!-- Your content -->
+    </div>
+{:else}
+    <div class="p-4">Loading...</div>
+{/if}
+```
+
+**Example with Lit:**
+
+```js
+import { LitElement, html } from 'lit';
+import { property } from 'lit/decorators.js';
+import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+class WeatherCard extends LitElement {
+    // Pika will automatically set this property
+    @property({ type: Object })
+    pikaContext?: PikaWCContext;
+
+    // Lit automatically re-renders when pikaContext changes
+    render() {
+        if (!this.pikaContext) {
+            return html`<div>Loading...</div>`;
+        }
+
+        return html`
+            <div class="weather-card">
+                <h2>Weather for ${this.pikaContext.appState.identity.user.firstName}</h2>
+                <p>Instance ID: ${this.pikaContext.instanceId}</p>
+            </div>
+        `;
+    }
+
+    // Called when pikaContext is set
+    updated(changedProperties: Map<string, any>) {
+        if (changedProperties.has('pikaContext') && this.pikaContext) {
+            console.log('Context set!', this.pikaContext.instanceId);
+            this.loadWeatherData();
+        }
+    }
+
+    async loadWeatherData() {
+        // Use this.pikaContext to access Pika functionality
+    }
+}
+
+customElements.define('weather-card', WeatherCard);
+```
+
+**Comparison with Event Listener Approach:**
+
+```js
+// Approach 1: Event listener (traditional)
+async function init() {
+    const context = await getPikaContext($host());
+    // Use context
+}
+
+// Approach 2: Property (automatic)
+let pikaContext = ($state < PikaWCContext) | (undefined > undefined);
+
+$effect(() => {
+    if (pikaContext) {
+        // Use pikaContext
+    }
+});
+
+// Approach 3: Both (works fine!)
+let pikaContext = ($state < PikaWCContext) | (undefined > undefined);
+
+async function init() {
+    // Get via event listener for immediate use
+    const context = await getPikaContext($host());
+
+    // pikaContext property will also be set automatically
+    // They reference the same context object
+}
+```
+
+**Important Notes:**
+
+- The `pikaContext` property is set **automatically** by Pika - you don't need to pass it in `dataForWidget.properties`
+- It's set with the full context including `instanceId`
+- The property is only set if your component has a property named exactly `pikaContext`
+- This happens during the same initialization phase as setting other properties
+- Both the property approach and `getPikaContext()` approach work - use whichever fits your component's design
+
+**Timing:**
+
+The `pikaContext` property is set at step 4 in the initialization sequence:
+
+1. Element created
+2. Attributes set (from `dataForWidget.attributes`)
+3. Properties set (from `dataForWidget.properties`)
+4. **`pikaContext` property set (if it exists on element)** ← Automatic
+5. Context event listener attached (for `getPikaContext()`)
+6. `onReady` called
+7. Element added to DOM
+
+### Using `onReady`
+
+The `onReady` callback is invoked when the web component has been created and is ready for use. This is called after the element is created and properties/attributes are set, but before the element is added to the DOM.
+
+**When to use:**
+
+- Get notified when the component is ready
+- Direct element manipulation before it's visible
+- Set up event listeners
+- Call component methods immediately
+- Store a reference to the element
+
+**Example:**
+
+```js
+// Parent component with onReady callback
+let weatherWidget: HTMLElement | null = null;
+
+await context.chatAppState.renderTag('acme.weather-card', 'canvas', {
+    properties: {
+        city: 'San Francisco'
+    },
+
+    onReady: ({ element, instanceId, context }) => {
+        console.log('Weather widget ready!', instanceId);
+
+        // Store reference to the element
+        weatherWidget = element;
+
+        // Add custom class
+        element.classList.add('custom-styling');
+
+        // Call a method on the component
+        if ('refresh' in element) {
+            (element as any).refresh();
+        }
+
+        // Set up event listener
+        element.addEventListener('weather-updated', (event) => {
+            console.log('Weather updated:', event);
+        });
+    }
+});
+
+// Later, you can use the stored reference
+function refreshWeather() {
+    if (weatherWidget && 'refresh' in weatherWidget) {
+        (weatherWidget as any).refresh();
+    }
+}
+```
+
+**Timing:**
+
+1. Element created
+2. Attributes set (from `dataForWidget.attributes`)
+3. Properties set (from `dataForWidget.properties`)
+4. pikaContext set (if element has `pikaContext` property)
+5. Context event listener attached
+6. **`onReady` called** ← You are here
+7. Element added to DOM
+
+### Complete Example: All Three Together
+
+Here's a comprehensive example using all three fields:
+
+```js
+// Parent component opening a widget with full initialization
+await context.chatAppState.renderTag('acme.product-editor', 'canvas', {
+    // 1. Set HTML attributes (strings, visible in DOM)
+    attributes: {
+        'data-mode': 'edit',
+        theme: 'dark'
+    },
+
+    // 2. Set JavaScript properties (complex data, not visible in DOM)
+    properties: {
+        product: {
+            id: 'prod-123',
+            name: 'Sample Product',
+            price: 99.99,
+            inStock: true
+        },
+        config: {
+            allowDelete: true,
+            requireApproval: false
+        },
+        onSave: async (product: any) => {
+            console.log('Saving product:', product);
+            await saveProduct(product);
+            context.appState.showToast('Product saved!', { type: 'success' });
+        },
+        onCancel: () => {
+            context.chatAppState.closeCanvas();
+        }
+    },
+
+    // 3. Get notified when ready
+    onReady: ({ element, instanceId, context }) => {
+        console.log(`Product editor ${instanceId} is ready`);
+
+        // Add custom styling
+        element.classList.add('product-editor-instance');
+
+        // Focus the first input
+        const firstInput = element.querySelector('input');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 100);
+        }
+
+        // Track the instance
+        trackComponentInstance('product-editor', instanceId);
+    },
+
+    // 4. Other data (available via context.dataForWidget, not set on element)
+    userId: currentUserId,
+    sessionId: currentSessionId,
+    metadata: {
+        source: 'product-list',
+        timestamp: Date.now()
+    }
+});
+```
+
+**Corresponding web component:**
+
+```js
+<svelte:options customElement={{ tag: 'acme-product-editor', shadow: 'none' }} />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    // Properties set from dataForWidget.properties
+    let product = $state<any>({});
+    let config = $state<any>({});
+    let onSave = $state<((product: any) => Promise<void>) | undefined>(undefined);
+    let onCancel = $state<(() => void) | undefined>(undefined);
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Access other data from context
+        console.log('Editing for user:', context.dataForWidget.userId);
+        console.log('Session:', context.dataForWidget.sessionId);
+        console.log('Metadata:', context.dataForWidget.metadata);
+    }
+
+    async function handleSave() {
+        if (onSave) {
+            await onSave(product);
+        }
+    }
+
+    function handleCancel() {
+        if (onCancel) {
+            onCancel();
+        }
+    }
+
+    $effect(() => {
+        init();
+    });
+</script>
+
+<div class="product-editor p-4">
+    <h2>Edit Product: {product.name}</h2>
+
+    <form>
+        <input bind:value={product.name} placeholder="Product name" />
+        <input type="number" bind:value={product.price} placeholder="Price" />
+        <label>
+            <input type="checkbox" bind:checked={product.inStock} />
+            In Stock
+        </label>
+    </form>
+
+    <div class="actions">
+        <button onclick={handleCancel}>Cancel</button>
+        <button onclick={handleSave}>Save</button>
+
+        {#if config.allowDelete}
+            <button class="danger" onclick={deleteProduct}>Delete</button>
+        {/if}
+    </div>
+</div>
+```
+
+### Decision Tree: Which Field to Use?
+
+**Need HTML attributes (string values visible in DOM)?**
+→ Use `dataForWidget.attributes`
+
+**Need JavaScript properties (complex objects/arrays/functions)?**
+→ Use `dataForWidget.properties`
+
+**Need to manipulate the element immediately or get notified when ready?**
+→ Use `dataForWidget.onReady`
+
+**Need data in component logic but not set on element?**
+→ Use top-level fields in `dataForWidget`
+
+### Best Practices
+
+**1. Use the Right Field for the Right Data:**
+
+```js
+// Good - Clear separation of concerns
+{
+    attributes: {
+        theme: 'dark',              // Simple string attribute
+        'data-mode': 'edit'         // Simple string attribute
+    },
+    properties: {
+        initialData: [...],         // Complex array
+        config: {...},              // Complex object
+        onSave: () => {...}         // Function
+    },
+    userId: '123',                  // Context data only
+    sessionId: 'sess-456'          // Context data only
+}
+
+// Avoid - Mixing concerns
+{
+    attributes: {
+        initialData: '[...]',       // Don't stringify complex data as attributes
+        config: '{...}'             // Don't stringify objects as attributes
+    }
+}
+```
+
+**2. Type Safety:**
+
+```js
+// Define interfaces for your data contracts
+interface ProductEditorData {
+    attributes?: {
+        theme?: 'light' | 'dark';
+        'data-mode'?: 'edit' | 'create' | 'view';
+    };
+    properties?: {
+        product: Product;
+        config: EditorConfig;
+        onSave: (product: Product) => Promise<void>;
+        onCancel: () => void;
+    };
+    onReady?: (params: { element: HTMLElement; instanceId: string; context: PikaWCContext }) => void;
+    userId?: string;
+    sessionId?: string;
+}
+
+// Use when opening widget
+await context.chatAppState.renderTag<ProductEditorData>('acme.product-editor', 'canvas', {
+    attributes: { theme: 'dark' },
+    properties: { product: myProduct, onSave: handleSave },
+    userId: currentUser.id
+});
+```
+
+**3. Error Handling in onReady:**
+
+```js
+onReady: ({ element, instanceId, context }) => {
+    try {
+        // Your initialization code
+        element.classList.add('ready');
+
+        if ('init' in element) {
+            (element as any).init();
+        }
+    } catch (error) {
+        console.error('Error in onReady callback:', error);
+        context.appState.showToast('Failed to initialize widget', { type: 'error' });
+    }
+};
+```
+
+**4. Cleanup:**
+
+If you store references in `onReady`, clean them up when the component is closed:
+
+```js
+let widgetRef: HTMLElement | null = null;
+
+// When opening
+await context.chatAppState.renderTag('acme.my-widget', 'canvas', {
+    onReady: ({ element }) => {
+        widgetRef = element;
+    }
+});
+
+// When closing (in your component or via canvas close)
+function cleanup() {
+    widgetRef = null;
+}
+```
+
+**5. Avoid Heavy Work in onReady:**
+
+The `onReady` callback should be fast since it runs during component initialization:
+
+```js
+// Good - Fast initialization
+onReady: ({ element, instanceId }) => {
+    element.classList.add('ready');
+    console.log('Widget ready:', instanceId);
+};
+
+// Avoid - Slow operations that delay rendering
+onReady: async ({ element }) => {
+    // Don't make API calls in onReady
+    const data = await fetch('/api/data'); // BAD
+
+    // Don't do heavy computation
+    processLargeDataset(); // BAD
+};
+```
+
 ## Styling
 
 ### Container Sizing

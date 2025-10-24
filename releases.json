@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.6.2",
-  "currentDevelopment": "0.6.2",
+  "latestVersion": "0.7.0",
+  "currentDevelopment": "0.7.0",
   "releases": [
+    {
+      "version": "0.7.0",
+      "date": "2025-10-24",
+      "status": "released",
+      "breaking": false,
+      "summary": "Web component initialization enhancement",
+      "highlights": [
+        "Direct property and attribute setting when rendering components",
+        "New DataForWidget interface with attributes, properties, and onReady",
+        "Pass complex objects, arrays, or functions to component properties",
+        "Lifecycle callback for component ready state",
+        "Comprehensive documentation with detailed examples"
+      ]
+    },
     {
       "version": "0.6.2",
       "date": "2025-10-22",

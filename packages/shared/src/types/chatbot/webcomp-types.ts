@@ -367,6 +367,59 @@ export interface IUploadInstance {
 }
 
 /**
+ * Callback invoked when the web component has been created and is ready.
+ * Called after the element is created but before it's added to the DOM.
+ */
+export interface OnReadyCallback {
+    (params: {
+        /** The web component element that was created */
+        element: HTMLElement;
+        /** The unique instance ID assigned to this component */
+        instanceId: string;
+        /** The full Pika context with instanceId */
+        context: PikaWCContext;
+    }): void;
+}
+
+/**
+ * Structure for data passed to web components.
+ *
+ * Special fields that affect element initialization:
+ * - `attributes`: Set as HTML attributes (stringified) and also as properties if they exist
+ * - `properties`: Set as JavaScript properties only (not attributes)
+ * - `onReady`: Callback invoked when the component is created and ready
+ *
+ * All other fields are available through `context.dataForWidget` but not set on the element.
+ */
+export interface DataForWidget {
+    /**
+     * HTML attributes to set on the element.
+     * Values are stringified and set via `setAttributeNS()`.
+     * If a corresponding property exists on the element, it's also set with the original value.
+     */
+    attributes?: Record<string, any>;
+
+    /**
+     * JavaScript properties to set on the element (not as HTML attributes).
+     * Only properties that exist on the element will be set.
+     * Use this for complex objects, arrays, functions, etc.
+     */
+    properties?: Record<string, any>;
+
+    /**
+     * Callback invoked when the web component is created and ready.
+     * Called after element creation, property/attribute setting, and context setup,
+     * but before the element is added to the DOM.
+     *
+     * Use this to get notified when the component is ready and to access the element directly.
+     */
+    onReady?: OnReadyCallback;
+
+    /** Any other data available through context (not set on the element) */
+    [key: string]: any;
+}
+
+/**
  * This is the context object that is passed to the web component when it is rendered.
  */
 export interface PikaWCContext {
@@ -381,8 +434,8 @@ export interface PikaWCContext {
      */
     instanceId: string;
 
-    /** Arbitrary data to be passed to the widget. */
-    dataForWidget: Record<string, any>;
+    /** Data passed to the widget, available through `context.dataForWidget`. */
+    dataForWidget: DataForWidget;
 }
 
 export type PikaWCContextWithoutInstanceId = Omit<PikaWCContext, 'instanceId'>;

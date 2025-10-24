@@ -4,13 +4,21 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.6.2` (October 22, 2025)
+**Latest Stable:** `0.7.0` (October 24, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+**What's New in 0.7.0:**
+
+- **Web Component Initialization Enhancement** - Direct property and attribute setting when rendering components
+- New `DataForWidget` interface with `attributes`, `properties`, and `onReady` callback
+- Pass complex objects, arrays, or functions directly to web component properties
+- Get notified when component is ready with lifecycle callback
+- Comprehensive documentation with detailed examples
 
 **What's New in 0.6.2:**
 
@@ -97,6 +105,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.7.0   | Oct 24 2025 | Feature  | Web component initialization enhancement      |
 | 0.6.2   | Oct 22 2025 | Patch    | Chat input height fix                         |
 | 0.6.1   | Oct 21 2025 | Patch    | S3 file content route fixes                   |
 | 0.6.0   | Oct 21 2025 | Feature  | S3 file access for web components             |

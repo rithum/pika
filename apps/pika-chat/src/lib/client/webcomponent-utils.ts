@@ -302,6 +302,31 @@ export async function injectChatAppWebComponent(
         instanceId: instanceId
     };
 
+    // Set any attributes from dataForWidget.attributes on the web component element
+    // Attributes are set as HTML attributes (stringified) and also as properties if they exist
+    Object.entries(contextRequestWithoutInstanceId?.dataForWidget?.attributes ?? {}).forEach(([key, value]) => {
+        // Set as HTML attribute (must be string)
+        newEl.setAttributeNS(null, key, String(value));
+
+        // Also set as property if it exists (with original non-stringified value)
+        if (key in newEl) {
+            (newEl as any)[key] = value;
+        }
+    });
+
+    // Set properties from dataForWidget.properties on the web component element
+    // These are set as JavaScript properties only (not attributes)
+    Object.entries(contextRequestWithoutInstanceId?.dataForWidget?.properties ?? {}).forEach(([key, value]) => {
+        if (key in newEl) {
+            (newEl as any)[key] = value;
+        }
+    });
+
+    // Set pikaContext property if the component supports it
+    if ('pikaContext' in newEl) {
+        (newEl as any).pikaContext = contextWithInstance;
+    }
+
     newEl.addEventListener('pika-wc-context-request', (event: PikaWCContextRequestEvent) => {
         // console.log(`[Web Component Loader] Context requested by ${customElementName}`, {
         //     contextWithInstance,
@@ -323,6 +348,17 @@ export async function injectChatAppWebComponent(
         el.appendChild(newEl);
     }
     // console.log(`[Web Component Loader] Successfully injected ${customElementName} into DOM with instanceId: ${instanceId}`);
+
+    // 5. Call onReady callback if provided
+    // This allows the caller to get notified when the component is ready
+    // and to inject data or perform setup directly on the element
+    if (contextRequestWithoutInstanceId?.dataForWidget.onReady) {
+        contextRequestWithoutInstanceId.dataForWidget.onReady({
+            element: newEl,
+            instanceId: instanceId,
+            context: contextWithInstance
+        });
+    }
 
     // Return the instance ID for parent components to track
     return instanceId;
