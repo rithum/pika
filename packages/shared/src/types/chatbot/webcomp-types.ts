@@ -27,7 +27,8 @@ import type {
     WidgetRenderingContextType,
     IUserWidgetDataStoreState,
     ChatAppActionMenu,
-    ChatAppAction
+    ChatAppAction,
+    WidgetInstance
 } from './chatbot-types';
 
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
@@ -210,6 +211,7 @@ export interface IChatAppState {
     readonly pageTitle: string | undefined;
     readonly customDataForChatApp: Record<string, unknown> | undefined;
     readonly customTitleBarActions: (ChatAppActionMenu | ChatAppAction)[];
+    readonly widgetInstances: Map<string, WidgetInstance>;
 
     setCurrentSessionById(sessionId: string): void;
     removeFile(s3Key: string): void;
@@ -226,6 +228,7 @@ export interface IChatAppState {
     closeDialog(): void;
     setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction): void;
     removeCustomTitleBarAction(actionId: string): void;
+    getWidgetInstance(instanceId: string): WidgetInstance | undefined;
 
     /**
      * Invoke the agent directly from a web component using the 'chat-app-component' invocation mode.

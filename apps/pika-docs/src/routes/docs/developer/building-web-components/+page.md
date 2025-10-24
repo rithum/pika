@@ -4533,6 +4533,158 @@ actions: [
 - Verify the callback function is defined and accessible
 - Ensure the action is not disabled
 
+## Accessing All Widget Instances
+
+### Overview
+
+Pika automatically tracks all rendered widget instances with their DOM elements and metadata. This registry is available through `chatAppState.widgetInstances` and provides a centralized reference to all active widgets.
+
+**What's tracked:**
+
+- All widget types: spotlight, canvas, dialog, inline, and static
+- DOM element references
+- Instance IDs
+- Tag definitions
+- Rendering contexts
+- Creation timestamps
+
+**Use cases:**
+
+- Debugging widget state
+- Cross-widget communication
+- Programmatic widget manipulation
+- Testing and validation
+
+### Example: Accessing Widget Instances
+
+```js
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+
+        // Get all active widget instances
+        const allWidgets = context.chatAppState.widgetInstances;
+
+        console.log('Total active widgets:', allWidgets.size);
+
+        // Iterate over all widgets
+        for (const [instanceId, instance] of allWidgets.entries()) {
+            console.log('Widget:', {
+                instanceId: instance.instanceId,
+                tagId: instance.tagId,
+                renderingContext: instance.renderingContext,
+                element: instance.element,
+                createdAt: new Date(instance.createdAt)
+            });
+        }
+    }
+</script>
+```
+
+### Example: Find Widgets by Type
+
+```js
+// Find all spotlight widgets
+function getSpotlightWidgets() {
+    const spotlightWidgets = [];
+    for (const instance of context.chatAppState.widgetInstances.values()) {
+        if (instance.renderingContext === 'spotlight') {
+            spotlightWidgets.push(instance);
+        }
+    }
+    return spotlightWidgets;
+}
+
+// Find all widgets of a specific tag
+function findWidgetsByTag(tagId: string) {
+    const widgets = [];
+    for (const instance of context.chatAppState.widgetInstances.values()) {
+        if (instance.tagId === tagId) {
+            widgets.push(instance);
+        }
+    }
+    return widgets;
+}
+
+// Get a specific widget by instance ID
+function getWidgetByInstanceId(instanceId: string) {
+    return context.chatAppState.getWidgetInstance(instanceId);
+}
+```
+
+### Example: Cross-Widget Communication
+
+```js
+// Widget A: Store data that Widget B can access
+async function shareData() {
+    const storage = context.chatAppState.getUserWidgetDataStoreState('myapp', 'widget-a');
+    await storage.setValue('sharedData', { temperature: 72, humidity: 45 });
+}
+
+// Widget B: Access Widget A's element or trigger actions
+function notifyOtherWidgets() {
+    for (const instance of context.chatAppState.widgetInstances.values()) {
+        if (instance.tagId === 'myapp.widget-a') {
+            // Access the DOM element
+            const element = instance.element;
+
+            // Dispatch custom event to the other widget
+            element.dispatchEvent(
+                new CustomEvent('data-updated', {
+                    detail: { source: 'widget-b' }
+                })
+            );
+        }
+    }
+}
+```
+
+### Widget Instance Interface
+
+```js
+interface WidgetInstance {
+    /** Unique instance ID */
+    instanceId: string;
+
+    /** The actual DOM element */
+    element: HTMLElement;
+
+    /** Tag identifier (scope.tag) */
+    tagId: string;
+
+    /** Custom element name */
+    customElementName: string;
+
+    /** Rendering context where this widget appears */
+    renderingContext: 'spotlight' | 'canvas' | 'dialog' | 'inline' | 'static';
+
+    /** Tag definition */
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+
+    /** When this instance was created (timestamp) */
+    createdAt: number;
+}
+```
+
+### Automatic Cleanup
+
+Widget instances are **automatically** unregistered when removed from the DOM:
+
+- **Canvas**: When closed via `closeCanvas()`
+- **Dialog**: When closed via `closeDialog()`
+- **Spotlight**: When unpinned (removed from spotlight list)
+- **Static**: When `shutDownAfterMs` expires and container is removed
+- **Inline**: When the message/segment component is unmounted (via Svelte's `onDestroy`)
+
+**No manual cleanup required** - Pika automatically tracks component lifecycle and unregisters instances to prevent memory leaks.
+
+**Static widgets without `shutDownAfterMs`**: These intentionally persist for the lifetime of the page (until navigation), so they remain registered. This is expected behavior for bootstrap/initialization components.
+
 ## Best Practices
 
 ### Error Handling

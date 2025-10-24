@@ -99,6 +99,13 @@
         for (const tagId of injectedWidgets) {
             if (!currentWidgetIds.has(tagId)) {
                 // console.log('[Spotlight] Cleaning up removed widget', tagId);
+
+                // Unregister from ChatAppState
+                const instanceId = widgetInstanceIds.get(tagId);
+                if (instanceId) {
+                    chat.unregisterWidgetInstance(instanceId);
+                }
+
                 injectedWidgets.delete(tagId);
                 widgetInstanceIds.delete(tagId);
                 injectingWidgets.delete(tagId);
@@ -158,7 +165,7 @@
                 return;
             }
 
-            const instanceId = await injectChatAppWebComponent(
+            const result = await injectChatAppWebComponent(
                 widget.tagDefinition,
                 container,
                 {
@@ -171,15 +178,36 @@
                 true
             );
 
-            // Store instance ID
-            widgetInstanceIds.set(tagId, instanceId);
+            // Store instance ID locally
+            widgetInstanceIds.set(tagId, result.instanceId);
             widgetInstanceIds = new Map(widgetInstanceIds); // Trigger reactivity
+
+            // Register widget instance with ChatAppState
+            const customElementName = widget.tagDefinition.widget.webComponent.customElementName || tagId;
+            chat.registerWidgetInstance({
+                instanceId: result.instanceId,
+                element: result.element,
+                tagId,
+                customElementName,
+                renderingContext: 'spotlight',
+                tagDefinition: widget.tagDefinition,
+                createdAt: Date.now(),
+            });
+
+            // Update spotlight widget state with instanceId and element
+            const spotlightWidget = chat.spotlightWidgets.find(
+                (w) => `${w.tagDefinition.scope}.${w.tagDefinition.tag}` === tagId
+            );
+            if (spotlightWidget) {
+                spotlightWidget.instanceId = result.instanceId;
+                spotlightWidget.element = result.element;
+            }
 
             // Mark as successfully injected
             injectedWidgets.add(tagId);
             injectedWidgets = new Set(injectedWidgets); // Trigger reactivity
 
-            // console.log('[Spotlight] Successfully injected', { tagId, instanceId });
+            // console.log('[Spotlight] Successfully injected', { tagId, instanceId: result.instanceId });
         } catch (error) {
             console.error('[Spotlight] Failed to inject widget', { tagId, error });
         } finally {

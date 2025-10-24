@@ -21,7 +21,7 @@
         if (containerEl && canvasWidget && !initialized) {
             const tagDef = canvasWidget.tagDefinition;
 
-            // Inject component and get instance ID for metadata tracking (async operation)
+            // Inject component and get instance ID + element (async operation)
             injectChatAppWebComponent(
                 tagDef,
                 containerEl,
@@ -34,9 +34,29 @@
                 },
                 true
             )
-                .then((id) => {
+                .then((result) => {
                     // Store instance ID for metadata lookup
-                    instanceId = id;
+                    instanceId = result.instanceId;
+
+                    // Register widget instance with ChatAppState
+                    const tagId = `${tagDef.scope}.${tagDef.tag}`;
+                    const customElementName = tagDef.widget.webComponent.customElementName || tagId;
+
+                    chat.registerWidgetInstance({
+                        instanceId: result.instanceId,
+                        element: result.element,
+                        tagId,
+                        customElementName,
+                        renderingContext: 'canvas',
+                        tagDefinition: tagDef,
+                        createdAt: Date.now(),
+                    });
+
+                    // Update canvas widget state with instanceId and element
+                    if (chat.canvasWidget) {
+                        chat.canvasWidget.instanceId = result.instanceId;
+                        chat.canvasWidget.element = result.element;
+                    }
                 })
                 .catch((error) => {
                     console.error('Error injecting canvas widget:', error);

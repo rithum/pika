@@ -2,7 +2,7 @@
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { injectChatAppWebComponent } from '$lib/client/webcomponent-utils';
     import type { TagDefinition, TagDefinitionWidgetWebComponent } from 'pika-shared/types/chatbot/chatbot-types';
-    import { getContext } from 'svelte';
+    import { getContext, onDestroy } from 'svelte';
     import type { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTagSegment } from '../segment-types';
     import findAndParseJsonLikeText from 'json-like-parse';
@@ -18,6 +18,7 @@
     let containerEl = $state<HTMLElement>();
     let initialized = $state(false);
     let previousSegment = $state<ProcessedTagSegment | undefined>(undefined);
+    let currentInstanceId = $state<string | undefined>(undefined);
 
     /**
      * Get the inline height for the widget container.
@@ -84,7 +85,7 @@
             // Parse tag content for the web component
             const parsedData = parseTagContent(segment.rawContent);
 
-            // Inject component and get instance ID (async operation)
+            // Inject component and get instance ID + element (async operation)
             injectChatAppWebComponent(
                 tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                 containerEl,
@@ -97,8 +98,24 @@
                 },
                 true
             )
-                .then(() => {
-                    // Component injected successfully
+                .then((result) => {
+                    // Store instance ID for cleanup on unmount
+                    currentInstanceId = result.instanceId;
+
+                    // Register widget instance with ChatAppState
+                    const webCompTagDef = tagDef as TagDefinition<TagDefinitionWidgetWebComponent>;
+                    const tagId = `${webCompTagDef.scope}.${webCompTagDef.tag}`;
+                    const customElementName = webCompTagDef.widget.webComponent.customElementName || tagId;
+
+                    chat.registerWidgetInstance({
+                        instanceId: result.instanceId,
+                        element: result.element,
+                        tagId,
+                        customElementName,
+                        renderingContext: 'inline',
+                        tagDefinition: webCompTagDef,
+                        createdAt: Date.now(),
+                    });
                 })
                 .catch((error) => {
                     console.error('Error injecting web component:', error);
@@ -122,6 +139,13 @@
             return ''; // No height constraint, let content determine height
         }
         return `height: ${height};`;
+    });
+
+    // Cleanup: Unregister widget instance when this component is destroyed
+    onDestroy(() => {
+        if (currentInstanceId) {
+            chat.unregisterWidgetInstance(currentInstanceId);
+        }
     });
 </script>
 
