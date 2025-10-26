@@ -1,0 +1,352 @@
+---
+title: Agent-as-Configuration
+description: Define agents, tools, and chat apps as configuration deployed from your microservices
+---
+
+Agent-as-Configuration is a fundamental design principle of Pika that separates agent definitions from the platform infrastructure. Instead of coding agents within the Pika framework codebase, you define them as configuration deployed from your existing microservices.
+
+## What It Does
+
+Agents, tools, and chat apps are defined declaratively through TypeScript configuration objects. These configurations are deployed to Pika's registry via AWS CDK stacks from your own codebases, keeping your business logic and AI definitions where they belong - with your services.
+
+## Why It Matters
+
+This architectural approach has profound implications for how you build and maintain AI systems:
+
+### Your AI IP Is Protected
+
+Your investment isn't in learning a specific agentic framework - it's in the business intelligence you expose through agents. All agent definitions, tools, and prompts become configuration in Pika's database. This IS your organizational AI IP, portable and independent of any framework.
+
+### Define Where You Have Access
+
+Your microservices already have database access, file system access, and business logic libraries. Define agent tools right there - where you already have what you need. No need to recreate connections or duplicate code.
+
+### Decentralized Definition, Centralized Access
+
+Teams define agents and tools in their own stacks where the business logic lives. But everything is accessible through a centralized UI and database for governance and reuse.
+
+### Safe Evolution
+
+Change agent behavior via configuration updates, not infrastructure changes. Update prompts, add tools, modify agents without redeploying the platform.
+
+## How It Works
+
+![Agent-as-Configuration Deployment](/img/diagrams/agents-as-config-flow.drawio.svg)
+
+### Configuration Objects
+
+Define agents using structured TypeScript objects:
+
+```typescript
+const agentConfig: AgentConfig = {
+    agentId: 'customer-support',
+    agentName: 'Customer Support Agent',
+    instructions: `You are a helpful customer support agent.
+        You can look up orders, process refunds, and answer product questions.
+        Always be polite and professional.`,
+    toolIds: ['order-lookup', 'process-refund', 'product-search'],
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+};
+```
+
+### Deployment via CDK
+
+Deploy from your own stacks:
+
+```typescript
+import { PikaAgentRegistry } from '@pika/constructs';
+
+export class OrderServiceStack extends Stack {
+    constructor(scope: Construct, id: string) {
+        super(scope, id);
+        
+        // Your existing order service resources
+        const orderTable = new Table(this, 'Orders', { ... });
+        const orderLookupFn = new Function(this, 'OrderLookup', { ... });
+        
+        // Register tools and agents with Pika
+        new PikaAgentRegistry(this, 'PikaRegistry', {
+            tools: [orderLookupTool, processRefundTool],
+            agents: [customerSupportAgent],
+            chatApps: [supportChatApp]
+        });
+    }
+}
+```
+
+### Dynamic Registry
+
+Configurations are stored in DynamoDB:
+
+- Runtime access without redeployment
+- Version tracking and audit trails
+- A/B testing capabilities
+- Gradual rollouts
+- Emergency overrides
+
+## Key Benefits
+
+### Natural Tool Development
+
+{% card title="Tools Live Where Data Lives" icon="star" %}
+Create tools in the microservices that already have database access, API credentials, and business logic. No need to recreate connections or duplicate code in the platform.
+{% /card %}
+
+### Team Independence
+
+{% card title="Autonomous Development" icon="rocket" %}
+Each team defines their agents and tools independently. Deploy on their schedule, using their processes, without coordinating with other teams or the platform team.
+{% /card %}
+
+### Protected Investment
+
+{% card title="Framework-Independent AI IP" icon="puzzle" %}
+Your agent definitions, prompts, and tool configurations are your AI intellectual property. They exist as structured data independent of any framework, portable to future systems.
+{% /card %}
+
+### Clear Boundaries
+
+{% card title="Separation of Concerns" icon="information" %}
+Platform team manages infrastructure. Service teams define agents. Business logic stays in microservices. No tangled dependencies.
+{% /card %}
+
+## Configuration Layers
+
+### Agent Configuration
+
+Defines agent behavior:
+
+```typescript
+interface AgentConfig {
+    agentId: string;              // Unique identifier
+    agentName: string;            // Display name
+    instructions: string;         // System prompt
+    toolIds: string[];           // Available tools
+    modelId: string;             // LLM model
+    userMemory?: UserMemoryConfig; // Memory settings
+}
+```
+
+### Tool Configuration
+
+Defines callable capabilities:
+
+```typescript
+interface ToolConfig {
+    toolId: string;              // Unique identifier
+    toolName: string;            // Display name
+    description: string;         // What the tool does
+    executionType: 'lambda' | 'inline' | 'mcp';
+    lambdaArn?: string;          // For Lambda tools
+    inputSchema: JsonSchema;     // Input validation
+}
+```
+
+### Chat App Configuration
+
+Defines user-facing applications:
+
+```typescript
+interface ChatAppConfig {
+    chatAppId: string;           // Unique identifier
+    chatAppName: string;         // Display name
+    agentIds: string[];          // Available agents
+    chatAppUserTypes: UserType[]; // Who can access
+    enabled: boolean;            // Enabled/disabled
+    featureOverrides?: FeatureOverrides; // Custom settings
+}
+```
+
+## Use Cases
+
+### Microservices Architecture
+
+Each service registers its own agents and tools:
+
+```
+order-service/
+    src/
+        tools/
+            order-lookup.ts
+            order-update.ts
+    infra/
+        pika-registration.ts  # Registers order tools
+        
+payment-service/
+    src/
+        tools/
+            process-payment.ts
+            refund.ts
+    infra/
+        pika-registration.ts  # Registers payment tools
+        
+pika/  # Deployed once
+    # Platform infrastructure only
+```
+
+### Multi-Team Organizations
+
+Different teams manage different agents:
+
+- **Customer Support Team** - Defines support agents and workflows
+- **Sales Team** - Defines sales assistant agents
+- **Engineering Team** - Defines internal dev tools
+- **Platform Team** - Manages Pika infrastructure only
+
+### Iterative Development
+
+Evolve agents without platform redeployment:
+
+1. **Initial deployment** - Basic agent with few tools
+2. **Add capabilities** - Register new tools as needed
+3. **Refine behavior** - Update instructions based on usage
+4. **A/B testing** - Test variations with different user segments
+5. **Rollback** - Revert to previous versions if needed
+
+## Advanced Features
+
+### Configuration Versioning
+
+Track changes over time:
+
+```typescript
+const agentConfig: AgentConfig = {
+    agentId: 'support-agent',
+    version: '2.1.0',  // Semantic versioning
+    // ... rest of config
+};
+```
+
+### Conditional Tool Access
+
+Tools can have runtime access controls:
+
+```typescript
+const refundTool: ToolConfig = {
+    toolId: 'process-refund',
+    allowedRoles: ['customer-support-manager'],
+    maxRefundAmount: 500,
+    requiresApproval: true
+};
+```
+
+### Environment-Specific Configuration
+
+Different settings per environment:
+
+```typescript
+const agentConfig: AgentConfig = {
+    agentId: 'support-agent',
+    instructions: process.env.STAGE === 'prod' 
+        ? productionInstructions 
+        : developmentInstructions,
+    toolIds: process.env.STAGE === 'prod'
+        ? productionTools
+        : [...productionTools, ...debugTools]
+};
+```
+
+## Best Practices
+
+### Keep Configuration Close to Code
+
+Store agent configurations near the code they use:
+
+```
+order-service/
+    src/
+        tools/
+            order-lookup.ts       # Tool implementation
+        agents/
+            order-agent.config.ts # Agent using the tool
+    tests/
+        agent-behavior.test.ts    # Test agent behavior
+```
+
+### Version Control Everything
+
+All configurations should be:
+
+- Stored in git
+- Peer reviewed
+- Tested before deployment
+- Tagged with versions
+
+### Use TypeScript Types
+
+Leverage TypeScript for validation:
+
+```typescript
+import { AgentConfig, ToolConfig } from '@pika/types';
+
+// Type checking ensures valid configuration
+const agent: AgentConfig = {
+    // TypeScript validates all fields
+};
+```
+
+### Document Agent Behavior
+
+Instructions should be clear and maintainable:
+
+```typescript
+const instructions = `
+You are a customer support agent for Acme Corp.
+
+CAPABILITIES:
+- Look up order status using order-lookup tool
+- Process refunds up to $500 using process-refund tool
+- Answer product questions using product knowledge base
+
+GUIDELINES:
+- Always verify customer identity before processing refunds
+- Escalate refunds over $500 to human agents
+- Be polite and professional in all interactions
+
+CONSTRAINTS:
+- Do not make promises about shipping times
+- Do not provide technical support (redirect to tech team)
+- Do not discuss company financials or internal matters
+`;
+```
+
+## Getting Started
+
+{% card title="Hello World Tutorial" icon="pencil" %}
+Build your first agent with configuration-based approach.
+
+[Start Tutorial →](/getting-started/hello-world/)
+{% /card %}
+
+{% card title="Review Weather Sample" icon="star" %}
+See complete agent configuration in a real application.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="rocket" %}
+Detailed instructions for defining and deploying agents.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Multi-Agent Orchestration" icon="puzzle" %}
+Combine multiple configured agents into sophisticated systems.
+
+[Learn More →](/capabilities/core/multi-agent/)
+{% /card %}
+
+{% card title="Inline Tools" icon="rocket" %}
+Quick tool prototyping with configuration-embedded code.
+
+[Learn More →](/capabilities/integration/inline-tools/)
+{% /card %}
+
+{% card title="Instruction Engineering" icon="information" %}
+Tools to refine and improve agent instructions.
+
+[Learn More →](/capabilities/customization/instruction-engineering/)
+{% /card %}
+

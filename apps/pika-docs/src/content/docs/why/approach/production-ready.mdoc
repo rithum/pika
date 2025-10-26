@@ -1,0 +1,514 @@
+---
+title: Production-Ready from Day One
+description: Everything included so you can focus on intelligence, not infrastructure
+---
+
+## TL;DR
+
+Pika ships with a complete, production-quality chat UI, enterprise security features, and operational tooling built-in. You don't build or maintain chat interfaces, authentication systems, session management, or monitoring dashboards. Deploy Pika, configure your auth provider, define your agents, and you're in production. Focus your engineering time on agent intelligence, not infrastructure.
+
+---
+
+## What "Production-Ready" Actually Means
+
+Most frameworks give you the AI part. You build everything else. Pika includes everything:
+
+- Complete chat UI (standalone and embeddable)
+- Enterprise authentication integration
+- Multi-tenancy and access control
+- Session management
+- Admin interface
+- Operational tooling
+- Security by default
+
+This isn't marketing. It's architecture. Let's look at what's included.
+
+## Complete Chat User Interface
+
+### Standalone Mode
+
+A full-featured chat application right out of the box:
+
+{% card title="Message Rendering" icon="document" %}
+**Professional message display**:
+- Markdown rendering with proper formatting
+- Syntax highlighting for code blocks (100+ languages)
+- Tables, lists, and rich text
+- LaTeX math rendering
+- Mermaid diagram support
+- Image and file display
+{% /card %}
+
+{% card title="Streaming Experience" icon="rocket" %}
+**Real-time response display**:
+- Token-by-token streaming
+- Smooth animations
+- Loading indicators
+- Streaming code blocks (syntax highlights as tokens arrive)
+- Cancel mid-stream capability
+{% /card %}
+
+{% card title="Input Features" icon="pencil" %}
+**Rich input handling**:
+- Multi-line text input with auto-resize
+- File upload with drag-and-drop
+- Paste image support
+- Keyboard shortcuts (Cmd+Enter to send)
+- Input history (up/down arrows)
+- Character count indicators
+{% /card %}
+
+{% card title="Session Management" icon="document" %}
+**Conversation organization**:
+- Session list with search
+- Auto-generated titles (AI-powered)
+- Pin important conversations
+- Share sessions with others
+- Delete and archive
+- Session history pagination
+{% /card %}
+
+{% card title="Modern UX" icon="star" %}
+**Polish throughout**:
+- Mobile-responsive design
+- Dark mode support
+- Accessibility (WCAG 2.1 AA)
+- Loading skeletons
+- Empty states
+- Error messages
+- Toast notifications
+{% /card %}
+
+**What this means**: Your users get a chat experience comparable to ChatGPT or Claude. You don't build any of it.
+
+### Embedded Mode
+
+The same UI, embeddable in your existing application:
+
+```typescript
+// Add chat to any page
+<iframe
+  src="https://your-pika-instance.com/embedded/customer-support"
+  style="width: 100%; height: 600px; border: none;"
+/>
+```
+
+**Features in embedded mode**:
+- Same full functionality
+- Respects parent page auth
+- Customizable dimensions
+- Post-message API for integration
+- Matches your existing session
+
+**Use cases**:
+- Add chat to your product pages
+- Embed support chat in admin panels
+- Context-aware help within workflows
+
+## Enterprise Security
+
+### Authentication Integration
+
+Pika integrates with your existing auth:
+
+{% card title="Pluggable Authentication" icon="approve-check" %}
+**Bring your own auth**:
+- SAML 2.0 integration
+- OAuth 2.0 / OpenID Connect
+- Enterprise SSO (Okta, Auth0, Azure AD)
+- Custom authentication providers
+- API key authentication for programmatic access
+{% /card %}
+
+**How it works**:
+```typescript
+// Implement one interface
+interface AuthProvider {
+  async validateToken(token: string): Promise<UserInfo>;
+  async getUserType(user: UserInfo): 'internal-user' | 'external-user';
+  async getEntityId(user: UserInfo): string | null;
+  async getUserRoles(user: UserInfo): string[];
+}
+
+// Pika handles the rest
+```
+
+You provide the auth adapter. Pika handles:
+- Session token management
+- Token refresh
+- Secure cookie handling
+- Logout flows
+- Session invalidation
+
+{% aside type="note" %}
+**Important**: Pika requires authentication. There's no anonymous or public access mode. This is a deliberate security design decision.
+{% /aside %}
+
+### Multi-Tenancy & Access Control
+
+**User Types**:
+- **Internal Users**: Your employees, support staff, admins
+- **External Users**: Your customers, clients, end-users
+
+Different capabilities, different access patterns.
+
+**Entity-Based Isolation**:
+```typescript
+// Users belong to entities (companies, accounts, departments)
+interface User {
+  userId: string;
+  userType: 'internal-user' | 'external-user';
+  entityId: string; // 'acme-corp', 'account-12345', etc.
+  roles: string[];
+}
+```
+
+**Automatic data isolation**:
+- External users see only their entity's data
+- Sessions scoped to entities
+- Shared content respects entity boundaries
+- Internal users can access across entities (if configured)
+
+**Chat app access control**:
+```typescript
+const chatAppConfig = {
+  chatAppId: 'customer-support',
+  enabled: true,
+  userTypes: ['external-user'],              // Who can access
+  userRoles: ['customer'],                   // What roles required
+  // Per-feature overrides
+  features: {
+    traces: {
+      enabled: true,
+      userTypes: ['internal-user'],          // Only internal users see traces
+      userRoles: ['pika:site-admin']
+    }
+  }
+};
+```
+
+**What you control**:
+- Who sees which chat apps
+- What features are enabled per user type
+- What data users can access
+- What actions users can take
+
+### Security by Default
+
+{% card title="Encryption Everywhere" icon="approve-check" %}
+**Data protection**:
+- All data encrypted at rest (DynamoDB, S3)
+- TLS 1.2+ for all network traffic
+- Secure session cookies (httpOnly, secure, sameSite)
+- No sensitive data in logs
+{% /card %}
+
+{% card title="IAM-Based Access" icon="setting" %}
+**Service-to-service security**:
+- Every Lambda uses IAM roles
+- Least-privilege access
+- Tool invocations tagged and restricted
+- No hardcoded credentials anywhere
+{% /card %}
+
+{% card title="Audit Logging" icon="document" %}
+**Complete audit trail**:
+- Every API call logged (CloudTrail)
+- User actions tracked
+- Access decisions logged
+- Session activity recorded
+- Searchable and exportable
+{% /card %}
+
+{% card title="No AI Training" icon="approve-check" %}
+**Privacy guarantee**:
+- AWS Bedrock doesn't persist conversations
+- No data used for model training
+- Ephemeral processing only
+- You own all data
+{% /card %}
+
+## Admin Interface
+
+Built-in administration without building it yourself:
+
+### Site Administration
+
+{% card title="Chat App Management" icon="setting" %}
+**Control your chat apps**:
+- Enable/disable apps instantly
+- View usage statistics
+- Monitor active sessions
+- See user access patterns
+- Manage access control
+{% /card %}
+
+{% card title="User Management" icon="star" %}
+**Understand your users**:
+- View user list and activity
+- See which apps users access
+- Track usage patterns
+- Manage permissions
+- Audit user actions
+{% /card %}
+
+{% card title="Agent Configuration" icon="puzzle" %}
+**Monitor your agents**:
+- See registered agents and tools
+- View agent configurations
+- Monitor tool usage
+- Track agent performance
+- Debug agent behavior
+{% /card %}
+
+### Session Exploration
+
+{% card title="Session Browser" icon="document" %}
+**Explore conversations**:
+- Search across all sessions
+- Filter by user, app, date
+- View full conversation history
+- See agent reasoning (if enabled)
+- Export sessions for analysis
+{% /card %}
+
+{% card title="Insights Dashboard" icon="star" %}
+**AI-generated analytics**:
+- Session quality metrics
+- User sentiment analysis
+- Goal completion rates
+- Common questions
+- Improvement opportunities
+{% /card %}
+
+**Use cases**:
+- Customer support reviewing escalations
+- Product team analyzing feature requests
+- Engineering debugging agent behavior
+- Compliance reviewing conversations
+
+## Operational Tooling
+
+### Traces & Debugging
+
+{% card title="Detailed Traces" icon="information" %}
+**See exactly what happened**:
+- Full request/response logs
+- Tool invocations with inputs/outputs
+- Bedrock API calls
+- Token usage
+- Latency breakdown
+- Error details
+{% /card %}
+
+**Example trace view**:
+```
+Session: abc-123
+Message: "What's the status of order #12345?"
+
+[14:23:01.234] User message received
+[14:23:01.456] Agent invoked: customer-support-agent
+[14:23:01.567] Bedrock request started
+[14:23:02.123] Tool call requested: order-lookup
+  Input: { orderId: "12345" }
+[14:23:02.456] Lambda invoked: order-lookup-function
+[14:23:02.789] Tool response: { status: "shipped", tracking: "1Z999..." }
+[14:23:03.012] Bedrock streaming started
+[14:23:03.567] First token: "Your order"
+[14:23:04.890] Response complete
+  Tokens: 45 input, 32 output
+  Cost: $0.0023
+  Latency: 3.656s
+```
+
+**Configurable visibility**:
+- Basic traces for all users (timing, status)
+- Detailed traces for internal users
+- Full traces for admins
+- Export capability for analysis
+
+### Monitoring & Analytics
+
+{% card title="Usage Tracking" icon="rocket" %}
+**Understand usage patterns**:
+- Messages per day/week/month
+- Active users
+- Popular chat apps
+- Most-used tools
+- Peak usage times
+{% /card %}
+
+{% card title="Cost Tracking" icon="document" %}
+**Monitor AI costs**:
+- Per-session cost
+- Per-agent cost
+- Per-user cost
+- Token usage trends
+- Cost projections
+{% /card %}
+
+{% card title="Performance Metrics" icon="star" %}
+**Track performance**:
+- Average response latency
+- P95/P99 latencies
+- Error rates
+- Timeout frequency
+- Tool success rates
+{% /card %}
+
+### Error Handling
+
+**Graceful degradation**:
+- Service failures handled gracefully
+- User-friendly error messages
+- Automatic retries with backoff
+- Circuit breakers for failing tools
+- Fallback strategies
+
+**Error recovery**:
+- Sessions don't lose state on errors
+- Partial responses preserved
+- Clear error communication
+- Admin alerts for critical issues
+
+## Customization Options
+
+While production-ready out of the box, you can customize:
+
+### UI Customization
+
+```typescript
+const chatAppConfig = {
+  chatAppId: 'branded-support',
+  title: 'Acme Corp Support',
+  description: 'Get help from our AI assistant',
+  features: {
+    promptInputFieldLabel: {
+      enabled: true,
+      promptInputFieldLabel: 'Ask Acme anything...'
+    },
+    suggestions: {
+      enabled: true,
+      suggestions: [
+        'Check my order',
+        'Return a product',
+        'Contact sales'
+      ],
+      randomize: true,
+      maxToShow: 3
+    }
+  }
+};
+```
+
+### Feature Overrides
+
+**Per-app customization**:
+```typescript
+features: {
+  fileUpload: {
+    enabled: true,
+    mimeTypesAllowed: ['image/jpeg', 'image/png', 'application/pdf']
+  },
+  verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C'  // Auto-fix low-quality responses
+  },
+  traces: {
+    enabled: true,
+    userTypes: ['internal-user'],
+    detailedTraces: {
+      enabled: true,
+      userRoles: ['pika:site-admin']
+    }
+  }
+}
+```
+
+### Web Components
+
+Add custom UI elements:
+```typescript
+// Agent returns custom component
+return {
+  type: 'widget',
+  widgetType: 'OrderStatusCard',
+  data: {
+    orderId: '12345',
+    status: 'shipped',
+    tracking: '1Z999...'
+  }
+};
+```
+
+Pika renders your custom component with data.
+
+## What You Don't Build
+
+Pika includes everything needed for production:
+
+{% card title="You don't build" icon="approve-check" %}
+- ✅ Chat interface
+- ✅ Session management
+- ✅ Authentication integration
+- ✅ Admin panel
+- ✅ Trace viewer
+- ✅ Analytics dashboard
+- ✅ Mobile experience
+- ✅ Accessibility compliance
+- ✅ Security architecture
+- ✅ Monitoring and alerting
+
+**Focus on what matters to your users**
+{% /card %}
+
+{% card title="You do build" icon="star" %}
+- Your agent's intelligence
+- Your tools and integrations
+- Your business logic
+- Your data models
+- Your domain expertise
+
+**The things that matter to your users**
+{% /card %}
+
+## Real-World Example
+
+**Without Pika**:
+- Build chat UI
+- Session management
+- Auth integration + security
+- Admin panel + monitoring
+- Polish + testing
+- **Then**: Start building agent intelligence
+
+**With Pika**:
+- Deploy Pika, configure auth
+- Define agents and tools
+- **Then**: Already in production, iterate on intelligence
+
+**Significant time saved on infrastructure, more time on what actually matters**.
+
+## The Production Checklist
+
+Before going live, most teams need to verify:
+
+✅ **Authentication**: Pika integrates with your SSO
+✅ **Authorization**: User types and roles configured
+✅ **UI**: Professional interface included
+✅ **Mobile**: Responsive design included
+✅ **Accessibility**: WCAG 2.1 AA compliant
+✅ **Security**: Encryption, audit logs, IAM included
+✅ **Monitoring**: CloudWatch, traces, analytics included
+✅ **Error handling**: Graceful degradation included
+✅ **Admin tools**: Management interface included
+✅ **Documentation**: User and admin docs available
+
+**With Pika**: All checked by default.
+
+---
+
+{% aside type="tip" %}
+**Want to understand the intelligence features that make agents reliable?** Learn about [Production Intelligence](/why/approach/toy-to-tool/) capabilities, or go back to [The Pika Approach](/why/approach/) overview.
+{% /aside %}
+

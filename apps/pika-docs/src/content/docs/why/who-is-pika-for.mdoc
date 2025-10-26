@@ -1,0 +1,440 @@
+---
+title: Who Is Pika For?
+description: Understanding if Pika is the right choice for your team
+---
+
+## TL;DR
+
+Pika is for teams building production AI applications on AWS. While it provides enterprise-grade capabilities (security, multi-tenancy, compliance), it's designed to be approachable whether you're at a startup or a large organization. If you want to ship AI features fast without building infrastructure, and you're comfortable with AWS, Pika is for you.
+
+---
+
+## The Short Answer
+
+**Pika is for you if**:
+- You're building on AWS (or willing to)
+- You want AI features in production, not just demos
+- You prefer shipping features over building infrastructure
+- You need more than a prototype
+
+**Pika might not be for you if**:
+- You need to run on other clouds (Azure, GCP)
+- You're building a highly specialized agent framework
+- You prefer controlling every infrastructure detail
+- You're only experimenting (overkill for pure exploration)
+
+## For Product Teams
+
+### Your Challenge
+
+You need AI capabilities that users actually want to use:
+- Features that work reliably, not just in demos
+- Professional UX that doesn't feel like a science project
+- Fast iteration based on user feedback
+- Confidence it will scale when adoption grows
+
+But you're competing with:
+- Long infrastructure buildouts
+- Engineering capacity constraints
+- "Works on my machine" demos that aren't production-ready
+- Uncertainty about whether users will adopt
+
+### How Pika Helps
+
+**Ship AI features in weeks, not months**:
+- Production-ready UI included
+- Security and auth integration handled
+- No infrastructure building required
+- Start getting real user feedback immediately
+
+**Understand what's working**:
+- AI-generated feedback on every conversation
+- Insights dashboard shows usage patterns
+- Understand where users get stuck
+- Data-driven improvement priorities
+
+**Iterate rapidly**:
+- Change agent behavior via configuration
+- A/B test different approaches
+- Deploy updates in minutes
+- Measure impact immediately
+
+**Scale confidently**:
+- Handles 10 users or 10,000
+- AWS infrastructure scales automatically
+- Costs scale with usage
+- No capacity planning
+
+{% card title="Real Scenario: E-commerce Product Team" icon="star" %}
+**Goal**: Add AI shopping assistant to product pages
+
+**Without Pika**:
+- Build chat UI and install and learn agent infrastructure
+- Integrate with product catalog
+- Add to product pages
+- Fix issues, polish
+- **Result**: Extended development timeline
+
+**With Pika**:
+- Deploy Pika, define product agent
+- Embed in product pages, test
+- Refine based on beta feedback
+- **Result**: Launch quickly, iterate based on real usage
+
+**Outcome**: Significant time savings, earlier user feedback, faster iteration
+{% /card %}
+
+### What Product Teams Love
+
+- **Fast time-to-market**: Ship features while competitors are still building infrastructure
+- **Real user feedback**: Understand actual usage, not assumptions
+- **Professional quality**: UI and UX that matches modern expectations
+- **Measurable impact**: Track adoption, satisfaction, and outcomes
+
+## For Engineering Teams
+
+### Your Challenge
+
+You need to add AI capabilities without:
+- Derailing your roadmap
+- Creating maintenance nightmares
+- Learning entirely new infrastructure patterns
+- Accumulating technical debt
+
+But you're facing:
+- Pressure to ship AI features fast
+- Limited time to become LLM experts
+- Existing systems to integrate with
+- Production reliability requirements
+
+### How Pika Helps
+
+**Deploy using familiar patterns**:
+```typescript
+// Standard CDK deployment
+new PikaStack(this, 'Pika', {
+  authProvider: new CustomAuthProvider(),
+  vpc: existingVpc,
+  // ... standard AWS CDK patterns
+});
+
+// Define agents as config
+const agentConfig = {
+  agentId: 'support-agent',
+  toolIds: ['order-lookup', 'refund-tool']
+};
+```
+
+No new deployment paradigms. If you know CDK, you know how to deploy Pika.
+
+**Clean separation of concerns**:
+```
+your-services/
+  order-service/
+    src/tools/order-lookup.ts  # Your code
+    infra/pika-agents.ts        # Agent config
+  
+  payment-service/
+    src/tools/refund-tool.ts    # Your code
+    infra/pika-agents.ts        # Agent config
+  
+  pika/ (deployed once)
+    # Platform handles orchestration
+```
+
+Your business logic stays in your services. Pika handles the platform.
+
+**Observable and debuggable**:
+- CloudWatch logs for everything
+- X-Ray tracing through requests
+- Detailed trace view in admin UI
+- Standard AWS monitoring patterns
+
+**Test like normal code**:
+```typescript
+// Unit test your tools
+test('order lookup works', async () => {
+  const result = await orderLookup({ orderId: '123' });
+  expect(result.status).toBe('shipped');
+});
+
+// Integration test tool invocation
+test('Pika can invoke tool', async () => {
+  // Standard Lambda invoke testing
+});
+```
+
+No special testing frameworks. Standard practices work.
+
+{% card title="Real Scenario: SaaS Engineering Team" icon="rocket" %}
+**Requirement**: Add AI assistant to product without disrupting Q2 roadmap
+
+**Concern**: "We can't spend months and years building chat infrastructure"
+
+**Solution**:
+- Sprint 1: One engineer deploys Pika
+- Sprint 2: Team defines agents for top use cases
+- Sprint 3: Wire up existing APIs as tools
+- Sprint 4: Refine and launch beta
+
+**Outcome**: Launched quickly with minimal engineering resources. No roadmap disruption.
+{% /card %}
+
+### What Engineering Teams Love
+
+- **No new operational model**: AWS services you already run
+- **Clean architecture**: Agent code doesn't pollute your services
+- **Standard tooling**: CloudWatch, X-Ray, CDK - familiar tools
+- **Low maintenance**: Managed services, no servers to patch
+- **Production patterns**: Security, scaling, monitoring included
+
+## For Teams of Any Size
+
+Pika isn't just for enterprises. It's designed to be approachable.
+
+### Startups & Small Teams
+
+**Why Pika fits**:
+- **Fast to production**: Ship features in weeks
+- **One engineer can manage**: No dedicated AI platform team needed
+- **Scales with you**: Start small, costs scale with usage
+- **No premature optimization**: AWS handles scale when you need it
+
+**Example**: 3-person startup
+- Deploy Pika in week 1
+- Define agents for core features
+- Focus on product differentiation
+- Scale when users arrive (automatically)
+
+**What you avoid**: Building infrastructure before product-market fit
+
+### Mid-Size Companies
+
+**Why Pika fits**:
+- **Multiple use cases**: Platform supports many agents/chat apps
+- **Team independence**: Different teams deploy their own agents
+- **Shared infrastructure**: One deployment, many applications
+- **Clear costs**: Understand what drives spending
+
+**Example**: 30-person company, 3 product teams
+- Each team defines their own agents
+- Shared tools library (user lookup, analytics, etc.)
+- Platform team manages Pika deployment
+- Product teams iterate independently
+
+**What you avoid**: Each team building their own infrastructure
+
+### Enterprise Organizations
+
+**Why Pika fits**:
+- **Multi-tenancy built in**: Support multiple orgs on one deployment
+- **Enterprise security**: SSO, RBAC, audit logs, compliance
+- **Internal & external use cases**: Same platform, different audiences
+- **Governance**: Infrastructure as Code, review processes
+
+**Example**: Enterprise with multiple business units
+- Shared Pika deployment
+- Per-BU entity isolation
+- Internal tools for employees
+- Customer-facing apps for clients
+- Central platform team, distributed agent development
+
+**What you avoid**: Proliferating point solutions, governance nightmare
+
+{% aside type="tip" %}
+**The Key Insight**: Pika provides enterprise capabilities without enterprise complexity. You can start simple and grow into advanced features as needed.
+{% /aside %}
+
+## For Different Use Cases
+
+### Internal Tools
+
+**Building AI assistants for employees**:
+- Support agents for internal help desk
+- Technical documentation assistants
+- Code review helpers
+- Business intelligence
+
+**What Pika provides**:
+- User type: `internal-user`
+- Role-based access (admin, power-user, etc.)
+- Integration with employee SSO
+- Full feature access (traces, debug tools)
+
+### Customer-Facing Applications
+
+**Building AI assistants for users**:
+- Customer support chat
+- Product advisors
+- Shopping assistants
+- Self-service tools
+
+**What Pika provides**:
+- User type: `external-user`
+- Entity-based isolation (multi-tenancy)
+- Customer auth integration
+- Feature controls (hide traces, limit capabilities)
+- Quality controls (verification, feedback)
+
+### Both (Most Companies)
+
+**Reality**: You'll have both internal and external use cases.
+
+**What Pika provides**:
+- Same platform, different configurations
+- Fine-grained access control
+- Shared tools, different agents
+- One deployment to manage
+
+## The Technical Requirements
+
+Be honest about these prerequisites:
+
+### AWS Comfort
+
+**You need**:
+- Willingness to run on AWS exclusively
+- Basic understanding of core services (Lambda, DynamoDB, etc.)
+- Comfort with CDK or CloudFormation
+
+**You don't need**:
+- Deep AWS expertise (Pika configures services)
+- Solutions Architect certification
+- Previous serverless experience (but it helps)
+
+### LLM Understanding
+
+**You need**:
+- Basic understanding of how LLMs work
+- Willingness to iterate on prompts
+- Understanding that agents aren't perfect
+
+**You don't need**:
+- ML/AI expertise
+- Prompt engineering mastery (learn as you go)
+- Understanding of model internals
+
+### Development Capability
+
+**You need**:
+- TypeScript/JavaScript for tool development
+- Ability to write Lambda functions
+- API integration experience
+
+**You don't need**:
+- AI framework expertise
+- Specialized ML libraries
+- PhD in computer science
+
+## When Pika Is Overkill
+
+Be realistic about when Pika isn't the right choice:
+
+### Pure Experimentation
+
+If you're just exploring LLMs:
+- Try ChatGPT, Claude, or similar
+- Build a simple script
+- No need for full platform
+
+**When to graduate to Pika**: When experiments become products
+
+### Highly Specialized Needs
+
+If you need:
+- Custom agent architectures outside Bedrock's model
+- Specialized LLM deployment
+- Research-grade flexibility
+
+**Alternative**: Build custom or use research frameworks
+
+### Non-AWS Environments
+
+If you:
+- Must run on Azure/GCP
+- Have strict on-premise requirements
+- Can't use AWS for regulatory reasons
+
+**Alternative**: Pika won't work (it's AWS-only by design)
+
+### Tiny Scope
+
+If you need:
+- Single-purpose chatbot
+- No user management
+- No scaling requirements
+- Throwaway prototype
+
+**Alternative**: Simpler solutions exist
+
+## The Decision Framework
+
+Ask yourself:
+
+**1. Are we building for production or experimenting?**
+- Experimenting → Simpler tools first
+- Production → Pika shines
+
+**2. Are we on AWS or willing to be?**
+- Yes → Continue
+- No → Pika won't work
+
+**3. Do we want to build infrastructure or ship features?**
+- Build infrastructure → Custom might be better
+- Ship features → Pika accelerates
+
+**4. Will we have multiple agents/use cases?**
+- One simple chatbot → Probably overkill
+- Multiple agents → Platform approach pays off
+
+**5. Do we need enterprise features (auth, multi-tenancy, security)?**
+- Yes → Pika provides these
+- No → Simpler options exist, but Pika still works
+
+## The Honest Assessment
+
+**Pika is a great fit if 3+ of these are true**:
+- ✅ Building on AWS
+- ✅ Need production-quality (not demo)
+- ✅ Multiple use cases or agents
+- ✅ Enterprise security/auth requirements
+- ✅ Want to ship fast
+- ✅ Prefer structure over total flexibility
+
+**Pika might not fit if 2+ of these are true**:
+- ❌ Must run on other clouds
+- ❌ Pure research/experimentation
+- ❌ Single simple chatbot
+- ❌ Want to build everything custom
+- ❌ Not comfortable with AWS
+
+## Getting Started
+
+Still here? Pika might be right for you.
+
+**Next steps**:
+
+{% card title="Try It Out" icon="rocket" %}
+Deploy Pika and build your first agent in 15 minutes
+
+[Quick Start Guide](/guides/quick-start/)
+{% /card %}
+
+{% card title="Understand the Approach" icon="star" %}
+Learn how Pika solves the production problem
+
+[The Pika Approach](/why/approach/)
+{% /card %}
+
+{% card title="See What's Included" icon="puzzle" %}
+Explore capabilities and features
+
+Coming soon
+{% /card %}
+
+---
+
+**Still unsure?** That's okay. Pika isn't for everyone, and that's by design. We built for teams who want to ship production AI on AWS fast. If that's you, we'd love to have you try it.
+
+If you're looking for something different, we hope this doc saved you time figuring that out.
+

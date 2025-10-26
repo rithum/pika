@@ -1,0 +1,22 @@
+---
+import CollapsibleSvelte from './collapsible.svelte';
+
+interface Props {
+	title: string;
+	expanded?: boolean;
+	clientLoad?: boolean;
+}
+
+const { title, expanded = false, clientLoad = true } = Astro.props;
+---
+
+{clientLoad ? (
+	<CollapsibleSvelte title={title} expanded={expanded} client:load>
+		<slot />
+	</CollapsibleSvelte>
+) : (
+	<CollapsibleSvelte title={title} expanded={expanded}>
+		<slot />
+	</CollapsibleSvelte>
+)}
+

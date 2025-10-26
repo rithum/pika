@@ -1,0 +1,552 @@
+---
+title: Intelligent Prompt Engineering
+description: Automated prompt structuring and context-aware instruction augmentation for better agent responses
+---
+
+Building effective AI agents requires sophisticated prompt engineering. Pika eliminates the complexity of manually crafting and maintaining prompts by automatically generating structured instructions, dynamically injecting context-aware directives, and teaching agents to use UI components correctly.
+
+## What It Does
+
+Pika's prompt engineering capabilities combine three powerful systems that work together to transform simple agent instructions into sophisticated, context-aware prompts:
+
+{% card title="Automatic Formatting Instructions" icon="document" %}
+Inject structured output requirements, tag usage instructions, and validation rules directly into agent prompts without manual prompt management.
+{% /card %}
+
+{% card title="Context-Aware Augmentation" icon="puzzle" %}
+Dynamically enhance prompts with relevant instructions based on the user's question, active tools, entity context, and chat app configuration using semantic directives.
+{% /card %}
+
+{% card title="Component Usage Teaching" icon="rocket" %}
+Automatically generate and inject instructions that teach agents when and how to use available UI components and tags.
+{% /card %}
+
+## Why It Matters
+
+### The Prompt Engineering Challenge
+
+Traditional LLM applications require developers to manually craft complex prompts that:
+- Specify exact output formatting requirements
+- List all available UI components with usage examples
+- Handle edge cases for different contexts
+- Stay synchronized as features evolve
+- Scale across multiple agents and chat apps
+
+As applications grow, prompts become bloated with every possible instruction, making them difficult to maintain and causing LLM performance degradation.
+
+### The Pika Approach
+
+Pika solves this by separating concerns and automating prompt construction:
+
+**Clean Base Prompts**: Write focused agent instructions about behavior and goals
+**Automatic Enhancement**: The platform injects formatting, tag instructions, and contextual directives
+**Dynamic Relevance**: Only include instructions relevant to the current question and context
+**Maintainable at Scale**: Update instructions once, apply automatically across all agents
+
+## Key Capabilities
+
+### Instruction Assistance
+
+Automatically injects structured formatting requirements into agent prompts.
+
+#### Output Formatting Requirements
+
+The system adds a complete "Output Formatting Requirements" section to your prompts that ensures consistent, parseable responses:
+
+```typescript
+// In your agent config
+agentInstructionAssistance: {
+    enabled: true,
+    includeOutputFormattingRequirements: {
+        enabled: true
+    }
+}
+```
+
+**What gets injected:**
+- Response enclosure requirements (wrapping output in `<answer></answer>` tags)
+- Content format guidelines (Markdown with structured elements)
+- JSON validation requirements for data-driven components
+- Complete usage examples showing proper formatting
+
+#### Dynamic Tag Instructions
+
+When you enable UI components (tags) in your chat app, the system automatically generates and injects instructions teaching the agent to use them:
+
+```typescript
+agentInstructionAssistance: {
+    enabled: true,
+    includeInstructionsForTags: {
+        enabled: true
+    }
+}
+```
+
+**Automatic instruction generation:**
+- Discovers enabled tags based on chat app configuration
+- Formats detailed usage instructions from tag definitions
+- Includes when to use each tag and proper syntax
+- Provides complete examples with valid JSON structures
+- Updates automatically when tag configuration changes
+
+#### Placeholder System
+
+Use placeholders in your agent instructions for fine-grained control:
+
+```markdown
+You are a helpful shopping assistant.
+
+Core instructions here...
+
+{{prompt-assistance}}
+
+Additional context...
+```
+
+**Available placeholders:**
+- `{{prompt-assistance}}` - All enabled instruction content
+- `{{output-formatting-requirements}}` - Basic formatting requirements
+- `{{tag-instructions}}` - Tag-specific instructions
+- `{{complete-example-instruction-line}}` - Complete usage example
+- `{{json-only-imperative-instruction-line}}` - JSON validation warnings
+
+If no placeholder is found, instructions are automatically appended to your prompt.
+
+### Instruction Augmentation (Semantic Directives)
+
+Dynamically enhances prompts with context-aware instructions that are relevant to specific questions, tools, entities, or scenarios.
+
+#### How Semantic Directives Work
+
+Instead of cramming every edge case into your base prompt, define targeted instructions that are injected only when relevant:
+
+**Phase 1 - Context-Aware Retrieval:**
+- System identifies relevant scopes (chat app, agent, active tools, entity)
+- Queries semantic directives matching those scopes
+- Retrieves candidate instructions
+
+**Phase 2 - LLM Decision Making:**
+- Lightweight LLM reviews the user's question and candidates
+- Determines which directives are actually relevant
+- Injects selected instructions into the main prompt
+- Main agent processes the enhanced prompt
+
+#### Semantic Directive Scopes
+
+Directives can be scoped to specific contexts:
+
+```typescript
+// Entity-specific directive
+{
+  scope: "agent#shopping-assistant#entity#premium-customers",
+  id: "premium-perks",
+  description: "Instructions for premium customer interactions",
+  instructions: "Always mention free shipping, priority support, and exclusive discounts."
+}
+
+// Tool-specific directive
+{
+  scope: "tool#portfolio-analyzer",
+  id: "risk-disclaimers",
+  description: "Required risk disclaimers for investment advice",
+  instructions: "Always include risk disclaimers for investment recommendations."
+}
+
+// Chat app-wide directive
+{
+  scope: "chatapp#customer-support",
+  id: "billing-escalation",
+  description: "Billing dispute handling procedures",
+  instructions: "For disputes over $100, offer immediate supervisor escalation."
+}
+```
+
+**Scope patterns:**
+- `chatapp#{chatAppId}` - Applies to all agents in a chat app
+- `agent#{agentId}` - Applies to specific agent
+- `tool#{toolName}` - Applies when specific tool is used
+- `agent#{agentId}#entity#{entityId}` - Entity-specific behavior
+- Compound scopes for fine-grained control
+
+## Use Cases
+
+### E-commerce Platform
+
+**Without Pika:**
+```markdown
+You are a shopping assistant.
+
+OUTPUT FORMAT: Wrap all responses in <answer></answer> tags.
+Use <product-card> for products. Format: <product-card>{"id":"123","name":"..."}</product-card>
+Use <chart> for data. Format: <chart type="bar">{"labels":[...],"datasets":[...]}</chart>
+For premium customers, mention free shipping and priority support.
+For return questions, explain our 30-day policy, 60 days for premium.
+For billing over $100, offer escalation to supervisor.
+For inventory questions, always check current stock levels.
+[... 50 more lines of edge cases ...]
+```
+
+**With Pika:**
+```markdown
+You are a helpful shopping assistant focused on helping customers find products and answer questions about orders.
+```
+
+The platform automatically adds:
+- Output formatting requirements
+- Product card and chart tag instructions
+- Premium customer perks (via semantic directive for premium entities)
+- Return policy details (via semantic directive triggered by return questions)
+- Billing escalation rules (via semantic directive for billing questions)
+
+### Financial Services
+
+**Base prompt (clean and focused):**
+```markdown
+You are a financial advisor assistant helping users understand their investment portfolios and make informed decisions.
+```
+
+**Automatic enhancements:**
+- Chart and calculator tag instructions (via instruction assistance)
+- Risk disclaimers when portfolio analyzer tool is used (via semantic directive)
+- Tax optimization guidance for high-net-worth clients (via entity-scoped directive)
+- Compliance requirements for specific investment types (via tool-scoped directives)
+
+### Customer Support
+
+**Base prompt:**
+```markdown
+You are a customer support representative helping users resolve issues and answer questions about our products.
+```
+
+**Context-aware additions:**
+- Warranty checking instructions when warranty tool is available
+- Billing dispute procedures (semantic directive triggered by billing questions)
+- Product defect resolution process (semantic directive when warranty tool is invoked)
+- Escalation procedures based on issue severity (semantic directives)
+
+## Benefits
+
+### For Developers
+
+{% card title="Reduced Complexity" icon="approve-check" %}
+Write focused agent instructions without embedding formatting requirements, tag syntax, or edge case handling.
+{% /card %}
+
+{% card title="Maintainable at Scale" icon="rocket" %}
+Update formatting requirements or tag instructions once; changes apply automatically across all agents.
+{% /card %}
+
+{% card title="Version Control Friendly" icon="github" %}
+Semantic directives are stored in DynamoDB and deployable via Infrastructure as Code, enabling proper review and rollout processes.
+{% /card %}
+
+### For Agent Performance
+
+{% card title="Targeted Instructions" icon="star" %}
+Agents receive only relevant instructions for each question, avoiding prompt bloat and improving response quality.
+{% /card %}
+
+{% card title="Consistent Output" icon="approve-check" %}
+Automatic formatting injection ensures reliable, parseable responses across all agents and contexts.
+{% /card %}
+
+{% card title="Dynamic Adaptation" icon="puzzle" %}
+Prompts adapt automatically based on user context, active tools, and entity membership without manual intervention.
+{% /card %}
+
+## Getting Started
+
+### 1. Enable Instruction Assistance
+
+In your `pika-config.ts`:
+
+```typescript
+export const siteFeatures: SiteFeatures = {
+    agentInstructionAssistance: {
+        enabled: true,
+        includeOutputFormattingRequirements: {
+            enabled: true
+        },
+        includeInstructionsForTags: {
+            enabled: true
+        }
+    }
+};
+```
+
+### 2. Enable Instruction Augmentation
+
+```typescript
+export const siteFeatures: SiteFeatures = {
+    instructionAugmentation: {
+        enabled: true
+    }
+};
+```
+
+### 3. Write Clean Agent Instructions
+
+Focus on behavior and goals:
+
+```typescript
+const myAgent: AgentConfig = {
+    agentId: 'shopping-assistant',
+    instructions: `You are a helpful shopping assistant.
+    
+Help customers find products, answer questions about orders, 
+and provide recommendations based on their preferences.
+
+{{prompt-assistance}}`,
+    // ... rest of config
+};
+```
+
+### 4. Create Semantic Directives
+
+Use the admin interface to define context-aware instructions:
+
+**Navigate to:** Admin → Site Administration → Semantic Directives
+
+**Create directives for specific scenarios:**
+- Premium customer behavior
+- Tool-specific guidelines
+- Entity-specific policies
+- Edge case handling
+
+## Configuration
+
+### Instruction Assistance Options
+
+```typescript
+agentInstructionAssistance: {
+    enabled: true,
+    
+    // Inject output formatting requirements
+    includeOutputFormattingRequirements: {
+        enabled: true
+    },
+    
+    // Inject tag usage instructions
+    includeInstructionsForTags: {
+        enabled: true
+    },
+    
+    // Custom complete example (optional)
+    completeExampleInstructionLine: {
+        enabled: true,
+        mdLine: "Custom example: <answer>Your content here</answer>"
+    },
+    
+    // Custom JSON validation reminder (optional)
+    jsonOnlyImperativeInstructionLine: {
+        enabled: true,
+        line: "CRITICAL: Validate all JSON before output"
+    }
+}
+```
+
+### Semantic Directive Structure
+
+```typescript
+{
+    scope: "chatapp#my-app",
+    id: "unique-directive-id",
+    description: "Clear description helping LLM understand when to apply",
+    instructions: "The actual instruction text to inject into the prompt",
+    status: "enabled"
+}
+```
+
+**Scope patterns:**
+- Simple: `chatapp#app-id`, `agent#agent-id`, `tool#tool-name`
+- Compound: `agent#agent-id#entity#entity-id`
+- Multiple scopes per directive for reusability
+
+## Best Practices
+
+### Instruction Assistance
+
+{% aside type="tip" title="Keep Base Prompts Focused" %}
+Write agent instructions about behavior and goals only. Let the platform handle formatting, tag syntax, and validation requirements.
+{% /aside %}
+
+{% aside type="tip" title="Use Placeholders for Control" %}
+Place `{{prompt-assistance}}` where you want instructions injected rather than relying on automatic appending.
+{% /aside %}
+
+{% aside type="tip" title="Test Thoroughly" %}
+Verify that agents follow the generated instructions correctly. Use the traces feature to see the complete enhanced prompt.
+{% /aside %}
+
+### Semantic Directives
+
+{% aside type="tip" title="Write Clear Descriptions" %}
+The description field helps the LLM decide when to use the directive. Make it specific and contextual.
+{% /aside %}
+
+{% aside type="tip" title="Start Broad, Get Specific" %}
+Begin with simple scopes like `chatapp#app-id`, then add more specific scopes as needed.
+{% /aside %}
+
+{% aside type="tip" title="Keep Instructions Focused" %}
+Each directive should address one specific scenario or edge case. Don't combine unrelated instructions.
+{% /aside %}
+
+{% aside type="tip" title="Monitor and Iterate" %}
+Use the admin interface to track directive usage and effectiveness. Refine descriptions and instructions based on actual performance.
+{% /aside %}
+
+## Advanced Patterns
+
+### Per-Chat-App Tag Configurations
+
+Different chat apps can enable different tags, and instruction assistance automatically adapts:
+
+```typescript
+// Customer-facing app - minimal tags
+{
+    chatAppId: 'customer-support',
+    features: {
+        tags: {
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'prompt' }
+            ]
+        }
+    }
+}
+
+// Internal admin app - all tags
+{
+    chatAppId: 'admin-tools',
+    features: {
+        tags: {
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'prompt' },
+                { scope: 'custom', tag: 'admin-panel' },
+                { scope: 'custom', tag: 'data-export' }
+            ]
+        }
+    }
+}
+```
+
+Instructions automatically match each configuration.
+
+### Entity-Aware Semantic Directives
+
+Create personalized behavior for specific customers or organizations:
+
+```typescript
+// VIP customer directive
+{
+    scope: "agent#support-agent#entity#vip-customers",
+    description: "Special handling for VIP customer entity members",
+    instructions: "Offer white-glove service with dedicated account manager contact information."
+}
+
+// Enterprise customer directive
+{
+    scope: "chatapp#sales#entity#enterprise-segment",
+    description: "Enterprise customer pricing and features",
+    instructions: "Discuss volume discounts, dedicated support, and SLA guarantees for enterprise accounts."
+}
+```
+
+### Tool-Triggered Instructions
+
+Inject specialized guidance when specific tools are available:
+
+```typescript
+{
+    scope: "tool#database-query",
+    description: "SQL query safety guidelines",
+    instructions: "Always use parameterized queries. Never include user input directly in SQL. Limit results to 1000 rows maximum."
+}
+
+{
+    scope: "tool#payment-processor",
+    description: "PCI compliance requirements for payment processing",
+    instructions: "Never log full credit card numbers. Use tokenization for all payment data. Include fraud detection check results."
+}
+```
+
+## Related Capabilities
+
+- **[AI-Driven UI](/capabilities/customization/ai-ui/)** - Tag system that provides UI components instruction assistance teaches agents to use
+- **[Custom Web Components](/capabilities/customization/web-components/)** - Build the components that instruction assistance helps agents learn
+- **[Feature Overrides](/capabilities/customization/feature-overrides/)** - Per-chat-app customization that affects which instructions are injected
+- **[Admin Site](/capabilities/enterprise/admin-site/)** - Interface for managing semantic directives
+
+## Technical Details
+
+### Resolution Order
+
+The system processes instruction enhancement in this order:
+
+1. **Base agent instructions** from agent configuration
+2. **Placeholder resolution** - Find and mark placeholder locations
+3. **Instruction assistance** - Generate formatting and tag instructions
+4. **Semantic directive retrieval** - Query relevant directives by scope
+5. **Directive selection** - LLM determines which directives apply
+6. **Final prompt assembly** - Inject all selected instructions
+7. **Agent invocation** - Send enhanced prompt to LLM
+
+### Performance Considerations
+
+{% aside type="note" title="Minimal Latency Impact" %}
+Semantic directive selection uses a fast, lightweight LLM call that typically adds less than 500ms to request processing.
+{% /aside %}
+
+{% aside type="note" title="Caching" %}
+Formatted instruction assistance output is cached per chat app configuration, eliminating regeneration overhead for subsequent requests.
+{% /aside %}
+
+### Infrastructure as Code
+
+Deploy semantic directives via CloudFormation or CDK:
+
+```typescript
+// In your custom stack
+import { SemanticDirective } from 'pika-shared';
+
+const premiumDirective: SemanticDirective = {
+    scope: 'agent#shopping#entity#premium',
+    id: 'premium-benefits',
+    description: 'Premium customer benefits',
+    instructions: 'Mention free shipping and priority support.',
+    status: 'enabled'
+};
+
+// Deploy via custom resources
+new CustomResource(this, 'PremiumDirective', {
+    serviceToken: directiveManagerArn,
+    properties: {
+        directive: gzip(JSON.stringify(premiumDirective))
+    }
+});
+```
+
+## Next Steps
+
+Ready to implement intelligent prompt engineering?
+
+{% card title="Learn About Tags" icon="puzzle" %}
+Understand the tag system that instruction assistance teaches agents to use.
+
+[Explore AI-Driven UI →](/capabilities/customization/ai-ui/)
+{% /card %}
+
+{% card title="Build Components" icon="rocket" %}
+Create custom web components for agents to render.
+
+[Build Components →](/capabilities/customization/web-components/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="document" %}
+Step-by-step instructions for setting up prompt engineering features.
+
+[View How-To →](/how-to/customization/prompt-engineering/)
+{% /card %}
+

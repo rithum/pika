@@ -1,0 +1,138 @@
+<svg host="65bd71144e" 
+     xmlns="http://www.w3.org/2000/svg" 
+     xmlns:xlink="http://www.w3.org/1999/xlink" 
+     version="1.1" 
+     width="760px" 
+     height="500px" 
+     viewBox="-0.5 -0.5 760 500"
+     content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;user&quot; value=&quot;User Sends Message&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;strokeWidth=2;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;40&quot; y=&quot;60&quot; width=&quot;140&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;reason1&quot; value=&quot;Reasoning Starts Streaming&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;strokeWidth=2;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;40&quot; y=&quot;150&quot; width=&quot;140&quot; height=&quot;80&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;tool&quot; value=&quot;Tool Invocation Shown&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;40&quot; y=&quot;260&quot; width=&quot;140&quot; height=&quot;80&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;reason2&quot; value=&quot;Synthesis Reasoning&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;strokeWidth=2;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;40&quot; y=&quot;370&quot; width=&quot;140&quot; height=&quot;80&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;ui1&quot; value=&quot;UI Shows Thinking&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;strokeWidth=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;240&quot; y=&quot;160&quot; width=&quot;140&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;ui2&quot; value=&quot;UI Shows Tool&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;strokeWidth=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;240&quot; y=&quot;270&quot; width=&quot;140&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;ui3&quot; value=&quot;UI Shows Synthesis&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;strokeWidth=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;240&quot; y=&quot;380&quot; width=&quot;140&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;answer&quot; value=&quot;Final Answer Delivered&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;strokeWidth=2;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;440&quot; y=&quot;270&quot; width=&quot;140&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;verify&quot; value=&quot;Verification Optional&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#c62828;strokeWidth=2;dashed=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;620&quot; y=&quot;260&quot; width=&quot;120&quot; height=&quot;80&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#0277bd;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;user&quot; target=&quot;reason1&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow2&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#f57c00;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;reason1&quot; target=&quot;tool&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow3&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#7b1fa2;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;tool&quot; target=&quot;reason2&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;stream1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#388e3c;strokeWidth=1;dashed=1;&quot; parent=&quot;1&quot; source=&quot;reason1&quot; target=&quot;ui1&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;stream2&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#388e3c;strokeWidth=1;dashed=1;&quot; parent=&quot;1&quot; source=&quot;tool&quot; target=&quot;ui2&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;stream3&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#388e3c;strokeWidth=1;dashed=1;&quot; parent=&quot;1&quot; source=&quot;reason2&quot; target=&quot;ui3&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow4&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#0277bd;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;ui2&quot; target=&quot;answer&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow5&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;strokeColor=#c62828;strokeWidth=2;dashed=1;&quot; parent=&quot;1&quot; source=&quot;answer&quot; target=&quot;verify&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+    </marker>
+  </defs>
+  
+  <g>
+    <!-- Title -->
+    <text x="380" y="25" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="14" font-weight="bold">Answer Reasoning and Traces Flow</text>
+    
+    <!-- User Message -->
+    <rect id="user" x="40" y="60" width="140" height="60" rx="8" ry="8" 
+          fill="#e1f5fe" stroke="#0277bd" stroke-width="2"/>
+    <text x="110" y="82" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11" font-weight="bold">User Sends</text>
+    <text x="110" y="98" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10">Message</text>
+    
+    <!-- Reasoning 1 -->
+    <rect id="reason1" x="40" y="150" width="140" height="80" rx="8" ry="8" 
+          fill="#fff3e0" stroke="#f57c00" stroke-width="2"/>
+    <text x="110" y="170" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11" font-weight="bold">Reasoning Starts</text>
+    <text x="110" y="186" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10">Streaming</text>
+    <text x="110" y="208" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9" font-style="italic">Analyzing question...</text>
+    
+    <!-- Tool -->
+    <rect id="tool" x="40" y="260" width="140" height="80" rx="8" ry="8" 
+          fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2"/>
+    <text x="110" y="280" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11" font-weight="bold">Tool Invocation</text>
+    <text x="110" y="296" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10">Shown</text>
+    <text x="110" y="318" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9" font-style="italic">Input, Output, Duration</text>
+    
+    <!-- Reasoning 2 -->
+    <rect id="reason2" x="40" y="370" width="140" height="80" rx="8" ry="8" 
+          fill="#fff3e0" stroke="#f57c00" stroke-width="2"/>
+    <text x="110" y="390" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11" font-weight="bold">Synthesis</text>
+    <text x="110" y="406" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10">Reasoning</text>
+    <text x="110" y="428" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9" font-style="italic">Based on results...</text>
+    
+    <!-- UI elements -->
+    <rect id="ui1" x="240" y="160" width="140" height="60" rx="6" ry="6" 
+          fill="#e8f5e8" stroke="#388e3c" stroke-width="1"/>
+    <text x="310" y="182" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-weight="bold">UI Shows:</text>
+    <text x="310" y="198" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9" font-style="italic">Thinking...</text>
+    
+    <rect id="ui2" x="240" y="270" width="140" height="60" rx="6" ry="6" 
+          fill="#e8f5e8" stroke="#388e3c" stroke-width="1"/>
+    <text x="310" y="285" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-weight="bold">UI Shows:</text>
+    <text x="310" y="300" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9">Tool: order-lookup</text>
+    <text x="310" y="314" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9">Duration: 243ms</text>
+    
+    <rect id="ui3" x="240" y="380" width="140" height="60" rx="6" ry="6" 
+          fill="#e8f5e8" stroke="#388e3c" stroke-width="1"/>
+    <text x="310" y="398" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-weight="bold">UI Shows:</text>
+    <text x="310" y="413" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9" font-style="italic">Synthesizing response...</text>
+    
+    <!-- Final Answer -->
+    <rect id="answer" x="440" y="270" width="140" height="60" rx="8" ry="8" 
+          fill="#e1f5fe" stroke="#0277bd" stroke-width="2"/>
+    <text x="510" y="292" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11" font-weight="bold">Final Answer</text>
+    <text x="510" y="308" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10">Delivered</text>
+    
+    <!-- Verification -->
+    <rect id="verify" x="620" y="260" width="120" height="80" rx="8" ry="8" 
+          fill="#ffebee" stroke="#c62828" stroke-width="2" stroke-dasharray="5,5"/>
+    <text x="680" y="280" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-weight="bold">Verification</text>
+    <text x="680" y="295" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9">(Optional)</text>
+    <text x="680" y="316" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="9">Grade + Reasoning</text>
+    
+    <!-- Arrows -->
+    <line id="arrow1" x1="110" y1="120" x2="110" y2="140" 
+          stroke="#0277bd" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line id="arrow2" x1="110" y1="230" x2="110" y2="250" 
+          stroke="#f57c00" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line id="arrow3" x1="110" y1="340" x2="110" y2="360" 
+          stroke="#7b1fa2" stroke-width="2" marker-end="url(#arrowhead)"/>
+    
+    <!-- Streaming arrows -->
+    <line id="stream1" x1="180" y1="190" x2="230" y2="190" 
+          stroke="#388e3c" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowhead)"/>
+    <text x="205" y="180" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="8" fill="#388e3c">Stream</text>
+    
+    <line id="stream2" x1="180" y1="300" x2="230" y2="300" 
+          stroke="#388e3c" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowhead)"/>
+    <text x="205" y="290" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="8" fill="#388e3c">Stream</text>
+    
+    <line id="stream3" x1="180" y1="410" x2="230" y2="410" 
+          stroke="#388e3c" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowhead)"/>
+    <text x="205" y="400" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="8" fill="#388e3c">Stream</text>
+    
+    <line id="arrow4" x1="380" y1="300" x2="430" y2="300" 
+          stroke="#0277bd" stroke-width="2" marker-end="url(#arrowhead)"/>
+    
+    <line id="arrow5" x1="580" y1="300" x2="610" y2="300" 
+          stroke="#c62828" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+    
+    <!-- Labels -->
+    <text x="150" y="55" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-style="italic">First Interaction</text>
+    <text x="310" y="55" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="10" font-style="italic">Real-time UI Updates</text>
+  </g>
+</svg>

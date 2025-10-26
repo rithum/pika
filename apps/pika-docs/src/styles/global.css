@@ -1,0 +1,77 @@
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import './badge-toc.css';
+
+@theme {
+    /*
+	Configure your Tailwind theme that will be used by Starlight.
+	https://starlight.astro.build/guides/css-and-tailwind/#styling-starlight-with-tailwind
+	*/
+
+    /* Pika Logo Blue - Primary accent color */
+    --color-accent-50: #eef2ff;
+    --color-accent-100: #e0e7ff;
+    --color-accent-200: #c7d2fe;
+    --color-accent-300: #a5b4fc;
+    --color-accent-400: #818cf8;
+    --color-accent-500: #5b7ff5;
+    --color-accent-600: #4a6eeb;
+    --color-accent-700: #3f5cd8;
+    --color-accent-800: #364bb5;
+    --color-accent-900: #2e3f8f;
+    --color-accent-950: #1e2761;
+}
+
+/*
+Add additional Tailwind styles to this file:
+https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
+*/
+
+/* Widen the content area to use available horizontal space */
+@layer starlight {
+    /* Override Starlight's content width variable to allow wider content */
+    :root {
+        --sl-content-width: 80rem;
+    }
+
+    /* Remove border under page title */
+    .sl-markdown-content > h1:first-child {
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Remove any hr that might follow the title */
+    .sl-markdown-content > h1:first-child + hr {
+        display: none !important;
+    }
+
+    /* Ensure main content uses available space */
+    .main-pane {
+        max-width: 100%;
+    }
+
+    /* Remove the hairline border on the right sidebar for cleaner look */
+    .right-sidebar {
+        border-inline-start: none !important;
+        padding-inline-start: 1rem;
+    }
+
+    /* Style the site title to match the logo blue */
+    .site-title {
+        color: var(--color-accent-600) !important;
+        font-weight: 600;
+    }
+
+    /* Style the header site title link */
+    header .site-title a {
+        color: var(--color-accent-600) !important;
+    }
+
+    /* Also target the Starlight site title specifically */
+    .header a[href='/'] span {
+        color: var(--color-accent-600) !important;
+    }
+}

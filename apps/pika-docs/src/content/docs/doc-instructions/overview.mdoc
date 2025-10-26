@@ -1,0 +1,767 @@
+---
+title: Documentation Creation Guide
+description: Complete reference for creating rich, beautiful documentation with Markdoc
+---
+
+This guide demonstrates the complete approach to creating exceptional documentation using Markdoc. Use this as a reference for all available features, components, and patterns.
+
+{% aside type="note" %}
+**Important**: This documentation uses **Markdoc only** - no MDX, no other formats. All examples shown here are pure Markdoc syntax.
+{% /aside %}
+
+## Documentation Philosophy :badge[Essential]{variant="tip"}
+
+Great documentation combines **clear content** with **thoughtful enhancements**. The goal is to make information accessible, scannable, and engaging without overwhelming the reader.
+
+### When to Enhance with Components
+
+{% card title="Use Components To..." icon="approve-check" %}
+- **Highlight** critical information (asides, badges)
+- **Organize** complex information (tabs, collapsibles, steps)
+- **Visualize** concepts and architecture (diagrams, images with zoom)
+- **Demonstrate** functionality (code blocks with features)
+- **Guide** readers through processes (steps, cards)
+{% /card %}
+
+{% card title="Avoid Components When..." icon="warning" %}
+- Plain text is clearer
+- The component distracts from content
+- You're decorating instead of communicating
+- The information is simple and linear
+{% /card %}
+
+## Visual Diagrams :badge[Powerful]{variant="tip"}
+
+**When to Use Diagrams**: Complex architectures, workflows, data flows, system interactions, or any concept better understood visually should be illustrated with diagrams.
+
+### Creating Diagrams
+
+Generate diagrams as editable Draw.io SVG files following the instructions in the Draw.io SVG generation guide. This ensures diagrams are:
+- **Editable** in VS Code with Draw.io extension
+- **Renderable** as standard SVG in documentation
+- **Version-controllable** as text-based files
+- **Zoomable** automatically in the documentation
+
+When creating diagrams for documentation:
+
+1. **Follow the complete Draw.io SVG instructions** [documented separately](./drawio-svg-instructions/)
+2. **Save to**: `public/diagrams/` directory
+3. **Name with**: `.drawio.svg` extension (e.g., `architecture.drawio.svg`)
+4. **Reference as**: `/diagrams/filename.drawio.svg` in markdown
+5. **Don't Use Image Tools**: Do not use image tools.  These diagrams are svgs not images.  They are just made up of code and you can generate and correct code.
+
+See the full Draw.io SVG generation instructions for detailed requirements and templates.
+
+### Using Diagrams in Documentation
+
+```markdown
+![System Architecture](/img/diagrams/architecture.drawio.svg)
+```
+
+All images in `.mdoc` files are automatically zoomable - readers can click to view full-screen with captions.
+
+![Configuration Architecture](/img/diagrams/config-architecture.drawio.svg)
+
+{% aside type="tip" title="Diagram Best Practices" %}
+- Generate diagrams for complex concepts that benefit from visualization
+- Keep diagrams simple and focused on one concept
+- Use consistent colors and styles across diagrams
+- Include descriptive alt text for accessibility
+- Place diagrams near related text content
+{% /aside %}
+
+## Content Structure :badge[Foundation]
+
+### Headings with Badges
+
+Use badges in headings to indicate status, versions, or importance. Badges automatically appear in the table of contents.
+
+```markdown
+## Authentication :badge[v2.0]{variant="tip"}
+### Legacy Methods :badge[Deprecated]{variant="danger"}
+#### SSO Integration :badge[Enterprise]{variant="success"}
+```
+
+**Badge Variants**:
+- **default** (gray): General labels - `:badge[Label]`
+- **note** (blue): Informational - `:badge[Info]{variant="note"}`
+- **tip** (purple): Features, versions - `:badge[v2.0]{variant="tip"}`
+- **success** (green): Stable, ready - `:badge[Stable]{variant="success"}`
+- **caution** (orange): Beta, warnings - `:badge[Beta]{variant="caution"}`
+- **danger** (red): Breaking, deprecated - `:badge[Deprecated]{variant="danger"}`
+
+### Inline Badges
+
+Inline badges highlight status within text:
+
+This feature is {% badge text="New" variant="tip" /%} in version {% badge text="2.0" variant="success" /%}.
+
+```markdoc
+This feature is {% badge text="New" variant="tip" /%} in version {% badge text="2.0" variant="success" /%}.
+```
+
+## Highlighting Information :badge[Important]
+
+### Asides (Callouts)
+
+Asides draw attention to important information. Choose the type based on the information's nature:
+
+{% aside type="note" title="Additional Context" %}
+**Note asides** provide supplementary information, related concepts, or background details that enhance understanding.
+{% /aside %}
+
+{% aside type="tip" title="Pro Tip" %}
+**Tip asides** share best practices, shortcuts, productivity enhancements, or expert recommendations that improve the user experience.
+{% /aside %}
+
+{% aside type="caution" title="Important Warning" %}
+**Caution asides** warn about potential pitfalls, common mistakes, or non-critical issues that users should be aware of before proceeding.
+{% /aside %}
+
+{% aside type="danger" title="Critical Alert" %}
+**Danger asides** highlight critical information like breaking changes, security risks, data loss potential, or actions that cannot be undone.
+{% /aside %}
+
+**Syntax**:
+```markdoc
+{% aside type="note" title="Optional Title" %}
+Content here - can include **formatting**, `code`, lists, and even other components.
+{% /aside %}
+```
+
+### Cards for Features
+
+Cards organize information into scannable, visual blocks with icons:
+
+{% card title="Type Safety" icon="approve-check" %}
+Markdoc provides built-in validation to catch errors before deployment, ensuring your documentation builds successfully.
+{% /card %}
+
+{% card title="Fast Performance" icon="rocket" %}
+Static site generation delivers blazing-fast page loads and optimal user experience with zero JavaScript overhead.
+{% /card %}
+
+```markdoc
+{% card title="Feature Name" icon="icon-name" %}
+Description of the feature or capability.
+{% /card %}
+```
+
+**Common Icons**: `rocket` (launch/speed), `star` (features), `approve-check` (success), `information` (help), `setting` (config), `puzzle` (components), `github` (code), `warning` (cautions), `document` (docs), `pencil` (edit), `seti:html` (web), `seti:typescript` (TypeScript), `seti:javascript` (JavaScript), `seti:python` (Python)
+
+### Fancy Cards with Custom Styling
+
+Fancy cards are enhanced cards with custom background colors and rounded borders, perfect for creating visually distinct content sections:
+
+{% fancyCard title="Premium Feature" bgColor="#1e293b" %}
+Fancy cards support custom background colors to create visual hierarchy and draw attention to important content.
+{% /fancyCard %}
+
+{% fancyCard title="Success Story" bgColor="#065f46" %}
+Use green backgrounds for success stories, completed features, or positive outcomes.
+{% /fancyCard %}
+
+{% fancyCard title="Important Warning" bgColor="#7c2d12" %}
+Darker red/orange backgrounds work well for important warnings or critical information that needs attention.
+{% /fancyCard %}
+
+**Syntax**:
+```markdoc
+{% fancyCard title="Card Title" bgColor="#1e293b" %}
+Content here - supports **formatting**, `code`, images, and other components.
+{% /fancyCard %}
+```
+
+**Background Color Options**:
+- Use hex colors: `bgColor="#1e293b"`
+- Use RGB: `bgColor="rgb(30, 41, 59)"`
+- Use named colors: `bgColor="darkslateblue"`
+- Omit for transparent: `bgColor="transparent"` (default)
+
+**When to Use Fancy Cards**:
+- Highlighting premium or special features
+- Creating visual sections with themed content
+- Drawing attention to important announcements
+- Organizing content by category with color coding
+- Showcasing different tiers or options
+
+## Code Examples :badge[Essential]{variant="tip"}
+
+### Basic Code Blocks
+
+Use fenced code blocks for simple examples:
+
+```typescript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const user: User = {
+  id: 1,
+  name: 'John Doe',
+  email: 'john@example.com'
+};
+```
+
+Add titles with the `title` attribute:
+
+```typescript title="user.ts"
+export function createUser(name: string, email: string): User {
+  return {
+    id: generateId(),
+    name,
+    email
+  };
+}
+```
+
+### Advanced Code Features
+
+For advanced features, use the `{% code %}` tag:
+
+{% code lang="typescript" title="auth.ts" code="import { hash, compare } from 'bcrypt';\n\n// Password hashing configuration\nconst SALT_ROUNDS = 10;\n\nexport async function hashPassword(password: string) {\n  return await hash(password, SALT_ROUNDS);\n}\n\nexport async function verifyPassword(\n  password: string,\n  hashedPassword: string\n) {\n  return await compare(password, hashedPassword);\n}" meta="showLineNumbers mark={6-8}" /%}
+
+**Line Numbers**:
+```markdoc
+{% code lang="js" code="..." meta="showLineNumbers" /%}
+{% code lang="js" code="..." meta="showLineNumbers startLineNumber=42" /%}
+```
+
+**Highlighting Lines**:
+```markdoc
+{% code lang="js" code="..." meta="mark={2,5-7}" /%}
+{% code lang="js" code="..." meta="ins={3-5}" /%}  // Green (insertions)
+{% code lang="js" code="..." meta="del={2,8}" /%}  // Red (deletions)
+```
+
+**Collapsible Sections**:
+```markdoc
+{% code lang="js" code="..." meta="collapse={7-20}" /%}
+```
+
+**Combine Features**:
+```markdoc
+{% code lang="typescript" title="app.ts" code="..." meta="showLineNumbers mark={10-15} collapse={20-35}" /%}
+```
+
+### Color Visualization
+
+CSS color values automatically show color chips:
+
+{% code lang="css" code=":root {\n  --primary: #3b82f6;\n  --secondary: #8b5cf6;\n  --success: #10b981;\n  --danger: #ef4444;\n}\n\n.button {\n  background: rgb(59, 130, 246);\n  border: 2px solid rgba(59, 130, 246, 0.5);\n}" meta="showLineNumbers" /%}
+
+## Organizing Content :badge[Advanced]
+
+### Tabs for Alternatives
+
+Use tabs to show different options, languages, or platforms:
+
+{% tabs %}
+{% tabitem label="npm" %}
+```bash
+npm install astro-starlight
+```
+{% /tabitem %}
+
+{% tabitem label="pnpm" %}
+```bash
+pnpm add astro-starlight
+```
+{% /tabitem %}
+
+{% tabitem label="yarn" %}
+```bash
+yarn add astro-starlight
+```
+{% /tabitem %}
+{% /tabs %}
+
+**Syntax**:
+```markdoc
+{% tabs %}
+{% tabitem label="First Tab" %}
+Content for first tab
+{% /tabitem %}
+
+{% tabitem label="Second Tab" %}
+Content for second tab
+{% /tabitem %}
+{% /tabs %}
+```
+
+### Collapsible Sections
+
+Collapsibles hide optional content, details, or lengthy information:
+
+{% collapsible title="Advanced Configuration Options" %}
+These settings are for advanced users who need fine-grained control:
+
+```typescript
+export default {
+  advanced: {
+    caching: true,
+    compression: 'gzip',
+    timeout: 30000
+  }
+};
+```
+
+{% aside type="caution" %}
+Modifying these settings can impact performance. Only change if you understand the implications.
+{% /aside %}
+{% /collapsible %}
+
+**Syntax**:
+```markdoc
+{% collapsible title="Click to expand" expanded=false %}
+Content hidden by default. Can include any Markdoc content.
+{% /collapsible %}
+```
+
+**When to Use Collapsibles**:
+- FAQ sections
+- Optional advanced information
+- Long code examples
+- Troubleshooting details
+- Supplementary content not needed by all readers
+
+### Steps for Procedures
+
+Steps display numbered, sequential instructions:
+
+{% steps %}
+1. **Install Dependencies**
+   
+   First, install the required packages:
+   
+   ```bash
+   pnpm install
+   ```
+
+2. **Configure Project**
+   
+   Create a `markdoc.config.mjs` file:
+   
+   ```javascript
+   import { defineMarkdocConfig } from '@astrojs/markdoc/config';
+   import starlightMarkdoc from '@astrojs/starlight-markdoc';
+   
+   export default defineMarkdocConfig({
+     extends: [starlightMarkdoc()],
+   });
+   ```
+
+3. **Start Development**
+   
+   Launch the development server:
+   
+   ```bash
+   pnpm dev
+   ```
+   
+   {% aside type="tip" %}
+   The dev server includes hot reload - changes appear instantly!
+   {% /aside %}
+
+4. **Verify Setup**
+   
+   Open `http://localhost:4321` in your browser.
+{% /steps %}
+
+**Syntax**:
+```markdoc
+{% steps %}
+1. **First Step**
+   
+   Description and details.
+
+2. **Second Step**
+   
+   More instructions.
+{% /steps %}
+```
+
+## Advanced Patterns :badge[Pro]{variant="tip"}
+
+### Nesting Components
+
+Components can be nested to create rich, layered content:
+
+{% collapsible title="API Authentication Examples" %}
+
+{% tabs %}
+{% tabitem label="Bearer Token" %}
+```typescript
+const headers = {
+  'Authorization': `Bearer ${token}`,
+  'Content-Type': 'application/json'
+};
+```
+
+{% aside type="note" %}
+Bearer tokens should be kept secure and never committed to version control.
+{% /aside %}
+{% /tabitem %}
+
+{% tabitem label="API Key" %}
+```typescript
+const headers = {
+  'X-API-Key': apiKey,
+  'Content-Type': 'application/json'
+};
+```
+
+{% aside type="tip" %}
+API keys can be scoped to specific permissions for better security.
+{% /aside %}
+{% /tabitem %}
+{% /tabs %}
+
+{% /collapsible %}
+
+### Feature Comparison
+
+{% card title="Community Edition" icon="star" %}
+{% badge text="Free" variant="success" /%}
+
+**Includes**:
+- Core features
+- Community support
+- Basic integrations
+- Standard performance
+
+{% aside type="note" %}
+Perfect for personal projects and small teams.
+{% /aside %}
+{% /card %}
+
+{% card title="Enterprise Edition" icon="rocket" %}
+{% badge text="Premium" variant="tip" /%}
+
+**Includes**:
+- All Community features
+- Priority support
+- Advanced integrations
+- Enhanced performance
+- SLA guarantees
+
+{% aside type="tip" %}
+Best for production environments and large organizations.
+{% /aside %}
+{% /card %}
+
+### Complex Documentation Patterns
+
+For comprehensive topics, combine multiple components strategically:
+
+## Data Validation :badge[v3.0]{variant="tip"}
+
+{% aside type="note" title="Overview" %}
+Data validation ensures input meets requirements before processing. This section covers validation strategies and implementation.
+{% /aside %}
+
+{% tabs %}
+{% tabitem label="Schema Validation" %}
+
+{% steps %}
+1. **Define Schema**
+   
+   ```typescript
+   const userSchema = {
+     name: { type: 'string', required: true },
+     email: { type: 'email', required: true },
+     age: { type: 'number', min: 0 }
+   };
+   ```
+
+2. **Validate Input**
+   
+   ```typescript
+   const result = validate(input, userSchema);
+   if (!result.valid) {
+     throw new ValidationError(result.errors);
+   }
+   ```
+
+3. **Handle Errors**
+   
+   {% aside type="tip" %}
+   Return specific error messages to help users correct input.
+   {% /aside %}
+{% /steps %}
+
+{% /tabitem %}
+
+{% tabitem label="Runtime Validation" %}
+
+{% code lang="typescript" title="validator.ts" code="export function validateUser(data: unknown): User {\n  if (!isObject(data)) {\n    throw new Error('Invalid input');\n  }\n  \n  if (!isString(data.name)) {\n    throw new Error('Name must be string');\n  }\n  \n  if (!isValidEmail(data.email)) {\n    throw new Error('Invalid email format');\n  }\n  \n  return data as User;\n}" meta="showLineNumbers mark={6-8,10-12}" /%}
+
+{% aside type="caution" %}
+Runtime validation has performance overhead. Use schema validation for better performance.
+{% /aside %}
+
+{% /tabitem %}
+{% /tabs %}
+
+{% collapsible title="Advanced Validation Techniques" %}
+
+{% card title="Custom Validators" icon="puzzle" %}
+Create reusable validation functions for complex requirements:
+
+```typescript
+const emailValidator = (value: string) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(value);
+};
+```
+{% /card %}
+
+{% card title="Async Validation" icon="rocket" %}
+Validate against external sources like databases:
+
+```typescript
+async function validateUniqueEmail(email: string) {
+  const exists = await db.user.findByEmail(email);
+  return !exists;
+}
+```
+{% /card %}
+
+{% /collapsible %}
+
+## Interactive Elements :badge[Demo]
+
+### Counter Demo
+
+Interactive components work seamlessly in documentation:
+
+{% counter clientLoad=true /%}
+
+### Collapsible Demo
+
+{% collapsible title="Click to see what's inside!" %}
+This is an interactive Svelte component that can contain any Markdoc content!
+
+You can nest **formatted text**, `code`, lists, and even other components:
+
+{% card title="Nested Card" icon="star" %}
+Cards work great inside collapsibles for organizing information!
+{% /card %}
+{% /collapsible %}
+
+## Images and Media :badge[Enhanced]{variant="tip"}
+
+### Automatic Image Zoom
+
+All images in `.mdoc` files are automatically zoomable. Click any image to view full-screen:
+
+```markdown
+![Alt text description](../../../assets/image.jpg)
+![Diagram](/diagrams/architecture.drawio.svg)
+```
+
+Features:
+- Click to zoom
+- Escape key to close
+- Alt text shown as caption
+- Keyboard accessible
+- Works with all image formats
+
+### Manual Zoom Control
+
+For custom zoom labels:
+
+```markdoc
+{% zoom label="View Full Architecture" %}
+![System Diagram](/diagrams/system.drawio.svg)
+{% /zoom %}
+```
+
+## Mermaid Diagrams :badge[Beta]{variant="caution"}
+
+Mermaid provides code-based diagrams:
+
+```mermaid
+architecture-beta
+  group api(logos:aws-lambda)[API Layer]
+
+  service db(logos:postgresql)[Database] in api
+  service cache(logos:redis)[Cache] in api
+  service server(logos:docker)[Server] in api
+
+  db:L -- R:server
+  cache:T -- B:server
+```
+
+{% aside type="note" %}
+While Mermaid is convenient, consider Draw.io SVG diagrams for complex visualizations that need editing.
+{% /aside %}
+
+## Documentation Best Practices :badge[Essential]{variant="success"}
+
+### Content Strategy
+
+{% card title="Start with Structure" icon="document" %}
+1. Outline the content hierarchy
+2. Identify key sections and subsections
+3. Plan where components add value
+4. Consider reader's journey through content
+{% /card %}
+
+{% card title="Write First, Enhance Second" icon="pencil" %}
+1. Write clear, plain content first
+2. Identify information that needs emphasis
+3. Add components purposefully
+4. Review for clarity and flow
+{% /card %}
+
+{% card title="Test Reader Experience" icon="approve-check" %}
+1. Scan headings - is structure clear?
+2. Check information hierarchy - asides for important items?
+3. Verify code examples - are they complete and tested?
+4. Assess visual aids - do diagrams clarify concepts?
+{% /card %}
+
+### Component Selection Guide
+
+**Use Asides** when:
+- Information is important but supplementary
+- Warning readers about pitfalls
+- Sharing tips and best practices
+- Highlighting critical information
+
+**Use Cards** when:
+- Showcasing features or capabilities
+- Comparing options side-by-side
+- Organizing related information
+- Creating visual hierarchy
+
+**Use Tabs** when:
+- Showing platform-specific instructions
+- Comparing different approaches
+- Displaying alternative code examples
+- Switching between related content
+
+**Use Collapsibles** when:
+- Content is optional or advanced
+- Reducing page clutter
+- Creating FAQs
+- Hiding long code examples
+
+**Use Steps** when:
+- Providing sequential instructions
+- Creating tutorials or guides
+- Showing installation procedures
+- Documenting ordered processes
+
+**Use Badges** when:
+- Indicating feature status
+- Showing version information
+- Highlighting tier availability
+- Marking deprecated features
+
+### Code Example Guidelines
+
+{% aside type="tip" title="Code Quality Standards" %}
+**Every code example should be**:
+- **Complete**: Include imports and necessary context
+- **Tested**: Verify code works before publishing
+- **Commented**: Explain non-obvious logic
+- **Formatted**: Use consistent style and formatting
+- **Relevant**: Directly support the concept being explained
+{% /aside %}
+
+**Choose the right code features**:
+- Add **titles** to identify file names
+- Use **line numbers** for reference in explanations
+- Apply **highlighting** to draw attention to key lines
+- Use **collapse** for boilerplate or lengthy sections
+- Add **comments** to explain complex logic
+
+### Visual Design Principles
+
+{% card title="Hierarchy" icon="star" %}
+Use headings, badges, and components to create clear information hierarchy. Readers should quickly understand what's important.
+{% /card %}
+
+{% card title="Consistency" icon="approve-check" %}
+Use the same components for the same types of information across all documentation. Consistency builds familiarity.
+{% /card %}
+
+{% card title="Scannability" icon="rocket" %}
+Break up long text with headings, lists, cards, and visual elements. Readers often scan before reading deeply.
+{% /card %}
+
+{% card title="Balance" icon="information" %}
+Don't overwhelm with components. Use them purposefully to enhance, not decorate. Too many visual elements reduce effectiveness.
+{% /card %}
+
+## Quick Reference :badge[Cheatsheet]{variant="tip"}
+
+### Component Syntax Summary
+
+```markdoc
+# Badges
+:badge[Text]
+:badge[Text]{variant="tip"}
+{% badge text="Text" variant="success" size="medium" /%}
+
+# Asides
+{% aside type="note" title="Optional" %}
+Content
+{% /aside %}
+
+# Cards
+{% card title="Title" icon="star" %}
+Content
+{% /card %}
+
+# Fancy Cards (with custom styling)
+{% fancyCard title="Title" bgColor="#1e293b" %}
+Content
+{% /fancyCard %}
+
+# Code (advanced features)
+{% code lang="js" code="..." meta="showLineNumbers mark={2-4}" /%}
+
+# Tabs
+{% tabs %}
+{% tabitem label="Tab 1" %}
+Content
+{% /tabitem %}
+{% /tabs %}
+
+# Collapsible
+{% collapsible title="Title" expanded=false %}
+Content
+{% /collapsible %}
+
+# Steps
+{% steps %}
+1. **Step One**
+   Details
+2. **Step Two**
+   Details
+{% /steps %}
+
+# Zoom
+{% zoom label="Label" %}
+![Image](path)
+{% /zoom %}
+
+# Diagrams (place in public/diagrams/)
+![Diagram Name](/diagrams/filename.drawio.svg)
+```
+
+### Badge Variants Quick Reference
+
+- **default**: `:badge[Label]` - Gray, general purpose
+- **note**: `:badge[Info]{variant="note"}` - Blue, informational
+- **tip**: `:badge[Pro]{variant="tip"}` - Purple, features/versions
+- **success**: `:badge[Stable]{variant="success"}` - Green, stable/ready
+- **caution**: `:badge[Beta]{variant="caution"}` - Orange, warnings/beta
+- **danger**: `:badge[Breaking]{variant="danger"}` - Red, deprecated/breaking
+
+---

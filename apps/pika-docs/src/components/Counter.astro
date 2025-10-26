@@ -1,0 +1,16 @@
+---
+import CounterSvelte from './counter.svelte';
+
+interface Props {
+	clientLoad?: boolean;
+}
+
+const { clientLoad = false } = Astro.props;
+---
+
+{clientLoad ? (
+	<CounterSvelte client:load />
+) : (
+	<CounterSvelte />
+)}
+

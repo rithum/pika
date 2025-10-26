@@ -1,0 +1,31 @@
+{
+    "name": "pika-docs-old",
+    "type": "module",
+    "version": "0.0.0",
+    "private": true,
+    "packageManager": "pnpm@9.15.0",
+    "license": "MIT",
+    "scripts": {
+        "dev": "vite dev",
+        "build": "vite build && cp CNAME dist",
+        "sync:developer-docs": "node ./scripts/sync-developer-docs.mjs"
+    },
+    "devDependencies": {
+        "pika-shared": "workspace:*",
+        "@shikijs/twoslash": "^3.9.2",
+        "@sveltejs/adapter-static": "^3.0.1",
+        "@sveltejs/kit": "^2.8.1",
+        "@sveltejs/vite-plugin-svelte": "^4.0.1",
+        "@sveltepress/theme-default": "^6.0.4",
+        "@sveltepress/vite": "^1.2.2",
+        "@types/node": "^20.11.20",
+        "@typescript/vfs": "^1.6.1",
+        "shiki": "^3.9.2",
+        "svelte": "^5.0.0",
+        "typescript": "^5.3.3",
+        "vite": "^5.1.4"
+    },
+    "dependencies": {
+        "@sveltepress/twoslash": "^1.2.2"
+    }
+}

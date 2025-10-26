@@ -1,0 +1,452 @@
+---
+title: Inline Tools
+description: Lightweight TypeScript functions for rapid prototyping
+---
+
+Inline Tools are simple TypeScript functions that execute directly within the Pika agent runtime without requiring separate Lambda deployments. Perfect for rapid prototyping, testing tool concepts, and implementing simple utility functions.
+
+## What They Are
+
+Unlike traditional Pika tools that deploy as separate AWS Lambda functions, Inline Tools embed their code directly into the agent's tool definition. When an agent needs to call an inline tool, the code executes immediately within the agent runtime environment.
+
+This makes Inline Tools:
+
+- **Fast to develop** - No deployment pipeline required
+- **Instant to execute** - No cold start latency
+- **Simple to understand** - Self-contained functions
+- **Perfect for prototyping** - Quick iteration without infrastructure overhead
+
+## Why They Matter
+
+Traditional tool development requires:
+
+1. Write Lambda function code
+2. Configure IAM roles and permissions
+3. Set up deployment pipeline
+4. Deploy to AWS
+5. Test and iterate (repeat 1-4)
+
+With Inline Tools:
+
+1. Write TypeScript function
+2. Test immediately
+
+For prototyping and simple utilities, this dramatically accelerates development.
+
+## How They Work
+
+### Write a Simple Function
+
+Create a self-contained TypeScript function:
+
+```typescript
+function randomNumber(event, params) {
+    console.log('Random number generator called with:', params);
+    
+    const min = params.min;
+    const max = params.max;
+    const range = max - min;
+    const val = Math.random() * range + min;
+    const factor = Math.pow(10, params.precision ?? 0);
+    
+    return Math.round(val * factor) / factor;
+}
+```
+
+### Embed in Tool Configuration
+
+Include the function in your tool definition:
+
+```typescript
+const inlineTool: ToolConfig = {
+    toolId: 'random-number',
+    toolName: 'Random Number Generator',
+    description: 'Generate a random number within a specified range',
+    executionType: 'inline',
+    inlineCode: randomNumber.toString(),
+    inputSchema: {
+        type: 'object',
+        properties: {
+            min: { type: 'number', description: 'Minimum value' },
+            max: { type: 'number', description: 'Maximum value' },
+            precision: { type: 'number', description: 'Decimal places (optional)' }
+        },
+        required: ['min', 'max']
+    }
+};
+```
+
+### Agent Invokes Tool
+
+Agent calls inline tool like any other tool:
+
+{% steps %}
+1. **Agent determines tool is needed**
+   
+   Based on user query, agent decides to invoke tool
+
+2. **Inline code executes immediately**
+   
+   Function runs within agent runtime (no separate Lambda invocation)
+
+3. **Result returned instantly**
+   
+   No network latency, no cold starts
+
+4. **Agent uses result in response**
+   
+   Tool output integrated seamlessly
+{% /steps %}
+
+## Key Benefits
+
+### Rapid Prototyping
+
+Test ideas without infrastructure:
+
+```typescript
+// Idea: Maybe we need a tool to calculate discounts
+function calculateDiscount(event, params) {
+    return params.price * (1 - params.discountPercent / 100);
+}
+
+// Test with agent immediately - no deployment needed
+// Works? Great! Later convert to full Lambda with database access
+```
+
+### Zero Infrastructure Overhead
+
+No AWS resources to manage:
+
+- No Lambda functions to deploy
+- No IAM roles to configure
+- No deployment pipelines to set up
+- No cold starts to worry about
+
+### Instant Execution
+
+Performance benefits:
+
+- **No cold start**: Function is already loaded
+- **No network latency**: Executes in same process
+- **Immediate response**: Typical execution <1ms
+
+### Simple Development Flow
+
+Clean, fast iteration:
+
+1. Edit function code
+2. Update tool configuration
+3. Test with agent
+4. Refine and repeat
+
+## Use Cases
+
+### Ideal For
+
+**Mathematical Operations**:
+```typescript
+function calculateCompoundInterest(event, params) {
+    const { principal, rate, years, compound } = params;
+    return principal * Math.pow(1 + rate / compound, compound * years);
+}
+```
+
+**String Manipulation**:
+```typescript
+function formatPhoneNumber(event, params) {
+    const digits = params.number.replace(/\D/g, '');
+    return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+}
+```
+
+**Data Transformation**:
+```typescript
+function convertUnits(event, params) {
+    const conversions = {
+        'c-to-f': (c) => c * 9/5 + 32,
+        'f-to-c': (f) => (f - 32) * 5/9,
+        'km-to-mi': (km) => km * 0.621371,
+        'mi-to-km': (mi) => mi * 1.60934
+    };
+    return conversions[params.conversion](params.value);
+}
+```
+
+**Testing and Mocking**:
+```typescript
+function mockWeatherData(event, params) {
+    // Return fake data for testing
+    return {
+        temperature: 72,
+        conditions: 'Sunny',
+        humidity: 65
+    };
+}
+```
+
+### Not Recommended For
+
+**Production Workloads**: 
+- Use Lambda-based tools for production systems
+- Better monitoring and error handling
+- Proper access controls and auditing
+
+**Complex Logic**:
+- Functions requiring many dependencies
+- Code spanning multiple files
+- Significant computation
+
+**External Integrations**:
+- Database access
+- API calls to other services
+- File system operations
+
+**Long-Running Operations**:
+- Operations taking >5 seconds
+- Batch processing
+- Heavy computations
+
+## Limitations
+
+### Code Constraints
+
+**Single Function**:
+- Must be one self-contained function
+- No imports or external dependencies
+- Can't split across multiple files
+
+**No External Access**:
+- Cannot access AWS services directly
+- No database connections
+- No HTTP requests to external APIs
+
+**Limited Execution Resources**:
+- Share resources with agent runtime
+- Not suitable for CPU-intensive operations
+- Memory limited to agent's allocation
+
+### TypeScript Support
+
+**Basic Transpilation**:
+- You write in TypeScript
+- Automatically transpiled to JavaScript
+- Complex TypeScript features may not work
+- Type checking at compile time only
+
+**No Type Definitions**:
+- Can't import type definitions
+- No access to npm packages
+- Pure logic only
+
+### Production Considerations
+
+**Not for Production Scale**:
+- Limited error handling capabilities
+- No separate monitoring/logging
+- Can't scale independently
+- Harder to maintain long-term
+
+**Debugging Limitations**:
+- Can't set breakpoints
+- Limited logging (console.log works)
+- Errors may be less clear than Lambda
+
+## Example: Complete Implementation
+
+The [random-num-inline sample project](https://github.com/rithum/pika/tree/main/services/samples/random-num-inline) demonstrates:
+
+### Function Definition
+
+```typescript
+// src/agents/random-tool.ts
+export function randomNumber(event: any, params: any): number {
+    console.log('Random number generator called:', params);
+    
+    const { min, max, precision = 0 } = params;
+    const range = max - min;
+    const value = Math.random() * range + min;
+    const factor = Math.pow(10, precision);
+    
+    return Math.round(value * factor) / factor;
+}
+```
+
+### Tool Configuration
+
+```typescript
+// src/agents/tool-config.ts
+const toolConfig: ToolConfig = {
+    toolId: 'random-number',
+    toolName: 'Random Number Generator',
+    description: 'Generate a random number in a range with specified precision',
+    executionType: 'inline',
+    inlineCode: randomNumber.toString(),
+    inputSchema: {
+        type: 'object',
+        properties: {
+            min: { type: 'number' },
+            max: { type: 'number' },
+            precision: { type: 'number' }
+        },
+        required: ['min', 'max']
+    }
+};
+```
+
+### Agent Configuration
+
+```typescript
+// src/agents/agent-config.ts
+const agentConfig: AgentConfig = {
+    agentId: 'random-agent',
+    agentName: 'Random Number Agent',
+    instructions: 'You help users generate random numbers using the random-number tool.',
+    toolIds: ['random-number']
+};
+```
+
+### CDK Deployment
+
+```typescript
+// lib/stack.ts
+import { PikaAgentRegistry } from '@pika/constructs';
+
+new PikaAgentRegistry(this, 'Registry', {
+    tools: [toolConfig],
+    agents: [agentConfig],
+    chatApps: [chatAppConfig]
+});
+```
+
+## Best Practices
+
+### Start Inline, Move to Lambda
+
+Natural progression:
+
+1. **Prototype**: Inline tool to test concept
+2. **Validate**: Confirm tool adds value
+3. **Enhance**: Convert to Lambda when need:
+   - External service access
+   - Better monitoring
+   - Independent scaling
+   - Production reliability
+
+### Keep Functions Simple
+
+Complexity guidelines:
+
+- **Good**: < 50 lines of code
+- **Acceptable**: 50-100 lines
+- **Too complex**: > 100 lines (use Lambda)
+
+### Use for Pure Logic
+
+Best when function is purely computational:
+
+```typescript
+// Good: Pure calculation
+function calculateTax(event, params) {
+    return params.amount * params.taxRate;
+}
+
+// Bad: Needs external data (use Lambda)
+function getCurrentTaxRate(event, params) {
+    // Would need to fetch from database
+    // Can't do this in inline tool
+}
+```
+
+### Document Thoroughly
+
+Clear descriptions help agents use tools correctly:
+
+```typescript
+const tool: ToolConfig = {
+    toolId: 'discount-calc',
+    description: `Calculate discounted price given original price and discount percentage.
+        Returns final price after applying discount.
+        Example: price=100, discount=20 → returns 80`,
+    // ... rest of config
+};
+```
+
+## Transitioning to Lambda
+
+When inline tool outgrows limitations:
+
+### Step 1: Create Lambda Function
+
+```typescript
+// lambda/discount-calculator/index.ts
+export async function handler(event: any) {
+    const { price, discountPercent } = event;
+    
+    // Now can add:
+    // - Database lookups
+    // - External API calls
+    // - Complex error handling
+    // - Detailed logging
+    
+    return {
+        discountedPrice: price * (1 - discountPercent / 100)
+    };
+}
+```
+
+### Step 2: Update Tool Configuration
+
+```typescript
+const toolConfig: ToolConfig = {
+    toolId: 'discount-calc',
+    executionType: 'lambda',  // Changed from 'inline'
+    lambdaArn: discountLambda.functionArn,  // Added Lambda reference
+    // ... same schema and description
+};
+```
+
+### Step 3: Update Agent
+
+No changes needed - agent uses tool the same way!
+
+## Getting Started
+
+{% card title="Try the Sample" icon="rocket" %}
+Deploy the random-num-inline sample to see inline tools in action.
+
+[Sample Project →](https://github.com/rithum/pika/tree/main/services/samples/random-num-inline)
+{% /card %}
+
+{% card title="Implementation Guide" icon="star" %}
+Step-by-step instructions for creating inline tools.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Understanding Tools" icon="puzzle" %}
+Deep dive into tool architecture and patterns.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="MCP" icon="information" %}
+Connect to external services with standardized protocols.
+
+[Learn More →](/capabilities/integration/mcp/)
+{% /card %}
+
+{% card title="Agents as Config" icon="star" %}
+Define tools declaratively as configuration.
+
+[Learn More →](/capabilities/core/agents-as-config/)
+{% /card %}
+
+{% card title="Direct Agent Invocation" icon="rocket" %}
+Call agents with inline tools programmatically.
+
+[Learn More →](/capabilities/integration/direct-invocation/)
+{% /card %}
+

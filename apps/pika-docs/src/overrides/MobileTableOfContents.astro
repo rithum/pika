@@ -1,0 +1,226 @@
+---
+// Get TOC from Starlight's route data (not from props!)
+const { toc } = Astro.locals.starlightRoute;
+
+// Extract TOC items
+const tocItems = toc?.items ?? [];
+---
+
+{
+	tocItems.length > 0 && (
+		<details class="mobile-toc" open>
+			<summary class="mobile-toc-toggle">
+				<div class="toggle-content">
+					<span class="toggle-icon">
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+							<path
+								d="M4 6L8 10L12 6"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+					</span>
+					<span class="toggle-text">On this page</span>
+				</div>
+			</summary>
+			<nav class="mobile-toc-nav" aria-label="Table of Contents">
+				<ul class="mobile-toc-list">
+					{tocItems.map((item: any) => (
+						<li
+							class:list={[
+								'mobile-toc-item',
+								`mobile-toc-depth-${item.depth}`,
+							]}
+						>
+							<a href={`#${item.slug}`} class="mobile-toc-link">
+								<span set:html={item.text} />
+							</a>
+						</li>
+					))}
+				</ul>
+			</nav>
+		</details>
+	)
+}
+
+<style>
+	.mobile-toc {
+		position: sticky;
+		top: 4rem;
+		z-index: 10;
+		background: var(--sl-color-bg);
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		box-shadow: var(--sl-shadow-sm);
+		margin-bottom: 1.5rem;
+	}
+
+	.mobile-toc-toggle {
+		cursor: pointer;
+		padding: 0.875rem 1rem;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--sl-color-gray-2);
+		list-style: none;
+	}
+
+	.mobile-toc-toggle::-webkit-details-marker {
+		display: none;
+	}
+
+	.toggle-content {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.toggle-icon {
+		transition: transform 0.2s;
+		display: flex;
+		align-items: center;
+	}
+
+	.mobile-toc[open] .toggle-icon {
+		transform: rotate(180deg);
+	}
+
+	.mobile-toc-nav {
+		padding: 0 1rem 1rem;
+		max-height: 60vh;
+		overflow-y: auto;
+	}
+
+	/* Custom scrollbar for mobile */
+	.mobile-toc-nav::-webkit-scrollbar {
+		width: 6px;
+	}
+
+	.mobile-toc-nav::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.mobile-toc-nav::-webkit-scrollbar-thumb {
+		background: var(--sl-color-gray-5);
+		border-radius: 3px;
+	}
+
+	.mobile-toc-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+
+	.mobile-toc-item {
+		list-style: none;
+		position: relative;
+	}
+
+	.mobile-toc-link {
+		display: block;
+		padding: 0.4rem 0.75rem;
+		border-radius: 0.375rem;
+		font-size: 0.875rem;
+		color: var(--sl-color-gray-2);
+		transition: all 0.15s ease;
+		text-decoration: none;
+		line-height: 1.5;
+		position: relative;
+	}
+
+	.mobile-toc-link:hover {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-text);
+	}
+
+	.mobile-toc-link[aria-current='true'] {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-text);
+		font-weight: 500;
+	}
+
+	.mobile-toc-link[aria-current='true']::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 3px;
+		height: 60%;
+		background: var(--sl-color-accent);
+		border-radius: 0 2px 2px 0;
+	}
+
+	/* Depth-based indentation */
+	.mobile-toc-depth-2 .mobile-toc-link {
+		padding-left: 0.75rem;
+	}
+
+	.mobile-toc-depth-3 .mobile-toc-link {
+		padding-left: 1.5rem;
+		font-size: 0.8125rem;
+	}
+
+	.mobile-toc-depth-4 .mobile-toc-link {
+		padding-left: 2.25rem;
+		font-size: 0.75rem;
+	}
+
+	/* Badge styles */
+	.mobile-toc-link :global(.sl-badge) {
+		display: inline-flex;
+		vertical-align: middle;
+		font-size: 0.6875rem;
+		padding: 0.125rem 0.375rem;
+		margin-left: 0.375rem;
+		border-radius: 0.25rem;
+	}
+</style>
+
+<script>
+	// Highlight active TOC item on mobile
+	function updateActiveMobileTocItem() {
+		const headings = document.querySelectorAll('article :is(h1, h2, h3, h4)');
+		const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.mobile-toc-link');
+
+		if (!headings.length || !tocLinks.length) return;
+
+		const scrollY = window.scrollY;
+		let activeHeading: Element | null = null;
+
+		headings.forEach((heading) => {
+			const rect = heading.getBoundingClientRect();
+			const offsetTop = rect.top + scrollY;
+
+			if (scrollY >= offsetTop - 100) {
+				activeHeading = heading;
+			}
+		});
+
+		tocLinks.forEach((link) => {
+			if (activeHeading) {
+				const href = link.getAttribute('href');
+				const headingId = activeHeading.getAttribute('id');
+
+				if (href === `#${headingId}`) {
+					link.setAttribute('aria-current', 'true');
+				} else {
+					link.removeAttribute('aria-current');
+				}
+			} else {
+				link.removeAttribute('aria-current');
+			}
+		});
+	}
+
+	window.addEventListener('scroll', updateActiveMobileTocItem, { passive: true });
+	document.addEventListener('astro:page-load', updateActiveMobileTocItem);
+	updateActiveMobileTocItem();
+</script>
+

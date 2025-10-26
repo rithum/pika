@@ -1,0 +1,244 @@
+---
+title: Advanced Chat Applications
+description: Build modern chat experiences with session memory, tool-using agents, and rich UI
+---
+
+Build complete chat experiences that remember context, call tools, and stream answers with a professional UI. Whether standalone or embedded in your existing applications, Pika provides everything needed for production chat applications.
+
+![Chat Application](/src/assets/screenshots/why/weather-after-answered.png)
+
+## What It Does
+
+Advanced Chat Applications provide full-featured conversational interfaces backed by AI agents. Each chat app is independently configured with its own agents, tools, access controls, and feature settings, all hosted on a shared platform infrastructure.
+
+## Why It Matters
+
+Building a production-quality chat application requires far more than a demo prototype. You need session persistence, streaming responses, error handling, access controls, and professional UI polish. Pika provides all of this out of the box, letting you focus on agent intelligence rather than infrastructure.
+
+## Key Features
+
+### Multiple Chat Apps
+
+Host one or many chat applications with fine-grained control over access:
+
+- Internal-only apps for employees
+- External-only apps for customers
+- Shared apps accessible to both audiences
+- Per-app feature configuration
+- Independent agent and tool assignments
+
+![Multiple Chat Apps](/src/assets/screenshots/why/multiple-chat-apps.png)
+
+### Session Memory
+
+Conversations persist across turns and sessions:
+
+- Users resume where they left off
+- Full conversation history maintained
+- Automatic or manual title generation
+- Session search and organization
+- Pinning for quick access
+
+### Agentic Workflows and Tools
+
+Agents can call typed tools to access data and take actions:
+
+- Tool inputs and outputs conform to schemas
+- Reliable, explainable tool invocation
+- Multiple tools per agent
+- Shared tool library across agents
+- Real-time tool execution
+
+### Rich, Responsive UI
+
+Professional interface that works everywhere:
+
+- **Streaming responses** render as they arrive
+- **Syntax highlighting** for code blocks
+- **File upload/download** when enabled
+- **Suggestions** to guide users
+- **Mobile responsive** design
+- **Accessibility compliant** interface
+- **Dark mode** support
+
+![Streaming with Reasoning](/src/assets/screenshots/why/traces.png)
+
+### Enterprise-Grade Defaults
+
+Security and access control built in:
+
+- Explicit access controls
+- Role-based feature access
+- User type restrictions
+- Entity-based isolation
+- Secure session management
+- Audit logging
+
+### Embed Anywhere
+
+Deploy in multiple modes:
+
+- **Standalone mode** - Complete application at dedicated URL
+- **Embedded mode** - iframe integration in existing sites
+- **Context-aware** - Passes user context and entity information
+- **Seamless UX** - Full functionality in both modes
+
+## Use Cases
+
+### Customer Support Chat
+
+Provide 24/7 support with AI agents that access customer data:
+
+- Look up orders and account information
+- Answer product questions
+- Process refunds and returns
+- Escalate to human agents when needed
+
+### Internal Knowledge Assistant
+
+Help employees find information and complete tasks:
+
+- Search company documentation
+- Answer policy questions
+- Access internal databases
+- Generate reports and summaries
+
+### Product Advisor
+
+Guide users through product selection:
+
+- Understand user needs and preferences
+- Recommend appropriate products
+- Compare options and features
+- Answer technical questions
+
+### Data Analysis Assistant
+
+Enable natural language data exploration:
+
+- Query databases with plain English
+- Generate visualizations
+- Explain trends and patterns
+- Export results in multiple formats
+
+## Getting Started
+
+{% card title="Quick Start" icon="rocket" %}
+Deploy your first chat app in 15 minutes.
+
+[Get Started →](/getting-started/quickstart/)
+{% /card %}
+
+{% card title="Review Weather Sample" icon="star" %}
+See a complete chat app implementation with multiple features.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Build Hello World" icon="pencil" %}
+Create your first custom chat app from scratch.
+
+[Start Tutorial →](/getting-started/hello-world/)
+{% /card %}
+
+## Configuration
+
+Chat apps are defined declaratively through configuration:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'customer-support',
+    chatAppName: 'Customer Support',
+    shortDescription: '24/7 customer assistance',
+    agentIds: ['support-agent'],
+    chatAppUserTypes: ['external-user'],
+    enabled: true
+};
+```
+
+{% aside type="tip" title="Configuration Flexibility" %}
+Site-wide defaults establish baseline settings, while individual chat apps can override features, access controls, and behavior to meet specific requirements.
+{% /aside %}
+
+## Advanced Capabilities
+
+### Per-App Feature Configuration
+
+Customize features for each chat app:
+
+- Enable/disable file uploads
+- Control trace visibility
+- Configure suggestion prompts
+- Set response verification thresholds
+- Customize UI elements
+
+### Access Control Layers
+
+Multiple levels of access control:
+
+1. **User Type** - Internal vs external users
+2. **Entity** - Organization/account boundaries
+3. **Role** - Admin, power user, standard user
+4. **User ID** - Specific user access grants
+5. **Chat App Level** - Enabled/disabled state
+
+### Session Sharing
+
+Create secure sharing links:
+
+- Time-limited access
+- Read-only or interactive mode
+- Respect entity boundaries
+- Track shared session usage
+- Revoke access when needed
+
+## Performance Characteristics
+
+Advanced Chat Applications are designed for production scale:
+
+- **Streaming latency** - First tokens in <2 seconds
+- **Session loading** - Recent messages load instantly
+- **History search** - Full-text search across all sessions
+- **Concurrent users** - Scales automatically with AWS infrastructure
+- **File handling** - Supports uploads up to configured limits
+
+## Related Capabilities
+
+{% card title="Multi-Agent Orchestration" icon="puzzle" %}
+Enable multiple agents to collaborate within chat applications.
+
+[Learn More →](/capabilities/core/multi-agent/)
+{% /card %}
+
+{% card title="User Memory" icon="star" %}
+Add persistent user context for personalized experiences.
+
+[Learn More →](/capabilities/data-memory/user-memory/)
+{% /card %}
+
+{% card title="Custom Web Components" icon="star" %}
+Extend the UI with rich, interactive components.
+
+[Learn More →](/capabilities/customization/web-components/)
+{% /card %}
+
+## Next Steps
+
+{% card title="Learn the Concepts" icon="puzzle" %}
+Understand how chat apps work under the hood.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+{% card title="Implement Your First App" icon="rocket" %}
+Follow step-by-step guides to build and deploy.
+
+[Browse How-To Guides →](/how-to/)
+{% /card %}
+
+{% card title="Configure Access Control" icon="approve-check" %}
+Set up authentication and permissions.
+
+[Access Control Guide →](/how-to/authentication/)
+{% /card %}
+

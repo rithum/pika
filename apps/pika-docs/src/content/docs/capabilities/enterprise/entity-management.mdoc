@@ -1,0 +1,755 @@
+---
+title: Entity Management
+description: Organize users by organizational boundaries with entity-based access control and data isolation
+---
+
+Entity management provides the foundation for organizing users into logical groups representing organizational boundaries - companies, accounts, departments, or business units. This capability enables fine-grained access control, data filtering, and multi-tenant operation within a single Pika deployment.
+
+## What It Does
+
+Entity management gives you the infrastructure to organize and control access based on organizational membership:
+
+{% card title="Organizational Boundaries" icon="puzzle" %}
+Associate users with entities representing their companies, accounts, or departments for logical grouping and access control.
+{% /card %}
+
+{% card title="Entity-Based Access Control" icon="approve-check" %}
+Restrict chat app access and session visibility to specific entities, ensuring data isolation and appropriate access.
+{% /card %}
+
+{% card title="Administrative Tools" icon="setting" %}
+Manage entity associations, filter insights by entity, and configure entity-specific access rules through the admin interface.
+{% /card %}
+
+## Why It Matters
+
+### Multi-Tenant Operations
+
+Organizations deploying Pika often serve multiple companies, accounts, or departments that require data separation:
+
+**Software Vendors** serving multiple customer companies need to ensure Company A cannot see Company B's chat sessions and data.
+
+**Enterprises** with multiple business units need to control which employees access which internal tools and data.
+
+**Service Providers** managing different client accounts need entity-based isolation for compliance and confidentiality.
+
+### Beyond Simple User Types
+
+While user types (internal/external) provide basic categorization, real-world applications need finer granularity:
+
+- **User types** tell you WHO users are (customers vs employees)
+- **Entities** tell you WHICH ORGANIZATION users belong to
+
+This distinction enables sophisticated access patterns:
+- External users from Company A see only Company A's data
+- Internal users (support staff) can access any entity's data when authorized
+- Administrators manage entity-specific configurations
+
+## Key Concepts
+
+### What is an Entity?
+
+An entity represents an organizational unit that requires data isolation:
+
+**Customer Accounts:**
+```
+Entity: "acct-001" (Acme Corp)
+Entity: "acct-002" (Global Industries)
+Entity: "acct-003" (Tech Solutions)
+```
+
+**Business Units:**
+```
+Entity: "sales" (Sales Department)
+Entity: "engineering" (Engineering)
+Entity: "support" (Customer Support)
+```
+
+**Partner Organizations:**
+```
+Entity: "partner-alpha" (Partner Alpha)
+Entity: "partner-beta" (Partner Beta)
+```
+
+### Entity Association
+
+Users are linked to entities through their authentication data:
+
+```typescript
+// User data from authentication provider
+{
+    userId: "user123",
+    userType: "external-user",
+    customData: {
+        accountId: "acct-001",      // Entity identifier
+        accountName: "Acme Corp",   // Human-readable name
+        email: "user@acmecorp.com"
+    }
+}
+```
+
+The `accountId` field (or whatever field you configure) becomes the entity identifier used throughout the platform.
+
+### Entity-Based Access Models
+
+Chat apps and sessions operate in one of two access modes:
+
+**Entity-Scoped Access:**
+- Users only see content from their own entity
+- Perfect for customer-facing applications
+- Ensures complete data isolation between organizations
+
+**Global Access:**
+- Content visible to any authorized user regardless of entity
+- Ideal for internal tools and public chat apps
+- Still respects user type and role restrictions
+
+## Core Capabilities
+
+### Entity-Based Session Filtering
+
+Sessions automatically respect entity boundaries:
+
+```typescript
+// Customer from Acme Corp views sessions
+GET /api/chat/sessions
+// Returns only sessions where entity = "acct-001"
+
+// Customer from Global Industries views sessions
+GET /api/chat/sessions
+// Returns only sessions where entity = "acct-002"
+```
+
+Filtering happens automatically based on the user's entity membership.
+
+### Entity-Based Access Control
+
+Restrict chat app access to specific entities:
+
+```typescript
+{
+    chatAppId: 'customer-portal',
+    accessControl: {
+        externalUsers: {
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['acct-001', 'acct-002']
+            }
+        }
+    }
+}
+```
+
+**Result:**
+- Only users from `acct-001` or `acct-002` can access this chat app
+- Users from other entities are denied access
+- Administrators can still access for support purposes
+
+### Admin Site Entity Filtering
+
+The admin interface provides entity-based filtering:
+
+**Session Insights:**
+- Filter sessions by specific entity
+- See which entity each session belongs to
+- Analyze patterns within entities
+
+**Access Control Management:**
+- Configure entity-specific access rules
+- Use entity autocomplete for easy selection
+- Manage which entities can access which apps
+
+### Entity Autocomplete
+
+The platform provides entity lookup for administrative interfaces:
+
+```typescript
+// Implement entity data source
+export async function getValuesForEntityAutoComplete(
+    searchTerm: string,
+    user: AuthenticatedUser
+): Promise<SimpleOption[]> {
+    // Query your entity data source
+    const entities = await fetchEntitiesMatching(searchTerm);
+    
+    return entities.map(entity => ({
+        value: entity.id,      // Used in access control
+        label: entity.name     // Displayed to admins
+    }));
+}
+```
+
+This enables admins to easily select entities when configuring access controls.
+
+## Configuration
+
+### Enable Entity Feature
+
+In your `pika-config.ts`:
+
+```typescript
+export const siteFeatures: SiteFeatures = {
+    entity: {
+        enabled: true,
+        attributeName: 'accountId',           // Field in user.customData
+        searchPlaceholderText: 'Search for an account...',
+        displayNameSingular: 'Account',
+        displayNamePlural: 'Accounts',
+        tableColumnHeaderTitle: 'Account ID'
+    }
+};
+```
+
+### Configuration Options
+
+**`enabled`**: Whether entity feature is active site-wide
+
+**`attributeName`**: Field name in `user.customData` containing entity identifier
+- Must match your authentication provider's data structure
+- Common values: `accountId`, `companyId`, `departmentId`, `organizationId`
+
+**`searchPlaceholderText`**: Placeholder text for entity search inputs in admin interface
+
+**`displayNameSingular`**: Singular form of entity name for UI display
+- Examples: "Account", "Company", "Department", "Organization"
+
+**`displayNamePlural`**: Plural form for UI display
+- Examples: "Accounts", "Companies", "Departments", "Organizations"
+
+**`tableColumnHeaderTitle`**: Header text for entity columns in tables
+- Examples: "Account ID", "Company", "Department"
+
+### Authentication Provider Integration
+
+Ensure your authentication provider populates the entity field:
+
+```typescript
+// In your auth provider's authenticate() method
+return {
+    authenticatedUser: {
+        userId: userData.id,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        userType: userData.isEmployee ? 'internal-user' : 'external-user',
+        customData: {
+            accountId: userData.accountId,  // MUST match entity.attributeName
+            accountName: userData.accountName,
+            email: userData.email,
+            department: userData.department
+        }
+    }
+};
+```
+
+**Critical:** The field name in `customData` must match `entity.attributeName` in your configuration.
+
+## Use Cases
+
+### Multi-Customer SaaS Platform
+
+**Scenario:** Software vendor serving multiple customer companies
+
+```typescript
+// Entity configuration
+entity: {
+    enabled: true,
+    attributeName: 'companyId',
+    displayNameSingular: 'Company',
+    displayNamePlural: 'Companies'
+}
+
+// Customer-facing chat app
+{
+    chatAppId: 'customer-support',
+    accessControl: {
+        externalUsers: {
+            // All customers can access
+            accessByUserTypes: ['external-user'],
+            // But only see their company's sessions
+            exclusiveEntityAccess: { enabled: false }  // Global access
+        }
+    }
+}
+
+// Account-specific premium features
+{
+    chatAppId: 'premium-analytics',
+    accessControl: {
+        externalUsers: {
+            // Only premium companies
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['company-001', 'company-005', 'company-012']
+            }
+        }
+    }
+}
+```
+
+**Result:**
+- All customers access the support chat
+- Each company only sees their own sessions
+- Premium companies access advanced analytics
+- Support staff (internal users) see all companies' data
+
+### Enterprise Departments
+
+**Scenario:** Large enterprise with multiple departments
+
+```typescript
+// Entity configuration
+entity: {
+    enabled: true,
+    attributeName: 'departmentId',
+    displayNameSingular: 'Department',
+    displayNamePlural: 'Departments'
+}
+
+// Sales department tools
+{
+    chatAppId: 'sales-assistant',
+    accessControl: {
+        internalUsers: {
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['sales']
+            }
+        }
+    }
+}
+
+// Engineering tools
+{
+    chatAppId: 'code-assistant',
+    accessControl: {
+        internalUsers: {
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['engineering', 'qa']
+            }
+        }
+    }
+}
+```
+
+**Result:**
+- Sales team accesses sales assistant only
+- Engineering and QA access code assistant
+- Each department sees only their sessions
+- Cross-department access requires explicit configuration
+
+### Partner Network
+
+**Scenario:** Organization managing multiple partner companies
+
+```typescript
+// Entity configuration
+entity: {
+    enabled: true,
+    attributeName: 'partnerId',
+    displayNameSingular: 'Partner',
+    displayNamePlural: 'Partners'
+}
+
+// Partner portal
+{
+    chatAppId: 'partner-portal',
+    accessControl: {
+        externalUsers: {
+            accessByUserTypes: ['external-user'],
+            // Each partner sees only their data
+            exclusiveEntityAccess: { enabled: false }
+        }
+    }
+}
+
+// Exclusive partner program
+{
+    chatAppId: 'elite-partner-tools',
+    accessControl: {
+        externalUsers: {
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['partner-alpha', 'partner-gamma']
+            }
+        }
+    }
+}
+```
+
+**Result:**
+- All partners access the general portal
+- Partner Alpha and Gamma access elite tools
+- Each partner's data remains isolated
+- Partner managers (internal) can view all partner data
+
+## Access Control Precedence
+
+Entity-based access control follows this precedence order:
+
+1. **Disabled Override** - If `enabled: false`, no access regardless of entity
+2. **Exclusive User ID Control** - Specific user IDs take precedence
+3. **Exclusive Entity Control** - Entity-based restrictions apply
+4. **General Access Rules** - Fall back to user type/role checking
+
+```typescript
+// Example showing precedence
+{
+    chatAppId: 'restricted-app',
+    accessControl: {
+        externalUsers: {
+            enabled: true,  // Feature enabled
+            
+            // Exclusive user list takes highest precedence
+            exclusiveUserIdAccess: {
+                enabled: true,
+                userIds: ['special-user-001']
+            },
+            
+            // Entity restrictions apply if user not in exclusive list
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['acct-premium']
+            },
+            
+            // General rules apply if no exclusive controls match
+            accessByUserTypes: ['external-user']
+        }
+    }
+}
+```
+
+## Benefits
+
+### For Organizations
+
+{% card title="Data Isolation" icon="approve-check" %}
+Complete separation between entities ensures confidentiality and compliance with data protection regulations.
+{% /card %}
+
+{% card title="Flexible Architecture" icon="puzzle" %}
+Support both entity-scoped applications (customer portals) and global applications (internal tools) on the same platform.
+{% /card %}
+
+{% card title="Scalable Management" icon="rocket" %}
+Add new entities without platform changes. Entity associations come from authentication provider.
+{% /card %}
+
+### For Administrators
+
+{% card title="Fine-Grained Control" icon="setting" %}
+Configure which entities can access which chat apps with entity-specific access rules.
+{% /card %}
+
+{% card title="Visibility & Insights" icon="star" %}
+Filter session data by entity to analyze usage patterns, identify issues, and measure success per organization.
+{% /card %}
+
+{% card title="Easy Configuration" icon="document" %}
+Entity autocomplete makes it simple to select entities when configuring access controls.
+{% /card %}
+
+### For Users
+
+{% card title="Relevant Content Only" icon="information" %}
+Users see only sessions and data relevant to their organization, reducing clutter and confusion.
+{% /card %}
+
+{% card title="Privacy & Security" icon="approve-check" %}
+Automatic entity-based filtering ensures users cannot accidentally access other organizations' data.
+{% /card %}
+
+## Implementation Guide
+
+### 1. Define Your Entity Model
+
+Determine what "entity" means for your organization:
+
+**Questions to answer:**
+- What organizational boundaries require data separation?
+- Where does entity data come from? (HR system, CRM, custom database)
+- What field name represents entities in your authentication system?
+- How do you want to refer to entities in the UI?
+
+**Example decisions:**
+```typescript
+// SaaS vendor
+attributeName: 'companyId'
+displayNameSingular: 'Company'
+
+// Enterprise
+attributeName: 'departmentId'
+displayNameSingular: 'Department'
+
+// Healthcare
+attributeName: 'facilityId'
+displayNameSingular: 'Facility'
+```
+
+### 2. Update Authentication Provider
+
+Ensure entity field is populated in user data:
+
+```typescript
+// Modify your authenticate() method
+const userData = await fetchUserFromAuthSystem(credentials);
+
+return {
+    authenticatedUser: {
+        // ... standard fields ...
+        customData: {
+            [entityAttributeName]: userData.entityId,  // Key: matches config
+            entityName: userData.entityDisplayName,
+            // ... other custom data ...
+        }
+    }
+};
+```
+
+### 3. Implement Entity Autocomplete
+
+Create entity lookup for admin interface:
+
+```typescript
+// In apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts
+export async function getValuesForEntityAutoComplete(
+    searchTerm: string,
+    user: AuthenticatedUser
+): Promise<SimpleOption[]> {
+    // Query your entity data source
+    const entities = await yourEntityDatabase.search({
+        name: { contains: searchTerm },
+        limit: 20
+    });
+    
+    return entities.map(entity => ({
+        value: entity.id,          // Entity identifier
+        label: `${entity.name} (${entity.id})`  // Display name
+    }));
+}
+```
+
+### 4. Configure Chat Apps
+
+Add entity-based access control to chat apps:
+
+```typescript
+{
+    chatAppId: 'my-chat-app',
+    accessControl: {
+        externalUsers: {
+            enabled: true,
+            accessByUserTypes: ['external-user'],
+            
+            // Enable entity-based access control
+            exclusiveEntityAccess: {
+                enabled: true,
+                entityIds: ['entity-001', 'entity-002']
+            }
+        }
+    }
+}
+```
+
+### 5. Test Entity Filtering
+
+Verify entity-based access works correctly:
+
+**Test scenarios:**
+1. User from Entity A cannot see Entity B's sessions
+2. Admin can filter insights by specific entity
+3. Entity autocomplete returns correct results
+4. Access control denies unauthorized entities
+
+## Advanced Patterns
+
+### Dynamic Entity Access
+
+Grant entity access based on business rules:
+
+```typescript
+function getAuthorizedEntities(user: AuthenticatedUser): string[] {
+    const entities: string[] = [];
+    
+    // User's primary entity
+    if (user.customData.accountId) {
+        entities.push(user.customData.accountId);
+    }
+    
+    // Parent organization entities (for enterprise hierarchy)
+    if (user.customData.parentOrgId) {
+        entities.push(user.customData.parentOrgId);
+    }
+    
+    // Partner entities (for partner managers)
+    if (user.roles.includes('partner-manager')) {
+        entities.push(...user.customData.managedPartnerIds);
+    }
+    
+    return entities;
+}
+```
+
+### Hierarchical Entities
+
+Support entity hierarchies:
+
+```typescript
+// Entity hierarchy example
+const entityHierarchy = {
+    'parent-corp': {
+        children: ['subsidiary-a', 'subsidiary-b']
+    },
+    'subsidiary-a': {
+        parent: 'parent-corp',
+        children: ['division-1', 'division-2']
+    }
+};
+
+// Grant access to entity and all descendants
+function getEntityAndDescendants(entityId: string): string[] {
+    const entities = [entityId];
+    const entity = entityHierarchy[entityId];
+    
+    if (entity?.children) {
+        entity.children.forEach(child => {
+            entities.push(...getEntityAndDescendants(child));
+        });
+    }
+    
+    return entities;
+}
+```
+
+### Entity Metadata
+
+Enrich entity data with metadata:
+
+```typescript
+// Store entity metadata for UI display
+interface EntityMetadata {
+    id: string;
+    name: string;
+    tier: 'free' | 'pro' | 'enterprise';
+    features: string[];
+    contactEmail: string;
+}
+
+// Use metadata to customize chat app behavior
+if (entityMetadata.tier === 'enterprise') {
+    enablePremiumFeatures();
+}
+```
+
+## Best Practices
+
+### Entity Modeling
+
+{% aside type="tip" title="Choose Appropriate Granularity" %}
+Pick entity granularity that matches your data isolation requirements. Too coarse loses flexibility, too fine creates management overhead.
+{% /aside %}
+
+{% aside type="tip" title="Use Stable Identifiers" %}
+Entity IDs should be stable and unchanging. Use database IDs, not names that might change.
+{% /aside %}
+
+### Security
+
+{% aside type="danger" title="Validate Entity Membership" %}
+Always verify users belong to the entity they claim. Rely on authentication provider data, not user-supplied values.
+{% /aside %}
+
+{% aside type="danger" title="Audit Entity Access" %}
+Log entity-based access decisions for security auditing and compliance reporting.
+{% /aside %}
+
+### Performance
+
+{% aside type="note" title="Cache Entity Data" %}
+Entity lookups happen frequently. Cache entity metadata to minimize database queries.
+{% /aside %}
+
+{% aside type="note" title="Index Entity Fields" %}
+Ensure database indexes on entity identifier fields for fast filtering and lookups.
+{% /aside %}
+
+## Related Capabilities
+
+- **[Multi-Tenancy](/capabilities/enterprise/multi-tenancy/)** - Entity management enables multi-tenant deployments
+- **[Access Control](/capabilities/enterprise/access-control/)** - Entity-based access control integration
+- **[Admin Site](/capabilities/enterprise/admin-site/)** - Entity filtering and management interface
+
+## Technical Details
+
+### Entity Field Resolution
+
+The platform resolves entity identifiers from user data:
+
+```typescript
+function getUserEntity(user: AuthenticatedUser, entityConfig: EntityFeature): string | undefined {
+    if (!entityConfig.enabled) {
+        return undefined;
+    }
+    
+    const attributeName = entityConfig.attributeName;
+    return user.customData?.[attributeName];
+}
+```
+
+### Entity-Based Query Filtering
+
+Sessions are automatically filtered by entity:
+
+```typescript
+// DynamoDB query with entity filter
+const params = {
+    TableName: 'sessions',
+    FilterExpression: 'entityId = :entityId',
+    ExpressionAttributeValues: {
+        ':entityId': userEntity
+    }
+};
+```
+
+### Access Control Evaluation
+
+Entity-based access control is evaluated during authorization:
+
+```typescript
+function hasEntityAccess(
+    user: AuthenticatedUser,
+    chatApp: ChatApp,
+    userEntity: string
+): boolean {
+    const exclusiveAccess = chatApp.accessControl.exclusiveEntityAccess;
+    
+    if (!exclusiveAccess?.enabled) {
+        return true;  // No entity restrictions
+    }
+    
+    return exclusiveAccess.entityIds.includes(userEntity);
+}
+```
+
+## Next Steps
+
+Ready to implement entity management?
+
+{% card title="Configure Multi-Tenancy" icon="puzzle" %}
+Learn how entity management enables multi-tenant deployments.
+
+[Explore Multi-Tenancy →](/capabilities/enterprise/multi-tenancy/)
+{% /card %}
+
+{% card title="Setup Access Control" icon="approve-check" %}
+Configure entity-based access rules for your chat apps.
+
+[Configure Access →](/capabilities/enterprise/access-control/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="document" %}
+Step-by-step instructions for implementing entity management.
+
+[View How-To →](/how-to/enterprise/entity-management/)
+{% /card %}
+

@@ -1,0 +1,491 @@
+---
+title: Hello World Tutorial
+description: Build your first custom agent with Pika Platform
+---
+
+In this tutorial, you'll create your first custom agent from scratch. By the end, you'll have a working "Hello World" chat application that demonstrates the core concepts of building with Pika.
+
+## What You'll Build
+
+You'll create a simple greeter agent that:
+- Responds to user greetings
+- Provides information about itself
+- Demonstrates basic agent configuration
+- Shows how agents appear in the chat interface
+
+## Prerequisites
+
+Before starting this tutorial, make sure you have:
+
+- Completed the [Quick Start](/getting-started/quickstart/) or [Installation Guide](/getting-started/installation/)
+- A working Pika installation
+- Basic familiarity with TypeScript and AWS CDK
+
+## Tutorial Overview
+
+{% card title="Step 1: Understand the Structure" icon="information" %}
+Learn how chat apps and agents are organized in Pika
+{% /card %}
+
+{% card title="Step 2: Create Your Agent Configuration" icon="pencil" %}
+Define your agent's behavior and instructions
+{% /card %}
+
+{% card title="Step 3: Deploy Your Service" icon="rocket" %}
+Deploy to AWS or run locally
+{% /card %}
+
+{% card title="Step 4: Test Your Agent" icon="approve-check" %}
+Interact with your new agent in the chat interface
+{% /card %}
+
+## Step 1: Understand the Project Structure
+
+Navigate to your Pika project and explore the structure:
+
+```
+my-chat-app/
+├── services/
+│   ├── pika/              # Core Pika service (don't modify)
+│   ├── samples/
+│   │   └── weather/       # Sample weather service (reference)
+│   └── custom/            # Your custom services go here
+```
+
+{% aside type="tip" title="Two Approaches to Creating Services" %}
+You can create chat app stacks in two ways:
+
+1. **Separate Repository** (Recommended for production): Create your own repository and copy the weather sample structure
+2. **Custom Folder** (Good for learning): Create services in `services/custom/`
+
+For this tutorial, we'll use the custom folder approach for simplicity.
+{% /aside %}
+
+## Step 2: Create Your Service Structure
+
+Create a new directory for your Hello World service:
+
+```bash
+cd services/custom
+mkdir hello-world
+cd hello-world
+```
+
+Initialize the service:
+
+```bash
+pnpm init
+```
+
+Install necessary dependencies:
+
+```bash
+pnpm add @pika/shared aws-cdk-lib constructs
+pnpm add -D typescript @types/node
+```
+
+Create a basic `tsconfig.json`:
+
+```json
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+## Step 3: Define Your Agent Configuration
+
+Create the agent configuration file at `src/agent-config.ts`:
+
+```typescript
+import type { Agent } from '@pika/shared';
+
+export const helloWorldAgent: Agent = {
+  // Unique identifier for your agent
+  agentId: 'hello-world-agent',
+  
+  // Display name shown in the UI
+  name: 'Hello World Agent',
+  
+  // Short description
+  description: 'A friendly greeting agent that welcomes users',
+  
+  // Detailed instructions for the agent's behavior
+  instruction: `
+You are a friendly Hello World agent built with Pika Platform.
+
+Your purpose is to:
+1. Greet users warmly when they say hello
+2. Introduce yourself and explain what you do
+3. Help users understand that you're their first custom Pika agent
+
+Keep your responses concise and friendly. Always be enthusiastic about being 
+their first custom agent!
+
+When users ask what you can do, explain that you're a simple example agent 
+designed to demonstrate Pika's agent configuration system.
+  `.trim(),
+  
+  // Model configuration
+  model: {
+    modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+    temperature: 0.7,
+    maxTokens: 1000
+  },
+  
+  // No tools needed for this simple agent
+  tools: []
+};
+```
+
+{% aside type="note" title="Agent Configuration Explained" %}
+- **agentId**: Unique identifier used to reference this agent
+- **name**: Displayed in the chat interface
+- **description**: Shown to users when selecting agents
+- **instruction**: The system prompt that defines agent behavior
+- **model**: LLM configuration (model, temperature, token limits)
+- **tools**: Functions the agent can call (none needed for Hello World)
+{% /aside %}
+
+## Step 4: Define Your Chat App Configuration
+
+Create the chat app configuration at `src/chat-app-config.ts`:
+
+```typescript
+import type { ChatApp } from '@pika/shared';
+
+export const helloWorldChatApp: ChatApp = {
+  // Unique identifier for your chat app
+  chatAppId: 'hello-world',
+  
+  // Display title
+  title: 'Hello World',
+  
+  // Description shown on the home page
+  description: 'Your first custom Pika agent',
+  
+  // The agent this chat app uses
+  agentId: 'hello-world-agent',
+  
+  // User types allowed to access this chat app
+  userTypesAllowed: ['internal-user', 'external-user'],
+  
+  // Initial greeting message
+  initialMessage: 'Hello! I\'m your first custom Pika agent. Say hi!',
+  
+  // Suggested prompts shown to users
+  suggestedPrompts: [
+    'Hello!',
+    'What can you do?',
+    'Tell me about yourself',
+    'How were you created?'
+  ]
+};
+```
+
+{% aside type="tip" title="Chat App vs Agent" %}
+A **Chat App** is what users see and interact with. An **Agent** is the AI behind it. One agent can power multiple chat apps with different configurations, or you can have a 1:1 relationship like we do here.
+{% /aside %}
+
+## Step 5: Create the CDK Stack
+
+Create your infrastructure stack at `src/hello-world-stack.ts`:
+
+```typescript
+import * as cdk from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+import { helloWorldAgent } from './agent-config';
+import { helloWorldChatApp } from './chat-app-config';
+
+export class HelloWorldStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    // Register the agent with Pika
+    new cdk.CustomResource(this, 'RegisterAgent', {
+      serviceToken: cdk.Fn.importValue('PikaAgentRegistryFunctionArn'),
+      properties: {
+        agent: helloWorldAgent
+      }
+    });
+
+    // Register the chat app with Pika
+    new cdk.CustomResource(this, 'RegisterChatApp', {
+      serviceToken: cdk.Fn.importValue('PikaChatAppRegistryFunctionArn'),
+      properties: {
+        chatApp: helloWorldChatApp
+      }
+    });
+  }
+}
+```
+
+{% aside type="note" title="How Registration Works" %}
+The core Pika service exports Lambda function ARNs that other stacks use to register agents and chat apps. This allows your service to be completely decoupled from the core Pika infrastructure.
+{% /aside %}
+
+## Step 6: Create the CDK App
+
+Create the CDK app entry point at `bin/hello-world.ts`:
+
+```typescript
+#!/usr/bin/env node
+import * as cdk from 'aws-cdk-lib';
+import { HelloWorldStack } from '../src/hello-world-stack';
+
+const app = new cdk.App();
+
+new HelloWorldStack(app, 'HelloWorldStack', {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION
+  }
+});
+
+app.synth();
+```
+
+Update your `package.json` with CDK scripts:
+
+```json
+{
+  "name": "hello-world-service",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "cdk:deploy": "cdk deploy",
+    "cdk:destroy": "cdk destroy"
+  },
+  "bin": {
+    "hello-world": "bin/hello-world.js"
+  }
+}
+```
+
+## Step 7: Create CDK Configuration
+
+Create `cdk.json` in your service root:
+
+```json
+{
+  "app": "node bin/hello-world.js",
+  "requireApproval": "never",
+  "context": {
+    "@aws-cdk/core:enableStackNameDuplicates": true
+  }
+}
+```
+
+## Step 8: Deploy Your Service
+
+First, make sure the core Pika service is deployed:
+
+```bash
+# From your project root
+cd services/pika
+pnpm build
+pnpm run cdk:deploy
+```
+
+Then deploy your Hello World service:
+
+```bash
+cd services/custom/hello-world
+pnpm build
+pnpm run cdk:deploy
+```
+
+{% aside type="note" title="Deployment Time" %}
+The first deployment typically takes 2-3 minutes as CloudFormation creates the resources and registers your agent and chat app with the core Pika service.
+{% /aside %}
+
+## Step 9: Test Your Agent
+
+Start the Pika frontend:
+
+```bash
+cd apps/pika-chat
+pnpm dev
+```
+
+Visit `http://localhost:3000` and you should see your "Hello World" chat app listed on the home page!
+
+Click on it to open the chat interface, then try these interactions:
+
+1. Type "Hello!" - Your agent should greet you warmly
+2. Ask "What can you do?" - It should explain it's a demo agent
+3. Ask "Tell me about yourself" - It should introduce itself
+
+{% card title="Congratulations!" icon="star" %}
+You've successfully created and deployed your first custom Pika agent!
+{% /card %}
+
+## Understanding What You Built
+
+Let's review the key components:
+
+### Agent Configuration
+The agent configuration defines:
+- Identity (ID, name, description)
+- Behavior (instruction/system prompt)
+- Capabilities (model, tools)
+
+### Chat App Configuration
+The chat app configuration defines:
+- User interface (title, description, initial message)
+- Access control (which user types can access)
+- User experience (suggested prompts)
+
+### CDK Stack
+The CDK stack:
+- Defines infrastructure as code
+- Registers your agent and chat app with Pika
+- Keeps your service decoupled from core Pika infrastructure
+
+## Next Steps: Enhance Your Agent
+
+Now that you have a working agent, try these enhancements:
+
+### Add a Simple Tool
+
+Modify your agent configuration to include a tool:
+
+```typescript
+export const helloWorldAgent: Agent = {
+  // ... previous configuration ...
+  
+  tools: [{
+    type: 'inline',
+    toolId: 'get-greeting',
+    name: 'getGreeting',
+    description: 'Get a personalized greeting for a user',
+    parameters: {
+      type: 'object',
+      properties: {
+        userName: {
+          type: 'string',
+          description: 'The user\'s name'
+        },
+        language: {
+          type: 'string',
+          description: 'Language for the greeting (en, es, fr)',
+          enum: ['en', 'es', 'fr']
+        }
+      },
+      required: ['userName', 'language']
+    },
+    handler: async (input: { userName: string; language: string }) => {
+      const greetings = {
+        en: `Hello, ${input.userName}! Welcome!`,
+        es: `¡Hola, ${input.userName}! ¡Bienvenido!`,
+        fr: `Bonjour, ${input.userName}! Bienvenue!`
+      };
+      
+      return {
+        greeting: greetings[input.language] || greetings.en
+      };
+    }
+  }]
+};
+```
+
+Update the instruction to tell the agent about the tool:
+
+```typescript
+instruction: `
+You are a friendly Hello World agent built with Pika Platform.
+
+You have access to a getGreeting tool that can generate greetings in different 
+languages (English, Spanish, or French). When users tell you their name, offer 
+to greet them in different languages using this tool.
+
+// ... rest of instruction ...
+`.trim(),
+```
+
+### Customize the User Interface
+
+Add more suggested prompts:
+
+```typescript
+suggestedPrompts: [
+  'Hello!',
+  'What can you do?',
+  'Tell me about yourself',
+  'How were you created?',
+  'My name is Alice',
+  'Greet me in Spanish'
+]
+```
+
+### Add User Type Restrictions
+
+Restrict to internal users only:
+
+```typescript
+userTypesAllowed: ['internal-user']
+```
+
+## Common Issues
+
+### Agent Not Showing Up
+
+If your agent doesn't appear on the home page:
+
+1. Check CloudFormation console for deployment status
+2. Verify the core Pika service is deployed
+3. Check CloudWatch logs for registration errors
+4. Refresh the frontend (clear browser cache if needed)
+
+### TypeScript Compilation Errors
+
+```bash
+# Clean and rebuild
+pnpm clean
+pnpm install
+pnpm build
+```
+
+### CDK Deployment Fails
+
+Make sure:
+- AWS CLI is configured (`aws configure`)
+- Core Pika service is deployed first
+- You're in the correct directory when running deploy
+
+## Learn More
+
+Now that you've built your first agent, explore these topics:
+
+{% card title="Agent Development" icon="puzzle" %}
+Learn more about [configuring agents](/how-to/agents/) with advanced features
+{% /card %}
+
+{% card title="Tools and Integration" icon="setting" %}
+Add [tools and integrations](/how-to/tools/) to make your agent more powerful
+{% /card %}
+
+{% card title="Concepts" icon="information" %}
+Understand [how Pika works](/concepts/) under the hood
+{% /card %}
+
+## Summary
+
+In this tutorial, you:
+
+1. Created a new service structure
+2. Defined an agent configuration
+3. Defined a chat app configuration
+4. Created a CDK stack for deployment
+5. Deployed your service to AWS
+6. Tested your agent in the chat interface
+
+You now understand the basic building blocks of Pika agents!
+
+**Ready to build something more complex?** Check out the [Capabilities](/capabilities/) section to see what's possible, or dive into [How-To Guides](/how-to/) for specific tasks.
+

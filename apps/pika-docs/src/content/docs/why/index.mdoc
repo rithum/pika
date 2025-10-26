@@ -1,0 +1,431 @@
+---
+title: Why Pika?
+description: Understand if Pika solves your problem and why it's the right choice
+---
+
+## What Is Pika?
+
+Pika is an open-source AWS agentic framework that delivers production-ready AI chat applications. Deploy complete chat experiences - front and back end - for your internal teams or customers.
+
+{% fancyCard title="Create Chat Apps for Any Audience" bgColor="#f5f4f4" %}
+Build chat applications backed by AI agents. Serve authenticated internal users, external customers, or both.
+![Creating a chat app](/src/assets/screenshots/why/weather-before-answer.png)
+{% /fancyCard %}
+
+{% fancyCard title="Complete Front and Back End" bgColor="#f5f4f4" %}
+Get a full-featured chat experience out of the box. Professional UI, streaming responses, session management, and enterprise security included.
+![Complete chat experience](/src/assets/screenshots/why/weather-after-answered.png)
+{% /fancyCard %}
+
+{% fancyCard title="Extensible UI with Web Components" bgColor="#f5f4f4" %}
+Customize the interface with web components that have direct AI access. Build rich, interactive experiences like the Spotlight section shown here.
+![Extensible UI with Spotlight](/src/assets/screenshots/why/weather-spotlight.png)
+{% /fancyCard %}
+
+{% fancyCard title="Multiple Independent Chat Apps" bgColor="#f5f4f4" %}
+Define multiple chat apps on one deployment. Each has its own audience - internal only, customers only, or both.
+![Multiple chat applications](/src/assets/screenshots/why/multiple-chat-apps.png)
+{% /fancyCard %}
+
+{% fancyCard title="Transparent AI Reasoning" bgColor="#f5f4f4" %}
+Answers stream with AI reasoning visible to developers and admins. See exactly what the agent did and why.
+![Streaming answers with reasoning](/src/assets/screenshots/why/traces.png)
+{% /fancyCard %}
+
+{% fancyCard title="Self-Grading Responses" bgColor="#f5f4f4" %}
+The AI evaluates its own answers. Show grades to internal teams, external users, both, or neither - you control visibility.
+![AI self-grading](/src/assets/screenshots/why/answer-grade.png)
+{% /fancyCard %}
+
+{% fancyCard title="Built-In Administration" bgColor="#f5f4f4" %}
+A complete admin site comes with Pika. Manage your deployment without building administrative tools.
+![Administrative site](/src/assets/screenshots/why/admin1.png)
+{% /fancyCard %}
+
+{% fancyCard title="Per-App Control" bgColor="#f5f4f4" %}
+Configure each chat app independently. Control access, features, and behavior for different audiences.
+![Chat app administration](/src/assets/screenshots/why/admin-chat-app.png)
+{% /fancyCard %}
+
+{% fancyCard title="Review All Interactions" bgColor="#f5f4f4" %}
+Browse and search every user conversation. Debug issues, gather insights, and understand usage patterns.
+![Reviewing user interactions](/src/assets/screenshots/why/admin-review-messages.png)
+{% /fancyCard %}
+
+{% fancyCard title="Automatic Insights" bgColor="#f5f4f4" %}
+The system generates insights for every conversation. Track metrics, sentiment, goal completion, and quality automatically.
+![Session insights](/src/assets/screenshots/why/session-insights.png)
+{% /fancyCard %}
+
+{% fancyCard title="AI and Human Feedback" bgColor="#f5f4f4" %}
+A separate AI analyzes conversations and generates improvement feedback. Collect human feedback too - all in one system.
+![AI-generated feedback](/src/assets/screenshots/why/feedback-ai.png)
+![Human feedback collection](/src/assets/screenshots/why/feedback-human.png)
+{% /fancyCard %}
+
+{% fancyCard title="Dedicated URLs with Enterprise Auth" bgColor="#f5f4f4" %}
+Each chat app gets its own URL. Your enterprise authentication controls access.
+![Chat app URL 1](/src/assets/screenshots/why/url-1.png)
+![Chat app URL 2](/src/assets/screenshots/why/url-2.png)
+{% /fancyCard %}
+
+---
+
+**The bottom line**: Pika delivers everything between your idea for an AI assistant and a production system your users rely on. Built exclusively on AWS for scale, security, and operational simplicity.
+
+## The AI Integration Challenge
+
+Building a demo AI agent is quick. Building one your customers can actually use takes significantly longer.
+
+The gap between prototype and production is filled with challenges most teams underestimate:
+
+### Beyond the Shiny Demo
+
+Your developers will build an agent quickly using modern agentic frameworks. They'll connect it to a database, show you a chat interface, and it will look amazing. You'll be excited about the possibilities.
+
+Then your users try it.
+
+{% aside type="caution" %}
+**The Reality Check**: Demo agents work great in controlled scenarios. Production agents need to handle edge cases, maintain context across sessions, fail gracefully, provide audit trails, scale with traffic, and integrate with your existing authentication and authorization systems.
+{% /aside %}
+
+### The Problems You'll Face
+
+Getting from that shiny demo to a reliable product requires solving:
+
+- **Security & Authentication**: Integrating your enterprise SSO, managing user types, handling multi-tenancy, and protecting sensitive data
+- **Session Management**: Persisting conversations, managing context, organizing chat history, and enabling collaboration
+- **UI & UX**: Building a professional chat interface with all expected features - file upload, code formatting, streaming responses, mobile support
+- **Scalability**: Handling traffic spikes, managing costs, optimizing response times, and ensuring availability
+- **Observability**: Tracking usage, debugging failures, analyzing conversation quality, and measuring success
+- **Iteration & Improvement**: Identifying edge cases, gathering feedback, refining prompts, and deploying updates safely
+
+These aren't nice-to-haves. They're the difference between a toy and a tool.
+
+## Why Not Just Build It Yourself?
+
+You absolutely can build this yourself. Many teams do. But understand what you're signing up for.
+
+[Read the full breakdown →](/why/why-not-build/)
+
+### The True Cost of Custom Development
+
+{% tabs %}
+{% tabitem label="Infrastructure" %}
+**What you'll build**:
+- Chat session storage and retrieval
+- Message persistence with streaming
+- User authentication integration
+- Real-time WebSocket connections
+- API Gateway configuration
+- Lambda function orchestration
+- DynamoDB schema design
+- S3 integration for files
+- CloudWatch logging and monitoring
+{% /tabitem %}
+
+{% tabitem label="UI/UX" %}
+**What you'll build**:
+- Complete chat interface
+- Message rendering with formatting
+- Code syntax highlighting
+- Streaming message display
+- File upload handling
+- Session list and search
+- Mobile responsiveness
+- Accessibility compliance
+- Dark mode support
+{% /tabitem %}
+
+{% tabitem label="Security" %}
+**What you'll build**:
+- Enterprise SSO integration
+- Session token management
+- Access control system
+- Multi-tenancy isolation
+- Audit logging
+- Data encryption
+- Compliance controls
+- Security testing
+{% /tabitem %}
+
+{% tabitem label="Operations" %}
+**What you'll build**:
+- Deployment pipelines
+- Infrastructure as Code
+- Monitoring and alerting
+- Cost tracking
+- Performance optimization
+- Error handling and recovery
+- Backup and disaster recovery
+- Documentation
+{% /tabitem %}
+{% /tabs %}
+
+{% aside type="note" title="Total Investment" %}
+Building production-grade chat infrastructure requires substantial development effort and ongoing maintenance. This assumes experienced developers who already understand AWS, LLMs, and production system design.
+
+**Opportunity cost**: What could your team ship if they weren't building chat infrastructure?
+{% /aside %}
+
+### The Alternative
+
+Pika provides all of this out of the box. You deploy it once, configure your authentication, define your agents as config, and start focusing on what makes your agents valuable to users.
+
+## The Pika Approach
+
+Pika is built on three core principles that make production AI applications achievable.
+
+[Explore The Pika Approach in depth →](/why/approach/)
+
+### AWS Foundation: Scale Without the Complexity
+
+We use AWS because it solves the hard infrastructure problems for you.
+
+When you deploy Pika, you get:
+
+- **Amazon Bedrock** for AI capabilities with leading models (Claude, etc.)
+- **AWS Lambda** for serverless compute that scales automatically
+- **DynamoDB** for session storage with single-digit millisecond latency
+- **API Gateway** for robust REST APIs
+- **OpenSearch** for indexed sessions and analytics
+- **EventBridge** for background job orchestration
+
+{% aside type="tip" %}
+**The AWS Advantage**: Elastic scaling, operational maturity, enterprise security, and compliance certifications come standard. You inherit years of AWS investment in reliability and security without building any of it yourself.
+
+[Learn more about AWS Foundation →](/why/approach/aws-foundation/)
+{% /aside %}
+
+This isn't just about convenience. It's about production-grade infrastructure that:
+- Handles traffic spikes automatically
+- Scales to millions of users
+- Provides 99.9%+ uptime SLAs
+- Maintains SOC 2, ISO 27001, HIPAA compliance
+- Offers clear cost models with pay-per-use pricing
+
+### Agent-as-Config: Your Business Intelligence, Protected
+
+Most agent frameworks make you code within their codebase. Pika takes a different approach.
+
+Your agents, tools, and chat apps are defined as configuration deployed from your existing microservices. This strategic approach means:
+
+{% card title="Define Where You Have Access" icon="rocket" %}
+Your microservices already have database access, file access, and business logic libraries. Define agent tools right there - where you already have what you need.
+{% /card %}
+
+{% card title="Your AI IP Is Protected" icon="star" %}
+Your investment isn't in using an agentic framework - it's in the business intelligence you expose through agents. All agent definitions, tools, and prompts become configuration in Pika's database: this IS your organizational AI IP.
+{% /card %}
+
+{% card title="Decentralized Definition, Centralized Access" icon="puzzle" %}
+Teams define agents and tools in their own stacks where the business logic lives. But everything is accessible through a centralized UI and database for governance and reuse.
+{% /card %}
+
+This architectural decision has profound implications:
+
+- **Natural Tool Development**: Create tools where you already have access to data and APIs
+- **Protected Investment**: Your AI IP (agents, prompts, tools) lives as config, independent of any framework
+- **Team Independence**: Each team defines their agents, but organization-wide visibility and reuse
+- **Safe Evolution**: Change agent behavior via configuration updates, not infrastructure changes
+
+[Learn more about Agents-as-Config →](/why/approach/agent-as-config/)
+
+### Production-Ready from Day One
+
+Pika includes everything needed for production deployment:
+
+#### Complete UI
+
+A world-class chat interface that works standalone or embedded in your existing applications:
+- Professional message formatting with syntax highlighting
+- Streaming responses with visual feedback
+- File upload with preview
+- Session history and search
+- Pinning and sharing
+- Mobile-responsive design
+- Accessibility compliant
+
+#### Enterprise Security
+
+Production security without the work:
+- Pluggable authentication (integrate your SSO/SAML/OAuth)
+- User type management (internal vs external)
+- Entity-based access control (multi-tenancy)
+- Role-based permissions
+- Audit logging
+- Secure session management
+
+#### Operational Tooling
+
+The features you need to run AI in production:
+- **Self-correcting responses**: Independent LLM verification catches errors
+- **LLM-generated feedback**: Automatic analysis of conversation quality
+- **AI-driven insights**: Session metrics, sentiment, goal completion
+- **Detailed traces**: Debug exactly what agents did and why
+- **Admin interface**: Manage apps, users, and access controls
+
+[Learn more about Production-Ready features →](/why/approach/production-ready/)
+
+### From Toy to Tool: The Missing Middle
+
+This is where Pika truly differentiates itself. Getting an agent to work isn't hard. Getting it to work reliably for real users is.
+
+Pika provides the capabilities that bridge this gap:
+
+{% steps %}
+1. **Self-Correcting Loop**
+   
+   An independent LLM evaluates agent responses and can trigger automatic reprompting if quality is insufficient. Catch mistakes before users see them.
+
+2. **Continuous Learning**
+   
+   LLM-generated feedback analyzes completed sessions to identify patterns, edge cases, and improvement opportunities. Understand what's working and what's not.
+
+3. **Rapid Iteration**
+   
+   Instruction assistance and augmentation features help you refine agent behavior quickly based on real usage patterns.
+
+4. **User Memory**
+   
+   Persistent user context across all sessions means agents get better at personalizing responses over time.
+{% /steps %}
+
+{% aside type="tip" title="Production Intelligence" %}
+These aren't add-on features. They're core capabilities that separate experimental agents from reliable products. Pika builds them in because we know you'll need them.
+
+[Learn more about Production Intelligence →](/why/approach/toy-to-tool/)
+{% /aside %}
+
+## Who Is Pika For?
+
+Pika is designed for teams building production AI applications. While it provides enterprise-grade capabilities, it's built to be approachable whether you're at a startup or a large organization.
+
+### For Product Teams
+
+**Your Challenge**: You need AI features that delight users without becoming a science project.
+
+**How Pika Helps**:
+- Ship AI features rapidly
+- Professional UI that matches modern expectations
+- Analytics to understand what users are actually doing
+- Rapid iteration based on real usage patterns
+- Confidence that it will scale when users show up
+
+{% aside type="note" %}
+Pika handles the infrastructure and operational complexity so product teams can focus on user experience and value delivery.
+{% /aside %}
+
+### For Engineering Teams
+
+**Your Challenge**: Build AI capabilities without derailing your roadmap or creating maintenance nightmares.
+
+**How Pika Helps**:
+- Deploy via familiar AWS CDK/CloudFormation workflows
+- Agents as config - no special deployment process
+- Clean separation from your core codebase
+- Observable, debuggable, and maintainable
+- AWS-native so it fits your existing infrastructure
+
+{% aside type="tip" %}
+Engineering teams appreciate that Pika doesn't introduce foreign deployment patterns or require learning new operational models. It's AWS infrastructure you already understand.
+{% /aside %}
+
+### For Organizations of All Sizes
+
+**Your Challenge**: Deploy AI for both internal tools and customer-facing applications with appropriate security and governance.
+
+**How Pika Helps**:
+- **Multi-tenancy built in**: Support multiple organizations on one deployment
+- **Flexible access controls**: Internal vs external users, role-based permissions, entity isolation
+- **Compliance ready**: Audit trails, data protection, no AI training on your data
+- **Scalable architecture**: Start small, grow as needed
+- **Cost effective**: Serverless pricing means you only pay for what you use
+
+The platform handles both internal employee tools and customer-facing applications with the same deployment, but with fine-grained control over who sees what.
+
+{% aside type="tip" %}
+**Approachable Enterprise**: Pika provides enterprise capabilities without enterprise complexity. You can start with a single chat app and grow into a platform supporting dozens of agents across your organization.
+
+[Read the full assessment →](/why/who-is-pika-for/)
+{% /aside %}
+
+## When to Choose Pika
+
+Pika is the right choice when:
+
+{% card title="You're Building on AWS" icon="approve-check" %}
+Pika is AWS-only by design. If you're already on AWS or planning to be, Pika leverages services you already understand and trust.
+{% /card %}
+
+{% card title="You Need Production Quality" icon="rocket" %}
+If you're building something users will depend on (not just experimenting), Pika provides the observability, reliability, and security production systems require.
+{% /card %}
+
+{% card title="You Want Clean Architecture" icon="star" %}
+If you value separation of concerns and don't want agent code tangled with your business logic, Pika's config-based approach keeps boundaries clear.
+{% /card %}
+
+{% card title="You Need Multiple Use Cases" icon="puzzle" %}
+If you're planning multiple chat applications or agents, Pika's platform approach means you build the infrastructure once and deploy many agents.
+{% /card %}
+
+### When Pika Might Not Fit
+
+Pika is not the right choice if:
+
+- You need to run on platforms other than AWS
+- You're building a highly specialized agent framework with unique requirements
+- You prefer managing every aspect of the infrastructure yourself
+- You only need a simple chatbot without advanced features
+
+## Comparison Matrix
+
+{% aside type="note" %}
+**TODO**: Detailed comparison with other solutions will be added here.
+
+Compare Pika with:
+- Building custom on AWS
+- LangChain/LlamaIndex + custom UI
+- Commercial agent platforms
+- Other open-source frameworks
+
+Comparison dimensions:
+- Time to production
+- Infrastructure included
+- UI/UX provided
+- Security features
+- Operational tooling
+- Cost structure
+- Learning curve
+- Flexibility vs convenience
+{% /aside %}
+
+## Next Steps
+
+Ready to see Pika in action?
+
+{% card title="Quick Start" icon="rocket" %}
+Deploy your first agent in 15 minutes with our quick start guide.
+
+[Get Started](/guides/quick-start/)
+{% /card %}
+
+{% card title="Explore Capabilities" icon="star" %}
+Learn what Pika can do with detailed capability documentation.
+
+Coming soon
+{% /card %}
+
+{% card title="Read the Concepts" icon="puzzle" %}
+Understand how Pika works and the thinking behind key design decisions.
+
+[Learn the Architecture](/concepts/)
+{% /card %}
+
+---
+
+The question isn't whether you can build production AI applications. It's whether you want to spend significant time building infrastructure or focus on building intelligence.
+
+Pika handles the former so you can focus on the latter.
+

@@ -1,0 +1,653 @@
+---
+title: Agent-as-Config
+description: Why configuration-based agents keep your codebase clean and deployments safe
+---
+
+## TL;DR
+
+Pika uses a configuration-based approach where agents, tools, and chat apps are defined declaratively from your existing microservices. This lets you build tools where you already have access to your data and APIs, protects your AI investment by storing all agent intelligence as configuration (your true AI IP), and enables decentralized definition with centralized governance. Your business intelligence becomes portable, reusable, and organization-wide accessible.
+
+---
+
+## The Strategic Benefits
+
+Before diving into the technical details, understand why configuration-based agents are a strategic advantage:
+
+### Build Tools Where You Have Access
+
+Your microservices already have what agent tools need:
+- **Database connections**: Order service has order database access
+- **API credentials**: Payment service has payment API access  
+- **Business logic libraries**: Inventory service has stock calculation code
+- **File access**: Document service has file storage access
+
+**With Pika**: Define your agent tools right in these services. The order service defines `order-lookup` and `order-cancel` tools because it already has order database access. The payment service defines `refund-processor` because it already has payment API credentials.
+
+**Alternative frameworks**: Force you to either duplicate access in a central agent codebase or create wrapper APIs just for the agent framework.
+
+### Your AI IP Is the Configuration, Not the Framework
+
+The value you're creating isn't in using an agentic framework - thousands of companies use the same frameworks. Your value is in:
+- **The prompts you've refined** that handle your domain's edge cases
+- **The tools you've exposed** that provide your business intelligence
+- **The agent configurations** that orchestrate your unique capabilities
+- **The access controls** that match your organizational structure
+
+**With Pika**: All of this - agents, tools, prompts, configurations - lives as structured data in Pika's database. This IS your organizational AI IP. It's:
+- **Portable**: Not locked into proprietary code structures
+- **Auditable**: Every change tracked with who/when/what
+- **Reusable**: Share agents and tools across your organization
+- **Protectable**: Your investment is in the configuration, not framework expertise
+
+If you ever needed to move away from Pika, you have all your agent definitions as structured configuration. If you built in code-based frameworks, you'd have to extract and rewrite everything.
+
+### Decentralized Definition, Centralized Governance
+
+Each team defines agents in their own services, but everything is centrally accessible:
+
+**Decentralized definition**:
+- Order team defines order-related agents in their service
+- Support team defines support agents in their service
+- Each team uses their existing dev workflow
+
+**Centralized visibility**:
+- All agents visible in admin UI
+- All tools discoverable for reuse
+- Centralized access control and governance
+- Organization-wide analytics and insights
+
+**Result**: Teams move independently but the organization maintains visibility and control.
+
+## The Problem with Code-Based Agents
+
+Most agent frameworks make you code within their codebase. This creates problems:
+
+### Tight Coupling
+
+Your business logic becomes entangled with framework code:
+```typescript
+// Typical framework approach - business logic mixed with framework
+import { AgentFramework } from 'some-framework';
+
+class MyAgent extends AgentFramework {
+  async handleRequest(input: string) {
+    // Your logic here, but now tied to this framework
+    // Hard to test independently
+    // Hard to move to different systems
+  }
+}
+```
+
+**Consequences**:
+- Can't test agent logic without spinning up the full framework
+- Difficult to move agents between environments
+- Framework upgrades risk breaking your agents
+- Agent code scattered across the codebase
+
+### Deployment Complexity
+
+Changing agent behavior requires redeploying infrastructure:
+- Can't update prompts without full deployment
+- Adding tools means code changes
+- Testing requires complete infrastructure
+- Rollback means redeploying entire system
+
+### Limited Reusability
+
+Tools are tied to specific agents:
+- Can't share tools across agents easily
+- Duplicate code for common capabilities
+- Hard to maintain consistency
+- Testing each agent means testing tools again
+
+## The Pika Approach: Configuration All the Way Down
+
+Pika flips this model. Everything is configuration:
+
+### Agents Are Config
+
+```typescript
+const agentConfig = {
+  agentId: 'customer-support-agent',
+  basePrompt: 'You are a helpful customer support agent for Acme Corp...',
+  toolIds: ['order-lookup', 'refund-processor', 'kb-search']
+};
+```
+
+That's it. No framework classes to extend. No special deployment process. Just configuration deployed through CDK (or CloudFormation).
+
+### Tools Are Config
+
+```typescript
+const toolConfig = {
+  toolId: 'order-lookup',
+  displayName: 'Order Lookup',
+  name: 'order-lookup',
+  description: 'Retrieve order details by order ID',
+  executionType: 'lambda',
+  lambdaArn: 'arn:aws:lambda:region:account:function:order-lookup',
+  functionSchema: [{
+    name: 'lookup_order',
+    description: 'Get order details',
+    parameters: {
+      type: 'object',
+      properties: {
+        orderId: { type: 'string', description: 'The order ID' }
+      },
+      required: ['orderId']
+    }
+  }]
+};
+```
+
+The Lambda function lives in your microservice. Pika just knows how to call it.
+
+### Chat Apps Are Config
+
+```typescript
+const chatAppConfig = {
+  chatAppId: 'customer-support',
+  title: 'Customer Support',
+  description: 'Get help with your orders',
+  agentId: 'customer-support-agent',
+  enabled: true,
+  userTypes: ['external-user'],
+  features: {
+    fileUpload: { enabled: true, mimeTypesAllowed: ['image/jpeg', 'image/png'] },
+    suggestions: {
+      enabled: true,
+      suggestions: [
+        'Check my order status',
+        'Request a refund',
+        'Update shipping address'
+      ]
+    }
+  }
+};
+```
+
+## Why This Matters
+
+### Build Tools Where Your Data Lives
+
+**Your code stays in your codebase, where it has access**:
+```
+order-service/
+  ├── src/
+  │   ├── database/
+  │   │   └── order-repository.ts   # Has DB connection
+  │   ├── tools/
+  │   │   ├── order-lookup.ts       # Uses repository
+  │   │   └── order-cancel.ts       # Uses repository  
+  │   └── lambda-handlers/
+  │       └── tool-handler.ts
+  ├── infra/
+  │   └── pika-config.ts             # Defines tools & agent
+  └── tests/
+      └── tools.test.ts
+```
+
+**Why this matters**:
+- Tools have direct access to your databases
+- No duplicate connection management
+- Use your existing business logic libraries
+- Test tools with your existing test data
+
+**Pika's code stays in Pika**:
+- Platform updates don't touch your code
+- You're not maintaining framework code
+- Clear ownership boundaries
+
+### Version Control Everything
+
+Configuration means everything is in Git:
+
+```bash
+git log infra/pika-config.ts
+```
+
+**See the history**:
+- Who changed the prompt?
+- When did we add this tool?
+- What was the old configuration?
+
+**Review before deploy**:
+```bash
+# Pull request shows exact changes
+- basePrompt: 'You are a helpful agent.'
++ basePrompt: 'You are a helpful agent. Always ask clarifying questions.'
++ toolIds: ['new-analytics-tool']
+```
+
+Your team can review agent changes like any other code.
+
+### Your AI IP Lives as Structured Data
+
+The configuration isn't just convenient - it's your organizational AI intelligence:
+
+**What gets stored in Pika's database**:
+- Every agent definition with refined prompts
+- Every tool with its business capabilities  
+- Every access control rule
+- Every feature configuration
+- Full version history
+
+**Why this is your AI IP**:
+```typescript
+// This configuration represents significant investment in prompt engineering
+const customerSupportAgent = {
+  agentId: 'customer-support-v3',
+  // Prompt refined over 100 iterations based on real feedback
+  basePrompt: `You are a customer support specialist...
+    When a customer seems frustrated, acknowledge their concern first...
+    Always check order status before suggesting next steps...
+    [50 more lines of domain-specific instructions]`,
+  
+  // Tools represent your unique business capabilities
+  toolIds: [
+    'order-lookup',          // Your order system integration
+    'refund-processor',      // Your payment workflows
+    'inventory-check',       // Your inventory system
+    'kb-search'              // Your knowledge base
+  ],
+  
+  // Access rules match your org structure
+  rolloutPolicy: {
+    betaAccounts: ['trusted-customer-ids']
+  }
+};
+```
+
+**This configuration IS your value**:
+- Represents investment in prompt engineering
+- Encodes your business processes
+- Reflects your organizational knowledge
+- Contains your competitive intelligence
+
+**It's portable and protectable**:
+- Export all configurations as structured data
+- Not locked in proprietary code structures
+- Can be backed up, versioned, audited
+- Your IP, not framework vendor's
+
+**Compare to code-based frameworks**:
+- Agents buried in Python/TypeScript classes
+- Prompt scattered across codebase
+- Hard to extract your intelligence
+- Locked into framework patterns
+
+### Safe Deployments
+
+Configuration deployment is safer than code deployment:
+
+{% tabs %}
+{% tabitem label="Code-Based" %}
+**Changing agent behavior**:
+1. Modify framework code
+2. Run full test suite
+3. Build container/package
+4. Deploy infrastructure
+5. Hope nothing breaks
+6. If it does, redeploy old version
+
+**Time to rollback**: 15-30 minutes
+**Risk**: Code changes can break anything
+{% /tabitem %}
+
+{% tabitem label="Config-Based (Pika)" %}
+**Changing agent behavior**:
+1. Modify configuration
+2. Deploy config (CDK custom resource)
+3. Agent uses new config immediately
+4. If issues, deploy old config
+5. Or disable in admin UI instantly
+
+**Time to rollback**: 1-2 minutes (or instant via UI)
+**Risk**: Only affects agent behavior, not infrastructure
+{% /tabitem %}
+{% /tabs %}
+
+### Tool Reusability
+
+Define tools once, use them everywhere:
+
+```typescript
+// Define a shared tool
+const kbSearchTool = {
+  toolId: 'kb-search',
+  // ... tool definition
+};
+
+// Use in multiple agents
+const supportAgent = {
+  agentId: 'support-agent',
+  toolIds: ['kb-search', 'order-lookup']
+};
+
+const salesAgent = {
+  agentId: 'sales-agent',
+  toolIds: ['kb-search', 'product-catalog']
+};
+```
+
+**Benefits**:
+- Test kb-search once, works for all agents
+- Update kb-search definition, all agents get improvements
+- Clear inventory of available tools
+- Easy to discover and reuse capabilities
+
+### Independent Evolution
+
+Agents and tools evolve independently:
+
+```typescript
+// Update tool implementation without touching agent config
+// Lambda function order-lookup v1 -> v2
+// Agent config stays the same
+// Function schema provides contract
+```
+
+```typescript
+// Update agent without touching tool implementation
+const agentConfig = {
+  agentId: 'customer-support-agent',
+  basePrompt: 'Updated prompt...', // Changed
+  toolIds: ['order-lookup']         // Same tools
+};
+```
+
+**This means**:
+- Backend team updates tools on their schedule
+- Agent team refines prompts independently
+- No coordination overhead for small changes
+
+## Real-World Patterns
+
+### Pattern 1: Shared Utility Tools
+
+```typescript
+// Define once in shared infrastructure
+const commonTools = [
+  { toolId: 'time-tool', /* ... */ },
+  { toolId: 'calculator', /* ... */ },
+  { toolId: 'web-search', /* ... */ }
+];
+
+// Every agent can use them
+const agentsWithCommonTools = [
+  { agentId: 'agent-1', toolIds: ['time-tool', 'calculator', ...] },
+  { agentId: 'agent-2', toolIds: ['time-tool', 'web-search', ...] }
+];
+```
+
+### Pattern 2: Service-Specific Agents
+
+```typescript
+// Order service defines its tools and agent
+// orders-service/infra/pika-config.ts
+export const orderServiceConfig = {
+  tools: [
+    { toolId: 'order-lookup', lambdaArn: orderLookupLambda.functionArn },
+    { toolId: 'order-cancel', lambdaArn: orderCancelLambda.functionArn }
+  ],
+  agent: {
+    agentId: 'order-agent',
+    toolIds: ['order-lookup', 'order-cancel']
+  }
+};
+
+// Shipping service defines its own
+// shipping-service/infra/pika-config.ts
+export const shippingServiceConfig = {
+  tools: [
+    { toolId: 'tracking-lookup', lambdaArn: trackingLambda.functionArn }
+  ],
+  agent: {
+    agentId: 'shipping-agent',
+    toolIds: ['tracking-lookup']
+  }
+};
+```
+
+Each service owns its agents and tools. Pika just orchestrates them.
+
+### Pattern 3: Composed Agents
+
+```typescript
+// Super-agent uses tools from multiple services
+const customerSupportAgent = {
+  agentId: 'customer-support',
+  basePrompt: 'Help customers with orders and shipping.',
+  toolIds: [
+    // Order service tools
+    'order-lookup',
+    'order-cancel',
+    // Shipping service tools
+    'tracking-lookup',
+    // Payment service tools
+    'refund-processor',
+    // Shared tools
+    'kb-search'
+  ]
+};
+```
+
+One agent, tools from many services. Clean boundaries maintained.
+
+## Configuration Deployment Flow
+
+Here's how configuration moves from your code to running agents:
+
+{% steps %}
+1. **Define Configuration**
+   
+   Write agent/tool config in your CDK stack:
+   ```typescript
+   new PikaAgentConfig(this, 'MyAgent', {
+     pikaApiUrl: 'https://your-pika-api.com',
+     agentData: {
+       userId: 'cloudformation/my-stack',
+       agent: { /* config */ },
+       tools: [ /* tools */ ]
+     }
+   });
+   ```
+
+2. **Deploy with CDK**
+   
+   ```bash
+   cdk deploy
+   ```
+   
+   CDK custom resource calls Pika's agent registration API.
+
+3. **Pika Stores in Registry**
+   
+   Configuration goes into DynamoDB:
+   - Agents table
+   - Tools table
+   - Chat Apps table
+   
+   Versioned and auditable.
+
+4. **Agent Uses Config**
+   
+   When a conversation starts:
+   - Pika loads agent config from registry
+   - Resolves tool IDs to full tool definitions
+   - Passes to Bedrock with function schemas
+   - Invokes tools via Lambda ARNs
+
+5. **Update Anytime**
+   
+   Redeploy CDK with new config. Changes take effect immediately for new conversations.
+{% /steps %}
+
+## Testing Strategy
+
+Configuration-based agents are easier to test:
+
+### Unit Test Tools
+
+```typescript
+// Test tool logic without Pika framework
+import { orderLookup } from './tools/order-lookup';
+
+test('order lookup finds order', async () => {
+  const result = await orderLookup({ orderId: '12345' });
+  expect(result.status).toBe('shipped');
+});
+```
+
+No framework overhead. Pure function testing.
+
+### Integration Test Tool Invocation
+
+```typescript
+// Test that Pika can invoke your tool
+const response = await lambda.invoke({
+  FunctionName: 'order-lookup',
+  Payload: JSON.stringify({
+    toolUseId: 'test-123',
+    input: { orderId: '12345' }
+  })
+});
+```
+
+### Test Agent Behavior
+
+```typescript
+// Test agent with different configs
+const testConfig = {
+  agentId: 'test-agent',
+  basePrompt: 'Test prompt',
+  toolIds: ['mock-tool']
+};
+
+// Deploy to test environment
+// Interact with agent
+// Verify behavior
+```
+
+Swap configurations between test and prod without code changes.
+
+## Advanced Configuration Features
+
+### Rollout Policies
+
+```typescript
+const agentConfig = {
+  agentId: 'new-feature-agent',
+  basePrompt: '...',
+  rolloutPolicy: {
+    betaAccounts: ['account-123', 'account-456'], // Beta test first
+    regionRestrictions: ['us-west-2']              // One region initially
+  }
+};
+```
+
+Gradual rollout via configuration.
+
+### Access Rules
+
+```typescript
+const toolConfig = {
+  toolId: 'admin-tool',
+  accessRules: [
+    {
+      enabled: true,
+      userTypes: ['internal-user'],          // Only internal users
+      userRoles: ['pika:site-admin']         // With admin role
+    }
+  ]
+};
+```
+
+Security policies in configuration, not code.
+
+### Feature Overrides
+
+```typescript
+const chatAppConfig = {
+  chatAppId: 'external-support',
+  agentId: 'support-agent',
+  features: {
+    traces: {
+      enabled: false                 // Disable for external users
+    },
+    verifyResponse: {
+      enabled: true,
+      autoRepromptThreshold: 'C'     // Auto-fix bad responses
+    }
+  }
+};
+```
+
+Customize behavior per chat app without changing agent.
+
+## Comparison with Other Approaches
+
+### vs. LangChain/LlamaIndex
+
+**Them**: Agents are Python/TypeScript classes
+```python
+class MyAgent(BaseAgent):
+    def run(self, input: str):
+        # Logic here
+```
+
+**Pika**: Agents are config, tools are Lambda
+```typescript
+{ agentId: 'my-agent', toolIds: ['tool-1'] }
+```
+
+**Trade-off**: Pika is less flexible but more structured. Configuration over code means guardrails and safety, but less ability to do arbitrary things.
+
+### vs. Cloud AI Platforms
+
+**Them**: Agents defined in vendor UI, not version-controlled
+
+**Pika**: Agents as Infrastructure as Code
+- Git history
+- Code review
+- Automated deployment
+- Environment parity (dev/staging/prod)
+
+**Trade-off**: More initial setup (CDK), but better engineering practices.
+
+## When Config Works (and When It Doesn't)
+
+### Config Works When:
+
+✅ Agents follow standard patterns (chat, tool use, streaming)
+✅ Tools are discrete capabilities (lookup, calculation, API call)
+✅ You want operational safety over flexibility
+✅ Multiple people/teams deploy agents
+
+### Config Might Not Work When:
+
+❌ You need highly custom agent behavior outside Bedrock's model
+❌ Your tools have complex inter-dependencies
+❌ You're doing research requiring arbitrary code execution
+❌ The agent is the product itself (you're building an agent platform)
+
+**Pika's take**: For 95% of production AI applications, configuration provides the right balance of safety and capability.
+
+## The Bottom Line
+
+Configuration-based agents aren't a limitation - they're a design choice that enables:
+
+1. **Clean separation**: Your code, your repos, your tests
+2. **Safe deployments**: Review, rollback, and audit
+3. **Reusability**: Define once, use everywhere
+4. **Team scaling**: Multiple teams deploying agents safely
+5. **Operational control**: Change behavior without infrastructure risk
+
+You trade some flexibility for a lot of safety and structure. For production systems, this is usually the right trade.
+
+---
+
+{% aside type="tip" %}
+**Want to see what's included in the platform?** Learn about [Production-Ready Features](/why/approach/production-ready/) that come with Pika, or explore [Production Intelligence](/why/approach/toy-to-tool/) capabilities that make agents reliable.
+{% /aside %}
+

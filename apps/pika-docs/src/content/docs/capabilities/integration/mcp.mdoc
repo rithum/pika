@@ -1,0 +1,455 @@
+---
+title: Model Context Protocol (MCP)
+description: Standardized integration with external tools and services
+---
+
+Model Context Protocol (MCP) support enables Pika agents to seamlessly integrate with external tools and services through standardized protocols. Connect to live databases, APIs, and third-party services without custom Lambda development.
+
+## What It Is
+
+Model Context Protocol (MCP) is an open standard that enables AI agents to securely connect to external data sources and tools. It provides a standardized way for language models to access real-time information, interact with databases, call APIs, and integrate with external services while maintaining security and proper access controls.
+
+## What Pika Provides
+
+Pika's MCP implementation (Phase I complete, Phase II underway) focuses on **tool registration and execution**, allowing agents to leverage external MCP servers to expand their capabilities beyond built-in functions.
+
+### Phase I: Tool Integration (Complete)
+
+**External Tool Integration**:
+- Register tools that connect to remote MCP servers
+- Seamless execution of external tools within agent conversations
+- Real-time data access and API integrations
+
+**Secure Authentication**:
+- Built-in OAuth 2.0 client credentials flow
+- Automatic token management and refresh
+- Custom authentication headers support
+
+**Session Management**:
+- Proper initialization and cleanup of MCP connections
+- Session isolation between different conversations
+- Connection pooling and reuse optimization
+
+**Streaming Support**:
+- Full streaming compatibility via StreamableHTTP transport
+- Real-time response processing
+- Low-latency tool execution
+
+**Error Handling**:
+- Comprehensive error handling and recovery
+- Detailed logging and debugging capabilities
+- Graceful fallbacks for connection issues
+
+### Phase II: Server Publishing (In Progress)
+
+Future capabilities will include:
+
+- Expose selected Pika tools as public MCP servers
+- Share tool capabilities with external systems
+- Create tool marketplaces and ecosystems
+- Enable bidirectional integration scenarios
+
+## Why It Matters
+
+Before MCP, agents were limited to:
+
+- Pre-built Lambda functions
+- Static knowledge bases
+- Built-in capabilities
+- Custom integration code for each service
+
+After MCP, agents can:
+
+- Connect to live databases and APIs dynamically
+- Access real-time information from external services
+- Integrate with third-party tools and platforms
+- Expand capabilities without code deployment
+
+This dramatically reduces integration effort and enables richer agent capabilities.
+
+## How It Works
+
+![MCP Tool Invocation Flow](/img/diagrams/mcp-flow.drawio.svg)
+
+### Tool Registration
+
+Define MCP tools in your agent configuration:
+
+```typescript
+const weatherMCPTool: ToolConfig = {
+    toolId: 'weather-mcp',
+    toolName: 'Weather Information',
+    description: 'Get current weather conditions and forecasts',
+    executionType: 'mcp',
+    url: 'https://weather-mcp-server.example.com',
+    auth: {
+        type: 'oauth2',
+        clientId: process.env.WEATHER_CLIENT_ID,
+        clientSecret: process.env.WEATHER_CLIENT_SECRET,
+        tokenUrl: 'https://auth.weather.com/oauth/token'
+    }
+};
+```
+
+### Agent Invocation
+
+Agent uses MCP tool like any other tool:
+
+{% steps %}
+1. **Agent decides tool is needed**
+   
+   Based on user query, agent determines MCP tool should be invoked
+
+2. **Pika establishes MCP connection**
+   
+   - Authenticates with MCP server
+   - Initializes session
+   - Manages transport layer
+
+3. **Tool executes on MCP server**
+   
+   - Request sent to external server
+   - Server processes with its own logic/data
+   - Results returned to Pika
+
+4. **Agent receives results**
+   
+   - Tool output integrated into agent context
+   - Agent synthesizes response for user
+   - Connection maintained for subsequent calls
+
+5. **Cleanup**
+   
+   - Session properly closed when conversation ends
+   - Resources released
+   - Connections returned to pool
+{% /steps %}
+
+## Key Benefits
+
+### For Developers
+
+**Rapid Integration**: Connect to existing services without custom Lambda development
+
+```typescript
+// Before MCP: Build custom Lambda function
+const orderLookup = new Function(this, 'OrderLookup', {
+    runtime: Runtime.NODEJS_18_X,
+    handler: 'index.handler',
+    code: Code.fromAsset('lambda'),
+    environment: {
+        DB_HOST: dbHost,
+        DB_USER: dbUser
+        // ... more config
+    }
+});
+
+// After MCP: Simple tool registration
+const orderTool: ToolConfig = {
+    toolId: 'order-lookup',
+    executionType: 'mcp',
+    url: 'https://order-mcp.internal.com'
+};
+```
+
+**Standardized Interface**: Use MCP protocol instead of custom API integrations
+
+**Reduced Deployment**: No need to deploy and manage Lambda functions for every tool
+
+**Third-party Ecosystem**: Leverage existing MCP server implementations
+
+### For Organizations
+
+**Security**: Centralized authentication and access control
+
+**Scalability**: Connect to multiple services without infrastructure overhead
+
+**Flexibility**: Easily add, remove, or modify tool integrations
+
+**Cost Efficiency**: Reduce custom development and maintenance costs
+
+### For End Users
+
+**Enhanced Capabilities**: Agents can access real-time, live data
+
+**Better Accuracy**: Information is always current and up-to-date
+
+**Broader Functionality**: Access to specialized tools and services
+
+**Seamless Experience**: No difference in interaction between built-in and MCP tools
+
+## Example Use Cases
+
+### Real-time Data Access
+
+Connect to live weather APIs:
+
+```typescript
+const weatherTool: ToolConfig = {
+    toolId: 'weather-data',
+    executionType: 'mcp',
+    url: 'https://weather-mcp-server.example.com',
+    description: 'Get current weather conditions and forecasts for any location'
+};
+```
+
+Agent can now provide up-to-the-minute weather information without maintaining its own weather data.
+
+### Database Integration
+
+Access production databases safely:
+
+```typescript
+const customerDBTool: ToolConfig = {
+    toolId: 'customer-lookup',
+    executionType: 'mcp',
+    url: 'https://customer-db-mcp.internal.com',
+    auth: {
+        type: 'oauth2',
+        clientId: process.env.MCP_CLIENT_ID,
+        clientSecret: process.env.MCP_CLIENT_SECRET,
+        tokenUrl: 'https://auth.internal.com/oauth/token'
+    },
+    description: 'Look up customer information from production database'
+};
+```
+
+MCP server handles database connection, queries, and security - agent just calls the tool.
+
+### Third-party Service Integration
+
+Integrate with CRM systems:
+
+```typescript
+const crmTool: ToolConfig = {
+    toolId: 'salesforce-crm',
+    executionType: 'mcp',
+    url: 'https://salesforce-mcp.example.com',
+    description: 'Access customer records and create opportunities in Salesforce'
+};
+```
+
+Leverage existing Salesforce MCP servers instead of building custom integration.
+
+### Internal Tool Ecosystem
+
+Create reusable tool servers:
+
+```
+Organization's MCP Servers:
+├── auth-mcp-server        # User authentication and authorization
+├── order-mcp-server        # Order management
+├── inventory-mcp-server    # Inventory lookup
+├── pricing-mcp-server      # Dynamic pricing
+└── analytics-mcp-server    # Business intelligence queries
+```
+
+Multiple agents across different chat apps can use the same MCP tool servers.
+
+## Architecture
+
+Pika's MCP implementation includes:
+
+**MCP Server Manager**: Handles registration and lifecycle of MCP tools
+
+**Transport Layer**: StreamableHTTP client for server communication
+
+**Session Management**: Proper connection initialization and cleanup
+
+**Authentication Layer**: OAuth 2.0 token management and custom headers
+
+**Proxy System**: Request/response proxying between agents and MCP servers
+
+**Error Handling**: Comprehensive error recovery and logging
+
+## Configuration
+
+### Basic MCP Tool
+
+Minimal configuration:
+
+```typescript
+const tool: ToolConfig = {
+    toolId: 'external-api',
+    executionType: 'mcp',
+    url: 'https://api.example.com'
+};
+```
+
+### With OAuth Authentication
+
+Secure access with OAuth 2.0:
+
+```typescript
+const tool: ToolConfig = {
+    toolId: 'secure-api',
+    executionType: 'mcp',
+    url: 'https://secure-api.example.com',
+    auth: {
+        type: 'oauth2',
+        clientId: process.env.CLIENT_ID,
+        clientSecret: process.env.CLIENT_SECRET,
+        tokenUrl: 'https://auth.example.com/oauth/token',
+        scopes: ['read:data', 'write:data']
+    }
+};
+```
+
+### With Custom Headers
+
+Additional authentication headers:
+
+```typescript
+const tool: ToolConfig = {
+    toolId: 'api-with-headers',
+    executionType: 'mcp',
+    url: 'https://api.example.com',
+    customHeaders: {
+        'X-API-Key': process.env.API_KEY,
+        'X-Client-Version': '1.0.0'
+    }
+};
+```
+
+### With Timeout Configuration
+
+Control execution time limits:
+
+```typescript
+const tool: ToolConfig = {
+    toolId: 'slow-api',
+    executionType: 'mcp',
+    url: 'https://slow-api.example.com',
+    timeout: 30000  // 30 seconds
+};
+```
+
+## Best Practices
+
+### Start with Public MCP Servers
+
+Use existing implementations:
+
+- Weather data providers
+- Financial data APIs
+- Public knowledge bases
+- Common integrations
+
+### Secure Your MCP Endpoints
+
+Protect access:
+
+- Always use OAuth 2.0 for authentication
+- Rotate credentials regularly
+- Implement rate limiting on MCP servers
+- Monitor for unusual access patterns
+
+### Handle Failures Gracefully
+
+MCP servers may be unavailable:
+
+- Implement fallback behavior in agents
+- Provide clear error messages to users
+- Log failures for investigation
+- Set appropriate timeout values
+
+### Monitor Performance
+
+Track MCP tool usage:
+
+- Response times
+- Failure rates
+- Authentication issues
+- Cost per invocation
+
+### Version Your MCP Servers
+
+Enable safe evolution:
+
+- Use semantic versioning
+- Support backward compatibility
+- Communicate breaking changes
+- Allow gradual migration
+
+## Troubleshooting
+
+### Connection Failures
+
+**Problem**: Agent can't connect to MCP server
+
+**Solutions**:
+- Verify URL is correct and accessible
+- Check authentication credentials
+- Review network security groups
+- Check MCP server logs
+
+### Authentication Errors
+
+**Problem**: OAuth token errors or rejections
+
+**Solutions**:
+- Verify client ID and secret
+- Check token URL configuration
+- Ensure required scopes are granted
+- Review token expiration settings
+
+### Timeout Issues
+
+**Problem**: MCP tool calls timing out
+
+**Solutions**:
+- Increase timeout configuration
+- Optimize MCP server performance
+- Implement caching on MCP server
+- Consider async patterns for long operations
+
+### Inconsistent Results
+
+**Problem**: MCP tool returns unexpected data
+
+**Solutions**:
+- Review MCP server logs
+- Verify tool schema matches expectations
+- Check for version mismatches
+- Test MCP endpoint directly
+
+## Getting Started
+
+{% card title="Implement MCP Tools" icon="rocket" %}
+Step-by-step guide to integrating MCP servers.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="MCP in Weather Sample" icon="star" %}
+See MCP integration in action (if applicable).
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Understanding MCP" icon="puzzle" %}
+Deep dive into MCP architecture and protocols.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Inline Tools" icon="rocket" %}
+Simple tools for prototyping without external servers.
+
+[Learn More →](/capabilities/integration/inline-tools/)
+{% /card %}
+
+{% card title="Agents as Config" icon="star" %}
+Define MCP tools declaratively in configuration.
+
+[Learn More →](/capabilities/core/agents-as-config/)
+{% /card %}
+
+{% card title="Direct Agent Invocation" icon="information" %}
+Call agents with MCP tools programmatically.
+
+[Learn More →](/capabilities/integration/direct-invocation/)
+{% /card %}
+

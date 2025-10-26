@@ -1,0 +1,415 @@
+---
+title: Session Management
+description: Conversations persist with full history, searchable archives, and secure sharing
+---
+
+Session Management in Pika ensures conversations persist across turns and sessions, maintaining full context and history for future reference. Users can resume conversations where they left off, organize sessions, and share valuable conversations with colleagues - all while maintaining appropriate security boundaries.
+
+{% aside type="tip" title="Turns and Sessions" %}
+A turn is a message in a conversation initiated by the user or the agent and the response from the other party.  Turns are usually initiated by a user message and the response from the agent. A session is a collection of turns.
+{% /aside %}
+
+## What It Does
+
+Every conversation in Pika is a session that:
+
+- **Persists indefinitely** until explicitly deleted
+- **Maintains full history** of all turns and tool invocations
+- **Automatically generates titles** for easy identification
+- **Supports search** across all messages
+- **Enables sharing** with secure access controls
+- **Provides pinning** for quick access to important conversations
+
+## Why It Matters
+
+Without proper session management:
+
+- Context is lost between conversations
+- Users can't find previous discussions
+- Valuable conversations disappear
+- Collaboration is difficult
+- Knowledge doesn't accumulate
+
+With robust session management:
+
+- Users pick up exactly where they left off
+- History is searchable and accessible
+- Valuable conversations become organizational knowledge
+- Teams can collaborate effectively
+- AI interactions build lasting value
+
+## Key Features
+
+### Conversation Persistence
+
+Every chat session is stored permanently:
+
+```
+Session Contents:
+├── All user messages
+├── All agent responses
+├── Tool invocations and results
+├── Traces and reasoning (if enabled)
+├── Verification grades
+├── Metadata (timestamps, participants, etc.)
+└── Insights and feedback
+```
+
+### Automatic Title Generation
+
+Pika automatically generates meaningful titles:
+
+**AI-Generated** (default):
+- Analyzes first few turns
+- Creates descriptive title
+- Updates if conversation topic shifts
+
+**Manual Override**:
+- Users can rename any session
+- Custom titles for organization
+- Search-friendly naming
+
+### Session Organization
+
+Multiple ways to organize conversations:
+
+**Chronological Listing**:
+- Most recent first
+- Grouped by date (Today, Yesterday, This Week, etc.)
+- Infinite scroll pagination
+
+**Pinning**:
+- Pin important conversations to top
+- Quick access to frequently referenced sessions
+- Per-user pin preferences
+
+**Search**:
+- Full-text search across all messages
+- Filter by chat app
+- Filter by date range
+- Filter by participants
+
+### Session Resume
+
+Seamless continuation:
+
+{% steps %}
+1. **User opens previous session**
+   
+   Full history loaded from DynamoDB
+
+2. **Context automatically restored**
+   
+   Agent has complete conversation history
+
+3. **User continues conversation**
+   
+   No need to re-explain or provide context
+
+4. **New turns added**
+   
+   Session grows organically over time
+{% /steps %}
+
+### Secure Sharing
+
+Share conversations with appropriate access controls:
+
+**Sharing Options**:
+- Share with specific users
+- Share with entire organization
+- Share with external collaborators (if permitted)
+- Time-limited access
+- Read-only vs interactive mode
+
+**Access Controls**:
+- Respect entity boundaries
+- Honor role requirements
+- Maintain audit trail
+- Revocable access
+
+## Configuration
+
+### Session Settings
+
+Control session behavior:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    sessionManagement: {
+        autoGenerateTitles: true,
+        allowSharing: true,
+        allowPinning: true,
+        maxSessionHistory: 1000,  // turns
+        retentionDays: 365  // keep for 1 year
+    }
+};
+```
+
+### Per-Chat App Customization
+
+Different apps, different needs:
+
+```typescript
+// Customer support: shorter retention
+customerSupport: {
+    sessionManagement: {
+        retentionDays: 90,
+        allowSharing: false  // Privacy
+    }
+}
+
+// Internal knowledge: longer retention
+internalKB: {
+    sessionManagement: {
+        retentionDays: 730,  // 2 years
+        allowSharing: true
+    }
+}
+```
+
+## Use Cases
+
+### Support Case Reference
+
+Persistent support history:
+
+- Customer contacts support multiple times
+- Each session builds on previous context
+- Support agent sees full interaction history
+- No need to ask repeat questions
+
+**Result**: Better support experience
+
+### Knowledge Building
+
+Valuable conversations become resources:
+
+- User has great conversation solving complex problem
+- Shares session with team
+- Colleagues learn from the exchange
+- Becomes reference material
+
+**Result**: Organizational knowledge base
+
+### Project Collaboration
+
+Team sessions:
+
+- Team member starts investigation
+- Shares session link with colleagues
+- Others review and continue conversation
+- Collaborative problem-solving
+
+**Result**: Effective team collaboration
+
+### Audit and Compliance
+
+Complete records:
+
+- All interactions logged
+- Searchable for compliance review
+- Audit trail maintained
+- Evidence of proper procedures
+
+**Result**: Regulatory compliance
+
+## Session Lifecycle
+
+### Creation
+
+New sessions created when:
+
+- User sends first message in chat app
+- Direct agent invocation creates session
+- Session explicitly created via API
+
+### Active Use
+
+Session grows through:
+
+- User messages
+- Agent responses
+- Tool invocations
+- Verification and feedback
+
+### Organization
+
+Users manage sessions by:
+
+- Renaming for clarity
+- Pinning important ones
+- Archiving completed discussions
+- Deleting when no longer needed
+
+### Sharing
+
+Valuable sessions shared via:
+
+- Secure sharing links
+- Team distribution
+- Integration with collaboration tools
+
+### Archival
+
+Long-term storage:
+
+- Retention policies applied
+- Automated cleanup
+- Export options available
+- Compliance maintained
+
+## Best Practices
+
+### Encourage Organization
+
+Help users manage sessions:
+
+- Clear title guidance
+- Pinning recommendations
+- Regular cleanup suggestions
+- Archive old sessions
+
+### Set Appropriate Retention
+
+Balance utility and compliance:
+
+- **Customer data**: Follow data protection laws
+- **Internal tools**: Longer retention for knowledge
+- **Sensitive domains**: Shorter retention
+- **Legal requirements**: Meet all obligations
+
+### Enable Sharing Thoughtfully
+
+Sharing policy considerations:
+
+- **Public companies**: Strict controls
+- **Internal tools**: More permissive
+- **Customer data**: Privacy first
+- **Competitive info**: Protect secrets
+
+### Maintain Search Quality
+
+Keep sessions searchable:
+
+- Encourage good titles
+- Index all content
+- Provide filters
+- Regular search testing
+
+## Advanced Features
+
+### Session Analytics
+
+Track session metrics:
+
+- Average session length (turns)
+- Session completion rates
+- Most-accessed sessions
+- Sharing patterns
+
+### Bulk Operations
+
+Manage multiple sessions:
+
+- Bulk delete
+- Bulk archive
+- Bulk export
+- Tag management
+
+### Session Templates
+
+Start from templates:
+
+- Common inquiry patterns
+- Standard workflows
+- Pre-populated context
+- Best practice examples
+
+### Integration with Tools
+
+Export and integrate:
+
+- Export to PDF/Word
+- Send to Slack/Teams
+- Create tickets
+- Add to documentation
+
+## Performance Characteristics
+
+Session management is optimized for scale:
+
+- **Load time**: Recent messages <100ms
+- **Search**: Full-text search <500ms
+- **Storage**: Efficient DynamoDB design
+- **Scaling**: Handles millions of sessions
+
+## Privacy and Security
+
+### Data Protection
+
+Sessions stored securely:
+
+- Encrypted at rest
+- Encrypted in transit
+- Access logged
+- Audit trail maintained
+
+### Entity Isolation
+
+Sessions respect boundaries:
+
+- External users see only their entity's sessions
+- Internal users see appropriate sessions
+- No cross-entity leakage
+- Secure by default
+
+### Deletion and Right to Erasure
+
+Support data protection:
+
+- User-initiated deletion
+- Cascade to related records
+- Audit log retained (for compliance)
+- Permanent removal from storage
+
+## Getting Started
+
+{% card title="Using Sessions" icon="rocket" %}
+Guide to managing and organizing conversations.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Experience Sessions" icon="star" %}
+Try session management in the Weather Sample.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Session Architecture" icon="puzzle" %}
+Understand how sessions work under the hood.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="User Memory" icon="star" %}
+Persistent context complements session history.
+
+[Learn More →](/capabilities/data-memory/user-memory/)
+{% /card %}
+
+{% card title="Advanced Chat Apps" icon="information" %}
+Sessions are core to the chat experience.
+
+[Learn More →](/capabilities/core/advanced-chat-apps/)
+{% /card %}
+
+{% card title="Insights" icon="puzzle" %}
+Session analytics provide performance metrics.
+
+[Learn More →](/capabilities/intelligence/insights/)
+{% /card %}
+

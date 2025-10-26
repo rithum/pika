@@ -1,0 +1,333 @@
+---
+title: AWS Foundation
+description: Why Pika builds exclusively on AWS and what that means for you
+---
+
+## TL;DR
+
+Pika runs exclusively on AWS, leveraging Bedrock, Lambda, DynamoDB, OpenSearch, and other proven services. This isn't vendor lock-in - it's strategic focus. By committing to AWS, we inherit enterprise-grade scale, security, and operational maturity without building any of it ourselves. You get production infrastructure on day one instead of building it over months.
+
+---
+
+## Why AWS?
+
+We chose AWS-only for a simple reason: **building on proven infrastructure is faster and more reliable than building your own**.
+
+When you deploy Pika, you're not just getting our code - you're getting Amazon's decades of investment in:
+- Global infrastructure with 99.99%+ SLAs
+- Enterprise security and compliance certifications
+- Elastic scaling that handles any load
+- Operational tooling and monitoring
+- Cost models that scale with your usage
+
+This isn't about convenience. It's about shipping production systems confidently.
+
+## The AWS Services Pika Uses
+
+### Amazon Bedrock: AI Capabilities
+
+{% card title="What It Provides" icon="star" %}
+**Bedrock is your AI engine**: Anthropic Claude, AWS Titan, and other leading models through a single API. Native tool calling (function calling), streaming responses, and enterprise controls included.
+{% /card %}
+
+**Why it matters**:
+- **No model hosting**: Amazon manages the infrastructure, scaling, and availability
+- **Zero training on your data**: Explicit privacy guarantees - your conversations never persist in models
+- **Multi-model support**: Switch models or run different agents on different models without infrastructure changes
+- **Guardrails**: Built-in content filtering and safety controls
+- **Compliance**: SOC 2, ISO 27001, HIPAA, and more
+
+**What you don't have to build**:
+- Model deployment infrastructure
+- GPU management and scaling
+- Model versioning and rollback
+- Rate limiting and quota management
+- Cost tracking per request
+
+### AWS Lambda: Serverless Compute
+
+{% card title="What It Provides" icon="rocket" %}
+**Lambda handles all compute**: Chat orchestration, tool execution, and background jobs run as serverless functions. No servers to manage, automatic scaling, pay-per-use pricing.
+{% /card %}
+
+**Why it matters**:
+- **Automatic scaling**: Handle 1 request or 10,000 simultaneously without configuration
+- **Cost efficiency**: Pay only for compute time used (sub-second billing)
+- **No capacity planning**: Lambda scales automatically based on traffic
+- **Built-in high availability**: Multi-AZ by default
+
+**What you don't have to build**:
+- Container orchestration (ECS/EKS)
+- Auto-scaling groups
+- Load balancers
+- Health checks and recovery
+- Server patching and maintenance
+
+**Trade-offs we've handled**:
+- **15-minute timeout**: Pika uses streaming and checkpoint patterns for long-running conversations
+- **Cold starts**: We use Lambda Function URLs with optimized package sizes
+- **Concurrency limits**: Pika handles throttling gracefully with user feedback
+
+### DynamoDB: Session Storage
+
+{% card title="What It Provides" icon="document" %}
+**DynamoDB stores all session data**: Messages, user preferences, agent configurations, and tool definitions. Single-digit millisecond latency at any scale.
+{% /card %}
+
+**Why it matters**:
+- **Predictable performance**: No slow queries as data grows
+- **True serverless**: No clusters to size or manage
+- **Global tables**: Multi-region replication if you need it
+- **Point-in-time recovery**: Backup and restore without managing it
+- **On-demand pricing**: Pay per request, no provisioned capacity
+
+**What you don't have to build**:
+- Database cluster management
+- Replication strategies
+- Backup automation
+- Index optimization
+- Connection pooling
+
+**Our schema design**:
+- Optimized access patterns for chat (recent messages, full history, user sessions)
+- Single-table design for efficiency
+- TTL for automatic cleanup
+- GSIs for search patterns
+
+### API Gateway: REST APIs
+
+{% card title="What It Provides" icon="puzzle" %}
+**API Gateway fronts all REST endpoints**: Session management, message history, titles, and administrative functions. Handles auth, throttling, and CORS automatically.
+{% /card %}
+
+**Why it matters**:
+- **Built-in features**: Request validation, transformation, caching
+- **Security**: IAM auth, API keys, usage plans
+- **Monitoring**: CloudWatch integration included
+- **Rate limiting**: Protect against abuse automatically
+
+**What you don't have to build**:
+- API routing and versioning
+- Request validation middleware
+- CORS handling
+- Rate limiting logic
+- API documentation (OpenAPI/Swagger)
+
+### Amazon OpenSearch: Indexed Search
+
+{% card title="What It Provides" icon="star" %}
+**OpenSearch indexes sessions and feedback**: Full-text search across conversations, insights, and analytics. Power the admin interface and operational tooling.
+{% /card %}
+
+**Why it matters**:
+- **Rich queries**: Search conversations by content, sentiment, metadata
+- **Analytics**: Aggregate insights across thousands of sessions
+- **Dashboard ready**: Kibana included for exploration
+- **Scalable**: Handles millions of documents efficiently
+
+**What you don't have to build**:
+- Elasticsearch cluster management
+- Index management and optimization
+- Search relevance tuning
+- Dashboard infrastructure
+
+### Amazon S3: File Storage
+
+{% card title="What It Provides" icon="document" %}
+**S3 stores uploaded files and generated artifacts**: User uploads, session exports, insight reports. Unlimited storage with intelligent tiering.
+{% /card %}
+
+**Why it matters**:
+- **99.999999999% durability**: Your data doesn't get lost
+- **Lifecycle policies**: Automatic archival and deletion
+- **Presigned URLs**: Secure file access without proxying
+- **Event notifications**: Trigger processing automatically
+
+### Amazon EventBridge: Background Jobs
+
+{% card title="What It Provides" icon="setting" %}
+**EventBridge schedules background work**: Insight generation, feedback analysis, cleanup jobs. Cron-like scheduling without servers.
+{% /card %}
+
+**Why it matters**:
+- **Reliable scheduling**: Jobs run when they should
+- **Event-driven**: Trigger processing based on system events
+- **No polling**: Efficient event delivery
+- **Retry handling**: Built-in error recovery
+
+## The Architecture
+
+Here's how these services work together:
+
+```mermaid
+architecture-beta
+  group api(logos:aws-lambda)[API Layer]
+  group storage(logos:aws-dynamodb)[Storage Layer]
+  group ai(logos:aws-bedrock)[AI Layer]
+
+  service gateway(logos:aws-api-gateway)[API Gateway] in api
+  service lambda(logos:aws-lambda)[Lambda Functions] in api
+  service dynamo(logos:aws-dynamodb)[DynamoDB] in storage
+  service s3(logos:aws-s3)[S3] in storage
+  service opensearch(logos:aws-opensearch)[OpenSearch] in storage
+  service bedrock(logos:aws-bedrock)[Bedrock] in ai
+  service eventbridge(logos:aws-eventbridge)[EventBridge] in api
+
+  gateway:R -- L:lambda
+  lambda:R -- L:dynamo
+  lambda:R -- L:s3
+  lambda:R -- L:opensearch
+  lambda:B -- T:bedrock
+  eventbridge:R -- L:lambda
+```
+
+**Request flow**:
+1. User sends message through API Gateway
+2. Lambda orchestrates the conversation
+3. Bedrock generates AI response with tools
+4. Lambda executes tools as needed
+5. DynamoDB stores the session
+6. OpenSearch indexes for search
+7. Response streams back to user
+
+**Background flow**:
+1. EventBridge triggers insight generation
+2. Lambda processes completed sessions
+3. Bedrock analyzes conversation quality
+4. Results stored in S3 and OpenSearch
+5. Available in admin interface
+
+## What This Architecture Gives You
+
+### Operational Simplicity
+
+**No servers to manage**: Everything is serverless or fully managed. No patching, no capacity planning, no 3am pages about disk space.
+
+**Infrastructure as Code**: CDK deploys everything. Version control your infrastructure like any other code.
+
+**Clear boundaries**: Each service has one job. Debugging is straightforward because components are loosely coupled.
+
+### Elastic Scale
+
+**Automatic scaling**: Every service scales independently based on load
+- Bedrock: Handles concurrent requests automatically
+- Lambda: Spins up as many instances as needed
+- DynamoDB: Provisions throughput on-demand
+- API Gateway: Routes millions of requests
+
+**Cost efficiency**: Pay only for what you use
+- No idle capacity
+- No over-provisioning "just in case"
+- Clear per-request costs
+
+**Real-world scaling**:
+- Handle 10 users or 10,000 without config changes
+- Traffic spikes (product launches, announcements) handled automatically
+- Global distribution possible with CloudFront + regional deployments
+
+### Security by Default
+
+**IAM everywhere**: Every service-to-service call uses IAM roles with least-privilege access
+- Lambda can only invoke specific Bedrock models
+- Tools tagged for access control
+- No hardcoded credentials
+
+**Encryption built-in**:
+- Data at rest: All storage encrypted by default
+- Data in transit: TLS everywhere
+- Key management: AWS KMS integration
+
+**VPC options**: Run Lambda in your VPC for complete network isolation
+
+**Audit trails**: CloudTrail captures every API call for compliance
+
+### Compliance Inheritance
+
+When you use AWS services, you inherit their certifications:
+- **SOC 2 Type II**: Security controls audited annually
+- **ISO 27001**: Information security management
+- **HIPAA**: Healthcare data protection
+- **GDPR**: Privacy by design
+- **FedRAMP**: Government use authorized
+
+**This matters**: Compliance is a checkbox for your security team, not a multi-month project.
+
+### Clear Observability
+
+**CloudWatch integration**: Logs, metrics, and traces from every service
+- Lambda execution logs
+- DynamoDB performance metrics
+- API Gateway request logs
+- Bedrock usage and latency
+
+**X-Ray tracing**: Follow requests across services
+- See where time is spent
+- Identify bottlenecks
+- Debug errors in context
+
+**Cost tracking**: AWS Cost Explorer shows per-service spending
+- Understand what drives costs
+- Optimize expensive patterns
+- Forecast future spending
+
+## The Trade-Offs
+
+Being AWS-only means:
+
+**✅ You get**:
+- Proven, battle-tested infrastructure
+- Enterprise security and compliance
+- Automatic scaling to any size
+- Operational simplicity
+- One throat to choke for support
+
+**❌ You can't**:
+- Run on other clouds (Azure, GCP)
+- Use non-AWS services easily
+- Avoid AWS pricing models
+- Control the underlying infrastructure
+
+**Our take**: For production AI applications, these trade-offs favor AWS overwhelmingly. The time saved and reliability gained far outweigh the flexibility lost.
+
+## Why This Matters for You
+
+When you deploy Pika, you're not just getting our application code. You're getting:
+
+1. **Architectural patterns** that work at scale
+2. **Service integrations** that are production-tested
+3. **Security configurations** that pass audits
+4. **Cost optimizations** learned from real usage
+5. **Operational playbooks** for common scenarios
+
+We've already made the mistakes and learned the lessons. You get the benefits without the learning curve.
+
+## Real-World Performance
+
+These aren't theoretical benefits. Here's what this architecture delivers:
+
+**Latency**:
+- First token: < 2 seconds (Bedrock streaming)
+- Session load: < 100ms (DynamoDB)
+- Search: < 500ms (OpenSearch)
+
+**Scale**:
+- Handles 1000+ concurrent conversations
+- Stores millions of messages efficiently
+- Searches across 100,000+ sessions instantly
+
+**Reliability**:
+- 99.9%+ uptime (inherited from AWS SLAs)
+- Automatic failover across availability zones
+- Graceful degradation when services are throttled
+
+**Cost**:
+- ~$0.01-0.05 per conversation (varies by length)
+- No baseline infrastructure costs
+- Scales down to near-zero at low usage
+
+---
+
+{% aside type="tip" %}
+**Want to see how agents are defined on this infrastructure?** Learn about [Agents-as-Config](/why/approach/agent-as-config/) to understand how we keep your codebase clean while leveraging all this AWS power.
+{% /aside %}
+

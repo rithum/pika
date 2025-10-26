@@ -1,0 +1,512 @@
+---
+title: Direct Agent Invocation
+description: Call agents programmatically via API without chat UI overhead
+---
+
+Direct Agent Invocation lets you call agents programmatically through a simple API without the overhead of creating a full chat application. Perfect for headless AI workflows, system integrations, and programmatic agent access.
+
+## What It Does
+
+While chat apps provide rich user interfaces with session management and UI components, Direct Agent Invocation gives you raw programmatic access to agent intelligence. Call agents via HTTP API from any system, get streaming or complete responses, and integrate AI capabilities into your existing workflows.
+
+## Why It Matters
+
+Not every AI interaction needs a chat interface. Many scenarios require:
+
+- **API Integrations**: Embed intelligence in existing systems
+- **Batch Processing**: Process multiple requests programmatically
+- **Headless Workflows**: AI without UI components
+- **Custom Interfaces**: Build your own UI using agent capabilities
+- **Testing and CI/CD**: Automated agent validation
+
+Direct Invocation enables all of these without the complexity of chat applications.
+
+## How It Works
+
+### Deployment Model
+
+{% steps %}
+1. **Deploy Agent-Only**
+   
+   Define and deploy agents with tools, but skip chat app creation
+
+2. **Get Function URL**
+   
+   Pika automatically creates Lambda function URL for direct access
+
+3. **Make API Calls**
+   
+   Send HTTP requests with message and agent ID
+
+4. **Receive Responses**
+   
+   Get streaming or complete responses from the agent
+
+5. **No UI Involvement**
+   
+   Sessions still created (for consistency) but hidden from chat UIs
+{% /steps %}
+
+### Architecture
+
+Direct invocations bypass the UI layer entirely:
+
+![Direct Agent Invocation Flow](/img/diagrams/direct-invocation-flow.drawio.svg)
+
+The flow shows how your application communicates directly with Pika:
+
+1. **HTTP POST Request** - Your application sends an authenticated request to the Pika Lambda Function URL
+2. **Lambda Processing** - Pika's Lambda function handles the request and forwards it to Amazon Bedrock
+3. **Agent Execution** - Bedrock Agent processes the request, invoking configured tools as needed
+4. **Tool Invocations** - The agent can call Lambda tools, MCP servers, or inline tools
+5. **Response Streaming** - Results stream back through the Lambda function to your application
+6. **HTTP Response** - Your application receives the complete or streamed response
+
+Sessions are created with synthetic chat app IDs for admin visibility, but don't appear in regular chat app interfaces.
+
+## Key Benefits
+
+### Simplified Deployment
+
+Focus on agent logic:
+
+- No chat app configuration required
+- No UI customization needed
+- Faster deployment cycles
+- Simpler infrastructure
+
+### Seamless Integration
+
+Standard API interface:
+
+- HTTP POST requests
+- JWT authentication
+- Works with any language/framework
+- Standard error handling
+
+### Full Agent Capabilities
+
+All features available:
+
+- Tool invocations
+- Reasoning and traces
+- Streaming responses
+- Same reliability as chat apps
+
+### Clean Separation
+
+Isolated from UI concerns:
+
+- Direct invocations don't appear in chat UIs
+- Separate session management
+- Independent monitoring
+- Admin visibility maintained
+
+## API Interface
+
+### Basic Request
+
+Simple HTTP POST:
+
+```bash
+curl -X POST https://your-pika-function-url.lambda-url.us-east-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -H "x-chat-auth: ${JWT_TOKEN}" \
+  -d '{
+    "invocationMode": "direct-agent-invoke",
+    "message": "What is the weather in Seattle?",
+    "agentId": "weather-agent",
+    "userId": "system-user"
+  }'
+```
+
+### With Additional Context
+
+Include custom context:
+
+```typescript
+const response = await fetch(pikaFunctionUrl, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'x-chat-auth': jwtToken
+    },
+    body: JSON.stringify({
+        invocationMode: 'direct-agent-invoke',
+        message: 'Analyze customer sentiment',
+        agentId: 'sentiment-analyzer',
+        userId: 'batch-processor',
+        customContext: {
+            customerId: '12345',
+            accountType: 'enterprise',
+            region: 'us-west'
+        }
+    })
+});
+```
+
+### Streaming Response
+
+Handle streamed output:
+
+```typescript
+const response = await fetch(pikaFunctionUrl, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'x-chat-auth': jwtToken
+    },
+    body: JSON.stringify({
+        invocationMode: 'direct-agent-invoke',
+        message: 'Generate report',
+        agentId: 'report-generator',
+        stream: true  // Enable streaming
+    })
+});
+
+const reader = response.body?.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    // Process streamed chunk
+    console.log(chunk);
+}
+```
+
+## Use Cases
+
+### Microservice Integration
+
+Embed AI in existing services:
+
+```typescript
+// From your existing API endpoint
+app.post('/api/analyze-feedback', async (req, res) => {
+    const { feedback } = req.body;
+    
+    // Call Pika agent directly
+    const analysis = await invokePikaAgent({
+        message: `Analyze this customer feedback: ${feedback}`,
+        agentId: 'feedback-analyzer'
+    });
+    
+    // Use result in your service
+    await saveFeedbackAnalysis(analysis);
+    res.json({ analysis });
+});
+```
+
+### Automated Workflows
+
+Batch processing:
+
+```typescript
+// Process multiple requests
+async function processOrderBatch(orders) {
+    const results = [];
+    
+    for (const order of orders) {
+        const result = await invokePikaAgent({
+            message: `Validate this order: ${JSON.stringify(order)}`,
+            agentId: 'order-validator'
+        });
+        
+        results.push({
+            orderId: order.id,
+            validation: result
+        });
+    }
+    
+    return results;
+}
+```
+
+### Testing and Validation
+
+Automate agent testing:
+
+```typescript
+describe('Weather Agent', () => {
+    it('should provide temperature in both units', async () => {
+        const response = await invokePikaAgent({
+            message: 'What is the weather in San Francisco?',
+            agentId: 'weather-agent'
+        });
+        
+        expect(response).toMatch(/°C.*°F|°F.*°C/);
+    });
+    
+    it('should handle unknown cities gracefully', async () => {
+        const response = await invokePikaAgent({
+            message: 'What is the weather in NotARealCity?',
+            agentId: 'weather-agent'
+        });
+        
+        expect(response).toContain('cannot find');
+    });
+});
+```
+
+### Custom Interfaces
+
+Build your own UI:
+
+```typescript
+// Your custom chat interface
+async function sendMessage(message: string) {
+    // Call Pika agent
+    const response = await invokePikaAgent({
+        message,
+        agentId: selectedAgent.id,
+        userId: currentUser.id
+    });
+    
+    // Render in your custom UI
+    renderCustomMessageBubble(response);
+}
+```
+
+### Event-Driven Processing
+
+React to system events:
+
+```typescript
+// Lambda function triggered by EventBridge
+export async function handler(event: any) {
+    // Extract event data
+    const { userId, action } = event.detail;
+    
+    // Use Pika agent to process
+    const recommendation = await invokePikaAgent({
+        message: `User ${userId} performed ${action}. What should we recommend next?`,
+        agentId: 'recommendation-engine'
+    });
+    
+    // Act on recommendation
+    await sendRecommendation(userId, recommendation);
+}
+```
+
+## Authentication
+
+### JWT Token Required
+
+All requests need authentication:
+
+```typescript
+import jwt from 'jsonwebtoken';
+
+// Generate JWT token
+const token = jwt.sign(
+    {
+        userId: 'system-user',
+        userType: 'internal-user',
+        // ... other claims
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+);
+
+// Use in request
+const response = await fetch(pikaFunctionUrl, {
+    headers: {
+        'x-chat-auth': token
+    },
+    // ... rest of request
+});
+```
+
+### System User Pattern
+
+Create dedicated service accounts:
+
+```typescript
+const systemUserToken = generateJWT({
+    userId: 'batch-processor-service',
+    userType: 'internal-user',
+    roles: ['system'],
+    entity: 'platform'
+});
+```
+
+## Session Management
+
+### Synthetic Sessions
+
+Direct invocations create sessions:
+
+- Stored in DynamoDB like chat sessions
+- Use synthetic chat app ID (e.g., `direct-invoke`)
+- Visible in Admin Site for debugging
+- Don't appear in regular chat app UIs
+
+### Session Tracking
+
+Access session history:
+
+```typescript
+// Sessions are tracked
+const response = await invokePikaAgent({
+    message: 'Process this data',
+    agentId: 'processor',
+    sessionId: 'batch-job-12345'  // Optional: reuse session
+});
+
+// Later, in Admin Site:
+// Can review all direct invocations
+// See tool usage and traces
+// Debug issues
+```
+
+## Best Practices
+
+### Use for Appropriate Scenarios
+
+**Good fits**:
+- System integrations
+- Batch processing
+- Automated workflows
+- Custom UI implementations
+- Testing and CI/CD
+
+**Better with Chat Apps**:
+- User-facing conversational interfaces
+- Session history browsing
+- File uploads
+- Suggestions and guided flows
+
+### Implement Error Handling
+
+Robust error management:
+
+```typescript
+async function safeAgentInvocation(message: string) {
+    try {
+        return await invokePikaAgent({
+            message,
+            agentId: 'my-agent',
+            timeout: 30000
+        });
+    } catch (error) {
+        if (error.code === 'TIMEOUT') {
+            // Retry with longer timeout
+            return await retry();
+        } else if (error.code === 'AUTH_FAILED') {
+            // Refresh token and retry
+            await refreshToken();
+            return await retry();
+        } else {
+            // Log and fail gracefully
+            logger.error('Agent invocation failed', error);
+            return fallbackResponse;
+        }
+    }
+}
+```
+
+### Monitor Performance
+
+Track important metrics:
+
+- Invocation latency
+- Success/failure rates
+- Token usage and costs
+- Error patterns
+
+### Secure Access
+
+Protect your agents:
+
+- Use short-lived JWT tokens
+- Implement rate limiting
+- Validate inputs
+- Monitor for abuse
+
+### Handle Streaming Properly
+
+Process streams efficiently:
+
+```typescript
+async function handleStreamingResponse(response: Response) {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete messages
+        const messages = buffer.split('\n');
+        buffer = messages.pop() || '';  // Keep incomplete message
+        
+        for (const message of messages) {
+            if (message) {
+                processChunk(JSON.parse(message));
+            }
+        }
+    }
+    
+    // Process final buffer
+    if (buffer) {
+        processChunk(JSON.parse(buffer));
+    }
+}
+```
+
+## Sample Project
+
+The [weather-direct sample](https://github.com/rithum/pika/tree/main/services/samples/weather-direct) demonstrates:
+
+- CDK deployment for direct invocation
+- API call examples
+- Authentication setup
+- Error handling patterns
+- Testing approach
+
+## Getting Started
+
+{% card title="Deploy Your First Direct Agent" icon="rocket" %}
+Step-by-step guide to direct agent invocation.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Review Weather Direct Sample" icon="star" %}
+Complete example with deployment and API calls.
+
+[Sample Project →](https://github.com/rithum/pika/tree/main/services/samples/weather-direct)
+{% /card %}
+
+{% card title="Understanding Architecture" icon="puzzle" %}
+Deep dive into direct invocation patterns.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Advanced Chat Apps" icon="star" %}
+Full-featured UI for user-facing conversations.
+
+[Learn More →](/capabilities/core/advanced-chat-apps/)
+{% /card %}
+
+{% card title="Agents as Config" icon="information" %}
+Define agents declaratively for both UI and API access.
+
+[Learn More →](/capabilities/core/agents-as-config/)
+{% /card %}
+
+{% card title="Multi-Agent Orchestration" icon="puzzle" %}
+Use specialized agents in direct invocation mode.
+
+[Learn More →](/capabilities/core/multi-agent/)
+{% /card %}
+
