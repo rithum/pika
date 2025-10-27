@@ -1,0 +1,571 @@
+---
+title: Request Lifecycle
+description: Tracing how a user message flows through Pika from input to response
+---
+
+Understanding how a user message flows through Pika helps you debug issues, optimize performance, and build effective agents and tools. This page traces the complete lifecycle of a request from user input to final response.
+
+## High-Level Flow
+
+![Request Lifecycle Diagram](/img/diagrams/request-lifecycle.drawio.svg)
+
+## Detailed Step-by-Step
+
+### Step 1: User Input
+
+**User types message in chat interface**
+
+```
+User: "What's the weather in San Francisco?"
+```
+
+**Frontend captures**:
+- Message content
+- Session ID (if continuing conversation)
+- Chat app ID
+- User authentication token (JWT)
+
+### Step 2: Message Creation API Call
+
+**Frontend → API Gateway → Lambda**
+
+```http
+POST /api/sessions/{sessionId}/messages
+Authorization: Bearer {jwt}
+Content-Type: application/json
+
+{
+    "message": "What's the weather in San Francisco?",
+    "sessionId": "sess_abc123",
+    "chatAppId": "weather-chat"
+}
+```
+
+**Lambda function**:
+1. Validates JWT token
+2. Extracts user context (userId, userType, entityId)
+3. Validates session ownership
+4. Creates message record in DynamoDB
+
+**DynamoDB write**:
+```typescript
+{
+    PK: 'SESSION#sess_abc123',
+    SK: 'MESSAGE#1234567890#msg_xyz',
+    messageId: 'msg_xyz',
+    role: 'user',
+    content: 'What's the weather in San Francisco?',
+    userId: 'user_123',
+    timestamp: 1234567890
+}
+```
+
+**Response to frontend**:
+```json
+{
+    "messageId": "msg_xyz",
+    "status": "created"
+}
+```
+
+### Step 3: Initiate Streaming
+
+**Frontend opens Server-Sent Events connection**
+
+```typescript
+const eventSource = new EventSource(
+    `https://stream.example.com?sessionId=sess_abc123&messageId=msg_xyz`,
+    {
+        headers: {
+            'Authorization': `Bearer ${jwt}`
+        }
+    }
+);
+
+eventSource.onmessage = (event) => {
+    // Append token to message display
+    appendToken(event.data);
+};
+```
+
+**Streaming Lambda Function URL invoked**
+
+### Step 4: Load Agent Configuration
+
+**Streaming Lambda retrieves agent config**
+
+```typescript
+// Load session to get chatAppId
+const session = await dynamodb.get({
+    PK: 'SESSION#sess_abc123',
+    SK: 'METADATA'
+});
+
+// Load chat app to get agentId
+const chatApp = await dynamodb.get({
+    PK: 'CHATAPP#weather-chat',
+    SK: 'CONFIG'
+});
+
+// Load agent configuration
+const agent = await dynamodb.get({
+    PK: 'AGENT#weather-agent',
+    SK: 'CONFIG'
+});
+
+// Load tool definitions
+const tools = await Promise.all(
+    agent.toolIds.map(toolId => 
+        dynamodb.get({ PK: `TOOL#${toolId}`, SK: 'CONFIG' })
+    )
+);
+```
+
+**Agent config loaded**:
+```typescript
+{
+    agentId: 'weather-agent',
+    instruction: 'You are a weather assistant...',
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    tools: ['getCurrentWeather', 'getWeatherForecast']
+}
+```
+
+### Step 5: Load Conversation History
+
+**Retrieve previous messages for context**
+
+```typescript
+const messages = await dynamodb.query({
+    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+    ExpressionAttributeValues: {
+        ':pk': 'SESSION#sess_abc123',
+        ':sk': 'MESSAGE#'
+    },
+    Limit: 50,  // Last 50 messages
+    ScanIndexForward: true  // Chronological order
+});
+```
+
+**Context includes**:
+- Previous user questions
+- Agent responses
+- Tool calls and results
+- Recent conversation flow
+
+### Step 6: Retrieve User Memory
+
+**Bedrock automatically retrieves user memory**
+
+```typescript
+// Bedrock handles this internally
+// Memory associated with userId
+// Includes preferences and semantic understanding
+```
+
+**Memory provides**:
+- User preferences (communication style, etc.)
+- Semantic context (user's role, expertise)
+- Historical patterns
+
+### Step 7: Initialize Bedrock Agent
+
+**Lambda invokes AWS Bedrock Agent**
+
+```typescript
+const bedrockAgent = new BedrockAgentRuntime();
+
+const response = await bedrockAgent.invokeAgent({
+    agentId: agent.bedrockAgentId,
+    agentAliasId: agent.bedrockAliasId,
+    sessionId: session.sessionId,
+    inputText: 'What's the weather in San Francisco?',
+    
+    // Pass user context securely
+    sessionAttributes: {
+        userId: user.userId,
+        userType: user.userType,
+        entityId: user.entityId,
+        chatAppId: chatApp.chatAppId,
+        agentId: agent.agentId
+    },
+    
+    // Enable streaming
+    enableTrace: true,
+    streamingConfigurations: {
+        streamFinalResponse: true
+    }
+});
+```
+
+### Step 8: Agent Processing
+
+**Bedrock agent analyzes request**
+
+```
+Agent reasoning:
+"User asking about weather in San Francisco.
+I need to call the getCurrentWeather tool with location parameter.
+Let me invoke that tool."
+```
+
+**Agent decides to call tool**:
+```typescript
+{
+    toolUse: {
+        toolId: 'getCurrentWeather',
+        name: 'get_weather',
+        input: {
+            location: 'San Francisco',
+            lat: 37.7749,
+            lon: -122.4194
+        }
+    }
+}
+```
+
+### Step 9: Tool Invocation
+
+**Bedrock invokes Lambda tool function**
+
+**Request to tool Lambda**:
+```typescript
+{
+    messageVersion: '1.0',
+    actionGroup: 'weather-tools',
+    function: 'get_weather',
+    
+    // Input parameters from agent
+    parameters: [
+        { name: 'location', value: 'San Francisco' },
+        { name: 'lat', value: '37.7749' },
+        { name: 'lon', value: '-122.4194' }
+    ],
+    
+    // User context (NOT controlled by LLM)
+    sessionAttributes: {
+        userId: 'user_123',
+        userType: 'external-user',
+        entityId: 'acme-corp'
+    }
+}
+```
+
+**Tool Lambda executes**:
+```typescript
+export async function handler(event: BedrockActionGroupLambdaEvent) {
+    // Extract parameters
+    const location = getParameter(event, 'location');
+    const lat = parseFloat(getParameter(event, 'lat'));
+    const lon = parseFloat(getParameter(event, 'lon'));
+    
+    // Extract authenticated context
+    const userId = event.sessionAttributes.userId;
+    const entityId = event.sessionAttributes.entityId;
+    
+    // Validate access (if needed)
+    await validateAccess(userId, entityId);
+    
+    // Call weather API
+    const weather = await weatherAPI.getCurrentWeather(lat, lon);
+    
+    // Return structured result
+    return {
+        messageVersion: '1.0',
+        response: {
+            actionGroup: event.actionGroup,
+            function: event.function,
+            functionResponse: {
+                responseBody: {
+                    'application/json': {
+                        body: JSON.stringify({
+                            location: location,
+                            temperature: weather.temp,
+                            condition: weather.condition,
+                            humidity: weather.humidity,
+                            windSpeed: weather.windSpeed
+                        })
+                    }
+                }
+            }
+        }
+    };
+}
+```
+
+**Tool result returned to agent**:
+```json
+{
+    "location": "San Francisco",
+    "temperature": 65,
+    "condition": "Partly Cloudy",
+    "humidity": 60,
+    "windSpeed": 10
+}
+```
+
+### Step 10: Agent Synthesizes Response
+
+**Agent receives tool results and generates response**
+
+```
+Agent reasoning:
+"I received weather data for San Francisco.
+Temperature is 65°F, partly cloudy.
+Let me provide a helpful response to the user."
+```
+
+**Agent generates text response**:
+```
+"The current weather in San Francisco is 65°F and partly cloudy. 
+The humidity is at 60% with winds at 10 mph. It's a pleasant day!"
+```
+
+### Step 11: Stream Response to User
+
+**Tokens streamed back through Lambda → Frontend**
+
+```
+Event: "The"
+Event: " current"
+Event: " weather"
+Event: " in"
+Event: " San"
+Event: " Francisco"
+Event: " is"
+Event: " 65"
+Event: "°F"
+...
+```
+
+**Frontend displays in real-time**:
+```
+User sees: "The current weather in San Francisco is 65°F..."
+[Typing indicator continues as more tokens arrive]
+```
+
+### Step 12: Finalize Message
+
+**Streaming completes, store final message**
+
+```typescript
+await dynamodb.put({
+    PK: 'SESSION#sess_abc123',
+    SK: 'MESSAGE#1234567891#msg_response',
+    messageId: 'msg_response',
+    role: 'assistant',
+    content: 'The current weather in San Francisco is 65°F and partly cloudy...',
+    timestamp: 1234567891,
+    
+    // Metadata
+    tokenUsage: {
+        inputTokens: 1234,
+        outputTokens: 567,
+        totalTokens: 1801
+    },
+    
+    toolCalls: [{
+        toolId: 'getCurrentWeather',
+        input: { location: 'San Francisco', lat: 37.7749, lon: -122.4194 },
+        output: { temperature: 65, condition: 'Partly Cloudy', ... }
+    }],
+    
+    latencyMs: 2500
+});
+```
+
+**Update session timestamp**:
+```typescript
+await dynamodb.update({
+    PK: 'SESSION#sess_abc123',
+    SK: 'METADATA',
+    UpdateExpression: 'SET updatedAt = :now',
+    ExpressionAttributeValues: {
+        ':now': Date.now()
+    }
+});
+```
+
+### Step 13: Self-Correction (If Enabled)
+
+**If verifyResponse feature enabled**
+
+```typescript
+// Invoke verifier agent
+const verifierResponse = await bedrockAgent.invoke({
+    agentId: 'verifier-agent',
+    inputText: `
+        User question: "What's the weather in San Francisco?"
+        Agent response: "The current weather in San Francisco is 65°F..."
+        Evaluate this response for accuracy and completeness.
+    `
+});
+
+// Verifier assigns grade
+{
+    grade: 'A',
+    reasoning: 'Response is accurate, uses tool correctly, provides complete information.',
+    policyIssues: null
+}
+```
+
+**Store verification**:
+```typescript
+await dynamodb.update({
+    PK: 'SESSION#sess_abc123',
+    SK: 'MESSAGE#1234567891#msg_response',
+    UpdateExpression: 'SET selfCorrectionMeta = :meta',
+    ExpressionAttributeValues: {
+        ':meta': {
+            grade: 'A',
+            attempts: 1,
+            verifierNotes: 'Response is accurate and complete.'
+        }
+    }
+});
+```
+
+### Step 14: Index in OpenSearch
+
+**Background process indexes session**
+
+```typescript
+await opensearch.index({
+    index: 'sessions',
+    id: 'sess_abc123',
+    body: {
+        sessionId: 'sess_abc123',
+        userId: 'user_123',
+        entityId: 'acme-corp',
+        chatAppId: 'weather-chat',
+        title: 'San Francisco Weather Inquiry',
+        messages: [
+            'What's the weather in San Francisco?',
+            'The current weather in San Francisco is 65°F...'
+        ],
+        timestamp: 1234567891,
+        metadata: { /* ... */ }
+    }
+});
+```
+
+### Step 15: Generate Title (If Needed)
+
+**After 2-3 exchanges, auto-generate title**
+
+```typescript
+if (messageCount >= 3 && !session.title) {
+    const titleResponse = await bedrockAgent.invoke({
+        agentId: 'title-generator',
+        inputText: `Generate a 3-5 word title for this conversation:
+        User: "What's the weather in San Francisco?"
+        Assistant: "The current weather is 65°F..."
+        `
+    });
+    
+    await dynamodb.update({
+        PK: 'SESSION#sess_abc123',
+        SK: 'METADATA',
+        UpdateExpression: 'SET title = :title',
+        ExpressionAttributeValues: {
+            ':title': 'San Francisco Weather Inquiry'
+        }
+    });
+}
+```
+
+### Step 16: Background Analytics (Async)
+
+**EventBridge scheduled job processes sessions**
+
+```typescript
+// Runs hourly
+async function generateInsights() {
+    // Find recent sessions without feedback
+    const sessions = await findSessionsNeedingFeedback();
+    
+    for (const session of sessions) {
+        // Generate LLM feedback
+        const feedback = await analyzSession(session);
+        
+        // Store in S3 and OpenSearch
+        await storeInsights(session.sessionId, feedback);
+    }
+}
+```
+
+## Performance Metrics
+
+**Typical timings for each step**:
+
+```
+Message creation: 50ms
+Agent config load: 30ms
+Conversation history: 40ms
+Bedrock initialization: 100ms
+Agent reasoning: 500-2000ms
+Tool invocation: 200-500ms (varies by tool)
+Response generation: 1000-3000ms
+Message storage: 50ms
+Self-correction: +1500ms (if enabled)
+OpenSearch indexing: 100ms (background)
+
+Total user-facing latency: 2-5 seconds (without self-correction)
+```
+
+## Error Handling
+
+**At each step, errors are caught and handled**:
+
+```typescript
+try {
+    // Step N
+} catch (error) {
+    // Log error
+    logger.error('Step failed', { error, context });
+    
+    // Return user-friendly error
+    return {
+        error: true,
+        message: 'Sorry, something went wrong. Please try again.',
+        details: error.message  // Only for internal users
+    };
+}
+```
+
+## Monitoring Points
+
+**Key metrics to track**:
+
+1. **Message creation latency**
+2. **Agent load time**
+3. **Tool invocation time**
+4. **Overall response latency**
+5. **Token usage per request**
+6. **Error rates**
+7. **Self-correction trigger rate**
+
+**CloudWatch metrics**:
+```typescript
+cloudwatch.putMetric({
+    namespace: 'Pika',
+    metricName: 'ResponseLatency',
+    value: latencyMs,
+    dimensions: [
+        { name: 'ChatAppId', value: chatAppId },
+        { name: 'AgentId', value: agentId }
+    ]
+});
+```
+
+## Related Documentation
+
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - Agent processing details
+- **[Tool Invocation Process](/concepts/how-pika-works/tool-invocation/)** - How tools execute
+- **[System Architecture](/concepts/architecture/system/)** - Overall architecture
+- **[Session Management](/concepts/key-concepts/sessions/)** - Session lifecycle
+
+{% aside type="tip" %}
+Use the traces feature to see the complete request lifecycle for any message. Enable traces in your chat app configuration for detailed debugging visibility.
+{% /aside %}
+

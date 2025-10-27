@@ -9,6 +9,16 @@ This guide demonstrates the complete approach to creating exceptional documentat
 **Important**: This documentation uses **Markdoc only** - no MDX, no other formats. All examples shown here are pure Markdoc syntax.
 {% /aside %}
 
+{% aside type="danger" title="Critical: Never Use H1 Headings" %}
+**NEVER use H1 headings (`# Heading`) in `.mdoc` files.** The frontmatter `title` field automatically becomes the page's H1 heading in Starlight. Adding a manual `# Heading` creates duplicate H1s and breaks heading ID generation, causing errors.
+
+**Always start with H2 (`##`) for your first heading in the content.**
+{% /aside %}
+
+{% aside type="note" %}
+**Important**: Do not use emojis in any documentation or comments you generated. If you find them in existing documentation, remove them.
+{% /aside %}
+
 ## Documentation Philosophy :badge[Essential]{variant="tip"}
 
 Great documentation combines **clear content** with **thoughtful enhancements**. The goal is to make information accessible, scannable, and engaging without overwhelming the reader.
@@ -76,6 +86,10 @@ All images in `.mdoc` files are automatically zoomable - readers can click to vi
 
 Use badges in headings to indicate status, versions, or importance. Badges automatically appear in the table of contents.
 
+{% aside type="caution" %}
+Remember: **Never use H1 (`#`) headings** in your content. The frontmatter `title` becomes the H1. Start with H2 (`##`) for your first heading.
+{% /aside %}
+
 ```markdown
 ## Authentication :badge[v2.0]{variant="tip"}
 ### Legacy Methods :badge[Deprecated]{variant="danger"}
@@ -114,12 +128,24 @@ Asides draw attention to important information. Choose the type based on the inf
 **Tip asides** share best practices, shortcuts, productivity enhancements, or expert recommendations that improve the user experience.
 {% /aside %}
 
+{% aside type="success" title="Great Work" %}
+**Success asides** celebrate achievements, confirm successful operations, or highlight positive outcomes and best practices being followed.
+{% /aside %}
+
 {% aside type="caution" title="Important Warning" %}
 **Caution asides** warn about potential pitfalls, common mistakes, or non-critical issues that users should be aware of before proceeding.
 {% /aside %}
 
+{% aside type="warning" title="Pay Attention" %}
+**Warning asides** alert users to important considerations, potential issues, or things that require careful attention before proceeding.
+{% /aside %}
+
 {% aside type="danger" title="Critical Alert" %}
 **Danger asides** highlight critical information like breaking changes, security risks, data loss potential, or actions that cannot be undone.
+{% /aside %}
+
+{% aside type="failure" title="Error Occurred" %}
+**Failure asides** document error conditions, failed operations, or situations where something has gone wrong and needs attention.
 {% /aside %}
 
 **Syntax**:
@@ -184,6 +210,35 @@ Content here - supports **formatting**, `code`, images, and other components.
 - Drawing attention to important announcements
 - Organizing content by category with color coding
 - Showcasing different tiers or options
+
+### Checklists for Task Lists
+
+Checklists display tasks, requirements, or verification items with visual checkboxes:
+
+{% checklist %}
+- [x] Create checklist component
+- [x] Register in markdoc config
+- [ ] Test in production
+- [ ] Update documentation
+- [ ] Deploy changes
+{% /checklist %}
+
+**Syntax**:
+```markdoc
+{% checklist %}
+- [ ] Unchecked item
+- [x] Checked item
+- [ ] Another task to complete
+{% /checklist %}
+```
+
+**When to Use Checklists**:
+- Prerequisites or requirements lists
+- Testing and verification procedures
+- Feature completion status
+- Setup and configuration steps
+- Quality assurance checks
+- Task tracking in tutorials
 
 ## Code Examples :badge[Essential]{variant="tip"}
 
@@ -571,12 +626,85 @@ Features:
 
 ### Manual Zoom Control
 
-For custom zoom labels:
+For custom zoom labels or to add a border:
 
 ```markdoc
 {% zoom label="View Full Architecture" %}
 ![System Diagram](/diagrams/system.drawio.svg)
 {% /zoom %}
+```
+
+**Border Option**:
+
+Add a subtle gray border with rounded corners to images:
+
+```markdoc
+{% zoom label="Screenshot" border=true %}
+![App Screenshot](/screenshots/app.png)
+{% /zoom %}
+```
+
+The `border` parameter is `false` by default for zoom components.
+
+## Layout Components :badge[Layout]{variant="tip"}
+
+### Content with Image Right
+
+The `imageRight` component creates a two-column layout with text content on the left and a zoomable image on the right. Perfect for hero sections or feature showcases:
+
+```markdoc
+{% imageRight imageSrc="/path/to/image.png" imageAlt="Description of image" %}
+
+Your content goes here. You can include:
+- **Formatted text**
+- Lists
+- `Code snippets`
+- Multiple paragraphs
+
+The image will appear on the right side with automatic zoom capability.
+
+{% /imageRight %}
+```
+
+**Border Option**:
+
+By default, `imageRight` adds a subtle border. Disable it if desired:
+
+```markdoc
+{% imageRight imageSrc="/path/to/image.png" imageAlt="Screenshot" border=false %}
+Content here without border on image.
+{% /imageRight %}
+```
+
+**Features**:
+- Responsive design (stacks vertically on mobile)
+- Image automatically includes zoom functionality
+- 50/50 split on desktop screens
+- Rounded corners and subtle shadow on image
+- Optional 1px gray border (enabled by default)
+- Maintains proper spacing and alignment
+
+**When to Use**:
+- Hero sections with product screenshots
+- Feature showcases with visual examples
+- Marketing content with imagery
+- Tutorial intros with interface previews
+
+**Example**:
+```markdoc
+{% imageRight imageSrc="/src/assets/screenshots/dashboard.png" imageAlt="Dashboard interface" %}
+
+## Complete Dashboard Interface
+
+Our platform provides a full-featured dashboard with:
+- Real-time metrics and analytics
+- Customizable widgets
+- Dark mode support
+- Mobile responsive design
+
+Deploy in minutes and start tracking your data.
+
+{% /imageRight %}
 ```
 
 ## Mermaid Diagrams :badge[Beta]{variant="caution"}
@@ -627,10 +755,13 @@ While Mermaid is convenient, consider Draw.io SVG diagrams for complex visualiza
 ### Component Selection Guide
 
 **Use Asides** when:
-- Information is important but supplementary
-- Warning readers about pitfalls
-- Sharing tips and best practices
-- Highlighting critical information
+- **note**: Providing supplementary information or background context
+- **tip**: Sharing best practices, shortcuts, or expert recommendations
+- **success**: Celebrating achievements or confirming successful operations
+- **caution**: Warning about potential pitfalls or non-critical issues
+- **warning**: Alerting to important considerations requiring attention
+- **danger**: Highlighting critical risks, breaking changes, or irreversible actions
+- **failure**: Documenting error conditions or failed operations
 
 **Use Cards** when:
 - Showcasing features or capabilities
@@ -708,7 +839,7 @@ Don't overwhelm with components. Use them purposefully to enhance, not decorate.
 :badge[Text]{variant="tip"}
 {% badge text="Text" variant="success" size="medium" /%}
 
-# Asides
+# Asides (valid types: note, tip, success, caution, warning, danger, failure)
 {% aside type="note" title="Optional" %}
 Content
 {% /aside %}
@@ -722,6 +853,12 @@ Content
 {% fancyCard title="Title" bgColor="#1e293b" %}
 Content
 {% /fancyCard %}
+
+# Checklist
+{% checklist %}
+- [ ] Unchecked item
+- [x] Checked item
+{% /checklist %}
 
 # Code (advanced features)
 {% code lang="js" code="..." meta="showLineNumbers mark={2-4}" /%}
@@ -746,10 +883,15 @@ Content
    Details
 {% /steps %}
 
-# Zoom
-{% zoom label="Label" %}
+# Zoom (with optional border)
+{% zoom label="Label" border=false %}
 ![Image](path)
 {% /zoom %}
+
+# Image Right (content with image on right, border=true by default)
+{% imageRight imageSrc="/path/to/image.png" imageAlt="Alt text" border=true %}
+Content here
+{% /imageRight %}
 
 # Diagrams (place in public/diagrams/)
 ![Diagram Name](/diagrams/filename.drawio.svg)

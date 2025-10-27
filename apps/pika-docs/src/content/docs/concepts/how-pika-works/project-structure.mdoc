@@ -1,0 +1,384 @@
+---
+title: Project Structure
+description: Understanding the organization and structure of a Pika application
+---
+
+Your Pika application follows a monorepo structure that separates concerns and enables easy customization. This page explains what each directory does and where to make changes.
+
+## High-Level Structure
+
+![Project Structure Diagram](/img/diagrams/project-structure.drawio.svg)
+
+```
+my-pika-app/
+├── apps/                   # Frontend web applications
+├── services/               # Backend service stacks
+├── packages/               # Shared packages
+├── docs/                   # Documentation
+├── pika-config.ts          # Project configuration
+├── .pika-sync.json         # Sync configuration
+├── package.json            # Root package.json
+└── pnpm-workspace.yaml     # Workspace configuration
+```
+
+## Applications (`/apps`)
+
+The `apps` directory contains all frontend application stacks.
+
+### Main Chat Application (`/apps/pika-chat`)
+
+The core chat interface that renders any chat application in your platform.
+
+**Key Features**:
+- Generic chat interface that works with any agent
+- Authentication system integration
+- Custom web component support
+- File upload/download capabilities
+- Responsive design
+- AI transparency with traces feature
+- Response quality verification
+- Customizable disclaimer notices
+- Feature override system
+
+**Directory Structure**:
+
+```
+apps/pika-chat/
+├── src/
+│   ├── lib/
+│   │   ├── client/         # Client-side code
+│   │   │   └── features/
+│   │   │       └── chat/
+│   │   │           └── markdown-message-renderer/
+│   │   │               └── custom-markdown-tag-components/  # YOUR CUSTOM COMPONENTS
+│   │   └── server/         # Server-side code
+│   │       └── auth-provider/  # YOUR AUTHENTICATION
+│   ├── routes/             # SvelteKit routes
+│   └── app.html            # Main HTML template
+├── infra/                  # AWS CDK infrastructure
+│   └── lib/
+│       └── stacks/
+│           └── custom-stack-defs.ts  # YOUR CUSTOM INFRASTRUCTURE
+├── static/                 # Static assets
+└── package.json
+```
+
+**Customization Points**:
+
+1. **Custom Message Tags**: `src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+   - Add custom Svelte components for XML tags in LLM responses
+
+2. **Authentication**: `src/lib/server/auth-provider/`
+   - Implement custom authentication flows
+   - Integrate with your SSO, SAML, OAuth, etc.
+
+3. **Infrastructure**: `infra/lib/stacks/custom-stack-defs.ts`
+   - Customize AWS infrastructure
+   - Add additional resources
+
+### Sample Applications (`/apps/samples`)
+
+Example applications demonstrating Pika's capabilities.
+
+#### Enterprise Site (`/apps/samples/enterprise-site`)
+
+Sample web application showing embedded chat mode.
+
+**Purpose**:
+- Demonstrates iframe embedding
+- Shows integration into existing applications
+- Example of complete web application
+
+## Services (`/services`)
+
+The `services` directory contains all backend service stacks.
+
+### Core Pika Service (`/services/pika`)
+
+The main backend service providing chat app management, agent orchestration, and tool management.
+
+**Key Features**:
+- Chat app and agent management infrastructure
+- Tool orchestration
+- AWS Bedrock integration
+- Session management
+- API endpoints
+
+**Directory Structure**:
+
+```
+services/pika/
+├── src/                    # Source code
+├── lib/                    # Library code
+│   └── stacks/
+│       └── custom-stack-defs.ts  # YOUR CUSTOM INFRASTRUCTURE
+├── bin/                    # CDK app entry points
+└── package.json
+```
+
+**Customization**: Add resources to the stack via `custom-stack-defs.ts` (rarely needed in default cases).
+
+### Custom Services (`/services/custom`)
+
+**Your custom backend services and API endpoints**.
+
+**Purpose**:
+- Add new API services
+- Background job processors
+- Data processing pipelines
+- Integration services
+
+**Example Use Cases**:
+- Payment processing services
+- Email notification services
+- Data analytics services
+- Third-party integrations (CRM, marketing tools, etc.)
+
+### Sample Services (`/services/samples`)
+
+Example services demonstrating how to build agents and tools.
+
+#### Weather Service (`/services/samples/weather`)
+
+Complete example of defining a chat application and agent.
+
+**What it demonstrates**:
+- Agent definition with instructions
+- Tool implementation (weather API integration)
+- AWS CDK stack for deployment
+- Complete chat application lifecycle
+
+**Directory Structure**:
+
+```
+services/samples/weather/
+├── src/                    # Source code
+├── lambda/                 # Lambda function code
+├── lib/                    # Library code
+├── bin/                    # CDK app entry points
+└── package.json
+```
+
+## Shared Packages (`/packages`)
+
+The `packages` directory contains shared code and utilities used across multiple applications and services.
+
+**Common packages**:
+- Type definitions - Shared TypeScript interfaces
+- Utility functions - Common helper functions
+- Configuration - Shared configuration utilities
+- Testing utilities - Common test helpers
+
+### Pika Shared Types Package
+
+Core Pika types (`ChatApp`, `ChatAgent`, `ChatUser`, etc.) are published to npm as a standalone package.
+
+**Installation**:
+```bash
+pnpm add -D pika-shared
+```
+
+**What's included**:
+- Core Types: `ChatApp`, `ChatAgent`, `ChatUser`, `AuthenticatedUser`
+- Feature Types: Type definitions for all Pika features
+- API Types: Request/response types for Pika API endpoints
+- Utility Types: Helper types used throughout the framework
+
+**Use in external projects** that integrate with Pika.
+
+## Configuration Files
+
+### Project Configuration (`pika-config.ts`)
+
+**Central configuration file for your entire Pika project**.
+
+{% aside type="caution" %}
+This file is protected from framework updates and will never be overwritten.
+{% /aside %}
+
+**Purpose**:
+- Define project names for all stacks and resources
+- Centralized configuration management
+- Type-safe configuration with TypeScript
+
+**Example**:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'mycompany',
+        projNameKebabCase: 'mycompany',
+        projNameTitleCase: 'MyCompany',
+        projNameCamel: 'mycompany',
+        projNameHuman: 'My Company'
+    },
+    pikaChat: {
+        projNameL: 'mycompanychat',
+        projNameKebabCase: 'mycompany-chat',
+        projNameTitleCase: 'MyCompanyChat',
+        projNameCamel: 'myCompanyChat',
+        projNameHuman: 'My Company Chat'
+    }
+};
+```
+
+### Sync Configuration (`.pika-sync.json`)
+
+Tracks sync status and customizes which files are protected from framework updates.
+
+**Key sections**:
+- `protectedAreas` - Framework-managed list of protected files
+- `userProtectedAreas` - Additional files you want to protect
+- `userUnprotectedAreas` - Default protected files you want to allow updates for
+
+**Example**:
+
+```json
+{
+    "userProtectedAreas": ["my-custom-config.ts", "apps/my-custom-app/"],
+    "userUnprotectedAreas": ["apps/pika-chat/infra/bin/pika-chat.ts"]
+}
+```
+
+### Workspace Configuration (`pnpm-workspace.yaml`)
+
+Defines the monorepo workspace structure for pnpm.
+
+```yaml
+packages:
+    - 'apps/*'
+    - 'services/*'
+    - 'packages/*'
+```
+
+## Protected Areas
+
+Pika Framework automatically protects certain areas from being overwritten during sync operations.
+
+### Default Protected Areas
+
+- `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+- `apps/pika-chat/src/lib/server/auth-provider/`
+- `services/custom/`
+- `apps/custom/`
+- `.env`, `.env.local`, `.env.*`
+- `pika-config.ts`
+- `.pika-sync.json`
+- `.gitignore`, `package.json`, `pnpm-lock.yaml`
+- Any path that starts with `custom-`
+
+### Custom Protection
+
+Add additional protected areas by editing `.pika-sync.json`:
+
+```json
+{
+    "userProtectedAreas": [
+        "my-custom-file.ts",
+        "apps/my-custom-app/",
+        "services/my-custom-service/"
+    ]
+}
+```
+
+## Key Customization Points
+
+### 1. Project Config
+- **File**: `pika-config.ts`
+- **Purpose**: Update project names and settings
+- **Protected**: Yes
+
+### 2. Custom Message Tags
+- **Location**: `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/`
+- **Purpose**: Add custom renderers for XML tags in LLM responses
+- **Protected**: Yes
+
+### 3. Authentication
+- **Location**: `apps/pika-chat/src/lib/server/auth-provider/`
+- **Purpose**: Implement custom authentication flows
+- **Protected**: Yes
+
+### 4. Custom Apps
+- **Location**: `apps/custom/`
+- **Purpose**: Add new web applications
+- **Protected**: Yes
+
+### 5. Custom Services
+- **Location**: `services/custom/`
+- **Purpose**: Add new backend services
+- **Protected**: Yes
+
+### 6. Infrastructure Customization
+- **Locations**:
+  - `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
+  - `services/pika/lib/stacks/custom-stack-defs.ts`
+- **Purpose**: Customize AWS infrastructure
+- **Protected**: Yes (by default)
+
+## Development Workflow
+
+### Local Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start dev server (frontend)
+cd apps/pika-chat
+pnpm dev
+
+# Deploy backend (services)
+cd services/pika
+cdk deploy
+```
+
+### Adding a Custom Tool
+
+1. **Create tool service** in `services/custom/my-tool/`
+2. **Implement Lambda function** with tool logic
+3. **Define CDK stack** for deployment
+4. **Register tool** with agent configuration
+5. **Deploy** with `cdk deploy`
+
+### Adding Custom Web Component
+
+1. **Create Svelte component** in `custom-markdown-tag-components/`
+2. **Export component** from index file
+3. **Agent references tag** in response (e.g., `<my-component />`)
+4. **Component renders automatically** in chat UI
+
+## Monorepo Benefits
+
+**Why monorepo structure**:
+- Single repository for all code
+- Shared types and utilities
+- Coordinated deployments
+- Easier dependency management
+- Consistent tooling
+
+**pnpm workspaces**:
+- Efficient dependency management
+- Shared node_modules (saves disk space)
+- Fast installs
+- Workspace protocol for local packages
+
+## Next Steps
+
+Now that you understand the project structure:
+
+1. **Configure your project** - Update `pika-config.ts` with your project names
+2. **Learn about customization** - See [Customize the UI](/guides/customization/ui/)
+3. **Set up authentication** - Follow [Integrate Your Authentication System](/guides/authentication/integrate-auth/)
+4. **Deploy your services** - Check out [Deploy to AWS with CDK](/guides/deployment/aws-cdk/)
+
+## Related Documentation
+
+- **[Sync System](/concepts/how-pika-works/sync-system/)** - How framework updates work
+- **[Frontend Architecture](/concepts/architecture/frontend/)** - Chat app architecture
+- **[Customize the UI](/guides/customization/ui/)** - UI customization guide
+- **[Build Custom Web Components](/guides/customization/build-web-components/)** - Component development
+
+{% aside type="tip" %}
+Start by exploring the sample services (`services/samples/weather`) to see a complete example of agent and tool definition before building your own.
+{% /aside %}
+

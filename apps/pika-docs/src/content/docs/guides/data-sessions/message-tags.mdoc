@@ -1,0 +1,477 @@
+---
+title: Use Custom Message Tags
+description: Create custom renderers for XML tags in LLM responses and metadata handlers
+---
+
+Learn how to create custom renderers for XML tags in LLM responses, enabling rich interactive components and metadata processing in your chat applications.
+
+{% aside type="note" title="Evolution to Web Components" %}
+This guide describes the current compiled-in renderer approach. Pika also supports a more powerful [Web Components system](/capabilities/customization/web-components/) with multi-context rendering. The compiled-in approach described here continues to work and serves as the foundation for inline rendering.
+{% /aside %}
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create custom renderers for XML tags in LLM responses
+- Implement metadata handlers for non-visual tags
+- Handle streaming states and error conditions
+- Build interactive components that can send messages
+- Understand the message processing flow
+
+## Prerequisites
+
+- A running Pika installation
+- Basic understanding of Svelte components
+- Familiarity with TypeScript
+- Understanding of XML/HTML tags
+
+## Understanding Custom Message Tags
+
+When an LLM generates responses containing XML elements (e.g., `<image>`, `<chart>`, `<datatable>`), Pika's message rendering system uses the tag name to find and instantiate the appropriate renderer component.
+
+### Message Processing Flow
+
+1. **LLM Response**: LLM generates response with XML tags
+2. **Parsing**: Message is parsed to identify XML segments
+3. **Tag Identification**: Each XML tag is mapped to a renderer or metadata handler
+4. **Rendering**: Tag renderers create UI components
+5. **Display**: Final message is rendered with all components
+
+### Example LLM Response
+
+```
+Here's the weather data you requested:
+
+<chart>{"type": "bar", "data": {"labels": ["Mon", "Tue", "Wed"], "datasets": [{"data": [20, 25, 22]}]}}</chart>
+
+And here's the detailed report:
+
+<download>{"s3Key": "reports/weather-2024.pdf", "title": "Weather Report"}</download>
+```
+
+## Step 1: Create a Custom Renderer Component
+
+Create a Svelte component that will render your custom tag.
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/DataTableRenderer.svelte`
+
+```typescript
+<script lang="ts">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import { ChatAppState } from '../../chat-app.state.svelte';
+    import type { ProcessedTagSegment } from '../segment-types';
+
+    interface Props {
+        segment: ProcessedTagSegment;
+        appState: AppState;
+        chatAppState: ChatAppState;
+    }
+
+    let { segment }: Props = $props();
+
+    let rawTagContent = $derived(segment.rawContent);
+    let showPlaceholder = $derived(segment.streamingStatus === 'pending');
+    let error = $state<string | null>(null);
+    let tableData = $state<{headers: string[], rows: string[][]} | null>(null);
+
+    $effect(() => {
+        if (showPlaceholder) return;
+
+        try {
+            const parsed = JSON.parse(rawTagContent);
+            if (!parsed.headers || !parsed.rows) {
+                error = 'Invalid table data format';
+                return;
+            }
+            tableData = parsed;
+            error = null;
+        } catch (e) {
+            error = e instanceof Error ? e.message : 'Failed to parse table data';
+        }
+    });
+</script>
+
+<div class="my-4">
+    {#if showPlaceholder}
+        <div class="animate-pulse bg-gray-100 rounded-lg p-4 text-center text-gray-500">
+            Loading table...
+        </div>
+    {:else if error}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <p class="font-semibold">Table Error</p>
+            <p class="text-sm">{error}</p>
+        </div>
+    {:else if tableData}
+        <div class="overflow-x-auto bg-white rounded-lg shadow">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        {#each tableData.headers as header}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                {header}
+                            </th>
+                        {/each}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {#each tableData.rows as row}
+                        <tr>
+                            {#each row as cell}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {cell}
+                                </td>
+                            {/each}
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        </div>
+    {/if}
+</div>
+```
+
+### Component Props Interface
+
+Every renderer component receives these props:
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `segment` | ProcessedTagSegment | Contains tag content and metadata |
+| `appState` | AppState | Global application state |
+| `chatAppState` | ChatAppState | Chat-specific state and methods |
+
+### ProcessedTagSegment Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `rawContent` | string | Text content between XML tags |
+| `streamingStatus` | `'pending' \| 'completed' \| 'error'` | Current streaming state |
+| `id` | string | Unique identifier for this segment |
+| `tagType` | string | The XML tag name (e.g., 'chart', 'image') |
+
+## Step 2: Register Your Renderer
+
+Add your renderer to the custom components registry.
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/index.ts`
+
+```typescript
+import type { Component } from 'svelte';
+import DataTableRenderer from './DataTableRenderer.svelte';
+import MyCustomRenderer from './MyCustomRenderer.svelte';
+
+export const customRenderers: Record<string, Component<any>> = {
+    // Add your custom tag renderers here
+    datatable: DataTableRenderer,
+    mywidget: MyCustomRenderer,
+    'interactive-form': InteractiveFormRenderer
+};
+```
+
+## Step 3: Test Your Renderer
+
+### Update Agent Instructions
+
+Add instructions to your agent about using the new tag:
+
+```typescript
+const agentPrompt = `You are a helpful assistant.
+
+When presenting tabular data, use the datatable tag:
+
+<datatable>{"headers": ["Column1", "Column2"], "rows": [["Value1", "Value2"]]}</datatable>
+
+{{prompt-assistance}}`;
+```
+
+### Test in Chat
+
+1. Start a chat session
+2. Ask for data that would be appropriate for a table
+3. The LLM should respond with your custom tag
+4. Verify the renderer displays correctly
+
+## Step 4: Create Metadata Handlers (Optional)
+
+Metadata handlers process tags that don't render visually but perform side effects.
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/analytics-handler.ts`
+
+```typescript
+import type { MetadataTagHandler } from '../segment-types';
+
+export const analyticsHandler: MetadataTagHandler = (
+    segment, 
+    message, 
+    chatAppState, 
+    appState
+) => {
+    // Only process completed segments
+    if (segment.streamingStatus !== 'completed') return;
+
+    try {
+        const analyticsData = JSON.parse(segment.rawContent);
+
+        // Add to message metadata
+        if (!message.metadata) {
+            message.metadata = {};
+        }
+        message.metadata.analytics = analyticsData;
+
+        // Track event
+        if (analyticsData.event && analyticsData.properties) {
+            trackEvent(analyticsData.event, analyticsData.properties);
+        }
+    } catch (error) {
+        console.error('Failed to process analytics metadata', error);
+    }
+};
+
+function trackEvent(event: string, properties: any) {
+    // Your analytics implementation
+    console.log('Analytics event:', event, properties);
+}
+```
+
+### Register Metadata Handler
+
+**Location:** Same custom-components `index.ts` file
+
+```typescript
+import { analyticsHandler } from './analytics-handler';
+
+export const customMetadataHandlers: Record<string, MetadataTagHandler> = {
+    analytics: analyticsHandler,
+    notification: notificationHandler
+};
+```
+
+## Advanced Patterns
+
+### Interactive Components
+
+Create components that can send new messages:
+
+```typescript
+<script lang="ts">
+    let { segment, chatAppState }: Props = $props();
+
+    function handleButtonClick(action: string) {
+        chatAppState.sendMessage(`Execute action: ${action}`);
+    }
+</script>
+
+<div class="space-x-2">
+    <button 
+        onclick={() => handleButtonClick('approve')} 
+        class="bg-green-500 text-white px-4 py-2 rounded">
+        Approve
+    </button>
+    <button 
+        onclick={() => handleButtonClick('reject')} 
+        class="bg-red-500 text-white px-4 py-2 rounded">
+        Reject
+    </button>
+</div>
+```
+
+### State Management
+
+Access and update global state:
+
+```typescript
+<script lang="ts">
+    let { segment, appState }: Props = $props();
+
+    // Access global state
+    let userPreferences = $derived(appState.user?.preferences);
+
+    // Update app state
+    function updatePreferences(newPrefs: any) {
+        if (appState.user) {
+            appState.user.preferences = { 
+                ...appState.user.preferences, 
+                ...newPrefs 
+            };
+        }
+    }
+</script>
+```
+
+### Handling Streaming States
+
+Always provide feedback for streaming states:
+
+```typescript
+{#if segment.streamingStatus === 'pending'}
+    <div class="animate-pulse">Loading...</div>
+{:else if segment.streamingStatus === 'error'}
+    <div class="text-red-500">Error loading content</div>
+{:else}
+    <!-- Render actual content -->
+{/if}
+```
+
+## Built-in Examples
+
+Pika includes several built-in renderers you can reference:
+
+### Image Renderer (`image`)
+- Displays images from URLs
+- Features: Loading states, error handling, responsive sizing
+- Location: `default-components/ImageRenderer.svelte`
+
+### Download Renderer (`download`)
+- Creates download buttons for files
+- Features: S3 integration, custom titles
+- Location: `default-components/DownloadRenderer.svelte`
+
+### Chart Renderer (`chart`)
+- Renders Chart.js charts
+- Features: Dynamic loading, responsive design
+- Location: `default-components/ChartRenderer.svelte`
+
+### Prompt Renderer (`prompt`)
+- Creates clickable prompt buttons
+- Features: Click-to-send functionality
+- Location: `default-components/PromptRenderer.svelte`
+
+## Best Practices
+
+### 1. Handle Streaming States
+
+```typescript
+// ✅ Good - Check streaming status
+$effect(() => {
+    if (segment.streamingStatus === 'pending') return;
+    // Process complete content
+});
+
+// ❌ Bad - No streaming check
+$effect(() => {
+    JSON.parse(segment.rawContent); // May fail during streaming
+});
+```
+
+### 2. Graceful Error Handling
+
+```typescript
+// ✅ Good - Catch and display errors
+try {
+    const data = JSON.parse(rawTagContent);
+    processData(data);
+} catch (error) {
+    console.error('Parse error:', error);
+    error = 'Invalid data format';
+}
+
+// ❌ Bad - No error handling
+const data = JSON.parse(rawTagContent);
+```
+
+### 3. Responsive Design
+
+```typescript
+// ✅ Good - Responsive container
+<div class="overflow-x-auto max-w-full">
+    <div class="min-w-[600px]">
+        {#if component}
+    </div>
+</div>
+
+// ❌ Bad - Fixed width
+<div style="width: 800px">
+    <!-- May overflow on mobile -->
+</div>
+```
+
+### 4. Use Unique IDs
+
+```typescript
+// ✅ Good - Use segment ID
+<div id="component-{segment.id}">
+    <!-- Unique instance -->
+</div>
+
+// ❌ Bad - Hard-coded ID
+<div id="my-component">
+    <!-- May conflict -->
+</div>
+```
+
+### 5. Resource Cleanup
+
+```typescript
+// ✅ Good - Clean up resources
+$effect(() => {
+    const chart = createChart();
+    return () => {
+        chart.destroy();
+    };
+});
+
+// ❌ Bad - No cleanup
+$effect(() => {
+    createChart(); // Memory leak
+});
+```
+
+## Testing Checklist
+
+Verify your custom renderer works correctly:
+
+{% checklist %}
+- [ ] Renderer is registered in custom components index
+- [ ] Component handles pending streaming state
+- [ ] Component handles completed streaming state
+- [ ] Component handles error streaming state
+- [ ] JSON parsing works correctly
+- [ ] Error messages display clearly
+- [ ] Component is responsive on mobile
+- [ ] Resources are cleaned up properly
+- [ ] Interactive features work as expected
+- [ ] Agent instructions mention the tag
+{% /checklist %}
+
+## Troubleshooting
+
+### Tag Not Rendering
+
+- Verify tag name matches registry key exactly (case-sensitive)
+- Check component is properly exported
+- Ensure component is registered in `customRenderers`
+- Review browser console for errors
+
+### Parsing Errors
+
+- Check if content is still streaming (`status === 'pending'`)
+- Validate JSON format from LLM
+- Add error handling for malformed content
+- Log raw content for debugging
+
+### Styling Issues
+
+- Use Tailwind classes for consistency
+- Test on different screen sizes
+- Check z-index and positioning
+- Verify dark mode compatibility (if applicable)
+
+## Next Steps
+
+- [Custom Widget Tag Definitions](/guides/advanced/widget-tags/) - Advanced tag system
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Web component approach
+- [Work with Pika UX Module](/guides/advanced/pika-ux-module/) - Integration patterns
+
+## Related Documentation
+
+- [Custom Web Components](/capabilities/customization/web-components/) - Web component system
+- [AI-Driven UI](/capabilities/customization/ai-ui/) - Dynamic UI generation
+- [Message Processing Reference](/reference/api/messages/) - Message API reference
+
+---
+
+{% aside type="tip" title="Reference Built-in Renderers" %}
+Check `apps/pika-chat/src/lib/client/features/chat/message-segments/default-components/` for complete working examples of built-in renderers.
+{% /aside %}
+

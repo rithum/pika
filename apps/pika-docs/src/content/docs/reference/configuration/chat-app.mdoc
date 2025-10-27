@@ -1,0 +1,341 @@
+---
+title: Chat App Configuration Schema
+description: Complete reference for ChatApp configuration schema and all fields
+---
+
+Complete reference for the `ChatApp` type used to configure chat applications in Pika Platform.
+
+## Type Definition
+
+```typescript
+import type { 
+    ChatApp, 
+    ChatAppForIdempotentCreateOrUpdate 
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chatAppId` | `string` | Unique identifier for the chat app. Only hyphens and underscores allowed. Used in URLs |
+| `title` | `string` | Human-readable name displayed in the title bar (standalone mode) |
+| `description` | `string` | Description for users and navigation. Must be less than 300 characters |
+| `agentId` | `string` | ID of the agent to invoke for this chat app. Must exist in agent definitions table |
+
+## Optional Fields
+
+### Display & Mode
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `modesSupported` | `ChatAppMode[]` | All modes | Array of `'standalone'` and/or `'embedded'`. Controls how chat app can be displayed |
+| `enabled` | `boolean` | `true` | Whether this chat app is currently active |
+
+**ChatAppMode values:**
+- `standalone` - Can be displayed in its own window/page
+- `embedded` - Can be embedded in another website as an iframe
+
+### Access Control
+
+Chat apps extend `AccessRules` interface, providing fine-grained access control:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `userTypes` | `UserType[]` | User types allowed to access (`'internal-user'` or `'external-user'`) |
+| `userRoles` | `string[]` | Specific roles allowed (e.g., `['pika:content-admin']`) |
+| `includedEntities` | `string[]` | Entity IDs allowed access (when entity feature enabled) |
+| `excludedEntities` | `string[]` | Entity IDs explicitly denied access |
+
+### Features
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `features` | `ChatAppFeatures` | Object containing feature-specific configurations |
+
+**ChatAppFeatures include:**
+
+- `suggestions` - Quick suggestion buttons
+- `fileUpload` - File upload capabilities
+- `promptInputFieldLabel` - Customize input field label
+- `chatDisclaimerNotice` - Display disclaimer messages
+- `traces` - AI transparency with execution traces
+- `userMemory` - Remember user preferences
+- `agentInstructionAssistance` - Help crafting better prompts
+- `agentInstructionAugmentation` - Auto-enhance prompts
+- `uiCustomization` - Custom styling
+- `logout` - Logout button configuration
+- `verifyResponse` - Response quality verification
+- `tags` - Custom UI tags/widgets
+- `entityToggle` - Entity selection UI
+
+See [Chat App Features Reference](/reference/configuration/chat-app-features/) for complete feature configurations.
+
+### Overrides
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chatAppAccessControlOverride` | `ChatAppOverride` | Override original access control settings without redeploying |
+
+**ChatAppOverride** allows modifying access control post-deployment. Stored separately as `${chatAppId}:override` in the database.
+
+### Development
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dontCacheThis` | `boolean` | Set `true` during active development for immediate changes |
+
+### Metadata
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `createDate` | `string` | ISO 8601 timestamp of creation (auto-generated) |
+| `lastUpdate` | `string` | ISO 8601 timestamp of last update (auto-generated) |
+
+## Complete Example
+
+```typescript
+import type { ChatAppForIdempotentCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+
+const chatApp: ChatAppForIdempotentCreateOrUpdate = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support Assistant',
+    description: 'AI-powered support for all your customer service needs',
+    agentId: 'customer-support-agent',
+    modesSupported: ['standalone', 'embedded'],
+    enabled: true,
+    userTypes: ['internal-user', 'external-user'],
+    includedEntities: ['account-123', 'account-456'],
+    features: {
+        suggestions: {
+            featureId: 'suggestions',
+            enabled: true,
+            suggestions: [
+                'How do I track my order?',
+                'What is your return policy?',
+                'I need help with billing'
+            ],
+            randomize: true,
+            maxToShow: 3
+        },
+        fileUpload: {
+            featureId: 'fileUpload',
+            enabled: true,
+            mimeTypesAllowed: ['image/jpeg', 'image/png', 'application/pdf']
+        },
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
+            messageMarkdown: 'This is an AI assistant. Please verify important information.'
+        },
+        traces: {
+            featureId: 'traces',
+            enabled: true
+        },
+        userMemory: {
+            featureId: 'userMemory',
+            enabled: true,
+            strategies: ['short-term', 'long-term']
+        },
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true
+        },
+        tags: {
+            featureId: 'tags',
+            enabled: true,
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'image' },
+                { scope: 'custom', tag: 'order-status' }
+            ]
+        }
+    }
+};
+```
+
+## Minimal Example
+
+```typescript
+const simpleChat: ChatAppForIdempotentCreateOrUpdate = {
+    chatAppId: 'simple-assistant',
+    title: 'Simple Assistant',
+    description: 'A basic AI assistant',
+    agentId: 'simple-agent',
+    enabled: true
+};
+```
+
+## Feature Examples
+
+### Suggestions Feature
+
+```typescript
+features: {
+    suggestions: {
+        featureId: 'suggestions',
+        enabled: true,
+        suggestions: [
+            'Tell me about your services',
+            'How can I contact support?',
+            'What are your hours?'
+        ],
+        randomize: true, // Show random subset
+        maxToShow: 3     // Limit number displayed
+    }
+}
+```
+
+### File Upload Feature
+
+```typescript
+features: {
+    fileUpload: {
+        featureId: 'fileUpload',
+        enabled: true,
+        mimeTypesAllowed: [
+            'text/csv',
+            'application/json',
+            'image/jpeg',
+            'image/png',
+            'application/pdf'
+        ]
+    }
+}
+```
+
+### Custom UI Theme
+
+```typescript
+features: {
+    uiCustomization: {
+        featureId: 'uiCustomization',
+        enabled: true,
+        primaryColor: '#0066cc',
+        secondaryColor: '#ff6600',
+        fontFamily: 'Inter, sans-serif'
+    }
+}
+```
+
+### Entity Toggle
+
+```typescript
+features: {
+    entityToggle: {
+        featureId: 'entityToggle',
+        enabled: true
+    }
+}
+// Allows users with multiple entities (accounts/orgs) to switch context
+```
+
+## Deployment Patterns
+
+### CloudFormation/CDK
+
+```typescript
+import type { ChatAppDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+
+const request: ChatAppDataRequest = {
+    chatApp: {
+        chatAppId: 'my-chat',
+        title: 'My Chat App',
+        description: 'Description here',
+        agentId: 'my-agent',
+        enabled: true
+    },
+    userId: 'cloudformation/my-stack-name'
+};
+```
+
+### Programmatic Update
+
+```typescript
+import type { ChatAppForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+
+const update: ChatAppForUpdate = {
+    chatAppId: 'my-chat',
+    title: 'Updated Title',
+    description: 'Updated description'
+    // Only include fields you want to update
+};
+```
+
+## Access Control Patterns
+
+### Internal Users Only
+
+```typescript
+{
+    chatAppId: 'internal-tools',
+    title: 'Internal Tools',
+    description: 'For employees only',
+    agentId: 'internal-agent',
+    userTypes: ['internal-user']
+}
+```
+
+### Premium Customers Only
+
+```typescript
+{
+    chatAppId: 'premium-support',
+    title: 'Premium Support',
+    description: 'For premium customers',
+    agentId: 'premium-agent',
+    userTypes: ['external-user'],
+    includedEntities: ['premium-account-1', 'premium-account-2']
+}
+```
+
+### Role-Based Access
+
+```typescript
+{
+    chatAppId: 'admin-console',
+    title: 'Admin Console',
+    description: 'For administrators',
+    agentId: 'admin-agent',
+    userTypes: ['internal-user'],
+    userRoles: ['pika:content-admin']
+}
+```
+
+## Best Practices
+
+{% aside type="tip" title="Chat App Configuration Tips" %}
+1. **Clear chatAppIds** - Use descriptive, kebab-case IDs (e.g., `customer-support`, not `cs1`)
+2. **Concise descriptions** - Keep under 200 characters for better UX
+3. **Test both modes** - If supporting embedded mode, test in actual iframe context
+4. **Feature combinations** - Not all features work well together; test your configuration
+5. **Access control** - Start restrictive and expand as needed
+6. **Development workflow** - Use `dontCacheThis: true` during active development
+{% /aside %}
+
+## Validation Rules
+
+- `chatAppId` - Alphanumeric with hyphens/underscores only, no spaces
+- `description` - Less than 300 characters (enforced in future versions)
+- `agentId` - Must reference existing agent in agent definitions table
+- `userTypes` - Must be `'internal-user'` or `'external-user'`
+- `includedEntities`/`excludedEntities` - Only relevant when entity feature is enabled in pika-config.ts
+
+## Related Documentation
+
+- **[Agent Configuration](/reference/configuration/agent/)** - Configure agents for your chat apps
+- **[Chat App Features](/reference/configuration/chat-app-features/)** - Detailed feature configuration reference
+- **[Platform Settings](/reference/configuration/platform-settings/)** - Site-wide configuration
+- **[Access Control Guide](/guides/authentication-access/chat-app-access-control/)** - How-to guide for access control
+- **[Deployment Guide](/guides/deployment/aws-cdk/)** - Deploy chat apps to AWS
+
+## API Endpoints
+
+- `POST /api/chat-admin/chatapp` - Create or update chat app
+- `GET /api/chat-admin/chatapp/{chatAppId}` - Get chat app configuration
+- `DELETE /api/chat-admin/chatapp/{chatAppId}` - Delete chat app
+- `POST /api/chat-admin/chatapps/search` - Search chat apps
+- `POST /api/chat/chatapps` - Get chat apps user can access
+
+See [REST API Reference](/reference/api/rest/) for complete API documentation.
+

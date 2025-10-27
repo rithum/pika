@@ -1,0 +1,618 @@
+---
+title: Direct Agent Invocation
+description: Invoke agents programmatically via API without creating chat applications
+---
+
+Learn how to invoke agents programmatically through a simple HTTP API, perfect for system integrations and headless AI workflows.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Deploy an agent without a chat app
+- Get the converse function URL
+- Authenticate requests with AWS IAM and JWT
+- Make agent invocation API calls
+- Handle streaming responses
+- Build a complete CLI tool
+
+## Prerequisites
+
+- A running Pika installation
+- AWS CDK or Serverless Framework for deployment
+- Node.js for building tools
+- Understanding of AWS IAM authentication
+- Basic knowledge of JWT tokens
+
+## Understanding Direct Agent Invocation
+
+Direct Agent Invocation lets you call agents through HTTP API without creating chat applications. You deploy only the agent and its tools, then make API calls to get responses.
+
+### Use Cases
+
+- **System Integrations**: Call agents from backend services
+- **Headless Workflows**: Automate AI tasks without UI
+- **API Services**: Build REST APIs powered by AI agents
+- **Batch Processing**: Process multiple requests programmatically
+- **Custom Interfaces**: Build your own chat interfaces
+
+### Authentication Requirements
+
+Direct invocation requires **two layers of authentication**:
+
+1. **AWS IAM Authentication**: Required for Lambda Function URL
+2. **JWT Authentication**: Required by application logic
+
+## Step 1: Deploy Agent-Only Stack
+
+Deploy just the agent and tools without a chat app.
+
+### Using CDK
+
+```typescript
+import { AgentDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/gzip-util';
+
+// Create agent without chat app
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: `weather-agent-${stage}`,
+        basePrompt: 'You are a helpful weather assistant that provides accurate weather information.',
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [{
+        toolId: `weather-tool-${stage}`,
+        name: 'weather-tool',
+        displayName: 'Weather Tool',
+        description: 'Get current weather information',
+        executionType: 'lambda',
+        lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE',
+        functionSchema: weatherFunctionSchema
+    }]
+};
+
+// Deploy the agent (no chat app custom resource)
+new cdk.CustomResource(this, 'WeatherAgentResource', {
+    serviceToken: agentCustomResourceArn,
+    properties: {
+        AgentData: gzipAndBase64EncodeString(JSON.stringify(agentData)),
+        ToolIdToLambdaArnMap: {
+            [`weather-tool-${stage}`]: weatherLambda.functionArn
+        }
+    }
+});
+```
+
+### Using Serverless Framework
+
+```yaml
+service: weather-direct
+
+plugins:
+    - pika-serverless
+
+custom:
+    pika:
+        # Define agent without chat app
+        agents:
+            weather-agent:
+                basePrompt: 'You are a helpful weather assistant...'
+                tools:
+                    - weather-tool
+
+        tools:
+            weather-tool:
+                name: weather-tool
+                displayName: Weather Tool
+                description: Get current weather information
+                handler: src/weather.handler
+                functionSchema:
+                    - name: get_weather
+                      description: Get current weather
+                      parameters:
+                          type: object
+                          properties:
+                              location:
+                                  type: string
+                                  description: City name
+                          required: [location]
+
+        # No chatApps section = agent-only deployment
+```
+
+## Step 2: Get Function URL and Secrets
+
+Retrieve required values from AWS SSM Parameter Store.
+
+### Install AWS SDK
+
+```bash
+npm install @aws-sdk/client-ssm
+```
+
+### Get Function URL
+
+```typescript
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+
+const ssm = new SSMClient({ region: 'us-east-1' });
+
+// Get the converse function URL
+const urlParam = await ssm.send(
+    new GetParameterCommand({
+        Name: '/stack/pika/test/function/converse_url'
+    })
+);
+
+const converseFunctionUrl = urlParam.Parameter.Value;
+```
+
+### Get JWT Secret
+
+```typescript
+// Get JWT secret (with decryption for SecureString)
+const jwtSecret = await ssm.send(
+    new GetParameterCommand({
+        Name: '/stack/pika/test/jwt-secret',
+        WithDecryption: true // Important for SecureString parameters
+    })
+).then(result => result.Parameter.Value);
+```
+
+## Step 3: Create JWT Token
+
+Install jsonwebtoken library and create tokens.
+
+### Install JWT Library
+
+```bash
+npm install jsonwebtoken
+```
+
+### Create Token
+
+```typescript
+import jwt from 'jsonwebtoken';
+
+function createJWT(user: {userId: string; customUserData?: any}, secret: string): string {
+    return jwt.sign(user, secret, { expiresIn: '1h' });
+}
+
+// Create token for default user
+const user = {
+    userId: '123', // Default hardcoded user ID (exists in Pika by default)
+    customUserData: undefined
+};
+
+const jwtToken = createJWT(user, jwtSecret);
+```
+
+{% aside type="note" title="User ID Required" %}
+The `userId` must exist in Pika's chat-user table. The default value `"123"` is a hardcoded user ID that comes with Pika's built-in auth system. You can create other users via your auth provider implementation.
+{% /aside %}
+
+## Step 4: Sign Requests with AWS IAM
+
+Lambda Function URLs require AWS IAM authentication.
+
+### Install Signing Libraries
+
+```bash
+npm install @aws-crypto/sha256-js @aws-sdk/credential-provider-node @smithy/signature-v4
+```
+
+### Sign and Make Request
+
+```typescript
+import { Sha256 } from '@aws-crypto/sha256-js';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { SignatureV4 } from '@smithy/signature-v4';
+
+async function invokeAgent(
+    functionUrl: string,
+    request: any,
+    jwtToken: string,
+    region: string
+) {
+    // Parse Function URL
+    const url = new URL(functionUrl);
+
+    // Prepare request for AWS IAM signing
+    const requestToSign = {
+        method: 'POST',
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        protocol: url.protocol,
+        headers: {
+            Host: url.hostname,
+            'Content-Type': 'application/json',
+            'x-chat-auth': `Bearer ${jwtToken}` // Include Bearer prefix
+        },
+        body: JSON.stringify(request)
+    };
+
+    // Create AWS IAM signer
+    const signer = new SignatureV4({
+        credentials: defaultProvider(),
+        region: region,
+        service: 'lambda', // Lambda Function URLs use 'lambda' service
+        sha256: Sha256
+    });
+
+    // Sign the request
+    const signedRequest = await signer.sign(requestToSign);
+
+    // Make the signed request
+    const response = await fetch(functionUrl, {
+        method: signedRequest.method,
+        headers: signedRequest.headers,
+        body: signedRequest.body
+    });
+
+    return response;
+}
+```
+
+## Step 5: Make Agent Invocation Request
+
+Create the request and invoke the agent.
+
+### Request Format
+
+```typescript
+const request = {
+    invocationMode: 'direct-agent-invoke', // Required
+    message: 'What is the weather in San Francisco?',
+    agentId: 'weather-agent-test', // Must match deployed agent
+    userId: '123', // Must exist in chat-user table
+    
+    // Optional: Override features
+    features: {
+        verifyResponse: { enabled: true },
+        instructionAugmentation: { enabled: true },
+        tags: { tagsEnabled: [] }
+    },
+    
+    // Optional: Resume existing session
+    sessionId: 'existing-session-id',
+    
+    // Optional: File attachments
+    files: [{
+        fileName: 'data.csv',
+        fileContent: 'base64-encoded-content',
+        mimeType: 'text/csv'
+    }]
+};
+```
+
+### Handle Streaming Response
+
+```typescript
+// Make request
+const response = await invokeAgent(converseFunctionUrl, request, jwtToken, 'us-east-1');
+
+if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+}
+
+// Handle streaming response
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+let content = '';
+
+while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+
+    for (const line of lines) {
+        if (line.trim()) {
+            try {
+                const data = JSON.parse(line);
+                if (data.content) {
+                    content += data.content;
+                    process.stdout.write(data.content); // Stream to console
+                } else if (data.error) {
+                    console.error('\nError:', data.error);
+                }
+            } catch {
+                // Handle non-JSON content
+                process.stdout.write(line);
+            }
+        }
+    }
+}
+
+console.log('\n\nComplete response:', content);
+```
+
+## Complete CLI Tool Example
+
+Here's a complete working CLI tool:
+
+```typescript
+#!/usr/bin/env node
+import { Sha256 } from '@aws-crypto/sha256-js';
+import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { SignatureV4 } from '@smithy/signature-v4';
+import { Command } from 'commander';
+import jwt from 'jsonwebtoken';
+
+async function getParameterFromSSM(parameterName: string, region: string) {
+    const client = new SSMClient({ region });
+    const response = await client.send(
+        new GetParameterCommand({
+            Name: parameterName,
+            WithDecryption: true
+        })
+    );
+    
+    if (!response.Parameter?.Value) {
+        throw new Error(`Parameter ${parameterName} not found`);
+    }
+    
+    return response.Parameter.Value;
+}
+
+function createJWT(user: any, jwtSecret: string) {
+    return jwt.sign(user, jwtSecret, { expiresIn: '1h' });
+}
+
+async function invokeAgent(
+    functionUrl: string,
+    request: any,
+    jwtToken: string,
+    region: string
+) {
+    const url = new URL(functionUrl);
+    
+    const requestToSign = {
+        method: 'POST',
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        protocol: url.protocol,
+        headers: {
+            Host: url.hostname,
+            'Content-Type': 'application/json',
+            'x-chat-auth': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify(request)
+    };
+    
+    const signer = new SignatureV4({
+        credentials: defaultProvider(),
+        region: region,
+        service: 'lambda',
+        sha256: Sha256
+    });
+    
+    const signedRequest = await signer.sign(requestToSign);
+    
+    const response = await fetch(functionUrl, {
+        method: signedRequest.method,
+        headers: signedRequest.headers,
+        body: signedRequest.body
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
+    // Handle streaming response
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    console.log('Response:');
+    console.log('────────────');
+    
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const data = JSON.parse(line);
+                    if (data.content) {
+                        process.stdout.write(data.content);
+                    } else if (data.error) {
+                        console.error('\nError:', data.error);
+                    }
+                } catch {
+                    process.stdout.write(line);
+                }
+            }
+        }
+    }
+    
+    console.log('\n────────────');
+    console.log('Done');
+}
+
+async function main() {
+    const program = new Command();
+    
+    program
+        .name('pika-direct-cli')
+        .description('CLI tool for direct agent invocation')
+        .version('1.0.0')
+        .argument('<message>', 'message to send to the agent')
+        .option('-s, --stage <stage>', 'deployment stage', 'test')
+        .option('-u, --user-id <userId>', 'user ID', '123')
+        .option('-r, --region <region>', 'AWS region', 'us-east-1')
+        .option('--pika-service <name>', 'pika service name', 'pika')
+        .option('--agent-service <name>', 'agent service name', 'my-agent')
+        .action(async (message, options) => {
+            const { stage, userId, region, pikaService, agentService } = options;
+            
+            // Get parameters from SSM
+            const converseFunctionUrl = await getParameterFromSSM(
+                `/stack/${pikaService}/${stage}/function/converse_url`,
+                region
+            );
+            const agentId = await getParameterFromSSM(
+                `/stack/${agentService}/${stage}/agent_id`,
+                region
+            );
+            const jwtSecret = await getParameterFromSSM(
+                `/stack/${pikaService}/${stage}/jwt-secret`,
+                region
+            );
+            
+            // Create JWT
+            const user = { userId, customUserData: undefined };
+            const jwtToken = createJWT(user, jwtSecret);
+            
+            // Create request
+            const request = {
+                invocationMode: 'direct-agent-invoke',
+                message,
+                agentId,
+                userId,
+                features: {
+                    verifyResponse: { enabled: true },
+                    instructionAugmentation: { enabled: true },
+                    tags: { tagsEnabled: [] }
+                }
+            };
+            
+            // Invoke agent
+            await invokeAgent(converseFunctionUrl, request, jwtToken, region);
+        });
+    
+    program.parse();
+}
+
+main().catch(console.error);
+```
+
+### Use the CLI
+
+```bash
+# Install dependencies
+npm install
+
+# Run the CLI
+npm run cli "What's the weather in Tokyo?"
+
+# Or with pnpm
+pnpm run cli "What's the weather in Tokyo?"
+
+# Specify different user ID
+pnpm run cli "What's the weather?" --user-id "my-user-123"
+```
+
+## Testing Checklist
+
+Verify direct agent invocation works:
+
+{% checklist %}
+- [ ] Agent deployed without chat app
+- [ ] Function URL retrieved from SSM
+- [ ] JWT secret retrieved with decryption
+- [ ] JWT token created successfully
+- [ ] AWS IAM signing working
+- [ ] Bearer prefix included in auth header
+- [ ] Agent responds to invocations
+- [ ] Streaming responses handled correctly
+- [ ] Error responses handled properly
+- [ ] Session persistence works (if needed)
+{% /checklist %}
+
+## Working Sample
+
+The Pika repository includes a complete working sample:
+
+**Location:** `services/samples/weather-direct/`
+
+```bash
+cd services/samples/weather-direct
+
+# Install dependencies
+npm install
+
+# Deploy the stack
+npm run cdk:deploy
+
+# Test the CLI
+npm run cli -- "What's the weather in Tokyo?"
+
+# With pnpm
+pnpm run cli "What's the weather in Tokyo?"
+```
+
+## Best Practices
+
+### Authentication
+
+- **AWS Credentials**: Ensure environment has valid AWS credentials
+- **JWT Secrets**: Always use `WithDecryption: true` when retrieving from SSM
+- **Bearer Prefix**: Include `Bearer ` prefix in `x-chat-auth` header
+- **User ID**: Must exist in chat-user table
+- **Token Caching**: Cache JWT tokens (valid for 1 hour)
+
+### Error Handling
+
+- Check HTTP status codes
+- Handle streaming connection drops gracefully
+- Implement retry logic for transient failures
+- Log errors for debugging
+
+### Performance
+
+- Reuse HTTP connections when possible
+- Buffer streaming responses for better UX
+- Set appropriate timeouts
+- Monitor response times
+
+## Troubleshooting
+
+### Authentication Failures
+
+- Verify AWS credentials configured
+- Check JWT secret retrieved with decryption
+- Ensure Bearer prefix in auth header
+- Confirm user ID exists in database
+- Review IAM permissions
+
+### Agent Not Found
+
+- Verify agent deployed correctly
+- Check agent ID matches exactly
+- Ensure agent registered in DynamoDB
+- Review deployment logs
+
+### Streaming Issues
+
+- Check network connectivity
+- Verify response body is readable stream
+- Handle partial JSON lines correctly
+- Implement proper error recovery
+
+## Next Steps
+
+- [Define Agents Using Configuration](/guides/agent-development/define-agents/) - Learn agent configuration
+- [Implement Tool Use with Inline Tools](/guides/agent-development/inline-tools/) - Add tools to agents
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create UI for agents
+
+## Related Documentation
+
+- [Agent Configuration Reference](/reference/config/agents/) - Complete agent options
+- [AWS Lambda Function URLs](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html) - AWS documentation
+- [JWT Authentication](https://jwt.io/) - Learn about JWT tokens
+
+---
+
+{% aside type="tip" title="Start with the Sample" %}
+Begin with the working sample in `services/samples/weather-direct/`, then adapt it to your specific use case. The sample demonstrates all essential patterns you'll need.
+{% /aside %}
+

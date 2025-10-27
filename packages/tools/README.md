@@ -73,7 +73,7 @@ tsx src/release.ts info
     - `--dry-run` - Show what would be done without making changes
 - `notes` - Generate Cursor AI prompt to update release notes incrementally
     - **Automatically copies prompt to clipboard** for easy pasting
-    - Automatically checks feature documentation changes in `apps/pika-docs/src/routes/docs/features/`
+    - Automatically checks documentation changes in `apps/pika-docs/src/content/docs/`
     - `--since <branch>` - Compare against specific branch (default: main)
     - `--ignore-uncommitted` - Ignore uncommitted changes (by default they ARE included)
     - `--finalize <version>` - Update version date from TBD to today and mark as released (handles already-finalized gracefully)
@@ -101,11 +101,11 @@ tsx src/release.ts info
 
 **Cursor AI Integration:**
 
-The tool generates a prompt that you copy into Cursor Composer (Cmd+Shift+I). The prompt instructs the AI to check your feature documentation changes (`apps/pika-docs/src/routes/docs/features/`) to understand new features and enhancements. The AI will:
+The tool generates a prompt that you copy into Cursor Composer (Cmd+Shift+I). The prompt instructs the AI to check your documentation changes (`apps/pika-docs/src/content/docs/`) to understand new features and enhancements. The AI will:
 
 - Analyze your git commits
 - Update `CHANGELOG.md`
-- Update `apps/pika-docs/src/routes/docs/releases/changelog/+page.md`
+- Update `apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc`
 - Write clear, user-focused release notes
 
 This eliminates manual duplication between files!
@@ -131,7 +131,7 @@ pnpm release notes --finalize 0.5.0
 # Paste into Cursor Composer → AI updates [0.5.0] date from TBD to today
 
 # Commit and release
-git add CHANGELOG.md apps/pika-docs
+git add CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases
 git commit -m "docs: release v0.5.0"
 git push
 ```
@@ -156,7 +156,7 @@ pnpm release plan-breaking
 # Paste into Cursor Composer → AI asks questions, creates migration guide
 
 # Step 2: Review the generated migration guide
-# File created: apps/pika-docs/src/routes/docs/releases/migration-guides/[name]/+page.md
+# File created: apps/pika-docs/src/content/docs/platform/releases/migration-guides/[name].mdoc
 # Changelog updated with [PLANNED] marker
 
 # Step 3: Implement the breaking change
@@ -247,9 +247,9 @@ The Cursor AI prompts are stored in **`src/release-prompt.md`** as editable mark
 \`\`\`
 **TASK: Update release notes for {{baseBranch}}**
 
-Check feature docs:
+Check documentation:
 \`\`\`bash
-git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 \`\`\`
 ```

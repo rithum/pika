@@ -1,0 +1,636 @@
+---
+title: Widget System & Tag Definitions
+description: Reference for custom UI tags, widgets, and the tag definition system
+---
+
+Complete reference for Pika's tag definition system that enables AI-driven custom UI components.
+
+## Overview
+
+The widget system allows LLMs to generate custom UI elements by including special tags in their responses. Each tag is defined by a `TagDefinition` that specifies:
+
+- Widget type and rendering
+- When and where it can be used
+- Instructions for the LLM
+- Access control
+
+## Import Statement
+
+```typescript
+import type {
+    TagDefinition,
+    TagDefinitionLite,
+    TagDefinitionWidget,
+    TagInstructionForLlm,
+    WidgetRenderingContexts
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## Tag Definition Types
+
+### TagDefinition
+
+Complete tag definition with all configuration.
+
+```typescript
+interface TagDefinition<T extends TagDefinitionWidget> {
+    tag: string;
+    scope: string;
+    usageMode: 'global' | 'chat-app';
+    widget: T;
+    llmInstructionsMd?: string;
+    status: 'enabled' | 'disabled' | 'retired';
+    renderingContexts: WidgetRenderingContexts;
+    canBeGeneratedByLlm: boolean;
+    canBeGeneratedByTool: boolean;
+    description: string;
+    dontCacheThis?: boolean;
+    createdBy: string;
+    lastUpdatedBy: string;
+    createDate: string;
+    lastUpdate: string;
+}
+```
+
+**Fields:**
+- `tag` - Tag name (e.g., `'chart'`, `'order-status'`)
+- `scope` - Namespace to prevent collisions (e.g., `'pika'`, `'custom'`)
+- `usageMode` - `'global'` (auto-available) or `'chat-app'` (explicit enable)
+- `widget` - Widget configuration (type and settings)
+- `llmInstructionsMd` - Markdown instructions injected into prompts
+- `status` - Lifecycle state
+- `renderingContexts` - Where widget can be rendered
+- `canBeGeneratedByLlm` - Whether LLM can use this tag
+- `canBeGeneratedByTool` - Whether tools can generate this tag
+- `description` - Admin-facing description
+
+### TagDefinitionLite
+
+Minimal tag identifier.
+
+```typescript
+interface TagDefinitionLite {
+    scope: string;
+    tag: string;
+}
+```
+
+Used for referencing tags without full definition.
+
+### Widget Types
+
+Four types of widgets are supported:
+
+```typescript
+type TagDefinitionWidget =
+    | BuiltInWidget
+    | CustomCompiledInWidget
+    | WebComponentWidget
+    | PassThroughWidget;
+```
+
+#### BuiltInWidget
+
+Pika-provided widgets (chart, image, prompt).
+
+```typescript
+interface BuiltInWidget {
+    type: 'built-in';
+    builtInType: 'chart' | 'image' | 'prompt';
+}
+```
+
+#### CustomCompiledInWidget
+
+Svelte components compiled into your app.
+
+```typescript
+interface CustomCompiledInWidget {
+    type: 'custom-compiled-in';
+}
+```
+
+References renderers in `customRenderers` registry.
+
+#### WebComponentWidget
+
+Dynamically loaded web components.
+
+```typescript
+interface WebComponentWidget {
+    type: 'web-component';
+    webComponent: {
+        s3Bucket: string;
+        s3Key: string;
+        encoding?: 'gzip' | 'none';
+    };
+}
+```
+
+#### PassThroughWidget
+
+Non-rendering semantic markup.
+
+```typescript
+interface PassThroughWidget {
+    type: 'pass-through';
+}
+```
+
+## Usage Modes
+
+### Global Tags
+
+Automatically available to all chat apps unless explicitly disabled.
+
+```typescript
+const globalTag: TagDefinition<BuiltInWidget> = {
+    tag: 'chart',
+    scope: 'pika',
+    usageMode: 'global', // Available everywhere by default
+    status: 'enabled',
+    widget: {
+        type: 'built-in',
+        builtInType: 'chart'
+    },
+    // ... other fields
+};
+```
+
+**Disabling global tags per chat app:**
+
+```typescript
+// In chat app configuration
+features: {
+    tags: {
+        enabled: true,
+        tagsDisabled: [
+            { scope: 'pika', tag: 'chart' } // Disable charts in this app
+        ]
+    }
+}
+```
+
+### Chat-App Tags
+
+Must be explicitly enabled per chat app.
+
+```typescript
+const chatAppTag: TagDefinition<WebComponentWidget> = {
+    tag: 'order-status',
+    scope: 'acme',
+    usageMode: 'chat-app', // Requires explicit enable
+    status: 'enabled',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'acme-widgets',
+            s3Key: 'order-status.js',
+            encoding: 'gzip'
+        }
+    },
+    // ... other fields
+};
+```
+
+**Enabling chat-app tags:**
+
+```typescript
+// In chat app configuration
+features: {
+    tags: {
+        enabled: true,
+        tagsEnabled: [
+            { scope: 'acme', tag: 'order-status' }
+        ]
+    }
+}
+```
+
+## Rendering Contexts
+
+Control where widgets can be rendered.
+
+### WidgetRenderingContexts
+
+```typescript
+interface WidgetRenderingContexts {
+    inline?: boolean;
+    canvas?: boolean;
+    dialog?: boolean;
+    spotlight?: boolean;
+}
+```
+
+**Contexts:**
+- `inline` - Within message text flow
+- `canvas` - Full-width dedicated area
+- `dialog` - Modal/popup overlay
+- `spotlight` - Featured prominent display
+
+**Example:**
+
+```typescript
+renderingContexts: {
+    inline: true,    // Can appear in text
+    canvas: true,    // Can appear full-width
+    dialog: false,   // Cannot appear in dialogs
+    spotlight: false // Cannot be spotlighted
+}
+```
+
+## LLM Instructions
+
+Guide the LLM on when and how to use tags.
+
+### TagInstructionForLlm
+
+```typescript
+type TagInstructionForLlm =
+    | { type: 'line'; text: string }
+    | {
+          type: 'block';
+          title: string;
+          lines: Array<{ type: 'line'; text: string }>;
+      };
+```
+
+### Example Instructions
+
+```typescript
+llmInstructions: [
+    {
+        type: 'line',
+        text: 'Use the chart tag when you need to visualize numerical data'
+    },
+    {
+        type: 'block',
+        title: 'Chart Types',
+        lines: [
+            { type: 'line', text: '- bar: For comparing categories' },
+            { type: 'line', text: '- line: For showing trends over time' },
+            { type: 'line', text: '- pie: For showing proportions' }
+        ]
+    },
+    {
+        type: 'line',
+        text: 'Example: <chart type="bar" data=\'{"labels":["A","B"],"datasets":[{"data":[1,2]}]}\' />'
+    }
+]
+```
+
+### Markdown Format
+
+Instructions can also be provided as Markdown:
+
+```typescript
+llmInstructionsMd: `
+# Chart Tag
+
+Use the chart tag when you need to visualize numerical data.
+
+## Chart Types
+- **bar**: For comparing categories
+- **line**: For showing trends over time
+- **pie**: For showing proportions
+
+## Example
+\`\`\`xml
+<chart type="bar" data='{"labels":["A","B"],"datasets":[{"data":[1,2]}]}' />
+\`\`\`
+`
+```
+
+## Lifecycle Management
+
+### Status Values
+
+```typescript
+type TagStatus = 'enabled' | 'disabled' | 'retired';
+```
+
+- `enabled` - Active and available
+- `disabled` - Temporarily hidden
+- `retired` - Permanently archived
+
+## Complete Examples
+
+### Built-In Chart Tag
+
+```typescript
+const chartTag: TagDefinition<BuiltInWidget> = {
+    tag: 'chart',
+    scope: 'pika',
+    usageMode: 'global',
+    widget: {
+        type: 'built-in',
+        builtInType: 'chart'
+    },
+    llmInstructionsMd: `Use for data visualization. Supports bar, line, and pie charts.`,
+    status: 'enabled',
+    renderingContexts: {
+        inline: false,
+        canvas: true,
+        dialog: true,
+        spotlight: true
+    },
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    description: 'Renders interactive charts',
+    createdBy: 'system',
+    lastUpdatedBy: 'system',
+    createDate: '2024-01-01T00:00:00Z',
+    lastUpdate: '2024-01-01T00:00:00Z'
+};
+```
+
+### Custom Web Component Tag
+
+```typescript
+const orderStatusTag: TagDefinition<WebComponentWidget> = {
+    tag: 'order-status',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'acme-components',
+            s3Key: 'widgets/order-status-v1.js',
+            encoding: 'gzip'
+        }
+    },
+    llmInstructionsMd: `
+# Order Status Widget
+
+Display real-time order status with tracking information.
+
+## Usage
+\`\`\`xml
+<order-status orderId="12345" />
+\`\`\`
+
+## Attributes
+- **orderId** (required): The order ID to display
+`,
+    status: 'enabled',
+    renderingContexts: {
+        inline: true,
+        canvas: true,
+        dialog: false,
+        spotlight: false
+    },
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    description: 'Shows order status and tracking',
+    dontCacheThis: false,
+    createdBy: 'admin@acme.com',
+    lastUpdatedBy: 'admin@acme.com',
+    createDate: '2024-01-15T10:00:00Z',
+    lastUpdate: '2024-01-15T10:00:00Z'
+};
+```
+
+### Custom Compiled-In Tag
+
+```typescript
+const dataTableTag: TagDefinition<CustomCompiledInWidget> = {
+    tag: 'data-table',
+    scope: 'custom',
+    usageMode: 'chat-app',
+    widget: {
+        type: 'custom-compiled-in'
+        // References customRenderers['data-table']
+    },
+    llmInstructionsMd: `
+Display tabular data with headers and rows.
+
+Example:
+\`\`\`xml
+<data-table>
+{
+    "headers": ["Name", "Age", "City"],
+    "rows": [
+        ["John", "30", "NYC"],
+        ["Jane", "25", "LA"]
+    ]
+}
+</data-table>
+\`\`\`
+`,
+    status: 'enabled',
+    renderingContexts: {
+        inline: false,
+        canvas: true,
+        dialog: false,
+        spotlight: false
+    },
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    description: 'Renders data tables',
+    createdBy: 'admin',
+    lastUpdatedBy: 'admin',
+    createDate: '2024-01-15T10:00:00Z',
+    lastUpdate: '2024-01-15T10:00:00Z'
+};
+```
+
+### Pass-Through Metadata Tag
+
+```typescript
+const metadataTag: TagDefinition<PassThroughWidget> = {
+    tag: 'metadata',
+    scope: 'system',
+    usageMode: 'global',
+    widget: {
+        type: 'pass-through'
+    },
+    llmInstructionsMd: 'Use for semantic markup that should not render visually',
+    status: 'enabled',
+    renderingContexts: {
+        inline: true,
+        canvas: false,
+        dialog: false,
+        spotlight: false
+    },
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    description: 'Semantic markup with no visual rendering',
+    createdBy: 'system',
+    lastUpdatedBy: 'system',
+    createDate: '2024-01-01T00:00:00Z',
+    lastUpdate: '2024-01-01T00:00:00Z'
+};
+```
+
+## Tag Management APIs
+
+### Admin APIs
+
+Full access to tag definitions (requires admin permissions).
+
+**Create or Update:**
+
+```typescript
+POST /api/chat-admin/tagdef
+{
+    "tagDefinition": { /* TagDefinition object */ },
+    "userId": "admin-user"
+}
+```
+
+**Delete:**
+
+```typescript
+DELETE /api/chat-admin/tagdef
+{
+    "tagDefinition": { "tag": "my-tag", "scope": "custom" },
+    "userId": "admin-user"
+}
+```
+
+**Search (including disabled):**
+
+```typescript
+POST /api/chat-admin/tagdef/search
+{
+    "includeInstructions": true,
+    "paginationToken": null
+}
+```
+
+### Chat APIs
+
+Read-only access to enabled tags.
+
+**Search (enabled only):**
+
+```typescript
+POST /api/chat/tagdef/search
+{
+    "includeInstructions": false,
+    "paginationToken": null
+}
+```
+
+## Web Component Development
+
+### Creating a Web Component
+
+```javascript
+// order-status-widget.js
+class OrderStatusWidget extends HTMLElement {
+    connectedCallback() {
+        const orderId = this.getAttribute('orderId');
+        this.render(orderId);
+    }
+
+    async render(orderId) {
+        const status = await this.fetchOrderStatus(orderId);
+        
+        this.innerHTML = `
+            <div class="order-status">
+                <h3>Order #${orderId}</h3>
+                <p>Status: ${status.state}</p>
+                <p>Tracking: ${status.tracking}</p>
+            </div>
+        `;
+    }
+
+    async fetchOrderStatus(orderId) {
+        // Fetch from API
+        return { state: 'Shipped', tracking: '1Z999...' };
+    }
+}
+
+customElements.define('order-status-widget', OrderStatusWidget);
+```
+
+### Uploading to S3
+
+```bash
+# Compress and upload
+gzip order-status-widget.js
+aws s3 cp order-status-widget.js.gz s3://my-bucket/widgets/ \
+    --content-encoding gzip \
+    --content-type application/javascript
+```
+
+### Registering the Tag
+
+```typescript
+const tagDef: TagDefinition<WebComponentWidget> = {
+    tag: 'order-status',
+    scope: 'custom',
+    usageMode: 'chat-app',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'my-bucket',
+            s3Key: 'widgets/order-status-widget.js.gz',
+            encoding: 'gzip'
+        }
+    },
+    // ... other fields
+};
+
+// POST to /api/chat-admin/tagdef
+```
+
+## Best Practices
+
+{% aside type="tip" title="Tag Definition Tips" %}
+1. **Clear instructions** - LLMs rely on good instructions to use tags correctly
+2. **Descriptive names** - Use kebab-case: `order-status` not `os`
+3. **Namespace with scopes** - Avoid conflicts: `acme/order-status`
+4. **Test thoroughly** - Test with different rendering contexts
+5. **Version your widgets** - Include version in S3 key: `widget-v2.js`
+6. **Keep widgets small** - Minimize bundle size for faster loading
+7. **Handle errors gracefully** - Web components should fail gracefully
+{% /aside %}
+
+## Security Considerations
+
+{% aside type="caution" title="Security" %}
+- **Validate attributes** - Always validate tag attributes in components
+- **Sanitize content** - Don't trust LLM-generated content
+- **CSP headers** - Configure Content Security Policy appropriately
+- **Limit scope** - Use `chat-app` mode for sensitive widgets
+- **Audit access** - Review who can create/modify tag definitions
+{% /aside %}
+
+## Troubleshooting
+
+### Tag Not Rendering
+
+1. Check tag is enabled: `status === 'enabled'`
+2. Verify usage mode and chat app configuration
+3. Check rendering context matches usage
+4. Ensure web component loaded successfully
+
+### LLM Not Using Tag
+
+1. Review `llmInstructionsMd` clarity
+2. Check `canBeGeneratedByLlm === true`
+3. Verify tag is in chat app's enabled list
+4. Test with explicit examples in prompt
+
+### Web Component Not Loading
+
+1. Verify S3 bucket permissions
+2. Check S3 key path is correct
+3. Ensure CORS configured on bucket
+4. Verify encoding matches actual file
+
+## Related Documentation
+
+- **[Widget Tag Guide](/guides/customization/custom-tags/)** - How-to guide for creating tags
+- **[Web Components Guide](/guides/customization/web-components/)** - Building web components
+- **[Custom Component Interface](/reference/ui-components/custom-components/)** - Component API reference
+- **[pika-ux Module](/reference/ui-components/pika-ux/)** - Pre-built UI components
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Configuring tag features
+
+## Type Source Files
+
+- [chatbot-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts) - Tag definition types
+- [webcomp-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/webcomp-types.ts) - Web component interfaces
+

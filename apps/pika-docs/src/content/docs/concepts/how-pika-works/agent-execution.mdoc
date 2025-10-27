@@ -1,0 +1,560 @@
+---
+title: Agent Execution Flow
+description: How agents process requests, make decisions, and coordinate tool usage
+---
+
+This page explains the internals of how agents execute within Pika, from receiving a user message to generating a response. Understanding agent execution helps you write better instructions, design effective tools, and debug issues.
+
+## Agent Execution Model
+
+Pika uses **AWS Bedrock Agents** with inline action groups (Lambda tools). Agents operate in a **reasoning and action loop**:
+
+![Agent Execution Flow](/img/diagrams/agent-execution-flow.drawio.svg)
+
+## Execution Phases
+
+### Phase 1: Initialization
+
+**Agent configuration loaded from DynamoDB**:
+
+```typescript
+const agent = {
+    agentId: 'weather-agent',
+    instruction: `You are a helpful weather assistant.
+    
+Help users get weather information for any location worldwide.
+Always use the weather tools - never speculate about weather conditions.
+Be concise but friendly.`,
+    
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    tools: ['getCurrentWeather', 'getWeatherForecast', 'getWeatherAlerts']
+};
+```
+
+**Tool schemas loaded**:
+
+```typescript
+const tools = [
+    {
+        toolId: 'getCurrentWeather',
+        functionSchema: {
+            name: 'get_current_weather',
+            description: 'Get current weather conditions for a location',
+            parameters: {
+                type: 'object',
+                properties: {
+                    location: { type: 'string', description: 'City name' },
+                    lat: { type: 'number' },
+                    lon: { type: 'number' }
+                },
+                required: ['lat', 'lon']
+            }
+        }
+    },
+    // ... other tools
+];
+```
+
+**Bedrock agent initialized**:
+
+```typescript
+const bedrockAgent = await createBedrockAgent({
+    instruction: agent.instruction,
+    modelId: agent.modelId,
+    actionGroups: tools.map(tool => ({
+        actionGroupName: tool.toolId,
+        actionGroupExecutor: {
+            lambda: tool.lambdaArn
+        },
+        functionSchema: tool.functionSchema
+    }))
+});
+```
+
+### Phase 2: Context Assembly
+
+**Full context assembled for agent**:
+
+1. **System instruction** (agent instruction)
+2. **Tool descriptions** (what tools are available)
+3. **Conversation history** (previous messages)
+4. **User memory** (persistent user context - automatic)
+5. **Current message** (user's new input)
+
+**Example context**:
+
+```
+SYSTEM INSTRUCTION:
+You are a helpful weather assistant. Always use weather tools...
+
+AVAILABLE TOOLS:
+- get_current_weather: Get current conditions for location
+- get_weather_forecast: Get 7-day forecast
+- get_weather_alerts: Get severe weather warnings
+
+CONVERSATION HISTORY:
+User: "Hi"
+Assistant: "Hello! I can help you with weather information."
+
+USER MEMORY:
+- Prefers detailed forecasts
+- Located in California
+- Interested in outdoor activities
+
+CURRENT MESSAGE:
+"What's the weather like today?"
+```
+
+### Phase 3: Reasoning
+
+**Agent analyzes the request**:
+
+```
+Agent reasoning (internal):
+"User asking about weather 'today'.
+From memory, user is in California.
+I should ask which city or use get_current_weather with their location.
+Actually, user memory says California but not specific city.
+I should ask for clarification OR if there's a default location.
+Let me ask which city."
+```
+
+**Decision made**: Generate clarifying question (no tools needed)
+
+**Alternative reasoning**:
+
+```
+Agent reasoning:
+"User asking about today's weather.
+User previously mentioned San Francisco.
+I'll call get_current_weather for San Francisco coordinates."
+```
+
+**Decision made**: Call tool
+
+### Phase 4: Tool Selection and Invocation
+
+**If agent decides tool is needed**:
+
+```typescript
+// Agent selects tool and parameters
+{
+    toolUse: {
+        toolUseId: 'tooluse_abc123',
+        name: 'get_current_weather',
+        input: {
+            location: 'San Francisco',
+            lat: 37.7749,
+            lon: -122.4194
+        }
+    }
+}
+```
+
+**Bedrock invokes Lambda tool**:
+
+```typescript
+// Request sent to Lambda
+{
+    messageVersion: '1.0',
+    agent: {
+        name: 'weather-agent',
+        id: 'agent_xyz',
+        alias: 'PROD',
+        version: '1'
+    },
+    actionGroup: 'weather-tools',
+    function: 'get_current_weather',
+    parameters: [
+        { name: 'location', type: 'string', value: 'San Francisco' },
+        { name: 'lat', type: 'number', value: '37.7749' },
+        { name: 'lon', type: 'number', value: '-122.4194' }
+    ],
+    sessionAttributes: {
+        userId: 'user_123',
+        userType: 'external-user',
+        entityId: 'acme-corp',
+        chatAppId: 'weather-chat'
+    },
+    sessionId: 'sess_abc123'
+}
+```
+
+**Lambda executes and returns result**:
+
+```typescript
+{
+    messageVersion: '1.0',
+    response: {
+        actionGroup: 'weather-tools',
+        function: 'get_current_weather',
+        functionResponse: {
+            responseBody: {
+                'application/json': {
+                    body: JSON.stringify({
+                        location: 'San Francisco',
+                        temperature: 65,
+                        condition: 'Partly Cloudy',
+                        humidity: 60,
+                        windSpeed: 10,
+                        feelsLike: 63
+                    })
+                }
+            }
+        }
+    }
+}
+```
+
+### Phase 5: Response Synthesis
+
+**Agent receives tool results and generates response**:
+
+```
+Agent reasoning:
+"Tool returned weather data for San Francisco.
+Temperature: 65°F, Partly Cloudy
+User prefers detailed information (from memory).
+I'll provide comprehensive conditions."
+```
+
+**Generated response**:
+
+```
+"The current weather in San Francisco is 65°F and partly cloudy. 
+It feels like 63°F with 60% humidity. Winds are light at 10 mph. 
+It's a pleasant day for outdoor activities!"
+```
+
+**Note**: Response incorporates:
+- Tool data (weather conditions)
+- User preferences (detailed info)
+- Context (outdoor activities mention)
+
+### Phase 6: Streaming Output
+
+**Response streamed token by token**:
+
+```
+Token: "The"
+Token: " current"
+Token: " weather"
+Token: " in"
+Token: " San"
+Token: " Francisco"
+...
+```
+
+**User sees response appear in real-time**.
+
+## Multi-Step Reasoning
+
+**Complex queries may require multiple tool calls**:
+
+**Example**: "What's the weather forecast and are there any alerts?"
+
+```
+Step 1: Agent reasoning
+→ "User wants forecast AND alerts. I need two tools."
+
+Step 2: Call first tool
+→ get_weather_forecast(location: 'San Francisco')
+→ Result: 7-day forecast data
+
+Step 3: Call second tool
+→ get_weather_alerts(location: 'San Francisco')
+→ Result: No active alerts
+
+Step 4: Synthesize
+→ "Here's the 7-day forecast... There are currently no weather alerts."
+```
+
+**Tools called sequentially** (Bedrock handles orchestration).
+
+## Parallel Tool Calls
+
+**Some agents can call tools in parallel** (model-dependent):
+
+```
+User: "Compare weather in SF and LA"
+
+Parallel execution:
+├─ get_current_weather(SF) → Result A
+└─ get_current_weather(LA) → Result B
+
+Synthesis:
+"SF is 65°F and partly cloudy, while LA is 75°F and sunny."
+```
+
+## Agent Decision-Making
+
+**How agents decide what to do**:
+
+1. **Analyze user intent** from message
+2. **Check if tools are needed** (can answer directly?)
+3. **Select appropriate tools** based on intent
+4. **Determine parameters** for tool calls
+5. **Validate tool results** (make sense?)
+6. **Decide if more tools needed** (iterative)
+7. **Generate final response** incorporating all data
+
+**Factors influencing decisions**:
+- Agent instruction (system prompt)
+- Tool descriptions
+- Conversation history
+- User memory
+- Previous tool results
+
+## Instruction Engineering Impact
+
+**Well-written instructions guide agent behavior**:
+
+### Example: Vague Instruction
+
+```typescript
+instruction: "You help users with weather."
+```
+
+**Result**: Agent may speculate, not use tools consistently, provide inconsistent responses.
+
+### Example: Clear Instruction
+
+```typescript
+instruction: `You are a weather assistant that provides accurate information.
+
+RULES:
+1. ALWAYS use weather tools - never speculate about conditions
+2. If location unclear, ask user to clarify
+3. Provide temperatures in Fahrenheit (primary) and Celsius (parenthetical)
+4. Mention severe weather alerts if present
+5. Be concise but friendly
+
+WHEN TO USE TOOLS:
+- get_current_weather: For "now", "today", "current" queries
+- get_weather_forecast: For "tomorrow", "this week", future queries
+- get_weather_alerts: Always check for alerts in responses`
+```
+
+**Result**: Consistent, reliable tool usage, predictable behavior.
+
+## Tool Usage Patterns
+
+### Pattern 1: Single Tool Call
+
+```
+User: "What's the temperature?"
+→ get_current_weather()
+→ "It's 65°F"
+```
+
+### Pattern 2: Sequential Calls
+
+```
+User: "What's the weather this week?"
+→ get_current_weather() → Today's conditions
+→ get_weather_forecast() → Week ahead
+→ "Today is 65°F... This week will range from..."
+```
+
+### Pattern 3: Conditional Calls
+
+```
+User: "Should I go hiking?"
+→ get_current_weather()
+→ Check conditions
+→ IF conditions bad THEN get_weather_forecast()
+→ "Current conditions are poor, but tomorrow..."
+```
+
+### Pattern 4: Error Recovery
+
+```
+User: "Weather in Invalid City Name?"
+→ get_current_weather() → ERROR
+→ Agent: "I couldn't find that location. Can you provide a valid city name?"
+```
+
+## Performance Optimization
+
+### Caching
+
+**Bedrock supports prompt caching**:
+
+```typescript
+agent: {
+    instruction: '... long instruction ...',
+    dontCacheThis: false  // Enable caching
+}
+```
+
+**Benefits**:
+- Faster subsequent requests
+- Lower token costs (cached portions free)
+- Better performance for long instructions
+
+**When to cache**:
+- Long, stable instructions
+- Frequently accessed agents
+- High-volume chat apps
+
+### Token Management
+
+**Control token usage**:
+
+```typescript
+{
+    maxTokens: 2000,  // Limit response length
+    temperature: 0.7,  // Creativity vs consistency
+    topP: 0.9
+}
+```
+
+**Monitor token usage** per request for cost tracking.
+
+## Error Handling
+
+**What happens when things go wrong**:
+
+### Tool Execution Failure
+
+```
+Tool call → ERROR: "Network timeout"
+    ↓
+Agent receives error
+    ↓
+Agent decision:
+- Retry tool call
+- Try different tool
+- Apologize to user
+- Ask for clarification
+```
+
+**Agent can handle errors gracefully** if instructed properly:
+
+```typescript
+instruction: `...
+If a tool fails, apologize and suggest alternatives.
+Never expose technical errors to users.`
+```
+
+### Invalid Tool Parameters
+
+```
+Agent generates: { location: null }
+    ↓
+Tool validation: ERROR "location required"
+    ↓
+Bedrock returns error to agent
+    ↓
+Agent: "I need a location. Which city?"
+```
+
+### Model Rate Limiting
+
+```
+Request → Bedrock throttled
+    ↓
+Lambda retries with exponential backoff
+    ↓
+Eventually succeeds or fails gracefully
+```
+
+## Observability
+
+### Traces
+
+**Enable detailed traces**:
+
+```typescript
+chatApp: {
+    features: {
+        traces: {
+            enabled: true,
+            userRoles: ['pika:content-admin']
+        }
+    }
+}
+```
+
+**Trace shows**:
+- Agent reasoning steps
+- Tool calls and results
+- Token usage
+- Latency breakdown
+- Error details
+
+### Monitoring
+
+**Key metrics**:
+```typescript
+{
+    agentId: 'weather-agent',
+    metrics: {
+        avgLatency: 2500,  // ms
+        toolCallRate: 0.85,  // 85% of requests use tools
+        errorRate: 0.02,  // 2% errors
+        avgTokens: 1500
+    }
+}
+```
+
+## Best Practices
+
+### 1. Write Clear Instructions
+
+Be specific about:
+- When to use each tool
+- How to handle edge cases
+- Response formatting
+- Error behavior
+
+### 2. Provide Good Tool Descriptions
+
+```typescript
+// Good
+description: 'Get current weather conditions including temperature, humidity, and wind speed for a specific location'
+
+// Less good
+description: 'Weather tool'
+```
+
+### 3. Test Agent Behavior
+
+```
+Test cases:
+- Happy path (normal queries)
+- Edge cases (invalid locations)
+- Multi-step queries (need multiple tools)
+- Ambiguous queries (need clarification)
+- Error conditions (tool failures)
+```
+
+### 4. Monitor and Iterate
+
+- Review traces for unexpected behavior
+- Analyze tool usage patterns
+- Refine instructions based on real usage
+- Add examples for common scenarios
+
+### 5. Use User Memory Effectively
+
+```
+User memory provides context:
+- User's location (default for weather queries)
+- Preferences (unit system, detail level)
+- Past interactions (what they care about)
+```
+
+Agent automatically incorporates this context.
+
+## Related Documentation
+
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - Complete message flow
+- **[Tool Invocation Process](/concepts/how-pika-works/tool-invocation/)** - Tool execution details
+- **[Agents as Configuration](/concepts/key-concepts/agents-as-config/)** - Agent configuration
+- **[User Memory System](/concepts/key-concepts/user-memory/)** - Persistent context
+
+{% aside type="tip" %}
+Agent behavior is primarily controlled by the instruction field. Invest time in writing clear, comprehensive instructions with examples for best results.
+{% /aside %}
+

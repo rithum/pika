@@ -1,0 +1,414 @@
+---
+title: Use Model Context Protocol (MCP)
+description: Connect your Pika agents to external MCP servers for real-time data and API integration
+---
+
+Learn how to configure and use Model Context Protocol (MCP) tools in Pika to connect your agents to external services and APIs without deploying custom Lambda functions.
+
+{% aside type="note" title="MCP Support Status" %}
+Pika currently supports MCP Phase I (tool use) via StreamableHTTP transport. MCP Phase II (publishing MCP servers) is under development.
+{% /aside %}
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Configure MCP tools to connect to external MCP servers
+- Set up OAuth 2.0 authentication for secured MCP servers
+- Define function schemas for MCP tools
+- Associate MCP tools with your agents
+- Test MCP tool invocations
+
+## Prerequisites
+
+- A running Pika installation
+- Access to an MCP server (URL and authentication credentials if required)
+- Understanding of your MCP server's available functions
+- Basic knowledge of OAuth 2.0 (if using authenticated MCP servers)
+
+## Understanding MCP Tools
+
+MCP tools allow your agents to:
+
+- Access real-time data from external services
+- Integrate with third-party APIs
+- Leverage community MCP server implementations
+- Avoid deploying custom Lambda functions for each integration
+
+### When to Use MCP Tools
+
+{% card title="Best For" icon="approve-check" %}
+- Connecting to existing MCP-enabled services
+- Real-time data from third-party APIs
+- Rapid prototyping without Lambda deployment
+- Leveraging community MCP implementations
+{% /card %}
+
+{% card title="Consider Lambda Instead" icon="information" %}
+- Custom business logic specific to your app
+- Maximum performance requirements
+- Complex processing needs
+- When you need full control over execution
+{% /card %}
+
+## Step 1: Define Your MCP Tool
+
+Create a basic MCP tool configuration pointing to your MCP server.
+
+### Basic MCP Tool (No Authentication)
+
+```typescript
+const weatherTool = {
+    toolId: 'weather-service',
+    name: 'weather-lookup',
+    displayName: 'Weather Service',
+    description: 'Get current weather conditions and forecasts',
+    executionType: 'mcp',
+    url: 'https://weather-mcp-server.example.com',
+    functionSchema: [
+        {
+            name: 'get_current_weather',
+            description: 'Get current weather for a location',
+            parameters: {
+                location: {
+                    type: 'string',
+                    description: 'City name or coordinates',
+                    required: true
+                },
+                units: {
+                    type: 'string',
+                    description: 'Temperature units (celsius or fahrenheit)',
+                    required: false
+                }
+            }
+        }
+    ]
+};
+```
+
+## Step 2: Add OAuth Authentication (If Required)
+
+If your MCP server requires authentication, configure OAuth 2.0 client credentials.
+
+### MCP Tool with OAuth
+
+```typescript
+const customerDbTool = {
+    toolId: 'customer-database',
+    name: 'customer-lookup',
+    displayName: 'Customer Database',
+    description: 'Access customer records and account information',
+    executionType: 'mcp',
+    url: 'https://customer-db-mcp.internal.com',
+    auth: {
+        clientId: process.env.MCP_CUSTOMER_CLIENT_ID,
+        clientSecret: process.env.MCP_CUSTOMER_CLIENT_SECRET,
+        tokenUrl: 'https://auth.internal.com/oauth/token'
+    },
+    functionSchema: [
+        {
+            name: 'get_customer',
+            description: 'Get customer details by ID or email',
+            parameters: {
+                identifier: {
+                    type: 'string',
+                    description: 'Customer ID or email address',
+                    required: true
+                }
+            }
+        },
+        {
+            name: 'search_customers',
+            description: 'Search for customers by various criteria',
+            parameters: {
+                query: {
+                    type: 'string',
+                    description: 'Search query string',
+                    required: true
+                },
+                limit: {
+                    type: 'number',
+                    description: 'Maximum number of results',
+                    required: false
+                }
+            }
+        }
+    ]
+};
+```
+
+### Store Credentials Securely
+
+**Never hardcode credentials.** Use environment variables:
+
+```bash
+# .env.local or deployed environment
+MCP_CUSTOMER_CLIENT_ID="your-client-id"
+MCP_CUSTOMER_CLIENT_SECRET="your-client-secret"
+```
+
+Reference them in your configuration:
+
+```typescript
+auth: {
+    clientId: process.env.MCP_CUSTOMER_CLIENT_ID!,
+    clientSecret: process.env.MCP_CUSTOMER_CLIENT_SECRET!,
+    tokenUrl: 'https://auth.internal.com/oauth/token'
+}
+```
+
+## Step 3: Define Function Schema
+
+The function schema tells Pika and the agent what functions are available and how to call them.
+
+### Parameter Types
+
+Supported parameter types:
+
+- `string` - Text values (JSON strings are auto-parsed)
+- `number` - Floating-point numbers
+- `integer` - Whole numbers
+- `boolean` - true/false values
+- `object` - JSON objects (auto-parsed from strings)
+- `array` - JSON arrays (auto-parsed from strings)
+- `date` - ISO date strings (converted to Date objects)
+
+### Complex Parameter Example
+
+```typescript
+functionSchema: [
+    {
+        name: 'query_database',
+        description: 'Execute a database query with filters',
+        parameters: {
+            query: {
+                type: 'string',
+                description: 'SQL-like query string',
+                required: true
+            },
+            filters: {
+                type: 'object',
+                description: 'Filter conditions',
+                required: false,
+                properties: {
+                    startDate: {
+                        type: 'date',
+                        description: 'Start date for filtering'
+                    },
+                    endDate: {
+                        type: 'date',
+                        description: 'End date for filtering'
+                    },
+                    status: {
+                        type: 'array',
+                        description: 'Array of status values'
+                    }
+                }
+            },
+            limit: {
+                type: 'integer',
+                description: 'Maximum results to return',
+                required: false
+            }
+        }
+    }
+]
+```
+
+## Step 4: Register the MCP Tool
+
+Create your MCP tool using the Admin API or CDK configuration.
+
+### Using Admin API
+
+```typescript
+const response = await fetch('/api/admin/tools', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+        toolId: 'weather-service',
+        name: 'weather-lookup',
+        displayName: 'Weather Service',
+        description: 'Get weather data',
+        executionType: 'mcp',
+        url: 'https://weather-mcp-server.example.com',
+        functionSchema: [/* ... */]
+    })
+});
+
+if (response.ok) {
+    console.log('MCP tool created successfully');
+}
+```
+
+### Using CDK Configuration
+
+```typescript
+// In your CDK stack
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'customer-support-agent',
+        basePrompt: 'You are a customer support agent with access to real-time data.'
+    },
+    tools: [
+        {
+            toolId: 'weather-service',
+            executionType: 'mcp',
+            name: 'weather-lookup',
+            displayName: 'Weather Service',
+            description: 'Get weather data',
+            url: 'https://weather-mcp-server.example.com',
+            functionSchema: weatherFunctions
+        }
+    ]
+};
+```
+
+## Step 5: Associate Tool with Agent
+
+Add the MCP tool to your agent's tool list.
+
+```typescript
+const agentData = {
+    agentId: 'customer-support-agent',
+    basePrompt: 'You are a helpful customer support agent.',
+    toolIds: [
+        'customer-database',    // MCP tool
+        'weather-service',      // MCP tool
+        'email-sender'          // Lambda tool (mixed usage is fine)
+    ]
+};
+```
+
+{% aside type="tip" %}
+You can mix MCP tools and Lambda tools in the same agent. Use each where it makes the most sense.
+{% /aside %}
+
+## Step 6: Test Your MCP Tool
+
+### Local Development Testing
+
+1. Start your local development environment:
+
+```bash
+cd apps/pika-chat
+npm run dev
+```
+
+2. Open a chat session with your agent
+3. Ask questions that trigger the MCP tool:
+   - "What's the weather in San Francisco?"
+   - "Look up customer with email john@example.com"
+
+### Monitor Execution
+
+Check CloudWatch logs or your local console for:
+- MCP tool invocation
+- Parameters sent to MCP server
+- Response from MCP server
+- Any errors or issues
+
+### OAuth Token Caching
+
+When using OAuth authentication:
+- Tokens are cached in `./oauth-tokens/` (local dev, gitignored)
+- Tokens are cached in `/tmp/oauth-tokens/` (Lambda)
+- Tokens automatically refresh when expired
+- No manual token management needed
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] MCP tool is registered successfully
+- [ ] Tool is associated with agent
+- [ ] Agent can invoke the tool
+- [ ] Parameters are passed correctly to MCP server
+- [ ] MCP server responses are received
+- [ ] OAuth authentication works (if applicable)
+- [ ] Tokens refresh automatically (if using OAuth)
+- [ ] Error handling works as expected
+- [ ] Agent instructions guide tool usage
+{% /checklist %}
+
+## Troubleshooting
+
+### "Connection refused" or "Cannot reach MCP server"
+
+- Verify the MCP server URL is correct and accessible
+- Check network/firewall rules allow outbound connections
+- Ensure the MCP server is running and responding
+- Test the URL directly with curl or Postman
+
+### "Authentication failed"
+
+- Verify OAuth credentials are correct
+- Check token URL is accessible
+- Ensure environment variables are set correctly
+- Look for token expiration issues in logs
+
+### "Function not found"
+
+- Verify function name in schema matches MCP server's function
+- Check function schema matches server's expected parameters
+- Review MCP server documentation for correct function names
+
+### "Invalid parameters"
+
+- Check parameter types match schema definition
+- Verify required parameters are marked correctly
+- Ensure parameter descriptions are clear for the agent
+- Test with simpler parameter structures first
+
+## Advanced Configuration
+
+### Update Existing MCP Tool
+
+```typescript
+const response = await fetch('/api/admin/tools/weather-service', {
+    method: 'PATCH',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+        url: 'https://new-weather-server.example.com',
+        functionSchema: updatedFunctions
+    })
+});
+```
+
+### Multiple MCP Servers
+
+You can use multiple MCP servers in the same agent:
+
+```typescript
+toolIds: [
+    'weather-mcp',          // Weather data
+    'customer-db-mcp',      // Customer database
+    'inventory-mcp',        // Inventory system
+    'shipping-mcp'          // Shipping tracker
+]
+```
+
+## Next Steps
+
+- [Enable Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration/) - Have agents use MCP tools together
+- [Implement Tool Use with Inline Tools](/guides/agent-development/inline-tools/) - Add simple custom logic
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - Deploy your MCP-enabled agents
+
+## Related Documentation
+
+- [MCP Capability](/capabilities/integration/mcp/) - Learn more about MCP in Pika
+- [Tool Configuration Reference](/reference/config/tools/) - Complete tool configuration
+- [Agent Configuration](/reference/config/agent/) - Agent setup reference
+
+---
+
+{% aside type="success" title="Mix and Match" %}
+Use MCP tools alongside Lambda tools in the same agent. There's no need to migrate existing tools - add MCP where it provides value.
+{% /aside %}
+

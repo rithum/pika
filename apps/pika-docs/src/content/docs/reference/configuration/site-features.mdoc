@@ -1,0 +1,701 @@
+---
+title: Site Features Reference
+description: Detailed reference for all site-wide features in pika-config.ts
+---
+
+Detailed reference for all features configurable in `pika-config.ts` under `siteFeatures`.
+
+## Overview
+
+Site features provide default configurations that apply across your entire Pika Platform instance. Individual chat apps can override most of these settings.
+
+## Feature Categories
+
+### Home Page
+
+Configure the platform landing page.
+
+```typescript
+homePage: {
+    homePageTitle: string;
+    welcomeMessage: string;
+    linksToChatApps: {
+        userChatAppRules: UserChatAppRule[];
+    };
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `homePageTitle` | `string` | Browser page title |
+| `welcomeMessage` | `string` | Welcome message displayed to users |
+| `userChatAppRules` | `UserChatAppRule[]` | Controls which users see which chat apps |
+
+**UserChatAppRule:**
+
+```typescript
+interface UserChatAppRule {
+    userTypes?: UserType[];        // User types who see links
+    chatAppUserTypes?: UserType[]; // Types of apps to show them
+}
+```
+
+**Example:**
+
+```typescript
+homePage: {
+    homePageTitle: 'AI Assistants',
+    welcomeMessage: 'Choose an assistant to get started',
+    linksToChatApps: {
+        userChatAppRules: [
+            {
+                // Internal users see all apps
+                userTypes: ['internal-user'],
+                chatAppUserTypes: ['internal-user', 'external-user']
+            },
+            {
+                // External users only see external apps
+                userTypes: ['external-user'],
+                chatAppUserTypes: ['external-user']
+            }
+        ]
+    }
+}
+```
+
+### Entity
+
+Multi-tenancy configuration for accounts/organizations.
+
+```typescript
+entity: {
+    enabled: boolean;
+    attributeName: string;
+    tableColumnHeaderTitle: string;
+    displayNameSingular: string;
+    displayNamePlural: string;
+    searchPlaceholderText: string;
+}
+```
+
+**When to use:** Enable when users belong to accounts, organizations, or other entities that need separate data access.
+
+**Example:**
+
+```typescript
+entity: {
+    enabled: true,
+    attributeName: 'companyId',
+    tableColumnHeaderTitle: 'Company ID',
+    displayNameSingular: 'Company',
+    displayNamePlural: 'Companies',
+    searchPlaceholderText: 'Search companies...'
+}
+```
+
+### User Data Overrides
+
+Allow users to temporarily override their custom data for testing.
+
+```typescript
+userDataOverrides: {
+    enabled: boolean;
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: string[];
+}
+```
+
+**Use case:** Internal users testing different account scenarios.
+
+**Example:**
+
+```typescript
+userDataOverrides: {
+    enabled: true,
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: [
+        'accountId',
+        'accountType',
+        'region'
+    ]
+}
+```
+
+### Content Admin
+
+Enable content administrators to view all user sessions.
+
+```typescript
+contentAdmin: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+contentAdmin: {
+    enabled: true
+}
+```
+
+### Traces
+
+AI execution transparency feature.
+
+```typescript
+traces: {
+    enabled: boolean;
+    userTypes: UserType[];
+    detailedTraces: {
+        enabled: boolean;
+        userTypes: UserType[];
+    };
+}
+```
+
+**Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Show basic trace information |
+| `userTypes` | Who can see traces |
+| `detailedTraces.enabled` | Show technical implementation details |
+| `detailedTraces.userTypes` | Who can see detailed traces |
+
+**Example:**
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user', 'external-user'],
+    detailedTraces: {
+        enabled: true,
+        userTypes: ['internal-user'] // Only internal users see details
+    }
+}
+```
+
+### Chat Disclaimer Notice
+
+Display legal/compliance disclaimers.
+
+```typescript
+chatDisclaimerNotice: {
+    enabled: boolean;
+    notice: string;
+}
+```
+
+**Example:**
+
+```typescript
+chatDisclaimerNotice: {
+    enabled: true,
+    notice: 'This AI assistant provides general information only. For critical decisions, please consult a professional.'
+}
+```
+
+### Verify Response
+
+Self-correcting AI responses.
+
+```typescript
+verifyResponse: {
+    enabled: boolean;
+    autoRepromptThreshold: 'A' | 'B' | 'C' | 'D';
+    userTypes: UserType[];
+}
+```
+
+**Thresholds:**
+
+| Grade | Meaning | Action |
+|-------|---------|--------|
+| A | Accurate and comprehensive | Accept |
+| B | Accurate but incomplete | Accept |
+| C | Accurate with assumptions | Auto-retry if threshold ≤ C |
+| D | Inaccurate | Auto-retry if threshold ≤ D |
+
+**Example:**
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C', // Retry C and D responses
+    userTypes: ['internal-user']
+}
+```
+
+### Logout
+
+Configure logout button.
+
+```typescript
+logout: {
+    enabled: boolean;
+    userTypes: UserType[];
+}
+```
+
+**Example:**
+
+```typescript
+logout: {
+    enabled: true,
+    userTypes: ['internal-user', 'external-user']
+}
+```
+
+### Site Admin
+
+Admin website configuration.
+
+```typescript
+siteAdmin: {
+    websiteEnabled: boolean;
+    supportUserEntityAccessControl: {
+        enabled: boolean;
+    };
+    supportSpecificUserAccessControl: {
+        enabled: boolean;
+    };
+    sessionInsights: {
+        enabled: boolean;
+    };
+}
+```
+
+**Example:**
+
+```typescript
+siteAdmin: {
+    websiteEnabled: true,
+    supportUserEntityAccessControl: {
+        enabled: true
+    },
+    supportSpecificUserAccessControl: {
+        enabled: true
+    },
+    sessionInsights: {
+        enabled: true
+    }
+}
+```
+
+### File Upload
+
+File attachment configuration.
+
+```typescript
+fileUpload: {
+    enabled: boolean;
+    mimeTypesAllowed: string[];
+}
+```
+
+**Common MIME types:**
+
+- `'text/*'` - All text files
+- `'text/csv'` - CSV files
+- `'application/pdf'` - PDF documents
+- `'image/jpeg'`, `'image/png'` - Images
+- `'application/json'` - JSON files
+
+**Example:**
+
+```typescript
+fileUpload: {
+    enabled: true,
+    mimeTypesAllowed: [
+        'text/*',
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'application/json'
+    ]
+}
+```
+
+### Suggestions
+
+Quick action buttons in chat.
+
+```typescript
+suggestions: {
+    enabled: boolean;
+    suggestions: string[];
+    maxToShow: number;
+    randomize: boolean;
+    randomizeAfter: number;
+}
+```
+
+**Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `suggestions` | Array of suggestion texts (typically overridden by chat apps) |
+| `maxToShow` | Maximum suggestions to display at once |
+| `randomize` | Randomize suggestion order |
+| `randomizeAfter` | Start randomizing after N messages |
+
+**Example:**
+
+```typescript
+suggestions: {
+    enabled: true,
+    suggestions: [], // Overridden by chat apps
+    maxToShow: 3,
+    randomize: true,
+    randomizeAfter: 0
+}
+```
+
+### Prompt Input Field Label
+
+Customize chat input placeholder.
+
+```typescript
+promptInputFieldLabel: {
+    enabled: boolean;
+    promptInputFieldLabel: string;
+}
+```
+
+**Example:**
+
+```typescript
+promptInputFieldLabel: {
+    enabled: true,
+    promptInputFieldLabel: 'Type your message...'
+}
+```
+
+### UI Customization
+
+Global UI behavior settings.
+
+```typescript
+uiCustomization: {
+    enabled: boolean;
+    showUserRegionInLeftNav: boolean;
+    showChatHistoryInStandaloneMode: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+uiCustomization: {
+    enabled: true,
+    showUserRegionInLeftNav: true,
+    showChatHistoryInStandaloneMode: true
+}
+```
+
+### Session Insights
+
+AI-generated analytics.
+
+```typescript
+sessionInsights: {
+    enabled: boolean;
+}
+```
+
+**What it provides:**
+- Goal achievement analysis
+- User satisfaction scoring
+- AI performance metrics
+- Interaction quality assessment
+
+**Example:**
+
+```typescript
+sessionInsights: {
+    enabled: true
+}
+```
+
+### Tags
+
+Custom UI widgets system.
+
+```typescript
+tags: {
+    enabled: boolean;
+}
+```
+
+{% aside type="note" title="Tag Configuration" %}
+Individual tag visibility is controlled by tag definitions, not this setting. This just enables/disables the entire tag system.
+{% /aside %}
+
+**Example:**
+
+```typescript
+tags: {
+    enabled: true
+}
+```
+
+### Agent Instruction Assistance
+
+Help users write better prompts.
+
+```typescript
+agentInstructionAssistance: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+agentInstructionAssistance: {
+    enabled: true
+}
+```
+
+### Instruction Augmentation
+
+Automatically enhance prompts.
+
+```typescript
+instructionAugmentation: {
+    enabled: boolean;
+    type: 'llm-semantic-directive-search';
+}
+```
+
+**Example:**
+
+```typescript
+instructionAugmentation: {
+    enabled: true,
+    type: 'llm-semantic-directive-search'
+}
+```
+
+### User Memory
+
+Remember user context across sessions.
+
+```typescript
+userMemory: {
+    enabled: boolean;
+    maxMemoryRecordsPerPrompt: number;
+    maxKMatchesPerStrategy: number;
+}
+```
+
+**Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `maxMemoryRecordsPerPrompt` | Maximum memories included in each prompt |
+| `maxKMatchesPerStrategy` | Maximum matches per retrieval strategy (short-term, long-term) |
+
+**Example:**
+
+```typescript
+userMemory: {
+    enabled: true,
+    maxMemoryRecordsPerPrompt: 25,
+    maxKMatchesPerStrategy: 5
+}
+```
+
+## Feature Override Pattern
+
+Most features can be overridden per chat app:
+
+**Site-wide default:**
+
+```typescript
+// pika-config.ts
+siteFeatures: {
+    traces: {
+        enabled: true,
+        userTypes: ['internal-user']
+    }
+}
+```
+
+**Chat app override:**
+
+```typescript
+// Chat app configuration
+features: {
+    traces: {
+        featureId: 'traces',
+        enabled: true,
+        userTypes: ['internal-user', 'external-user'] // Override
+    }
+}
+```
+
+## Complete Configuration Example
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... project names ...
+    siteFeatures: {
+        homePage: {
+            homePageTitle: 'AI Assistants',
+            welcomeMessage: 'Welcome!',
+            linksToChatApps: {
+                userChatAppRules: [
+                    {
+                        userTypes: ['internal-user'],
+                        chatAppUserTypes: ['internal-user', 'external-user']
+                    }
+                ]
+            }
+        },
+        entity: {
+            enabled: true,
+            attributeName: 'accountId',
+            tableColumnHeaderTitle: 'Account ID',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            searchPlaceholderText: 'Search accounts...'
+        },
+        userDataOverrides: {
+            enabled: true,
+            promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId']
+        },
+        contentAdmin: {
+            enabled: true
+        },
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user']
+            }
+        },
+        chatDisclaimerNotice: {
+            enabled: true,
+            notice: 'AI-generated content. Verify important information.'
+        },
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user']
+        },
+        logout: {
+            enabled: true,
+            userTypes: ['internal-user', 'external-user']
+        },
+        siteAdmin: {
+            websiteEnabled: true,
+            supportUserEntityAccessControl: { enabled: true },
+            supportSpecificUserAccessControl: { enabled: true },
+            sessionInsights: { enabled: true }
+        },
+        fileUpload: {
+            enabled: true,
+            mimeTypesAllowed: ['text/*', 'application/pdf']
+        },
+        suggestions: {
+            enabled: true,
+            suggestions: [],
+            maxToShow: 3,
+            randomize: true,
+            randomizeAfter: 0
+        },
+        promptInputFieldLabel: {
+            enabled: true,
+            promptInputFieldLabel: 'Message...'
+        },
+        uiCustomization: {
+            enabled: true,
+            showUserRegionInLeftNav: false,
+            showChatHistoryInStandaloneMode: true
+        },
+        sessionInsights: {
+            enabled: true
+        },
+        tags: {
+            enabled: true
+        },
+        agentInstructionAssistance: {
+            enabled: true
+        },
+        instructionAugmentation: {
+            enabled: true,
+            type: 'llm-semantic-directive-search'
+        },
+        userMemory: {
+            enabled: true,
+            maxMemoryRecordsPerPrompt: 25,
+            maxKMatchesPerStrategy: 5
+        }
+    }
+};
+```
+
+## Feature Dependencies
+
+Some features depend on others:
+
+| Feature | Requires | Reason |
+|---------|----------|--------|
+| User Data Overrides | Entity (optional) | Works better with entity system |
+| Content Admin | - | Independent |
+| Detailed Traces | Traces | Extension of basic traces |
+| Session Insights | - | Independent |
+| Entity Toggle (in chat apps) | Entity | Needs entity system enabled |
+
+## Performance Considerations
+
+Features that impact performance:
+
+| Feature | Impact | Mitigation |
+|---------|--------|------------|
+| User Memory | Adds to prompt size | Tune `maxMemoryRecordsPerPrompt` |
+| Verify Response | Doubles LLM calls | Enable only for critical apps |
+| Session Insights | Post-session processing | Async, no user-facing impact |
+| Instruction Augmentation | Adds to prompt | Usually minimal impact |
+
+## Security Considerations
+
+{% aside type="caution" title="Security Features" %}
+- **Content Admin** - Limit to trusted users only
+- **User Data Overrides** - Internal users only
+- **Detailed Traces** - May expose system details
+- **File Upload** - Restrict MIME types appropriately
+{% /aside %}
+
+## Migration from Old Versions
+
+If upgrading from an older Pika version, these features may be new:
+
+- `instructionAugmentation` - Added in v1.2
+- `sessionInsights` - Added in v1.1
+- `tags` - Added in v1.0
+
+Check the [Changelog](/platform/releases/changelog/) for migration details.
+
+## Related Documentation
+
+- **[Platform Settings](/reference/configuration/platform-settings/)** - Complete pika-config.ts reference
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Per-app overrides
+- **[Environment Variables](/reference/configuration/environment-variables/)** - Runtime configuration
+- **[Feature Guides](/guides/)** - How-to guides for each feature
+
+## Type Definitions
+
+```typescript
+import type { 
+    SiteFeatures,
+    UserType,
+    UserChatAppRule
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+See [Types Reference](/reference/types/) for complete type definitions.
+

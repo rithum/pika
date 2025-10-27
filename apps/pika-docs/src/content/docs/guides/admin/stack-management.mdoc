@@ -1,0 +1,451 @@
+---
+title: Use Stack Management
+description: Manage your Pika infrastructure and deployments with AWS CDK
+---
+
+Learn how to manage your Pika infrastructure using AWS CDK, including deployment, updates, and best practices for maintaining your stacks.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand Pika's infrastructure organization
+- Deploy and update stacks with AWS CDK
+- Check stack status and preview changes
+- Handle rollbacks and breaking changes
+- Follow best practices for stack management
+
+## Prerequisites
+
+- A Pika project set up locally
+- AWS CLI configured with appropriate credentials
+- Node.js and pnpm installed
+- Basic understanding of AWS CDK
+
+## Understanding Pika Infrastructure
+
+Pika uses AWS CDK for infrastructure as code, providing:
+
+- **Automated Deployment**: CDK handles resource provisioning
+- **Type Safety**: TypeScript-based infrastructure definitions
+- **Version Control**: Infrastructure code lives in your repository
+- **Rollback Support**: CDK tracks stack state for rollbacks
+
+### Stack Organization
+
+Pika projects typically have two main stacks:
+
+1. **Pika Service Stack** (`services/pika/`) - Backend infrastructure
+2. **Pika Chat Stack** (`apps/pika-chat/infra/`) - Frontend application
+
+## Step 1: Check Stack Status
+
+Before making changes, check the current state of your stacks.
+
+### View Current Stack
+
+```bash
+cd services/pika
+pnpm cdk:diff
+```
+
+This shows what would change if you deployed now.
+
+### Check Deployed Resources
+
+```bash
+# List all stacks
+pnpm cdk list
+
+# View stack details
+aws cloudformation describe-stacks \
+    --stack-name pika-test \
+    --region us-east-1
+```
+
+## Step 2: Preview Changes
+
+Always preview changes before deploying.
+
+### Using CDK Diff
+
+```bash
+cd services/pika
+pnpm cdk:diff
+```
+
+**Output shows:**
+- Resources to be added (green +)
+- Resources to be removed (red -)
+- Resources to be modified (yellow ~)
+- No changes (no output)
+
+**Example output:**
+```
+Stack pika-test
+Resources
+[~] AWS::Lambda::Function ConverseFunction
+ └─ [~] Environment
+     └─ [~] .Variables:
+         └─ [+] Added: NEW_FEATURE_FLAG = "true"
+[+] AWS::DynamoDB::Table NewFeatureTable
+```
+
+## Step 3: Deploy Changes
+
+Deploy your infrastructure changes.
+
+### Deploy Service Stack
+
+```bash
+cd services/pika
+pnpm cdk:deploy
+```
+
+### Deploy Chat App Stack
+
+```bash
+cd apps/pika-chat
+pnpm cdk:deploy
+```
+
+### Deploy with Approval
+
+For production, require manual approval:
+
+```bash
+pnpm cdk:deploy --require-approval any-change
+```
+
+### Deploy Specific Stack
+
+```bash
+# If you have multiple stacks
+pnpm cdk:deploy pika-test
+pnpm cdk:deploy pika-chat-test
+```
+
+## Step 4: Monitor Deployment
+
+Watch the deployment progress.
+
+### In Terminal
+
+CDK shows real-time progress:
+```
+pika-test: deploying...
+pika-test: creating CloudFormation changeset...
+pika-test: 0/15 | 10:30:45 AM | CREATE_IN_PROGRESS   | AWS::DynamoDB::Table | NewFeatureTable
+pika-test: 1/15 | 10:30:48 AM | CREATE_COMPLETE      | AWS::DynamoDB::Table | NewFeatureTable
+...
+```
+
+### In AWS Console
+
+1. Open **AWS Console** → **CloudFormation**
+2. Find your stack (e.g., `pika-test`)
+3. View **Events** tab for detailed progress
+4. Check **Resources** tab for created resources
+
+## Step 5: Handle Deployment Issues
+
+### Rollback Failed Deployment
+
+If deployment fails, CDK automatically rolls back:
+
+```
+pika-test: deployment failed: Error: Resource creation failed
+pika-test: rolling back...
+pika-test: rollback complete
+```
+
+### Manual Rollback
+
+To rollback to previous version using git:
+
+```bash
+# Find previous working commit
+git log --oneline
+
+# Checkout previous version
+git checkout <previous-hash>
+
+# Redeploy old version
+cd services/pika
+pnpm cdk:deploy
+```
+
+### Delete and Recreate Stack
+
+For severe issues:
+
+```bash
+# Delete stack (WARNING: destroys data!)
+pnpm cdk:destroy
+
+# Redeploy from scratch
+pnpm cdk:deploy
+```
+
+{% aside type="caution" title="Data Loss Warning" %}
+Destroying a stack deletes all resources including databases. Always backup data first!
+{% /aside %}
+
+## Common Stack Management Tasks
+
+### Update Framework
+
+```bash
+# From project root
+pika sync --dry-run  # Preview updates
+pika sync            # Apply updates
+```
+
+### Modify Stack Configuration
+
+Edit stack definition files:
+
+**Locations:**
+- `services/pika/bin/pika.ts` - Service stack
+- `apps/pika-chat/infra/bin/pika-chat.ts` - Chat app stack
+
+**Example change:**
+```typescript
+// services/pika/bin/pika.ts
+const stack = new PikaStack(app, `pika-${stage}`, {
+    env: {
+        account: '123456789012',
+        region: 'us-east-1' // Change region
+    },
+    stage: stage,
+    // ... other props
+});
+```
+
+### Add Custom Resources
+
+```typescript
+// services/pika/infra/lib/stacks/custom-stack-defs.ts
+export class PikaCustomStackDefs {
+    public static addStackResourcesAfterPikaConstructIsCreated(
+        scope: PikaStack
+    ): void {
+        // Add custom DynamoDB table
+        const customTable = new dynamodb.Table(scope, 'CustomTable', {
+            partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
+        });
+        
+        // Grant Lambda access
+        customTable.grantReadWriteData(scope.converseFunction);
+    }
+}
+```
+
+## Handling Breaking Changes
+
+When breaking changes affect infrastructure:
+
+### 1. Read Migration Guide
+
+Check [Migration Guides](/docs/releases/migration-guides/) for version-specific instructions.
+
+### 2. Backup Critical Data
+
+```bash
+# Backup DynamoDB tables
+aws dynamodb create-backup \
+    --table-name chat-messages-pika-test \
+    --backup-name messages-backup-$(date +%Y%m%d)
+
+# Export to S3
+aws dynamodb export-table-to-point-in-time \
+    --table-arn arn:aws:dynamodb:us-east-1:123456789012:table/chat-messages-pika-test \
+    --s3-bucket my-backups \
+    --s3-prefix dynamodb-exports/
+```
+
+### 3. Test in Non-Production
+
+Always test breaking changes in dev/staging first:
+
+```bash
+# Deploy to test environment
+export STAGE=test
+cd services/pika
+pnpm cdk:deploy
+```
+
+### 4. Follow Migration Steps
+
+Execute migration steps carefully, in order.
+
+### 5. Verify After Migration
+
+```bash
+# Check stack status
+pnpm cdk:diff
+
+# Verify resources
+aws cloudformation describe-stacks \
+    --stack-name pika-prod \
+    --query "Stacks[0].StackStatus"
+```
+
+## Best Practices
+
+### Version Control
+
+```bash
+# Always commit infrastructure changes
+git add services/pika/
+git commit -m "feat: add custom table for feature X"
+```
+
+### Documentation
+
+Document custom changes:
+
+```typescript
+// services/pika/infra/lib/stacks/custom-stack-defs.ts
+
+/**
+ * Custom DynamoDB table for storing feature X data
+ * 
+ * Added: 2025-01-15
+ * Purpose: Store user preferences for feature X
+ * Dependencies: Used by Lambda function processFeatureX
+ */
+const featureXTable = new dynamodb.Table(/* ... */);
+```
+
+### Preview Before Deploying
+
+```bash
+# Always run diff first
+pnpm cdk:diff
+
+# Review changes carefully
+# Deploy only if changes look correct
+pnpm cdk:deploy
+```
+
+### Monitor Deployments
+
+- Watch CloudFormation events in AWS Console
+- Check for errors or warnings
+- Verify resources created correctly
+- Test deployed changes
+
+### Keep Framework Updated
+
+```bash
+# Regular framework updates
+pika sync
+
+# Check for new releases
+# Review release notes
+# Test in non-production first
+```
+
+### Environment Separation
+
+Use different stacks for different environments:
+
+```bash
+# Development
+export STAGE=dev
+pnpm cdk:deploy
+
+# Staging
+export STAGE=staging
+pnpm cdk:deploy
+
+# Production
+export STAGE=prod
+pnpm cdk:deploy --require-approval any-change
+```
+
+## Testing Checklist
+
+Verify stack management working correctly:
+
+{% checklist %}
+- [ ] Can preview changes with `cdk:diff`
+- [ ] Deployments complete successfully
+- [ ] Can monitor deployment progress
+- [ ] Stack resources created correctly
+- [ ] Failed deployments rollback automatically
+- [ ] Can update framework with `pika sync`
+- [ ] Custom stack changes preserved
+- [ ] Different environments isolated
+- [ ] Documentation updated for changes
+- [ ] Team informed of infrastructure updates
+{% /checklist %}
+
+## Troubleshooting
+
+### Deployment Stuck
+
+**Symptoms**: Deployment hangs for extended period
+
+**Solutions:**
+- Check CloudFormation events in AWS Console
+- Look for resource creation failures
+- Check AWS service limits
+- Verify IAM permissions
+- Review CloudWatch logs
+
+### Resource Conflicts
+
+**Symptoms**: "Resource already exists" errors
+
+**Solutions:**
+- Check for naming conflicts
+- Verify resource identifiers are unique
+- Review manual AWS console changes
+- Consider using `cdk:destroy` and redeploying (with caution)
+
+### Permission Errors
+
+**Symptoms**: "Access Denied" or "Insufficient permissions"
+
+**Solutions:**
+- Verify AWS credentials configured
+- Check IAM user/role has necessary permissions
+- Review CloudFormation service role permissions
+- Ensure cross-stack references work
+
+### Stack Drift
+
+**Symptoms**: Stack state doesn't match deployed resources
+
+**Solutions:**
+```bash
+# Detect drift
+aws cloudformation detect-stack-drift \
+    --stack-name pika-test
+
+# View drift results
+aws cloudformation describe-stack-resource-drifts \
+    --stack-name pika-test
+```
+
+## Next Steps
+
+- [Configure Sync System](/guides/advanced/sync-system/) - Keep framework updated
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - Complete deployment guide
+- [Troubleshooting](/docs/developer/troubleshooting/) - Debug deployment issues
+
+## Related Documentation
+
+- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/) - Official CDK docs
+- [Pika Releases](/docs/releases/overview/) - Version history
+- [Migration Guides](/docs/releases/migration-guides/) - Upgrade guides
+
+---
+
+{% aside type="tip" title="Preview First, Deploy Second" %}
+Always run `pnpm cdk:diff` before deploying to preview changes. This prevents unexpected infrastructure modifications and helps catch errors early.
+{% /aside %}
+

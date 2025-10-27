@@ -1,0 +1,441 @@
+---
+title: Enable Self-Correcting Responses
+description: Configure automatic response verification and quality control using LLM evaluation
+---
+
+Learn how to enable the Verify Response feature that automatically evaluates AI responses using another LLM agent invocation, providing quality grading and automatic correction of inaccurate answers.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable response verification at the site level
+- Configure auto-reprompt quality thresholds
+- Set up access control for the feature
+- Override settings per chat app
+- Understand the quality grading system
+- Monitor verification results
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site-level configuration
+- Understanding of your quality requirements
+- Users with appropriate access configured
+
+## Understanding Self-Correcting Responses
+
+The Verify Response feature uses an independent LLM to evaluate each AI response, assign a quality grade, and automatically retry if the response falls below your quality threshold.
+
+### How It Works
+
+1. **Initial Response**: The agent generates an answer
+2. **Verification**: A separate LLM evaluates the response accuracy
+3. **Grade Assignment**: Response receives a grade (A, B, C, or F)
+4. **Auto-Reprompt**: If grade is below threshold, automatically retry
+5. **Trace Display**: Verification grade is shown to users (if traces enabled)
+
+### Quality Grades
+
+| Grade | Classification | Description |
+|-------|----------------|-------------|
+| **A** | Accurate | Factually accurate and complete |
+| **B** | Accurate with Stated Assumptions | Accurate but contains clearly stated assumptions |
+| **C** | Accurate with Unstated Assumptions | Accurate but contains unstated assumptions |
+| **F** | Inaccurate | Inaccurate or contains made-up information |
+
+## Step 1: Enable at Site Level
+
+Configure the Verify Response feature in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C', // Retry on C or F grades
+            userTypes: ['internal-user', 'external-user'],
+            userRoles: ['customer-support'],
+            applyRulesAs: 'or' // User needs userType OR userRole
+        }
+    }
+};
+```
+
+{% aside type="caution" title="Set User Types/Roles" %}
+Setting `enabled: true` alone is not sufficient. You must also specify `userTypes` or `userRoles` to grant access. Without these, the feature is disabled for all users.
+{% /aside %}
+
+### Configuration Options
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | Enable the verify response feature |
+| `autoRepromptThreshold` | `'B' \| 'C' \| 'F'` | Grade threshold for auto-retry |
+| `userTypes` | string[] | User types that can use this feature |
+| `userRoles` | string[] | User roles that can use this feature |
+| `applyRulesAs` | `'and' \| 'or'` | How to combine userTypes and userRoles |
+
+## Step 2: Configure Auto-Reprompt Threshold
+
+Choose when the system should automatically retry generating a response.
+
+### Threshold Options
+
+```typescript
+// Retry only on inaccurate responses
+autoRepromptThreshold: 'F' // Most lenient
+
+// Retry on responses with unstated assumptions or worse (recommended)
+autoRepromptThreshold: 'C' // Balanced
+
+// Retry on responses with any assumptions or worse
+autoRepromptThreshold: 'B' // Strictest
+```
+
+### Threshold Guidance
+
+**Use 'F' (Inaccurate Only) when:**
+- Performance and cost are primary concerns
+- Only critical inaccuracies need correction
+- Users can handle responses with assumptions
+
+**Use 'C' (Recommended) when:**
+- Balancing quality and performance
+- Most production use cases
+- Want to catch both inaccuracies and unclear assumptions
+
+**Use 'B' (Strictest) when:**
+- Absolute accuracy is critical
+- Cost/performance are less important
+- Healthcare, finance, or compliance-heavy domains
+
+## Step 3: Configure Access Control
+
+Determine which users should have verified responses.
+
+### All Users
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C',
+    userTypes: ['internal-user', 'external-user']
+}
+```
+
+### Internal Users Only
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C',
+    userTypes: ['internal-user']
+}
+```
+
+### Specific Roles
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C',
+    userTypes: ['internal-user', 'external-user'],
+    userRoles: ['customer-support', 'sales-rep'],
+    applyRulesAs: 'or' // Either user type OR role
+}
+```
+
+### Combined Rules
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'B',
+    userTypes: ['internal-user'],
+    userRoles: ['quality-assurance'],
+    applyRulesAs: 'and' // Must be internal AND have QA role
+}
+```
+
+## Step 4: Override Per Chat App (Optional)
+
+Individual chat apps can customize verification settings.
+
+### Disable for Specific Chat App
+
+```typescript
+const simpleChatApp: ChatApp = {
+    chatAppId: 'quick-faq',
+    title: 'Quick FAQ',
+    // ... other properties
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: false  // Disable verification for this app
+        }
+    }
+};
+```
+
+### Different Threshold Per App
+
+```typescript
+const criticalChatApp: ChatApp = {
+    chatAppId: 'medical-advice',
+    title: 'Medical Information',
+    // ... other properties
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'B', // Stricter than site default
+            userTypes: ['internal-user', 'external-user']
+        }
+    }
+};
+```
+
+### More Restrictive Access
+
+```typescript
+const internalChatApp: ChatApp = {
+    chatAppId: 'internal-tools',
+    title: 'Internal Tools',
+    // ... other properties
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user'], // More restrictive than site
+            userRoles: ['engineer', 'analyst']
+        }
+    }
+};
+```
+
+{% aside type="note" title="Complete Override Required" %}
+When overriding a feature, you must provide ALL configuration settings. Chat apps cannot enable features disabled at the site level.
+{% /aside %}
+
+## Step 5: Deploy and Test
+
+### Deploy Your Configuration
+
+```bash
+# If using local development
+cd apps/pika-chat
+npm run dev
+
+# If deploying to AWS
+cd services/pika
+npm run deploy
+```
+
+### Test Verification
+
+1. **Start a chat session** with verification enabled
+2. **Ask questions** that might have quality issues
+3. **Observe verification badges** in responses (A, B, C, F)
+4. **Check for auto-reprompts** when responses fall below threshold
+
+### Enable Traces for Visibility
+
+To see verification grades and reasoning:
+
+```typescript
+siteFeatures: {
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user']
+    },
+    traces: {
+        enabled: true, // Enable to see verification details
+        userTypes: ['internal-user']
+    }
+}
+```
+
+## Verification Process Details
+
+### How Verification Works
+
+```typescript
+// Simplified verification flow
+if (features.verifyResponse.enabled) {
+    // 1. Generate main response
+    let mainResponse = await invokeAgent(userQuestion);
+
+    // 2. Verify the response
+    let verificationResult = await invokeAgentToVerifyAnswer(
+        userQuestion, 
+        mainResponse
+    );
+
+    // 3. Check if auto-reprompt is needed
+    if (shouldAutoReprompt(verificationResult.grade, autoRepromptThreshold)) {
+        // 4. Generate improved response
+        mainResponse = await invokeAgent(
+            userQuestion, 
+            'Please provide a more accurate response'
+        );
+        
+        // 5. Verify the new response
+        verificationResult = await invokeAgentToVerifyAnswer(
+            userQuestion, 
+            mainResponse
+        );
+    }
+
+    // 6. Add verification trace
+    addVerificationTrace(verificationResult.grade);
+
+    return mainResponse;
+}
+```
+
+### Auto-Reprompt Logic
+
+Auto-reprompting triggers when:
+- Response grade is at or below configured threshold
+- Grades B, C, and F are "retryable" (Grade A is not)
+- Feature is enabled and user has appropriate permissions
+
+## Use Cases
+
+### Customer Support
+
+```typescript
+// Ensure customers receive accurate information
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C',
+    userTypes: ['external-user']
+}
+```
+
+**Benefits:**
+- Accurate information for customers
+- Build trust in AI responses
+- Reduce support escalations
+
+### Healthcare & Finance
+
+```typescript
+// Critical accuracy for sensitive domains
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'B', // Strictest
+    userTypes: ['internal-user', 'external-user']
+}
+```
+
+**Benefits:**
+- Meet regulatory requirements
+- Ensure information accuracy
+- Reduce liability from inaccurate info
+
+### Internal Knowledge Management
+
+```typescript
+// Verified information for employees
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C',
+    userTypes: ['internal-user']
+}
+```
+
+**Benefits:**
+- High-quality internal documentation
+- Policy compliance
+- Employee training accuracy
+
+## Performance Considerations
+
+### Response Time Impact
+
+- **Doubled Processing**: Each response requires two LLM calls (initial + verification)
+- **Auto-Reprompt Overhead**: Poor responses trigger additional retries
+- **Mitigation**: Enable selectively for critical chat apps only
+
+### Cost Implications
+
+- **Increased Token Usage**: Verification requires additional tokens
+- **Retry Costs**: Auto-reprompted responses use more compute
+- **Balance**: Quality improvements vs increased operational costs
+
+### Optimization Strategies
+
+1. **Threshold Tuning**: Set appropriate thresholds to minimize unnecessary retries
+2. **User-Based Enablement**: Enable only for users who need high accuracy
+3. **Chat App Targeting**: Focus on chat apps where accuracy is most critical
+4. **Monitor Metrics**: Track verification rates and costs
+
+## Testing Checklist
+
+Verify the feature works correctly:
+
+{% checklist %}
+- [ ] Feature is enabled in `pika-config.ts`
+- [ ] User types/roles are configured
+- [ ] Auto-reprompt threshold is set appropriately
+- [ ] Verification badges appear in responses
+- [ ] Auto-reprompt triggers for low-quality responses
+- [ ] Traces show verification details (if traces enabled)
+- [ ] Chat app overrides work as expected
+- [ ] Performance impact is acceptable
+{% /checklist %}
+
+## Troubleshooting
+
+### Verification Not Working
+
+- Verify `enabled: true` in site configuration
+- Check user types/roles are configured
+- Ensure user has required permissions
+- Review CloudWatch logs for errors
+
+### Auto-Reprompt Not Triggering
+
+- Verify threshold configuration matches expectations
+- Check user permissions for the feature
+- Review verification grades in traces
+- Ensure threshold is set to retryable grade ('B', 'C', or 'F')
+
+### Performance Issues
+
+- Lower auto-reprompt threshold (e.g., 'F' instead of 'C')
+- Reduce user access scope
+- Disable for non-critical chat apps
+- Monitor token usage in CloudWatch
+
+### High False Positive Rate
+
+- Adjust threshold to be more lenient
+- Review agent instructions for clarity
+- Check if verification prompts are appropriate
+- Monitor verification accuracy over time
+
+## Next Steps
+
+- [Monitor with Traces](/guides/admin/traces/) - View verification results
+- [Configure User Memory](/guides/data-sessions/user-memory/) - Improve response quality
+- [Use Instruction Assistance](/guides/intelligence/instruction-assistance/) - Better prompt engineering
+
+## Related Documentation
+
+- [Self-Correcting Capability](/capabilities/intelligence/self-correcting/) - Learn more about verification
+- [Answer Reasoning](/capabilities/intelligence/answer-reasoning/) - Understanding response quality
+- [Feature Configuration Reference](/reference/config/features/) - Complete feature options
+
+---
+
+{% aside type="success" title="Quality Over Speed" %}
+Response verification prioritizes accuracy over speed. For most production applications, the quality improvement justifies the additional latency and cost.
+{% /aside %}
+

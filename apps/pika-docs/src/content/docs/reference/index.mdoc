@@ -1,6 +1,76 @@
 ---
-title: Overview
-description: Overview of the Pika Platform reference
+title: Reference
+description: Technical reference documentation for Pika Platform configuration, APIs, types, and components
 ---
 
-TODO: Add content here
+Welcome to the Pika Platform technical reference. This section provides detailed specifications, schemas, and API documentation for quick lookup of syntax, parameters, and configuration options.
+
+## Quick Navigation
+
+### Configuration Reference
+
+Complete reference for all configuration options:
+
+- **[Agent Configuration](/reference/configuration/agent/)** - Agent definition schema with all required and optional fields
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Chat application configuration schema
+- **[Platform Settings](/reference/configuration/platform-settings/)** - Global platform configuration (pika-config.ts)
+- **[Site Features](/reference/configuration/site-features/)** - Site-wide feature configuration reference
+- **[Environment Variables](/reference/configuration/environment-variables/)** - All environment variables and their usage
+
+### API Reference
+
+REST API and SDK documentation:
+
+- **[REST API](/reference/api/rest/)** - Core REST API endpoints for chat, users, and admin functions
+- **[Tag Definitions API](/reference/api/tag-definitions/)** - API for managing custom UI tags and widgets
+
+### CLI Reference
+
+Command-line interface documentation:
+
+- **[CLI Commands](/reference/cli/)** - Complete reference for all Pika CLI commands
+
+### TypeScript Types
+
+Type definitions and interfaces:
+
+- **[Types Overview](/reference/types/)** - Introduction to pika-shared type library
+- **[Agent & Tool Types](/reference/types/agent-tool/)** - Agent, tool, and Bedrock type definitions
+- **[Session & User Types](/reference/types/session-user/)** - Session management and user type definitions
+
+### UI Components
+
+Component libraries and interfaces:
+
+- **[pika-ux Module](/reference/ui-components/pika-ux/)** - shadcn/ui components and Pika custom components
+- **[Widget System](/reference/ui-components/widget-system/)** - Tag definitions and custom widget reference
+- **[Custom Components](/reference/ui-components/custom-components/)** - Interface for building custom components
+
+## Reference vs. How-To Guides
+
+{% aside type="tip" title="When to use what" %}
+- **Reference** - Look up specific syntax, parameters, schemas, or API endpoints
+- **[How-To Guides](/guides/)** - Learn how to accomplish specific tasks
+- **[Concepts](/concepts/)** - Understand how systems work and why decisions were made
+{% /aside %}
+
+## Type-Safe Development
+
+Most configuration and API interactions in Pika are fully typed with TypeScript. Install the `pika-shared` package for type safety in your projects:
+
+```bash
+npm install -D pika-shared
+```
+
+This gives you IntelliSense, compile-time validation, and inline documentation throughout your development workflow.
+
+## Contributing to Reference Docs
+
+Notice an error or missing information? Reference documentation is generated from both code and manual documentation. To contribute:
+
+- **Type definitions** - Submit PRs to the main codebase
+- **Documentation content** - Follow our [Contributing Guide](/platform/contributing/)
+
+---
+
+**Looking for something specific?** Use the search at the top of the page or browse the navigation on the left.

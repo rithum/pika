@@ -32,9 +32,13 @@ https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
 
 /* Widen the content area to use available horizontal space */
 @layer starlight {
-    /* Override Starlight's content width variable to allow wider content */
+    /* 
+     * Override Starlight's content width for a wider reading experience
+     * Default is ~42rem, we use 70rem to take advantage of wider screens
+     * Starlight's responsive breakpoints (based on viewport width) still work properly
+     */
     :root {
-        --sl-content-width: 80rem;
+        --sl-content-width: 70rem;
     }
 
     /* Remove border under page title */
@@ -48,15 +52,11 @@ https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
         display: none !important;
     }
 
-    /* Ensure main content uses available space */
-    .main-pane {
-        max-width: 100%;
-    }
-
     /* Remove the hairline border on the right sidebar for cleaner look */
     .right-sidebar {
         border-inline-start: none !important;
-        padding-inline-start: 1rem;
+        padding-inline-start: 0;
+        padding-inline-end: 1rem;
     }
 
     /* Style the site title to match the logo blue */
@@ -73,5 +73,23 @@ https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
     /* Also target the Starlight site title specifically */
     .header a[href='/'] span {
         color: var(--color-accent-600) !important;
+    }
+
+    /* Reduce vertical spacing in hero section */
+    .hero {
+        padding-block: clamp(2rem, 8vw, 4rem) !important;
+    }
+
+    /* Reduce hero image size */
+    .hero img {
+        width: min(100%, 15rem) !important;
+        height: auto !important;
+    }
+
+    /* Make tagline more prominent */
+    .hero .tagline {
+        font-size: 1.5rem !important;
+        font-weight: 600 !important;
+        color: var(--sl-color-text) !important;
     }
 }

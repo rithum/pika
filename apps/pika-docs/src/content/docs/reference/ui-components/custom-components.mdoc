@@ -1,0 +1,656 @@
+---
+title: Custom Component Interface
+description: API reference for building custom Svelte components and web components
+---
+
+Complete API reference for building custom components that integrate with Pika chat applications.
+
+## Overview
+
+Pika supports two types of custom components:
+
+1. **Custom Compiled-In Components** - Svelte components built into your app
+2. **Web Components** - Standalone custom elements dynamically loaded
+
+## Custom Compiled-In Components
+
+### Component Location
+
+```
+apps/pika-chat/src/lib/client/features/chat/
+└── message-segments/
+    └── custom-components/
+        ├── index.ts              # Component registry
+        ├── my-component.svelte   # Your components
+        └── another-component.svelte
+```
+
+### Component Registry
+
+Register components in `index.ts`:
+
+```typescript
+import type { Component } from 'svelte';
+import MyComponent from './my-component.svelte';
+import AnotherComponent from './another-component.svelte';
+
+export const customRenderers: Record<string, Component<any>> = {
+    'my-component': MyComponent,
+    'another-component': AnotherComponent
+};
+```
+
+### Component Props
+
+Components receive props from tag attributes:
+
+```typescript
+<script lang="ts">
+    // Props are passed as attributes
+    export let orderId: string;
+    export let status: string = 'pending'; // With default
+    export let priority?: number; // Optional
+</script>
+
+<div class="order-card">
+    <h3>Order #{orderId}</h3>
+    <p>Status: {status}</p>
+    {#if priority}
+        <span>Priority: {priority}</span>
+    {/if}
+</div>
+```
+
+### Usage in Messages
+
+```xml
+<!-- LLM generates this in response -->
+<my-component orderId="12345" status="shipped" priority="1" />
+```
+
+### Advanced Props
+
+#### JSON Objects
+
+```typescript
+<script lang="ts">
+    export let data: string; // Receives JSON string
+    
+    let parsed = $derived(JSON.parse(data));
+</script>
+
+<div>
+    <p>Name: {parsed.name}</p>
+    <p>Value: {parsed.value}</p>
+</div>
+```
+
+#### Arrays
+
+```typescript
+<script lang="ts">
+    export let items: string; // JSON array string
+    
+    let itemList = $derived(JSON.parse(items));
+</script>
+
+<ul>
+    {#each itemList as item}
+        <li>{item}</li>
+    {/each}
+</ul>
+```
+
+### Accessing Chat Context
+
+Components can access chat app state through context:
+
+```typescript
+<script lang="ts">
+    import { getContext } from 'svelte';
+    import type { IChatAppState } from 'pika-ux/types';
+    
+    const chatAppState = getContext<IChatAppState>('chatAppState');
+    
+    // Access user info
+    const user = chatAppState.user;
+    const customData = chatAppState.userCustomData;
+    
+    // Access session info
+    const sessionId = chatAppState.sessionId;
+    const chatAppId = chatAppState.chatAppId;
+</script>
+
+<div>
+    <p>Hello, {user.firstName}!</p>
+    <p>Account: {customData.accountId}</p>
+</div>
+```
+
+### Widget Metadata API
+
+Components can interact with the widget system:
+
+```typescript
+<script lang="ts">
+    import { getContext } from 'svelte';
+    import type { IWidgetMetadataAPI } from 'pika-ux/types';
+    
+    const widgetAPI = getContext<IWidgetMetadataAPI>('widgetMetadataAPI');
+    
+    // Show loading state
+    function handleAction() {
+        widgetAPI.setLoadingStatus(true, 'Processing...');
+        
+        // Do work...
+        await someAsyncOperation();
+        
+        widgetAPI.setLoadingStatus(false);
+    }
+    
+    // Get/set widget data (persisted per user)
+    const savedData = await widgetAPI.getUserWidgetData();
+    await widgetAPI.setUserWidgetData({ myField: 'value' });
+</script>
+```
+
+### IChatAppState Interface
+
+```typescript
+interface IChatAppState {
+    // User information
+    user: ChatUser;
+    userCustomData: Record<string, any>;
+    
+    // Session information
+    sessionId: string;
+    chatAppId: string;
+    agentId: string;
+    
+    // Chat app configuration
+    chatApp: ChatApp;
+    features: ChatAppFeatures;
+    
+    // UI state
+    mode: 'standalone' | 'embedded';
+    
+    // Methods
+    sendMessage(message: string): Promise<void>;
+    uploadFile(file: File): Promise<string>;
+}
+```
+
+### IWidgetMetadataAPI Interface
+
+```typescript
+interface IWidgetMetadataAPI {
+    // Loading state
+    setLoadingStatus(loading: boolean, loadingMsg?: string): void;
+    
+    // User data persistence (max 400KB per widget)
+    getUserWidgetData(): Promise<Record<string, unknown> | undefined>;
+    setUserWidgetData(data: Record<string, unknown>, partial?: boolean): Promise<void>;
+    deleteUserWidgetData(): Promise<void>;
+    
+    // Widget information
+    getWidgetId(): { scope: string; tag: string };
+    
+    // Invoke agent (for interactive widgets)
+    invokeAgent(message: string, config?: {
+        componentAgentInstructionName: string;
+    }): Promise<string>;
+}
+```
+
+### Complete Component Example
+
+```typescript
+<script lang="ts">
+    import { getContext } from 'svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Card from 'pika-ux/shadcn/card';
+    import type { IChatAppState, IWidgetMetadataAPI } from 'pika-ux/types';
+    
+    // Props from tag attributes
+    export let orderId: string;
+    export let initialStatus: string = 'pending';
+    
+    // Context
+    const chatAppState = getContext<IChatAppState>('chatAppState');
+    const widgetAPI = getContext<IWidgetMetadataAPI>('widgetMetadataAPI');
+    
+    // State
+    let status = $state(initialStatus);
+    let loading = $state(false);
+    
+    // Load saved data
+    $effect(() => {
+        loadSavedData();
+    });
+    
+    async function loadSavedData() {
+        const saved = await widgetAPI.getUserWidgetData();
+        if (saved?.status) {
+            status = saved.status as string;
+        }
+    }
+    
+    async function refreshStatus() {
+        loading = true;
+        widgetAPI.setLoadingStatus(true, 'Refreshing...');
+        
+        try {
+            // Call agent to get updated status
+            const response = await widgetAPI.invokeAgent(
+                `Get the current status for order ${orderId}`,
+                { componentAgentInstructionName: 'order-status-refresh' }
+            );
+            
+            status = extractStatus(response);
+            
+            // Save for next time
+            await widgetAPI.setUserWidgetData({ status }, true);
+        } finally {
+            loading = false;
+            widgetAPI.setLoadingStatus(false);
+        }
+    }
+    
+    function extractStatus(response: string): string {
+        // Parse response...
+        return 'shipped';
+    }
+</script>
+
+<Card.Root>
+    <Card.Header>
+        <Card.Title>Order #{orderId}</Card.Title>
+        <Card.Description>
+            Customer: {chatAppState.user.firstName} {chatAppState.user.lastName}
+        </Card.Description>
+    </Card.Header>
+    <Card.Content>
+        <p class="text-lg font-semibold">Status: {status}</p>
+    </Card.Content>
+    <Card.Footer>
+        <Button 
+            onclick={refreshStatus} 
+            disabled={loading}
+            size="sm"
+        >
+            {loading ? 'Refreshing...' : 'Refresh Status'}
+        </Button>
+    </Card.Footer>
+</Card.Root>
+
+<style>
+    /* Scoped styles */
+</style>
+```
+
+## Web Components
+
+### Creating Web Components
+
+Web components are standard custom elements:
+
+```javascript
+class OrderStatusWidget extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+    
+    connectedCallback() {
+        this.render();
+    }
+    
+    disconnectedCallback() {
+        // Cleanup
+    }
+    
+    attributeChangedCallback(name, oldValue, newValue) {
+        if (oldValue !== newValue) {
+            this.render();
+        }
+    }
+    
+    static get observedAttributes() {
+        return ['order-id', 'status'];
+    }
+    
+    render() {
+        const orderId = this.getAttribute('order-id');
+        const status = this.getAttribute('status') || 'unknown';
+        
+        this.shadowRoot.innerHTML = `
+            <style>
+                .order-card {
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 16px;
+                    font-family: system-ui, sans-serif;
+                }
+                .status {
+                    font-weight: bold;
+                    color: #0066cc;
+                }
+            </style>
+            <div class="order-card">
+                <h3>Order #${orderId}</h3>
+                <p class="status">Status: ${status}</p>
+            </div>
+        `;
+    }
+}
+
+customElements.define('order-status-widget', OrderStatusWidget);
+```
+
+### Accessing Pika Context
+
+Web components can access Pika context via custom events:
+
+```javascript
+class InteractiveWidget extends HTMLElement {
+    connectedCallback() {
+        this.render();
+        
+        // Request context from Pika
+        this.dispatchEvent(new CustomEvent('pika:request-context', {
+            bubbles: true,
+            detail: {
+                callback: (context) => {
+                    this.handleContext(context);
+                }
+            }
+        }));
+    }
+    
+    handleContext(context) {
+        const { user, chatAppState, widgetAPI } = context;
+        
+        // Use context...
+        this.user = user;
+        this.widgetAPI = widgetAPI;
+        this.render();
+    }
+    
+    async saveData(data) {
+        // Use widget API
+        if (this.widgetAPI) {
+            await this.widgetAPI.setUserWidgetData(data);
+        }
+    }
+    
+    render() {
+        // Render with context
+    }
+}
+```
+
+### Handling User Interaction
+
+```javascript
+class ClickableWidget extends HTMLElement {
+    connectedCallback() {
+        this.render();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        const button = this.shadowRoot.querySelector('button');
+        button?.addEventListener('click', () => this.handleClick());
+    }
+    
+    handleClick() {
+        // Dispatch event to Pika
+        this.dispatchEvent(new CustomEvent('pika:widget-action', {
+            bubbles: true,
+            detail: {
+                action: 'button-clicked',
+                widgetId: this.getAttribute('widget-id'),
+                data: { /* action data */ }
+            }
+        }));
+    }
+    
+    render() {
+        this.shadowRoot.innerHTML = `
+            <button>Click Me</button>
+        `;
+    }
+}
+```
+
+### Async Data Loading
+
+```javascript
+class DataWidget extends HTMLElement {
+    async connectedCallback() {
+        this.renderLoading();
+        
+        try {
+            const data = await this.fetchData();
+            this.renderData(data);
+        } catch (error) {
+            this.renderError(error);
+        }
+    }
+    
+    renderLoading() {
+        this.shadowRoot.innerHTML = `
+            <div class="loading">Loading...</div>
+        `;
+    }
+    
+    renderData(data) {
+        this.shadowRoot.innerHTML = `
+            <div class="data">${JSON.stringify(data)}</div>
+        `;
+    }
+    
+    renderError(error) {
+        this.shadowRoot.innerHTML = `
+            <div class="error">Error: ${error.message}</div>
+        `;
+    }
+    
+    async fetchData() {
+        // Fetch from API
+        const response = await fetch('/api/data');
+        return response.json();
+    }
+}
+```
+
+## Styling
+
+### Svelte Component Styling
+
+```svelte
+<div class="my-component">
+    <!-- content -->
+</div>
+
+<style>
+    /* Scoped to this component */
+    .my-component {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+    
+    /* Use Tailwind variables */
+    .my-component {
+        @apply p-4 border rounded-lg;
+    }
+</style>
+```
+
+### Web Component Styling
+
+```javascript
+this.shadowRoot.innerHTML = `
+    <style>
+        :host {
+            display: block;
+            padding: 16px;
+        }
+        
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        
+        /* Respect user's theme */
+        @media (prefers-color-scheme: dark) {
+            .card {
+                border-color: #374151;
+            }
+        }
+    </style>
+    <div class="card">...</div>
+`;
+```
+
+## Testing Components
+
+### Svelte Component Testing
+
+```typescript
+import { render } from '@testing-library/svelte';
+import { describe, it, expect } from 'vitest';
+import MyComponent from './my-component.svelte';
+
+describe('MyComponent', () => {
+    it('renders with props', () => {
+        const { getByText } = render(MyComponent, {
+            props: {
+                orderId: '12345',
+                status: 'shipped'
+            }
+        });
+        
+        expect(getByText('Order #12345')).toBeInTheDocument();
+        expect(getByText('Status: shipped')).toBeInTheDocument();
+    });
+});
+```
+
+### Web Component Testing
+
+```javascript
+describe('OrderStatusWidget', () => {
+    it('renders correctly', () => {
+        const widget = document.createElement('order-status-widget');
+        widget.setAttribute('order-id', '12345');
+        widget.setAttribute('status', 'shipped');
+        
+        document.body.appendChild(widget);
+        
+        const content = widget.shadowRoot.textContent;
+        expect(content).toContain('Order #12345');
+        expect(content).toContain('Status: shipped');
+        
+        document.body.removeChild(widget);
+    });
+});
+```
+
+## Best Practices
+
+{% aside type="tip" title="Component Development Tips" %}
+1. **Keep components focused** - One responsibility per component
+2. **Validate props** - Don't assume props are always provided or valid
+3. **Handle errors gracefully** - Show friendly error messages
+4. **Use loading states** - Provide feedback during async operations
+5. **Minimize bundle size** - Keep web components small
+6. **Test thoroughly** - Test with various prop combinations
+7. **Document props** - Comment expected prop types and formats
+8. **Use semantic HTML** - Proper HTML elements for accessibility
+{% /aside %}
+
+## Deployment
+
+### Svelte Components
+
+No special deployment - built with your app:
+
+```bash
+cd apps/pika-chat
+pnpm build
+```
+
+### Web Components
+
+1. **Build your component:**
+
+```bash
+npm run build # Outputs to dist/widget.js
+```
+
+2. **Compress (optional but recommended):**
+
+```bash
+gzip dist/widget.js
+```
+
+3. **Upload to S3:**
+
+```bash
+aws s3 cp dist/widget.js.gz s3://my-bucket/widgets/ \
+    --content-encoding gzip \
+    --content-type application/javascript \
+    --acl public-read
+```
+
+4. **Create tag definition** (see [Widget System Reference](/reference/ui-components/widget-system/))
+
+## Troubleshooting
+
+### Component Not Rendering
+
+- Check component is registered in `customRenderers`
+- Verify tag definition exists and is enabled
+- Check tag name matches exactly (case-sensitive)
+- Ensure chat app has tag enabled
+
+### Props Not Working
+
+- Verify prop names match tag attributes
+- Check prop types (strings vs objects)
+- Remember: all attributes are strings, parse JSON if needed
+
+### Context Not Available
+
+- Ensure you're using `getContext` in component setup
+- Check context keys: `'chatAppState'`, `'widgetMetadataAPI'`
+- Context only available in compiled-in components
+
+### Web Component Not Loading
+
+- Verify S3 permissions allow public read
+- Check S3 key path is correct
+- Ensure CORS configured on S3 bucket
+- Check browser console for loading errors
+
+## Related Documentation
+
+- **[Widget System Reference](/reference/ui-components/widget-system/)** - Tag definition system
+- **[pika-ux Module](/reference/ui-components/pika-ux/)** - Pre-built components
+- **[Web Components Guide](/guides/customization/web-components/)** - How-to guide
+- **[Custom Tags Guide](/guides/customization/custom-tags/)** - Creating custom tags
+
+## Type Definitions
+
+```typescript
+// Available from pika-ux/types
+export interface IChatAppState { /* ... */ }
+export interface IWidgetMetadataAPI { /* ... */ }
+export interface ChatUser { /* ... */ }
+export interface ChatApp { /* ... */ }
+```
+
+Full type definitions available in [pika-ux source code](https://github.com/your-org/pika/tree/main/packages/pika-ux/src/types).
+

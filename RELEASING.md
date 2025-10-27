@@ -274,11 +274,11 @@ pnpm release:plan-breaking
 AI will:
 
 - Ask you questions about the breaking change
-- Create migration guide at `apps/pika-docs/src/routes/docs/releases/migration-guides/`
+- Create migration guide at `apps/pika-docs/src/content/docs/platform/releases/migration-guides/`
 - Update changelogs with links
 - Update `releases.json` with migration guide URL
 
-**Migration Guide Template:** Use `upgrading-to-0-5-0/+page.md` as reference.
+**Migration Guide Template:** Use `upgrading-to-0-5-0.mdoc` as reference.
 
 #### Step 5: Commit Documentation to Your Branch
 
@@ -587,22 +587,22 @@ Every release touches these files:
     - NO MORE `[Unreleased]` section
     - Use actual version numbers immediately
 
-3. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md**
+3. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc**
 
     - Keep in sync with CHANGELOG.md
     - Cursor AI updates both simultaneously
 
 4. **Migration Guide** (if breaking)
 
-    - Create at `apps/pika-docs/src/routes/docs/releases/migration-guides/<name>/+page.md`
+    - Create at `apps/pika-docs/src/content/docs/platform/releases/migration-guides/<name>.mdoc`
     - Follow template structure
     - Include before/after examples
 
-5. **apps/pika-docs/vite.config.ts** (if new migration guide)
+5. **apps/pika-docs/sidebar-config.ts** (if new migration guide)
 
-    - Add to Releases sidebar navigation if needed
+    - Add to Platform Info → Releases → Migration Guides sidebar navigation in `sidebarTopics` array if needed
 
-6. **apps/pika-docs/src/routes/docs/releases/migration-guides/+page.md**
+6. **apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc**
     - Add link to new migration guide
 
 ---
@@ -629,7 +629,7 @@ The release tool leverages Cursor's AI to automate documentation:
 3. **Cursor AI updates documentation**:
 
     - CHANGELOG.md
-    - apps/pika-docs/src/routes/docs/releases/changelog/+page.md
+    - apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc
     - Both updated in one operation
 
 4. **You review and approve**:

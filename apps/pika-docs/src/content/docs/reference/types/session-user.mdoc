@@ -1,0 +1,667 @@
+---
+title: Session & User Types
+description: TypeScript type definitions for sessions, users, and chat interactions
+---
+
+Complete TypeScript type reference for sessions, users, messages, and chat interactions.
+
+## Import Statement
+
+```typescript
+import type {
+    ChatSession,
+    ChatUser,
+    ChatMessage,
+    SessionData,
+    ConverseRequest,
+    ConverseResponse,
+    SessionSearchRequest,
+    ChatMessageFile
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## User Types
+
+### ChatUser
+
+User profile with custom data support.
+
+```typescript
+interface ChatUser<T extends RecordOrUndef = undefined> {
+    userId: string;
+    firstName?: string;
+    lastName?: string;
+    customData?: T;
+    viewingContentFor?: Record<string, ChatUserLite>;
+    overrideData?: Record<string, T>;
+    createDate?: string;
+    lastUpdate?: string;
+    userType?: UserType;
+    roles?: string[];
+}
+```
+
+**Fields:**
+- `userId` - Unique user identifier
+- `firstName` / `lastName` - User's name
+- `customData` - Custom application data (e.g., accountId, accountType)
+- `viewingContentFor` - For content admins viewing other users' sessions
+- `overrideData` - Per-chat-app data overrides (stored in secure cookie)
+- `userType` - `'internal-user'` or `'external-user'`
+- `roles` - Array of role strings (e.g., `['pika:content-admin']`)
+
+### Custom Data with Generics
+
+Define your own user data structure:
+
+```typescript
+interface MyCustomUserData {
+    accountId: string;
+    accountType: 'free' | 'premium' | 'enterprise';
+    region: string;
+    preferences: {
+        language: string;
+        theme: string;
+    };
+}
+
+const user: ChatUser<MyCustomUserData> = {
+    userId: 'user-123',
+    firstName: 'John',
+    lastName: 'Doe',
+    userType: 'external-user',
+    customData: {
+        accountId: 'acct-456',
+        accountType: 'premium',
+        region: 'us-east',
+        preferences: {
+            language: 'en',
+            theme: 'dark'
+        }
+    }
+};
+```
+
+### UserType
+
+```typescript
+type UserType = 'internal-user' | 'external-user';
+```
+
+### ChatUserLite
+
+Minimal user information.
+
+```typescript
+interface ChatUserLite {
+    userId: string;
+    firstName?: string;
+    lastName?: string;
+    userType?: UserType;
+}
+```
+
+## Session Types
+
+### ChatSession
+
+Complete chat session data.
+
+```typescript
+interface ChatSession<T extends RecordOrUndef = undefined> {
+    userId: string;
+    sessionId: string;
+    chatAppId: string;
+    agentId: string;
+    title?: string;
+    customData?: T;
+    createDate: string;
+    lastUpdate: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalCost?: number;
+    flaggedForHumanReview?: boolean;
+    insights?: SessionInsights;
+}
+```
+
+**Fields:**
+- `userId` - User who owns this session
+- `sessionId` - Unique session identifier
+- `chatAppId` - Chat app this session belongs to
+- `agentId` - Agent used in this session
+- `title` - Session title (auto-generated or user-provided)
+- `customData` - Custom session data (inherits from user)
+- `inputTokens` / `outputTokens` - Token usage
+- `totalCost` - Estimated cost in USD
+- `flaggedForHumanReview` - Marked for manual review
+- `insights` - AI-generated session insights
+
+### SessionData
+
+Runtime session state (not persisted to database).
+
+```typescript
+interface SessionData {
+    userId: string;
+    sessionId: string;
+    chatAppId: string;
+    agentId: string;
+    customData?: Record<string, any>;
+}
+```
+
+### SessionDataWithChatUserCustomDataSpreadIn
+
+Session data with user's custom data merged in.
+
+```typescript
+type SessionDataWithChatUserCustomDataSpreadIn = SessionData & {
+    [key: string]: any; // Custom data fields spread in
+};
+```
+
+**Example:**
+
+```typescript
+// If user has customData: { accountId: 'acct-123', tier: 'premium' }
+const sessionData: SessionDataWithChatUserCustomDataSpreadIn = {
+    userId: 'user-123',
+    sessionId: 'session-456',
+    chatAppId: 'support',
+    agentId: 'support-agent',
+    accountId: 'acct-123', // From customData
+    tier: 'premium'        // From customData
+};
+```
+
+## Message Types
+
+### ChatMessage
+
+Individual message in a session.
+
+```typescript
+interface ChatMessage {
+    userId: string;
+    sessionId: string;
+    messageId: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    createDate: string;
+    usage?: ChatMessageUsage;
+    files?: ChatMessageFile[];
+    metadata?: Record<string, any>;
+}
+```
+
+### ChatMessageUsage
+
+Token usage and cost for a message.
+
+```typescript
+interface ChatMessageUsage {
+    inputCost: number;      // Cost in USD
+    inputTokens: number;
+    outputCost: number;     // Cost in USD
+    outputTokens: number;
+    totalCost: number;      // Cost in USD
+}
+```
+
+### ChatMessageFile
+
+File attachment metadata.
+
+```typescript
+interface ChatMessageFile {
+    fileId: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    s3Key: string;
+    uploadDate: string;
+}
+```
+
+## Request/Response Types
+
+### ConverseRequest
+
+Request to send a message to an agent.
+
+```typescript
+interface ConverseRequest extends BaseRequestData {
+    message: string;
+    features: ChatAppOverridableFeaturesForConverseFn;
+    files?: ChatMessageFile[];
+    agentId: string;
+    entityAttributeNameInUserCustomData?: string;
+    invocationMode?: ConverseInvocationMode;
+    chatAppComponentConfig?: ChatAppComponentConfig;
+    source: ConverseSource;
+}
+```
+
+**Fields:**
+- `message` - User's message text
+- `features` - Enabled features for this chat app
+- `files` - Attached files
+- `agentId` - Which agent to invoke
+- `invocationMode` - `'chat-app'`, `'direct-agent-invoke'`, or `'chat-app-component'`
+- `source` - `'user'`, `'component-as-user'`, or `'component'`
+
+### ConverseInvocationMode
+
+```typescript
+type ConverseInvocationMode = 
+    | 'chat-app'              // Normal chat app usage
+    | 'direct-agent-invoke'   // Direct API call to agent
+    | 'chat-app-component';   // Widget invoking agent
+```
+
+### ConverseSource
+
+```typescript
+type ConverseSource = 
+    | 'user'              // Human user message
+    | 'component-as-user' // Component on behalf of user (shows in history)
+    | 'component';        // Component message (hidden from user history)
+```
+
+### BaseRequestData
+
+Common request fields.
+
+```typescript
+interface BaseRequestData {
+    userId: string;
+    sessionId?: string;
+    chatAppId?: string;
+    agentId?: string;
+    timezone?: string;
+}
+```
+
+## Session Search
+
+### SessionSearchRequest
+
+Search for sessions with filters.
+
+```typescript
+interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
+    userId?: string;
+    chatAppId?: string;
+    sessionId?: string;
+    customUserData?: T;
+    titlePartial?: string;
+    dateFilter?: SessionSearchDateFilter;
+    flagged?: boolean;
+    insights?: InsightsSearchParams;
+    scrollId?: string;
+    feedbackInStatus?: SessionFeedbackStatus[];
+    feedbackReportedByHuman?: boolean;
+    feedbackCreatedByCustomer?: boolean;
+    feedbackSeverity?: SessionFeedbackSeverity[];
+    feedbackType?: SessionFeedbackType[];
+    feedbackUserId?: string;
+    includeInsights?: boolean;
+    includeFeedback?: boolean;
+    sortBy?: Array<{
+        field: SessionSearchSortField;
+        order: 'asc' | 'desc';
+    }>;
+    size?: number;
+}
+```
+
+### SessionSearchSortField
+
+```typescript
+type SessionSearchSortField = 
+    | 'createDate'
+    | 'lastUpdate'
+    | 'sessionId'
+    | 'inputTokens'
+    | 'outputTokens'
+    | 'totalCost'
+    | 'insightGoalAchievementScore';
+```
+
+### SessionSearchDateFilter
+
+```typescript
+interface SessionSearchDateFilter {
+    dateType: 'created' | 'updated' | 'feedback';
+    startDate: string; // ISO 8601
+    endDate?: string;  // ISO 8601
+}
+```
+
+### SessionSearchResponse
+
+```typescript
+interface SessionSearchResponse<T extends RecordOrUndef = undefined> {
+    success: boolean;
+    sessions: ChatSession<T>[];
+    error?: string;
+    scrollId?: string;
+    total: number;
+    pageSize: number;
+}
+```
+
+## Session Insights
+
+### SessionInsights
+
+AI-generated insights about a session.
+
+```typescript
+interface SessionInsights {
+    summary: string;
+    goalAchievement: {
+        score: number; // 0-100
+        status: SessionInsightGoalCompletionStatus;
+        explanation: string;
+    };
+    userSatisfaction: {
+        score: number; // 0-100
+        level: SessionInsightSatisfactionLevel;
+        sentiment: SessionInsightUserSentiment;
+        explanation: string;
+    };
+    aiPerformance: {
+        overallScore: number; // 0-100
+        accuracy: number;     // 0-100
+        efficiency: number;   // 0-100
+        explanation: string;
+    };
+    interactionQuality: {
+        score: number; // 0-100
+        explanation: string;
+    };
+    metrics: {
+        sessionDuration: SessionInsightMetricsSessionDurationEstimate;
+        complexity: SessionInsightMetricsComplexityLevel;
+        userEffort: SessionInsightMetricsUserEffortRequired;
+        aiConfidence: SessionInsightMetricsAiConfidenceLevel;
+    };
+    generateDate: string;
+}
+```
+
+### Insight Enums
+
+```typescript
+type SessionInsightGoalCompletionStatus = 
+    | 'fully_achieved'
+    | 'partially_achieved'
+    | 'not_achieved'
+    | 'unclear';
+
+type SessionInsightSatisfactionLevel = 
+    | 'very_satisfied'
+    | 'satisfied'
+    | 'neutral'
+    | 'dissatisfied'
+    | 'very_dissatisfied';
+
+type SessionInsightUserSentiment = 
+    | 'positive'
+    | 'neutral'
+    | 'negative'
+    | 'mixed';
+
+type SessionInsightMetricsSessionDurationEstimate = 
+    | 'very_short'
+    | 'short'
+    | 'medium'
+    | 'long'
+    | 'very_long';
+
+type SessionInsightMetricsComplexityLevel = 
+    | 'simple'
+    | 'moderate'
+    | 'complex'
+    | 'very_complex';
+
+type SessionInsightMetricsUserEffortRequired = 
+    | 'minimal'
+    | 'low'
+    | 'moderate'
+    | 'high'
+    | 'very_high';
+
+type SessionInsightMetricsAiConfidenceLevel = 
+    | 'very_high'
+    | 'high'
+    | 'moderate'
+    | 'low'
+    | 'very_low';
+```
+
+## Session Feedback
+
+### ChatSessionFeedback
+
+User or system feedback on a session.
+
+```typescript
+interface ChatSessionFeedback {
+    feedbackId: string;
+    sessionId: string;
+    userId: string;
+    type: SessionFeedbackType;
+    severity: SessionFeedbackSeverity;
+    status: SessionFeedbackStatus;
+    title: string;
+    description: string;
+    reportedByHuman: boolean;
+    createdByCustomer: boolean;
+    createDate: string;
+    lastUpdate: string;
+    internalComments?: FeedbackInternalComment[];
+}
+```
+
+### Feedback Enums
+
+```typescript
+type SessionFeedbackType = 
+    | 'incorrect_response'
+    | 'incomplete_response'
+    | 'inappropriate_content'
+    | 'technical_error'
+    | 'other';
+
+type SessionFeedbackSeverity = 
+    | 'critical'
+    | 'high'
+    | 'medium'
+    | 'low';
+
+type SessionFeedbackStatus = 
+    | 'new'
+    | 'in_progress'
+    | 'resolved'
+    | 'dismissed';
+```
+
+## Complete Examples
+
+### Creating a Session with Custom Data
+
+```typescript
+interface MySessionData {
+    accountId: string;
+    transactionId?: string;
+    context: string;
+}
+
+const session: ChatSession<MySessionData> = {
+    userId: 'user-123',
+    sessionId: 'session-456',
+    chatAppId: 'support',
+    agentId: 'support-agent',
+    title: 'Order Status Inquiry',
+    customData: {
+        accountId: 'acct-789',
+        transactionId: 'txn-abc',
+        context: 'order-inquiry'
+    },
+    createDate: '2024-01-15T10:00:00Z',
+    lastUpdate: '2024-01-15T10:15:00Z',
+    inputTokens: 150,
+    outputTokens: 300,
+    totalCost: 0.0045
+};
+```
+
+### Searching Sessions
+
+```typescript
+const searchRequest: SessionSearchRequest<MySessionData> = {
+    chatAppId: 'support',
+    customUserData: {
+        accountId: 'acct-789',
+        context: 'order-inquiry'
+    },
+    dateFilter: {
+        dateType: 'created',
+        startDate: '2024-01-01T00:00:00Z',
+        endDate: '2024-01-31T23:59:59Z'
+    },
+    includeInsights: true,
+    sortBy: [
+        { field: 'createDate', order: 'desc' }
+    ],
+    size: 20
+};
+```
+
+### Making a Converse Request
+
+```typescript
+const request: ConverseRequest = {
+    userId: 'user-123',
+    sessionId: 'session-456',
+    chatAppId: 'support',
+    agentId: 'support-agent',
+    message: 'What is the status of my order?',
+    features: {
+        userMemory: {
+            featureId: 'userMemory',
+            enabled: true,
+            strategies: ['short-term', 'long-term']
+        },
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true
+        }
+        // ... other features
+    },
+    invocationMode: 'chat-app',
+    source: 'user',
+    timezone: 'America/New_York'
+};
+```
+
+### Handling Session Data in Tool
+
+```typescript
+import type { BedrockActionGroupLambdaEvent } from 'pika-shared/types/chatbot/bedrock';
+import { normalizeSessionAttributes } from 'pika-shared/util/bedrock';
+
+export const handler = async (event: BedrockActionGroupLambdaEvent) => {
+    // Get session data with custom fields
+    const sessionData = normalizeSessionAttributes(event.sessionAttributes);
+    
+    // Access custom data
+    const accountId = sessionData.accountId;
+    const accountType = sessionData.accountType;
+    
+    // Use in your tool logic
+    if (accountType === 'premium') {
+        // Provide premium features
+    }
+    
+    // Return result
+    return result;
+};
+```
+
+## User Widget Data
+
+Store arbitrary data scoped to user + widget.
+
+### UserWidgetData
+
+```typescript
+type UserWidgetData = Record<string, unknown>;
+```
+
+### Get/Set Operations
+
+```typescript
+interface GetUserWidgetDataRequest {
+    scope: string; // e.g., 'custom'
+    tag: string;   // e.g., 'calculator'
+}
+
+interface SetUserWidgetDataRequest {
+    scope: string;
+    tag: string;
+    data: UserWidgetData;
+    partial?: boolean; // If true, merge with existing
+}
+```
+
+**Example:**
+
+```typescript
+// Store widget state
+const saveRequest: SetUserWidgetDataRequest = {
+    scope: 'custom',
+    tag: 'order-form',
+    data: {
+        draftOrder: {
+            items: ['item1', 'item2'],
+            total: 99.99
+        },
+        lastSaved: '2024-01-15T10:00:00Z'
+    },
+    partial: false
+};
+
+// Load widget state
+const loadRequest: GetUserWidgetDataRequest = {
+    scope: 'custom',
+    tag: 'order-form'
+};
+```
+
+## Best Practices
+
+{% aside type="tip" title="Session & User Type Tips" %}
+1. **Use generics** - Define custom data types for type safety
+2. **Validate custom data** - Don't assume fields exist
+3. **Keep sessions focused** - One conversation per session
+4. **Use meaningful titles** - Auto-generate or let users set them
+5. **Track costs** - Monitor token usage and costs
+6. **Leverage insights** - Use AI insights for improvement
+{% /aside %}
+
+## Related Documentation
+
+- **[Types Overview](/reference/types/)** - Introduction to pika-shared types
+- **[Agent & Tool Types](/reference/types/agent-tool/)** - Agent and tool type reference
+- **[Session Management Guide](/guides/data-sessions/sessions/)** - How-to guide
+- **[User Memory Guide](/guides/data-sessions/user-memory/)** - User memory configuration
+
+## Type Source Files
+
+- [chatbot-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts) - Session and user types
+- [bedrock.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/bedrock.ts) - Bedrock request/response types
+

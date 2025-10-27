@@ -1,0 +1,262 @@
+---
+title: Agent Configuration Schema
+description: Complete reference for AgentDefinition configuration schema and all fields
+---
+
+Complete reference for the `AgentDefinition` type used to configure LLM agents in Pika Platform.
+
+## Type Definition
+
+```typescript
+import type { AgentDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agentId` | `string` | Unique agent identifier (e.g., 'weather-bot') |
+| `basePrompt` | `string` | System prompt template. Can use handlebars placeholders like `{{user.email}}` |
+| `toolIds` | `string[]` | Array of tool IDs that this agent can use |
+| `createdBy` | `string` | User ID who created the agent |
+| `lastModifiedBy` | `string` | User ID who last modified the agent |
+| `createdAt` | `string` | ISO 8601 formatted creation timestamp |
+| `updatedAt` | `string` | ISO 8601 formatted last update timestamp |
+| `version` | `number` | Agent definition version number |
+
+## Optional Fields
+
+### Foundation Models
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `foundationModel` | `string` | System default | Foundation model to use for this agent (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`) |
+| `verificationFoundationModel` | `string` | System default | Foundation model to use for verifying responses (self-correcting feature) |
+
+### Access Control
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `accessRules` | `AccessRule[]` | List of access control rules with conditions. If not provided, agent is accessible to all users |
+
+**AccessRule Interface:**
+
+```typescript
+interface AccessRule {
+    condition?: string; // Expression like "user.scope IN ['admin'] AND account.type = 'retailer'"
+    effect: 'allow' | 'deny';
+    order?: number; // Lower numbers evaluated first
+    description?: string;
+}
+```
+
+### Rollout Policy
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rolloutPolicy` | `RolloutPolicy` | Gating configuration per account/organization/region |
+
+**RolloutPolicy Interface:**
+
+```typescript
+interface RolloutPolicy {
+    betaAccounts?: string[]; // Account IDs that can access this agent
+    regionRestrictions?: string[]; // AWS regions where agent is available
+    toolOverrides?: Record<string, string>; // Map old tool IDs to new tool IDs
+}
+```
+
+### Multi-Agent Collaboration
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `collaborators` | `Collaborator[]` | List of other agents used to orchestrate this agent |
+| `agentCollaboration` | `AgentCollaboration` | Type of collaboration pattern used |
+
+**Collaborator Interface:**
+
+```typescript
+interface Collaborator {
+    agentId: string;
+    instruction: string;
+    historyRelay: 'TO_COLLABORATOR' | 'TO_AGENT';
+}
+```
+
+### Knowledge Bases
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `knowledgeBases` | `KnowledgeBase[]` | List of knowledge bases associated with this agent |
+
+**KnowledgeBase Interface:**
+
+```typescript
+interface KnowledgeBase {
+    id: string; // Unique identifier for the knowledge base
+    // Additional configuration fields...
+}
+```
+
+### Other Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `runtimeAdapter` | `string` | Optional Lambda ARN for augmenting prompt/session context (future feature) |
+| `dontCacheThis` | `boolean` | Set to `true` during development to bypass caching |
+| `testType` | `'mock'` | Set to `'mock'` for test agents that auto-delete after 1 day |
+
+## Complete Example
+
+```typescript
+import type { AgentDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+
+const agent: AgentDefinition = {
+    agentId: 'customer-support-agent',
+    foundationModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    verificationFoundationModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    basePrompt: `You are a helpful customer support agent for {{company.name}}.
+The user you are helping is {{user.firstName}} {{user.lastName}} ({{user.email}}).
+Their account type is {{customData.accountType}}.
+
+Always be professional, helpful, and concise in your responses.`,
+    toolIds: [
+        'customer-lookup',
+        'order-status-check',
+        'knowledge-base-search'
+    ],
+    knowledgeBases: [
+        {
+            id: 'kb-product-docs'
+        }
+    ],
+    accessRules: [
+        {
+            effect: 'allow',
+            condition: "user.userType = 'internal-user'",
+            order: 1,
+            description: 'Allow all internal users'
+        },
+        {
+            effect: 'allow',
+            condition: "user.userType = 'external-user' AND customData.accountType IN ['premium', 'enterprise']",
+            order: 2,
+            description: 'Allow premium and enterprise customers'
+        },
+        {
+            effect: 'deny',
+            order: 999,
+            description: 'Deny all others'
+        }
+    ],
+    rolloutPolicy: {
+        betaAccounts: ['account-123', 'account-456'],
+        regionRestrictions: ['us-east-1', 'us-west-2']
+    },
+    version: 1,
+    createdBy: 'admin@example.com',
+    lastModifiedBy: 'admin@example.com',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## Minimal Example
+
+```typescript
+const simpleAgent: AgentDefinition = {
+    agentId: 'simple-chatbot',
+    basePrompt: 'You are a helpful AI assistant.',
+    toolIds: [],
+    version: 1,
+    createdBy: 'system',
+    lastModifiedBy: 'system',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## Handlebars Template Variables
+
+The `basePrompt` field supports handlebars template syntax with access to:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `user.email` | User's email address | `john@example.com` |
+| `user.firstName` | User's first name | `John` |
+| `user.lastName` | User's last name | `Doe` |
+| `user.userId` | Unique user identifier | `user-123` |
+| `user.userType` | User type | `internal-user` or `external-user` |
+| `customData.*` | Any custom user data field | `{{customData.accountId}}` |
+| `company.name` | Your company name (from config) | `Acme Corp` |
+
+## Creating and Updating Agents
+
+### For CloudFormation/CDK Deployments
+
+Use `AgentDataRequest` type:
+
+```typescript
+import type { AgentDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+
+const request: AgentDataRequest = {
+    agent: {
+        agentId: 'my-agent',
+        basePrompt: 'You are a helpful assistant.',
+        toolIds: ['tool-1', 'tool-2'],
+        // ... other fields (omit version, timestamps, created/modified by)
+    },
+    userId: 'cloudformation/my-stack-name'
+};
+```
+
+### For Programmatic Updates
+
+Use `AgentDefinitionForUpdate` type:
+
+```typescript
+import type { AgentDefinitionForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+
+const update: AgentDefinitionForUpdate = {
+    agentId: 'my-agent',
+    basePrompt: 'Updated prompt',
+    toolIds: ['tool-1', 'tool-2', 'tool-3']
+    // Only include fields you want to update
+};
+```
+
+## Best Practices
+
+{% aside type="tip" title="Agent Configuration Tips" %}
+1. **Keep prompts focused** - A clear, specific basePrompt performs better than a vague one
+2. **Use handlebars sparingly** - Only include variables you actually need
+3. **Test with dontCacheThis** - Set `dontCacheThis: true` during development for immediate updates
+4. **Version your agents** - Use clear agentIds with semantic versioning (e.g., `customer-support-v2`)
+5. **Document access rules** - Always include a `description` field in AccessRule objects
+{% /aside %}
+
+## Validation Rules
+
+- `agentId` - Must be unique, alphanumeric with hyphens/underscores only
+- `basePrompt` - No strict length limit, but keep under 4000 characters for best performance
+- `toolIds` - Must reference existing tools in the tool definitions table
+- `accessRules` - Conditions must use valid CEL (Common Expression Language) syntax
+- `version` - Automatically incremented by the system on updates
+
+## Related Documentation
+
+- **[Tool Configuration](/reference/configuration/tool/)** - Configure tools that agents can use
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Link agents to chat apps
+- **[Multi-Agent Collaboration](/guides/agent-development/multi-agent/)** - How-to guide for using collaborators
+- **[Access Control](/guides/authentication-access/chat-app-access-control/)** - Configure access rules
+- **[Agent Types Reference](/reference/types/agent-tool/)** - Full TypeScript type definitions
+
+## API Endpoints
+
+- `POST /api/chat-admin/agent` - Create or update agent
+- `GET /api/chat-admin/agent/{agentId}` - Get agent definition
+- `DELETE /api/chat-admin/agent/{agentId}` - Delete agent
+- `POST /api/chat-admin/agents/search` - Search agents
+
+See [REST API Reference](/reference/api/rest/) for complete API documentation.
+

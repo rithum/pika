@@ -1,0 +1,390 @@
+---
+title: Configure Chat Disclaimer Notices
+description: Display legal disclaimers and set user expectations in chat applications
+---
+
+Learn how to configure chat disclaimer notices to inform users about AI limitations, provide legal protection, and set appropriate expectations for AI-generated responses.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable chat disclaimer notices site-wide
+- Configure default disclaimer text
+- Customize disclaimers for specific chat apps
+- Understand the disclaimer inheritance model
+- Follow best practices for disclaimer content
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for configuration
+- Legal guidance on appropriate disclaimer language (recommended)
+
+## Understanding Chat Disclaimers
+
+Chat disclaimer notices help you:
+
+- **Legal Protection**: Disclaim liability for AI-generated responses
+- **User Education**: Inform users about AI limitations
+- **Compliance**: Meet regulatory requirements for AI disclosure
+- **Risk Management**: Set appropriate expectations
+
+### How It Works
+
+The disclaimer system uses a hierarchical configuration:
+
+1. **Site-Level Default**: Global disclaimer for all chat apps
+2. **Chat App Override**: Individual apps can customize the message
+3. **Fallback**: No disclaimer shown if none configured
+
+## Step 1: Enable Site-Wide Disclaimer
+
+Configure the default disclaimer for all chat applications.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
+            notice: 'This AI-powered chat is here to help, but it may not always be accurate. For urgent or complex issues, please contact customer support. The company is not liable for problems caused by relying solely on this chat.'
+        }
+    }
+};
+```
+
+### Configuration Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `featureId` | string | Yes | Must be `'chatDisclaimerNotice'` |
+| `enabled` | boolean | Yes | Enable feature site-wide |
+| `notice` | string | Yes | Disclaimer text to display |
+
+## Step 2: Choose Disclaimer Content
+
+Tailor your disclaimer to your industry and use case.
+
+### General Purpose
+
+```typescript
+chatDisclaimerNotice: {
+    featureId: 'chatDisclaimerNotice',
+    enabled: true,
+    notice: 'This AI assistant provides general information and support. For urgent issues or definitive answers, please contact our human support team. We are not liable for decisions made based solely on AI responses.'
+}
+```
+
+### Healthcare/Medical
+
+```typescript
+chatDisclaimerNotice: {
+    featureId: 'chatDisclaimerNotice',
+    enabled: true,
+    notice: 'This AI assistant provides general health information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers for medical concerns.'
+}
+```
+
+### Financial Services
+
+```typescript
+chatDisclaimerNotice: {
+    featureId: 'chatDisclaimerNotice',
+    enabled: true,
+    notice: 'This AI assistant provides general financial information and should not be considered as personalized financial advice. Consult with qualified financial advisors for investment decisions. We are not liable for financial losses based on AI-generated information.'
+}
+```
+
+### Legal/Compliance
+
+```typescript
+chatDisclaimerNotice: {
+    featureId: 'chatDisclaimerNotice',
+    enabled: true,
+    notice: 'This AI assistant provides general legal information and does not constitute legal advice. For specific legal matters, please consult with a qualified attorney. We are not liable for legal consequences from using AI-generated information.'
+}
+```
+
+## Step 3: Override for Specific Chat Apps
+
+Customize disclaimers for individual chat applications.
+
+### Technical Support Chat App
+
+```typescript
+const techSupportApp: ChatApp = {
+    chatAppId: 'technical-support',
+    title: 'Technical Support',
+    agentId: 'tech-support-agent',
+    
+    features: {
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This technical AI assistant helps with product support. For critical issues affecting production systems, please contact our 24/7 emergency support line at 1-800-SUPPORT.'
+        }
+    }
+};
+```
+
+### Sales Information Chat App
+
+```typescript
+const salesApp: ChatApp = {
+    chatAppId: 'sales-info',
+    title: 'Sales Information',
+    agentId: 'sales-agent',
+    
+    features: {
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This AI assistant provides general product information. Pricing and availability may change. For official quotes and purchase decisions, please contact our sales team.'
+        }
+    }
+};
+```
+
+### Internal Knowledge Chat App
+
+```typescript
+const internalKnowledgeApp: ChatApp = {
+    chatAppId: 'internal-knowledge',
+    title: 'Internal Knowledge Base',
+    agentId: 'knowledge-agent',
+    
+    features: {
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This internal AI assistant provides company policy information. For official policy interpretations or HR matters, please consult with your manager or HR representative.'
+        }
+    }
+};
+```
+
+## Step 4: Deploy Configuration
+
+Deploy your configuration changes.
+
+### Using CDK
+
+```bash
+cd services/pika
+pnpm cdk:deploy
+
+cd apps/pika-chat
+pnpm cdk:deploy
+```
+
+### Using Serverless Framework
+
+```bash
+cd services/pika
+serverless deploy
+```
+
+## Step 5: Verify Display
+
+Test that disclaimers appear correctly.
+
+### Testing Steps
+
+1. **Open chat application** in your browser
+2. **Verify disclaimer appears** prominently in the interface
+3. **Check disclaimer text** matches configuration
+4. **Test different chat apps** to verify overrides work
+5. **Confirm persistence** throughout chat session
+
+### Display Characteristics
+
+The disclaimer:
+- Appears in a prominent location
+- Uses clear, readable formatting
+- Matches chat application design
+- Remains visible during the session
+- Does not block user interaction
+
+## Resolution Logic
+
+Understanding which disclaimer is shown:
+
+```typescript
+// Simplified resolution logic
+function getChatDisclaimerNotice(siteFeatures, chatApp) {
+    // 1. Check if chat app has its own disclaimer
+    if (chatApp.features?.chatDisclaimerNotice?.notice) {
+        return chatApp.features.chatDisclaimerNotice.notice;
+    }
+    
+    // 2. Fall back to site-level disclaimer
+    if (siteFeatures?.chatDisclaimerNotice?.notice) {
+        return siteFeatures.chatDisclaimerNotice.notice;
+    }
+    
+    // 3. No disclaimer configured
+    return undefined;
+}
+```
+
+## Best Practices
+
+### Legal Considerations
+
+- **Consult Legal Counsel**: Work with legal teams for appropriate language
+- **Regulatory Compliance**: Ensure disclaimers meet industry requirements
+- **Regular Review**: Periodically review and update disclaimer language
+- **Document Changes**: Track disclaimer modifications over time
+
+### Content Guidelines
+
+- **Clear Language**: Use plain, understandable language
+- **Specific Scope**: Tailor to the chat app's purpose
+- **Contact Information**: Include alternative contact methods
+- **Concise Messaging**: Keep informative but not overwhelming
+- **Action Items**: Provide clear guidance on when to seek human help
+
+### User Experience
+
+- **Readable Format**: Easy to read and understand
+- **Appropriate Tone**: Match organization's communication style
+- **Regular Updates**: Keep current with services and policies
+- **Visible Placement**: Ensure users can easily see it
+- **Non-Intrusive**: Don't block chat interaction
+
+## Common Use Cases
+
+### Customer-Facing Applications
+
+**Support Chat:**
+```
+Our AI support assistant can help with common questions. For complex problems, billing inquiries, or account changes, please contact our human support team at support@company.com or 1-800-SUPPORT.
+```
+
+**Product Information:**
+```
+This AI assistant provides product information. Specifications, pricing, and availability are subject to change. For official quotes and purchases, contact our sales team.
+```
+
+### Specialized Domains
+
+**Healthcare:**
+```
+This health information AI is for educational purposes only. Always consult healthcare professionals for medical advice, diagnosis, or treatment. If experiencing a medical emergency, call 911.
+```
+
+**Financial:**
+```
+This AI provides general financial information, not personalized advice. Consult certified financial advisors for investment decisions. Past performance doesn't guarantee future results.
+```
+
+### Internal Applications
+
+**HR Policy:**
+```
+This AI assistant provides general HR policy information. For official policy interpretations, benefits questions, or sensitive matters, please contact HR directly.
+```
+
+**IT Support:**
+```
+This AI can help with common IT issues. For urgent problems affecting critical systems or security concerns, contact the IT help desk immediately at ext. 5555.
+```
+
+## Testing Checklist
+
+Verify disclaimer configuration works correctly:
+
+{% checklist %}
+- [ ] Site-level disclaimer configured
+- [ ] Disclaimer appears in chat interface
+- [ ] Text is clear and readable
+- [ ] Formatting looks professional
+- [ ] Chat app overrides work correctly
+- [ ] Different apps show appropriate disclaimers
+- [ ] Disclaimer persists during session
+- [ ] Legal team has reviewed content
+- [ ] Meets regulatory requirements
+- [ ] Alternative contacts provided
+{% /checklist %}
+
+## Troubleshooting
+
+### Disclaimer Not Appearing
+
+- Verify `enabled: true` in configuration
+- Check `notice` property has text content
+- Confirm configuration deployed successfully
+- Review browser console for errors
+- Check chat app is loading correctly
+
+### Wrong Disclaimer Showing
+
+- Verify chat app override configuration
+- Check `featureId` matches exactly
+- Ensure no typos in configuration
+- Review inheritance logic
+- Test with different chat apps
+
+### Formatting Issues
+
+- Check for special characters in text
+- Verify string escaping correct
+- Test with shorter disclaimer text
+- Review CSS styling
+- Check for line break handling
+
+## Complete Example
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            enabled: true,
+            notice: 'This AI-powered chat assistant provides information and support. While we strive for accuracy, responses may not always be complete or current. For urgent matters, critical decisions, or official information, please contact our human support team. We are not liable for decisions made based solely on AI-generated responses.'
+        }
+    },
+    
+    chatApps: [
+        {
+            chatAppId: 'customer-support',
+            title: 'Customer Support',
+            agentId: 'support-agent',
+            
+            // Override with specialized disclaimer
+            features: {
+                chatDisclaimerNotice: {
+                    featureId: 'chatDisclaimerNotice',
+                    notice: 'Our AI support assistant can help with common questions and issues. For complex problems, billing inquiries, or account changes, please contact our human support team at support@company.com or 1-800-SUPPORT (24/7).'
+                }
+            }
+        },
+        {
+            chatAppId: 'general-info',
+            title: 'General Information',
+            agentId: 'info-agent'
+            // Uses site-level disclaimer (no override)
+        }
+    ]
+};
+```
+
+## Next Steps
+
+- [Override Default Features](/guides/customization/override-features/) - Learn about feature overrides
+- [Customize the UI](/guides/customization/ui/) - UI customization options
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - User access control
+
+## Related Documentation
+
+- [Feature Override System](/capabilities/customization/feature-overrides/) - How overrides work
+- [Chat App Configuration](/reference/config/chat-apps/) - Complete chat app options
+- [Site Features Reference](/reference/config/site-features/) - All site features
+
+---
+
+{% aside type="caution" title="Legal Review Required" %}
+Always have legal counsel review your disclaimer language to ensure it provides appropriate protection and meets regulatory requirements for your industry and jurisdiction.
+{% /aside %}
+

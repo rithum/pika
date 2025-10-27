@@ -4,13 +4,14 @@ import ZoomSvelte from './zoom.svelte';
 interface Props {
 	label?: string;
 	clientLoad?: boolean;
+	border?: boolean;
 	// Image node properties from Markdoc
 	src?: string | any; // Can be a string or an Astro image object
 	alt?: string;
 	title?: string;
 }
 
-const { label, clientLoad = true, src, alt, title } = Astro.props;
+const { label, clientLoad = true, border = false, src, alt, title } = Astro.props;
 
 // If src is provided, this is being used as an image node override from Markdoc
 const isImageNode = !!src;
@@ -22,16 +23,16 @@ const imageSrc = typeof src === 'string' ? src : (src?.src || src);
 
 <div class="zoom-container">
 	{isImageNode ? (
-		<ZoomSvelte label={finalLabel} client:load>
+		<ZoomSvelte label={finalLabel} border={border} client:load>
 			<img src={imageSrc} alt={alt || ''} title={title} />
 		</ZoomSvelte>
 	) : (
 		clientLoad ? (
-			<ZoomSvelte label={finalLabel} client:load>
+			<ZoomSvelte label={finalLabel} border={border} client:load>
 				<slot />
 			</ZoomSvelte>
 		) : (
-			<ZoomSvelte label={finalLabel}>
+			<ZoomSvelte label={finalLabel} border={border}>
 				<slot />
 			</ZoomSvelte>
 		)

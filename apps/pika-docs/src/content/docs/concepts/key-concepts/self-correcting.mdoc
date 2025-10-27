@@ -1,0 +1,508 @@
+---
+title: Self-Correcting Loop
+description: How Pika improves response quality through independent verification and automatic correction
+---
+
+Pika's self-correcting loop is a quality assurance mechanism that uses an independent LLM to verify agent responses and trigger automatic corrections when quality thresholds aren't met. This page explains how self-correction works and why it matters for production AI systems.
+
+## The Quality Problem
+
+**Challenge**: LLM agents sometimes produce incorrect, incomplete, or inappropriate responses:
+- Wrong information (hallucinations)
+- Incomplete answers
+- Off-topic responses
+- Policy violations
+- Misunderstanding user intent
+
+**Traditional approach**: Hope the agent gets it right, or rely on users to report problems.
+
+**Pika's approach**: **Independent verification before the user sees the response.**
+
+## How Self-Correction Works
+
+### The Verification Loop
+
+![Self-Correcting Loop Diagram](/img/diagrams/self-correcting-loop.drawio.svg)
+
+### Key Components
+
+**1. Primary Agent**:
+- Your configured agent (weather assistant, support bot, etc.)
+- Attempts to answer user's question
+- Uses available tools and context
+
+**2. Verifier Agent**:
+- Independent LLM (separate from primary agent)
+- Evaluates response quality
+- Assigns grade and provides feedback
+- Has no stake in defending the primary agent's answer
+
+**3. Correction Loop**:
+- If grade is below threshold, re-attempt
+- Primary agent sees verifier feedback
+- Tries to address issues
+- Process repeats up to max attempts
+
+**4. Final Response**:
+- Best response returned to user
+- Grade and verifier notes stored for analysis
+
+## Grading System
+
+### Grade Levels
+
+**A - Excellent**:
+- Accurate and complete answer
+- Addresses all aspects of question
+- Follows guidelines and policies
+- Well-structured and clear
+
+**B - Good**:
+- Generally accurate answer
+- Minor issues or omissions
+- Mostly follows guidelines
+- Acceptable for user
+
+**C - Needs Improvement**:
+- Significant issues present
+- Incomplete or partially incorrect
+- Some policy concerns
+- Below acceptable threshold
+
+**F - Failing**:
+- Incorrect or harmful answer
+- Major policy violations
+- Misses the question entirely
+- Unacceptable for user
+
+### Verifier Evaluation Criteria
+
+**The verifier checks**:
+1. **Accuracy**: Is the information correct?
+2. **Completeness**: Does it fully answer the question?
+3. **Relevance**: Is it on-topic?
+4. **Policy compliance**: Does it follow guidelines?
+5. **Tool usage**: Were appropriate tools used?
+6. **Tone**: Is it appropriate for the context?
+
+## Configuration
+
+### Enable Self-Correction
+
+**Per chat app**:
+```typescript
+chatApp: {
+    chatAppId: 'customer-support',
+    agentId: 'support-agent',
+    
+    features: {
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            
+            // Who sees this feature
+            userTypes: ['internal-user', 'external-user'],
+            
+            // Auto-reprompt threshold
+            autoRepromptThreshold: 'C',  // Re-prompt on C or F
+            
+            // Max correction attempts
+            maxAttempts: 2  // Try up to 2 corrections
+        }
+    }
+}
+```
+
+### Auto-Reprompt Threshold
+
+**Options**:
+- `'B'`: Re-prompt on B, C, or F (strictest)
+- `'C'`: Re-prompt on C or F (recommended)
+- `'F'`: Re-prompt only on F (most lenient)
+- `null`: No auto-reprompt (grading only)
+
+**Example**:
+```typescript
+autoRepromptThreshold: 'C'
+// Grade A → Show to user
+// Grade B → Show to user
+// Grade C → Re-prompt (try again)
+// Grade F → Re-prompt (try again)
+```
+
+### Max Attempts
+
+**Configure correction attempts**:
+```typescript
+maxAttempts: 2
+```
+
+**Behavior**:
+```
+Attempt 1: Primary agent responds → Grade C → Re-prompt
+Attempt 2: Primary agent tries again → Grade B → Success, show to user
+(If still < threshold after max attempts, show best response)
+```
+
+### Role-Based Configuration
+
+**Different thresholds for different users**:
+```typescript
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        
+        // Strict for external users
+        configs: [{
+            userTypes: ['external-user'],
+            autoRepromptThreshold: 'C',
+            maxAttempts: 3
+        }, {
+            // Lenient for internal testing
+            userTypes: ['internal-user'],
+            userRoles: ['tester'],
+            autoRepromptThreshold: 'F',
+            maxAttempts: 1
+        }]
+    }
+}
+```
+
+## Example Flow
+
+### Without Self-Correction
+
+```
+User: "What's the weather forecast for next week in Seattle?"
+    ↓
+Agent: "It will be sunny." (Wrong - agent didn't use weather tool)
+    ↓
+User sees incorrect answer
+```
+
+### With Self-Correction
+
+```
+User: "What's the weather forecast for next week in Seattle?"
+    ↓
+Agent: "It will be sunny."
+    ↓
+Verifier: "Grade F - Agent didn't use weather tools, answer is speculation"
+    ↓
+Re-prompt with feedback
+    ↓
+Agent: "Let me check..." [Uses weather tool] "The forecast shows..."
+    ↓
+Verifier: "Grade A - Accurate, used tools correctly"
+    ↓
+User sees correct, verified answer
+```
+
+## Verifier Feedback
+
+### Feedback Structure
+
+```typescript
+verifierResponse: {
+    grade: 'C',
+    reasoning: 'Response is incomplete. User asked for 7-day forecast but only current conditions were provided. Should use forecast tool.',
+    suggestions: [
+        'Call get_weather_forecast tool for 7-day data',
+        'Include daily high/low temperatures',
+        'Mention any weather alerts if present'
+    ],
+    policyIssues: null
+}
+```
+
+### How Primary Agent Uses Feedback
+
+**Re-prompt includes**:
+```
+Original user message: "What's the weather forecast for next week in Seattle?"
+
+Your previous attempt: "Current weather in Seattle is 65°F and sunny..."
+
+Verifier feedback: "Response is incomplete. User asked for 7-day forecast but only current conditions were provided. Should use forecast tool."
+
+Try again, addressing the feedback.
+```
+
+**Result**: Agent learns what was wrong and corrects it.
+
+## Storage and Analysis
+
+### Verification Metadata
+
+**Stored with each message**:
+```typescript
+message: {
+    messageId: 'msg_abc123',
+    role: 'assistant',
+    content: 'The 7-day forecast for Seattle...',
+    
+    selfCorrectionMeta: {
+        attempts: 2,
+        grades: ['C', 'A'],
+        verifierNotes: [
+            'Incomplete - missing forecast data',
+            'Complete and accurate'
+        ],
+        finalGrade: 'A',
+        autoReprompted: true
+    }
+}
+```
+
+### Analytics Use Cases
+
+**Track quality metrics**:
+```sql
+-- Average grade by agent
+SELECT agentId, AVG(CASE 
+    WHEN grade='A' THEN 4 
+    WHEN grade='B' THEN 3 
+    WHEN grade='C' THEN 2 
+    ELSE 1 END) as avgGrade
+FROM messages
+GROUP BY agentId;
+
+-- Correction success rate
+SELECT 
+    SUM(CASE WHEN attempts > 1 THEN 1 ELSE 0 END) / COUNT(*) as correctionRate
+FROM messages;
+
+-- Most common issues
+SELECT verifierNotes, COUNT(*) as frequency
+FROM messages
+WHERE grade IN ('C', 'F')
+GROUP BY verifierNotes
+ORDER BY frequency DESC;
+```
+
+**Use insights to**:
+- Improve agent instructions
+- Identify missing tools
+- Refine agent training
+- Track quality over time
+
+## Benefits
+
+### For Users
+
+**Better answers**:
+- Fewer incorrect responses
+- More complete information
+- Consistent quality
+- Reduced frustration
+
+**Transparency**:
+- Can see verification grades (if traces enabled)
+- Understand agent confidence
+- Trust in responses
+
+### For Product Teams
+
+**Quality assurance**:
+- Automatic quality checking
+- Catch issues before users see them
+- Continuous quality monitoring
+- Data-driven improvements
+
+**Faster iteration**:
+- Identify weak points in agent instructions
+- See which tools are underutilized
+- Understand common failure modes
+- Prioritize improvements
+
+### For Enterprise
+
+**Risk reduction**:
+- Fewer incorrect customer interactions
+- Policy compliance checking
+- Audit trail of quality checks
+- Automated quality gates
+
+**Cost optimization**:
+- Fix issues automatically vs. customer support
+- Reduce human review needs
+- Prevent reputation damage
+
+## Trade-offs
+
+### What You Gain
+
+✅ Higher response quality
+✅ Automatic error correction
+✅ Quality metrics and analytics
+✅ Reduced risk of bad answers
+✅ Transparency and trust
+
+### What You Pay
+
+❌ Additional latency (1-3 seconds for verification)
+❌ Extra token costs (verifier LLM calls)
+❌ Complexity (additional configuration)
+❌ May over-correct in some cases
+
+### Cost Consideration
+
+**Token usage per message**:
+```
+Without self-correction:
+- Primary agent: ~2000 tokens
+
+With self-correction:
+- Primary agent: ~2000 tokens
+- Verifier: ~1500 tokens
+- Re-prompt (if triggered): ~2500 tokens
+Total: 4500-6000 tokens (2-3x cost)
+```
+
+**Recommendation**: 
+- Enable for customer-facing applications (quality worth cost)
+- Disable for internal testing tools (save costs)
+- Use selective thresholds (C or F only)
+
+## Best Practices
+
+### 1. Start Conservative
+
+Begin with lenient threshold:
+```typescript
+autoRepromptThreshold: 'F'  // Only correct failures
+maxAttempts: 1
+```
+
+Monitor results, then tighten:
+```typescript
+autoRepromptThreshold: 'C'  // Correct C and F
+maxAttempts: 2
+```
+
+### 2. Use Role-Based Configuration
+
+```typescript
+// Strict for customers
+userTypes: ['external-user'],
+autoRepromptThreshold: 'C',
+maxAttempts: 3
+
+// Lenient for internal testing
+userTypes: ['internal-user'],
+userRoles: ['developer'],
+autoRepromptThreshold: 'F',
+maxAttempts: 1
+```
+
+### 3. Monitor Correction Rates
+
+**Healthy metrics**:
+- 70-90% grade A/B on first attempt
+- 5-15% corrections triggered
+- 80%+ corrections improve grade
+- <5% reach max attempts without improvement
+
+**Red flags**:
+- >30% corrections triggered → Agent instruction issues
+- <50% corrections improve grade → Verifier not helping
+- Frequent max attempts → Agent can't fix issues
+
+### 4. Use Traces for Debugging
+
+Enable traces to see verification details:
+```typescript
+features: {
+    traces: {
+        featureId: 'traces',
+        enabled: true,
+        userRoles: ['admin']
+    },
+    verifyResponse: { ... }
+}
+```
+
+Review verifier feedback to improve agent instructions.
+
+### 5. Balance Cost vs. Quality
+
+**High-stakes applications** (customer-facing):
+- Enable self-correction
+- Use threshold 'C'
+- Allow 2-3 attempts
+- Accept higher costs
+
+**Low-stakes applications** (internal tools):
+- Disable or use threshold 'F'
+- Allow 1 attempt
+- Minimize costs
+
+## Troubleshooting
+
+### Too Many Corrections
+
+**Symptoms**: Most responses being re-prompted
+
+**Causes**:
+- Agent instructions unclear
+- Missing required tools
+- Verifier too strict
+- Threshold too high
+
+**Solutions**:
+- Review and clarify agent instructions
+- Add missing tools
+- Lower threshold (C → F)
+- Review verifier feedback patterns
+
+### Corrections Not Helping
+
+**Symptoms**: Grade doesn't improve after re-prompt
+
+**Causes**:
+- Agent can't fix the issue
+- Missing tools or data
+- Verifier feedback unclear
+- Fundamental instruction problem
+
+**Solutions**:
+- Review failed corrections in traces
+- Add necessary tools
+- Improve agent instructions
+- Consider if agent is right tool for task
+
+### High Costs
+
+**Symptoms**: Token costs too high
+
+**Causes**:
+- Too many corrections
+- Threshold too strict
+- Unnecessary for this use case
+
+**Solutions**:
+- Raise threshold (C → F)
+- Reduce max attempts
+- Disable for low-stakes apps
+- Improve agent to reduce corrections
+
+## Future Enhancements
+
+**Planned improvements**:
+- Custom verifier instructions per agent
+- Multiple verifiers (consensus grading)
+- Learning from corrections (improve over time)
+- Verifier specialization (accuracy vs. tone vs. policy)
+
+## Related Documentation
+
+- **[Configure Answer Verification](/guides/intelligence/answer-verification/)** - Setup guide
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - How verification fits in
+- **[Monitor with Traces](/guides/admin/traces/)** - Debug verification
+- **[LLM-Generated Feedback](/concepts/key-concepts/llm-feedback/)** - Post-session analysis
+
+{% aside type="caution" %}
+Self-correction adds latency and cost. Use it strategically for applications where response quality matters more than speed or cost.
+{% /aside %}
+

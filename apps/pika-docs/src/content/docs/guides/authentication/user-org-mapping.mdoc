@@ -1,0 +1,433 @@
+---
+title: Set Up User-to-Organization Mapping
+description: Associate users with organizational entities for multi-tenancy and access control
+---
+
+Learn how to map users to organizations (entities) in Pika, enabling multi-tenant applications with organization-based access control and data isolation.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable the entity feature in Pika
+- Configure user-to-organization mapping
+- Implement entity assignment in your auth provider
+- Filter data by organization
+- Use entity-based access control
+- Support multi-tenant scenarios
+
+## Prerequisites
+
+- A running Pika installation
+- Custom authentication provider configured
+- Understanding of your organizational structure
+- Familiarity with access control requirements
+
+## Understanding User-to-Organization Mapping
+
+User-to-organization mapping associates each user with one or more organizational entities:
+
+- **Multi-Tenancy**: Separate data and access by organization
+- **Access Control**: Restrict resources based on organization membership
+- **Data Filtering**: Show only organization-relevant data
+- **Personalization**: Customize experience per organization
+
+### Common Use Cases
+
+- **SaaS Applications**: Each customer company is an entity
+- **Enterprise Deployments**: Departments or business units as entities
+- **Partner Portals**: Partner organizations as entities
+- **Educational Platforms**: Schools or districts as entities
+
+## Step 1: Enable Entity Feature
+
+Configure the entity feature in your Pika configuration.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            
+            // Field in user.customData that contains entity identifier
+            attributeName: 'organizationId',
+            
+            // Display names for UI
+            displayNameSingular: 'Organization',
+            displayNamePlural: 'Organizations',
+            
+            // Optional: Label for the attribute
+            attributeLabel: 'Organization ID'
+        }
+    }
+};
+```
+
+### Configuration Options
+
+- **`attributeName`**: The field in `customData` containing the entity identifier
+- **`displayNameSingular`**: Singular name (e.g., "Company", "Department")
+- **`displayNamePlural`**: Plural name (e.g., "Companies", "Departments")
+- **`attributeLabel`**: Label shown in UI (defaults to attribute name)
+
+## Step 2: Update Your Data Model
+
+Ensure your user data includes organization information.
+
+### User Data Structure
+
+```typescript
+interface CustomUserData {
+    organizationId: string;      // Entity identifier
+    organizationName?: string;   // Optional display name
+    role: string;                // User's role in the organization
+    email: string;
+    department?: string;
+    // ... other custom fields
+}
+```
+
+### Example User Data
+
+```typescript
+{
+    userId: 'user-123',
+    firstName: 'Jane',
+    lastName: 'Smith',
+    customData: {
+        organizationId: 'acme-corp',           // Entity identifier
+        organizationName: 'Acme Corporation',   // Optional display
+        role: 'manager',
+        email: 'jane@acme.com',
+        department: 'Sales'
+    }
+}
+```
+
+## Step 3: Implement Entity Assignment in Auth Provider
+
+Populate the entity identifier during authentication.
+
+### Example Auth Provider Implementation
+
+```typescript
+// apps/pika-chat/src/lib/server/auth-provider/your-auth-provider.ts
+import { AuthProvider, type AuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
+
+export default class YourAuthProvider extends AuthProvider {
+    
+    async authenticate(request: Request): Promise<AuthenticatedUser | null> {
+        // Your authentication logic
+        const userData = await this.validateAndGetUser(request);
+        
+        if (!userData) {
+            return null;
+        }
+        
+        // Fetch organization information
+        const orgData = await this.getUserOrganization(userData.userId);
+        
+        return {
+            userId: userData.userId,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            userType: this.determineUserType(userData),
+            
+            // Include entity identifier in customData
+            customData: {
+                organizationId: orgData.organizationId,    // Required for entity feature
+                organizationName: orgData.organizationName,
+                role: userData.role,
+                email: userData.email,
+                department: userData.department
+            }
+        };
+    }
+    
+    private async getUserOrganization(userId: string) {
+        // Fetch from your database, directory service, or SSO provider
+        // This is pseudo-code - implement based on your data source
+        
+        const userRecord = await this.database.getUser(userId);
+        
+        return {
+            organizationId: userRecord.organizationId,
+            organizationName: userRecord.organizationName
+        };
+    }
+}
+```
+
+### From SSO/SAML Attributes
+
+```typescript
+async authenticate(request: Request): Promise<AuthenticatedUser | null> {
+    const samlAttributes = await this.parseSamlResponse(request);
+    
+    return {
+        userId: samlAttributes['urn:oid:0.9.2342.19200300.100.1.1'], // uid
+        firstName: samlAttributes['urn:oid:2.5.4.42'], // givenName
+        lastName: samlAttributes['urn:oid:2.5.4.4'], // sn
+        userType: 'authenticated-user',
+        customData: {
+            // Get organization from SAML attribute
+            organizationId: samlAttributes['urn:oid:1.3.6.1.4.1.5923.1.1.1.10'], // organizationId
+            organizationName: samlAttributes['urn:oid:2.5.4.10'], // o (organization)
+            email: samlAttributes['urn:oid:0.9.2342.19200300.100.1.3'] // mail
+        }
+    };
+}
+```
+
+### From OAuth/JWT Claims
+
+```typescript
+async authenticate(request: Request): Promise<AuthenticatedUser | null> {
+    const token = await this.validateJwt(request);
+    const claims = token.payload;
+    
+    return {
+        userId: claims.sub,
+        firstName: claims.given_name,
+        lastName: claims.family_name,
+        userType: 'authenticated-user',
+        customData: {
+            // Get organization from JWT claim
+            organizationId: claims.org_id || claims['custom:org_id'],
+            organizationName: claims.org_name || claims['custom:org_name'],
+            email: claims.email
+        }
+    };
+}
+```
+
+## Step 4: Use Entity in Access Control
+
+Restrict access based on organization membership.
+
+### Chat App Access by Entity
+
+```typescript
+// pika-config.ts
+chatApps: [
+    {
+        chatAppId: 'sales-dashboard',
+        title: 'Sales Dashboard',
+        agentId: 'sales-agent',
+        
+        accessControl: {
+            allowAnonymousUsers: false,
+            userTypes: ['authenticated-user'],
+            
+            // Restrict to specific organizations
+            entities: ['acme-corp', 'globex-inc']
+        }
+    }
+]
+```
+
+### Entity-Specific Agent Instructions
+
+Use instruction augmentation for organization-specific guidance:
+
+```typescript
+{
+    scopeType: 'entity',
+    scopeValue: 'acme-corp',
+    id: 'acme-policies',
+    description: 'Acme Corporation specific policies and procedures',
+    instructions: 'When helping Acme Corp users, reference their return policy: 60 days for all products, free return shipping for premium customers.'
+}
+```
+
+## Step 5: Filter Data by Organization
+
+Implement organization-based data filtering in tools.
+
+### Example: Organization-Filtered Query
+
+```typescript
+// src/tools/get-sales-data.ts
+import { ToolExecutionParams, ToolResponse } from 'pika-shared/types/chatbot/chatbot-types';
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        // Get user's organization from customData
+        const organizationId = event.user?.customData?.organizationId;
+        
+        if (!organizationId) {
+            return {
+                toolExecutionSucceeded: false,
+                responseFromTool: JSON.stringify({
+                    error: 'Organization not found for user'
+                })
+            };
+        }
+        
+        // Query data filtered by organization
+        const salesData = await database.query({
+            table: 'sales',
+            where: {
+                organizationId: organizationId,
+                date: { gte: event.toolInput.startDate }
+            }
+        });
+        
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify({
+                organizationId: organizationId,
+                data: salesData
+            })
+        };
+        
+    } catch (error) {
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({ error: error.message })
+        };
+    }
+}
+```
+
+### Example: Organization-Scoped S3 Access
+
+```typescript
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    const organizationId = event.user?.customData?.organizationId;
+    
+    const s3 = new S3Client({});
+    
+    // List objects only in organization's prefix
+    const result = await s3.send(new ListObjectsV2Command({
+        Bucket: process.env.BUCKET_NAME,
+        Prefix: `organizations/${organizationId}/`,
+        MaxKeys: 100
+    }));
+    
+    return {
+        toolExecutionSucceeded: true,
+        responseFromTool: JSON.stringify({
+            files: result.Contents?.map(obj => obj.Key) || []
+        })
+    };
+}
+```
+
+## Step 6: Support Multiple Organizations
+
+Handle users belonging to multiple organizations.
+
+### Multiple Organization Assignment
+
+```typescript
+customData: {
+    organizationIds: ['acme-corp', 'subsidiary-inc'],  // Array of organizations
+    primaryOrganization: 'acme-corp',                  // Default organization
+    currentOrganization: 'acme-corp',                  // Active organization
+    organizationRoles: {
+        'acme-corp': 'admin',
+        'subsidiary-inc': 'member'
+    }
+}
+```
+
+### Organization Switching UI
+
+```typescript
+// Custom web component for organization switching
+async function switchOrganization(newOrgId: string) {
+    // Update user's current organization
+    await fetch('/api/user/switch-organization', {
+        method: 'POST',
+        body: JSON.stringify({ organizationId: newOrgId })
+    });
+    
+    // Refresh the page or update state
+    window.location.reload();
+}
+```
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] Entity feature enabled in config
+- [ ] Auth provider populates organizationId
+- [ ] Users see correct organization in profile
+- [ ] Chat apps restricted by entity work
+- [ ] Data filtering by organization works
+- [ ] Entity-specific instructions apply
+- [ ] Users can only access their org's data
+- [ ] Multi-organization users can switch (if applicable)
+- [ ] Anonymous users handled correctly
+- [ ] Error handling for missing org data
+{% /checklist %}
+
+## Best Practices
+
+### Security
+
+- **Validate Organization Membership**: Always verify user belongs to org
+- **Filter All Queries**: Apply organization filter at data layer
+- **Audit Access**: Log organization-based access decisions
+- **Isolate Data**: Separate organization data physically or logically
+
+### User Experience
+
+- **Show Organization Context**: Display current organization in UI
+- **Smooth Switching**: Allow easy switching between orgs (if applicable)
+- **Clear Permissions**: Explain what users can access
+- **Organization Branding**: Customize per organization when possible
+
+### Performance
+
+- **Index by Organization**: Database indexes on organizationId
+- **Cache Organization Data**: Cache org metadata and permissions
+- **Partition Data**: Consider data partitioning by organization
+- **Monitor Query Performance**: Track org-filtered query performance
+
+## Troubleshooting
+
+### Organization Not Found
+
+- Verify `customData.organizationId` populated
+- Check auth provider implementation
+- Confirm attributeName matches config
+- Review authentication flow logs
+
+### Access Denied
+
+- Check chat app entity restrictions
+- Verify user's organization ID matches allowed entities
+- Review access control configuration
+- Check for case sensitivity issues
+
+### Data Leakage
+
+- Audit all database queries for org filtering
+- Review tool implementations
+- Check S3 bucket policies and prefixes
+- Test with users from different organizations
+
+## Next Steps
+
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Comprehensive access control
+- [Work with Entities](/guides/data-sessions/entities/) - Entity feature details
+- [Implement Instruction Augmentation](/guides/intelligence/instruction-augmentation/) - Entity-specific instructions
+
+## Related Documentation
+
+- [Entity Feature](/capabilities/enterprise/entity-management/) - Complete entity documentation
+- [Access Control](/capabilities/security/access-control/) - Security model
+- [Authentication Guide](/guides/authentication/integrate-auth/) - Auth provider setup
+
+---
+
+{% aside type="success" title="Secure Multi-Tenancy" %}
+Proper user-to-organization mapping is the foundation of secure multi-tenant applications. Always filter data by organization and validate access at every layer.
+{% /aside %}
+

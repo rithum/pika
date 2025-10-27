@@ -1,0 +1,80 @@
+<svg host="65bd71144e" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="800px" height="650px" viewBox="-0.5 -0.5 800 650" content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;root&quot; value=&quot;Project Root&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#1e40af;strokeWidth=2;fontSize=14;fontWeight=bold;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;300&quot; y=&quot;20&quot; width=&quot;200&quot; height=&quot;50&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; style=&quot;endArrow=none;html=1;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;root&quot; target=&quot;split&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;split&quot; value=&quot;&quot; style=&quot;ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;395&quot; y=&quot;100&quot; width=&quot;10&quot; height=&quot;10&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;line1&quot; style=&quot;endArrow=classic;html=1;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;split&quot; target=&quot;apps&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;apps&quot; value=&quot;apps/\n\n• pika-chat/\n• pika-docs/\n• samples/&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#b45309;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontSize=11;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;50&quot; y=&quot;150&quot; width=&quot;160&quot; height=&quot;100&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;line2&quot; style=&quot;endArrow=classic;html=1;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;split&quot; target=&quot;services&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;services&quot; value=&quot;services/\n\n• pika/\n• custom/\n• samples/&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fce7f3;strokeColor=#9f1239;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontSize=11;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;250&quot; y=&quot;150&quot; width=&quot;160&quot; height=&quot;100&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;line3&quot; style=&quot;endArrow=classic;html=1;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;split&quot; target=&quot;packages&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;packages&quot; value=&quot;packages/\n\n• pika-cli/\n• pika-ux/\n• shared/&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#d1fae5;strokeColor=#065f46;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontSize=11;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;450&quot; y=&quot;150&quot; width=&quot;160&quot; height=&quot;100&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;line4&quot; style=&quot;endArrow=classic;html=1;strokeWidth=2;&quot; parent=&quot;1&quot; source=&quot;split&quot; target=&quot;docs&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;docs&quot; value=&quot;docs/\n\n• architecture/\n• concepts/&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#075985;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontSize=11;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;650&quot; y=&quot;150&quot; width=&quot;130&quot; height=&quot;100&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;config&quot; value=&quot;pika-config.ts&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#991b1b;strokeWidth=2;fontSize=11;fontWeight=bold;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;150&quot; y=&quot;300&quot; width=&quot;160&quot; height=&quot;50&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;sync&quot; value=&quot;.pika-sync.json&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#991b1b;strokeWidth=2;fontSize=11;fontWeight=bold;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;350&quot; y=&quot;300&quot; width=&quot;160&quot; height=&quot;50&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;workspace&quot; value=&quot;pnpm-workspace.yaml&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#991b1b;strokeWidth=2;fontSize=11;fontWeight=bold;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;550&quot; y=&quot;300&quot; width=&quot;160&quot; height=&quot;50&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;apps-detail&quot; value=&quot;Frontend Applications\n\nUser-facing chat interfaces,\nadmin panels, documentation sites&quot; style=&quot;rounded=0;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#b45309;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;30&quot; y=&quot;400&quot; width=&quot;200&quot; height=&quot;90&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;services-detail&quot; value=&quot;Backend Services (CDK)\n\nInfrastructure definitions,\nLambda functions, agent configs&quot; style=&quot;rounded=0;whiteSpace=wrap;html=1;fillColor=#fdf2f8;strokeColor=#9f1239;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;260&quot; y=&quot;400&quot; width=&quot;200&quot; height=&quot;90&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;packages-detail&quot; value=&quot;Shared Packages\n\nReusable utilities, UI components,\nCLI tools, type definitions&quot; style=&quot;rounded=0;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#065f46;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;490&quot; y=&quot;400&quot; width=&quot;200&quot; height=&quot;90&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;config-detail&quot; value=&quot;Central Configuration\n\nDefines agents, tools, chat apps,\nauth settings, and feature flags&quot; style=&quot;rounded=0;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#991b1b;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;30&quot; y=&quot;530&quot; width=&quot;330&quot; height=&quot;90&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;sync-detail&quot; value=&quot;Sync Protection\n\nProtects customizations during\nframework updates&quot; style=&quot;rounded=0;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#991b1b;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=10;spacingTop=5;fontSize=10;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;390&quot; y=&quot;530&quot; width=&quot;300&quot; height=&quot;90&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+    </marker>
+  </defs>
+  <g>
+    <rect id="root" x="300" y="20" width="200" height="50" rx="8" ry="8" fill="#dbeafe" stroke="#1e40af" stroke-width="2"/>
+    <text x="400" y="45" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica" font-size="14" font-weight="bold">Project Root</text>
+    
+    <line id="arrow1" x1="400" y1="70" x2="400" y2="100" stroke="#000000" stroke-width="2"/>
+    <circle id="split" cx="400" cy="105" r="5" fill="#000000" stroke="#000000"/>
+    
+    <line id="line1" x1="400" y1="105" x2="130" y2="145" stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <rect id="apps" x="50" y="150" width="160" height="100" rx="8" ry="8" fill="#fef3c7" stroke="#b45309" stroke-width="2"/>
+    <text x="60" y="165" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">apps/</text>
+    <text x="60" y="190" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• pika-chat/</text>
+    <text x="60" y="205" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• pika-docs/</text>
+    <text x="60" y="220" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• samples/</text>
+    
+    <line id="line2" x1="400" y1="105" x2="330" y2="145" stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <rect id="services" x="250" y="150" width="160" height="100" rx="8" ry="8" fill="#fce7f3" stroke="#9f1239" stroke-width="2"/>
+    <text x="260" y="165" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">services/</text>
+    <text x="260" y="190" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• pika/</text>
+    <text x="260" y="205" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• custom/</text>
+    <text x="260" y="220" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• samples/</text>
+    
+    <line id="line3" x1="400" y1="105" x2="530" y2="145" stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <rect id="packages" x="450" y="150" width="160" height="100" rx="8" ry="8" fill="#d1fae5" stroke="#065f46" stroke-width="2"/>
+    <text x="460" y="165" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">packages/</text>
+    <text x="460" y="190" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• pika-cli/</text>
+    <text x="460" y="205" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• pika-ux/</text>
+    <text x="460" y="220" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• shared/</text>
+    
+    <line id="line4" x1="400" y1="105" x2="715" y2="145" stroke="#000000" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <rect id="docs" x="650" y="150" width="130" height="100" rx="8" ry="8" fill="#e0f2fe" stroke="#075985" stroke-width="2"/>
+    <text x="660" y="165" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">docs/</text>
+    <text x="660" y="190" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• architecture/</text>
+    <text x="660" y="205" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10">• concepts/</text>
+    
+    <rect id="config" x="150" y="300" width="160" height="50" rx="8" ry="8" fill="#fee2e2" stroke="#991b1b" stroke-width="2"/>
+    <text x="230" y="325" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">pika-config.ts</text>
+    
+    <rect id="sync" x="350" y="300" width="160" height="50" rx="8" ry="8" fill="#fee2e2" stroke="#991b1b" stroke-width="2"/>
+    <text x="430" y="325" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica" font-size="11" font-weight="bold">.pika-sync.json</text>
+    
+    <rect id="workspace" x="550" y="300" width="160" height="50" rx="8" ry="8" fill="#fee2e2" stroke="#991b1b" stroke-width="2"/>
+    <text x="630" y="325" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">pnpm-workspace.yaml</text>
+    
+    <rect id="apps-detail" x="30" y="400" width="200" height="90" rx="5" ry="5" fill="#fffbeb" stroke="#b45309" stroke-width="1"/>
+    <text x="40" y="415" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">Frontend Applications</text>
+    <text x="40" y="440" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">User-facing chat interfaces,</text>
+    <text x="40" y="455" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">admin panels,</text>
+    <text x="40" y="470" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">documentation sites</text>
+    
+    <rect id="services-detail" x="260" y="400" width="200" height="90" rx="5" ry="5" fill="#fdf2f8" stroke="#9f1239" stroke-width="1"/>
+    <text x="270" y="415" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">Backend Services (CDK)</text>
+    <text x="270" y="440" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">Infrastructure definitions,</text>
+    <text x="270" y="455" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">Lambda functions,</text>
+    <text x="270" y="470" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">agent configs</text>
+    
+    <rect id="packages-detail" x="490" y="400" width="200" height="90" rx="5" ry="5" fill="#ecfdf5" stroke="#065f46" stroke-width="1"/>
+    <text x="500" y="415" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">Shared Packages</text>
+    <text x="500" y="440" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">Reusable utilities,</text>
+    <text x="500" y="455" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">UI components, CLI tools,</text>
+    <text x="500" y="470" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">type definitions</text>
+    
+    <rect id="config-detail" x="30" y="530" width="330" height="90" rx="5" ry="5" fill="#fef2f2" stroke="#991b1b" stroke-width="1"/>
+    <text x="40" y="545" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">Central Configuration</text>
+    <text x="40" y="565" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">Defines agents, tools, chat apps,</text>
+    <text x="40" y="580" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">auth settings,</text>
+    <text x="40" y="595" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">and feature flags</text>
+    
+    <rect id="sync-detail" x="390" y="530" width="300" height="90" rx="5" ry="5" fill="#fef2f2" stroke="#991b1b" stroke-width="1"/>
+    <text x="400" y="545" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="10" font-weight="bold">Sync Protection</text>
+    <text x="400" y="565" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">Protects customizations during</text>
+    <text x="400" y="580" text-anchor="start" dominant-baseline="middle" font-family="Helvetica" font-size="9">framework updates</text>
+  </g>
+</svg>
+

@@ -1,0 +1,676 @@
+---
+title: Tag Definitions API
+description: API reference for managing custom UI tag definitions
+---
+
+Complete API reference for creating and managing tag definitions in Pika Platform.
+
+## Overview
+
+The Tag Definitions API allows you to create, update, search, and delete custom UI tags that LLMs can use to render interactive components.
+
+## Base URLs
+
+| API | Base URL | Access Level |
+|-----|----------|--------------|
+| **Admin API** | `/api/chat-admin/tagdef` | Full access (create, update, delete) |
+| **Chat API** | `/api/chat/tagdef` | Read-only (search enabled tags only) |
+
+## Authentication
+
+All endpoints require authentication. Admin endpoints require admin privileges.
+
+## Admin Endpoints
+
+Full access to tag definitions including disabled and retired tags.
+
+### POST /api/chat-admin/tagdef
+
+Create or update a tag definition.
+
+**Request:**
+
+```typescript
+{
+    tagDefinition: TagDefinition;
+    userId: string;
+}
+```
+
+**Request Body Example:**
+
+```json
+{
+    "tagDefinition": {
+        "tag": "order-status",
+        "scope": "acme",
+        "usageMode": "chat-app",
+        "widget": {
+            "type": "web-component",
+            "webComponent": {
+                "s3Bucket": "acme-widgets",
+                "s3Key": "order-status-v1.js",
+                "encoding": "gzip"
+            }
+        },
+        "llmInstructionsMd": "Display order status with tracking info",
+        "status": "enabled",
+        "renderingContexts": {
+            "inline": true,
+            "canvas": true,
+            "dialog": false,
+            "spotlight": false
+        },
+        "canBeGeneratedByLlm": true,
+        "canBeGeneratedByTool": true,
+        "description": "Shows order status and tracking",
+        "createdBy": "admin@acme.com",
+        "lastUpdatedBy": "admin@acme.com",
+        "createDate": "2024-01-15T10:00:00Z",
+        "lastUpdate": "2024-01-15T10:00:00Z"
+    },
+    "userId": "admin@acme.com"
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tagDefinition?: TagDefinition;
+    error?: string;
+}
+```
+
+**Notes:**
+
+- If tag already exists (matching `scope` + `tag`), it will be updated
+- System manages `createDate` and `lastUpdate` timestamps
+- Set `dontCacheThis: true` during development for immediate updates
+
+### DELETE /api/chat-admin/tagdef
+
+Delete a tag definition.
+
+**Request:**
+
+```typescript
+{
+    tagDefinition: TagDefinitionLite;
+    userId: string;
+}
+```
+
+**Request Body Example:**
+
+```json
+{
+    "tagDefinition": {
+        "scope": "acme",
+        "tag": "order-status"
+    },
+    "userId": "admin@acme.com"
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    error?: string;
+}
+```
+
+**Notes:**
+
+- Deletion is permanent
+- Consider setting `status: 'retired'` instead for graceful deprecation
+- LLMs will immediately stop using deleted tags
+
+### POST /api/chat-admin/tagdef/search
+
+Search all tag definitions (including disabled and retired).
+
+**Request:**
+
+```typescript
+{
+    includeInstructions?: boolean;
+    paginationToken?: string;
+}
+```
+
+**Request Body Example:**
+
+```json
+{
+    "includeInstructions": true,
+    "paginationToken": null
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tagDefinitions: TagDefinition[];
+    paginationToken?: string;
+    error?: string;
+}
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `includeInstructions` | `boolean` | `false` | Include `llmInstructionsMd` in response |
+| `paginationToken` | `string` | - | Token for next page of results |
+
+**Notes:**
+
+- Returns tags in all states (`enabled`, `disabled`, `retired`)
+- Results are paginated (100 per page)
+- Use `paginationToken` from response for next page
+
+## Chat Endpoints
+
+Read-only access to enabled tags only.
+
+### POST /api/chat/tagdef/search
+
+Search enabled tag definitions only.
+
+**Request:**
+
+```typescript
+{
+    includeInstructions?: boolean;
+    paginationToken?: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tagDefinitions: TagDefinition[];
+    paginationToken?: string;
+    error?: string;
+}
+```
+
+**Differences from Admin API:**
+
+- Only returns `status: 'enabled'` tags
+- Does not return disabled or retired tags
+- Intended for frontend applications
+- Lower permission requirements
+
+## Tag Definition Fields
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tag` | `string` | Tag name (e.g., `'chart'`, `'order-status'`) |
+| `scope` | `string` | Namespace (e.g., `'pika'`, `'acme'`) |
+| `usageMode` | `'global' \| 'chat-app'` | Availability mode |
+| `widget` | `TagDefinitionWidget` | Widget configuration |
+| `status` | `'enabled' \| 'disabled' \| 'retired'` | Lifecycle status |
+| `renderingContexts` | `WidgetRenderingContexts` | Where widget can render |
+| `canBeGeneratedByLlm` | `boolean` | LLM can use this tag |
+| `canBeGeneratedByTool` | `boolean` | Tools can use this tag |
+| `description` | `string` | Admin-facing description |
+| `createdBy` | `string` | Creator user ID |
+| `lastUpdatedBy` | `string` | Last editor user ID |
+| `createDate` | `string` | ISO 8601 creation timestamp |
+| `lastUpdate` | `string` | ISO 8601 update timestamp |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `llmInstructionsMd` | `string` | Markdown instructions for LLM |
+| `dontCacheThis` | `boolean` | Skip caching (for development) |
+
+## Widget Types
+
+Four widget types supported:
+
+### Built-In Widget
+
+```typescript
+{
+    type: 'built-in';
+    builtInType: 'chart' | 'image' | 'prompt';
+}
+```
+
+### Custom Compiled-In Widget
+
+```typescript
+{
+    type: 'custom-compiled-in';
+}
+```
+
+### Web Component Widget
+
+```typescript
+{
+    type: 'web-component';
+    webComponent: {
+        s3Bucket: string;
+        s3Key: string;
+        encoding?: 'gzip' | 'none';
+    };
+}
+```
+
+### Pass-Through Widget
+
+```typescript
+{
+    type: 'pass-through';
+}
+```
+
+## Rendering Contexts
+
+```typescript
+interface WidgetRenderingContexts {
+    inline?: boolean;     // In message text
+    canvas?: boolean;     // Full-width area
+    dialog?: boolean;     // Modal overlay
+    spotlight?: boolean;  // Featured display
+}
+```
+
+## Complete Examples
+
+### Create Built-In Chart Tag
+
+```bash
+curl -X POST https://your-domain.com/api/chat-admin/tagdef \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=xxx" \
+  -d '{
+    "tagDefinition": {
+        "tag": "chart",
+        "scope": "pika",
+        "usageMode": "global",
+        "widget": {
+            "type": "built-in",
+            "builtInType": "chart"
+        },
+        "llmInstructionsMd": "Use for visualizing numerical data",
+        "status": "enabled",
+        "renderingContexts": {
+            "inline": false,
+            "canvas": true,
+            "dialog": true,
+            "spotlight": true
+        },
+        "canBeGeneratedByLlm": true,
+        "canBeGeneratedByTool": true,
+        "description": "Interactive charts",
+        "createdBy": "system",
+        "lastUpdatedBy": "system",
+        "createDate": "2024-01-01T00:00:00Z",
+        "lastUpdate": "2024-01-01T00:00:00Z"
+    },
+    "userId": "system"
+}'
+```
+
+### Create Web Component Tag
+
+```typescript
+const tagDef = {
+    tag: 'product-card',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'acme-widgets',
+            s3Key: 'product-card-v2.js.gz',
+            encoding: 'gzip'
+        }
+    },
+    llmInstructionsMd: `
+# Product Card Widget
+
+Display product information with image and price.
+
+## Usage
+\`\`\`xml
+<product-card productId="123" />
+\`\`\`
+`,
+    status: 'enabled',
+    renderingContexts: {
+        inline: true,
+        canvas: true,
+        dialog: false,
+        spotlight: false
+    },
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    description: 'Product information card',
+    createdBy: 'admin@acme.com',
+    lastUpdatedBy: 'admin@acme.com',
+    createDate: new Date().toISOString(),
+    lastUpdate: new Date().toISOString()
+};
+
+const response = await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+        tagDefinition: tagDef,
+        userId: 'admin@acme.com'
+    })
+});
+```
+
+### Update Tag Status
+
+```typescript
+// Disable a tag
+const disableTag = {
+    tag: 'old-widget',
+    scope: 'acme',
+    status: 'disabled' // Change from 'enabled'
+    // ... other fields remain the same
+};
+
+await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    body: JSON.stringify({
+        tagDefinition: disableTag,
+        userId: 'admin@acme.com'
+    })
+});
+```
+
+### Retire Old Tag
+
+```typescript
+// Retire deprecated tag
+const retireTag = {
+    tag: 'deprecated-widget',
+    scope: 'acme',
+    status: 'retired',
+    description: 'DEPRECATED: Use new-widget instead'
+    // ... other fields
+};
+
+await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    body: JSON.stringify({
+        tagDefinition: retireTag,
+        userId: 'admin@acme.com'
+    })
+});
+```
+
+### Search Tags
+
+```typescript
+// Get all enabled tags with instructions
+const response = await fetch('/api/chat/tagdef/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+        includeInstructions: true
+    })
+});
+
+const { tagDefinitions } = await response.json();
+```
+
+### Delete Tag
+
+```typescript
+await fetch('/api/chat-admin/tagdef', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+        tagDefinition: {
+            scope: 'acme',
+            tag: 'old-widget'
+        },
+        userId: 'admin@acme.com'
+    })
+});
+```
+
+## Tag Lifecycle Management
+
+### Lifecycle States
+
+```
+enabled → disabled → retired
+  ↑          ↓
+  └──────────┘
+```
+
+**Typical Flow:**
+
+1. **Development** - Create with `status: 'enabled'`, `dontCacheThis: true`
+2. **Testing** - Test in development environment
+3. **Production** - Remove `dontCacheThis`, deploy to production
+4. **Deprecation** - Change to `status: 'disabled'` to stop new usage
+5. **Retirement** - Change to `status: 'retired'` when fully deprecated
+
+### Best Practices
+
+{% aside type="tip" title="Tag Management Best Practices" %}
+1. **Use semantic versioning** - Include version in S3 key: `widget-v2.js`
+2. **Test in isolation** - Use `usageMode: 'chat-app'` for testing
+3. **Document thoroughly** - Write clear `llmInstructionsMd`
+4. **Gradual rollout** - Start as `chat-app`, promote to `global`
+5. **Graceful deprecation** - Use `disabled` before `retired`
+6. **Cache during development** - Use `dontCacheThis` while iterating
+{% /aside %}
+
+## Error Handling
+
+### Common Errors
+
+**Invalid Widget Type:**
+
+```json
+{
+    "success": false,
+    "error": "Invalid widget type. Must be one of: built-in, custom-compiled-in, web-component, pass-through"
+}
+```
+
+**Missing Required Fields:**
+
+```json
+{
+    "success": false,
+    "error": "Missing required field: llmInstructionsMd"
+}
+```
+
+**Tag Not Found:**
+
+```json
+{
+    "success": false,
+    "error": "Tag definition not found: acme/old-widget"
+}
+```
+
+**Permission Denied:**
+
+```json
+{
+    "success": false,
+    "error": "Insufficient permissions to manage tag definitions"
+}
+```
+
+## Validation Rules
+
+| Field | Validation |
+|-------|------------|
+| `tag` | Alphanumeric, hyphens, underscores only. No spaces. |
+| `scope` | Alphanumeric, hyphens, underscores only. No spaces. |
+| `status` | Must be `'enabled'`, `'disabled'`, or `'retired'` |
+| `usageMode` | Must be `'global'` or `'chat-app'` |
+| `widget.type` | Must be valid widget type |
+| `s3Bucket` | Valid S3 bucket name (if web component) |
+| `s3Key` | Valid S3 key (if web component) |
+
+## Rate Limiting
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| Admin endpoints | 100 requests | 1 minute |
+| Chat endpoints | 1000 requests | 1 minute |
+
+## Caching
+
+Tag definitions are cached by the system:
+
+- **Default TTL**: 5 minutes
+- **Bypass cache**: Set `dontCacheThis: true`
+- **Clear cache**: Deploy with updated tags or use cache-clearing endpoint
+
+## Security Considerations
+
+{% aside type="caution" title="Security" %}
+1. **Validate S3 content** - Ensure web components are from trusted sources
+2. **Limit admin access** - Only trusted users should manage tags
+3. **Review LLM instructions** - Instructions can influence LLM behavior
+4. **Test in isolation** - Use `chat-app` mode for testing before `global`
+5. **Monitor usage** - Track which tags are being generated
+{% /aside %}
+
+## Integration Examples
+
+### React Component
+
+```typescript
+import { useState, useEffect } from 'react';
+import type { TagDefinition } from 'pika-shared';
+
+function TagManager() {
+    const [tags, setTags] = useState<TagDefinition[]>([]);
+
+    useEffect(() => {
+        fetchTags();
+    }, []);
+
+    async function fetchTags() {
+        const response = await fetch('/api/chat-admin/tagdef/search', {
+            method: 'POST',
+            body: JSON.stringify({ includeInstructions: true })
+        });
+        const data = await response.json();
+        if (data.success) {
+            setTags(data.tagDefinitions);
+        }
+    }
+
+    async function createTag(tagDef: TagDefinition) {
+        const response = await fetch('/api/chat-admin/tagdef', {
+            method: 'POST',
+            body: JSON.stringify({
+                tagDefinition: tagDef,
+                userId: 'admin'
+            })
+        });
+        return response.json();
+    }
+
+    return (
+        <div>
+            {tags.map(tag => (
+                <div key={`${tag.scope}/${tag.tag}`}>
+                    {tag.scope}/{tag.tag} - {tag.status}
+                </div>
+            ))}
+        </div>
+    );
+}
+```
+
+### Python Client
+
+```python
+import requests
+from typing import Dict, List, Optional
+
+class TagDefClient:
+    def __init__(self, base_url: str, session_cookie: str):
+        self.base_url = base_url
+        self.cookies = {"session": session_cookie}
+    
+    def create_tag(self, tag_def: Dict, user_id: str) -> Dict:
+        """Create or update a tag definition."""
+        response = requests.post(
+            f"{self.base_url}/api/chat-admin/tagdef",
+            json={"tagDefinition": tag_def, "userId": user_id},
+            cookies=self.cookies
+        )
+        return response.json()
+    
+    def search_tags(self, include_instructions: bool = False) -> List[Dict]:
+        """Search all tag definitions."""
+        response = requests.post(
+            f"{self.base_url}/api/chat-admin/tagdef/search",
+            json={"includeInstructions": include_instructions},
+            cookies=self.cookies
+        )
+        data = response.json()
+        return data.get("tagDefinitions", [])
+    
+    def delete_tag(self, scope: str, tag: str, user_id: str) -> Dict:
+        """Delete a tag definition."""
+        response = requests.delete(
+            f"{self.base_url}/api/chat-admin/tagdef",
+            json={
+                "tagDefinition": {"scope": scope, "tag": tag},
+                "userId": user_id
+            },
+            cookies=self.cookies
+        )
+        return response.json()
+```
+
+## Related Documentation
+
+- **[Widget System Reference](/reference/ui-components/widget-system/)** - Tag definition types
+- **[Custom Components](/reference/ui-components/custom-components/)** - Building components
+- **[REST API Reference](/reference/api/rest/)** - Other API endpoints
+- **[Custom Tags Guide](/guides/customization/custom-tags/)** - How-to guide
+
+## Type Definitions
+
+Complete TypeScript types available in `pika-shared`:
+
+```typescript
+import type {
+    TagDefinition,
+    TagDefinitionLite,
+    TagDefinitionWidget,
+    WidgetRenderingContexts,
+    TagInstructionForLlm
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+See [Types Reference](/reference/types/) for complete type documentation.
+

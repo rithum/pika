@@ -1,6 +1,105 @@
 ---
-title: Overview
-description: Overview of the Pika Platform concepts
+title: Concepts & Architecture
+description: Understanding how Pika works and why it's built the way it is
 ---
 
-TODO: Add content here
+Welcome to the Concepts & Architecture section. This is where you'll build a deep understanding of how Pika works, why we made key design decisions, and how all the pieces fit together.
+
+{% aside title="Understanding vs. Doing" %}
+This section focuses on **understanding** and **explanation**. If you're looking for step-by-step instructions to accomplish specific tasks, check out the [Guides](/guides/) section instead.
+{% /aside %}
+
+## What You'll Learn
+
+This section is organized to help you build a comprehensive mental model of the Pika platform:
+
+### Platform Overview
+
+Start here to understand what Pika is, why it exists, and when you should use it.
+
+- **[What is Pika?](/concepts/overview/what-is-pika/)** - Core purpose and positioning
+- **[Core Philosophy](/concepts/overview/core-philosophy/)** - Design principles and values
+- **[When to Use Pika](/concepts/overview/when-to-use/)** - Use cases and decision criteria
+
+### Architecture
+
+Understand the technical architecture and how Pika leverages AWS services.
+
+- **[System Architecture](/concepts/architecture/system/)** - High-level system design
+- **[AWS Infrastructure](/concepts/architecture/aws/)** - How Pika uses AWS services
+- **[Frontend Architecture](/concepts/architecture/frontend/)** - Chat app and UI architecture
+- **[Security Architecture](/concepts/architecture/security/)** - Defense-in-depth security model
+- **[Scalability Model](/concepts/architecture/scalability/)** - How Pika scales
+
+### Key Concepts
+
+Master the fundamental concepts that drive Pika's design.
+
+- **[Agents as Configuration](/concepts/key-concepts/agents-as-config/)** - Why config-based agents matter
+- **[Session Management](/concepts/key-concepts/sessions/)** - How conversations persist
+- **[User Memory System](/concepts/key-concepts/user-memory/)** - Personalization across sessions
+- **[Model Context Protocol](/concepts/key-concepts/mcp/)** - Tool integration via MCP
+- **[Self-Correcting Loop](/concepts/key-concepts/self-correcting/)** - Quality assurance architecture
+- **[Authentication & Access](/concepts/key-concepts/auth-access/)** - User types and permissions
+- **[Entities & Multi-Tenancy](/concepts/key-concepts/entities/)** - Organizational boundaries
+
+### How Pika Works
+
+See how user requests flow through the system and how key processes operate.
+
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - From user input to response
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - How agents process requests
+- **[Tool Invocation Process](/concepts/how-pika-works/tool-invocation/)** - Tool calling mechanics
+- **[Web Component Rendering](/concepts/how-pika-works/web-components/)** - Custom UI rendering
+- **[Sync System](/concepts/how-pika-works/sync-system/)** - Framework update mechanism
+- **[Project Structure](/concepts/how-pika-works/project-structure/)** - Codebase organization
+
+### Design Rationale
+
+Understand the "why" behind key architectural decisions.
+
+- **[Why AWS?](/concepts/rationale/why-aws/)** - The AWS foundation
+- **[Why Serverless?](/concepts/rationale/why-serverless/)** - Serverless architecture benefits
+- **[Why Config-Based Agents?](/concepts/rationale/why-config/)** - Configuration over code
+- **[Why Self-Correcting?](/concepts/rationale/why-self-correcting/)** - Quality assurance approach
+- **[Trade-offs We Made](/concepts/rationale/tradeoffs/)** - Design constraints and choices
+
+### Security & Compliance
+
+Understand Pika's security model and compliance capabilities.
+
+- **[Security Model](/concepts/security/security-model/)** - Defense-in-depth approach
+- **[Data Protection](/concepts/security/data-protection/)** - Encryption and isolation
+- **[Compliance](/concepts/security/compliance/)** - Regulatory support
+- **[Best Practices](/concepts/security/best-practices/)** - Security recommendations
+
+## Learning Path
+
+We recommend following this order:
+
+1. **Start with Platform Overview** to understand what Pika is and whether it's right for you
+2. **Read Key Concepts** to understand the fundamental building blocks
+3. **Study Architecture** to see how components fit together
+4. **Explore How Pika Works** to understand internal processes
+5. **Review Design Rationale** to understand why we made key decisions
+6. **Understand Security & Compliance** for production deployment planning
+
+## Navigating Concepts
+
+Throughout this section, you'll find:
+
+- **Diagrams** to visualize complex systems and flows
+- **Cross-references** to related concepts and practical guides
+- **Design rationale** explaining why things work the way they do
+- **Trade-offs** highlighting decisions and their implications
+
+## Related Documentation
+
+- **[Why Pika](/why/)** - Understand the problem Pika solves
+- **[Capabilities](/capabilities/)** - See what you can build with Pika
+- **[Guides](/guides/)** - Step-by-step instructions for specific tasks
+- **[Reference](/reference/)** - Technical specifications and API docs
+
+{% aside type="note" %}
+The concepts covered here assume you've completed the [Getting Started](/getting-started/) tutorial and have basic familiarity with Pika's core capabilities.
+{% /aside %}

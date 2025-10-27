@@ -1,0 +1,647 @@
+---
+title: Build Custom Web Components
+description: Create interactive web components that integrate with Pika's multi-context widget system
+---
+
+Learn how to build custom web components that integrate seamlessly with Pika chat applications, supporting multiple rendering contexts and rich interactivity.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create web components using vanilla JavaScript or Svelte
+- Access Pika context and application state
+- Build context-aware components (spotlight, canvas, dialog, inline)
+- Implement tool use and agent invocation from components
+- Use the pika-ux component library
+- Handle user interactions and state management
+
+## Prerequisites
+
+- Node.js 22+ installed
+- TypeScript knowledge recommended
+- Familiarity with Web Components
+- Basic understanding of Svelte (if using Svelte)
+
+## Installation
+
+### Required: Pika Shared
+
+Install the integration library:
+
+```bash
+pnpm install pika-shared
+```
+
+### Optional: Pika UX (Recommended for Svelte)
+
+For Svelte-based components with pre-built UI widgets:
+
+```bash
+pnpm install pika-ux
+```
+
+**Benefits of Svelte + pika-ux:**
+- CLI to create skeleton projects
+- Pre-built UI components (buttons, dialogs, forms)
+- Dramatically smaller compiled files
+- Same components Pika uses internally
+
+## Step 1: Create Your First Component
+
+### Basic Vanilla JavaScript Component
+
+```javascript
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+class HelloWidget extends HTMLElement {
+    connectedCallback() {
+        this.init();
+    }
+
+    async init() {
+        // Get Pika context
+        const context = await getPikaContext(this);
+
+        // Access user information
+        const user = context.appState.identity.user;
+
+        // Render content
+        this.innerHTML = `
+            <div class="hello-widget">
+                <h3>Hello, ${user.firstName}!</h3>
+                <p>You're in the ${context.context} context</p>
+                <p>Chat App: ${context.chatAppId}</p>
+            </div>
+        `;
+    }
+}
+
+// Register the custom element
+customElements.define('acme-hello', HelloWidget);
+```
+
+### Using Svelte (Recommended)
+
+```svelte
+<svelte:options customElement={{ tag: 'acme-dashboard', shadow: 'none' }} />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { type PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import { onMount } from 'svelte';
+
+    let context = $state<PikaWCContext>();
+    let initialized = $state(false);
+
+    $effect(() => {
+        if (!initialized) {
+            init();
+        }
+    });
+
+    async function init() {
+        context = await getPikaContext($host());
+        initialized = true;
+    }
+</script>
+
+{#if initialized && context}
+    <div class="dashboard">
+        <h2>Sales Dashboard</h2>
+        <p>User: {context.appState.identity.user.firstName}</p>
+        <p>Context: {context.context}</p>
+    </div>
+{:else}
+    <p>Loading...</p>
+{/if}
+
+<style>
+    .dashboard {
+        padding: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+    }
+</style>
+```
+
+## Step 2: Access Pika Context
+
+The context object provides access to application and chat state.
+
+### PikaWCContext Interface
+
+```typescript
+interface PikaWCContext {
+    appState: IAppState;                    // Global app state
+    chatAppState: IChatAppState;            // Chat-specific state
+    renderingContext: WidgetRenderingContextType; // spotlight | inline | dialog | canvas
+    chatAppId: string;
+    instanceId: string;                     // Unique ID for this instance
+    dataForWidget: Record<string, any>;     // Data passed when opening widget
+}
+```
+
+### Access User Information
+
+```javascript
+const user = context.appState.identity.user;
+console.log(user.userId, user.firstName, user.customData);
+```
+
+### Show Toast Notifications
+
+```javascript
+context.appState.showToast('Operation successful!', { type: 'success' });
+```
+
+### Get AWS Credentials
+
+```javascript
+const creds = await context.appState.identity.getUserAwsCredentials();
+// Use for S3 uploads, etc.
+```
+
+### Access Chat State
+
+```javascript
+// Current session
+const session = context.chatAppState.currentSession;
+
+// Messages
+const messages = context.chatAppState.currentSessionMessages;
+
+// Custom data from auth provider (API keys, config)
+const customData = context.chatAppState.customDataForChatApp;
+if (customData) {
+    const apiKey = customData.apiKey as string;
+    const endpoint = customData.apiEndpoint as string;
+}
+```
+
+### Send Messages Programmatically
+
+```javascript
+context.chatAppState.chatInput = 'Show me the sales report';
+await context.chatAppState.sendMessage();
+```
+
+### Upload Files
+
+```javascript
+await context.chatAppState.uploadFiles(selectedFiles);
+```
+
+### Retrieve S3 File Content
+
+```javascript
+const content = await context.chatAppState.getS3TextFileContent('config/widget-config.json');
+const config = JSON.parse(content);
+```
+
+## Step 3: Build Multi-Context Components
+
+Components can render in different contexts with adapted UIs.
+
+### Context-Aware Rendering
+
+```svelte
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { type PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+    }
+
+    $effect(() => { init(); });
+</script>
+
+{#if context}
+    {#if context.context === 'spotlight'}
+        <!-- Compact view for spotlight -->
+        <div class="compact">
+            <h4>Quick Stats</h4>
+            <button onclick={() => context.chatAppState.renderTag('acme.dashboard', 'canvas')}>
+                Open Full View
+            </button>
+        </div>
+        
+    {:else if context.context === 'canvas'}
+        <!-- Full view for canvas -->
+        <div class="full-dashboard">
+            <h2>Complete Dashboard</h2>
+            <!-- Rich content, charts, tables -->
+        </div>
+        
+    {:else if context.context === 'dialog'}
+        <!-- Focused view for dialog -->
+        <div class="dialog-content">
+            <h3>Quick Actions</h3>
+            <!-- Form or settings -->
+        </div>
+        
+    {:else}
+        <!-- Inline view -->
+        <div class="inline-widget">
+            <!-- Summary or visualization -->
+        </div>
+    {/if}
+{/if}
+```
+
+### Open Other Widgets
+
+```javascript
+// Open detail view in dialog
+await context.chatAppState.renderTag('acme.item-details', 'dialog', {
+    itemId: '12345'
+});
+
+// Open editor in canvas
+await context.chatAppState.renderTag('acme.editor', 'canvas', {
+    documentId: 'doc-789'
+});
+
+// Add widget to spotlight
+await context.chatAppState.renderTag('acme.quick-actions', 'spotlight');
+```
+
+### Pass Data Between Widgets
+
+```javascript
+// Parent widget opens child with data
+async function openProductDetails(productId: string) {
+    await context.chatAppState.renderTag('acme.product-details', 'dialog', {
+        productId: productId,
+        source: 'dashboard',
+        timestamp: Date.now()
+    });
+}
+
+// Child widget receives data
+let productId = $state<string>('');
+
+$effect(() => {
+    if (context?.dataForWidget) {
+        productId = context.dataForWidget.productId;
+        const source = context.dataForWidget.source;
+        const timestamp = context.dataForWidget.timestamp;
+    }
+});
+```
+
+## Step 4: Invoke Agents from Components
+
+Components can directly invoke LLM agents.
+
+### Define Component Instructions
+
+When creating your tag definition, include component agent instructions:
+
+```typescript
+const weatherWidgetTag = {
+    tag: 'weather-dashboard',
+    scope: 'acme',
+    // ... other fields
+    componentAgentInstructionsMd: {
+        'getCurrentWeather': `You are a weather data assistant. When invoked:
+
+1. Extract the location(s) from the user's request
+2. Use the weather tool to fetch real-time data
+3. Return structured weather information
+
+<output_schema>
+interface WeatherDataResponse {
+    locations: WeatherData[];
+}
+
+interface WeatherData {
+    location: string;
+    tempF: number;
+    tempC: number;
+    condition: string;
+    timestamp: string;
+}
+</output_schema>
+
+{{typescript-backed-output-formatting-requirements}}`
+    }
+};
+```
+
+### Invoke Agent from Component
+
+```svelte
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { Button } from 'pika-ux/shadcn/button';
+    
+    let context = $state<PikaWCContext>();
+    let weatherData = $state<any>(null);
+    let loading = $state(false);
+    
+    async function getWeather(location: string) {
+        loading = true;
+        try {
+            const response = await context.chatAppState.invokeAgentAsComponent(
+                'acme',              // scope
+                'weather-dashboard', // tag
+                'getCurrentWeather', // instruction name
+                `Get weather for ${location}`
+            );
+            weatherData = response;
+        } catch (error) {
+            context.appState.showToast('Failed to get weather', { type: 'error' });
+        } finally {
+            loading = false;
+        }
+    }
+</script>
+
+<div>
+    <Button onclick={() => getWeather('San Francisco')} disabled={loading}>
+        Get Weather
+    </Button>
+    
+    {#if weatherData}
+        <div class="weather-results">
+            {#each weatherData.locations as location}
+                <div class="weather-card">
+                    <h4>{location.location}</h4>
+                    <p>Temperature: {location.tempF}°F ({location.tempC}°C)</p>
+                    <p>Condition: {location.condition}</p>
+                </div>
+            {/each}
+        </div>
+    {/if}
+</div>
+```
+
+## Step 5: Use Pika UX Components
+
+Build beautiful UIs quickly with pre-built components.
+
+### Button Examples
+
+```svelte
+<script lang="ts">
+    import { Button } from 'pika-ux/shadcn/button';
+</script>
+
+<Button onclick={handleClick} variant="default" size="lg">
+    Click Me
+</Button>
+
+<Button variant="outline">Secondary</Button>
+<Button variant="destructive">Delete</Button>
+```
+
+### Dialog Example
+
+```svelte
+<script lang="ts">
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+    
+    let dialogOpen = $state(false);
+</script>
+
+<Button onclick={() => dialogOpen = true}>Open Dialog</Button>
+
+<Dialog.Root bind:open={dialogOpen}>
+    <Dialog.Content>
+        <Dialog.Header>
+            <Dialog.Title>Confirm Action</Dialog.Title>
+            <Dialog.Description>
+                Are you sure you want to proceed?
+            </Dialog.Description>
+        </Dialog.Header>
+        
+        <Dialog.Footer>
+            <Button variant="outline" onclick={() => dialogOpen = false}>
+                Cancel
+            </Button>
+            <Button onclick={handleConfirm}>Confirm</Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+```
+
+### Form Components
+
+```svelte
+<script lang="ts">
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Button } from 'pika-ux/shadcn/button';
+    
+    let email = $state('');
+    let message = $state('');
+</script>
+
+<div class="space-y-4">
+    <div>
+        <Label for="email">Email</Label>
+        <Input 
+            id="email" 
+            type="email" 
+            placeholder="you@example.com"
+            bind:value={email}
+        />
+    </div>
+    
+    <div>
+        <Label for="message">Message</Label>
+        <Input 
+            id="message" 
+            placeholder="Your message"
+            bind:value={message}
+        />
+    </div>
+    
+    <Button onclick={handleSubmit}>Submit</Button>
+</div>
+```
+
+## Step 6: Build and Deploy
+
+### Build Your Component
+
+```bash
+# Using Vite
+npm run build
+# Output: dist/my-widget.js
+```
+
+### Deploy to Pika
+
+See [Deploy Custom Web Components](/guides/customization/deploy-web-components/) for complete deployment instructions including:
+
+- Gzipping files
+- Uploading to S3
+- Creating tag definitions
+- Registering with Pika
+
+## Best Practices
+
+### Component Design
+
+- **Single Responsibility**: Each component does one thing well
+- **Context Awareness**: Adapt UI to rendering context
+- **Progressive Enhancement**: Work without JavaScript as baseline
+- **Accessibility**: Use semantic HTML and ARIA attributes
+
+### State Management
+
+- **Minimize State**: Keep component state minimal
+- **Derive Values**: Use `$derived` for computed values
+- **Avoid Mutations**: Use immutable updates
+- **Clean Up**: Remove event listeners in disconnectedCallback
+
+### Performance
+
+- **Lazy Loading**: Load components when needed
+- **Debounce Input**: Debounce user input handlers
+- **Virtual Scrolling**: For long lists
+- **Optimize Renders**: Only update what changed
+
+### Error Handling
+
+```javascript
+async function loadData() {
+    try {
+        const data = await fetchData();
+        processData(data);
+    } catch (error) {
+        console.error('Failed to load data:', error);
+        context.appState.showToast('Failed to load data', { type: 'error' });
+    }
+}
+```
+
+## Testing Checklist
+
+Verify your component works correctly:
+
+{% checklist %}
+- [ ] Component renders in all intended contexts
+- [ ] Pika context accessible
+- [ ] User data displays correctly
+- [ ] Agent invocation works (if used)
+- [ ] Other widgets can be opened
+- [ ] Data passes between widgets correctly
+- [ ] Error handling works
+- [ ] Loading states display properly
+- [ ] Accessibility features work
+- [ ] Component builds without errors
+{% /checklist %}
+
+## Common Patterns
+
+### Loading States
+
+```svelte
+<script lang="ts">
+    let loading = $state(true);
+    let data = $state(null);
+    
+    async function loadData() {
+        loading = true;
+        try {
+            data = await fetchData();
+        } finally {
+            loading = false;
+        }
+    }
+    
+    onMount(loadData);
+</script>
+
+{#if loading}
+    <p>Loading...</p>
+{:else if data}
+    <DataDisplay {data} />
+{:else}
+    <p>No data available</p>
+{/if}
+```
+
+### Confirmation Dialogs
+
+```svelte
+<script lang="ts">
+    import * as AlertDialog from 'pika-ux/shadcn/alert-dialog';
+    
+    let confirmOpen = $state(false);
+    
+    async function handleDelete() {
+        await deleteItem();
+        confirmOpen = false;
+        context.appState.showToast('Item deleted', { type: 'success' });
+    }
+</script>
+
+<Button variant="destructive" onclick={() => confirmOpen = true}>
+    Delete
+</Button>
+
+<AlertDialog.Root bind:open={confirmOpen}>
+    <AlertDialog.Content>
+        <AlertDialog.Header>
+            <AlertDialog.Title>Are you sure?</AlertDialog.Title>
+            <AlertDialog.Description>
+                This action cannot be undone.
+            </AlertDialog.Description>
+        </AlertDialog.Header>
+        <AlertDialog.Footer>
+            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action onclick={handleDelete}>Delete</AlertDialog.Action>
+        </AlertDialog.Footer>
+    </AlertDialog.Content>
+</AlertDialog.Root>
+```
+
+## Troubleshooting
+
+### Component Not Rendering
+
+- Verify custom element registered (`customElements.define`)
+- Check tag definition deployed correctly
+- Ensure component JavaScript loaded
+- Review browser console for errors
+
+### Context Not Available
+
+- Ensure calling `getPikaContext()` after component connected
+- Check Pika context initialization
+- Verify component loaded in valid context
+- Review async/await usage
+
+### Svelte Build Issues
+
+- Check `svelte.config.js` configured for custom elements
+- Verify `shadow: 'none'` in component options
+- Ensure proper exports in entry file
+- Review Vite configuration
+
+## Next Steps
+
+- [Deploy Custom Web Components](/guides/customization/deploy-web-components/) - Deploy to production
+- [Work with Pika UX Module](/guides/advanced/pika-ux-module/) - Use pre-built components
+- [Custom Widget Tag Definitions](/guides/advanced/widget-tags/) - Create tag definitions
+
+## Related Documentation
+
+- [Web Components Capability](/capabilities/customization/web-components/) - Learn about widget system
+- [Pika UX Components](/guides/advanced/pika-ux-module/) - Component library
+- [Tag Definition Guide](/guides/advanced/widget-tags/) - Tag management
+
+---
+
+{% aside type="success" title="Powerful Customization" %}
+Web components enable rich, interactive experiences within your AI chat applications. Build once, deploy anywhere in your Pika ecosystem!
+{% /aside %}
+

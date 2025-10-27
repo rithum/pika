@@ -39,7 +39,7 @@ node --version
 If you need to install or update Node.js:
 
 {% tabs %}
-{% tab label="macOS" %}
+{% tabitem label="macOS" %}
 Using Homebrew:
 
 ```bash
@@ -47,9 +47,9 @@ brew install node
 ```
 
 Or download from [nodejs.org](https://nodejs.org/)
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Linux" %}
+{% tabitem label="Linux" %}
 Using NodeSource repository:
 
 ```bash
@@ -61,13 +61,13 @@ sudo apt-get install -y nodejs
 curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
 sudo yum install -y nodejs
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Windows" %}
+{% tabitem label="Windows" %}
 Download and install from [nodejs.org](https://nodejs.org/)
 
 The installer includes npm and sets up PATH automatically.
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 {% aside type="tip" title="Use Node Version Manager (nvm)" %}
@@ -100,13 +100,13 @@ pnpm --version
 Install pnpm globally:
 
 {% tabs %}
-{% tab label="Using npm" %}
+{% tabitem label="Using npm" %}
 ```bash
 npm install -g pnpm
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Using Installer (Recommended)" %}
+{% tabitem label="Using Installer (Recommended)" %}
 ```bash
 # macOS/Linux
 curl -fsSL https://get.pnpm.io/install.sh | sh -
@@ -114,13 +114,13 @@ curl -fsSL https://get.pnpm.io/install.sh | sh -
 # Windows (PowerShell)
 iwr https://get.pnpm.io/install.ps1 -useb | iex
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Using Homebrew (macOS)" %}
+{% tabitem label="Using Homebrew (macOS)" %}
 ```bash
 brew install pnpm
 ```
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 After installation, verify:
@@ -142,13 +142,13 @@ git --version
 Install Git if needed:
 
 {% tabs %}
-{% tab label="macOS" %}
+{% tabitem label="macOS" %}
 ```bash
 brew install git
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Linux" %}
+{% tabitem label="Linux" %}
 ```bash
 # Ubuntu/Debian
 sudo apt-get install git
@@ -159,13 +159,13 @@ sudo yum install git
 # Fedora
 sudo dnf install git
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Windows" %}
+{% tabitem label="Windows" %}
 Download and install from [git-scm.com](https://git-scm.com/)
 
 The installer sets up PATH automatically and includes Git Bash.
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 ## Installing Pika CLI
@@ -230,25 +230,25 @@ Automatic code formatting for consistent style across your project.
 #### Installing Extensions
 
 {% tabs %}
-{% tab label="VS Code UI" %}
+{% tabitem label="VS Code UI" %}
 1. Open VS Code or Cursor
 2. Go to Extensions view (Ctrl+Shift+X / Cmd+Shift+X)
 3. Search for each extension by name
 4. Click Install
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Command Line" %}
+{% tabitem label="Command Line" %}
 ```bash
 # Install all recommended extensions at once
 code --install-extension svelte.svelte-vscode
 code --install-extension hediet.vscode-drawio
 code --install-extension esbenp.prettier-vscode
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Auto-Install" %}
+{% tabitem label="Auto-Install" %}
 When you open a Pika project in VS Code/Cursor, you'll see a notification asking if you want to install recommended extensions. Click "Install" to install all of them at once.
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 ### AWS CLI (For Deployment)
@@ -256,23 +256,23 @@ When you open a Pika project in VS Code/Cursor, you'll see a notification asking
 If you plan to deploy to AWS, install the AWS CLI:
 
 {% tabs %}
-{% tab label="macOS" %}
+{% tabitem label="macOS" %}
 ```bash
 brew install awscli
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Linux" %}
+{% tabitem label="Linux" %}
 ```bash
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 sudo ./aws/install
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Windows" %}
+{% tabitem label="Windows" %}
 Download and install from [aws.amazon.com/cli](https://aws.amazon.com/cli/)
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 Configure AWS CLI with your credentials:
@@ -391,23 +391,23 @@ node --version
 Update methods by platform:
 
 {% tabs %}
-{% tab label="macOS" %}
+{% tabitem label="macOS" %}
 ```bash
 brew upgrade node
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Linux" %}
+{% tabitem label="Linux" %}
 ```bash
 # Reinstall from NodeSource
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
-{% /tab %}
+{% /tabitem %}
 
-{% tab label="Windows" %}
+{% tabitem label="Windows" %}
 Download the latest installer from [nodejs.org](https://nodejs.org/) and run it.
-{% /tab %}
+{% /tabitem %}
 {% /tabs %}
 
 ### pnpm Installation Issues

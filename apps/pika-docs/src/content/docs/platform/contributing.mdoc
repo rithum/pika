@@ -1,0 +1,429 @@
+---
+title: Contributing
+description: Learn how to contribute to Pika and help make it better
+---
+
+Thank you for your interest in contributing to Pika! This guide provides everything you need to know to start contributing to the project.
+
+---
+
+## Code of Conduct
+
+This project follows the Pika Framework Code of Conduct. By participating, you are expected to uphold this code. Please report unacceptable behavior to the project maintainers.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 22.0.0 or higher
+- pnpm (recommended) or npm
+- Git
+- Basic knowledge of TypeScript
+- AWS account (for testing deployment features)
+
+### First-time Setup
+
+{% steps %}
+1. **Fork the repository**
+
+    Fork the repo on GitHub, then clone your fork:
+
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/pika.git
+    cd pika
+    ```
+
+2. **Install dependencies**
+
+    ```bash
+    pnpm install
+    ```
+
+3. **Build the project**
+
+    ```bash
+    pnpm build
+    ```
+
+4. **Verify installation**
+
+    ```bash
+    # Run tests
+    pnpm test
+
+    # Check types
+    pnpm run check-types
+    ```
+{% /steps %}
+
+---
+
+## Development Workflow
+
+### Feature Development
+
+{% steps %}
+1. **Create a feature branch**
+
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+
+2. **Make your changes**
+
+    - Write code following our style guide
+    - Add tests for new functionality
+    - Update documentation as needed
+
+3. **Test your changes**
+
+    ```bash
+    pnpm test
+    pnpm lint
+    pnpm build
+    ```
+
+4. **Commit your changes**
+
+    Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+    ```bash
+    git commit -m "feat: add new feature"
+    git commit -m "fix: resolve issue with X"
+    git commit -m "docs: update README"
+    ```
+{% /steps %}
+
+### Bug Fixes
+
+{% steps %}
+1. **Create a bugfix branch**
+
+    ```bash
+    git checkout -b fix/bug-description
+    ```
+
+2. **Write a failing test** (if applicable)
+
+3. **Fix the bug**
+
+4. **Ensure tests pass**
+
+5. **Submit a pull request**
+{% /steps %}
+
+---
+
+## Project Structure
+
+Understanding the monorepo structure:
+
+```
+pika/
+├── apps/
+│   ├── pika-chat/          # Main chat application
+│   └── pika-docs/          # Documentation site
+├── packages/
+│   ├── pika-cli/           # CLI tool
+│   ├── pika-serverless/    # Serverless plugin
+│   ├── pika-ux/            # UI component library
+│   └── shared/             # Shared utilities and types
+└── services/
+    ├── pika/               # Core service infrastructure
+    └── samples/            # Example implementations
+```
+
+### Key Areas for Contribution
+
+**Core Framework** (`services/pika/`)
+- Agent execution logic
+- Session management
+- AWS infrastructure
+
+**CLI Tool** (`packages/pika-cli/`)
+- Project scaffolding
+- Sync system
+- Command implementations
+
+**UI Components** (`packages/pika-ux/`)
+- Reusable components
+- Chat interface
+- Admin panels
+
+**Documentation** (`apps/pika-docs/`)
+- Guides and tutorials
+- API reference
+- Examples
+
+---
+
+## Code Style
+
+We use ESLint and Prettier for consistent code formatting.
+
+### Style Guidelines
+
+- Use TypeScript for all code
+- Prefer `const` over `let` when possible
+- Use meaningful variable and function names
+- Add JSDoc comments for public APIs
+- Keep functions small and focused
+- Use async/await over Promises
+- Use proper TypeScript imports/exports (ESM style)
+
+### Example Code Style
+
+```typescript
+/**
+ * Creates a new Pika project with the specified configuration.
+ *
+ * @param projectName - Name of the project to create
+ * @param options - Configuration options for the project
+ * @returns Promise that resolves when the project is created
+ */
+export async function createProject(
+    projectName: string,
+    options: CreateProjectOptions
+): Promise<void> {
+    const spinner = logger.startSpinner('Creating project...');
+
+    try {
+        await validateProjectName(projectName);
+        await setupProjectStructure(projectName, options);
+        await installDependencies(projectName);
+
+        logger.stopSpinner(true, 'Project created successfully');
+    } catch (error) {
+        logger.stopSpinner(false, 'Failed to create project');
+        throw error;
+    }
+}
+```
+
+### Linting
+
+```bash
+# Check code style
+pnpm lint
+
+# Fix issues automatically
+pnpm lint:fix
+```
+
+---
+
+## Testing
+
+### Test Categories
+
+1. **Unit Tests** - Test individual functions and classes
+2. **Integration Tests** - Test command flows and interactions
+3. **E2E Tests** - Test the complete experience
+
+### Running Tests
+
+```bash
+# Run all tests
+pnpm test
+
+# Run specific test file
+pnpm test logger.test.ts
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Watch mode for development
+pnpm test:watch
+```
+
+### Test Guidelines
+
+- Write tests for all new functionality
+- Maintain or improve code coverage
+- Use descriptive test names
+- Mock external dependencies
+- Test both success and error cases
+
+---
+
+## Commit Guidelines
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) for consistent commit messages.
+
+### Commit Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types
+
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, etc.)
+- `refactor` - Code refactoring
+- `test` - Adding or modifying tests
+- `chore` - Maintenance tasks
+- `breaking` - Breaking changes
+
+### Examples
+
+```bash
+feat: add component validation command
+fix: resolve sync conflict with custom auth
+docs: update README with new examples
+test: add integration tests for create-app
+chore: update dependencies
+breaking: refactor tag system to use usageMode
+```
+
+---
+
+## Pull Request Process
+
+### Before Submitting
+
+{% steps %}
+1. **Ensure all tests pass**
+
+    ```bash
+    pnpm test
+    pnpm lint
+    pnpm build
+    ```
+
+2. **Update documentation** if needed
+
+3. **Test manually** with various scenarios
+
+4. **Rebase on latest main**
+
+    ```bash
+    git fetch origin
+    git rebase origin/main
+    ```
+{% /steps %}
+
+### PR Description Template
+
+When creating a PR, use this template:
+
+```markdown
+## Description
+
+Brief description of changes
+
+## Type of Change
+
+- [ ] Bug fix (non-breaking change)
+- [ ] New feature (non-breaking change)
+- [ ] Breaking change (fix or feature causing existing functionality to change)
+- [ ] Documentation update
+
+## Testing
+
+- [ ] Tests pass locally
+- [ ] Added tests for new functionality
+- [ ] Manual testing completed
+
+## Checklist
+
+- [ ] Code follows style guidelines
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] No new warnings or errors
+```
+
+### Review Process
+
+1. **Automated checks** must pass
+2. **Code review** by maintainers
+3. **Manual testing** may be required
+4. **Address feedback** and update PR
+5. **Final approval** and merge
+
+---
+
+## Areas for Contribution
+
+We welcome contributions in these areas:
+
+### High Priority
+
+- **New Authentication Providers** - Add support for more auth systems
+- **Template Improvements** - Enhance existing templates or add new ones
+- **Documentation** - Improve guides and examples
+- **Testing** - Increase test coverage
+- **Performance** - Optimize framework performance
+
+### Medium Priority
+
+- **Error Handling** - Improve error messages and recovery
+- **Logging** - Enhanced debug and logging capabilities
+- **Configuration** - More configuration options
+- **Migration Scripts** - Tools for framework updates
+
+### Ideas Welcome
+
+- **Plugin System** - Allow third-party extensions
+- **GUI Interface** - Web-based project setup
+- **Docker Integration** - Container-based development
+- **CI/CD Templates** - Deployment automation
+
+---
+
+## Community Guidelines
+
+### Getting Help
+
+- Check existing documentation
+- Search existing issues
+- Ask questions in discussions
+- Join our [Community](/platform/community/)
+
+### Reporting Issues
+
+When reporting bugs:
+
+1. Use the issue template
+2. Provide minimal reproduction steps
+3. Include environment information
+4. Add relevant logs or screenshots
+
+### Suggesting Features
+
+When suggesting new features:
+
+1. Check if it already exists
+2. Describe the use case
+3. Explain the expected behavior
+4. Consider implementation complexity
+
+---
+
+## Recognition
+
+Contributors will be recognized in:
+
+- README acknowledgments
+- Release notes
+- GitHub contributors page
+- Community highlights
+
+---
+
+## Need Help?
+
+- **Issues**: [GitHub Issues](https://github.com/rithum/pika/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/rithum/pika/discussions)
+- **Community**: [Community Page](/platform/community/)
+
+Thank you for contributing to Pika! 🐦
+

@@ -1,0 +1,399 @@
+---
+title: Set Up the Admin Site
+description: Configure the web-based administrative interface for managing chat app access control
+---
+
+Learn how to enable and configure the Site Admin feature, providing a web-based interface for administrative users to manage chat app access control, entity-based restrictions, and override settings.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable the Site Admin feature
+- Grant admin roles to users
+- Access the admin interface
+- Manage chat app access control overrides
+- Configure entity-based restrictions
+- Understand override precedence rules
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site configuration
+- Ability to assign user roles (via auth provider or database)
+- Understanding of access control concepts
+
+## Understanding Site Admin
+
+The Site Admin feature provides a web interface for users with the `pika:site-admin` role to manage chat applications without code deployments.
+
+### What Site Admins Can Do
+
+- **Create Access Overrides**: Modify who can access chat apps
+- **Entity-Based Control**: Restrict apps to specific organizations
+- **User ID Control**: Grant access to specific users
+- **Home Page Visibility**: Control which apps appear on home page
+- **Beta Testing**: Roll out features to specific user groups
+- **Emergency Access**: Quickly restrict access during incidents
+
+### Use Cases
+
+- Multi-tenant SaaS with customer-specific apps
+- Partner portals with tiered access
+- Department-restricted internal tools
+- Gradual feature rollouts
+- Compliance requirements
+- Customer onboarding workflows
+
+## Step 1: Enable the Feature
+
+Configure the Site Admin feature in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        siteAdmin: {
+            websiteEnabled: true
+        }
+    }
+};
+```
+
+{% aside type="note" %}
+Unlike other features, site admin does NOT use `userTypes` configuration. Access is controlled entirely through the `pika:site-admin` role assignment.
+{% /aside %}
+
+## Step 2: Grant Admin Role
+
+Users must have the `pika:site-admin` role to access the admin interface.
+
+### Option A: Authentication Provider Assignment
+
+Automatically assign the role during authentication:
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/index.ts`
+
+```typescript
+export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    private createAuthenticatedUser(
+        userData: any, 
+        token: string
+    ): AuthenticatedUser<YourAuthData, YourCustomData> {
+        const roles: string[] = [];
+
+        // Add site admin role for authorized users
+        if (userData.isSiteAdmin || userData.permissions?.includes('site_admin')) {
+            roles.push('pika:site-admin');
+        }
+
+        // Add other business roles
+        if (userData.businessRoles) {
+            roles.push(...userData.businessRoles);
+        }
+
+        return {
+            userId: userData.id,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            userType: userData.isEmployee ? 'internal-user' : 'external-user',
+            roles,
+            // ... other user data
+        };
+    }
+}
+```
+
+### Option B: Database Assignment
+
+Manually add the role in DynamoDB:
+
+1. Open AWS Console → DynamoDB
+2. Find table: `chat-users-{your-stack-name}`
+3. Locate user record by `userId`
+4. Add `pika:site-admin` to the `roles` array
+5. Save changes
+
+**Example DynamoDB Record:**
+
+```json
+{
+    "userId": "admin_user_123",
+    "firstName": "Admin",
+    "lastName": "User",
+    "userType": "internal-user",
+    "roles": ["pika:site-admin", "other-role"],
+    "customData": { }
+}
+```
+
+## Step 3: Access the Admin Interface
+
+Once configured and role assigned:
+
+1. **Log in** to your Pika Chat application
+2. **Navigate** to the site admin interface
+3. **Manage** chat app access and overrides
+
+Users with `pika:site-admin` role will see additional administrative options in the UI.
+
+## Step 4: Configure Entity-Based Access (Optional)
+
+Enable entity-based access control for multi-tenant scenarios.
+
+### Enable Entity Feature
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId', // Field in customData
+            searchPlaceholderText: 'Search for an account...',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            tableColumnHeaderTitle: 'Account ID'
+        },
+        siteAdmin: {
+            websiteEnabled: true
+            // Entity access control automatically enabled
+        }
+    }
+};
+```
+
+### Implement Entity Autocomplete
+
+**Location:** `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts`
+
+```typescript
+export async function getValuesForEntityAutoComplete(
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId?: string
+): Promise<SimpleOption[] | undefined> {
+    // Query your entity data source
+    const entities = await fetchEntitiesFromAPI(valueProvidedByUser);
+    
+    return entities.map(entity => ({
+        value: entity.id,        // Stored in access control
+        label: entity.displayName // Displayed to admin
+    }));
+}
+```
+
+For complete implementation details, see [Work with Entities](/guides/data-sessions/entities/).
+
+## Understanding Access Control Overrides
+
+### Override Types
+
+**1. Enable/Disable Override**
+
+```typescript
+// Completely disable a chat app
+{
+    enabled: false
+}
+```
+
+**2. User ID Access Control**
+
+```typescript
+// Restrict to specific user IDs (highest precedence)
+{
+    enabled: true,
+    exclusiveUserIdAccessControl: [
+        'beta_tester_1',
+        'product_manager_123'
+    ]
+}
+```
+
+**3. Entity-Based Access Control**
+
+```typescript
+// Restrict to specific organizations
+{
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'customer_account_1',
+        'customer_account_2'
+    ],
+    exclusiveInternalAccessControl: [
+        'support_department',
+        'customer_success_team'
+    ]
+}
+```
+
+**4. Enhanced User Type/Role Rules**
+
+```typescript
+// Override default access rules
+{
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['admin', 'support-agent'],
+    applyRulesAs: 'or'
+}
+```
+
+### Override Precedence
+
+Access control follows this precedence order:
+
+1. **Disabled Override**: If `enabled: false`, no access
+2. **Exclusive User ID**: Specific user IDs override all other rules
+3. **Exclusive Entity**: Entity-based restrictions (internal vs external lists)
+4. **General Rules**: Fall back to `userTypes`/`userRoles` checking
+
+## Common Scenarios
+
+### Scenario 1: Customer-Specific Chat App
+
+Restrict a chat app to specific customer accounts:
+
+```typescript
+// Through admin interface, create override:
+{
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'enterprise_customer_1',
+        'enterprise_customer_2',
+        'premium_customer_gold'
+    ],
+    exclusiveInternalAccessControl: [
+        'customer_success',
+        'enterprise_support'
+    ]
+}
+```
+
+### Scenario 2: Beta Feature Rollout
+
+Test new features with specific users:
+
+```typescript
+// Beta testing override:
+{
+    enabled: true,
+    exclusiveUserIdAccessControl: [
+        'user_product_manager',
+        'user_lead_developer',
+        'user_qa_lead',
+        'user_beta_customer_1'
+    ]
+}
+```
+
+### Scenario 3: Department-Specific Tool
+
+Restrict internal tools to specific departments:
+
+```typescript
+// HR tool override:
+{
+    enabled: true,
+    userTypes: ['internal-user'],
+    exclusiveInternalAccessControl: [
+        'human_resources',
+        'executive_team'
+    ]
+}
+```
+
+## Testing Checklist
+
+Verify the admin interface works correctly:
+
+{% checklist %}
+- [ ] Site admin feature enabled in `pika-config.ts`
+- [ ] Admin role (`pika:site-admin`) assigned to test user
+- [ ] Admin interface is accessible to admin users
+- [ ] Admin interface is NOT visible to non-admin users
+- [ ] Can create chat app overrides
+- [ ] Can modify existing overrides
+- [ ] Can delete overrides
+- [ ] Entity autocomplete works (if entities enabled)
+- [ ] Access control changes take effect immediately
+- [ ] Home page visibility controls work
+{% /checklist %}
+
+## Troubleshooting
+
+### Admin Interface Not Visible
+
+- Verify `websiteEnabled: true` in `pika-config.ts`
+- Check user has `pika:site-admin` role assigned
+- Confirm user is logged in with proper authentication
+- Review browser console for errors
+- Check user data in database has role
+
+### Entity-Based Access Not Working
+
+- Verify entity feature is enabled (`entity.enabled: true`)
+- Check `entity.attributeName` matches field in user `customData`
+- Confirm users have entity field populated
+- Ensure entity values in override match user data exactly
+- Verify `getValuesForEntityAutoComplete()` is implemented
+
+### Overrides Not Taking Effect
+
+- Check override precedence rules
+- Verify override is saved to database
+- Test with different user types to isolate issue
+- Review CloudWatch logs for access control decisions
+- Ensure override has complete configuration
+
+### Permission Errors
+
+- Confirm user has `pika:site-admin` role
+- Check role is in user's `roles` array
+- Verify role assignment persists across sessions
+- Review authentication provider role logic
+
+## Security Considerations
+
+### Admin Role Protection
+
+- **Limit assignment**: Only give `pika:site-admin` to trusted users
+- **Audit access**: Log all admin interface usage
+- **Regular review**: Periodically review who has admin access
+- **Revoke promptly**: Remove role when no longer needed
+
+### Override Management
+
+- **Document changes**: Keep record of why overrides were created
+- **Review regularly**: Check if overrides are still necessary
+- **Clean up**: Remove temporary overrides after use
+- **Test changes**: Verify overrides work as expected before deploying
+
+### Entity Data Security
+
+- **Validate autocomplete**: Ensure entity lookup doesn't expose sensitive data
+- **Limit visibility**: Only show entities admin is authorized to see
+- **Secure API calls**: Use proper authentication for entity data sources
+- **Rate limiting**: Protect entity lookup endpoints from abuse
+
+## Next Steps
+
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Understand complete access system
+- [Work with Entities](/guides/data-sessions/entities/) - Set up entity-based access
+- [Manage Content](/guides/admin/content-admin/) - View and manage user content
+
+## Related Documentation
+
+- [Admin Site Capability](/capabilities/enterprise/admin-site/) - Learn more about admin features
+- [Access Control](/capabilities/enterprise/access-control/) - Complete access control guide
+- [Entity Management](/capabilities/enterprise/entity-management/) - Multi-tenancy with entities
+
+---
+
+{% aside type="success" title="No Code Deployments" %}
+Site Admin enables access control changes without code deployments, perfect for responding quickly to business requirements and security incidents.
+{% /aside %}
+

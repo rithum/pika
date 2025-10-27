@@ -1,0 +1,541 @@
+---
+title: Frontend Architecture
+description: How Pika's chat application UI is designed and how it integrates with the backend
+---
+
+Pika's frontend is a production-ready SvelteKit application that provides a complete chat interface, authentication integration, and admin capabilities. This page explains the frontend architecture and design decisions.
+
+## Technology Stack
+
+### SvelteKit
+
+**Why SvelteKit**:
+- **Fast and lightweight**: Minimal JavaScript bundle size
+- **Server-side rendering**: Better SEO and initial load performance
+- **Built-in routing**: File-based routing system
+- **Type-safe**: Full TypeScript support
+- **Developer experience**: Hot module replacement, intuitive API
+
+**Trade-offs**:
+- Less widespread than React (smaller ecosystem)
+- Newer framework (less mature tooling)
+- We accept this for performance and developer experience benefits
+
+### TypeScript
+
+All frontend code is written in TypeScript for:
+- Type safety across frontend and backend
+- Better IDE support
+- Catching errors at compile time
+- Shared types with backend (via `pika-shared` package)
+
+### Tailwind CSS
+
+Styling uses Tailwind CSS for:
+- Utility-first approach
+- Consistent design system
+- Small production bundle (unused styles purged)
+- Responsive design patterns
+
+### Other Key Libraries
+
+- **@auth/sveltekit**: Authentication framework integration
+- **marked**: Markdown parsing for agent responses
+- **DOMPurify**: XSS protection for HTML content
+- **highlight.js**: Code syntax highlighting in responses
+
+## Application Structure
+
+### Directory Layout
+
+```
+apps/pika-chat/
+├── src/
+│   ├── lib/
+│   │   ├── client/              # Client-side code
+│   │   │   ├── features/
+│   │   │   │   └── chat/
+│   │   │   │       ├── components/       # Chat UI components
+│   │   │   │       ├── markdown-message-renderer/
+│   │   │   │       │   └── custom-markdown-tag-components/  # Your custom components
+│   │   │   │       └── stores/           # State management
+│   │   │   └── utils/           # Client utilities
+│   │   └── server/              # Server-side code
+│   │       ├── auth-provider/   # Authentication (pluggable)
+│   │       └── api/             # Backend API integration
+│   ├── routes/                  # SvelteKit routes
+│   │   ├── +page.svelte         # Home page
+│   │   ├── chat/
+│   │   │   └── [chatAppId]/
+│   │   │       └── [sessionId]/+page.svelte  # Chat page
+│   │   ├── admin/               # Admin interface
+│   │   └── api/                 # API endpoints
+│   └── app.html                 # HTML template
+├── static/                      # Static assets
+└── svelte.config.js             # SvelteKit configuration
+```
+
+## Core Components
+
+### 1. Authentication Layer
+
+**Location**: `src/lib/server/auth-provider/`
+
+**Purpose**: Pluggable authentication that integrates with your enterprise systems
+
+**Key Files**:
+```typescript
+// auth-provider.ts - Your implementation
+export async function handleSignIn(/* ... */) {
+    // Integrate with your SSO, SAML, OAuth, etc.
+    return {
+        userId: '...',
+        email: '...',
+        userType: 'internal' | 'external',
+        customData: {
+            accountId: '...',
+            // ... entity and custom data
+        }
+    };
+}
+```
+
+**What You Customize**:
+- Sign-in flow
+- Sign-out flow
+- Session validation
+- User profile retrieval
+- Entity/organization mapping
+
+**What Pika Provides**:
+- JWT generation and validation
+- Session management
+- Cookie handling
+- CSRF protection
+
+### 2. Chat Interface
+
+**Location**: `src/lib/client/features/chat/`
+
+**Key Components**:
+
+#### ChatSession
+```svelte
+<!-- Main chat container -->
+<script>
+    import MessageList from './MessageList.svelte';
+    import MessageInput from './MessageInput.svelte';
+    import SessionSidebar from './SessionSidebar.svelte';
+</script>
+
+<div class="chat-container">
+    <SessionSidebar />
+    <div class="chat-main">
+        <MessageList {messages} />
+        <MessageInput on:send={handleSend} />
+    </div>
+</div>
+```
+
+#### MessageList
+- Renders conversation history
+- Handles streaming message updates
+- Manages scroll position (auto-scroll to bottom)
+- Loading states and error handling
+
+#### MessageInput
+- Multi-line text input with auto-resize
+- File upload support (if enabled)
+- Keyboard shortcuts (Enter to send, Shift+Enter for newline)
+- Character count and limits
+
+#### MessageRenderer
+- Parses markdown from agent responses
+- Renders custom XML tags via web components
+- Syntax highlighting for code blocks
+- Link handling and sanitization
+
+### 3. Markdown and Custom Components
+
+**Location**: `src/lib/client/features/chat/markdown-message-renderer/`
+
+**How It Works**:
+
+1. Agent returns message with markdown and XML:
+```markdown
+Here's the weather data:
+
+<weather-card city="San Francisco" temp="65" condition="sunny" />
+
+You can also check the forecast for the week.
+```
+
+2. Markdown renderer processes content:
+   - Markdown → HTML (via `marked`)
+   - Custom XML tags → Custom Svelte components
+   - Code blocks → Syntax highlighted
+
+3. Custom components render:
+```svelte
+<!-- custom-markdown-tag-components/weather-card.svelte -->
+<script>
+    export let city;
+    export let temp;
+    export let condition;
+</script>
+
+<div class="weather-card">
+    <h3>{city}</h3>
+    <div class="temp">{temp}°F</div>
+    <div class="condition">{condition}</div>
+</div>
+```
+
+**Your Customization Point**: Add custom Svelte components in `custom-markdown-tag-components/` to handle domain-specific XML tags from your agents.
+
+### 4. Session Management
+
+**Location**: `src/lib/client/features/chat/stores/`
+
+**State Management**:
+- Svelte stores for reactive state
+- Session list and current session
+- Message history
+- Streaming state
+
+**Key Stores**:
+```typescript
+// sessions.ts
+export const sessions = writable<Session[]>([]);
+export const currentSession = writable<Session | null>(null);
+
+// messages.ts
+export const messages = writable<Message[]>([]);
+export const streamingMessage = writable<string>('');
+
+// ui.ts
+export const sidebarOpen = writable<boolean>(true);
+export const uploading = writable<boolean>(false);
+```
+
+### 5. API Integration
+
+**Location**: `src/lib/server/api/`
+
+**Backend Communication**:
+
+#### REST API Calls
+```typescript
+// api-client.ts
+export async function createSession(chatAppId: string) {
+    const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatAppId })
+    });
+    return response.json();
+}
+
+export async function getMessages(sessionId: string) {
+    const response = await fetch(`/api/sessions/${sessionId}/messages`);
+    return response.json();
+}
+```
+
+#### Streaming Agent Responses
+```typescript
+// streaming-client.ts
+export async function streamAgentResponse(
+    sessionId: string,
+    message: string
+) {
+    const eventSource = new EventSource(
+        `/api/stream?sessionId=${sessionId}&message=${encodeURIComponent(message)}`
+    );
+    
+    eventSource.onmessage = (event) => {
+        const token = event.data;
+        streamingMessage.update(current => current + token);
+    };
+    
+    eventSource.onerror = () => {
+        eventSource.close();
+    };
+}
+```
+
+### 6. Admin Interface
+
+**Location**: `src/routes/admin/`
+
+**Capabilities**:
+- Chat app management (enable/disable, configure)
+- User access control
+- Session review and search
+- Insights and feedback review
+- Platform configuration
+
+**Key Admin Pages**:
+- `/admin/chatapps` - Manage chat applications
+- `/admin/users` - User management
+- `/admin/sessions` - Session search and review
+- `/admin/insights` - Feedback and insights
+- `/admin/config` - Platform configuration
+
+## Key Features
+
+### 1. Responsive Design
+
+Works across desktop, tablet, and mobile:
+- **Desktop**: Full sidebar, multi-column layout
+- **Tablet**: Collapsible sidebar
+- **Mobile**: Bottom sheet navigation, full-screen chat
+
+Tailwind breakpoints:
+```svelte
+<div class="hidden md:block lg:w-64">
+    <!-- Sidebar: hidden on mobile, visible on desktop -->
+</div>
+```
+
+### 2. Real-Time Streaming
+
+Agent responses stream token-by-token:
+- Server-Sent Events (SSE) for streaming
+- Optimistic UI updates
+- Graceful handling of connection issues
+- Automatic reconnection on failure
+
+### 3. File Upload
+
+Supports file attachments (if enabled):
+- Presigned URL upload to S3
+- Progress indication
+- File type and size validation
+- Drag-and-drop support
+
+### 4. Session Features
+
+- **History**: Browse past conversations
+- **Pinning**: Bookmark important sessions
+- **Sharing**: Generate secure share links
+- **Titles**: Auto-generated session titles
+- **Suggestions**: LLM-generated follow-up questions
+
+### 5. Accessibility
+
+Built with accessibility in mind:
+- Semantic HTML
+- ARIA labels and roles
+- Keyboard navigation
+- Screen reader support
+- Focus management
+
+### 6. Security Features
+
+- **XSS Protection**: DOMPurify sanitizes HTML
+- **CSRF Protection**: Built into SvelteKit
+- **Secure Cookies**: HTTP-only, secure, SameSite
+- **JWT Validation**: Server-side auth checks
+- **Rate Limiting**: Protection against abuse
+
+## Deployment Options
+
+### Option 1: AWS Amplify
+
+**Pros**:
+- Automatic CI/CD from Git
+- Built-in CDN and SSL
+- Environment variable management
+- Serverless SSR support
+
+**Setup**:
+```bash
+amplify init
+amplify add hosting
+amplify publish
+```
+
+### Option 2: Vercel
+
+**Pros**:
+- Excellent SvelteKit support
+- Fast global CDN
+- Automatic preview deployments
+- Easy domain configuration
+
+**Setup**:
+```bash
+vercel deploy
+```
+
+### Option 3: S3 + CloudFront
+
+**Pros**:
+- Full AWS integration
+- Custom CDK stack
+- Complete control
+
+**Setup**:
+- Build static site: `npm run build`
+- Upload to S3
+- Configure CloudFront distribution
+
+### Option 4: Standalone Node Server
+
+**Pros**:
+- Complete control
+- Custom middleware
+- Works with any hosting
+
+**Setup**:
+```bash
+npm run build
+node build/index.js
+```
+
+## Configuration and Customization
+
+### Environment Variables
+
+```bash
+# Backend API
+PUBLIC_API_URL=https://api.example.com
+
+# Authentication
+AUTH_SECRET=...
+AUTH_CALLBACK_URL=...
+
+# Feature flags
+PUBLIC_FILE_UPLOAD_ENABLED=true
+PUBLIC_SELF_CORRECTION_ENABLED=true
+```
+
+### Theme Customization
+
+Modify `tailwind.config.ts`:
+```typescript
+export default {
+    theme: {
+        extend: {
+            colors: {
+                primary: '#your-brand-color',
+                // ... other colors
+            }
+        }
+    }
+}
+```
+
+### Feature Overrides
+
+Per-chat-app feature overrides:
+```typescript
+// Load from backend API
+const chatApp = await getChatApp(chatAppId);
+const features = {
+    ...siteDefaults,
+    ...chatApp.featureOverrides
+};
+```
+
+## Performance Optimization
+
+### Code Splitting
+
+SvelteKit automatically splits code by route:
+- Only load code for current page
+- Preload links on hover
+- Dynamic imports for heavy components
+
+### Bundle Size
+
+Optimizations:
+- Tree shaking removes unused code
+- Tailwind purges unused styles
+- Svelte compiles to vanilla JS (no runtime)
+
+Typical bundle sizes:
+- Initial load: ~50KB gzipped
+- Per-route: ~10-20KB gzipped
+
+### Caching
+
+- Static assets: Long-term caching (immutable)
+- API responses: Short-term caching
+- Agent responses: No caching (real-time)
+
+## Development Workflow
+
+### Local Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start dev server
+pnpm dev
+
+# Open browser
+# http://localhost:5173
+```
+
+### Building for Production
+
+```bash
+# Build static site
+pnpm build
+
+# Preview production build
+pnpm preview
+```
+
+### Testing
+
+```typescript
+// Component tests with Vitest
+import { render } from '@testing-library/svelte';
+import MessageInput from './MessageInput.svelte';
+
+test('sends message on Enter key', () => {
+    const { getByRole } = render(MessageInput);
+    const input = getByRole('textbox');
+    // ... test interactions
+});
+```
+
+## Integration Points
+
+### Backend APIs
+
+Frontend calls these backend endpoints:
+- `/api/sessions` - Session CRUD
+- `/api/sessions/{id}/messages` - Message history
+- `/api/stream` - Streaming agent responses
+- `/api/admin/*` - Admin operations
+
+### Authentication Provider
+
+Your custom auth provider integrates with:
+- Sign-in page
+- Session validation middleware
+- User profile endpoints
+
+### Custom Web Components
+
+Your Svelte components in `custom-markdown-tag-components/`:
+- Automatically registered by name
+- Props passed from XML attributes
+- Full Svelte reactivity
+
+## Related Documentation
+
+- **[System Architecture](/concepts/architecture/system/)** - Overall architecture
+- **[Customize the UI](/guides/customization/ui/)** - UI customization guide
+- **[Build Custom Web Components](/guides/customization/build-web-components/)** - Component development
+- **[Authentication Integration](/guides/authentication/integrate-auth/)** - Auth setup
+
+{% aside type="tip" %}
+The frontend is designed to be customized. Focus your customization on authentication, custom web components, and theming. The core chat functionality is production-ready out of the box.
+{% /aside %}
+

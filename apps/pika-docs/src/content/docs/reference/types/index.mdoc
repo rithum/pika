@@ -1,0 +1,361 @@
+---
+title: Shared Types & Interfaces
+description: TypeScript type definitions from the pika-shared package
+---
+
+Complete reference for TypeScript types and interfaces provided by the `pika-shared` package.
+
+## Overview
+
+The `pika-shared` package provides comprehensive TypeScript types for building type-safe Pika applications. These types ensure compile-time validation and provide excellent IDE support.
+
+## Installation
+
+```bash
+npm install -D pika-shared
+```
+
+## Benefits
+
+Using `pika-shared` types provides:
+
+- **Compile-time validation** - Catch errors before runtime
+- **IntelliSense support** - Auto-completion and inline documentation in your IDE
+- **Consistent interfaces** - Shared types across frontend and backend
+- **Automatic refactoring** - When types change, your IDE can help update code
+- **Self-documenting code** - Types serve as inline documentation
+
+## Type Categories
+
+### Agent & Tool Types
+
+Types for defining agents, tools, and their configurations.
+
+- **[Agent & Tool Types](/reference/types/agent-tool/)** - `AgentDefinition`, `ToolDefinition`, `FunctionSchema`
+
+**Key Types:**
+- `AgentDefinition` - Agent configuration
+- `LambdaToolDefinition` - AWS Lambda tools
+- `McpToolDefinition` - Model Context Protocol tools
+- `InlineToolDefinition` - Inline JavaScript tools
+- `FunctionDefinition` - Bedrock function schemas
+- `AccessRule` - Access control rules
+
+### Session & User Types
+
+Types for managing sessions, users, and chat interactions.
+
+- **[Session & User Types](/reference/types/session-user/)** - `ChatSession`, `ChatUser`, `ChatMessage`
+
+**Key Types:**
+- `ChatSession` - Chat session data
+- `ChatUser` - User profile and custom data
+- `ChatMessage` - Message structure
+- `SessionData` - Session state
+- `ConverseRequest` - Chat request payload
+- `ConverseResponse` - Chat response structure
+
+### Chat App Types
+
+Types for chat application configuration.
+
+**Key Types:**
+- `ChatApp` - Complete chat app configuration
+- `ChatAppForIdempotentCreateOrUpdate` - For deployment
+- `ChatAppFeatures` - Feature configuration object
+- `ChatAppOverride` - Access control overrides
+
+See: **[Chat App Configuration](/reference/configuration/chat-app/)** for detailed documentation.
+
+### Bedrock Types
+
+Types specific to AWS Bedrock integration.
+
+**Key Types:**
+- `BedrockActionGroupLambdaEvent` - Event type for tool invocations
+- `BedrockActionGroupLambdaResponse` - Response format
+- `FunctionDefinition` - Bedrock function schema
+- `ActionGroupInvocationInput` - Tool invocation input
+
+See: **[Agent & Tool Types](/reference/types/agent-tool/)** for Bedrock-specific types.
+
+### Tag Definition Types
+
+Types for custom UI tags and widgets.
+
+**Key Types:**
+- `TagDefinition` - Complete tag definition
+- `TagDefinitionWidget` - Widget configuration
+- `TagInstructionForLlm` - LLM instructions for tags
+- `WidgetRenderingContexts` - Where widgets can render
+
+See: **[Widget System Reference](/reference/ui-components/widget-system/)** for tag system documentation.
+
+## Common Import Patterns
+
+### Agent Configuration
+
+```typescript
+import type {
+    AgentDefinition,
+    AgentDefinitionForCreate,
+    ToolDefinition,
+    LambdaToolDefinition
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+### Chat App Configuration
+
+```typescript
+import type {
+    ChatApp,
+    ChatAppForIdempotentCreateOrUpdate,
+    ChatAppFeatures
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+### Tool Implementation
+
+```typescript
+import type {
+    BedrockActionGroupLambdaEvent,
+    BedrockActionGroupLambdaResponse
+} from 'pika-shared/types/chatbot/bedrock';
+
+import {
+    createBedrockLambdaResponse,
+    handleBedrockError,
+    convertBedrockParamsToCorrectType
+} from 'pika-shared/util/bedrock';
+```
+
+### Session Management
+
+```typescript
+import type {
+    ChatSession,
+    ChatUser,
+    SessionData
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## Utility Functions
+
+The `pika-shared` package also provides utility functions:
+
+### Bedrock Utilities
+
+```typescript
+import {
+    convertBedrockParamsToCorrectType,
+    createBedrockLambdaResponse,
+    handleBedrockError,
+    normalizeSessionAttributes
+} from 'pika-shared/util/bedrock';
+```
+
+### Server Utilities
+
+```typescript
+import {
+    gzipAndBase64EncodeString,
+    gunzipBase64EncodedString
+} from 'pika-shared/util/server-utils';
+```
+
+## Type-Safe Lambda Handler Example
+
+Complete example of a type-safe Lambda handler:
+
+```typescript
+import { Handler } from 'aws-lambda';
+import type {
+    BedrockActionGroupLambdaEvent,
+    BedrockActionGroupLambdaResponse
+} from 'pika-shared/types/chatbot/bedrock';
+import {
+    createBedrockLambdaResponse,
+    handleBedrockError,
+    convertBedrockParamsToCorrectType
+} from 'pika-shared/util/bedrock';
+
+export const handler: Handler = async (
+    event: BedrockActionGroupLambdaEvent
+): Promise<BedrockActionGroupLambdaResponse> => {
+    try {
+        // Convert and validate parameters
+        const params = convertBedrockParamsToCorrectType(event.parameters);
+
+        // Your business logic
+        const result = await processRequest(event.function, params);
+
+        // Create properly formatted response
+        return createBedrockLambdaResponse(
+            JSON.stringify(result),
+            event.actionGroup,
+            event.messageVersion,
+            event.function
+        );
+    } catch (error) {
+        return handleBedrockError(error, event);
+    }
+};
+
+interface RequestParams {
+    city?: string;
+    units?: string;
+}
+
+async function processRequest(
+    functionName: string,
+    params: RequestParams
+): Promise<unknown> {
+    if (functionName === 'get_weather') {
+        const { city, units = 'celsius' } = params;
+        // Fetch weather data...
+        return { temperature: 72, units, city };
+    }
+    throw new Error(`Unknown function: ${functionName}`);
+}
+```
+
+## Generic Types for Custom Data
+
+Many types support generics for custom user data:
+
+```typescript
+// Define your custom user data structure
+interface MyCustomData {
+    accountId: string;
+    accountType: 'free' | 'premium' | 'enterprise';
+    region: string;
+}
+
+// Use with ChatUser
+import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
+
+const user: ChatUser<MyCustomData> = {
+    userId: 'user-123',
+    firstName: 'John',
+    lastName: 'Doe',
+    customData: {
+        accountId: 'acct-456',
+        accountType: 'premium',
+        region: 'us-east'
+    }
+};
+
+// Use with ChatSession
+import type { ChatSession } from 'pika-shared/types/chatbot/chatbot-types';
+
+const session: ChatSession<MyCustomData> = {
+    userId: 'user-123',
+    sessionId: 'session-789',
+    chatAppId: 'support-chat',
+    customData: {
+        accountId: 'acct-456',
+        accountType: 'premium',
+        region: 'us-east'
+    },
+    // ... other fields
+};
+```
+
+## Type Guards
+
+Helper functions for runtime type checking:
+
+```typescript
+import type { UserType } from 'pika-shared/types/chatbot/chatbot-types';
+
+function isInternalUser(userType: UserType): boolean {
+    return userType === 'internal-user';
+}
+
+function isExternalUser(userType: UserType): boolean {
+    return userType === 'external-user';
+}
+```
+
+## Enums and Constants
+
+String literal types and arrays of valid values:
+
+```typescript
+import {
+    FeatureTypeArr,
+    ClearConverseLambdaCacheTypes,
+    SESSION_SEARCH_SORT_FIELDS
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+// Valid feature types
+type FeatureType = (typeof FeatureTypeArr)[number]; // 'instruction' | 'history'
+
+// Valid cache types
+type CacheType = (typeof ClearConverseLambdaCacheTypes)[number];
+// 'agent' | 'tagDefinitions' | 'instructionAssistanceConfig' | 'all'
+
+// Valid sort fields for session search
+type SortField = (typeof SESSION_SEARCH_SORT_FIELDS)[number];
+// 'createDate' | 'lastUpdate' | 'sessionId' | ...
+```
+
+## Version Compatibility
+
+The `pika-shared` package version should match your Pika Platform version:
+
+```json
+{
+    "dependencies": {
+        "pika-shared": "^1.0.0"
+    }
+}
+```
+
+Check compatibility in the [Changelog](/platform/releases/changelog/).
+
+## Best Practices
+
+{% aside type="tip" title="Type Usage Best Practices" %}
+1. **Always use types** - Don't use `any` when a specific type exists
+2. **Import specific types** - Import only what you need for better tree-shaking
+3. **Use generics** - Leverage `<T>` generics for custom data
+4. **Leverage utility types** - Use `Partial<T>`, `Omit<T, K>`, etc.
+5. **Keep types in sync** - Update `pika-shared` when upgrading Pika Platform
+{% /aside %}
+
+## TypeScript Configuration
+
+Recommended `tsconfig.json` settings for using `pika-shared`:
+
+```json
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "commonjs",
+        "lib": ["ES2020"],
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "moduleResolution": "node"
+    }
+}
+```
+
+## Related Documentation
+
+- **[Agent Configuration](/reference/configuration/agent/)** - Agent config schema
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Chat app config schema
+- **[Tool Configuration](/reference/configuration/tool/)** - Tool config schema
+- **[Agent & Tool Types](/reference/types/agent-tool/)** - Detailed agent/tool type reference
+- **[Session & User Types](/reference/types/session-user/)** - Detailed session/user type reference
+
+## Source Code
+
+View the complete type definitions on GitHub:
+- [chatbot-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts)
+- [bedrock.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/bedrock.ts)
+- [webcomp-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/webcomp-types.ts)
+

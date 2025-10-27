@@ -1,0 +1,527 @@
+---
+title: Deploy Using Serverless Framework
+description: Deploy your Pika agents using the Serverless Framework for simplified infrastructure management
+---
+
+Learn how to deploy Pika agents and tools using the Serverless Framework, providing a simple configuration-based approach to AWS deployment.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Install and configure Serverless Framework
+- Use the pika-serverless plugin
+- Define agents, tools, and chat apps in `serverless.yml`
+- Deploy your application to AWS
+- Manage environment variables
+- Update and maintain your deployment
+
+## Prerequisites
+
+- AWS account with appropriate permissions
+- AWS CLI installed and configured
+- Node.js 22+ installed
+- npm or pnpm package manager
+- Basic understanding of YAML
+
+## Understanding Serverless Framework
+
+Serverless Framework simplifies AWS deployment by using declarative configuration instead of code.
+
+### Benefits
+
+- **Simple Configuration**: Define infrastructure in YAML
+- **Fast Deployment**: Quick iteration and deployment
+- **Plugin Ecosystem**: Rich plugin support
+- **Multi-Provider**: Works with AWS, Azure, GCP
+- **Built-in Best Practices**: Follows cloud best practices
+
+### Pika Serverless Plugin
+
+The `pika-serverless` plugin extends Serverless Framework with Pika-specific functionality:
+
+- Automatic agent registration
+- Tool Lambda creation
+- Chat app configuration
+- DynamoDB table setup
+
+## Step 1: Install Serverless Framework
+
+Install the Serverless Framework CLI globally.
+
+```bash
+npm install -g serverless
+
+# Verify installation
+serverless --version
+```
+
+## Step 2: Create Your Service
+
+Set up a new Serverless service for your Pika agents.
+
+### Create Project Directory
+
+```bash
+mkdir my-pika-agents
+cd my-pika-agents
+npm init -y
+```
+
+### Install Dependencies
+
+```bash
+npm install pika-serverless pika-shared
+```
+
+### Create serverless.yml
+
+**Location:** `serverless.yml`
+
+```yaml
+service: my-pika-agents
+
+frameworkVersion: '3'
+
+provider:
+    name: aws
+    runtime: nodejs22.x
+    region: us-east-1
+    stage: ${opt:stage, 'dev'}
+    
+    environment:
+        STAGE: ${self:provider.stage}
+        AWS_ACCOUNT_ID: ${aws:accountId}
+
+plugins:
+    - pika-serverless
+
+custom:
+    pika:
+        # Reference your Pika service
+        pikaServiceName: pika
+        pikaServiceStage: ${self:provider.stage}
+```
+
+## Step 3: Define Agents
+
+Configure your AI agents in `serverless.yml`.
+
+### Basic Agent
+
+```yaml
+custom:
+    pika:
+        pikaServiceName: pika
+        pikaServiceStage: ${self:provider.stage}
+        
+        agents:
+            customer-support:
+                basePrompt: |
+                    You are a helpful customer support agent.
+                    
+                    Your role:
+                    - Answer customer questions
+                    - Troubleshoot issues
+                    - Provide information about products and services
+                    
+                    Always be polite, professional, and helpful.
+                
+                modelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+                temperature: 0.7
+                maxTokens: 4096
+```
+
+### Agent with Tools
+
+```yaml
+custom:
+    pika:
+        agents:
+            weather-assistant:
+                basePrompt: You are a weather information assistant.
+                modelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+                
+                # Associate tools
+                tools:
+                    - weather-tool
+                    - forecast-tool
+```
+
+## Step 4: Define Tools
+
+Create Lambda-backed tools for your agents.
+
+### Tool Configuration
+
+```yaml
+custom:
+    pika:
+        tools:
+            weather-tool:
+                name: get_weather
+                displayName: Weather Tool
+                description: Get current weather for a location
+                
+                # Lambda handler
+                handler: src/weather.handler
+                
+                # Function schema for LLM
+                functionSchema:
+                    - name: get_weather
+                      description: Get current weather information
+                      parameters:
+                          type: object
+                          properties:
+                              location:
+                                  type: string
+                                  description: City name or coordinates
+                              unit:
+                                  type: string
+                                  enum: [celsius, fahrenheit]
+                                  description: Temperature unit
+                          required: [location]
+```
+
+### Tool Lambda Implementation
+
+**Location:** `src/weather.ts`
+
+```typescript
+import { ToolExecutionParams, ToolResponse } from 'pika-shared/types/chatbot/chatbot-types';
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        const { location, unit = 'fahrenheit' } = event.toolInput as any;
+        
+        // Call weather API
+        const apiKey = process.env.WEATHER_API_KEY;
+        const response = await fetch(
+            `https://api.weather.com/v1/current?location=${location}&units=${unit}&key=${apiKey}`
+        );
+        
+        const data = await response.json();
+        
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify({
+                location: data.location,
+                temperature: data.temp,
+                condition: data.condition
+            })
+        };
+    } catch (error) {
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({ error: error.message })
+        };
+    }
+}
+```
+
+## Step 5: Define Chat Apps
+
+Create user-facing chat applications.
+
+```yaml
+custom:
+    pika:
+        chatApps:
+            weather-chat:
+                title: Weather Assistant
+                description: Get weather information for any location
+                
+                # Link to agent
+                agentId: weather-assistant
+                
+                # Access control
+                accessControl:
+                    allowAnonymousUsers: false
+                    userTypes:
+                        - authenticated-user
+                
+                # Suggestions
+                suggestions:
+                    - What's the weather in San Francisco?
+                    - Show me the 7-day forecast
+                    - Is it going to rain today?
+```
+
+## Step 6: Configure Environment
+
+Set up environment variables and secrets.
+
+### Environment Variables
+
+```yaml
+provider:
+    environment:
+        STAGE: ${self:provider.stage}
+        WEATHER_API_KEY: ${env:WEATHER_API_KEY}
+        LOG_LEVEL: info
+```
+
+### AWS Secrets Manager
+
+```yaml
+custom:
+    pika:
+        tools:
+            api-tool:
+                handler: src/api.handler
+                environment:
+                    # Reference from Secrets Manager
+                    API_KEY: ${ssm:/my-service/${self:provider.stage}/api-key~true}
+```
+
+## Step 7: Deploy
+
+Deploy your service to AWS.
+
+### Deploy Command
+
+```bash
+# Deploy to default stage (dev)
+serverless deploy
+
+# Deploy to specific stage
+serverless deploy --stage prod
+
+# Deploy with verbose logging
+serverless deploy --verbose
+```
+
+### Deployment Output
+
+```
+Deploying my-pika-agents to stage dev (us-east-1)
+
+✔ Service deployed to stack my-pika-agents-dev (142s)
+
+endpoints:
+  None
+functions:
+  weather-tool: my-pika-agents-dev-weather-tool
+  forecast-tool: my-pika-agents-dev-forecast-tool
+
+Stack Outputs:
+  WeatherToolLambdaFunctionQualifiedArn: arn:aws:lambda:us-east-1:...
+  ServerlessDeploymentBucketName: my-pika-agents-dev-serverlessdeploymentbucket-...
+```
+
+## Step 8: Test Your Deployment
+
+Verify agents and tools work correctly.
+
+### Invoke Tool Locally
+
+```bash
+serverless invoke local -f weather-tool -d '{
+  "toolInput": {
+    "location": "San Francisco",
+    "unit": "fahrenheit"
+  }
+}'
+```
+
+### View Logs
+
+```bash
+# Tail function logs
+serverless logs -f weather-tool --tail
+
+# View recent logs
+serverless logs -f weather-tool --startTime 1h
+```
+
+### Test Chat App
+
+Access your chat app through the Pika web interface using the deployed agent.
+
+## Complete Example
+
+### Full serverless.yml
+
+```yaml
+service: weather-service
+
+frameworkVersion: '3'
+
+provider:
+    name: aws
+    runtime: nodejs22.x
+    region: us-east-1
+    stage: ${opt:stage, 'dev'}
+    
+    environment:
+        STAGE: ${self:provider.stage}
+        WEATHER_API_KEY: ${env:WEATHER_API_KEY}
+
+plugins:
+    - pika-serverless
+
+custom:
+    pika:
+        pikaServiceName: pika
+        pikaServiceStage: ${self:provider.stage}
+        
+        agents:
+            weather-assistant:
+                basePrompt: |
+                    You are a weather information assistant.
+                    Help users get current weather and forecasts.
+                    Always provide accurate, up-to-date information.
+                modelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+                temperature: 0.5
+                tools:
+                    - weather-tool
+        
+        tools:
+            weather-tool:
+                name: get_weather
+                displayName: Weather Tool
+                description: Get current weather
+                handler: src/weather.handler
+                functionSchema:
+                    - name: get_weather
+                      description: Get current weather information
+                      parameters:
+                          type: object
+                          properties:
+                              location:
+                                  type: string
+                                  description: City name
+                          required: [location]
+        
+        chatApps:
+            weather-chat:
+                title: Weather Assistant
+                description: Get weather information
+                agentId: weather-assistant
+                accessControl:
+                    allowAnonymousUsers: true
+```
+
+## Common Tasks
+
+### Update Deployment
+
+```bash
+# Make changes to serverless.yml or code
+# Then redeploy
+serverless deploy
+```
+
+### Deploy Single Function
+
+```bash
+# Faster than full deployment
+serverless deploy function -f weather-tool
+```
+
+### Remove Service
+
+```bash
+# Delete all resources
+serverless remove
+
+# Remove specific stage
+serverless remove --stage prod
+```
+
+### View Stack Info
+
+```bash
+# Get deployment information
+serverless info
+
+# Get info for specific stage
+serverless info --stage prod
+```
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] Serverless Framework installed
+- [ ] AWS credentials configured
+- [ ] Dependencies installed
+- [ ] Agents defined in serverless.yml
+- [ ] Tools implemented and configured
+- [ ] Chat apps defined
+- [ ] Environment variables set
+- [ ] Deployment successful
+- [ ] Tools invocable
+- [ ] Agents responding correctly
+{% /checklist %}
+
+## Best Practices
+
+### Configuration
+
+- **Use Stages**: Separate dev, staging, prod
+- **Environment Variables**: Externalize configuration
+- **Secrets Management**: Use SSM or Secrets Manager
+- **Version Control**: Commit serverless.yml
+
+### Development
+
+- **Test Locally**: Use `invoke local` before deploying
+- **Incremental Deployment**: Deploy functions individually during development
+- **Monitor Logs**: Use `logs --tail` for debugging
+- **Use Plugins**: Leverage serverless plugins for common tasks
+
+### Production
+
+- **Separate Stages**: Never share dev and prod resources
+- **Automated Deployment**: Use CI/CD pipelines
+- **Monitor Performance**: Set up CloudWatch alarms
+- **Cost Tracking**: Tag resources and monitor costs
+
+## Troubleshooting
+
+### Deployment Fails
+
+```bash
+# Check CloudFormation events
+aws cloudformation describe-stack-events \
+    --stack-name my-pika-agents-dev \
+    --max-items 10
+```
+
+### Function Errors
+
+```bash
+# View detailed logs
+serverless logs -f weather-tool --startTime 30m
+
+# Test locally with data
+serverless invoke local -f weather-tool -d '{"toolInput": {...}}'
+```
+
+### Plugin Not Found
+
+```bash
+# Reinstall dependencies
+npm install
+
+# Verify plugin installed
+npm list pika-serverless
+```
+
+## Next Steps
+
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - Alternative deployment method
+- [Set Up Local Development](/guides/deployment/local-development/) - Local testing environment
+- [Use Stack Management](/guides/admin/stack-management/) - Manage infrastructure
+
+## Related Documentation
+
+- [Serverless Framework Docs](https://www.serverless.com/framework/docs/) - Official documentation
+- [pika-serverless Plugin](/docs/tools/serverless-plugin/) - Plugin documentation
+- [AWS Lambda Best Practices](https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html) - AWS guidance
+
+---
+
+{% aside type="tip" title="Perfect for Prototypes" %}
+Serverless Framework is excellent for rapid prototyping and smaller deployments. For complex infrastructure needs, consider AWS CDK for more control.
+{% /aside %}

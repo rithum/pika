@@ -381,25 +381,102 @@ Pika is not the right choice if:
 
 ## Comparison Matrix
 
-{% aside type="note" %}
-**TODO**: Detailed comparison with other solutions will be added here.
+How does Pika compare to other approaches for building AI agent applications?
 
-Compare Pika with:
-- Building custom on AWS
-- LangChain/LlamaIndex + custom UI
-- Commercial agent platforms
-- Other open-source frameworks
+### Pika vs. Building Custom on AWS
 
-Comparison dimensions:
-- Time to production
-- Infrastructure included
-- UI/UX provided
-- Security features
-- Operational tooling
-- Cost structure
-- Learning curve
-- Flexibility vs convenience
-{% /aside %}
+| Dimension | Pika | Custom AWS Build |
+|-----------|------|------------------|
+| **Time to Production** | Days - deploy complete application with agents | Months - build infrastructure, UI, security, monitoring |
+| **Infrastructure** | Complete: Lambda, DynamoDB, OpenSearch, Bedrock, auth, session management | You build everything from scratch |
+| **UI/UX** | Production-ready chat interface with streaming, web components, admin site | Build your own frontend and admin tools |
+| **Security** | Built-in authentication integration, access control, multi-tenancy | Implement security layer yourself |
+| **Operational Tools** | Admin site, traces, monitoring, LLM feedback, insights included | Build your own operational tooling |
+| **Cost Structure** | AWS infrastructure costs only (pay for what you use) | AWS costs + months of development time |
+| **Learning Curve** | Learn Pika's config-based approach | Learn all AWS services + build integration |
+| **Flexibility** | Configure within framework patterns | Complete control but complete responsibility |
+
+{% card title="Best For" %}
+**Pika**: Teams who want production-ready AI apps quickly without building infrastructure.
+
+**Custom AWS**: Organizations with unique requirements that don't fit any framework, or those with extensive AWS expertise and specific architectural needs.
+{% /card %}
+
+### Pika vs. LangChain/LlamaIndex + Custom UI
+
+| Dimension | Pika | LangChain/LlamaIndex + UI |
+|-----------|------|---------------------------|
+| **Time to Production** | Days - complete platform ready to deploy | Weeks - integrate agent framework with custom UI and infrastructure |
+| **Infrastructure** | Complete AWS stack with deployment automation | Choose and configure your own infrastructure |
+| **UI/UX** | Production chat interface with streaming, admin site, web components | Build entire frontend from scratch |
+| **Security** | Authentication, authorization, multi-tenancy built-in | Implement security, auth, access control yourself |
+| **Operational Tools** | Traces, monitoring, feedback, insights, admin interface included | Build your own operational and admin tools |
+| **Cost Structure** | AWS infrastructure costs | Infrastructure costs + frontend development time |
+| **Learning Curve** | Learn Pika's agent-as-config approach | Learn LangChain/LlamaIndex + implement UI + setup infrastructure |
+| **Flexibility** | Opinionated AWS + Svelte stack | Choose any infrastructure and frontend stack |
+
+{% card title="Best For" %}
+**Pika**: Teams who want a complete platform with UI and operational tools included.
+
+**LangChain/LlamaIndex**: Teams who need flexibility in infrastructure choice or have existing UI frameworks, and have time to build the complete application layer.
+{% /card %}
+
+### Pika vs. Commercial Agent Platforms
+
+| Dimension | Pika | Commercial Platforms |
+|-----------|------|----------------------|
+| **Time to Production** | Days - deploy to your AWS account | Varies - typically fast but vendor-dependent |
+| **Infrastructure** | Deploy in your AWS account - you own and control everything | Vendor-managed infrastructure - less control |
+| **UI/UX** | Included, customizable with web components | Varies - often limited customization |
+| **Security** | Your AWS account, your security controls, your compliance | Trust vendor security, limited control over compliance |
+| **Operational Tools** | Admin site, traces, insights - all included | Vendor-provided dashboards - limited customization |
+| **Cost Structure** | Infrastructure costs only - no per-user or per-message fees | Monthly/annual fees + usage fees + seat licensing |
+| **Learning Curve** | Learn Pika framework and config approach | Learn vendor platform and limitations |
+| **Flexibility** | Full access to code, extend as needed, deploy anywhere | Limited by vendor capabilities and APIs |
+
+{% card title="Best For" %}
+**Pika**: Organizations that need data sovereignty, want to avoid vendor lock-in, or require control over their infrastructure and costs.
+
+**Commercial Platforms**: Teams who prefer managed services, don't have AWS expertise, or need enterprise support contracts.
+{% /card %}
+
+### Pika vs. Other Open-Source Agent Frameworks
+
+| Dimension | Pika | Other Frameworks |
+|-----------|------|------------------|
+| **Time to Production** | Days - includes UI, infrastructure, deployment | Varies - typically focused on agent logic only |
+| **Infrastructure** | Complete AWS stack with CDK deployment automation | Usually just agent runtime - you add infrastructure |
+| **UI/UX** | Production chat interface with admin site included | Most don't include UI - you build it |
+| **Security** | Authentication, access control, multi-tenancy ready | Varies - often need to add security layer |
+| **Operational Tools** | Admin site, traces, monitoring, insights built-in | Usually limited - you add operational tooling |
+| **Cost Structure** | AWS infrastructure costs | Depends on infrastructure you choose |
+| **Learning Curve** | Learn Pika's config-based, AWS-centric approach | Varies by framework - often more code-heavy |
+| **Flexibility** | Opinionated AWS + agent-as-config pattern | Varies - some more flexible, some more opinionated |
+
+{% card title="Best For" %}
+**Pika**: Teams who want a complete, production-ready platform with UI and operations included, and are comfortable with AWS.
+
+**Other Frameworks**: Teams with specific agent orchestration needs, those avoiding vendor lock-in to cloud providers, or developers who prefer to assemble their own stack.
+{% /card %}
+
+### Key Decision Factors
+
+Consider Pika when:
+
+1. **You're on AWS** - Pika is built for AWS and leverages managed services for scale
+2. **You need UI included** - Production chat interface and admin tools come ready
+3. **Time to market matters** - Deploy complete applications in days, not months
+4. **You want operational visibility** - Traces, monitoring, and insights are built-in
+5. **Cost predictability** - Pay only for AWS infrastructure, no per-user fees
+6. **Data sovereignty required** - Everything runs in your AWS account
+
+Consider alternatives when:
+
+1. **Multi-cloud required** - Pika is AWS-specific
+2. **Maximum flexibility needed** - Building custom gives complete control
+3. **Existing infrastructure** - You have non-AWS infrastructure you must use
+4. **Managed service preference** - You prefer vendor-managed platforms
+5. **Different agent patterns** - Your agent orchestration needs don't fit Pika's model
 
 ## Next Steps
 

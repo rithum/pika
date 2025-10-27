@@ -48,6 +48,10 @@ export default defineMarkdocConfig({
                     type: String,
                     required: true
                 },
+                border: {
+                    type: Boolean,
+                    default: false
+                },
                 clientLoad: {
                     type: Boolean,
                     default: true
@@ -83,6 +87,45 @@ export default defineMarkdocConfig({
                     default: 'transparent'
                 },
                 clientLoad: {
+                    type: Boolean,
+                    default: true
+                }
+            }
+        },
+        checklist: {
+            render: component('./src/components/Checklist.astro'),
+            attributes: {
+                clientLoad: {
+                    type: Boolean,
+                    default: true
+                }
+            }
+        },
+        aside: {
+            render: component('./src/components/CustomAside.astro'),
+            attributes: {
+                type: {
+                    type: String,
+                    default: 'note',
+                    matches: ['note', 'tip', 'caution', 'danger', 'success', 'failure', 'warning']
+                },
+                title: {
+                    type: String
+                }
+            }
+        },
+        imageRight: {
+            render: component('./src/components/ImageRight.astro'),
+            attributes: {
+                imageSrc: {
+                    type: String,
+                    required: true
+                },
+                imageAlt: {
+                    type: String,
+                    default: 'Screenshot'
+                },
+                border: {
                     type: Boolean,
                     default: true
                 }

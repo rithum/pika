@@ -1,0 +1,306 @@
+---
+title: Environment Variables
+description: Complete reference for all environment variables used by Pika Platform
+---
+
+Complete reference for environment variables used to configure Pika Platform at runtime.
+
+## Overview
+
+Pika Platform uses environment variables for:
+- AWS configuration
+- Service endpoints
+- Authentication secrets
+- Feature toggles
+- Development vs production settings
+
+{% aside type="caution" title="Sensitive Information" %}
+Never commit `.env` files with secrets to version control. Use AWS Systems Manager Parameter Store or Secrets Manager for production secrets.
+{% /aside %}
+
+## Required Variables
+
+### AWS Configuration
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `AWS_REGION` | `string` | AWS region for deployment | `us-east-1` |
+| `AWS_ACCOUNT` | `string` | AWS account ID (optional, auto-detected if not set) | `123456789012` |
+
+### Chat App Configuration
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `WEBAPP_URL` | `string` | **Required.** Full URL of the web app including port | `https://chat.example.com` or `http://localhost:3000` |
+| `PIKA_S3_BUCKET` | `string` | **Required.** S3 bucket for file uploads and storage | `my-company-pika-files` |
+| `STAGE` | `string` | **Required.** Deployment stage | `dev`, `staging`, `prod` |
+| `ENV` | `string` | **Required.** Environment name (usually same as STAGE) | `dev`, `staging`, `prod` |
+
+### API Configuration
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `CHAT_API_ID` | `string` | **Required.** API Gateway ID for chat API | `abc123def456` |
+| `CHAT_ADMIN_API_ID` | `string` | **Required.** API Gateway ID for admin API | `xyz789uvw012` |
+| `CONVERSE_FUNCTION_URL` | `string` | **Required.** Lambda function URL for converse API | `https://xxx.lambda-url.us-east-1.on.aws/` |
+
+### Database Configuration
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `TAG_DEFINITIONS_TABLE` | `string` | **Required.** DynamoDB table name for tag definitions | `pika-dev-tag-definitions` |
+
+### Project Configuration
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `PIKA_SERVICE_PROJ_NAME_KEBAB_CASE` | `string` | **Required.** Pika service project name | `my-company` |
+| `PIKA_CHAT_PROJ_NAME_KEBAB_CASE` | `string` | **Required.** Pika chat project name | `my-company-chat` |
+
+## Security Variables
+
+### Cookie Encryption
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `KMS_COOKIE_KEY_ALIAS` | `string` | **Auto-generated.** KMS key alias for cookie encryption | `alias/my-company-chat-dev` |
+| `KEY_REFRESH_INTERVAL_HOURS` | `number` | **Auto-set.** Hours between key rotations | `24` |
+| `MAX_KEY_VERSIONS` | `number` | **Auto-set.** Maximum key versions to maintain | `3` |
+| `COOKIE_MAX_AGE_HOURS` | `number` | **Auto-set.** Cookie expiration in hours | `72` |
+
+### JWT Configuration
+
+{% aside type="note" title="JWT Secret Management" %}
+The JWT secret is stored in AWS Systems Manager Parameter Store and retrieved automatically at runtime. You should never set this as an environment variable.
+{% /aside %}
+
+The system automatically retrieves:
+- `jwtSecret` from SSM Parameter Store path: `/pika/{projectName}/{stage}/jwt-secret`
+
+## Optional Variables
+
+### Development Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DEBUG` | `string` | - | Enable debug logging (e.g., `pika:*`) |
+| `PIKA_DEBUG` | `boolean` | `false` | Enable Pika-specific debug output |
+| `NODE_ENV` | `string` | `production` | Node environment (`development`, `production`) |
+
+### Feature Flags
+
+Feature flags are typically configured in `pika-config.ts` rather than environment variables. However, you can override them for specific deployments:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `DISABLE_TRACES` | `boolean` | Disable traces feature |
+| `DISABLE_USER_MEMORY` | `boolean` | Disable user memory feature |
+| `DISABLE_INSIGHTS` | `boolean` | Disable session insights |
+
+## Local Development
+
+### Local .env File Example
+
+```bash
+# .env.local
+# For local development only
+
+# AWS Configuration
+AWS_REGION=us-east-1
+AWS_PROFILE=my-profile  # Optional: AWS CLI profile to use
+
+# Chat App
+WEBAPP_URL=http://localhost:3000
+STAGE=local
+ENV=local
+
+# Will be set by CDK outputs after first deployment:
+# PIKA_S3_BUCKET=my-company-pika-local-files
+# CHAT_API_ID=abc123
+# CHAT_ADMIN_API_ID=xyz789
+# CONVERSE_FUNCTION_URL=https://...
+# TAG_DEFINITIONS_TABLE=pika-local-tag-definitions
+
+# Project Names (from pika-config.ts)
+PIKA_SERVICE_PROJ_NAME_KEBAB_CASE=my-company
+PIKA_CHAT_PROJ_NAME_KEBAB_CASE=my-company-chat
+
+# Development
+DEBUG=pika:*
+NODE_ENV=development
+```
+
+## Production Configuration
+
+In production, environment variables are typically set by:
+
+1. **AWS CDK** - Most variables are automatically configured by the CDK stack
+2. **ECS Task Definition** - For container-based deployments
+3. **Lambda Environment** - For serverless functions
+4. **Systems Manager Parameter Store** - For secrets and sensitive config
+
+### CDK-Managed Variables
+
+The following variables are automatically set by CDK during deployment:
+
+```typescript
+// From PikaChatConstruct
+const environmentVariables = {
+    STAGE: props.stage,
+    ENV: props.stage,
+    AWS_REGION: cdk.Aws.REGION,
+    AWS_ACCOUNT_ID: cdk.Aws.ACCOUNT_ID,
+    CHAT_API_ID: apiId,
+    CHAT_ADMIN_API_ID: chatAdminApiId,
+    WEBAPP_URL: props.domainName ? `https://${props.domainName}` : 'unknown',
+    PIKA_S3_BUCKET: pikaS3Bucket,
+    CONVERSE_FUNCTION_URL: converseFnUrl,
+    TAG_DEFINITIONS_TABLE: tagDefinitionsTableName,
+    PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: props.pikaServiceProjNameKebabCase,
+    PIKA_CHAT_PROJ_NAME_KEBAB_CASE: props.projNameKebabCase,
+    KMS_COOKIE_KEY_ALIAS: generateKmsKeyAliasName(props.projNameKebabCase, props.stage),
+    KEY_REFRESH_INTERVAL_HOURS: '24',
+    MAX_KEY_VERSIONS: '3',
+    COOKIE_MAX_AGE_HOURS: '72'
+};
+```
+
+## Environment Variable Loading
+
+Pika Platform loads environment variables in this order (later sources override earlier ones):
+
+1. Default system environment
+2. `.env` file (if present)
+3. `.env.local` file (if present, git-ignored)
+4. `.env.{STAGE}` file (e.g., `.env.prod`)
+5. Explicit environment variables from deployment system
+
+## Validation
+
+The application validates required environment variables at startup. If any required variable is missing, the application will fail to start with a clear error message:
+
+```
+Error: Environment variable AWS_REGION is not set.
+```
+
+## Security Best Practices
+
+{% aside type="tip" title="Environment Variable Security" %}
+1. **Use Parameter Store** - Store secrets in AWS Systems Manager Parameter Store
+2. **Rotate secrets** - Implement regular rotation for sensitive values
+3. **Limit access** - Use IAM policies to restrict who can read environment variables
+4. **Encrypt in transit** - Use HTTPS for all API communications
+5. **Audit access** - Enable CloudTrail logging for Parameter Store access
+{% /aside %}
+
+### Never Store in Environment Variables
+
+❌ Do not store these as environment variables:
+- JWT secrets (use Parameter Store)
+- Database passwords (use Secrets Manager)
+- API keys for external services (use Secrets Manager)
+- OAuth client secrets (use Secrets Manager)
+
+✅ These are safe as environment variables:
+- AWS region
+- Service URLs
+- Feature flags
+- Non-sensitive configuration
+
+## Retrieving Environment Variables
+
+### In Application Code
+
+```typescript
+import { getFromEnv } from 'pika-shared/util/server-utils';
+
+// Required variable (throws if missing)
+const region = getFromEnv('AWS_REGION');
+
+// Optional variable with default
+const debug = getFromEnv('DEBUG', 'false');
+```
+
+### In CDK Code
+
+```typescript
+const stage = process.env.STAGE || 'dev';
+const awsRegion = process.env.AWS_REGION || 'us-east-1';
+```
+
+### From Parameter Store
+
+```typescript
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+
+const ssmClient = new SSMClient({ region: process.env.AWS_REGION });
+
+const response = await ssmClient.send(
+    new GetParameterCommand({
+        Name: `/pika/${projectName}/${stage}/jwt-secret`,
+        WithDecryption: true
+    })
+);
+
+const jwtSecret = response.Parameter?.Value;
+```
+
+## Common Issues
+
+### Missing AWS_REGION
+
+**Error:** `Environment variable AWS_REGION is not set`
+
+**Solution:** Set AWS_REGION in your environment or .env file:
+
+```bash
+export AWS_REGION=us-east-1
+# or
+AWS_REGION=us-east-1 pnpm dev
+```
+
+### Wrong WEBAPP_URL
+
+**Error:** Authentication redirects fail or cookies don't work
+
+**Solution:** Ensure WEBAPP_URL matches exactly how users access your app:
+- Local: `http://localhost:3000` (no trailing slash)
+- Production: `https://chat.example.com` (no trailing slash)
+
+### Missing CDK Outputs
+
+**Error:** `CHAT_API_ID` or other API variables not set
+
+**Solution:** These are set by CDK after deployment. Either:
+1. Deploy the stack first: `cd services/pika && cdk deploy`
+2. Copy values from AWS Console to your .env.local file
+
+## Related Documentation
+
+- **[Platform Settings](/reference/configuration/platform-settings/)** - Global configuration via pika-config.ts
+- **[AWS Deployment Guide](/guides/deployment/aws-cdk/)** - How environment variables are set during deployment
+- **[Local Development Guide](/guides/deployment/local/)** - Setting up local environment
+- **[Security Architecture](/concepts/architecture/security/)** - Security best practices
+
+## Reference: AppConfig Interface
+
+The complete AppConfig interface that loads these environment variables:
+
+```typescript
+interface AppConfig {
+    isLocal: boolean; // Auto-detected
+    awsRegion: string; // From AWS_REGION
+    awsAccount: string; // From AWS_ACCOUNT or auto-detected
+    redirectCallbackUriPath: string; // Hardcoded in config
+    jwtSecret: string; // Retrieved from SSM at runtime
+    webappUrl: string; // From WEBAPP_URL
+    pikaS3Bucket: string; // From PIKA_S3_BUCKET
+    stage: string; // From STAGE
+    chatApiId: string; // From CHAT_API_ID
+    chatAdminApiId: string; // From CHAT_ADMIN_API_ID
+    converseFunctionUrl: string; // From CONVERSE_FUNCTION_URL
+    tagDefinitionsTable: string; // From TAG_DEFINITIONS_TABLE
+    // ... additional fields
+}
+```
+

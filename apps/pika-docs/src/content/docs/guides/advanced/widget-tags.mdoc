@@ -1,0 +1,668 @@
+---
+title: Custom Widget Tag Definitions
+description: Define, manage, and deploy custom tag definitions for AI-driven UI components
+---
+
+Learn how to create and manage tag definitions that enable AI-driven UI components to be dynamically rendered within chat responses.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand the tag definition system
+- Configure site-wide and chat-app tag settings
+- Create tag definitions for different widget types
+- Manage tag visibility and lifecycle
+- Integrate with LLM instructions
+- Use tag management APIs
+
+## Prerequisites
+
+- A running Pika installation
+- Understanding of web components (for custom widgets)
+- Access to `pika-config.ts` for configuration
+- Familiarity with the custom message tags system
+
+## Understanding the Tags Feature
+
+The Tags feature enables AI-driven UI components that can be dynamically rendered within chat responses. Tags are special markup elements that the LLM includes in responses to render interactive UI.
+
+### How Tags Work
+
+1. **Tag Definition** created and registered
+2. **LLM** receives instructions about available tags
+3. **LLM** generates tag markup in response
+4. **Frontend** parses tags and renders widgets
+5. **User** interacts with rendered components
+
+### Tag Types
+
+**Built-in Tags** (provided by Pika):
+- `pika.chart` - Various chart types (bar, line, pie, etc.)
+- `pika.image` - Images with captions
+- `pika.prompt` - Follow-up prompt buttons
+
+**Custom Compiled-in Tags**:
+- Svelte components compiled into your application
+- Uses existing custom message tags renderer system
+- Defined via tag definitions for LLM awareness
+
+**Web Component Tags**:
+- Standalone components loaded dynamically
+- Uploaded to S3 and loaded on demand
+- Most flexible option for custom UI
+
+**Pass-through Tags**:
+- Semantic markup without UI rendering
+- Useful for metadata and structured data
+
+{% aside type="note" title="Evolution from Custom Message Tags" %}
+This Tags Feature is the evolution of Pika's Custom Message Tags system. Existing custom renderers continue to work and serve as the foundation for tag definitions.
+{% /aside %}
+
+## Step 1: Enable the Tags Feature
+
+Configure tags in your `pika-config.ts`.
+
+### Site-wide Configuration
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        tags: {
+            enabled: true,
+            
+            // Optional: Enable specific tags by default for all chat apps
+            tagsEnabled: [
+                { scope: 'mycompany', tag: 'custom-widget' }
+            ],
+            
+            // Optional: Disable specific global tags by default
+            tagsDisabled: [
+                { scope: 'pika', tag: 'chart' }  // Disable charts globally
+            ]
+        }
+    }
+};
+```
+
+### Chat App Configuration
+
+Override site settings per chat app:
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'sales-chat',
+    title: 'Sales Chat',
+    // ... other properties
+    features: {
+        tags: {
+            featureId: 'tags',
+            enabled: true,
+            
+            // Enable specific tags for this app
+            tagsEnabled: [
+                { scope: 'pika', tag: 'download' },
+                { scope: 'acme', tag: 'order-status' }
+            ],
+            
+            // Disable specific tags for this app
+            tagsDisabled: [
+                { scope: 'pika', tag: 'image' }  // No images in this chat app
+            ]
+        }
+    }
+};
+```
+
+## Step 2: Understand Tag Visibility Model
+
+Tags use two usage modes to control visibility.
+
+### Global Tags
+
+Automatically available to all chat apps unless explicitly disabled.
+
+```typescript
+const globalTag: TagDefinition = {
+    tag: 'chart',
+    scope: 'pika',
+    usageMode: 'global',  // Available everywhere by default
+    status: 'enabled',
+    // ... rest of definition
+};
+```
+
+**Characteristics:**
+- Appear in all chat apps automatically
+- Can be disabled per chat app via `tagsDisabled`
+- Ideal for common utility widgets
+- Examples: charts, images, prompts
+
+### Chat-App Tags
+
+Must be explicitly enabled per chat app.
+
+```typescript
+const chatAppTag: TagDefinition = {
+    tag: 'order-status',
+    scope: 'acme',
+    usageMode: 'chat-app',  // Requires explicit enablement
+    status: 'enabled',
+    // ... rest of definition
+};
+```
+
+**Characteristics:**
+- Must be added to chat app's `tagsEnabled` list
+- Not visible by default
+- Ideal for specialized, app-specific widgets
+- Examples: business-specific forms, custom dashboards
+
+### Status Lifecycle
+
+```typescript
+status: 'enabled'   // Active and available for use
+status: 'disabled'  // Temporarily hidden but not removed
+status: 'retired'   // Permanently archived/deprecated
+```
+
+## Step 3: Create Tag Definitions
+
+### Tag Definition Structure
+
+```typescript
+interface TagDefinition<T extends TagDefinitionWidget> {
+    tag: string;                      // Tag name (e.g., 'chart')
+    scope: string;                    // Namespace (e.g., 'pika', 'mycompany')
+    usageMode: 'global' | 'chat-app'; // Visibility model
+    widget: T;                        // Widget configuration
+    llmInstructionsMd?: string;       // Instructions for LLM
+    status: 'enabled' | 'disabled' | 'retired';
+    renderingContexts: WidgetRenderingContexts;
+    canBeGeneratedByLlm: boolean;     // If LLM can generate this
+    canBeGeneratedByTool: boolean;    // If tools can generate this
+    description: string;              // Admin-facing description
+    dontCacheThis?: boolean;          // Skip caching (dev only)
+    chatAppId?: string;               // Associated chat app (or 'chat-app-global')
+    tagTitle: string;                 // Display title (pluralized noun)
+    shortTagEx: string;               // Example for LLM reference
+    createdBy: string;                // Creator user ID
+    lastUpdatedBy: string;            // Last updater user ID
+    createDate: string;               // ISO 8601 creation timestamp
+    lastUpdate: string;               // ISO 8601 last update timestamp
+}
+```
+
+### Web Component Tag Definition
+
+```typescript
+import {
+    type TagDefinitionForCreateOrUpdate,
+    type TagDefinitionWidgetWebComponentForCreateOrUpdate
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+const calculatorTag: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    tag: 'loan-calculator',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    tagTitle: 'Loan Calculators',
+    shortTagEx: '<acme.loan-calculator></acme.loan-calculator>',
+    description: 'Interactive loan payment calculator',
+    
+    canBeGeneratedByLlm: false,
+    canBeGeneratedByTool: false,
+    
+    chatAppId: 'financial-advisor',
+    status: 'enabled',
+    dontCacheThis: false, // Set true during development
+    
+    renderingContexts: {
+        spotlight: {
+            enabled: true,
+            isDefault: true
+        },
+        canvas: {
+            enabled: true
+        }
+    },
+    
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'loan-calculator',
+            s3: {
+                s3Key: 'wc/acme/loan-calculator.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 45000,
+            encodedSha256Base64: 'your-hash-here'
+        }
+    }
+};
+```
+
+### Custom Compiled-in Tag Definition
+
+Bridge existing custom renderers with tag definitions:
+
+```typescript
+const customFormTag: TagDefinitionForCreateOrUpdate = {
+    tag: 'product-form',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    tagTitle: 'Product Forms',
+    shortTagEx: '<acme.product-form></acme.product-form>',
+    description: 'Custom product data entry form',
+    
+    canBeGeneratedByLlm: true, // LLM can generate this
+    canBeGeneratedByTool: false,
+    
+    chatAppId: 'product-management',
+    status: 'enabled',
+    
+    renderingContexts: {
+        canvas: {
+            enabled: true
+        }
+    },
+    
+    widget: {
+        type: 'custom-compiled-in'
+        // References renderer from customRenderers registry
+    }
+};
+```
+
+### Pass-through Tag Definition
+
+For semantic markup without rendering:
+
+```typescript
+const metadataTag: TagDefinitionForCreateOrUpdate = {
+    tag: 'metadata',
+    scope: 'system',
+    usageMode: 'global',
+    tagTitle: 'Metadata',
+    shortTagEx: '<system.metadata></system.metadata>',
+    description: 'Semantic metadata markup',
+    
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    
+    chatAppId: 'chat-app-global',
+    status: 'enabled',
+    
+    renderingContexts: {
+        spotlight: { enabled: false },
+        canvas: { enabled: false }
+    },
+    
+    widget: {
+        type: 'pass-through'
+    }
+};
+```
+
+## Step 4: Provide LLM Instructions
+
+Instruct the LLM on when and how to use tags.
+
+### Structured Instructions
+
+```typescript
+const chartTag = {
+    // ... other fields
+    llmInstructionsMd: `
+Use the chart tag when you need to visualize numerical data.
+
+## Chart Types
+
+- **bar**: For comparing categories
+- **line**: For showing trends over time
+- **pie**: For showing proportions
+- **scatter**: For showing correlations
+
+## Example Usage
+
+\`\`\`xml
+<pika.chart type="bar" title="Sales by Region">
+{
+  "labels": ["North", "South", "East", "West"],
+  "datasets": [{
+    "label": "Q1 Sales",
+    "data": [12, 19, 3, 5]
+  }]
+}
+</pika.chart>
+\`\`\`
+
+## When to Use
+
+- User asks for visual representation of data
+- Data contains numerical comparisons
+- Trends or patterns need to be shown
+- Multiple data points need comparison
+    `.trim()
+};
+```
+
+### Instruction Guidelines
+
+1. **Be Specific**: Clear examples of when to use the tag
+2. **Include Examples**: Show properly formatted tag usage
+3. **Document Attributes**: Explain required and optional attributes
+4. **Set Boundaries**: Specify when NOT to use the tag
+5. **Provide Schema**: Include data structure details
+
+## Step 5: Register Tag Definitions
+
+Use APIs or CDK to register tag definitions.
+
+### Using Admin API
+
+```typescript
+// Create or update tag definition
+const response = await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        tagDefinition: calculatorTag,
+        userId: 'admin-user'
+    })
+});
+```
+
+### Using CDK Custom Resource
+
+```typescript
+import { CustomResource } from 'aws-cdk-lib';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/gzip-util';
+
+new CustomResource(this, 'CalculatorTagDef', {
+    serviceToken: tagDefLambdaArn,
+    properties: {
+        Action: 'createOrUpdate',
+        TagDefinition: gzipAndBase64EncodeString(JSON.stringify(calculatorTag))
+    }
+});
+```
+
+## Step 6: Manage Tag Definitions
+
+### Search Tag Definitions
+
+**Admin API (all tags):**
+
+```typescript
+const response = await fetch('/api/chat-admin/tagdef/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        includeInstructions: true,
+        paginationToken: null
+    })
+});
+
+const { tagDefinitions, nextToken } = await response.json();
+```
+
+**Chat API (enabled only):**
+
+```typescript
+const response = await fetch('/api/chat/tagdef/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        includeInstructions: false,
+        paginationToken: null
+    })
+});
+```
+
+### Update Tag Definition
+
+```typescript
+const updatedTag = {
+    ...existingTag,
+    status: 'disabled',
+    lastUpdatedBy: 'admin-user'
+};
+
+await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    body: JSON.stringify({
+        tagDefinition: updatedTag,
+        userId: 'admin-user'
+    })
+});
+```
+
+### Delete Tag Definition
+
+```typescript
+await fetch('/api/chat-admin/tagdef', {
+    method: 'DELETE',
+    body: JSON.stringify({
+        tagDefinition: {
+            tag: 'loan-calculator',
+            scope: 'acme'
+        },
+        userId: 'admin-user'
+    })
+});
+```
+
+## Testing Checklist
+
+Verify your tag definitions work correctly:
+
+{% checklist %}
+- [ ] Tags feature enabled in `pika-config.ts`
+- [ ] Tag definition registered in DynamoDB
+- [ ] Tag appears in appropriate chat apps
+- [ ] LLM receives tag instructions
+- [ ] LLM generates tag correctly in responses
+- [ ] Widget renders correctly
+- [ ] User interactions work as expected
+- [ ] Global tags appear in all apps (unless disabled)
+- [ ] Chat-app tags only appear when enabled
+- [ ] Tag lifecycle (enable/disable/retire) works
+{% /checklist %}
+
+## Common Scenarios
+
+### Scenario 1: Global Utility Widget
+
+```typescript
+const downloadTag: TagDefinition = {
+    tag: 'download',
+    scope: 'pika',
+    usageMode: 'global',
+    status: 'enabled',
+    chatAppId: 'chat-app-global',
+    canBeGeneratedByLlm: true,
+    // ... widget configuration
+};
+
+// Available everywhere automatically
+// Can be disabled per chat app if needed
+```
+
+### Scenario 2: Business-Specific Form
+
+```typescript
+const orderFormTag: TagDefinition = {
+    tag: 'order-form',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    status: 'enabled',
+    chatAppId: 'order-management',
+    canBeGeneratedByLlm: false, // Only tools generate this
+    canBeGeneratedByTool: true,
+    // ... widget configuration
+};
+
+// Must be explicitly enabled in chat app
+chatApp.features.tags.tagsEnabled.push({
+    scope: 'acme',
+    tag: 'order-form'
+});
+```
+
+### Scenario 3: Beta Testing New Widget
+
+```typescript
+const betaWidgetTag: TagDefinition = {
+    tag: 'analytics-dashboard',
+    scope: 'acme',
+    usageMode: 'chat-app',
+    status: 'enabled',
+    chatAppId: 'beta-testing',
+    dontCacheThis: true, // Don't cache during development
+    // ... widget configuration
+};
+
+// Only enabled in beta chat app
+// Can be promoted to global after testing
+```
+
+## Troubleshooting
+
+### Tag Not Rendering
+
+- Check tag is `enabled` in site and chat app configurations
+- Verify tag definition registered in DynamoDB
+- Ensure web component file uploaded to S3 (for web components)
+- Review widget configuration (hash, size, path)
+- Check browser console for loading errors
+
+### LLM Not Using Tags
+
+- Review `llmInstructionsMd` for clarity
+- Ensure instructions include examples
+- Verify `canBeGeneratedByLlm: true`
+- Check LLM model supports tool/tag generation
+- Test with simpler instructions first
+
+### Web Component Not Loading
+
+- Verify S3 bucket permissions
+- Check component file encoding (must be gzip)
+- Validate SHA256 hash matches file
+- Ensure file size is correct
+- Review Content Security Policy (CSP) settings
+
+### Cache Issues
+
+- Use `dontCacheThis: true` during development
+- Clear caches manually (CloudFront, browser)
+- Check cache TTLs are appropriate
+- Restart application to clear in-memory caches
+
+## Best Practices
+
+### Tag Naming
+
+- Use descriptive kebab-case names: `loan-calculator` not `calc`
+- Include scope prefixes for organization
+- Avoid conflicts with HTML elements
+- Keep names short but meaningful
+
+### LLM Instruction Guidelines
+
+- **Start with context**: "Use this tag when..."
+- **Provide examples**: Show complete, valid markup
+- **Document attributes**: List all required and optional attributes
+- **Set boundaries**: Explain when NOT to use the tag
+- **Include schemas**: Show expected data structures
+
+### Performance Considerations
+
+- Set `dontCacheThis: true` only for development
+- Minimize web component bundle sizes
+- Use appropriate cache TTLs
+- Load components lazily when possible
+- Monitor tag definition search performance
+
+### Security
+
+- Validate all tag attributes on frontend
+- Sanitize user inputs in web components
+- Use Content Security Policy (CSP) appropriately
+- Avoid exposing sensitive data through tags
+- Implement proper access controls
+
+## Migration from Custom Message Tags
+
+If you have existing custom renderers:
+
+### Step 1: Create Tag Definition
+
+For existing renderer:
+
+```typescript
+// Existing renderer in customRenderers
+export const customRenderers = {
+    'data-table': MyDataTableRenderer
+};
+
+// Create tag definition
+const dataTableTag: TagDefinition = {
+    tag: 'data-table',
+    scope: 'custom',
+    widget: {
+        type: 'custom-compiled-in'
+    },
+    llmInstructionsMd: `Use data-table for tabular data...`,
+    // ... other fields
+};
+```
+
+### Step 2: Register Tag Definition
+
+```typescript
+await fetch('/api/chat-admin/tagdef', {
+    method: 'POST',
+    body: JSON.stringify({
+        tagDefinition: dataTableTag,
+        userId: 'admin'
+    })
+});
+```
+
+### Step 3: Enhanced LLM Instructions
+
+Your tag definition now provides structured instructions to the LLM.
+
+### Future Web Component Migration
+
+When ready, convert to web component:
+
+1. Convert Svelte component to web component
+2. Upload to S3
+3. Update tag definition: `widget.type: 'web-component'`
+
+No changes to existing renderer code required during transition.
+
+## Next Steps
+
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create custom widgets
+- [Deploy Custom Web Components](/guides/customization/deploy-web-components/) - Deploy to production
+- [Use Custom Message Tags](/guides/data-sessions/message-tags/) - Legacy renderer system
+
+## Related Documentation
+
+- [Tags Feature Capability](/capabilities/intelligence/tags/) - Learn more about tags
+- [Web Components](/capabilities/customization/web-components/) - Complete web component guide
+- [Tag Definition API Reference](/reference/api/tag-definitions/) - Complete API docs
+
+---
+
+{% aside type="success" title="AI-Driven UI" %}
+Tag definitions enable the LLM to create contextual, interactive user interfaces on-demand, transforming static chat responses into dynamic, data-driven experiences.
+{% /aside %}
+

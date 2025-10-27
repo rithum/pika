@@ -1,0 +1,695 @@
+---
+title: Tool Invocation Process
+description: Deep dive into how tools are called, execute, and return results to agents
+---
+
+Tools are the mechanisms through which agents access data, call APIs, and perform actions. This page explains the complete tool invocation process from agent decision to result return.
+
+## Tool Architecture
+
+**Tools in Pika are Lambda functions** with typed schemas:
+
+![Tool Invocation Process](/img/diagrams/tool-invocation.drawio.svg)
+
+## Tool Types
+
+### 1. Inline Tools (Lambda)
+
+**Most common**: Lambda functions you implement
+
+```typescript
+// Tool definition
+{
+    toolId: 'customer-lookup',
+    executionType: 'lambda',
+    lambdaArn: 'arn:aws:lambda:us-west-2:123:function:customer-lookup',
+    functionSchema: [{
+        name: 'lookup_customer',
+        description: 'Find customer by email or ID',
+        parameters: {
+            type: 'object',
+            properties: {
+                email: { type: 'string' },
+                customerId: { type: 'string' }
+            }
+        }
+    }]
+}
+```
+
+### 2. MCP Tools
+
+**External services**: Model Context Protocol integrations
+
+```typescript
+{
+    toolId: 'crm-integration',
+    executionType: 'mcp',
+    mcpServerUrl: 'https://crm-mcp.example.com',
+    authentication: { /* ... */ }
+}
+```
+
+## Invocation Lifecycle
+
+### Step 1: Agent Decision
+
+**Agent determines tool is needed**:
+
+```
+User: "What's my account balance?"
+    ↓
+Agent reasoning:
+"User asking about account balance.
+I need to call the get_account_balance tool.
+I'll need the user's account ID."
+    ↓
+Decision: Call tool with parameters
+```
+
+### Step 2: Parameter Extraction
+
+**Agent extracts/generates parameters from context**:
+
+```typescript
+// From user message
+user: "What's the balance for account AC-12345?"
+→ parameters: { accountId: 'AC-12345' }
+
+// From session context
+sessionAttributes: { userId: 'user_123' }
+→ parameters: { userId: 'user_123' }
+
+// From conversation history
+Previous message: "My email is john@example.com"
+Current: "Look up my account"
+→ parameters: { email: 'john@example.com' }
+```
+
+### Step 3: Schema Validation
+
+**Bedrock validates parameters against schema**:
+
+```typescript
+functionSchema: {
+    name: 'get_account_balance',
+    parameters: {
+        type: 'object',
+        properties: {
+            accountId: {
+                type: 'string',
+                pattern: '^AC-[0-9]{5}$',
+                description: 'Account ID in format AC-XXXXX'
+            }
+        },
+        required: ['accountId']
+    }
+}
+```
+
+**Validation checks**:
+- Required parameters present
+- Type correctness (string, number, boolean)
+- Pattern matching (if specified)
+- Enum values (if specified)
+
+**If validation fails**: Error returned to agent, agent may retry or ask user for clarification.
+
+### Step 4: Lambda Invocation
+
+**Bedrock invokes Lambda function**:
+
+```typescript
+// Event structure
+{
+    messageVersion: '1.0',
+    agent: {
+        name: 'banking-agent',
+        id: 'agent_banking_prod',
+        alias: 'PROD',
+        version: '1'
+    },
+    inputText: 'What's my account balance?',  // Original user message
+    actionGroup: 'banking-tools',
+    function: 'get_account_balance',
+    
+    // Parameters from agent
+    parameters: [
+        {
+            name: 'accountId',
+            type: 'string',
+            value: 'AC-12345'
+        }
+    ],
+    
+    // Session context (NOT controllable by LLM)
+    sessionAttributes: {
+        userId: 'user_123',
+        userType: 'external-user',
+        entityId: 'acme-corp',
+        chatAppId: 'banking-chat',
+        agentId: 'banking-agent'
+    },
+    
+    sessionId: 'sess_abc123',
+    promptSessionAttributes: { /* ... */ }
+}
+```
+
+### Step 5: Tool Execution
+
+**Lambda function processes request**:
+
+```typescript
+import { BedrockAgentLambdaEvent, BedrockAgentLambdaResponse } from 'aws-lambda';
+
+export async function handler(
+    event: BedrockAgentLambdaEvent
+): Promise<BedrockAgentLambdaResponse> {
+    
+    // 1. Extract parameters
+    const accountId = getParameter(event, 'accountId');
+    
+    // 2. Extract session context (secure, not from LLM)
+    const userId = event.sessionAttributes.userId;
+    const entityId = event.sessionAttributes.entityId;
+    
+    // 3. Validate access
+    const hasAccess = await validateUserAccess(userId, accountId, entityId);
+    if (!hasAccess) {
+        return errorResponse('Access denied to this account');
+    }
+    
+    // 4. Perform business logic
+    const balance = await database.getAccountBalance(accountId);
+    
+    // 5. Format and return result
+    return {
+        messageVersion: '1.0',
+        response: {
+            actionGroup: event.actionGroup,
+            function: event.function,
+            functionResponse: {
+                responseBody: {
+                    'application/json': {
+                        body: JSON.stringify({
+                            accountId: accountId,
+                            balance: balance.amount,
+                            currency: balance.currency,
+                            lastUpdated: balance.timestamp
+                        })
+                    }
+                }
+            }
+        }
+    };
+}
+
+// Helper functions
+function getParameter(event: BedrockAgentLambdaEvent, name: string): string {
+    const param = event.parameters.find(p => p.name === name);
+    if (!param) throw new Error(`Missing parameter: ${name}`);
+    return param.value;
+}
+
+function errorResponse(message: string): BedrockAgentLambdaResponse {
+    return {
+        messageVersion: '1.0',
+        response: {
+            actionGroup: 'banking-tools',
+            function: 'get_account_balance',
+            functionResponse: {
+                responseState: 'FAILURE',
+                responseBody: {
+                    'application/json': {
+                        body: JSON.stringify({ error: message })
+                    }
+                }
+            }
+        }
+    };
+}
+```
+
+### Step 6: Result Return
+
+**Lambda returns structured result**:
+
+```json
+{
+    "messageVersion": "1.0",
+    "response": {
+        "actionGroup": "banking-tools",
+        "function": "get_account_balance",
+        "functionResponse": {
+            "responseState": "SUCCESS",
+            "responseBody": {
+                "application/json": {
+                    "body": "{\"accountId\":\"AC-12345\",\"balance\":5432.10,\"currency\":\"USD\",\"lastUpdated\":\"2025-01-15T10:30:00Z\"}"
+                }
+            }
+        }
+    }
+}
+```
+
+### Step 7: Agent Processing
+
+**Agent receives result and incorporates into response**:
+
+```
+Agent receives tool result:
+{
+    accountId: 'AC-12345',
+    balance: 5432.10,
+    currency: 'USD',
+    lastUpdated: '2025-01-15T10:30:00Z'
+}
+
+Agent generates:
+"Your account balance for AC-12345 is $5,432.10 USD as of January 15, 2025 at 10:30 AM."
+```
+
+## Security in Tool Invocation
+
+### Identity Context Isolation
+
+**Critical**: LLM cannot control identity context
+
+```typescript
+// Session attributes set by Pika platform, not LLM
+sessionAttributes: {
+    userId: 'user_123',           // From JWT token
+    userType: 'external-user',    // From auth provider
+    entityId: 'acme-corp',        // From auth provider
+    chatAppId: 'banking-chat',    // From platform
+    agentId: 'banking-agent'      // From platform
+}
+```
+
+**Agent can see tool results** but **cannot modify who the request is for**.
+
+### Tool-Level Authorization
+
+**Every tool enforces its own access control**:
+
+```typescript
+export async function handler(event: BedrockAgentLambdaEvent) {
+    // Extract AUTHENTICATED context (not from LLM)
+    const userId = event.sessionAttributes.userId;
+    const userType = event.sessionAttributes.userType;
+    const entityId = event.sessionAttributes.entityId;
+    
+    // Enforce business rules
+    if (userType !== 'internal-user') {
+        // External users can only access their own accounts
+        const userAccounts = await getUserAccounts(userId);
+        if (!userAccounts.includes(accountId)) {
+            return errorResponse('Access denied');
+        }
+    }
+    
+    // Entity isolation
+    const account = await getAccount(accountId);
+    if (account.entityId !== entityId) {
+        return errorResponse('Account not found');
+    }
+    
+    // Proceed with authorized access
+    // ...
+}
+```
+
+### IAM Permissions
+
+**Tools can only be invoked by tagged Lambda functions**:
+
+```typescript
+// Agent execution role
+{
+    "Effect": "Allow",
+    "Action": "lambda:InvokeFunction",
+    "Resource": "*",
+    "Condition": {
+        "StringEquals": {
+            "aws:ResourceTag/agent-tool": "true"
+        }
+    }
+}
+
+// Tool Lambda must be tagged
+Tags: {
+    "agent-tool": "true"
+}
+```
+
+**Result**: Agent can only invoke authorized tools.
+
+## Error Handling
+
+### Tool Execution Errors
+
+**Graceful error handling**:
+
+```typescript
+try {
+    const result = await externalAPI.call(params);
+    return successResponse(result);
+} catch (error) {
+    logger.error('Tool execution failed', { error, params });
+    
+    return errorResponse(
+        'Unable to complete request. Please try again.'
+    );
+}
+```
+
+**Agent receives error** and can:
+- Retry the tool call
+- Try alternative approach
+- Apologize to user
+- Ask for clarification
+
+### Network Timeouts
+
+```typescript
+export const handler = timeout(
+    async (event) => {
+        // Tool logic
+    },
+    { timeout: 30000 }  // 30 second timeout
+);
+```
+
+**If timeout exceeded**: Error returned to agent.
+
+### Invalid Responses
+
+**Bedrock validates tool response format**:
+
+```typescript
+// Valid
+{
+    messageVersion: '1.0',
+    response: { /* ... */ }
+}
+
+// Invalid - missing required fields
+{
+    result: 'some data'
+}
+// → Error: Invalid response format
+```
+
+## Performance Optimization
+
+### Tool Latency
+
+**Optimize tool execution**:
+
+1. **Database queries**: Use indexes, limit results
+2. **External APIs**: Implement caching, connection pooling
+3. **Heavy computation**: Consider pre-computation, caching
+4. **Large datasets**: Paginate, return summaries
+
+**Typical tool latencies**:
+```
+Database query: 50-200ms
+External API: 200-1000ms
+Complex computation: 500-2000ms
+```
+
+**Monitor** tool latency in CloudWatch:
+```typescript
+const startTime = Date.now();
+const result = await performOperation();
+const latency = Date.now() - startTime;
+
+await cloudwatch.putMetric({
+    namespace: 'Pika/Tools',
+    metricName: 'ToolLatency',
+    value: latency,
+    dimensions: [{ name: 'ToolId', value: toolId }]
+});
+```
+
+### Concurrent Tool Calls
+
+**Some agents can call tools in parallel**:
+
+```
+Query: "Compare products A, B, and C"
+    ↓
+Parallel tool calls:
+├─ getProduct('A') → 150ms
+├─ getProduct('B') → 200ms
+└─ getProduct('C') → 180ms
+
+Total: 200ms (not 530ms sequential)
+```
+
+**Benefit**: Faster responses for multi-tool queries.
+
+### Caching Tool Results
+
+**Cache frequently accessed, slowly changing data**:
+
+```typescript
+const cache = new Map();
+
+export async function handler(event) {
+    const cacheKey = generateCacheKey(event.parameters);
+    
+    // Check cache
+    if (cache.has(cacheKey)) {
+        const cached = cache.get(cacheKey);
+        if (cached.timestamp > Date.now() - 300000) {  // 5 min
+            return cached.result;
+        }
+    }
+    
+    // Fetch fresh data
+    const result = await fetchData(event.parameters);
+    
+    // Cache it
+    cache.set(cacheKey, {
+        result: result,
+        timestamp: Date.now()
+    });
+    
+    return result;
+}
+```
+
+## Tool Design Patterns
+
+### Pattern 1: Read-Only Query
+
+```typescript
+// Get data, no side effects
+async function getCustomerInfo(customerId: string) {
+    return await database.query('SELECT * FROM customers WHERE id = ?', [customerId]);
+}
+```
+
+### Pattern 2: Data Modification
+
+```typescript
+// Update data, return confirmation
+async function updateCustomerEmail(customerId: string, newEmail: string) {
+    await database.update('customers', { email: newEmail }, { id: customerId });
+    return { success: true, customerId, newEmail };
+}
+```
+
+### Pattern 3: External API Call
+
+```typescript
+// Call third-party service
+async function sendEmail(to: string, subject: string, body: string) {
+    const result = await emailService.send({ to, subject, body });
+    return { messageId: result.id, status: 'sent' };
+}
+```
+
+### Pattern 4: Complex Business Logic
+
+```typescript
+// Multi-step operation
+async function processOrder(orderId: string) {
+    // Validate order
+    const order = await getOrder(orderId);
+    if (!order) return { error: 'Order not found' };
+    
+    // Check inventory
+    const available = await checkInventory(order.items);
+    if (!available) return { error: 'Items not available' };
+    
+    // Process payment
+    const payment = await processPayment(order.total);
+    if (!payment.success) return { error: 'Payment failed' };
+    
+    // Ship order
+    await shipOrder(orderId);
+    
+    return { success: true, orderId, trackingNumber: '...' };
+}
+```
+
+## Best Practices
+
+### 1. Clear Function Schemas
+
+```typescript
+// Good: Descriptive and specific
+functionSchema: {
+    name: 'get_customer_order_history',
+    description: 'Retrieve order history for a customer, including order dates, totals, and status. Returns up to 100 most recent orders.',
+    parameters: {
+        type: 'object',
+        properties: {
+            customerId: {
+                type: 'string',
+                description: 'Unique customer identifier',
+                pattern: '^CUST-[0-9]{6}$'
+            },
+            limit: {
+                type: 'number',
+                description: 'Maximum orders to return (default: 20, max: 100)',
+                minimum: 1,
+                maximum: 100
+            }
+        },
+        required: ['customerId']
+    }
+}
+```
+
+### 2. Validate Inputs
+
+```typescript
+function validateAccountId(accountId: string): boolean {
+    if (!/^AC-[0-9]{5}$/.test(accountId)) {
+        throw new Error('Invalid account ID format');
+    }
+    return true;
+}
+```
+
+### 3. Return Structured Data
+
+```typescript
+// Good: Structured, typed data
+return {
+    success: true,
+    data: {
+        orderId: 'ORD-12345',
+        status: 'shipped',
+        trackingNumber: 'TRK-789',
+        estimatedDelivery: '2025-01-20'
+    }
+};
+
+// Less good: Unstructured text
+return {
+    result: 'Order ORD-12345 was shipped with tracking TRK-789...'
+};
+```
+
+### 4. Handle Errors Gracefully
+
+```typescript
+try {
+    const result = await operation();
+    return successResponse(result);
+} catch (error) {
+    if (error.code === 'NOT_FOUND') {
+        return errorResponse('Resource not found');
+    }
+    if (error.code === 'PERMISSION_DENIED') {
+        return errorResponse('Access denied');
+    }
+    // Generic error for unexpected issues
+    return errorResponse('Unable to complete request');
+}
+```
+
+### 5. Log for Debugging
+
+```typescript
+logger.info('Tool invoked', {
+    toolId: 'customer-lookup',
+    function: 'get_customer',
+    userId: event.sessionAttributes.userId,
+    parameters: event.parameters,
+    timestamp: Date.now()
+});
+
+// After execution
+logger.info('Tool completed', {
+    toolId: 'customer-lookup',
+    function: 'get_customer',
+    latency: endTime - startTime,
+    success: true
+});
+```
+
+## Troubleshooting
+
+### Tool Not Being Called
+
+**Symptoms**: Agent doesn't invoke tool when expected
+
+**Causes**:
+- Tool description unclear
+- Agent instruction doesn't mention tool
+- Parameters can't be extracted from context
+
+**Solutions**:
+- Improve tool description
+- Add tool usage guidance to agent instruction
+- Make required parameters clearer
+
+### Tool Returning Errors
+
+**Symptoms**: Tool calls fail consistently
+
+**Causes**:
+- Invalid parameters
+- Permission issues
+- External service down
+- Lambda timeout
+
+**Solutions**:
+- Review CloudWatch logs
+- Test Lambda directly
+- Check IAM permissions
+- Increase timeout if needed
+
+### Slow Tool Responses
+
+**Symptoms**: High latency for tool calls
+
+**Causes**:
+- Slow database queries
+- External API latency
+- Cold Lambda starts
+- Large data processing
+
+**Solutions**:
+- Optimize database queries
+- Implement caching
+- Increase Lambda memory
+- Use provisioned concurrency
+
+## Related Documentation
+
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - Complete flow
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - Agent processing
+- **[Implement Tool Use with Inline Tools](/guides/agent-development/inline-tools/)** - Implementation guide
+- **[Model Context Protocol](/concepts/key-concepts/mcp/)** - Alternative tool approach
+
+{% aside type="tip" %}
+Good tool design is 50% clear schemas and 50% robust error handling. Invest time in both for reliable agent performance.
+{% /aside %}
+

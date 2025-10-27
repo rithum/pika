@@ -1,0 +1,591 @@
+---
+title: Use Instruction Assistance
+description: Automatically inject formatting instructions into agent prompts for consistent output
+---
+
+Learn how to configure the Instruction Assistance feature to automatically inject formatting and behavior instructions into agent prompts, ensuring consistent and well-formatted responses.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable instruction assistance at site and chat app levels
+- Use instruction placeholders in agent prompts
+- Integrate tag-based formatting instructions
+- Configure component-specific instructions
+- Understand the instruction hierarchy
+- Debug instruction injection
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for configuration
+- Understanding of agent instruction structure
+- Familiarity with custom message tags (if using tag instructions)
+
+## Understanding Instruction Assistance
+
+Instruction Assistance automatically injects pre-defined formatting and behavior instructions into agent prompts at runtime, eliminating duplication and ensuring consistency.
+
+### Why Use Instruction Assistance?
+
+**Without Instruction Assistance:**
+```typescript
+// Instructions duplicated across multiple agents
+const agent1 = {
+    instructions: `
+        You are a helpful assistant.
+        
+        IMPORTANT FORMATTING RULES:
+        - Use <insight> tags for key takeaways
+        - Format code in proper markdown
+        - Use <chart> for data visualization
+        // ... 50 lines of formatting rules
+    `
+};
+
+const agent2 = {
+    instructions: `
+        You are a data analyst.
+        
+        IMPORTANT FORMATTING RULES:
+        - Use <insight> tags for key takeaways
+        - Format code in proper markdown
+        - Use <chart> for data visualization
+        // ... same 50 lines duplicated!
+    `
+};
+```
+
+**With Instruction Assistance:**
+```typescript
+// Instructions defined once, injected automatically
+const agent1 = {
+    instructions: `
+        You are a helpful assistant.
+        {formatting-instructions}
+    `
+};
+
+const agent2 = {
+    instructions: `
+        You are a data analyst.
+        {formatting-instructions}
+    `
+};
+
+// Formatting rules defined centrally in pika-config.ts
+```
+
+### Key Benefits
+
+- **Consistency**: All agents use same formatting rules
+- **Maintainability**: Update instructions in one place
+- **Reusability**: Share instruction sets across agents
+- **Flexibility**: Different instruction sets for different chat apps
+- **Scalability**: Add new agents without duplicating instructions
+
+## Step 1: Enable Instruction Assistance
+
+Configure the feature in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        instructionAssistance: {
+            enabled: true,
+            instructions: {
+                'formatting-instructions': {
+                    content: `
+## Response Formatting Guidelines
+
+- Use <insight> tags to highlight key takeaways
+- Use <chart> tags with proper JSON for data visualization
+- Format code blocks with language identifiers
+- Use bullet points for lists
+- Keep paragraphs concise and scannable
+                    `.trim()
+                },
+                'data-guidelines': {
+                    content: `
+## Data Handling
+
+- Always cite data sources
+- Use appropriate precision for numbers
+- Validate calculations before presenting
+- Provide context for statistics
+                    `.trim()
+                }
+            }
+        }
+    }
+};
+```
+
+## Step 2: Use Placeholders in Agent Instructions
+
+Reference instruction assistance in your agent prompts.
+
+### Basic Placeholder Usage
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'data-analyst',
+    title: 'Data Analyst',
+    instructions: `
+You are an expert data analyst helping users understand their data.
+
+{formatting-instructions}
+
+{data-guidelines}
+
+Always provide clear explanations and actionable insights.
+    `.trim(),
+    // ... other properties
+};
+```
+
+### Placeholder Replacement
+
+At runtime, placeholders are replaced:
+
+**Before (what you write):**
+```
+You are an expert data analyst.
+{formatting-instructions}
+```
+
+**After (what agent receives):**
+```
+You are an expert data analyst.
+
+## Response Formatting Guidelines
+
+- Use <insight> tags to highlight key takeaways
+- Use <chart> tags with proper JSON for data visualization
+...
+```
+
+## Step 3: Override Instructions Per Chat App
+
+Chat apps can override site-level instructions.
+
+```typescript
+const specialChatApp: ChatApp = {
+    chatAppId: 'executive-reports',
+    title: 'Executive Reports',
+    instructions: `
+You create executive-level reports.
+{formatting-instructions}
+{executive-guidelines}
+    `.trim(),
+    features: {
+        instructionAssistance: {
+            featureId: 'instructionAssistance',
+            enabled: true,
+            instructions: {
+                // Override site-level formatting
+                'formatting-instructions': {
+                    content: `
+## Executive Formatting
+
+- Use executive summaries
+- Focus on business impact
+- Minimize technical jargon
+- Include clear recommendations
+                    `.trim()
+                },
+                // Add new instruction set
+                'executive-guidelines': {
+                    content: `
+## Executive Communication
+
+- Start with bottom line
+- Use metrics that matter to leadership
+- Provide context for decisions
+                    `.trim()
+                }
+            }
+        }
+    }
+};
+```
+
+{% aside type="note" title="Inheritance Behavior" %}
+Chat app instructions override site-level instructions with the same key. Instructions not overridden are inherited from site level.
+{% /aside %}
+
+## Step 4: Integrate Tag Instructions (Optional)
+
+Automatically inject instructions for custom message tags.
+
+### Define Tag Instructions
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        tags: {
+            customTags: [
+                {
+                    tagName: 'insight',
+                    displayName: 'Key Insight',
+                    icon: 'lightbulb',
+                    description: 'Highlight important takeaways',
+                    // Instruction for agents
+                    instructionForAgent: `
+Use <insight> tags to highlight key takeaways or important points:
+
+<insight type="caution">This is a critical consideration</insight>
+<insight type="success">This is a positive outcome</insight>
+
+Available types: success, warning, info, error
+                    `.trim()
+                },
+                {
+                    tagName: 'chart',
+                    displayName: 'Data Visualization',
+                    instructionForAgent: `
+Use <chart> tags for data visualization with this JSON structure:
+
+<chart>
+{
+  "type": "line",
+  "data": {
+    "labels": ["Jan", "Feb", "Mar"],
+    "datasets": [{
+      "label": "Revenue",
+      "data": [100, 150, 200]
+    }]
+  }
+}
+</chart>
+
+Supported types: line, bar, pie, scatter
+                    `.trim()
+                }
+            ]
+        },
+        instructionAssistance: {
+            enabled: true,
+            // Tag instructions automatically added as placeholders
+        }
+    }
+};
+```
+
+### Use Tag Instructions in Agent Prompts
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'analytics',
+    title: 'Analytics Assistant',
+    instructions: `
+You help users analyze data and create visualizations.
+
+{formatting-instructions}
+{tag:insight}
+{tag:chart}
+
+Always provide clear insights and helpful visualizations.
+    `.trim()
+};
+```
+
+The `{tag:tagName}` placeholder is automatically replaced with the tag's `instructionForAgent` content.
+
+## Step 5: Configure Component Instructions (Optional)
+
+Automatically inject instructions for custom web components.
+
+### Define Component Instructions
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        customComponents: [
+            {
+                componentName: 'data-table',
+                displayName: 'Data Table',
+                module: 'custom-widgets',
+                instructionForAgent: `
+Use the data-table component to display tabular data:
+
+<data-table data='[
+  {"name": "John", "age": 30, "city": "NYC"},
+  {"name": "Jane", "age": 25, "city": "LA"}
+]' />
+
+The component automatically formats the table with sorting and filtering.
+                `.trim()
+            }
+        ],
+        instructionAssistance: {
+            enabled: true
+        }
+    }
+};
+```
+
+### Use Component Instructions
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'data-reports',
+    title: 'Data Reports',
+    instructions: `
+You create data reports with tables and charts.
+
+{component:data-table}
+{component:chart-widget}
+
+Format data appropriately for each component.
+    `.trim()
+};
+```
+
+## Configuration Hierarchy
+
+Instructions are resolved in this order:
+
+1. **Chat App Override** - Highest precedence
+2. **Site-Level Instructions** - Default baseline
+3. **Tag Instructions** - From custom tags configuration
+4. **Component Instructions** - From custom components configuration
+
+```typescript
+// Resolution example
+chatApp.instructions: "{formatting-instructions}"
+
+// 1. Check chat app override
+chatApp.features.instructionAssistance.instructions['formatting-instructions']
+  ↓ If not found...
+
+// 2. Check site-level
+pikaConfig.siteFeatures.instructionAssistance.instructions['formatting-instructions']
+  ↓ If not found...
+
+// 3. Check if it's a tag instruction: {tag:insight}
+pikaConfig.siteFeatures.tags.customTags.find(t => t.tagName === 'insight').instructionForAgent
+  ↓ If not found...
+
+// 4. Check if it's a component: {component:data-table}
+pikaConfig.siteFeatures.customComponents.find(c => c.componentName === 'data-table').instructionForAgent
+  ↓ If not found...
+
+// 5. Leave placeholder as-is (agent sees literal "{formatting-instructions}")
+```
+
+## Testing Checklist
+
+Verify instruction assistance works correctly:
+
+{% checklist %}
+- [ ] Instruction assistance enabled in `pika-config.ts`
+- [ ] Site-level instructions defined
+- [ ] Placeholders used in agent instructions
+- [ ] Agent responses reflect injected instructions
+- [ ] Chat app overrides work correctly
+- [ ] Tag instructions inject properly (if using tags)
+- [ ] Component instructions inject properly (if using components)
+- [ ] Multiple placeholders in same instruction work
+- [ ] Undefined placeholders don't break agents
+- [ ] Test with different chat apps to verify isolation
+{% /checklist %}
+
+## Debugging
+
+### View Resolved Instructions
+
+Enable debug logging to see final instructions sent to agents:
+
+```typescript
+// In your configuration
+export const pikaConfig: PikaConfig = {
+    // ... other config
+    debug: {
+        logResolvedInstructions: true
+    }
+};
+```
+
+Check CloudWatch logs:
+```
+[InstructionAssistance] Resolved instructions for chat app 'analytics':
+You help users analyze data and create visualizations.
+
+## Response Formatting Guidelines
+- Use <insight> tags to highlight key takeaways
+...
+```
+
+### Common Issues
+
+**Issue: Placeholder not replaced**
+- Verify placeholder name matches instruction key exactly
+- Check instruction is defined at site or chat app level
+- Review tag/component configuration if using tag/component instructions
+- Look for typos in placeholder syntax: `{instruction-name}`
+
+**Issue: Instructions not appearing in responses**
+- Confirm agent is receiving instructions (check logs)
+- Verify agent model follows instructions (some models ignore formatting rules)
+- Test with simpler instructions to isolate issue
+- Check if instructions are too long (token limits)
+
+**Issue: Chat app override not working**
+- Verify `featureId: 'instructionAssistance'` is correct
+- Confirm override is complete (enabled + instructions)
+- Check chat app is using overridden instruction key
+- Review configuration hierarchy
+
+## Advanced Patterns
+
+### Conditional Instructions
+
+```typescript
+// Different instructions based on user type
+export function getInstructionAssistance(user: AuthenticatedUser): InstructionAssistance {
+    const baseInstructions = {
+        'formatting-instructions': { content: '...' }
+    };
+    
+    if (user.userType === 'internal-user') {
+        return {
+            enabled: true,
+            instructions: {
+                ...baseInstructions,
+                'internal-guidelines': {
+                    content: 'Internal-only instructions...'
+                }
+            }
+        };
+    }
+    
+    return {
+        enabled: true,
+        instructions: baseInstructions
+    };
+}
+```
+
+### Modular Instruction Sets
+
+```typescript
+// Define reusable instruction modules
+const formattingModule = {
+    'formatting-instructions': { content: '...' }
+};
+
+const dataModule = {
+    'data-guidelines': { content: '...' },
+    'statistics-rules': { content: '...' }
+};
+
+const executiveModule = {
+    'executive-guidelines': { content: '...' }
+};
+
+// Compose for different chat apps
+const dataChatApp: ChatApp = {
+    // ...
+    features: {
+        instructionAssistance: {
+            featureId: 'instructionAssistance',
+            enabled: true,
+            instructions: {
+                ...formattingModule,
+                ...dataModule
+            }
+        }
+    }
+};
+
+const executiveChatApp: ChatApp = {
+    // ...
+    features: {
+        instructionAssistance: {
+            featureId: 'instructionAssistance',
+            enabled: true,
+            instructions: {
+                ...formattingModule,
+                ...executiveModule
+            }
+        }
+    }
+};
+```
+
+### Version Management
+
+```typescript
+// Track instruction versions for A/B testing
+const instructionSets = {
+    v1: {
+        'formatting-instructions': { content: 'Original instructions...' }
+    },
+    v2: {
+        'formatting-instructions': { content: 'Improved instructions...' }
+    }
+};
+
+// Use environment or feature flag to select version
+const currentVersion = process.env.INSTRUCTION_VERSION || 'v1';
+
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        instructionAssistance: {
+            enabled: true,
+            instructions: instructionSets[currentVersion]
+        }
+    }
+};
+```
+
+## Best Practices
+
+### Instruction Design
+
+- **Be specific**: Clear, actionable instructions work best
+- **Use examples**: Show agents what good output looks like
+- **Keep focused**: Each instruction set should have a clear purpose
+- **Test iteratively**: Refine based on agent responses
+- **Version control**: Track changes to instructions over time
+
+### Placeholder Naming
+
+- **Descriptive names**: `formatting-instructions` not `fi`
+- **Consistent convention**: Use kebab-case throughout
+- **Logical grouping**: Group related instructions with prefixes
+- **Avoid conflicts**: Don't reuse names across different instruction types
+
+### Performance Considerations
+
+- **Token usage**: Instructions consume prompt tokens
+- **Instruction length**: Keep instructions concise
+- **Selective injection**: Only inject what agents need
+- **Monitor costs**: Track token usage with and without assistance
+
+## Next Steps
+
+- [Use Custom Message Tags](/guides/data-sessions/message-tags/) - Define custom tags
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create custom components
+- [Implement Instruction Augmentation](/guides/intelligence/instruction-augmentation/) - Advanced instruction techniques
+
+## Related Documentation
+
+- [Instruction Assistance Capability](/capabilities/intelligence/instruction-assistance/) - Learn more
+- [Agent Configuration Reference](/reference/config/agents/) - Complete agent options
+- [Custom Tags](/reference/config/custom-tags/) - Tag configuration guide
+
+---
+
+{% aside type="success" title="Maintainable Prompts" %}
+Instruction Assistance eliminates duplication and ensures consistent agent behavior across your entire application. Define once, use everywhere.
+{% /aside %}
+

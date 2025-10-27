@@ -1,0 +1,502 @@
+---
+title: Authentication & Access Control
+description: Understanding user types, roles, and access control in Pika
+---
+
+Pika requires authentication by design and provides fine-grained access control for chat apps, agents, and features. This page explains how authentication and authorization work in Pika.
+
+## Core Principle: No Anonymous Access
+
+**Pika requires authentication for all access**:
+- No public or anonymous modes
+- Every user must authenticate through your enterprise system
+- No unauthenticated API calls
+- Security by default, not as an option
+
+## User Types
+
+Pika distinguishes between two fundamental user types that determine access privileges and system behavior.
+
+### External Users
+
+**Who they are**:
+- Your customers, clients, or end-users
+- The people your organization serves
+- Typically belong to specific organizations/accounts
+
+**Characteristics**:
+- Limited to their entity's data (when entity feature enabled)
+- Can only see their own sessions and shared sessions from their entity
+- Cannot access admin features (unless explicitly granted)
+- Restricted to assigned chat apps
+
+**Example**:
+```typescript
+user: {
+    userId: 'user_customer_123',
+    userType: 'external-user',
+    customData: {
+        entityId: 'acme-corp',
+        accountId: 'acme-account-456'
+    }
+}
+```
+
+### Internal Users
+
+**Who they are**:
+- Your employees, support staff, administrators
+- People who work for your organization
+- Need broader access for support and administration
+
+**Characteristics**:
+- Can access all entities (for support purposes)
+- Can access admin features (if role assigned)
+- Can see all shared sessions
+- Access to internal-only chat apps
+
+**Example**:
+```typescript
+user: {
+    userId: 'user_employee_789',
+    userType: 'internal-user',
+    roles: ['pika:content-admin', 'support-agent'],
+    customData: {
+        department: 'customer-success'
+    }
+}
+```
+
+## User Roles
+
+Beyond user types, Pika supports role-based access control.
+
+### Built-in Roles
+
+**`pika:site-admin`**:
+- Full administrative access
+- Can manage all chat apps
+- Can access all platform features
+- Can configure site-wide settings
+
+**`pika:content-admin`**:
+- Content management access
+- Can review sessions and insights
+- Can access detailed traces
+- Cannot modify chat app configurations
+
+**Custom Roles**:
+```typescript
+user: {
+    userId: 'user_123',
+    roles: [
+        'customer-support',
+        'billing-specialist',
+        'technical-support'
+    ]
+}
+```
+
+Define custom roles in your authentication provider and use them in access rules.
+
+## Authentication Integration
+
+### Pluggable Authentication Provider
+
+Pika integrates with **your** authentication system:
+
+```typescript
+// apps/pika-chat/src/lib/server/auth-provider/auth-provider.ts
+export async function handleSignIn(credentials) {
+    // Your custom authentication logic
+    // Integrate with: SSO, SAML, OAuth, Auth0, Cognito, etc.
+    
+    const user = await yourAuthSystem.authenticate(credentials);
+    
+    return {
+        userId: user.id,
+        email: user.email,
+        userType: determineUserType(user),
+        roles: user.roles,
+        customData: {
+            entityId: user.organizationId,
+            // ... any custom data
+        }
+    };
+}
+```
+
+**You control**:
+- Authentication method (SSO, OAuth, SAML, etc.)
+- User type assignment
+- Role assignment
+- Custom data (entity mapping, etc.)
+
+**Pika provides**:
+- JWT generation and validation
+- Session management
+- Cookie handling
+- CSRF protection
+
+### What Authentication Provider Must Return
+
+```typescript
+interface AuthenticatedUser {
+    userId: string;              // Unique user identifier
+    email?: string;              // User email
+    userType: 'internal-user' | 'external-user';
+    roles?: string[];            // User roles
+    customData: {
+        entityId?: string;       // Organization/account ID
+        [key: string]: any;      // Any custom data
+    };
+}
+```
+
+### Session Management
+
+**After authentication**:
+1. JWT token generated with user context
+2. Secure HTTP-only cookie set
+3. Token includes: userId, userType, roles, entityId
+4. Token validated on every request
+5. Token refresh handled automatically
+
+**Token expiration**:
+- Configurable (1-24 hours typical)
+- Refresh token support
+- Automatic logout on expiration
+
+## Access Control Mechanisms
+
+### Chat App Access
+
+**Control who can access each chat app**:
+
+```typescript
+chatApp: {
+    chatAppId: 'customer-support',
+    title: 'Customer Support',
+    enabled: true,
+    
+    // Access rules
+    userTypes: ['internal-user', 'external-user'],
+    userRoles: ['customer-support'],  // Optional: further restrict
+    
+    override: {
+        // Fine-grained overrides
+        specificUsers: ['user_vip_customer'],
+        specificEntities: ['enterprise-account-1']
+    }
+}
+```
+
+**Access check logic**:
+```typescript
+function canAccessChatApp(user, chatApp) {
+    // Check if chat app is enabled
+    if (!chatApp.enabled) return false;
+    
+    // Check user type
+    if (!chatApp.userTypes.includes(user.userType)) return false;
+    
+    // Check roles (if specified)
+    if (chatApp.userRoles && !hasAnyRole(user, chatApp.userRoles)) {
+        return false;
+    }
+    
+    // Check overrides
+    if (chatApp.override) {
+        if (chatApp.override.specificUsers?.includes(user.userId)) return true;
+        if (chatApp.override.specificEntities?.includes(user.entityId)) return true;
+    }
+    
+    return true;
+}
+```
+
+### Agent Access
+
+**Control who can invoke specific agents**:
+
+```typescript
+agent: {
+    agentId: 'billing-specialist',
+    instruction: '...',
+    
+    // Access rules
+    accessRules: [{
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['billing-team', 'finance']
+    }]
+}
+```
+
+### Feature Access
+
+**Control access to specific features**:
+
+```typescript
+features: {
+    traces: {
+        featureId: 'traces',
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['pika:content-admin', 'developer'],
+        
+        detailedTraces: {
+            enabled: true,
+            userRoles: ['pika:site-admin']  // Only admins see full traces
+        }
+    },
+    
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        userTypes: ['internal-user', 'external-user'],
+        autoRepromptThreshold: 'C'
+    },
+    
+    fileUpload: {
+        featureId: 'fileUpload',
+        enabled: true,
+        userTypes: ['internal-user'],  // Only internal users can upload
+        mimeTypesAllowed: ['application/pdf', 'text/csv']
+    }
+}
+```
+
+### Tool Access
+
+**Control which users can invoke which tools**:
+
+```typescript
+tool: {
+    toolId: 'customer-database',
+    description: 'Query customer database',
+    
+    // Access rules
+    accessRules: [{
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['customer-support', 'sales']
+    }]
+}
+```
+
+**Enforced in tool Lambda**:
+```typescript
+export async function handler(event: BedrockActionGroupLambdaEvent) {
+    const userType = event.sessionAttributes.userType;
+    const userRoles = JSON.parse(event.sessionAttributes.userRoles || '[]');
+    
+    // Validate access
+    if (userType !== 'internal-user') {
+        throw new Error('Access denied: internal users only');
+    }
+    
+    if (!userRoles.includes('customer-support')) {
+        throw new Error('Access denied: requires customer-support role');
+    }
+    
+    // Proceed with tool logic
+    const result = await queryDatabase(...);
+    return result;
+}
+```
+
+## Access Control Patterns
+
+### Pattern 1: User Type Based
+
+**Simple access by user type**:
+```typescript
+// External users only
+userTypes: ['external-user']
+
+// Internal users only
+userTypes: ['internal-user']
+
+// Both
+userTypes: ['internal-user', 'external-user']
+```
+
+**Use when**: Basic internal vs. external distinction suffices.
+
+### Pattern 2: Role Based
+
+**Access by specific roles**:
+```typescript
+{
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['billing-team', 'finance', 'accounting']
+}
+```
+
+**Use when**: Need fine-grained control within user types.
+
+### Pattern 3: Combined
+
+**User type AND role requirements**:
+```typescript
+{
+    enabled: true,
+    userTypes: ['internal-user', 'external-user'],
+    userRoles: ['premium-customer', 'support-agent']
+}
+```
+
+**Use when**: Feature available to both types but with role restrictions.
+
+### Pattern 4: Entity Based
+
+**Access by organization membership**:
+```typescript
+// Handled automatically by entity feature
+// Users can only access their entity's data
+// Internal users override this restriction
+```
+
+**Use when**: Multi-tenant isolation required.
+
+## Multi-Level Access Control
+
+**Access controls apply at multiple levels**:
+
+```
+Platform Level
+    ├── Site-wide feature defaults
+    └── Global access rules
+        
+Chat App Level
+    ├── Chat app access rules
+    ├── Feature overrides
+    └── Agent selection
+        
+Agent Level
+    ├── Agent access rules
+    └── Tool selection
+        
+Tool Level
+    ├── Tool access rules
+    └── Data scoping
+        
+Data Level
+    └── Entity-based isolation
+```
+
+**Example full access check**:
+```
+Can user access this tool?
+1. ✅ User can access platform (authenticated)
+2. ✅ User can access chat app (userType matches)
+3. ✅ User can use this agent (accessRules match)
+4. ✅ User can call this tool (tool accessRules match)
+5. ✅ User can access this data (entityId matches)
+Result: Access granted
+```
+
+## Session Security
+
+### JWT Tokens
+
+**Token contents**:
+```json
+{
+    "userId": "user_123",
+    "userType": "internal-user",
+    "roles": ["customer-support"],
+    "entityId": "acme-corp",
+    "iat": 1234567890,
+    "exp": 1234571490
+}
+```
+
+**Token security**:
+- Signed with secret key
+- Short expiration (1-24 hours)
+- Cannot be tampered with
+- Validated on every request
+
+### Secure Cookies
+
+**Cookie configuration**:
+```typescript
+{
+    httpOnly: true,     // Not accessible from JavaScript
+    secure: true,       // HTTPS only
+    sameSite: 'strict', // CSRF protection
+    maxAge: 86400000    // 24 hours
+}
+```
+
+### CSRF Protection
+
+**Built into SvelteKit**:
+- CSRF tokens generated automatically
+- Validated on state-changing requests
+- No additional configuration needed
+
+## Best Practices
+
+### 1. Use User Types Appropriately
+
+- **External** = customers, clients
+- **Internal** = employees
+- Don't blur the lines
+
+### 2. Define Clear Roles
+
+```typescript
+// Good: Specific, clear roles
+roles: ['billing-specialist', 'technical-support', 'account-manager']
+
+// Less good: Vague roles
+roles: ['user', 'admin', 'super-admin']
+```
+
+### 3. Least Privilege
+
+Grant minimum necessary access:
+```typescript
+// Start restrictive
+userTypes: ['internal-user'],
+userRoles: ['specific-role']
+
+// Expand as needed
+```
+
+### 4. Entity Isolation
+
+Always enable entity feature for multi-tenant:
+```typescript
+entityFeature: {
+    enabled: true,
+    entityIdAttribute: 'accountId'
+}
+```
+
+### 5. Audit Access
+
+Log all access decisions:
+```typescript
+logger.info('Access granted', {
+    userId: user.userId,
+    chatAppId: chatApp.chatAppId,
+    timestamp: Date.now()
+});
+```
+
+## Related Documentation
+
+- **[Entities & Multi-Tenancy](/concepts/key-concepts/entities/)** - Organizational boundaries
+- **[Security Architecture](/concepts/architecture/security/)** - Security model
+- **[Integrate Your Authentication System](/guides/authentication/integrate-auth/)** - Setup guide
+- **[Configure Chat App Access Control](/guides/authentication/access-control/)** - Access control guide
+
+{% aside type="caution" %}
+Replace the dev authentication provider before production deployment. The default implementation is intentionally insecure for development purposes only.
+{% /aside %}
+

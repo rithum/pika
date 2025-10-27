@@ -12,17 +12,21 @@ Do not use image tools.  These diagrams are svgs not images.  They are just made
 
 ## ⚠️ MANDATORY GENERATION PROCESS
 
-**THE MOST COMMON ERROR IS MISSING OR INCOMPLETE mxCELL DATA**
+**THE TWO MOST COMMON ERRORS:**
+1. **Missing or incomplete mxCell data**
+2. **Single-encoded ampersands instead of double-encoded** (see encoding section below)
 
 Follow this exact process to avoid "Not a diagram file" errors:
 
 1. **Plan Shape IDs**: Assign unique IDs to every rectangle, circle, line, and text group
 2. **Create mxCell for Each Shape**: Every visual element needs corresponding Draw.io metadata
 3. **HTML-Encode mxGraphModel**: Convert the complete XML structure to HTML entities
-4. **Match Coordinates Exactly**: SVG geometry must match mxCell geometry precisely  
-5. **Test in Extension**: Verify the file opens for editing in VS Code Draw.io extension
+4. **DOUBLE-ENCODE AMPERSANDS**: Use `&amp;amp;` not `&amp;` in mxCell values within content attribute
+5. **Match Coordinates Exactly**: SVG geometry must match mxCell geometry precisely  
+6. **Test in Extension**: Verify the file opens for editing in VS Code Draw.io extension
 
 **FAILURE TO INCLUDE COMPLETE mxCELL DATA = "NOT A DIAGRAM FILE" ERROR**
+**FAILURE TO DOUBLE-ENCODE AMPERSANDS = "NOT A DIAGRAM FILE" ERROR**
 
 ## CRITICAL: Draw.io Editability Requirements
 
@@ -77,6 +81,27 @@ The mxGraphModel XML must be HTML-encoded in the content attribute:
 - `>` becomes `&gt;`
 - `"` becomes `&quot;`
 - `&` becomes `&amp;`
+
+{% aside type="danger" title="CRITICAL: Double-Encoding Ampersands" %}
+**MOST COMMON ENCODING ERROR**: Ampersands in mxCell `value` attributes require DOUBLE encoding!
+
+❌ **WRONG**: `value="Sessions &amp; Memory"` (single-encoded)
+✅ **CORRECT**: `value="Sessions &amp;amp; Memory"` (double-encoded)
+
+**Why?** The content attribute itself is HTML-encoded, so characters within it need double encoding:
+1. First encode for XML: `&` → `&amp;`
+2. Then encode for HTML attribute: `&amp;` → `&amp;amp;`
+
+When the browser decodes the content attribute, `&amp;amp;` becomes `&amp;`, which is then valid XML.
+
+**Common text with ampersands**:
+- "Settings & Configuration" → `&amp;amp;`
+- "Load & Process" → `&amp;amp;`  
+- "Storage & Memory" → `&amp;amp;`
+- "Encrypt & Sign" → `&amp;amp;`
+
+**Failure to double-encode ampersands will cause "Not a diagram file" errors!**
+{% /aside %}
 
 ### Generation Process Requirements
 1. **Plan the diagram**: List all shapes, connectors, and their IDs
@@ -168,6 +193,27 @@ The mxGraphModel XML must be HTML-encoded when placed in the content attribute:
 - `>` becomes `&gt;`  
 - `"` becomes `&quot;`
 - `&` becomes `&amp;`
+
+{% aside type="danger" title="CRITICAL: Double-Encoding Ampersands" %}
+**MOST COMMON ENCODING ERROR**: Ampersands in mxCell `value` attributes require DOUBLE encoding!
+
+❌ **WRONG**: `value="Sessions &amp; Memory"` (single-encoded)
+✅ **CORRECT**: `value="Sessions &amp;amp; Memory"` (double-encoded)
+
+**Why?** The content attribute itself is HTML-encoded, so characters within it need double encoding:
+1. First encode for XML: `&` → `&amp;`
+2. Then encode for HTML attribute: `&amp;` → `&amp;amp;`
+
+When the browser decodes the content attribute, `&amp;amp;` becomes `&amp;`, which is then valid XML.
+
+**Common text with ampersands**:
+- "Settings & Configuration" → `&amp;amp;`
+- "Load & Process" → `&amp;amp;`  
+- "Storage & Memory" → `&amp;amp;`
+- "Encrypt & Sign" → `&amp;amp;`
+
+**Failure to double-encode ampersands will cause "Not a diagram file" errors!**
+{% /aside %}
 
 ### Content Attribute Generation Process
 1. Create the complete mxGraphModel XML with all mxCells
@@ -305,7 +351,7 @@ fill="#f9fafb" stroke="#1f2937"  <!-- Better contrast -->
      width="400px" 
      height="300px" 
      viewBox="-0.5 -0.5 400 300"
-     content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;start&quot; value=&quot;Start&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;20&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;start&quot; target=&quot;process&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;60&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;100&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;process&quot; value=&quot;Process Data&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;100&quot; width=&quot;120&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow2&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;process&quot; target=&quot;end&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;160&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;200&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;end&quot; value=&quot;End&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#d32f2f;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;200&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
+     content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;start&quot; value=&quot;Start&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;20&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;start&quot; target=&quot;process&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;60&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;100&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;process&quot; value=&quot;Load &amp;amp; Process&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;100&quot; width=&quot;120&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow2&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;process&quot; target=&quot;end&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;160&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;200&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;end&quot; value=&quot;End&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#d32f2f;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;200&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
   
   <defs>
     <marker id="arrowhead" markerWidth="10" markerHeight="7" 
@@ -326,11 +372,11 @@ fill="#f9fafb" stroke="#1f2937"  <!-- Better contrast -->
           stroke="#000000" stroke-width="1" 
           marker-end="url(#arrowhead)"/>
     
-    <!-- Process -->
+    <!-- Process (Note: ampersand in text requires &amp;amp; in mxCell value above) -->
     <rect id="process" x="20" y="100" width="120" height="60" rx="5" ry="5" 
           fill="#ffffff" stroke="#000000" stroke-width="1"/>
     <text x="80" y="130" text-anchor="middle" dominant-baseline="middle" 
-          font-family="Helvetica" font-size="11">Process Data</text>
+          font-family="Helvetica" font-size="11">Load &amp; Process</text>
     
     <!-- Arrow 2 -->
     <line id="arrow2" x1="80" y1="160" x2="80" y2="190" 
@@ -351,7 +397,8 @@ fill="#f9fafb" stroke="#1f2937"  <!-- Better contrast -->
 2. **ID consistency**: Each SVG element ID matches its mxCell ID
 3. **Complete mxCell data**: Every shape has geometry, styling, and connections
 4. **HTML encoding**: All XML in content attribute is properly encoded
-5. **Connection data**: Arrows have source/target references
+5. **Double-encoded ampersands**: Note `value="Load &amp;amp; Process"` - ampersands need `&amp;amp;` not `&amp;`
+6. **Connection data**: Arrows have source/target references
 
 ## Quality Checklist
 
@@ -494,6 +541,7 @@ Problem: Missing shape mxCells
 ### Common Fixes
 - **Missing mxCells**: Add mxCell entry for every shape
 - **Wrong encoding**: HTML-encode the mxGraphModel XML
+- **Ampersands not double-encoded**: Change `&amp;` to `&amp;amp;` in mxCell values within content attribute
 - **ID mismatch**: Ensure SVG IDs match mxCell IDs exactly
 - **Empty content**: Include complete mxGraphModel structure
 - **Malformed XML**: Validate all opening/closing tags
@@ -513,6 +561,7 @@ Problem: Missing shape mxCells
 - **Colors look wrong**: Test with both light/dark themes, avoid pure black/white
 - **Shapes not editable**: Missing or incorrect mxCell data for specific elements
 - **Connection errors**: Check `source` and `target` attributes in connector mxCells
+- **"Not a diagram file" with ampersands**: Check if text like "Sessions & Memory" is encoded as `&amp;amp;` not `&amp;` in the content attribute
 
 ### Debug Steps for mxCell Issues
 1. **Extract content attribute value**
@@ -549,6 +598,7 @@ Before delivering any .drawio.svg file, verify:
 - [ ] Connector cells: One mxCell for every line/arrow with source/target refs
 - [ ] Geometry match: mxCell coordinates exactly match SVG coordinates
 - [ ] Proper encoding: All `<` `>` `"` in content are HTML-encoded
+- [ ] **CRITICAL**: Ampersands in mxCell values are DOUBLE-encoded as `&amp;amp;` not `&amp;`
 
 ### Testing ✅
 - [ ] Content attribute contains more than just root cells

@@ -1,0 +1,584 @@
+---
+title: Customize the UI
+description: Complete guide to customizing Pika Framework for your specific needs
+---
+
+Learn how to customize the Pika Framework user interface, configure features, and extend functionality using designated customization areas that are protected from framework updates.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Configure project names and branding
+- Customize site-wide features
+- Configure home page experience
+- Add custom message tag renderers
+- Implement custom authentication
+- Understand protected customization areas
+- Manage sync configuration
+
+## Prerequisites
+
+- A running Pika installation
+- Access to project configuration files
+- Understanding of SvelteKit and TypeScript (for advanced customization)
+- Familiarity with AWS CDK (for infrastructure changes)
+
+## Understanding Customization Areas
+
+Pika Framework provides designated areas where you can add custom code without worrying about framework updates overwriting your changes. These areas are protected from sync operations.
+
+## Step 1: Configure Project Names and Branding
+
+All customization starts with configuring your project identity.
+
+### Central Configuration
+
+**Location:** `pika-config.ts` (root directory)
+
+This file is the single source of truth for project names and is **protected from framework updates**.
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'mycompany',              // All lowercase
+        projNameKebabCase: 'mycompany',      // Kebab case
+        projNameTitleCase: 'MyCompany',      // Title case
+        projNameCamel: 'mycompany',          // Camel case
+        projNameHuman: 'My Company'          // Human readable
+    },
+    pikaChat: {
+        projNameL: 'mycompanychat',          // All lowercase
+        projNameKebabCase: 'mycompany-chat', // Kebab case
+        projNameTitleCase: 'MyCompanyChat',  // Title case
+        projNameCamel: 'myCompanyChat',      // Camel case
+        projNameHuman: 'My Company Chat'     // Human readable
+    }
+};
+```
+
+**Why This Matters:**
+- All AWS resources use these names
+- Stack definitions automatically import these values
+- Ensures consistent naming across your infrastructure
+
+## Step 2: Customize Home Page
+
+Configure the home page title, welcome message, and chat app link visibility.
+
+**Location:** `pika-config.ts` (root directory)
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... project names configuration
+    siteFeatures: {
+        homePage: {
+            // Custom title
+            homePageTitle: 'Welcome to My Company Chat',
+            
+            // Custom welcome message
+            welcomeMessage: 'Get started by selecting a chat app below or asking me anything!',
+            
+            // Configure which users see links to which chat apps
+            linksToChatApps: {
+                userChatAppRules: [
+                    // External users see only external chat apps
+                    {
+                        userTypes: ['external-user'],
+                        chatAppUserTypes: ['external-user']
+                    },
+                    // Internal users see all chat apps
+                    {
+                        userTypes: ['internal-user'],
+                        chatAppUserTypes: ['internal-user', 'external-user']
+                    }
+                ]
+            }
+        }
+    }
+};
+```
+
+**Configuration Options:**
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `homePageTitle` | Custom title for home page | No |
+| `welcomeMessage` | Custom welcome message | No |
+| `linksToChatApps` | Rules for showing chat app links | No |
+
+### Chat App Link Rules
+
+Control which users see which chat apps on the home page:
+
+1. System checks user's user type
+2. Finds matching rules in `userChatAppRules`
+3. Shows chat apps whose user types match `chatAppUserTypes`
+4. If no rules match, no chat app links appear
+
+## Step 3: Configure Site Features
+
+Configure features that affect the entire application.
+
+**Location:** `pika-config.ts` (root directory)
+
+### Intelligence Features
+
+```typescript
+siteFeatures: {
+    // Show AI reasoning traces
+    traces: {
+        featureId: 'traces',
+        enabled: true,
+        userTypes: ['internal-user'],
+        detailedTraces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            userRoles: ['pika:content-admin']
+        }
+    },
+    
+    // Verify and improve response quality
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C', // Auto-improve responses graded C or lower
+        userTypes: ['internal-user', 'external-user']
+    },
+    
+    // User memory for context
+    userMemory: {
+        featureId: 'userMemory',
+        enabled: true,
+        strategy: 'semantic',
+        conversationMemoryStrategy: 'preferences'
+    }
+}
+```
+
+### UI Features
+
+```typescript
+siteFeatures: {
+    // Enable logout
+    logout: {
+        featureId: 'logout',
+        enabled: true,
+        userTypes: ['internal-user', 'external-user']
+    },
+    
+    // Enable file upload
+    fileUpload: {
+        featureId: 'fileUpload',
+        enabled: true,
+        mimeTypesAllowed: [
+            'image/*', 
+            'application/pdf', 
+            'text/plain', 
+            '.docx', 
+            '.xlsx'
+        ]
+    },
+    
+    // Chat suggestions
+    suggestions: {
+        featureId: 'suggestions',
+        enabled: true,
+        suggestions: [], // Chat apps define their own
+        maxToShow: 5,
+        randomize: false
+    },
+    
+    // Input field label
+    promptInputFieldLabel: {
+        featureId: 'promptInputFieldLabel',
+        enabled: true,
+        promptInputFieldLabel: 'Ready to chat'
+    },
+    
+    // UI customization
+    uiCustomization: {
+        featureId: 'uiCustomization',
+        enabled: true,
+        showUserRegionInLeftNav: false,
+        showChatHistoryInStandaloneMode: true
+    },
+    
+    // Disclaimer notice
+    chatDisclaimerNotice: {
+        featureId: 'chatDisclaimerNotice',
+        enabled: true,
+        notice: 'This AI-powered chat is here to help, but it may not always be accurate. For urgent issues, please contact support.'
+    }
+}
+```
+
+### Access Control Features
+
+{% aside type="caution" title="Secure-by-Default" %}
+Setting `enabled: true` alone does NOT activate a feature for users. You must also specify `userTypes` or `userRoles` to grant access. Features without explicit access control will appear as "disabled" to all users.
+{% /aside %}
+
+```typescript
+siteFeatures: {
+    // Site admin interface
+    siteAdmin: {
+        websiteEnabled: true
+        // Users need 'pika:site-admin' role
+    },
+    
+    // Content admin access
+    contentAdmin: {
+        enabled: true
+        // Users need 'pika:content-admin' role
+    },
+    
+    // Entity-based access
+    entity: {
+        enabled: true,
+        attributeName: 'accountId',
+        searchPlaceholderText: 'Search for an account...',
+        displayNameSingular: 'Account',
+        displayNamePlural: 'Accounts'
+    }
+}
+```
+
+## Step 4: Add Custom Message Tag Renderers
+
+Create custom renderers for XML tags in LLM responses.
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+
+### Create Custom Renderer
+
+```svelte
+<!-- CustomDataTable.svelte -->
+<script lang="ts">
+    export let data: { headers: string[]; rows: string[][] };
+</script>
+
+<div class="custom-table">
+    <table>
+        <thead>
+            <tr>
+                {#each data.headers as header}
+                    <th>{header}</th>
+                {/each}
+            </tr>
+        </thead>
+        <tbody>
+            {#each data.rows as row}
+                <tr>
+                    {#each row as cell}
+                        <td>{cell}</td>
+                    {/each}
+                </tr>
+            {/each}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    .custom-table {
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+    th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+    }
+</style>
+```
+
+### Register Renderer
+
+```typescript
+// custom-renderers.ts
+import CustomDataTable from './CustomDataTable.svelte';
+
+export const customRenderers: Record<string, Component<any>> = {
+    'data-table': CustomDataTable
+};
+```
+
+### Usage in LLM Response
+
+```xml
+<data-table>
+{
+  "headers": ["Name", "Age", "City"],
+  "rows": [
+    ["John", "30", "NYC"],
+    ["Jane", "25", "LA"]
+  ]
+}
+</data-table>
+```
+
+## Step 5: Implement Custom Authentication
+
+Configure custom authentication flows for your SSO or auth provider.
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/`
+
+```typescript
+import { AuthProvider } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
+
+export default class CustomAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    async getUser(event: RequestEvent): Promise<AuthenticatedUser | undefined> {
+        // Your authentication logic
+        const token = event.cookies.get('auth_token');
+        if (!token) return undefined;
+
+        const userData = await validateToken(token);
+        if (!userData) return undefined;
+
+        return {
+            userId: userData.id,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            email: userData.email,
+            userType: userData.isEmployee ? 'internal-user' : 'external-user',
+            roles: this.assignRoles(userData),
+            customData: {
+                accountId: userData.accountId,
+                permissions: userData.permissions
+            }
+        };
+    }
+
+    private assignRoles(userData: any): string[] {
+        const roles: string[] = [];
+        
+        if (userData.isAdmin) {
+            roles.push('pika:site-admin');
+        }
+        
+        if (userData.isSupport) {
+            roles.push('pika:content-admin');
+        }
+        
+        return roles;
+    }
+}
+```
+
+## Step 6: Add Custom Web Applications
+
+Create new web applications within your Pika project.
+
+**Location:** `apps/custom/`
+
+```bash
+# Create new SvelteKit app
+cd apps/custom
+npm create svelte@latest my-admin-panel
+
+# Install dependencies
+cd my-admin-panel
+npm install
+```
+
+**Use Cases:**
+- Admin dashboards
+- Customer portals
+- Internal tools
+- Separate applications for different user types
+
+## Step 7: Add Custom Services
+
+Create new backend services and API endpoints.
+
+**Location:** `services/custom/`
+
+**Use Cases:**
+- Payment processing services
+- Email notification services
+- Data analytics services
+- Third-party integrations
+
+## Protected Customization Areas
+
+These areas are **never overwritten** by framework updates:
+
+1. **Project Configuration** - `pika-config.ts`
+2. **Custom Message Tag Renderers** - `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+3. **Authentication** - `apps/pika-chat/src/lib/server/auth-provider/`
+4. **Custom Web Applications** - `apps/custom/`
+5. **Custom Services** - `services/custom/`
+6. **Stack Definition Files** (by default):
+   - `apps/pika-chat/infra/bin/pika-chat.ts`
+   - `services/pika/bin/pika.ts`
+
+## Step 8: Configure Sync Settings
+
+Control which files are protected from framework updates.
+
+**Location:** `.pika-sync.json` (root directory)
+
+```json
+{
+    "userProtectedAreas": [
+        "my-custom-config.ts",
+        "apps/my-custom-app/"
+    ],
+    "userUnprotectedAreas": [
+        "apps/pika-chat/infra/bin/pika-chat.ts",
+        "services/pika/bin/pika.ts"
+    ]
+}
+```
+
+**Configuration:**
+- `userProtectedAreas` - Additional files you want to protect
+- `userUnprotectedAreas` - Default protected files you want to allow updates for
+
+## Feature Configuration Hierarchy
+
+Features follow this precedence order:
+
+1. **Site Level** (in `pika-config.ts`)
+2. **Chat App Override** (in chat app definition)
+3. **Admin Override** (via Site Admin interface)
+
+**Rules:**
+- Site-level settings are the baseline
+- Chat apps can make features more restrictive
+- Admin overrides completely replace chat app settings
+- No level can enable site-disabled features
+
+## Best Practices
+
+### 1. Configure Project Names First
+
+Before customizing anything else, update project names in `pika-config.ts`. This ensures consistent naming across all AWS resources.
+
+### 2. Use Designated Areas
+
+Always place custom code in designated customization areas. Files outside these areas may be overwritten during framework updates.
+
+### 3. Keep Customizations Focused
+
+Use the appropriate area for your custom code:
+
+| Type | Location |
+|------|----------|
+| Project names | `pika-config.ts` |
+| UI components | Custom Components |
+| Auth logic | Custom Authentication |
+| New apps | Custom Web Applications |
+| Backend services | Custom Services |
+| Infrastructure | Stack Definition Files |
+
+### 4. Version Control
+
+Initialize git and commit customizations regularly:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit with customizations"
+```
+
+### 5. Test After Updates
+
+After running `pika sync`, always test customizations to ensure they still work correctly.
+
+### 6. Document Changes
+
+Keep documentation of customizations, especially for complex changes to stack definitions or custom services.
+
+## Framework Updates
+
+When you run `pika sync`:
+
+1. Framework files get latest changes
+2. All files in protected areas are preserved
+3. Your `userProtectedAreas` merge with defaults
+4. Files in `userUnprotectedAreas` can be updated
+
+This ensures customizations are preserved while receiving framework improvements.
+
+## Common Scenarios
+
+### Scenario 1: Corporate Branding
+
+```typescript
+// Update project names
+pikaConfig.pikaChat.projNameHuman = 'Acme Corp Assistant';
+
+// Configure home page
+siteFeatures.homePage = {
+    homePageTitle: 'Acme Corp AI Assistant',
+    welcomeMessage: 'Welcome! How can I help you today?'
+};
+
+// Add custom CSS in app.css for brand colors
+```
+
+### Scenario 2: Multi-Tenant SaaS
+
+```typescript
+// Enable entity feature
+siteFeatures.entity = {
+    enabled: true,
+    attributeName: 'companyId',
+    displayNameSingular: 'Company',
+    displayNamePlural: 'Companies'
+};
+
+// Enable site admin for access control
+siteFeatures.siteAdmin = {
+    websiteEnabled: true
+};
+
+// Configure access rules per tenant in Site Admin interface
+```
+
+### Scenario 3: Internal Tool
+
+```typescript
+// Restrict to internal users
+siteFeatures.logout = {
+    enabled: true,
+    userTypes: ['internal-user']
+};
+
+// Enable all admin features
+siteFeatures.contentAdmin = { enabled: true };
+siteFeatures.siteAdmin = { websiteEnabled: true };
+siteFeatures.traces = {
+    enabled: true,
+    userTypes: ['internal-user']
+};
+```
+
+## Next Steps
+
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Implement custom auth
+- [Use Custom Message Tags](/guides/data-sessions/message-tags/) - Create custom renderers
+- [Override Default Features](/guides/customization/override-features/) - Per-app customization
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create interactive widgets
+
+## Related Documentation
+
+- [Authentication Guide](/guides/authentication/integrate-auth/) - Complete auth implementation
+- [Feature Configuration Reference](/reference/config/features/) - All feature options
+- [Access Control](/capabilities/enterprise/access-control/) - Access control system
+
+---
+
+{% aside type="success" title="Protected Customization" %}
+Pika Framework ensures your customizations are protected from framework updates while you receive the latest improvements and features. Customize with confidence!
+{% /aside %}
+

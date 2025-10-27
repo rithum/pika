@@ -706,9 +706,9 @@ Please verify/update these files:
      * Deprecated (soon-to-be removed features)
    - Verify all descriptions are clear and user-focused
 
-2. apps/pika-docs/src/routes/docs/releases/changelog/+page.md
+2. apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc
    - Verify it matches CHANGELOG.md
-   - Check proper markdown formatting per doc guidelines
+   - Check proper markdoc formatting per doc guidelines
 
 3. releases.json
    - Verify [${version}] entry has status: "released" and today's date
@@ -745,7 +745,7 @@ function showNextSteps(version: string): void {
         {
             emoji: '📦',
             title: 'Commit to your feature branch',
-            commands: ['git add releases.json CHANGELOG.md apps/pika-docs', `git commit -m "docs: release v${version}"`]
+            commands: ['git add releases.json CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/', `git commit -m "docs: release v${version}"`]
         },
         {
             emoji: '🔀',
@@ -1173,7 +1173,7 @@ async function generateNotesPrompt(
     } else {
         console.log(chalk.green('✨ Next Steps:\n'));
         console.log(chalk.dim('   1. Review the finalized changelog'));
-        console.log(chalk.dim('   2. git add CHANGELOG.md apps/pika-docs'));
+        console.log(chalk.dim('   2. git add CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/'));
         console.log(chalk.dim('   3. git commit -m "docs: release v' + finalizeVersion + '"'));
         console.log(chalk.dim('   4. git push\n'));
     }

@@ -2,8 +2,8 @@
 // Get TOC from Starlight's route data (not from props!)
 const { toc } = Astro.locals.starlightRoute;
 
-// Extract TOC items
-const tocItems = toc?.items ?? [];
+// Extract TOC items, filtering out the page title (slug: "_top")
+const tocItems = (toc?.items ?? []).filter((item: any) => item.slug !== '_top');
 ---
 
 {

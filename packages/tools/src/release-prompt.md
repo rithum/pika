@@ -30,23 +30,26 @@ git status --short
 
 git diff {{baseBranch}}...HEAD --name-only
 
-# IMPORTANT: Check feature documentation changes
+# IMPORTANT: Check documentation changes
 
-git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-**Step 1b: Review feature documentation changes:**
+**Step 1b: Review documentation changes:**
 
-If feature docs changed:
+If documentation changed:
 
 \`\`\`bash
 
-# See actual content changes in feature docs
+# See actual content changes in documentation
 
-git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
 These will be included in the next release after {{existingVersion}}.
+
+**Documentation for New Features:**
+If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
 **Step 2: Determine the next version and add entries:**
 
@@ -64,7 +67,7 @@ These will be included in the next release after {{existingVersion}}.
     - User-focused descriptions
     - Section header should have date as "TBD" (e.g., \`## [0.5.1] - TBD\`)
 
-5. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** - Keep in sync
+5. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Keep in sync
 
 6. **releases.json** - If you created a new unreleased version:
     - Add entry to releases array with \`status: "unreleased"\` and \`date: "TBD"\`
@@ -73,16 +76,19 @@ These will be included in the next release after {{existingVersion}}.
 
 **CRITICAL Documentation Rules:**
 
-- TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
-- Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
-- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
+- TypeScript: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
+- **For New Features**: If this change introduces new features needing documentation, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive docs following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference)
 
 **Release Documentation Note:**
 If adding breaking changes, also update:
 
 - \`releases.json\` - Ensure version entry has \`breaking: true\`, migration guide URL, and affected components
-- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Update unreleased section
-- \`apps/pika-docs/src/routes/docs/releases/migration-guides/+page.md\` - Add migration guide link
+- \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update unreleased section
+- \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link
 
 **Action Required:** Add new entries to the next version section (NOT [{{existingVersion}}]). [{{existingVersion}}] is locked and published.
 ```
@@ -114,23 +120,26 @@ git status --short
 
 git diff {{baseBranch}}...HEAD --name-only
 
-# IMPORTANT: Check feature documentation changes
+# IMPORTANT: Check documentation changes
 
-git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-**Step 1b: Review feature documentation changes:**
+**Step 1b: Review documentation changes:**
 
-If feature docs changed:
+If documentation changed:
 
 \`\`\`bash
 
-# See actual content changes in feature docs
+# See actual content changes in documentation
 
-git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-These feature updates should be included in [{{finalizeVersion}}].
+These documentation updates should be included in [{{finalizeVersion}}].
+
+**Documentation for New Features:**
+If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
 **Step 2: Add entries to [{{finalizeVersion}}] section:**
 
@@ -141,24 +150,27 @@ These feature updates should be included in [{{finalizeVersion}}].
     - User-focused descriptions
     - These will be included when {{finalizeVersion}} is published
 
-2. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** - Keep in sync
+2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Keep in sync
 
-3. **apps/pika-docs/src/routes/docs/releases/overview/+page.md** - Update if needed:
-    - Check if "Upcoming Release" section mentions {{finalizeVersion}}
+3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - Update if needed:
+    - Check if "What's New" section mentions {{finalizeVersion}}
     - If yes, update it with the new changes/summary
     - If no, the overview is fine as-is
 
 **CRITICAL Documentation Rules:**
 
-- TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
-- Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
-- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
+- TypeScript: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
+- **For New Features**: If this change introduces new features needing documentation, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive docs following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference)
 
 **Release Documentation Note:**
 If adding breaking changes to [{{finalizeVersion}}], ensure:
 
 - \`releases.json\` - Ensure {{finalizeVersion}} entry has \`breaking: true\` if adding breaking changes
-- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Update "Upcoming Release" section to reflect breaking changes
+- \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section to reflect breaking changes
 
 **Action Required:** Add to [{{finalizeVersion}}] - perfect for last-minute fixes!
 ```
@@ -188,23 +200,26 @@ git status --short
 
 git diff {{baseBranch}}...HEAD --name-only
 
-# IMPORTANT: Check feature documentation changes
+# IMPORTANT: Check documentation changes
 
-git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-**Step 1b: Review feature documentation changes:**
+**Step 1b: Review documentation changes:**
 
-If feature docs changed, check what was updated:
+If documentation changed, check what was updated:
 
 \`\`\`bash
 
-# See actual content changes in feature docs
+# See actual content changes in documentation
 
-git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-Ensure these feature updates are documented in the release notes.
+Ensure these documentation updates are reflected in the release notes.
+
+**Documentation for New Features:**
+If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
 **Step 2: Finalize the release in all files:**
 
@@ -214,13 +229,13 @@ Ensure these feature updates are documented in the release notes.
     - Ensure all entries are complete and properly categorized
     - Verify no placeholder text remains
 
-2. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** - Same changes
+2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Same changes
 
-3. **apps/pika-docs/src/routes/docs/releases/overview/+page.md** - Update version sections:
-    - Move {{finalizeVersion}} from "Upcoming Release" to "Current Version"
-    - Update "Latest Stable" to show {{finalizeVersion}} with date
+3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - Update version sections:
+    - Update "What's New in {{finalizeVersion}}" section with final details
+    - Update "Current Version" to show {{finalizeVersion}} with date
     - Update version history table with actual date
-    - Remove or update "Upcoming Release" section (if no new unreleased versions exist)
+    - Ensure release highlights are accurate
 
 4. **releases.json** - Update the {{finalizeVersion}} entry:
     - Update \`date: "TBD"\` → \`date: "{{currentDate}}"\`
@@ -229,17 +244,20 @@ Ensure these feature updates are documented in the release notes.
 
 **CRITICAL Documentation Rules:**
 
-- TypeScript: MUST use \`\`\`js (never \`\`\`typescript)
-- Tabs: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, no indentation
-- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
+- TypeScript: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
+- **For New Features**: If this change introduces new features needing documentation, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive docs following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference)
 
 **Breaking Changes Check:**
 If [{{finalizeVersion}}] has breaking changes:
 
-- Ensure migration guide exists at proper path
-- Link from changelog entry
+- Ensure migration guide exists at \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[name].mdoc\`
+- Link from changelog entry to migration guide
 - Verify \`releases.json\` entry has \`breaking: true\` and migration guide URL
-- Update \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` to move from unreleased to current
+- Update \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` with breaking change notice
 
 **Action Required:** Update [{{finalizeVersion}}] date to today but keep status as "unreleased". Run "pnpm release publish" next to mark as released and create git tag.
 ```
@@ -269,23 +287,26 @@ git status --short
 
 git diff {{baseBranch}}...HEAD --name-only
 
-# IMPORTANT: Check feature documentation changes
+# IMPORTANT: Check documentation changes
 
-git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD --name-only -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-**Step 1b: Review feature documentation changes:**
+**Step 1b: Review documentation changes:**
 
-If the git diff shows changes in \`apps/pika-docs/src/routes/docs/features/\`, these indicate new features or feature enhancements. Use git diff to see what changed:
+If the git diff shows changes in \`apps/pika-docs/src/content/docs/\`, these may indicate new features, capabilities, or enhancements. Use git diff to see what changed:
 
 \`\`\`bash
 
-# See actual content changes in feature docs
+# See actual content changes in documentation
 
-git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/routes/docs/features/
+git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
-Feature doc updates should be reflected in the release notes under **Added** or **Changed** categories.
+Documentation updates should be reflected in the release notes under **Added** or **Changed** categories.
+
+**Documentation for New Features:**
+If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference).
 
 **Step 2: Update both files with new release notes:**
 
@@ -300,23 +321,25 @@ Feature doc updates should be reflected in the release notes under **Added** or 
     Format: \`- Description [#PR] (@username)\`
     Focus: USER impact (why it matters), not technical details
 
-2. **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** - Keep in sync with CHANGELOG.md
+2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Keep in sync with CHANGELOG.md
 
 **CRITICAL Documentation Rules:**
 
-- TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
-- Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
-- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
+- TypeScript code: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
 
 **Breaking Changes Protocol:**
 
 If you detect breaking changes:
 
 1. Flag clearly: "⚠️ BREAKING:"
-2. Create migration guide at: \`apps/pika-docs/src/routes/docs/releases/migration-guides/[feature-name]/+page.md\`
+2. Create migration guide at: \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[feature-name].mdoc\`
 3. Include: What changed, Why, Who's affected, Step-by-step migration, Before/After examples
-4. Link from changelog: \`See: [Migration Guide](/docs/releases/migration-guides/[name])\`
-5. Update \`apps/pika-docs/vite.config.ts\` if adding new top-level migration guide pages to the Releases sidebar navigation
+4. Link from changelog: \`See: [Migration Guide](/platform/releases/migration-guides/[name])\`
+5. Update \`apps/pika-docs/astro.config.mjs\` if adding new migration guides to the Platform Info sidebar navigation
 6. Update \`releases.json\` - Ensure the version {{workingVersion}} entry has \`breaking: true\` and proper migration guide URL
 
 **Writing Standards:**
@@ -331,8 +354,8 @@ If you detect breaking changes:
 If adding breaking changes, also update:
 
 - \`releases.json\` - Ensure version {{workingVersion}} has \`breaking: true\`, migration guide URL, and affected components listed
-- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Update the unreleased version section if needed
-- \`apps/pika-docs/src/routes/docs/releases/migration-guides/+page.md\` - Add migration guide link to the index
+- \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update the "What's New" section if needed
+- \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link to the index
 
 **Action Required:** Add new entries to [{{workingVersion}}]. If I've run this before, append to existing entries.
 ```
@@ -362,34 +385,35 @@ Ask me these questions to understand the change:
 
 **Step 2: Create migration guide**
 
-Create a migration guide at: \`apps/pika-docs/src/routes/docs/releases/migration-guides/{{guideName}}/+page.md\`
+Create a migration guide at: \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/{{guideName}}.mdoc\`
 
-Use \`apps/pika-docs/src/routes/docs/releases/migration-guides/upgrading-to-0-5-0/+page.md\` as a reference for structure and style.
+Use \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/upgrading-to-0-5-0.mdoc\` as a reference for structure and style.
 
 The guide should include:
 
+- **Frontmatter**: title, description (required for markdoc)
 - **Title and metadata**: Version range, status (Upcoming/Current Breaking Change)
 - **Overview**: What changed and why (old vs new system comparison)
-- **Who Is Affected**: Checkboxes for different user types
+- **Who Is Affected**: Who needs to follow this guide
 - **What Changed**: Technical details of the change
-- **Manual Upgrade Steps**: Detailed step-by-step instructions with code examples
+- **Manual Upgrade Steps**: Detailed step-by-step instructions with code examples (use \`{% steps %}\` if appropriate)
 - **Configuration Updates**: How to update app configs
 - **Verification**: How to test the migration worked
 - **Rollback**: How to revert if needed
 - **Common Issues**: Troubleshooting section with problems/solutions
 - **Support**: Links to additional resources
 
-Use code blocks with \`\`\`js for JavaScript/TypeScript and \`\`\`bash for shell commands.
+Use code blocks with \`\`\`typescript for TypeScript and \`\`\`bash for shell commands.
 
-Include warnings/notes using: \`:::warning[Important]\` for critical steps.
+Include warnings/notes using markdoc syntax: \`{% aside type="caution" %}\` for critical steps.
 
-**Note:** If creating a new top-level migration guide page (not a sub-section), you may need to add it to the Releases sidebar navigation in \`apps/pika-docs/vite.config.ts\`.
+**Note:** If creating a new migration guide, you need to add it to the Platform Info sidebar navigation in \`apps/pika-docs/astro.config.mjs\` under the Platform Info > Releases > Migration Guides section.
 
 **Step 3: Add placeholder to changelog**
 
 First, check \`releases.json\` for an unreleased version. If none exists, create one with \`status: "unreleased"\` and \`date: "TBD"\`.
 
-Add to **CHANGELOG.md** and **apps/pika-docs/src/routes/docs/releases/changelog/+page.md** in the unreleased version's Breaking Changes section:
+Add to **CHANGELOG.md** and **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** in the unreleased version's Breaking Changes section:
 
 \`\`\`markdown
 ## [X.Y.Z] - TBD
@@ -399,15 +423,15 @@ Add to **CHANGELOG.md** and **apps/pika-docs/src/routes/docs/releases/changelog/
 - **[PLANNED] {{Feature Name}}** - {{Brief description of the change}}
     - {{Why it's necessary}}
     - {{Who is affected}}
-    - See [Migration Guide](/docs/releases/migration-guides/{{guide-name}})
+    - See [Migration Guide](/platform/releases/migration-guides/{{guide-name}})
     - **Status:** Planning phase - not yet implemented
 \`\`\`
 
 Also update:
 
 - \`releases.json\` - Ensure the unreleased version entry has \`breaking: true\`, \`migrationGuideUrl\`, and \`affectedComponents\`
-- \`apps/pika-docs/src/routes/docs/releases/overview/+page.md\` - Update upcoming release section
-- \`apps/pika-docs/src/routes/docs/releases/migration-guides/+page.md\` - Add migration guide to the index
+- \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section
+- \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide to the index
 
 **Step 4: Create implementation checklist**
 
@@ -428,12 +452,15 @@ Add a comment or issue that includes:
 
 **CRITICAL Documentation Rules:**
 
-- TypeScript code: MUST use \`\`\`js syntax (framework bug, never \`\`\`typescript)
-- Tabs component: Line breaks after \`<TabPanel>\`, before \`</TabPanel>\`, NO indentation inside
-- Section links: Spaces become dashes, case is preserved (e.g., "## Accessing S3 Files" → \`#Accessing-S3-Files\`)
+- TypeScript code: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
 - Migration guides must be clear and actionable
 - Include "before/after" code examples
 - Test all commands and code snippets
+- Ensure proper frontmatter (title, description) in all .mdoc files
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
 
 **Action Required:**
 

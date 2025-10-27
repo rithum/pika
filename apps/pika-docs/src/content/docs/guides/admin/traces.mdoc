@@ -1,0 +1,486 @@
+---
+title: Monitor with Traces
+description: Enable visibility into LLM processing, tool invocations, and response verification
+---
+
+Learn how to configure and use the Traces feature to gain visibility into how your AI agents process messages, invoke tools, and verify response quality.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable traces at the site level
+- Configure detailed traces for tool invocations
+- Set up access control for trace visibility
+- Override trace settings per chat app
+- Understand different trace types
+- Use traces for debugging and monitoring
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site-level configuration
+- Understanding of your user types and roles
+- Admin or developer access for debugging
+
+## Understanding Traces
+
+Traces provide visibility into the LLM's reasoning process, showing step-by-step how it processes user messages and generates responses.
+
+### Trace Types
+
+**Orchestration Traces:**
+- Step-by-step reasoning process
+- Decision-making rationale
+- Planning and strategy selection
+- High-level reasoning steps
+
+**Failure Traces:**
+- Specific error messages
+- Root cause analysis
+- Failed execution paths
+- Debugging information
+
+**Tool Invocation Traces (Detailed Traces):**
+- Tool names and versions
+- Input parameters (when detailed traces enabled)
+- Output results
+- Execution timing
+
+**Response Verification Traces:**
+- Verification grades (A, B, C, F)
+- Accuracy assessments
+- Auto-reprompt decisions
+- Quality reasoning
+
+## Step 1: Enable Basic Traces
+
+Configure traces in your `pika-config.ts` to enable them site-wide.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            userRoles: ['developer', 'support-agent'],
+            applyRulesAs: 'or' // User needs userType OR userRole
+        }
+    }
+};
+```
+
+{% aside type="caution" title="Set User Types/Roles" %}
+Setting `enabled: true` alone is not sufficient. You must specify `userTypes` or `userRoles` for users to see traces. Without these, traces are disabled for everyone.
+{% /aside %}
+
+### Configuration Options
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | Enable the traces feature |
+| `userTypes` | string[] | User types that can see traces |
+| `userRoles` | string[] | User roles that can see traces |
+| `applyRulesAs` | `'and' \| 'or'` | How to combine userTypes and userRoles |
+| `detailedTraces` | AccessRules | Additional access rules for detailed traces |
+
+## Step 2: Enable Detailed Traces (Optional)
+
+Detailed traces show tool invocation parameters and are typically restricted to admins and developers.
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['pika:content-admin', 'developer'],
+                applyRulesAs: 'or' // Internal users OR specific roles
+            }
+        }
+    }
+};
+```
+
+### Why Separate Detailed Traces?
+
+Detailed traces may contain:
+- Sensitive parameter data
+- Internal implementation details
+- System architecture information
+- Performance metrics
+
+Restricting access ensures only authorized users see this sensitive information.
+
+## Step 3: Configure Access Control
+
+Set up fine-grained access based on your security requirements.
+
+### Internal Users Only
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user']
+}
+```
+
+### Specific Roles
+
+```typescript
+traces: {
+    enabled: true,
+    userRoles: ['developer', 'support-lead', 'qa-engineer']
+}
+```
+
+### Combined Rules (AND Logic)
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['developer'],
+    applyRulesAs: 'and' // Must be internal AND developer
+}
+```
+
+### Tiered Access
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user'], // All internal users see basic traces
+    detailedTraces: {
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['pika:content-admin'], // Only admins see detailed traces
+        applyRulesAs: 'and'
+    }
+}
+```
+
+## Step 4: Override Per Chat App (Optional)
+
+Individual chat apps can customize trace settings.
+
+### Disable for Specific Chat App
+
+```typescript
+const simpleChatApp: ChatApp = {
+    chatAppId: 'customer-faq',
+    title: 'Customer FAQ',
+    // ... other properties
+    features: {
+        traces: {
+            featureId: 'traces',
+            enabled: false // Disable traces for this app
+        }
+    }
+};
+```
+
+### More Restrictive Access
+
+```typescript
+const sensitiveChatApp: ChatApp = {
+    chatAppId: 'financial-advisor',
+    title: 'Financial Advisor',
+    // ... other properties
+    features: {
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user'],
+            userRoles: ['finance-admin'], // More restrictive
+            applyRulesAs: 'and',
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['pika:content-admin'],
+                applyRulesAs: 'and'
+            }
+        }
+    }
+};
+```
+
+{% aside type="note" title="Complete Override Required" %}
+When overriding traces, you must provide ALL settings including both basic and detailed trace configuration. Overrides completely replace site-level settings.
+{% /aside %}
+
+## Step 5: Deploy and Test
+
+### Deploy Your Configuration
+
+```bash
+# If using local development
+cd apps/pika-chat
+npm run dev
+
+# If deploying to AWS
+cd services/pika
+npm run deploy
+```
+
+### Test Trace Display
+
+1. **Log in** as a user with trace access
+2. **Start a chat session**
+3. **Ask a question** that triggers tool use
+4. **Observe traces** appear at top of response:
+   - Expandable trace sections
+   - Grouped by type
+   - Syntax highlighted JSON
+
+### Verify Access Control
+
+Test with different user types:
+
+{% checklist %}
+- [ ] Internal users with roles see traces
+- [ ] External users don't see traces (if restricted)
+- [ ] Detailed traces only visible to authorized users
+- [ ] Chat app overrides work correctly
+- [ ] Trace sections are expandable/collapsible
+- [ ] JSON content is properly formatted
+{% /checklist %}
+
+## Understanding Trace Display
+
+### Trace Categories
+
+Traces are automatically categorized and displayed:
+
+**Text Traces:**
+- General reasoning and rationale
+- Planning and strategy
+- Decision explanations
+
+**Tool Invocation Traces:**
+- Grouped by tool name
+- Shows tool calls and results
+- Parameters visible with detailed traces
+
+**Verification Traces:**
+- Response quality grades
+- Accuracy assessments
+- Auto-reprompt decisions
+
+**Failure Traces:**
+- Error messages
+- Diagnostics
+- Troubleshooting information
+
+### Trace UI Features
+
+- **Expandable Sections**: Click to expand/collapse trace groups
+- **Syntax Highlighting**: JSON and code automatically highlighted
+- **Grouped Display**: Similar traces grouped together
+- **Timestamp Information**: Shows when traces occurred
+- **Verification Badges**: Quality grades displayed prominently
+
+## Integration with Other Features
+
+### With Verify Response Feature
+
+When both traces and verify response are enabled:
+
+```typescript
+siteFeatures: {
+    traces: {
+        enabled: true,
+        userTypes: ['internal-user']
+    },
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user']
+    }
+}
+```
+
+**Result**: Traces show verification grades and reasoning
+
+### With Content Admin Feature
+
+Content admins can view traces for other users' sessions:
+
+```typescript
+// User with pika:content-admin role can:
+// - View any user's chat sessions
+// - See all traces for those sessions
+// - Debug issues across all users
+```
+
+## Use Cases
+
+### Development and Debugging
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['developer', 'qa-engineer'],
+    detailedTraces: {
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['developer'],
+        applyRulesAs: 'and'
+    }
+}
+```
+
+**Benefits:**
+- Debug agent behavior
+- Understand tool invocations
+- Identify failure patterns
+- Optimize prompts
+
+### Customer Support
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['support-agent', 'support-lead'],
+    detailedTraces: {
+        enabled: false // Support doesn't need detailed traces
+    }
+}
+```
+
+**Benefits:**
+- Understand customer issues
+- Verify agent responses
+- Identify problematic interactions
+- Improve support quality
+
+### Quality Assurance
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['qa-engineer', 'quality-analyst'],
+    detailedTraces: {
+        enabled: true,
+        userRoles: ['qa-engineer'],
+        applyRulesAs: 'or'
+    }
+}
+```
+
+**Benefits:**
+- Validate agent behavior
+- Ensure quality standards
+- Document test cases
+- Track improvements
+
+## Testing Checklist
+
+Verify traces work correctly:
+
+{% checklist %}
+- [ ] Traces feature enabled in `pika-config.ts`
+- [ ] User types/roles configured properly
+- [ ] Basic traces appear for authorized users
+- [ ] Detailed traces restricted to appropriate users
+- [ ] Trace sections are expandable
+- [ ] JSON is properly formatted
+- [ ] Tool invocation traces show correctly
+- [ ] Verification traces appear (if verify response enabled)
+- [ ] Chat app overrides work as expected
+- [ ] Unauthorized users don't see traces
+{% /checklist %}
+
+## Troubleshooting
+
+### Traces Not Appearing
+
+- Verify `enabled: true` in site configuration
+- Check user has required `userTypes` or `userRoles`
+- Review chat app overrides (may have disabled traces)
+- Ensure agent is generating trace data
+- Check browser console for errors
+
+### Detailed Traces Missing
+
+- Verify `detailedTraces.enabled: true`
+- Check user meets detailed traces access requirements
+- Confirm user has necessary roles
+- Review access rule logic (`applyRulesAs`)
+
+### Performance Issues
+
+- Traces can increase response display time
+- Consider restricting to internal users only
+- Disable detailed traces if not needed
+- Use chat app overrides to disable for high-traffic apps
+
+### Debug Access Issues
+
+```typescript
+// Log trace configuration
+console.log('Traces Config:', pikaConfig.siteFeatures.traces);
+console.log('User Type:', user.userType);
+console.log('User Roles:', user.roles);
+
+// Check if user should see traces
+const hasAccess = checkTraceAccess(user, tracesConfig);
+console.log('User has trace access:', hasAccess);
+```
+
+## Security Considerations
+
+### Trace Content
+
+Traces may contain:
+- User input data
+- Tool parameters and results
+- Internal system information
+- Performance metrics
+
+**Recommendation**: Only enable for trusted internal users
+
+### Detailed Traces
+
+Detailed traces are even more sensitive:
+- API keys and credentials (if in parameters)
+- Database queries
+- Internal architecture details
+- System vulnerabilities
+
+**Recommendation**: Restrict to admins and developers only
+
+### Compliance
+
+For regulated industries:
+- Review trace content for compliance
+- Consider data retention policies
+- Implement audit logging for trace access
+- Document who can access traces
+
+## Next Steps
+
+- [Enable Self-Correcting Responses](/guides/intelligence/self-correcting/) - Add verification traces
+- [Set Up the Admin Site](/guides/admin/admin-site/) - View traces across all users
+- [Override Default Features](/guides/customization/override-features/) - Customize per chat app
+
+## Related Documentation
+
+- [Traces Capability](/capabilities/intelligence/answer-reasoning/) - Learn more about traces
+- [Verify Response](/capabilities/intelligence/self-correcting/) - Response verification
+- [Feature Configuration Reference](/reference/config/features/) - Complete options
+
+---
+
+{% aside type="success" title="Powerful Debugging Tool" %}
+Traces are invaluable for understanding and debugging agent behavior. Enable them during development and for support staff to improve your AI applications.
+{% /aside %}
+

@@ -1,0 +1,337 @@
+---
+title: Implement Tool Use with Inline Tools
+description: Create lightweight tools that execute within your agent runtime
+---
+
+Learn how to create inline tools for rapid prototyping and simple functionality without deploying separate Lambda functions. Inline tools are TypeScript functions embedded directly into your agent's configuration.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create an inline tool function in TypeScript
+- Define a function schema for your tool
+- Configure CDK to transpile and deploy your tool
+- Test your inline tool in a chat session
+
+## Prerequisites
+
+- A working Pika CDK deployment setup
+- Node.js and npm installed
+- Basic understanding of TypeScript
+- Familiarity with AWS CDK
+
+{% aside type="note" title="When to Use Inline Tools" %}
+Inline tools are perfect for:
+- Rapid prototyping and testing
+- Simple utility functions
+- Learning how tools work
+- Quick calculations without external dependencies
+
+For production applications with complex logic or external dependencies, use Lambda-based tools instead.
+{% /aside %}
+
+## Step 1: Create Your Tool Function
+
+Create a TypeScript file with a standalone function following the required signature.
+
+**Location:** `services/your-service/src/your-tool/inline-code.ts`
+
+```typescript
+import { ActionGroupInvocationInput } from '@aws-sdk/client-bedrock-agent-runtime';
+
+function random(event: ActionGroupInvocationInput, params: Record<string, any>) {
+    console.log('Random number generator called with params:', params);
+
+    const min = params.min;
+    const max = params.max;
+    const range = max - min;
+    const val = Math.random() * range + min;
+    const factor = Math.pow(10, params.precision ?? 0);
+    
+    return Math.round(val * factor) / factor;
+}
+```
+
+### Critical Requirements
+
+{% checklist %}
+- [ ] Must be a standalone function (no imports or exports in the file)
+- [ ] No external dependencies (cannot use npm packages or AWS SDK)
+- [ ] Simple return values (must be JSON-serializable)
+- [ ] Quick execution (should complete within seconds)
+- [ ] Must follow exact signature: `function name(event: ActionGroupInvocationInput, params: Record<string, any>)`
+{% /checklist %}
+
+## Step 2: Define Function Schema
+
+Create a schema that describes your tool's parameters and behavior.
+
+**Location:** `services/your-service/src/your-tool/tool-functions.ts`
+
+```typescript
+import { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
+
+export const randomNumFunctions: FunctionDefinition[] = [
+    {
+        name: 'random-number',
+        description: 'Creates a random number between min and max.',
+        parameters: {
+            max: {
+                description: 'max value (exclusive)',
+                required: true,
+                type: 'number'
+            },
+            min: {
+                description: 'min value (inclusive)',
+                required: true,
+                type: 'number'
+            },
+            precision: {
+                description: 'number of decimal places to include (default 0)',
+                required: false,
+                type: 'number'
+            }
+        },
+        requireConfirmation: 'DISABLED'
+    }
+];
+```
+
+## Step 3: Add Transpilation to CDK Stack
+
+Configure your CDK stack to transpile TypeScript to JavaScript.
+
+### Add Required Dependencies
+
+**Location:** `services/your-service/package.json`
+
+```json
+{
+    "dependencies": {
+        "esbuild": "^0.19.0"
+    },
+    "devDependencies": {
+        "@types/node": "^18.0.0"
+    }
+}
+```
+
+### Add Transpilation Method
+
+**Location:** `services/your-service/lib/stacks/your-stack.ts`
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+import * as esbuild from 'esbuild';
+
+export class YourStack extends Stack {
+    // ... other code
+
+    private transpileInlineCodeToJavascript(filePath: string): string {
+        // Resolve the file path relative to this stack file
+        const absolutePath = path.resolve(__dirname, filePath);
+
+        // Read the TypeScript file
+        const tsCode = fs.readFileSync(absolutePath, 'utf8');
+
+        // Use esbuild to transpile TypeScript to JavaScript
+        const result = esbuild.transformSync(tsCode, {
+            loader: 'ts',
+            target: 'es2022',
+            format: 'esm'
+        });
+
+        const jsCode = result.code;
+
+        if (!jsCode.trim()) {
+            throw new Error(`No function found in ${filePath}`);
+        }
+
+        // Validate that the code starts with a function declaration
+        if (!jsCode.trim().startsWith('function ')) {
+            throw new Error(
+                `Code does not start with a function declaration in ${filePath}`
+            );
+        }
+
+        return jsCode;
+    }
+}
+```
+
+## Step 4: Configure the Tool in Your Agent
+
+Add the inline tool to your agent configuration.
+
+```typescript
+const randomNumInlineCode = this.transpileInlineCodeToJavascript(
+    '../../src/random-num-inline/inline-code.ts'
+);
+
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: `${props.projNameKebabCase}-agent-${this.stage}`,
+        basePrompt: `You are a random number generator. Use the tool provided to generate random numbers.
+        
+If the user doesn't provide min or max values, use defaults of 1 and 100 respectively.
+
+{{prompt-assistance}}`
+    },
+    tools: [
+        {
+            toolId: `${props.projNameKebabCase}-tool-${this.stage}`,
+            executionType: 'inline',  // Marks it as an inline tool
+            name: `${props.projNameKebabCase}-tool`,
+            displayName: `${props.projNameTitleCase} Tool`,
+            code: randomNumInlineCode,  // The transpiled JavaScript
+            description: 'A tool that can generate random numbers',
+            functionSchema: randomNumFunctions,
+            supportedAgentFrameworks: ['bedrock']
+        }
+    ]
+};
+```
+
+## Step 5: Deploy and Test
+
+### Deploy Your Stack
+
+```bash
+cd services/your-service
+npm run deploy
+```
+
+### Test in Chat
+
+1. Open your chat application
+2. Start a conversation with the agent
+3. Ask it to use the tool:
+   - "Generate a random number between 1 and 100"
+   - "Give me a random decimal between 0 and 1 with 3 decimal places"
+4. Check CloudWatch logs to see tool execution
+
+### Monitor Logs
+
+View your agent's CloudWatch logs to see:
+- When the tool is called
+- The parameters passed
+- Your `console.log()` output
+- Any errors or issues
+
+## Project Structure
+
+Organize your inline tool project:
+
+```
+your-inline-tool/
+├── src/
+│   └── your-tool/
+│       ├── inline-code.ts          # Tool function
+│       ├── tool-functions.ts       # Function schema
+│       ├── tool-instructions.ts    # Agent instructions
+│       └── tool-suggestions.ts     # Chat suggestions
+├── lib/
+│   └── stacks/
+│       └── your-tool-stack.ts      # CDK stack
+├── bin/
+│   └── your-tool.ts                # CDK app entry
+├── package.json
+├── tsconfig.json
+└── cdk.json
+```
+
+## Complete Example
+
+The [random-num-inline sample](https://github.com/rithum/pika/tree/main/services/samples/random-num-inline) demonstrates a complete working inline tool with:
+
+- TypeScript tool function
+- Function schema definition
+- CDK stack configuration
+- Agent and chat app setup
+
+Review this sample for a complete reference implementation.
+
+## Testing Checklist
+
+Verify your inline tool works correctly:
+
+{% checklist %}
+- [ ] Tool function transpiles without errors
+- [ ] Agent can invoke the tool
+- [ ] Parameters are passed correctly
+- [ ] Return values are formatted properly
+- [ ] Logs appear in CloudWatch
+- [ ] Error handling works as expected
+- [ ] Agent instructions guide tool usage correctly
+{% /checklist %}
+
+## Troubleshooting
+
+### "Code does not start with a function declaration"
+
+- Ensure your TypeScript file contains only a single function
+- Remove any imports, exports, or other code
+- Check that the function isn't wrapped in any other constructs
+
+### "Function not found"
+
+- Verify file path in `transpileInlineCodeToJavascript()` is correct
+- Check file exists at the specified location
+- Ensure function has the correct signature
+
+### "Tool not executing"
+
+- Verify `executionType` is set to `'inline'`
+- Check function schema matches the tool function's parameters
+- Review CloudWatch logs for error messages
+- Ensure agent instructions mention how to use the tool
+
+### Debugging Tips
+
+1. **Add extensive logging** - Use `console.log()` to track execution
+2. **Log parameters** - Check what the agent is actually passing
+3. **Test incrementally** - Start simple before adding complexity
+4. **Validate transpilation** - Check the generated JavaScript looks correct
+
+## Migration to Lambda
+
+When your inline tool needs production features:
+
+### Reasons to Migrate
+
+- Need external dependencies (npm packages, AWS SDK)
+- Complex business logic
+- Performance requirements
+- Need better monitoring and observability
+- Require error handling and retry logic
+
+### Migration Steps
+
+1. Create a new Lambda function project
+2. Move your tool logic to the Lambda handler
+3. Add any required dependencies
+4. Implement proper error handling
+5. Deploy as a Lambda-based tool
+6. Update agent configuration to use Lambda tool
+
+## Next Steps
+
+- [Use Model Context Protocol (MCP)](/guides/agent-development/mcp/) - Connect to external MCP servers
+- [Enable Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration/) - Have agents work together
+- [Define Agents Using Configuration](/guides/agent-development/define-agents/) - Learn more about agent configuration
+
+## Related Documentation
+
+- [Lambda-based Tools](/guides/customization/ui/) - For production deployments
+- [Tool Configuration Reference](/reference/config/tools/) - Complete tool configuration options
+- [Agent Configuration](/reference/config/agent/) - Agent configuration reference
+
+---
+
+{% aside type="success" title="Quick Iteration" %}
+Inline tools excel at rapid iteration. Update your TypeScript function, redeploy, and test immediately without separate Lambda deployments.
+{% /aside %}
+
