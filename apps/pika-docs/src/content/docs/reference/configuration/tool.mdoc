@@ -1,0 +1,438 @@
+---
+title: Tool Configuration Schema
+description: Complete reference for ToolDefinition configuration schema for Lambda, MCP, and inline tools
+---
+
+Complete reference for `ToolDefinition` types used to configure callable functions and services that agents can use.
+
+## Type Definition
+
+```typescript
+import type { 
+    ToolDefinition,
+    LambdaToolDefinition,
+    McpToolDefinition,
+    InlineToolDefinition
+} from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+## Tool Types
+
+Pika supports three types of tool execution:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Lambda** | AWS Lambda function invocation | Production tools, external API integrations |
+| **MCP** | Model Context Protocol servers | Standardized tool interfaces, third-party integrations |
+| **Inline** | JavaScript code executed in-process | Simple logic, transformations, testing |
+
+## Common Fields (All Tool Types)
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `executionType` | `'lambda'` \| `'mcp'` \| `'inline'` | Type of tool execution |
+| `toolId` | `string` | Unique tool name/version (e.g., `'weather-basic@1'`) |
+| `name` | `string` | Tool name for LLM. Pattern: `([0-9a-zA-Z][_-]?){1,100}` |
+| `displayName` | `string` | Human-readable name for UI |
+| `description` | `string` | Description for LLM consumption. **MUST BE LESS THAN 500 CHARACTERS** |
+| `supportedAgentFrameworks` | `AgentFramework[]` | Currently only `['bedrock']` supported |
+| `version` | `number` | Tool definition version |
+| `createdBy` | `string` | User ID who created the tool |
+| `lastModifiedBy` | `string` | User ID who last modified |
+| `createdAt` | `string` | ISO 8601 creation timestamp |
+| `updatedAt` | `string` | ISO 8601 last update timestamp |
+
+### Optional Common Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `executionTimeout` | `number` | `30` | Timeout in seconds |
+| `functionSchema` | `FunctionDefinition[]` | - | Bedrock function schema (required if supporting bedrock) |
+| `tags` | `Record<string, string>` | - | Key-value pairs for categorization |
+| `lifecycle` | `ToolLifecycle` | - | Lifecycle management config |
+| `accessRules` | `AccessRule[]` | - | Access control rules |
+| `testType` | `'mock'` | - | Set to `'mock'` for auto-deleting test tools |
+
+**ToolLifecycle Interface:**
+
+```typescript
+interface ToolLifecycle {
+    status: 'active' | 'deprecated' | 'retired';
+    deprecationDate?: string; // ISO 8601
+    migrationPath?: string; // Instructions or new tool ID
+}
+```
+
+## Lambda Tools
+
+For invoking AWS Lambda functions.
+
+### Lambda-Specific Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `lambdaArn` | `string` | **Required.** ARN of the Lambda function. Must have `agent-tool` tag set to `true` |
+
+### Lambda Tool Example
+
+```typescript
+import type { LambdaToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+
+const lambdaTool: LambdaToolDefinition = {
+    executionType: 'lambda',
+    toolId: 'weather-lookup@1',
+    name: 'get-weather',
+    displayName: 'Weather Lookup',
+    description: 'Get current weather conditions for a city',
+    executionTimeout: 30,
+    supportedAgentFrameworks: ['bedrock'],
+    lambdaArn: 'arn:aws:lambda:us-east-1:123456789012:function:weather-tool',
+    functionSchema: [
+        {
+            name: 'get_weather',
+            description: 'Get weather for a specific location',
+            parameters: {
+                city: {
+                    description: 'City name',
+                    type: 'string',
+                    required: true
+                },
+                units: {
+                    description: 'Temperature units',
+                    type: 'string',
+                    required: false
+                }
+            }
+        }
+    ],
+    tags: {
+        category: 'weather',
+        version: 'v1'
+    },
+    version: 1,
+    createdBy: 'admin',
+    lastModifiedBy: 'admin',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## MCP Tools
+
+For Model Context Protocol server integrations.
+
+### MCP-Specific Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | `string` | **Required.** URL of the MCP server |
+| `auth` | `OAuth` | Optional OAuth configuration |
+
+**OAuth Interface:**
+
+```typescript
+interface OAuth {
+    clientId: string;
+    clientSecret: string;
+    tokenUrl: string;
+    token?: {
+        accessToken: string;
+        expires: number;
+    };
+}
+```
+
+### MCP Tool Example
+
+```typescript
+import type { McpToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+
+const mcpTool: McpToolDefinition = {
+    executionType: 'mcp',
+    toolId: 'github-api@1',
+    name: 'github-search',
+    displayName: 'GitHub Search',
+    description: 'Search GitHub repositories and issues',
+    executionTimeout: 45,
+    supportedAgentFrameworks: ['bedrock'],
+    url: 'https://api.github.com/mcp',
+    auth: {
+        clientId: 'your-client-id',
+        clientSecret: 'your-client-secret',
+        tokenUrl: 'https://github.com/login/oauth/access_token'
+    },
+    functionSchema: [
+        {
+            name: 'search_repositories',
+            description: 'Search for GitHub repositories',
+            parameters: {
+                query: {
+                    description: 'Search query',
+                    type: 'string',
+                    required: true
+                }
+            }
+        }
+    ],
+    version: 1,
+    createdBy: 'admin',
+    lastModifiedBy: 'admin',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## Inline Tools
+
+For simple JavaScript functions executed in-process.
+
+### Inline-Specific Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | `string` | **Required.** Stringified JavaScript function code |
+| `handler` | `Function` | Runtime handler function (not serialized) |
+
+### Inline Tool Example
+
+```typescript
+import type { InlineToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+
+const inlineTool: InlineToolDefinition = {
+    executionType: 'inline',
+    toolId: 'calculate@1',
+    name: 'calculator',
+    displayName: 'Calculator',
+    description: 'Perform basic arithmetic calculations',
+    supportedAgentFrameworks: ['bedrock'],
+    code: `
+        async function calculate(event, params) {
+            const { operation, a, b } = params;
+            let result;
+            
+            switch(operation) {
+                case 'add': result = a + b; break;
+                case 'subtract': result = a - b; break;
+                case 'multiply': result = a * b; break;
+                case 'divide': result = a / b; break;
+                default: throw new Error('Invalid operation');
+            }
+            
+            return { result };
+        }
+    `,
+    functionSchema: [
+        {
+            name: 'calculate',
+            description: 'Perform arithmetic calculation',
+            parameters: {
+                operation: {
+                    description: 'Math operation to perform',
+                    type: 'string',
+                    required: true
+                },
+                a: {
+                    description: 'First number',
+                    type: 'number',
+                    required: true
+                },
+                b: {
+                    description: 'Second number',
+                    type: 'number',
+                    required: true
+                }
+            }
+        }
+    ],
+    version: 1,
+    createdBy: 'admin',
+    lastModifiedBy: 'admin',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## Function Schema
+
+The `functionSchema` defines how the LLM should call your tool.
+
+### FunctionDefinition Structure
+
+```typescript
+interface FunctionDefinition {
+    name: string; // Function name
+    description: string; // What the function does
+    parameters: Record<string, ParameterDefinition>;
+}
+
+interface ParameterDefinition {
+    description: string;
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    required: boolean;
+    enum?: string[]; // For string types
+    items?: ParameterDefinition; // For array types
+    properties?: Record<string, ParameterDefinition>; // For object types
+}
+```
+
+### Complex Function Schema Example
+
+```typescript
+functionSchema: [
+    {
+        name: 'search_products',
+        description: 'Search for products in the catalog',
+        parameters: {
+            query: {
+                description: 'Search query string',
+                type: 'string',
+                required: true
+            },
+            filters: {
+                description: 'Search filters',
+                type: 'object',
+                required: false,
+                properties: {
+                    category: {
+                        description: 'Product category',
+                        type: 'string',
+                        required: false,
+                        enum: ['electronics', 'clothing', 'home']
+                    },
+                    minPrice: {
+                        description: 'Minimum price',
+                        type: 'number',
+                        required: false
+                    },
+                    maxPrice: {
+                        description: 'Maximum price',
+                        type: 'number',
+                        required: false
+                    }
+                }
+            },
+            limit: {
+                description: 'Maximum results to return',
+                type: 'number',
+                required: false
+            }
+        }
+    }
+]
+```
+
+## Access Control
+
+Tools support the same access control system as agents:
+
+```typescript
+accessRules: [
+    {
+        effect: 'allow',
+        condition: "user.userType = 'internal-user'",
+        order: 1,
+        description: 'Allow internal users'
+    },
+    {
+        effect: 'allow',
+        condition: "customData.accountType = 'enterprise'",
+        order: 2,
+        description: 'Allow enterprise accounts'
+    },
+    {
+        effect: 'deny',
+        order: 999
+    }
+]
+```
+
+## Lifecycle Management
+
+Manage tool deprecation and migration:
+
+```typescript
+lifecycle: {
+    status: 'deprecated',
+    deprecationDate: '2024-06-01T00:00:00Z',
+    migrationPath: 'Please migrate to weather-lookup@2 which includes hourly forecasts'
+}
+```
+
+Status values:
+- `active` - Tool is actively supported
+- `deprecated` - Tool works but should not be used for new agents
+- `retired` - Tool is no longer functional
+
+## Deployment Patterns
+
+### CloudFormation/CDK
+
+```typescript
+import type { ToolDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+
+const request: ToolDataRequest = {
+    tool: {
+        executionType: 'lambda',
+        toolId: 'my-tool@1',
+        name: 'my-tool',
+        displayName: 'My Tool',
+        description: 'Description',
+        lambdaArn: 'arn:aws:lambda:...',
+        supportedAgentFrameworks: ['bedrock'],
+        functionSchema: [/* ... */]
+    },
+    userId: 'cloudformation/my-stack-name'
+};
+```
+
+### Programmatic Update
+
+```typescript
+import type { ToolDefinitionForUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+
+const update: ToolDefinitionForUpdate = {
+    toolId: 'my-tool@1',
+    description: 'Updated description',
+    functionSchema: [/* updated schema */]
+};
+```
+
+## Best Practices
+
+{% aside type="tip" title="Tool Configuration Tips" %}
+1. **Clear descriptions** - LLMs rely on descriptions to know when to use tools
+2. **Under 500 characters** - Description length limit is enforced
+3. **Semantic versioning** - Use `toolId` versioning: `weather-lookup@2`
+4. **Start with Lambda** - Use Lambda tools for production, inline for testing
+5. **Timeout appropriately** - Set realistic timeouts based on tool complexity
+6. **Tag your Lambda** - Lambda functions must have `agent-tool: true` tag
+7. **Test inline first** - Prototype with inline tools before creating Lambda functions
+{% /aside %}
+
+## Validation Rules
+
+- `toolId` - Must be unique, use semantic versioning pattern
+- `name` - Alphanumeric with hyphens/underscores, no spaces, 1-100 chars
+- `description` - **MUST be less than 500 characters**
+- `lambdaArn` - Must be valid ARN, Lambda must exist and have correct tag
+- `functionSchema` - Required when `supportedAgentFrameworks` includes `'bedrock'`
+
+## Related Documentation
+
+- **[Agent Configuration](/reference/configuration/agent/)** - Link tools to agents
+- **[Inline Tools Guide](/guides/agent-development/inline-tools/)** - How-to guide
+- **[MCP Integration Guide](/guides/agent-development/mcp/)** - Model Context Protocol
+- **[Tool Types Reference](/reference/types/agent-tool/)** - TypeScript definitions
+- **[Lambda Tool Tutorial](/guides/agent-development/integrate-apis/)** - External API integration
+
+## API Endpoints
+
+- `POST /api/chat-admin/tool` - Create or update tool
+- `GET /api/chat-admin/tool/{toolId}` - Get tool definition
+- `DELETE /api/chat-admin/tool/{toolId}` - Delete tool
+- `POST /api/chat-admin/tools/search` - Search tools
+
+See [REST API Reference](/reference/api/rest/) for complete API documentation.
+

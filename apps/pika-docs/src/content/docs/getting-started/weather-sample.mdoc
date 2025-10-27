@@ -1,0 +1,546 @@
+---
+title: Review the Weather Sample
+description: Learn by exploring a complete, production-ready example that uses nearly every Pika feature
+---
+
+The Weather Sample is a comprehensive example application that demonstrates nearly every feature of Pika Platform. It's the perfect reference for understanding how all the pieces fit together in a real-world application.
+
+## Why Study the Weather Sample?
+
+The Weather Sample is not a toy - it's a production-quality implementation that showcases:
+
+- Agent configuration and instructions
+- Tool definitions and Lambda functions
+- Chat app configuration
+- Suggested prompts for better UX
+- Custom web components for rich UI
+- Advanced tag definitions
+- CDK infrastructure as code
+
+{% aside type="tip" title="Learning by Example" %}
+Many developers find it easier to learn by studying working code than reading abstract documentation. The Weather Sample provides a complete, working reference you can explore, modify, and learn from.
+{% /aside %}
+
+## Where to Find It
+
+The Weather Sample is located in your Pika installation at:
+
+```
+services/samples/weather/
+```
+
+## Core Components
+
+### 1. Agent Instructions
+
+**File:** `src/lambda/weather/weather-instructions.ts`
+
+This file defines the agent's personality and behavior:
+
+```typescript
+export const weatherAgentInstruction = `You are **WeatherInsightAgent**, 
+a highly skilled assistant for analyzing weather data and providing 
+actionable insights. Your goal is to answer weather-related questions 
+clearly and comprehensively and to do it with a dry sense of humor.
+
+**Core Directives:**
+
+1. **Accuracy and Detail:** Provide accurate weather information. 
+   Be as detailed as necessary to fully answer the user's query.
+2. **User-Centricity:** Focus on making the information easily 
+   understandable and useful to the user.
+3. **Proactive Assistance:** When appropriate, suggest relevant 
+   follow-up questions or explorations.
+4. **Correctly Structured Response:** Your response must exactly 
+   conform to the Output Formatting Requirements below
+
+{{prompt-assistance}}
+`;
+```
+
+{% card title="Key Takeaway: Instructions Define Personality" icon="star" %}
+The instruction is the system prompt that shapes your agent's behavior, tone, and approach to problem-solving. Notice how it includes:
+
+- Clear role definition
+- Specific directives for behavior
+- Personality traits (dry sense of humor)
+- References to formatting requirements
+{% /card %}
+
+### 2. Tool Function Definitions
+
+**File:** `src/lambda/weather/weather-functions.ts`
+
+This file defines all the functions (tools) the agent can call:
+
+```typescript
+export const weatherFunctions: FunctionDefinition[] = [
+    {
+        name: 'getWeatherForecast',
+        description: 'Retrieves weather forecast data for a specified location...',
+        parameters: {
+            latitude: {
+                type: 'number',
+                description: 'Latitude of the location in decimal degrees',
+                required: true
+            },
+            longitude: {
+                type: 'number',
+                description: 'Longitude of the location in decimal degrees',
+                required: true
+            },
+            // ... more parameters
+        },
+        requireConfirmation: 'DISABLED'
+    },
+    // 7 more functions...
+];
+```
+
+{% card title="Key Takeaway: Rich Function Definitions" icon="puzzle" %}
+The Weather Sample includes 8 different functions:
+
+- `getWeatherForecast` - Future weather predictions
+- `getCurrentWeather` - Current conditions
+- `getCurrentWeatherFromS3CsvFile` - Batch processing from files
+- `getHistoricalWeather` - Past weather data
+- `getAirQuality` - Air quality information
+- `getMarineForecast` - Marine weather
+- `getClimateForecast` - Long-range climate predictions
+- `getGeocoding` - Convert city names to coordinates
+
+Each function has detailed parameter descriptions that help the LLM use them correctly.
+{% /card %}
+
+{% aside type="note" title="AWS Bedrock Limitation" %}
+AWS Bedrock currently limits functions to 5 parameters. The Weather Sample uses a clever workaround: the 5th parameter is often `jsonParams`, a JSON string containing additional optional parameters. This pattern lets you work around the limitation while keeping your API clean.
+{% /aside %}
+
+### 3. Suggested Prompts
+
+**File:** `src/lambda/weather/weather-suggestions.ts`
+
+This file provides 100+ suggested prompts to help users get started:
+
+```typescript
+export const weatherSuggestions = [
+    'What is the weather in Tokyo?',
+    'Compare the weather in Tokyo and San Francisco in the last 30 days',
+    'What will the temperature be in Paris tomorrow?',
+    'Will it rain in London this weekend?',
+    // ... 96 more suggestions
+];
+```
+
+{% card title="Key Takeaway: Guide Your Users" icon="information" %}
+Suggested prompts serve multiple purposes:
+
+- Help users understand what the agent can do
+- Reduce the "blank page" problem
+- Showcase interesting capabilities
+- Provide templates users can modify
+- Improve engagement and discovery
+
+The Weather Sample randomizes and shows 5 suggestions at a time, creating variety without overwhelming the user.
+{% /card %}
+
+### 4. Infrastructure and Configuration
+
+**File:** `lib/stacks/weather-stack.ts`
+
+This is where everything comes together - the CDK stack that deploys the entire application:
+
+```typescript
+export class WeatherStack extends cdk.Stack {
+    constructor(scope: Construct, id: string, props: WeatherStackProps) {
+        super(scope, id, props);
+        
+        // 1. Create Lambda function for weather tools
+        const weatherLambda = new nodejs.NodejsFunction(this, 'WeatherToolLambda', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            entry: path.join(__dirname, '../../src/lambda/weather/index.ts'),
+            // ... configuration
+        });
+        
+        // 2. Register the agent with tools
+        const agentData: AgentDataRequest = {
+            agent: {
+                agentId: 'weather-agent',
+                basePrompt: weatherAgentInstruction
+            },
+            tools: [
+                {
+                    toolId: 'weather-tool',
+                    executionType: 'lambda',
+                    lambdaArn: weatherLambda.functionArn,
+                    functionSchema: weatherFunctions
+                }
+            ]
+        };
+        
+        // 3. Register the chat app
+        const chatAppData = {
+            chatApp: {
+                chatAppId: 'weather',
+                title: 'Weather Chat',
+                agentId: 'weather-agent',
+                features: {
+                    fileUpload: { enabled: true },
+                    suggestions: { 
+                        enabled: true,
+                        suggestions: weatherSuggestions
+                    },
+                    tags: { enabled: true }
+                }
+            }
+        };
+        
+        // 4. Deploy web components
+        // 5. Register tag definitions
+    }
+}
+```
+
+{% card title="Key Takeaway: Configuration as Code" icon="setting" %}
+The Weather Stack demonstrates the "agent-as-configuration" philosophy:
+
+1. **Lambda Function** - Defines the actual tool implementation
+2. **Agent Registration** - Links instructions with available tools
+3. **Chat App Configuration** - Defines UI features and user experience
+4. **Web Components** - Deploys custom UI components
+5. **Tag Definitions** - Registers custom rendering components
+
+Everything is declarative and version-controlled through CDK.
+{% /card %}
+
+### 5. Lambda Tool Implementation
+
+**File:** `src/lambda/weather/index.ts`
+
+This Lambda function handles all tool invocations:
+
+```typescript
+export async function handler(
+    event: BedrockActionGroupLambdaEvent
+): Promise<BedrockActionGroupLambdaResponse> {
+    
+    // Extract parameters from Bedrock
+    let params = convertBedrockParamsToCorrectType(event.parameters);
+    
+    // Handle jsonParams workaround for AWS 5-parameter limit
+    if (typeof params.jsonParams === 'string') {
+        const jsonParams = JSON.parse(params.jsonParams);
+        params = { ...params, ...jsonParams };
+    }
+    
+    // Get session data
+    const sessionData = normalizeSessionAttributes(event.sessionAttributes);
+    
+    // Call the appropriate API
+    const results = await callOpenMateoApi(
+        event.function, 
+        params, 
+        sessionData, 
+        pikaS3BucketName, 
+        region, 
+        event.sessionId
+    );
+    
+    return createBedrockLambdaResponse(results, ...);
+}
+```
+
+{% card title="Key Takeaway: Standard Tool Pattern" icon="approve-check" %}
+Weather tool Lambda demonstrates the standard pattern for tool implementation:
+
+1. **Extract parameters** from the Bedrock event
+2. **Handle special cases** (like jsonParams workaround)
+3. **Access session data** for context
+4. **Call external APIs** or perform business logic
+5. **Return structured results** that the agent can use
+
+This pattern works for any tool you build.
+{% /card %}
+
+## Advanced Features
+
+### 6. Custom Tag Definitions
+
+**File:** `lib/stacks/tag-definitions.ts`
+
+This file defines 10 custom UI components for rendering weather data:
+
+```typescript
+// Example: Inline weather summary
+const weatherSummary: TagDefinitionForCreateOrUpdate = {
+    tag: 'summary',
+    scope: 'weather',
+    tagTitle: 'Weather Summary',
+    canBeGeneratedByLlm: true,  // LLM can create these in responses
+    renderingContexts: {
+        inline: { enabled: true }  // Appears inline in chat
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'weather-summary',
+            s3: { s3Key: 'wc/weather/weather.js.gz' }
+        }
+    },
+    llmInstructionsMd: `To include a weather summary, use tags.
+    The content MUST be JSON conforming to this interface:
+    
+    interface WeatherSummaryInput {
+        location: string;
+        tempF: number;
+        tempC: number;
+        condition: string;
+        humidity?: number;
+        windSpeed?: number;
+    }
+    
+    Example: <weather.summary>{"location": "New York", ...}</weather.summary>`
+};
+```
+
+{% card title="Key Takeaway: Three Types of Tags" icon="star" %}
+The Weather Sample demonstrates three types of custom tags:
+
+1. **LLM-Generated** (`weather.summary`) - Agent creates these inline in responses
+2. **Component-Triggered** (`weather.favorite-cities`) - User clicks to invoke
+3. **Static Context** (`weather.static-init`) - Runs on app initialization
+
+Each type serves different UX patterns and use cases.
+{% /card %}
+
+### 7. Web Components
+
+**Directory:** `src/webcomponent/`
+
+The Weather Sample includes sophisticated Svelte components:
+
+```
+src/webcomponent/
+├── lib/
+│   ├── components/
+│   │   ├── FavoriteCities.svelte
+│   │   ├── WeatherAlerts.svelte
+│   │   ├── FullForecast.svelte
+│   │   └── ... 7 more components
+│   └── utils/
+│       └── weather-api.ts
+├── main.ts              # Component registration
+└── app.css             # Shared styles
+```
+
+These components handle:
+- API calls back to Pika
+- State management
+- Interactive UI elements
+- Rich data visualization
+- User preferences storage
+
+{% aside type="tip" title="Web Components Are Optional" %}
+You don't need custom web components to build great agents. Start with the default UI, then add custom components when you need specialized visualizations or interactions. The Weather Sample shows what's possible when you want to go beyond standard chat interfaces.
+{% /aside %}
+
+## What You Can Learn
+
+### From Instructions (`weather-instructions.ts`)
+
+- How to define agent personality and tone
+- Writing clear behavioral directives
+- Using template placeholders for system features
+- Balancing detail with brevity
+
+### From Function Definitions (`weather-functions.ts`)
+
+- Comprehensive function documentation
+- Parameter naming and descriptions
+- Working around AWS Bedrock's 5-parameter limit
+- Supporting optional vs required parameters
+- Organizing related functions
+
+### From Suggestions (`weather-suggestions.ts`)
+
+- Providing variety in suggested prompts
+- Showcasing different capabilities
+- Creating action-oriented suggestions
+- Balancing simple and complex examples
+
+### From the Stack (`weather-stack.ts`)
+
+- Complete CDK infrastructure setup
+- Connecting agents, tools, and chat apps
+- Configuring chat app features
+- Deploying web components
+- Managing S3 assets
+- Using custom resources for registration
+- Handling dependencies between resources
+
+### From the Lambda (`index.ts`)
+
+- Handling Bedrock events
+- Parameter extraction and validation
+- Session data management
+- Error handling patterns
+- Response formatting
+
+### From Tag Definitions (`tag-definitions.ts`)
+
+- Defining custom UI components
+- Configuring rendering contexts
+- Writing LLM instructions for components
+- Component-agent communication
+- Managing component lifecycle
+
+## How to Use This Sample
+
+### 1. Read the Code
+
+Start by reading through the files in this order:
+
+1. `weather-instructions.ts` - Understand the agent's purpose
+2. `weather-functions.ts` - See what tools are available
+3. `weather-stack.ts` - Learn how it all connects
+4. `index.ts` - Understand tool implementation
+5. `tag-definitions.ts` - Explore advanced UI features
+
+### 2. Run It Locally
+
+```bash
+# Deploy the core Pika service
+cd services/pika
+pnpm build && pnpm run cdk:deploy
+
+# Deploy the weather service
+cd services/samples/weather
+pnpm build && pnpm run cdk:deploy
+
+# Start the frontend
+cd apps/pika-chat
+pnpm dev
+```
+
+Visit `http://localhost:3000/chat/weather` to interact with it.
+
+### 3. Experiment
+
+Try modifying:
+
+- **Instructions** - Change the personality or add new directives
+- **Suggestions** - Add your own suggested prompts
+- **Function parameters** - Add new optional parameters
+- **Chat app features** - Enable/disable different features
+
+Redeploy and see how your changes affect the agent's behavior.
+
+### 4. Use as a Template
+
+When building your own chat app:
+
+1. Copy the weather service structure
+2. Replace weather-specific code with your domain logic
+3. Define your own tools and functions
+4. Customize the instructions for your use case
+5. Add your own suggestions and UI components
+
+## Key Patterns to Adopt
+
+### Pattern 1: Separate Concerns
+
+The Weather Sample cleanly separates:
+- Instructions (agent behavior)
+- Functions (tool definitions)
+- Implementation (Lambda logic)
+- Configuration (CDK stack)
+- UI (web components)
+
+Maintain this separation in your own applications.
+
+### Pattern 2: Rich Tool Descriptions
+
+Notice how every function and parameter has detailed descriptions. This helps the LLM understand when and how to use each tool correctly.
+
+### Pattern 3: Feature Configuration
+
+The chat app configuration in `weather-stack.ts` shows how to enable features selectively:
+
+```typescript
+features: {
+    fileUpload: { 
+        enabled: true,
+        mimeTypesAllowed: ['text/csv']  // Only CSVs
+    },
+    suggestions: { 
+        enabled: true,
+        randomize: true,  // Vary what users see
+        maxToShow: 5
+    },
+    agentInstructionAssistance: {
+        enabled: true  // Let agent help improve instructions
+    }
+}
+```
+
+### Pattern 4: Progressive Enhancement
+
+The Weather Sample works perfectly fine without web components, but they enhance the experience significantly. Adopt this approach: build functionality first, then add UI enhancements.
+
+## Common Questions
+
+### Do I need to implement all these features?
+
+No! The Weather Sample demonstrates what's possible. Your first agent can be much simpler:
+- Just instructions and one function
+- No custom web components
+- Basic chat app configuration
+
+Add complexity as you need it.
+
+### Should I copy the weather service directly?
+
+The weather service is designed as a reference and template. Copy its structure, but replace the weather-specific logic with your own domain.
+
+### How do I know which features to use?
+
+Start with the basics:
+1. Agent instructions
+2. One or two tools
+3. Basic chat app config
+4. A few suggestions
+
+Add more as you discover needs through testing with real users.
+
+### Can I modify the weather service?
+
+Yes! It's in your installation and you control it. However, consider copying it to `services/custom/` or a separate repository so you can cleanly receive framework updates.
+
+## Next Steps
+
+After reviewing the Weather Sample:
+
+{% card title="Build Your Own Agent" icon="rocket" %}
+Use what you learned to create your own agent with the [Hello World Tutorial](/getting-started/hello-world/).
+{% /card %}
+
+{% card title="Explore Advanced Features" icon="star" %}
+Dive deeper into specific capabilities in the [Capabilities](/capabilities/) section.
+{% /card %}
+
+{% card title="Read How-To Guides" icon="open-book" %}
+Get step-by-step instructions for specific tasks in [How-To Guides](/how-to/).
+{% /card %}
+
+## Summary
+
+The Weather Sample is your best resource for learning Pika by example. It demonstrates:
+
+- Complete agent-as-configuration approach
+- Professional-grade tool definitions
+- Production-ready infrastructure code
+- Advanced UI customization
+- Real-world patterns and practices
+
+Spend time with it, experiment with modifications, and use it as a template for your own applications. Many of the best Pika applications started as modified versions of the Weather Sample!
+

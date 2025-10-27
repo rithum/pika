@@ -1,0 +1,609 @@
+---
+title: Draw.io Compatible SVG Generation Instructions
+description: Complete instructions for generating Draw.io compatible SVG diagrams
+---
+
+## Overview
+Generate SVG diagrams that are fully compatible with draw.io/diagrams.net and can be edited using the VS Code Draw.io Integration extension. These files render as SVG images in markdown while remaining fully editable in the draw.io interface.
+
+{% aside type="danger" title="CRITICAL: Do not use image tools" %}
+Do not use image tools.  These diagrams are svgs not images.  They are just made up of code and you can generate and correct code.
+{% /aside %}
+
+## ⚠️ MANDATORY GENERATION PROCESS
+
+**THE TWO MOST COMMON ERRORS:**
+1. **Missing or incomplete mxCell data**
+2. **Single-encoded ampersands instead of double-encoded** (see encoding section below)
+
+Follow this exact process to avoid "Not a diagram file" errors:
+
+1. **Plan Shape IDs**: Assign unique IDs to every rectangle, circle, line, and text group
+2. **Create mxCell for Each Shape**: Every visual element needs corresponding Draw.io metadata
+3. **HTML-Encode mxGraphModel**: Convert the complete XML structure to HTML entities
+4. **DOUBLE-ENCODE AMPERSANDS**: Use `&amp;amp;` not `&amp;` in mxCell values within content attribute
+5. **Match Coordinates Exactly**: SVG geometry must match mxCell geometry precisely  
+6. **Test in Extension**: Verify the file opens for editing in VS Code Draw.io extension
+
+**FAILURE TO INCLUDE COMPLETE mxCELL DATA = "NOT A DIAGRAM FILE" ERROR**
+**FAILURE TO DOUBLE-ENCODE AMPERSANDS = "NOT A DIAGRAM FILE" ERROR**
+
+## CRITICAL: Draw.io Editability Requirements
+
+**ESSENTIAL FOR EDITABILITY**: The VS Code Draw.io extension requires complete mxCell data for every visual element. Simply having SVG shapes is NOT enough - each shape must have corresponding Draw.io metadata.
+
+### Complete mxGraphModel Structure Required
+The `content` attribute must contain a full mxGraphModel with mxCell entries for EVERY visual element:
+
+```xml
+content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;shape1&quot; value=&quot;Process Step&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;20&quot; width=&quot;120&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;connector1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;shape1&quot; target=&quot;shape2&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;140&quot; y=&quot;50&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;180&quot; y=&quot;50&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;"
+```
+
+### Shape-to-mxCell Mapping Rules
+**EVERY SVG element must have:**
+1. **Unique ID**: `<rect id="shape1" ...>` matches `<mxCell id="shape1" ...>`
+2. **Corresponding mxCell**: With exact geometry and styling
+3. **Matching coordinates**: SVG and mxGeometry must be identical
+
+### mxCell Requirements by Element Type
+
+#### Rectangles/Shapes
+```xml
+<!-- SVG Element -->
+<rect id="shape1" x="20" y="20" width="120" height="60" fill="#ffffff" stroke="#000000"/>
+
+<!-- Corresponding mxCell (in content attribute, HTML encoded) -->
+<mxCell id="shape1" value="Label Text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="1" vertex="1">
+  <mxGeometry x="20" y="20" width="120" height="60" as="geometry"/>
+</mxCell>
+```
+
+#### Connectors/Lines
+```xml
+<!-- SVG Element -->
+<line id="connector1" x1="140" y1="50" x2="180" y2="50" marker-end="url(#arrowhead)"/>
+
+<!-- Corresponding mxCell -->
+<mxCell id="connector1" value="" style="endArrow=classic;html=1;" parent="1" source="shape1" target="shape2" edge="1">
+  <mxGeometry width="50" height="50" relative="1" as="geometry">
+    <mxPoint x="140" y="50" as="sourcePoint"/>
+    <mxPoint x="180" y="50" as="targetPoint"/>
+  </mxGeometry>
+</mxCell>
+```
+
+#### Text Elements
+Text should be included in the parent shape's `value` attribute, NOT as separate mxCells.
+
+### HTML Encoding for Content Attribute
+The mxGraphModel XML must be HTML-encoded in the content attribute:
+- `<` becomes `&lt;`
+- `>` becomes `&gt;`
+- `"` becomes `&quot;`
+- `&` becomes `&amp;`
+
+{% aside type="danger" title="CRITICAL: Double-Encoding Ampersands" %}
+**MOST COMMON ENCODING ERROR**: Ampersands in mxCell `value` attributes require DOUBLE encoding!
+
+❌ **WRONG**: `value="Sessions &amp; Memory"` (single-encoded)
+✅ **CORRECT**: `value="Sessions &amp;amp; Memory"` (double-encoded)
+
+**Why?** The content attribute itself is HTML-encoded, so characters within it need double encoding:
+1. First encode for XML: `&` → `&amp;`
+2. Then encode for HTML attribute: `&amp;` → `&amp;amp;`
+
+When the browser decodes the content attribute, `&amp;amp;` becomes `&amp;`, which is then valid XML.
+
+**Common text with ampersands**:
+- "Settings & Configuration" → `&amp;amp;`
+- "Load & Process" → `&amp;amp;`  
+- "Storage & Memory" → `&amp;amp;`
+- "Encrypt & Sign" → `&amp;amp;`
+
+**Failure to double-encode ampersands will cause "Not a diagram file" errors!**
+{% /aside %}
+
+### Generation Process Requirements
+1. **Plan the diagram**: List all shapes, connectors, and their IDs
+2. **Generate SVG**: Create visual elements with unique IDs
+3. **Generate mxCells**: Create corresponding mxCell for each element
+4. **Encode mxGraphModel**: HTML-encode the complete mxGraphModel
+5. **Embed in content**: Place encoded data in content attribute
+
+## Critical Requirements
+
+### File Naming Convention
+**ESSENTIAL**: Always use `.drawio.svg` extension, NOT just `.svg`
+- ✅ `flowchart.drawio.svg`
+- ✅ `architecture.drawio.svg` 
+- ❌ `diagram.svg`
+
+This naming convention is required for the VS Code extension to recognize and edit the files.
+
+### SVG Root Element Structure
+```xml
+<svg host="65bd71144e" 
+     xmlns="http://www.w3.org/2000/svg" 
+     xmlns:xlink="http://www.w3.org/1999/xlink" 
+     version="1.1" 
+     width="[WIDTH]px" 
+     height="[HEIGHT]px" 
+     viewBox="-0.5 -0.5 [WIDTH] [HEIGHT]"
+     content="&lt;mxGraphModel&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
+```
+
+### Required Metadata Structure
+```xml
+<defs>
+  <!-- Arrow markers and other definitions -->
+</defs>
+<g>
+  <!-- All diagram content goes here -->
+</g>
+```
+
+## CRITICAL: Draw.io Editability Requirements
+
+**MANDATORY**: For the VS Code Draw.io extension to recognize and edit the file, you MUST include complete mxCell data for every visual element in the content attribute.
+
+### Complete mxGraphModel Structure
+The content attribute must contain an mxCell entry for EVERY shape, text, and line:
+
+```xml
+content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;shape1&quot; value=&quot;Main Config&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#1e40af;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;250&quot; y=&quot;60&quot; width=&quot;300&quot; height=&quot;80&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; style=&quot;edgeStyle=orthogonalEdgeStyle;html=1;&quot; parent=&quot;1&quot; source=&quot;shape1&quot; target=&quot;shape2&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry relative=&quot;1&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;"
+```
+
+### Shape-to-Cell Mapping Rules
+**Every SVG element MUST have:**
+1. A unique `id` attribute
+2. A corresponding `mxCell` in the content attribute  
+3. Exact geometry coordinates that match
+
+### mxCell Requirements by Element Type
+
+#### Rectangles/Boxes
+```xml
+<!-- SVG Element -->
+<rect id="config-box" x="250" y="60" width="300" height="80" rx="8" ry="8" fill="#dbeafe" stroke="#1e40af"/>
+<text x="400" y="100">astro.config.mjs</text>
+
+<!-- Corresponding mxCell (HTML-encoded in content attribute) -->
+<mxCell id="config-box" value="astro.config.mjs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#1e40af;strokeWidth=2;" parent="1" vertex="1">
+  <mxGeometry x="250" y="60" width="300" height="80" as="geometry"/>
+</mxCell>
+```
+
+#### Lines/Arrows
+```xml
+<!-- SVG Element -->
+<line id="arrow1" x1="400" y1="140" x2="400" y2="200" stroke="#1e40af" marker-end="url(#arrowhead)"/>
+
+<!-- Corresponding mxCell -->
+<mxCell id="arrow1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#1e40af;" parent="1" source="config-box" target="integration1" edge="1">
+  <mxGeometry relative="1" as="geometry"/>
+</mxCell>
+```
+
+#### Text Elements
+Include text in the parent shape's `value` attribute, not as separate mxCells.
+
+### HTML Encoding for Content Attribute
+The mxGraphModel XML must be HTML-encoded when placed in the content attribute:
+- `<` becomes `&lt;`
+- `>` becomes `&gt;`  
+- `"` becomes `&quot;`
+- `&` becomes `&amp;`
+
+{% aside type="danger" title="CRITICAL: Double-Encoding Ampersands" %}
+**MOST COMMON ENCODING ERROR**: Ampersands in mxCell `value` attributes require DOUBLE encoding!
+
+❌ **WRONG**: `value="Sessions &amp; Memory"` (single-encoded)
+✅ **CORRECT**: `value="Sessions &amp;amp; Memory"` (double-encoded)
+
+**Why?** The content attribute itself is HTML-encoded, so characters within it need double encoding:
+1. First encode for XML: `&` → `&amp;`
+2. Then encode for HTML attribute: `&amp;` → `&amp;amp;`
+
+When the browser decodes the content attribute, `&amp;amp;` becomes `&amp;`, which is then valid XML.
+
+**Common text with ampersands**:
+- "Settings & Configuration" → `&amp;amp;`
+- "Load & Process" → `&amp;amp;`  
+- "Storage & Memory" → `&amp;amp;`
+- "Encrypt & Sign" → `&amp;amp;`
+
+**Failure to double-encode ampersands will cause "Not a diagram file" errors!**
+{% /aside %}
+
+### Content Attribute Generation Process
+1. Create the complete mxGraphModel XML with all mxCells
+2. HTML-encode the entire XML string
+3. Place in the content attribute of the SVG root
+
+### Code Span Integration  
+Link shapes to code references:
+```xml
+<rect id="shape1" data-code-ref="functionName" .../>
+```
+
+## Shape Guidelines
+
+### Basic Shapes
+- **Rectangles**: `<rect x="20" y="20" width="120" height="60" rx="5" ry="5">`
+- **Circles**: `<circle cx="80" cy="80" r="40">` or `<ellipse cx="80" cy="50" rx="60" ry="30">`
+- **Text**: Always use `<text>` with proper positioning and styling
+- **Lines**: Use `<line>` or `<path>` with arrow markers
+
+### Standard Styling
+```xml
+<!-- Rectangle with standard styling -->
+<rect x="20" y="20" width="120" height="60" rx="5" ry="5" 
+      fill="#ffffff" stroke="#000000" stroke-width="1"/>
+
+<!-- Text with standard formatting -->
+<text x="80" y="50" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="12" fill="#000000">Label Text</text>
+
+<!-- Circle/ellipse -->
+<ellipse cx="200" cy="50" rx="40" ry="30" 
+         fill="#ffffff" stroke="#000000" stroke-width="1"/>
+```
+
+### Arrow Markers
+Include in `<defs>` section:
+```xml
+<defs>
+  <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+          refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+  </marker>
+  <marker id="startArrow" markerWidth="10" markerHeight="7" 
+          refX="0" refY="3.5" orient="auto">
+    <polygon points="10 0, 0 3.5, 10 7" fill="#000000"/>
+  </marker>
+</defs>
+```
+
+### Lines with Arrows
+```xml
+<line x1="140" y1="50" x2="180" y2="50" 
+      stroke="#000000" stroke-width="1" 
+      marker-end="url(#arrowhead)"/>
+```
+
+## Positioning and Layout
+
+### Grid System
+- Use 10px grid alignment (Draw.io default)
+- Snap all coordinates to multiples of 10
+- Standard spacing: 20px minimum between elements
+- Page margins: 20px from edges
+
+### Standard Dimensions
+- **Process boxes**: 120x60px
+- **Decision diamonds**: 80x80px  
+- **Start/end ovals**: 120x40px
+- **Circles**: 60-80px diameter
+- **Text spacing**: 10px padding inside shapes
+
+### Color Palette (Theme Compatible)
+```xml
+<!-- Primary colors -->
+fill="#ffffff" stroke="#000000"  <!-- Default white/black -->
+fill="#e1f5fe" stroke="#0277bd"  <!-- Light blue -->
+fill="#f3e5f5" stroke="#7b1fa2"  <!-- Light purple -->
+fill="#e8f5e8" stroke="#388e3c"  <!-- Light green -->
+fill="#fff3e0" stroke="#f57c00"  <!-- Light orange -->
+fill="#ffebee" stroke="#d32f2f"  <!-- Light red -->
+
+<!-- Avoid pure black/white for theme compatibility -->
+fill="#f9fafb" stroke="#1f2937"  <!-- Better contrast -->
+```
+
+## Common Diagram Types
+
+### Flowchart Elements
+```xml
+<!-- Start/End (Rounded rectangle) -->
+<rect x="20" y="20" width="120" height="40" rx="20" ry="20" 
+      fill="#e8f5e8" stroke="#388e3c" stroke-width="1"/>
+<text x="80" y="40" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="11">Start</text>
+
+<!-- Process (Rectangle) -->
+<rect x="20" y="80" width="120" height="60" rx="5" ry="5" 
+      fill="#ffffff" stroke="#000000" stroke-width="1"/>
+<text x="80" y="110" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="11">Process Step</text>
+
+<!-- Decision (Diamond) -->
+<path d="M 80 160 L 120 180 L 80 200 L 40 180 Z" 
+      fill="#fff3e0" stroke="#f57c00" stroke-width="1"/>
+<text x="80" y="180" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="10">Decision?</text>
+```
+
+### Network/Architecture Elements
+```xml
+<!-- Server/Component -->
+<rect x="20" y="20" width="100" height="80" rx="5" ry="5" 
+      fill="#e1f5fe" stroke="#0277bd" stroke-width="2"/>
+<text x="70" y="50" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="11" font-weight="bold">Server</text>
+<text x="70" y="70" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="9">Database</text>
+
+<!-- Connection with label -->
+<line x1="120" y1="60" x2="180" y2="60" 
+      stroke="#000000" stroke-width="1" 
+      marker-end="url(#arrowhead)"/>
+<text x="150" y="55" text-anchor="middle" dominant-baseline="middle" 
+      font-family="Helvetica" font-size="9">HTTP</text>
+```
+
+## Complete Template Example with Full mxCell Data
+
+```xml
+<svg host="65bd71144e" 
+     xmlns="http://www.w3.org/2000/svg" 
+     xmlns:xlink="http://www.w3.org/1999/xlink" 
+     version="1.1" 
+     width="400px" 
+     height="300px" 
+     viewBox="-0.5 -0.5 400 300"
+     content="&lt;mxGraphModel dx=&quot;1422&quot; dy=&quot;794&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;827&quot; pageHeight=&quot;1169&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;start&quot; value=&quot;Start&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#388e3c;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;20&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow1&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;start&quot; target=&quot;process&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;60&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;100&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;process&quot; value=&quot;Load &amp;amp; Process&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;100&quot; width=&quot;120&quot; height=&quot;60&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;arrow2&quot; value=&quot;&quot; style=&quot;endArrow=classic;html=1;&quot; parent=&quot;1&quot; source=&quot;process&quot; target=&quot;end&quot; edge=&quot;1&quot;&gt;&lt;mxGeometry width=&quot;50&quot; height=&quot;50&quot; relative=&quot;1&quot; as=&quot;geometry&quot;&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;160&quot; as=&quot;sourcePoint&quot;/&gt;&lt;mxPoint x=&quot;80&quot; y=&quot;200&quot; as=&quot;targetPoint&quot;/&gt;&lt;/mxGeometry&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;end&quot; value=&quot;End&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#d32f2f;rounded=1;&quot; parent=&quot;1&quot; vertex=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;20&quot; y=&quot;200&quot; width=&quot;120&quot; height=&quot;40&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;">
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>
+    </marker>
+  </defs>
+  
+  <g>
+    <!-- Start node -->
+    <rect id="start" x="20" y="20" width="120" height="40" rx="20" ry="20" 
+          fill="#e8f5e8" stroke="#388e3c" stroke-width="1"/>
+    <text x="80" y="40" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11">Start</text>
+    
+    <!-- Arrow 1 -->
+    <line id="arrow1" x1="80" y1="60" x2="80" y2="90" 
+          stroke="#000000" stroke-width="1" 
+          marker-end="url(#arrowhead)"/>
+    
+    <!-- Process (Note: ampersand in text requires &amp;amp; in mxCell value above) -->
+    <rect id="process" x="20" y="100" width="120" height="60" rx="5" ry="5" 
+          fill="#ffffff" stroke="#000000" stroke-width="1"/>
+    <text x="80" y="130" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11">Load &amp; Process</text>
+    
+    <!-- Arrow 2 -->
+    <line id="arrow2" x1="80" y1="160" x2="80" y2="190" 
+          stroke="#000000" stroke-width="1" 
+          marker-end="url(#arrowhead)"/>
+    
+    <!-- End node -->
+    <rect id="end" x="20" y="200" width="120" height="40" rx="20" ry="20" 
+          fill="#ffebee" stroke="#d32f2f" stroke-width="1"/>
+    <text x="80" y="220" text-anchor="middle" dominant-baseline="middle" 
+          font-family="Helvetica" font-size="11">End</text>
+  </g>
+</svg>
+```
+
+### Key Elements in This Template:
+1. **Proper content attribute**: Contains complete mxGraphModel with all shapes
+2. **ID consistency**: Each SVG element ID matches its mxCell ID
+3. **Complete mxCell data**: Every shape has geometry, styling, and connections
+4. **HTML encoding**: All XML in content attribute is properly encoded
+5. **Double-encoded ampersands**: Note `value="Load &amp;amp; Process"` - ampersands need `&amp;amp;` not `&amp;`
+6. **Connection data**: Arrows have source/target references
+
+## Quality Checklist
+
+### MANDATORY Draw.io Compatibility Checks
+- [ ] **File named with `.drawio.svg` extension**
+- [ ] **Content attribute contains complete mxGraphModel**
+- [ ] **Every SVG shape has corresponding mxCell with same ID**
+- [ ] **All mxCell geometry matches SVG coordinates exactly**
+- [ ] **mxGraphModel is properly HTML-encoded**
+- [ ] **All shapes have unique IDs**
+- [ ] **Connectors have proper source/target references**
+
+### Before Generation
+- [ ] Plan all shape IDs and their mxCell data
+- [ ] SVG has proper xmlns declarations
+- [ ] All coordinates use 10px grid alignment
+- [ ] Consistent stroke-width (usually 1px)
+- [ ] Arrow markers defined in `<defs>`
+
+### After Generation
+- [ ] **CRITICAL: File opens successfully in VS Code Draw.io extension**
+- [ ] **CRITICAL: All elements are editable in draw.io interface**
+- [ ] Valid XML structure (no unclosed tags)
+- [ ] All text is readable and properly positioned
+- [ ] Colors provide good contrast
+- [ ] SVG renders correctly in markdown preview
+- [ ] File works when embedded in GitHub README
+- [ ] All arrows point in correct directions
+- [ ] Consistent styling throughout
+
+### Testing Workflow (ESSENTIAL)
+1. **Generate the .drawio.svg file**
+2. **Open in VS Code with Draw.io extension**
+3. **VERIFY: File opens in draw.io editor (not error dialog)**
+4. **VERIFY: Click on shapes to confirm they're editable**
+5. **Test: Make a small edit and save**
+6. **Confirm: File still renders in markdown preview**
+7. **Test: GitHub embedding if applicable**
+
+**If step 3 fails with "Not a diagram file" error, the mxCell data is incomplete or malformed.**
+
+## Usage Examples
+
+### In Markdown Files
+```markdown
+![System Architecture](./diagrams/architecture.drawio.svg)
+```
+
+### In GitHub README
+```markdown
+## System Flow
+![Flow Diagram](./docs/flow.drawio.svg)
+```
+
+### VS Code Integration
+1. Create/generate the `.drawio.svg` file
+2. Open in VS Code with Draw.io extension installed
+3. Click on the file to open in draw.io editor
+4. Edit visually using draw.io interface
+5. Save changes (preserves both SVG and edit data)
+6. File remains renderable in markdown
+
+## Best Practices
+
+### Design Principles
+1. **Simplicity**: Keep diagrams clean and uncluttered
+2. **Consistency**: Use uniform spacing, colors, and fonts
+3. **Hierarchy**: Use size and color to show importance
+4. **Readability**: Ensure text is large enough and well-contrasted
+5. **Purpose**: Include only essential information
+
+### Technical Guidelines
+1. Always validate XML structure
+2. Use semantic grouping with `<g>` elements when needed
+3. Include meaningful IDs for complex diagrams
+4. Test cross-platform compatibility
+5. Keep file sizes reasonable (under 1MB)
+6. Use relative positioning when possible
+
+### Collaboration Features
+- Files work with draw.io collaborative editing
+- Version control friendly (text-based format)
+- Can be edited offline in VS Code
+- Compatible with draw.io web interface
+- Supports draw.io themes and styling
+
+## Troubleshooting
+
+## Troubleshooting
+
+### "Not a diagram file" Error (Most Common Issue)
+This error means the mxCell data is missing or malformed:
+
+**Root Causes:**
+- ❌ Missing or incomplete `content` attribute
+- ❌ mxGraphModel not properly HTML-encoded
+- ❌ SVG shapes without corresponding mxCells
+- ❌ Malformed mxCell XML structure
+
+**Solutions:**
+1. **Verify content attribute exists and is complete**
+2. **Check HTML encoding**: `<` = `&lt;`, `>` = `&gt;`, `"` = `&quot;`
+3. **Ensure every SVG element has matching mxCell**
+4. **Validate mxGraphModel XML structure**
+
+**Quick Test**: Decode the content attribute and verify it's valid XML:
+```xml
+<!-- This should decode to valid XML like: -->
+<mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="shape1" value="Text" style="..." parent="1" vertex="1">
+      <mxGeometry x="20" y="20" width="120" height="60" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>
+```
+
+## Troubleshooting "Not a diagram file" Error
+
+### Quick Diagnosis Checklist
+When VS Code Draw.io extension shows "Not a diagram file":
+
+1. **Check file extension**: Must be `.drawio.svg` (not `.svg`)
+2. **Verify content attribute**: Must contain complete HTML-encoded mxGraphModel
+3. **Count mxCells**: Should have one mxCell for every visual shape + 2 root cells
+4. **Check HTML encoding**: Look for `&lt;` `&gt;` `&quot;` in content attribute
+5. **Validate XML structure**: Ensure all mxCell tags are properly closed
+6. **Match IDs**: Every SVG element ID should have corresponding mxCell ID
+
+### Content Attribute Debugging
+Extract and decode the content attribute to verify structure:
+```
+Expected: <mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="shape1"...
+Found: <mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>
+Problem: Missing shape mxCells
+```
+
+### Common Fixes
+- **Missing mxCells**: Add mxCell entry for every shape
+- **Wrong encoding**: HTML-encode the mxGraphModel XML
+- **Ampersands not double-encoded**: Change `&amp;` to `&amp;amp;` in mxCell values within content attribute
+- **ID mismatch**: Ensure SVG IDs match mxCell IDs exactly
+- **Empty content**: Include complete mxGraphModel structure
+- **Malformed XML**: Validate all opening/closing tags
+
+### Testing Workflow
+1. Generate the .drawio.svg file with complete mxCell data
+2. Try opening in VS Code Draw.io extension  
+3. If error occurs, check content attribute structure
+4. Fix missing/incorrect mxCell entries
+5. Re-test until file opens for editing
+
+## Common Issues
+- **File won't open in draw.io**: Check `.drawio.svg` extension and complete mxCell data
+- **SVG doesn't render**: Validate XML structure and viewBox dimensions
+- **Text positioning off**: Verify `text-anchor` and `dominant-baseline` attributes
+- **Arrows not showing**: Ensure marker definitions in `<defs>` and proper `marker-end` references
+- **Colors look wrong**: Test with both light/dark themes, avoid pure black/white
+- **Shapes not editable**: Missing or incorrect mxCell data for specific elements
+- **Connection errors**: Check `source` and `target` attributes in connector mxCells
+- **"Not a diagram file" with ampersands**: Check if text like "Sessions & Memory" is encoded as `&amp;amp;` not `&amp;` in the content attribute
+
+### Debug Steps for mxCell Issues
+1. **Extract content attribute value**
+2. **HTML-decode the mxGraphModel**
+3. **Validate XML structure**
+4. **Check each mxCell has required attributes**:
+   - `id` (unique)
+   - `parent` (usually "1")
+   - `vertex="1"` for shapes OR `edge="1"` for connectors
+   - `<mxGeometry>` with correct coordinates
+5. **Verify ID consistency between SVG and mxCells**
+
+### Validation Tools
+- Use XML validator for structure
+- Test in multiple markdown renderers
+- Verify in VS Code draw.io extension
+- Check GitHub rendering if applicable
+
+This comprehensive guide ensures generated SVG files are fully compatible with draw.io while remaining perfectly renderable as standard SVG images in any markdown context.
+
+## FINAL CHECKLIST FOR CODE ASSISTANTS
+
+Before delivering any .drawio.svg file, verify:
+
+### File Structure ✅
+- [ ] Filename ends with `.drawio.svg`
+- [ ] SVG root has `content` attribute with HTML-encoded mxGraphModel
+- [ ] All SVG elements have unique `id` attributes
+- [ ] Content attribute includes complete mxGraphModel with all required mxCells
+
+### mxCell Requirements ✅  
+- [ ] Root cells: `<mxCell id="0"/>` and `<mxCell id="1" parent="0"/>`
+- [ ] Shape cells: One mxCell for every rectangle, circle, path element
+- [ ] Connector cells: One mxCell for every line/arrow with source/target refs
+- [ ] Geometry match: mxCell coordinates exactly match SVG coordinates
+- [ ] Proper encoding: All `<` `>` `"` in content are HTML-encoded
+- [ ] **CRITICAL**: Ampersands in mxCell values are DOUBLE-encoded as `&amp;amp;` not `&amp;`
+
+### Testing ✅
+- [ ] Content attribute contains more than just root cells
+- [ ] mxCell count = number of visual shapes + 2 root cells + connectors  
+- [ ] File would open successfully in VS Code Draw.io extension
+- [ ] SVG renders correctly in markdown
+
+**REMEMBER**: A file that only renders as SVG but can't be edited is NOT a proper .drawio.svg file.

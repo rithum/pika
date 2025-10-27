@@ -1,0 +1,440 @@
+---
+title: Enable Multi-Agent Collaboration
+description: Configure multiple agents to work together on complex tasks
+---
+
+Learn how to enable multiple AI agents to collaborate, with one agent delegating tasks to specialist agents for complex workflows.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand multi-agent collaboration patterns
+- Configure agents to delegate to other agents
+- Set up specialist agents for specific domains
+- Handle inter-agent communication
+- Monitor and debug multi-agent workflows
+
+## Prerequisites
+
+- A running Pika installation
+- Multiple agents defined
+- Understanding of agent configuration
+- Familiarity with your use case requirements
+
+## Understanding Multi-Agent Collaboration
+
+Multi-agent collaboration enables complex workflows by distributing tasks across specialized agents:
+
+- **Orchestrator Agent**: Receives user requests and delegates to specialists
+- **Specialist Agents**: Handle specific domains or tasks
+- **Tool Integration**: Each agent can use domain-specific tools
+
+### Use Cases
+
+- **Customer Service**: Triage agent routes to billing, technical, or sales specialists
+- **Research Assistant**: Main agent delegates to web search, data analysis, and document review agents
+- **Development Helper**: Coordinator agent assigns tasks to code review, testing, and documentation agents
+
+## Step 1: Design Your Agent Hierarchy
+
+Plan your multi-agent system architecture.
+
+### Common Patterns
+
+**Hub and Spoke**:
+```
+User → Orchestrator Agent → Specialist Agent 1
+                          → Specialist Agent 2
+                          → Specialist Agent 3
+```
+
+**Sequential Pipeline**:
+```
+User → Agent 1 (Data Collection)
+     → Agent 2 (Analysis)
+     → Agent 3 (Reporting)
+```
+
+**Collaborative Team**:
+```
+User → Project Manager Agent
+     → Developer Agent + QA Agent + Documentation Agent
+     (Agents coordinate with each other)
+```
+
+## Step 2: Create Specialist Agents
+
+Define focused agents for specific domains.
+
+### Example: Technical Support Specialist
+
+```typescript
+const techSupportAgent: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'tech-support-specialist',
+        basePrompt: `You are a technical support specialist.
+
+Your role:
+- Diagnose technical issues
+- Guide users through troubleshooting steps
+- Escalate unresolved issues
+
+You have access to:
+- Knowledge base search tool
+- System status checker
+- Diagnostic tools
+
+Be methodical, patient, and thorough in your troubleshooting.`,
+        
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [
+        knowledgeBaseSearchTool,
+        systemStatusTool,
+        diagnosticTool
+    ]
+};
+```
+
+### Example: Billing Specialist
+
+```typescript
+const billingAgent: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'billing-specialist',
+        basePrompt: `You are a billing specialist.
+
+Your role:
+- Answer billing questions
+- Process refund requests
+- Explain charges and invoices
+
+You have access to:
+- Billing lookup tool
+- Invoice generator
+- Payment processor
+
+Always verify customer identity before discussing sensitive billing information.`,
+        
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [
+        billingLookupTool,
+        invoiceTool,
+        paymentTool
+    ]
+};
+```
+
+## Step 3: Create Orchestrator Agent
+
+Build the main agent that routes to specialists.
+
+### Orchestrator with Delegation
+
+```typescript
+const orchestratorAgent: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'customer-service-orchestrator',
+        basePrompt: `You are a customer service coordinator.
+
+Your role is to:
+1. Understand the customer's needs
+2. Determine which specialist can best help
+3. Delegate to the appropriate specialist agent
+4. Synthesize responses from multiple specialists if needed
+
+Available specialist agents:
+- tech-support-specialist: Technical issues, troubleshooting, system problems
+- billing-specialist: Billing questions, refunds, invoices, payments
+- sales-specialist: Product information, upgrades, new purchases
+
+When you determine which specialist is needed, use the delegate_to_agent tool to transfer the conversation.
+
+If a request spans multiple domains, you can consult multiple specialists and provide a comprehensive response.`,
+        
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [
+        delegateToAgentTool
+    ]
+};
+```
+
+## Step 4: Implement Agent Delegation Tool
+
+Create a tool that allows one agent to invoke another.
+
+### Delegation Tool Implementation
+
+```typescript
+// src/tools/delegate-to-agent.ts
+import { ToolExecutionParams, ToolResponse } from 'pika-shared/types/chatbot/chatbot-types';
+import { invokeConverseFunction } from 'pika-shared/util/aws-utils';
+
+interface DelegateInput {
+    agentId: string;
+    task: string;
+    context?: Record<string, any>;
+}
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        const input = event.toolInput as DelegateInput;
+        const { agentId, task, context } = input;
+        
+        console.log(`Delegating to agent ${agentId}: ${task}`);
+        
+        // Invoke the target agent
+        const response = await invokeConverseFunction({
+            agentId: agentId,
+            message: task,
+            userId: event.userId,
+            sessionId: event.sessionId,
+            // Pass along context from orchestrator
+            additionalContext: context
+        });
+        
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify({
+                agentId: agentId,
+                response: response.content,
+                delegationSuccessful: true
+            })
+        };
+        
+    } catch (error) {
+        console.error('Delegation error:', error);
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({
+                error: `Failed to delegate to agent: ${error.message}`
+            })
+        };
+    }
+}
+```
+
+### Tool Schema
+
+```typescript
+const delegateToAgentTool = {
+    toolId: 'delegate-to-agent',
+    name: 'delegate_to_agent',
+    displayName: 'Delegate to Specialist Agent',
+    description: 'Delegate a task to a specialist agent for expert handling',
+    executionType: 'lambda',
+    lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE',
+    functionSchema: {
+        name: 'delegate_to_agent',
+        description: 'Transfer the conversation to a specialist agent',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                agentId: {
+                    type: 'string',
+                    description: 'The ID of the specialist agent to delegate to',
+                    enum: [
+                        'tech-support-specialist',
+                        'billing-specialist',
+                        'sales-specialist'
+                    ]
+                },
+                task: {
+                    type: 'string',
+                    description: 'Clear description of what the specialist should help with'
+                },
+                context: {
+                    type: 'object',
+                    description: 'Additional context or information for the specialist'
+                }
+            },
+            required: ['agentId', 'task']
+        }
+    }
+};
+```
+
+## Step 5: Handle Multi-Agent Responses
+
+Process and combine responses from multiple agents.
+
+### Sequential Consultation
+
+```typescript
+const researchAgent: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'research-coordinator',
+        basePrompt: `You are a research coordinator.
+
+When given a research question:
+
+1. Delegate to web-search-agent to find current information
+2. Delegate to data-analysis-agent to analyze any data
+3. Delegate to fact-check-agent to verify claims
+4. Synthesize all findings into a comprehensive report
+
+Use the delegate_to_agent tool to consult each specialist in sequence.
+Present a well-organized final report combining all insights.`,
+        
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [delegateToAgentTool]
+};
+```
+
+### Parallel Consultation
+
+```typescript
+// Tool that allows parallel agent invocation
+async function consultMultipleAgents(
+    agentIds: string[],
+    task: string,
+    userId: string,
+    sessionId: string
+): Promise<AgentResponse[]> {
+    const promises = agentIds.map(agentId =>
+        invokeConverseFunction({
+            agentId,
+            message: task,
+            userId,
+            sessionId
+        })
+    );
+    
+    return Promise.all(promises);
+}
+```
+
+## Step 6: Deploy Multi-Agent System
+
+Configure all agents in your deployment.
+
+### CDK Deployment
+
+```typescript
+// Deploy all specialist agents
+const techAgent = new cdk.CustomResource(this, 'TechSupportAgent', {
+    serviceToken: agentCustomResourceArn,
+    properties: {
+        AgentData: gzipAndBase64EncodeString(JSON.stringify(techSupportAgent))
+    }
+});
+
+const billingAgent = new cdk.CustomResource(this, 'BillingAgent', {
+    serviceToken: agentCustomResourceArn,
+    properties: {
+        AgentData: gzipAndBase64EncodeString(JSON.stringify(billingAgentData))
+    }
+});
+
+// Deploy orchestrator (depends on specialists)
+const orchestrator = new cdk.CustomResource(this, 'OrchestratorAgent', {
+    serviceToken: agentCustomResourceArn,
+    properties: {
+        AgentData: gzipAndBase64EncodeString(JSON.stringify(orchestratorAgent))
+    }
+});
+orchestrator.node.addDependency(techAgent);
+orchestrator.node.addDependency(billingAgent);
+
+// Create chat app using orchestrator
+const chatApp = new cdk.CustomResource(this, 'CustomerServiceApp', {
+    serviceToken: chatAppCustomResourceArn,
+    properties: {
+        ChatAppData: gzipAndBase64EncodeString(JSON.stringify({
+            userId: `cloudformation/${this.stackName}`,
+            chatApp: {
+                chatAppId: 'customer-service',
+                title: 'Customer Service',
+                agentId: 'customer-service-orchestrator'
+            }
+        }))
+    }
+});
+```
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] All specialist agents deployed
+- [ ] Orchestrator agent deployed
+- [ ] Delegation tool working
+- [ ] Orchestrator correctly identifies specialist needs
+- [ ] Specialists receive proper context
+- [ ] Responses flow back to orchestrator
+- [ ] Final responses synthesized correctly
+- [ ] Error handling works across agents
+- [ ] Conversation context preserved
+- [ ] Performance acceptable for workflows
+{% /checklist %}
+
+## Best Practices
+
+### Agent Design
+
+- **Clear Specialization**: Each agent has a well-defined domain
+- **Minimal Overlap**: Reduce ambiguity in routing decisions
+- **Explicit Capabilities**: Document what each agent can do
+- **Graceful Handoffs**: Smooth transitions between agents
+
+### Orchestration
+
+- **Smart Routing**: Orchestrator understands when to delegate
+- **Context Preservation**: Pass relevant information to specialists
+- **Response Synthesis**: Combine specialist outputs coherently
+- **Fallback Handling**: What to do if specialist unavailable
+
+### Performance
+
+- **Parallel When Possible**: Consult multiple specialists concurrently
+- **Cache Results**: Avoid redundant specialist calls
+- **Monitor Latency**: Track end-to-end response times
+- **Optimize Prompts**: Keep agent instructions efficient
+
+## Troubleshooting
+
+### Routing Issues
+
+- Review orchestrator prompt for clarity
+- Check specialist descriptions are distinct
+- Add examples of routing decisions
+- Log routing decisions for analysis
+
+### Context Loss
+
+- Verify context passed in delegation
+- Check session continuity
+- Review conversation history handling
+- Ensure relevant data persists
+
+### Performance Problems
+
+- Identify bottleneck agents
+- Consider parallel invocation
+- Optimize specialist prompts
+- Cache common specialist responses
+
+## Next Steps
+
+- [Define Agents Using Configuration](/guides/agent-development/define-agents/) - Configure individual agents
+- [Implement Tool Use](/guides/agent-development/inline-tools/) - Add tools to specialists
+- [Monitor with Traces](/guides/admin/traces/) - Debug multi-agent workflows
+
+## Related Documentation
+
+- [Agent Configuration Reference](/reference/config/agents/) - Complete agent options
+- [Tool Configuration](/reference/config/tools/) - Tool setup details
+- [Multi-Agent Patterns](/concepts/multi-agent-patterns/) - Common architectures
+
+---
+
+{% aside type="tip" title="Start with Two Agents" %}
+Begin with an orchestrator and one specialist to validate your delegation pattern. Add more specialists incrementally as you refine the system.
+{% /aside %}

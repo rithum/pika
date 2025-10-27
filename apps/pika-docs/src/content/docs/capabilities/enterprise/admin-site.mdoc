@@ -1,0 +1,410 @@
+---
+title: Admin Site
+description: Complete administrative interface for managing apps, users, access controls, and reviewing sessions
+---
+
+The Admin Site provides a complete administrative interface for managing your Pika deployment. Authorized users can enable/disable chat apps, configure access controls, review sessions and traces, explore insights, and monitor system health - all without touching code.
+
+![Admin General View](/src/assets/screenshots/why/admin1.png)
+
+## What It Does
+
+The Admin Site is a full-featured web application for platform administration:
+
+- **Manage chat apps** - Enable/disable, configure settings, control access
+- **Review sessions** - Search, filter, and inspect all conversations
+- **Explore insights** - Browse AI-generated session analytics
+- **Analyze feedback** - Review LLM and human feedback
+- **Monitor quality** - Track verification grades and trends
+- **Configure features** - Adjust settings without redeployment
+
+## Why It Matters
+
+Without an admin interface:
+
+- Configuration requires code changes and redeployment
+- Reviewing sessions means querying databases directly
+- Debugging requires CloudWatch log diving
+- No visibility into system health
+- Emergency changes take too long
+
+With the Admin Site:
+
+- Non-technical admins can manage the platform
+- Issues are debugged through UI
+- Configuration changes are immediate
+- Complete visibility into operations
+- Rapid response to problems
+
+## Key Features
+
+### Chat App Management
+
+Full control over chat applications:
+
+![Admin Chat App](/src/assets/screenshots/why/admin-chat-app.png)
+
+**Enable/Disable Apps**:
+- Toggle apps on/off instantly
+- Emergency disable without redeployment
+- Scheduled maintenance windows
+
+**Access Control**:
+- Restrict by user IDs
+- Require specific roles
+- Limit to user types (internal/external)
+- Entity-based restrictions
+
+**Mode Configuration**:
+- Switch between standalone and embedded
+- Configure URL paths
+- Set visibility on home page
+
+**Feature Overrides**:
+- Per-app feature configuration
+- Temporary overrides for testing
+- Emergency feature flags
+
+### Session Review
+
+Comprehensive session inspection:
+
+![Admin Review Messages](/src/assets/screenshots/why/admin-review-messages.png)
+
+**Search and Filter**:
+- Full-text search across all messages
+- Filter by chat app
+- Filter by user or user type
+- Filter by date range
+- Filter by verification grade
+- Filter by sentiment
+- Filter by goal completion
+
+**Session Detail View**:
+- Complete conversation history
+- All agent traces and reasoning
+- Tool invocations with inputs/outputs
+- Verification grades and feedback
+- Insights and metrics
+- Sharing history
+
+**Bulk Operations**:
+- Export multiple sessions
+- Bulk delete or archive
+- Generate reports
+- Tag and categorize
+
+### Insights Dashboard
+
+AI-generated session analytics:
+
+![Session Insights](/src/assets/screenshots/why/session-insights.png)
+
+**Aggregate Metrics**:
+- Goal completion rates
+- Average sentiment
+- Quality score distributions
+- Performance metrics
+
+**Trend Analysis**:
+- Metrics over time
+- Before/after comparisons
+- Identify degradations
+- Measure improvements
+
+**Filter and Drill-Down**:
+- By chat app
+- By agent
+- By time period
+- By quality metrics
+
+### Feedback Review
+
+Both AI and human feedback:
+
+![AI Feedback](/src/assets/screenshots/why/feedback-ai.png)
+
+**LLM-Generated Feedback**:
+- Automatic session critiques
+- Identified issues and patterns
+- Improvement suggestions
+- Confidence scores
+
+![Human Feedback](/src/assets/screenshots/why/feedback-human.png)
+
+**Human Feedback**:
+- User-submitted ratings
+- Qualitative comments
+- Issue categorization
+- Follow-up tracking
+
+**Combined Analysis**:
+- Correlate AI and human feedback
+- Identify patterns across both
+- Prioritize improvements
+- Measure fix effectiveness
+
+### Site Configuration
+
+Platform-wide settings:
+
+**Feature Management**:
+- Enable/disable platform features
+- Set default configurations
+- Configure retention policies
+- Manage authentication
+
+**User Management** (if applicable):
+- View user list
+- Inspect user details
+- Manage roles and permissions
+- Reset sessions or memory
+
+**System Health**:
+- Service status monitoring
+- Error rate tracking
+- Performance metrics
+- Resource utilization
+
+## Access Control
+
+### Role-Based Access
+
+Different capabilities for different roles:
+
+**Site Admin** (`pika:site-admin`):
+- Full platform control
+- All configuration changes
+- User management
+- System settings
+
+**Content Admin** (`pika:content-admin`):
+- Session review
+- Feedback analysis
+- Insights exploration
+- Chat app management
+
+**Content User** (`pika:content-user`):
+- View own sessions
+- Limited insights access
+- No configuration changes
+
+### Feature-Level Permissions
+
+Granular control:
+
+```typescript
+adminSite: {
+    enabled: true,
+    allowedRoles: ['pika:site-admin', 'pika:content-admin'],
+    features: {
+        chatAppManagement: ['pika:site-admin'],
+        sessionReview: ['pika:site-admin', 'pika:content-admin'],
+        insights: ['pika:site-admin', 'pika:content-admin'],
+        systemConfig: ['pika:site-admin']
+    }
+}
+```
+
+## Configuration
+
+### Enable Admin Site
+
+```typescript
+const siteConfig = {
+    siteAdmin: {
+        websiteEnabled: true,
+        url: '/admin',  // Path for admin interface
+        allowedRoles: ['pika:site-admin', 'pika:content-admin']
+    }
+};
+```
+
+### Customize Features
+
+Control what's available:
+
+```typescript
+siteAdmin: {
+    websiteEnabled: true,
+    features: {
+        sessionReview: true,
+        insights: true,
+        feedback: true,
+        chatAppManagement: true,
+        systemConfiguration: false  // Restrict system config
+    }
+}
+```
+
+### Authentication Integration
+
+Secure access:
+
+```typescript
+siteAdmin: {
+    websiteEnabled: true,
+    requireMFA: true,  // Multi-factor authentication
+    sessionTimeout: 3600,  // 1 hour
+    auditLogging: true  // Log all admin actions
+}
+```
+
+## Use Cases
+
+### Operational Management
+
+Day-to-day platform operations:
+
+- Monitor chat app health
+- Respond to user issues
+- Review problematic sessions
+- Adjust configurations as needed
+
+### Quality Assurance
+
+Ensure agent performance:
+
+- Review verification grades
+- Analyze feedback patterns
+- Identify quality issues
+- Test improvements
+
+### Incident Response
+
+Handle problems quickly:
+
+- Emergency disable problematic apps
+- Review error sessions
+- Identify root causes
+- Implement fixes
+
+### Reporting and Analysis
+
+Generate insights for stakeholders:
+
+- Export session data
+- Create quality reports
+- Show usage trends
+- Demonstrate improvements
+
+## Best Practices
+
+### Limit Admin Access
+
+Security first:
+
+- Minimum necessary roles
+- Regular access reviews
+- MFA for all admins
+- Audit all actions
+
+### Regular Reviews
+
+Make admin site part of operations:
+
+- Daily health checks
+- Weekly quality reviews
+- Monthly trend analysis
+- Quarterly access audits
+
+### Document Procedures
+
+Standard operating procedures:
+
+- When to disable apps
+- How to investigate issues
+- Escalation paths
+- Emergency contacts
+
+### Train Administrators
+
+Effective admin site usage:
+
+- Initial training for new admins
+- Regular refreshers
+- Documentation and guides
+- Support channels
+
+## Advanced Features
+
+### Custom Dashboards
+
+Tailor views to your needs:
+
+- Create custom metric views
+- Build team-specific dashboards
+- Set up automated alerts
+- Export for external tools
+
+### API Access
+
+Programmatic administration:
+
+```typescript
+// Get session metrics via API
+const metrics = await pikaAdmin.getMetrics({
+    chatAppId: 'customer-support',
+    startDate: '2024-01-01',
+    endDate: '2024-01-31'
+});
+```
+
+### Integration Options
+
+Connect with existing tools:
+
+- Send alerts to Slack/Teams
+- Export to data warehouses
+- Integrate with ticketing systems
+- Feed monitoring dashboards
+
+### Audit Trail
+
+Complete accountability:
+
+- All admin actions logged
+- Who changed what when
+- Before/after values
+- Immutable log storage
+
+## Getting Started
+
+{% card title="Access the Admin Site" icon="rocket" %}
+Guide to admin site features and navigation.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Admin Site in Action" icon="star" %}
+Screenshots and walkthroughs of key features.
+
+[Explore More →](/capabilities/enterprise/admin-site/)
+{% /card %}
+
+{% card title="Administrator Guide" icon="puzzle" %}
+Comprehensive admin documentation.
+
+[Read Guide →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Access Control" icon="approve-check" %}
+Fine-grained permissions powering the admin site.
+
+[Learn More →](/capabilities/enterprise/access-control/)
+{% /card %}
+
+{% card title="Insights" icon="star" %}
+Metrics and analytics surfaced in admin site.
+
+[Learn More →](/capabilities/intelligence/insights/)
+{% /card %}
+
+{% card title="LLM Feedback" icon="information" %}
+Feedback reviewed and analyzed in admin site.
+
+[Learn More →](/capabilities/intelligence/llm-feedback/)
+{% /card %}
+

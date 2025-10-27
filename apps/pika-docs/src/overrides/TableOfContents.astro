@@ -1,0 +1,215 @@
+---
+// Get TOC from Starlight's route data (not from props!)
+const { toc } = Astro.locals.starlightRoute;
+
+// Extract TOC items, filtering out the page title (slug: "_top")
+const tocItems = (toc?.items ?? []).filter((item: any) => item.slug !== '_top');
+---
+
+{
+	tocItems.length > 0 && (
+		<nav class="toc-container" aria-labelledby="toc-heading">
+			<h2 id="toc-heading" class="toc-header">
+				On this page
+			</h2>
+			<ul class="toc-list">
+				{tocItems.map((item: any) => (
+					<li
+						class:list={[
+							'toc-item',
+							`toc-depth-${item.depth}`,
+						]}
+					>
+						<a href={`#${item.slug}`} class="toc-link">
+							<span set:html={item.text} />
+						</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	)
+}
+
+<style>
+	/* Remove padding from the Starlight container wrapper for TOC */
+	:global(.right-sidebar .sl-container) {
+		padding-left: 0;
+		padding-right: 0;
+	}
+
+	.toc-container {
+		position: sticky;
+		top: 6rem;
+		width: 100%;
+		max-height: calc(100vh - 8rem);
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background: var(--sl-color-bg);
+		padding: 1rem;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.toc-header {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--sl-color-gray-2);
+		margin-bottom: 1rem;
+		padding: 0;
+		flex-shrink: 0;
+	}
+
+	nav {
+		overflow-y: auto;
+		overflow-x: hidden;
+		flex: 1;
+		min-height: 0;
+	}
+
+	/* Custom scrollbar styling */
+	nav::-webkit-scrollbar {
+		width: 6px;
+	}
+
+	nav::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	nav::-webkit-scrollbar-thumb {
+		background: var(--sl-color-gray-5);
+		border-radius: 3px;
+	}
+
+	nav::-webkit-scrollbar-thumb:hover {
+		background: var(--sl-color-gray-4);
+	}
+
+	.toc-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		font-size: 0.875rem;
+		padding: 0;
+	}
+
+	.toc-item {
+		list-style: none;
+		position: relative;
+	}
+
+	.toc-link {
+		display: block;
+		padding: 0.4rem 0;
+		border-radius: 0.375rem;
+		color: var(--sl-color-gray-2);
+		transition: all 0.15s ease;
+		text-decoration: none;
+		line-height: 1.5;
+		position: relative;
+	}
+
+	.toc-link:hover {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-text);
+	}
+
+	/* Active state with accent indicator */
+	.toc-link[aria-current='true'] {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-text);
+		font-weight: 500;
+	}
+
+	.toc-link[aria-current='true']::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 3px;
+		height: 60%;
+		background: var(--sl-color-accent);
+		border-radius: 0 2px 2px 0;
+	}
+
+	/* Depth-based indentation */
+	.toc-depth-2 .toc-link {
+		padding-left: 0;
+	}
+
+	.toc-depth-3 .toc-link {
+		padding-left: 1rem;
+		font-size: 0.8125rem;
+	}
+
+	.toc-depth-4 .toc-link {
+		padding-left: 2rem;
+		font-size: 0.75rem;
+	}
+
+	/* Badge styles in TOC */
+	.toc-link :global(.sl-badge) {
+		display: inline-flex;
+		vertical-align: middle;
+		font-size: 0.6875rem;
+		padding: 0.125rem 0.375rem;
+		margin-left: 0.375rem;
+		border-radius: 0.25rem;
+	}
+
+	/* Emoji and icon support */
+	.toc-link :global(.emoji) {
+		display: inline-block;
+		margin-right: 0.375rem;
+	}
+</style>
+
+<script>
+	// Highlight active TOC item based on scroll position
+	function updateActiveTocItem() {
+		const headings = document.querySelectorAll('article :is(h1, h2, h3, h4)');
+		const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
+
+		if (!headings.length || !tocLinks.length) return;
+
+		// Get current scroll position
+		const scrollY = window.scrollY;
+
+		let activeHeading: Element | null = null;
+
+		// Find the heading that's currently in view
+		headings.forEach((heading) => {
+			const rect = heading.getBoundingClientRect();
+			const offsetTop = rect.top + scrollY;
+
+			if (scrollY >= offsetTop - 100) {
+				activeHeading = heading;
+			}
+		});
+
+		// Update TOC links
+		tocLinks.forEach((link) => {
+			if (activeHeading) {
+				const href = link.getAttribute('href');
+				const headingId = activeHeading.getAttribute('id');
+
+				if (href === `#${headingId}`) {
+					link.setAttribute('aria-current', 'true');
+				} else {
+					link.removeAttribute('aria-current');
+				}
+			} else {
+				link.removeAttribute('aria-current');
+			}
+		});
+	}
+
+	// Run on scroll and page load
+	window.addEventListener('scroll', updateActiveTocItem, { passive: true });
+	document.addEventListener('astro:page-load', updateActiveTocItem);
+	updateActiveTocItem();
+</script>
+

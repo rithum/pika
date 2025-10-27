@@ -1,0 +1,281 @@
+---
+title: Next Steps
+description: Where to go after completing the Getting Started guides
+---
+
+Congratulations on completing the Getting Started guides! You now have a working Pika installation and understand the basics of creating agents. This page will help you decide where to go next based on your goals.
+
+## Choose Your Path
+
+### I Want to Build Production Applications
+
+If you're ready to build real applications for your users:
+
+{% card title="Implement Real Authentication" icon="warning" %}
+Replace the mock authentication provider with a real one. This is **critical** before deploying to production.
+
+[Authentication Guide →](/how-to/authentication/)
+{% /card %}
+
+{% card title="Configure Access Control" icon="setting" %}
+Set up user types and chat app visibility to control who can access what.
+
+[Access Control Guide →](/how-to/access-control/)
+{% /card %}
+
+{% card title="Deploy to AWS" icon="rocket" %}
+Learn how to deploy your Pika instance to AWS for production use.
+
+[AWS Deployment Guide →](/how-to/deployment/aws/)
+{% /card %}
+
+{% card title="Set Up CI/CD" icon="approve-check" %}
+Automate your deployment pipeline with continuous integration and deployment.
+
+[CI/CD Guide →](/how-to/deployment/cicd/)
+{% /card %}
+
+### I Want to Learn More About Pika
+
+If you want to deepen your understanding of how Pika works:
+
+{% card title="Explore Capabilities" icon="star" %}
+Discover all the features and capabilities Pika offers for building intelligent chat applications.
+
+[Capabilities Overview →](/capabilities/)
+{% /card %}
+
+{% card title="Understand the Architecture" icon="puzzle" %}
+Learn how Pika works under the hood, including AWS infrastructure, session management, and the self-correcting loop.
+
+[Concepts & Architecture →](/concepts/)
+{% /card %}
+
+{% card title="Read the Design Philosophy" icon="information" %}
+Understand why Pika was built and the problems it solves.
+
+[Why Pika →](/why/)
+{% /card %}
+
+### I Want to Build Advanced Features
+
+If you're ready to add sophisticated capabilities to your agents:
+
+{% card title="Add Tools to Your Agents" icon="setting" %}
+Learn how to give your agents access to external APIs, databases, and services using inline tools.
+
+[Inline Tools Guide →](/how-to/tools/inline-tools/)
+{% /card %}
+
+{% card title="Integrate with MCP" icon="puzzle" %}
+Connect to Model Context Protocol servers to give your agents access to external tools and data sources.
+
+[MCP Integration Guide →](/how-to/tools/mcp/)
+{% /card %}
+
+{% card title="Enable Multi-Agent Collaboration" icon="star" %}
+Create systems where multiple specialized agents work together to solve complex problems.
+
+[Multi-Agent Guide →](/how-to/agents/multi-agent/)
+{% /card %}
+
+{% card title="Build Custom Web Components" icon="pencil" %}
+Create custom UI components to render rich, interactive content in chat responses.
+
+[Web Components Guide →](/how-to/customization/web-components/)
+{% /card %}
+
+### I Want to Improve Agent Quality
+
+If you want to make your agents more reliable and accurate:
+
+{% card title="Enable Self-Correcting Responses" icon="approve-check" %}
+Use Pika's self-correcting loop to automatically verify and improve agent responses.
+
+[Self-Correcting Guide →](/how-to/intelligence/self-correcting/)
+{% /card %}
+
+{% card title="Use Answer Verification" icon="information" %}
+Configure independent verification of agent responses before they reach users.
+
+[Answer Verification Guide →](/how-to/intelligence/verification/)
+{% /card %}
+
+{% card title="Set Up LLM Feedback" icon="star" %}
+Enable AI-generated feedback on chat sessions to identify improvement opportunities.
+
+[LLM Feedback Guide →](/how-to/intelligence/feedback/)
+{% /card %}
+
+{% card title="Master Instruction Engineering" icon="pencil" %}
+Learn how to write effective instructions and use Pika's instruction assistance tools.
+
+[Instruction Engineering →](/how-to/intelligence/instructions/)
+{% /card %}
+
+### I Want to Customize the Experience
+
+If you want to tailor Pika to your brand and requirements:
+
+{% card title="Customize the UI" icon="setting" %}
+Modify the chat interface to match your brand and design requirements.
+
+[UI Customization Guide →](/how-to/customization/ui/)
+{% /card %}
+
+{% card title="Configure User Memory" icon="information" %}
+Set up persistent user memory so agents remember context across sessions.
+
+[User Memory Guide →](/how-to/data/user-memory/)
+{% /card %}
+
+{% card title="Manage Sessions" icon="puzzle" %}
+Learn how to configure and work with chat sessions.
+
+[Session Management Guide →](/how-to/data/sessions/)
+{% /card %}
+
+{% card title="Override Default Features" icon="setting" %}
+Customize feature behavior for specific chat apps.
+
+[Feature Overrides Guide →](/how-to/customization/feature-overrides/)
+{% /card %}
+
+## Learning Path Recommendations
+
+### For Product Managers and Decision Makers
+
+1. [Why Pika](/why/) - Understand the value proposition
+2. [Who Is Pika For](/why/who-is-pika-for/) - See if it fits your use case
+3. [Capabilities Overview](/capabilities/) - Learn what you can build
+4. [Pika vs Other Solutions](/why/comparison/) - Compare alternatives
+
+### For Developers New to AI Agents
+
+1. [What Are AI Agents](/concepts/ai-agents/) - Understand the basics
+2. [How Pika Works](/concepts/how-it-works/) - Learn the architecture
+3. [Agent Development Basics](/how-to/agents/basics/) - Start building
+4. [Tools and Integration](/how-to/tools/) - Add capabilities
+
+### For Experienced AI Developers
+
+1. [Agent-as-Config Philosophy](/concepts/agent-as-config/) - Understand the approach
+2. [Multi-Agent Orchestration](/how-to/agents/multi-agent/) - Advanced patterns
+3. [Self-Correcting Loop](/concepts/self-correcting/) - Quality improvements
+4. [Direct Agent Invocation](/how-to/agents/direct-invocation/) - Programmatic access
+
+### For DevOps and Infrastructure Teams
+
+1. [AWS Architecture](/concepts/architecture/aws/) - Understand infrastructure
+2. [AWS Deployment](/how-to/deployment/aws/) - Deploy to production
+3. [Security Architecture](/concepts/security/) - Security model
+4. [Monitoring and Traces](/how-to/operations/monitoring/) - Operational tooling
+
+## Common Next Tasks
+
+### Set Up a Real Use Case
+
+1. Identify a specific use case (customer support, internal knowledge base, etc.)
+2. Design your agent's capabilities and knowledge requirements
+3. Implement necessary tools for data access
+4. Configure authentication and access control
+5. Test thoroughly with real users
+6. Deploy to production with monitoring
+
+### Integrate with Existing Systems
+
+1. Map your existing authentication to Pika's user types
+2. Create tools to access your databases and APIs
+3. Build custom web components for your data types
+4. Configure access control based on your org structure
+5. Embed Pika chat into your existing applications
+
+### Build a Multi-Agent System
+
+1. Identify specialized domains (e.g., sales, support, technical)
+2. Create agents for each domain with specific instructions
+3. Configure agent collaboration patterns
+4. Test coordination between agents
+5. Monitor performance and iterate
+
+## Resources
+
+### Documentation
+
+- **[Capabilities](/capabilities/)** - Complete feature reference
+- **[How-To Guides](/how-to/)** - Task-specific instructions
+- **[Concepts](/concepts/)** - Deep dives into how Pika works
+- **[Reference](/reference/)** - API and configuration schemas
+
+### Community and Support
+
+{% card title="GitHub Repository" icon="github" %}
+Find the source code, report issues, and contribute to Pika.
+
+[github.com/rithum/pika](https://github.com/rithum/pika)
+{% /card %}
+
+{% card title="GitHub Discussions" icon="information" %}
+Ask questions, share ideas, and connect with other Pika users.
+
+[GitHub Discussions →](https://github.com/rithum/pika/discussions)
+{% /card %}
+
+{% card title="Issue Tracker" icon="warning" %}
+Report bugs, request features, or check on known issues.
+
+[GitHub Issues →](https://github.com/rithum/pika/issues)
+{% /card %}
+
+## Quick Reference Links
+
+### Essential How-Tos
+
+- [Create an Agent](/how-to/agents/create/)
+- [Add a Tool](/how-to/tools/inline-tools/)
+- [Deploy to AWS](/how-to/deployment/aws/)
+- [Implement Authentication](/how-to/authentication/)
+- [Customize the UI](/how-to/customization/ui/)
+
+### Key Concepts
+
+- [Agents as Configuration](/concepts/agent-as-config/)
+- [Session Management](/concepts/sessions/)
+- [User Memory System](/concepts/user-memory/)
+- [Self-Correcting Loop](/concepts/self-correcting/)
+- [Security Model](/concepts/security/)
+
+### Configuration Reference
+
+- [Agent Configuration Schema](/reference/config/agent/)
+- [Chat App Configuration Schema](/reference/config/chat-app/)
+- [Platform Settings](/reference/config/platform/)
+- [Environment Variables](/reference/config/environment/)
+
+## Stay Updated
+
+Keep up with Pika developments:
+
+- **[Changelog](/platform/releases/changelog/)** - See what's new in each release
+- **[Migration Guides](/platform/releases/migrations/)** - Upgrade between versions
+- **[Roadmap](https://github.com/rithum/pika/discussions)** - See what's coming next
+
+## Get Help
+
+If you're stuck or have questions:
+
+1. **Check the docs** - Search for your specific topic
+2. **Review existing issues** - Someone may have encountered the same problem
+3. **Ask in Discussions** - The community is here to help
+4. **Create an issue** - Report bugs or request clarification
+
+## Keep Building
+
+The best way to learn Pika is by building with it. Start with a simple use case, deploy it, get feedback, and iterate. The Pika community is excited to see what you build!
+
+{% aside type="tip" title="Share Your Projects" %}
+Built something cool with Pika? Share it in GitHub Discussions! The community loves seeing what others are building, and your project might help others learn.
+{% /aside %}
+
+Ready to build something amazing? Pick a path above and get started!
+

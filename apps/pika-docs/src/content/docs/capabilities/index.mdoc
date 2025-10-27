@@ -1,0 +1,216 @@
+---
+title: Capabilities
+description: Discover what you can build with Pika Platform
+---
+
+Pika Platform provides a comprehensive set of capabilities designed to help you build production-ready AI chat applications quickly. This section showcases what's possible and helps you understand which features to enable for your use cases.
+
+## What You Can Build
+
+With Pika, you can create:
+
+- **Sophisticated chat applications** for internal teams or external customers
+- **Multi-agent systems** where specialized agents collaborate on complex tasks
+- **Tool-powered agents** that access your data, APIs, and business logic
+- **Self-improving systems** with automatic quality checks and feedback loops
+- **Enterprise-grade solutions** with robust security, access control, and compliance features
+
+## Capabilities by Category
+
+### Core Platform Capabilities
+
+The foundation of every Pika deployment:
+
+{% card title="Advanced Chat Applications" icon="star" %}
+Complete chat experiences with session management, streaming responses, and rich UI - standalone or embedded.
+
+[Explore →](/capabilities/core/advanced-chat-apps/)
+{% /card %}
+
+{% card title="Multi-Agent Orchestration" icon="puzzle" %}
+Enable multiple specialized agents to collaborate on complex tasks requiring different areas of expertise.
+
+[Explore →](/capabilities/core/multi-agent/)
+{% /card %}
+
+{% card title="Agent-as-Configuration" icon="rocket" %}
+Define agents, tools, and chat apps as configuration deployed from your microservices - no framework lock-in.
+
+[Explore →](/capabilities/core/agents-as-config/)
+{% /card %}
+
+{% card title="Production-Grade Security" icon="approve-check" %}
+Enterprise authentication, multi-tenancy, access controls, and compliance features built in from day one.
+
+[Explore →](/capabilities/core/security/)
+{% /card %}
+
+### Intelligence Capabilities
+
+Features that make agents smarter and more reliable:
+
+{% card title="Intelligent Prompt Engineering" icon="information" %}
+Automated prompt structuring and context-aware instruction augmentation for better agent responses.
+
+[Explore →](/capabilities/customization/prompt-engineering/)
+{% /card %}
+
+{% card title="Self-Correcting Responses" icon="star" %}
+Independent LLM verifies agent responses and can trigger automatic reprompting to improve quality.
+
+[Explore →](/capabilities/intelligence/self-correcting/)
+{% /card %}
+
+{% card title="Answer Reasoning & Verification" icon="puzzle" %}
+Transparent AI reasoning shows exactly what the agent did and why, with quality grades for each response.
+
+[Explore →](/capabilities/intelligence/answer-reasoning/)
+{% /card %}
+
+{% card title="LLM-Generated Feedback" icon="information" %}
+Automatic analysis of completed sessions identifies patterns, edge cases, and improvement opportunities.
+
+[Explore →](/capabilities/intelligence/llm-feedback/)
+{% /card %}
+
+{% card title="AI-Driven Insights" icon="star" %}
+Session metrics, sentiment analysis, goal completion tracking, and quality assessments generated automatically.
+
+[Explore →](/capabilities/intelligence/insights/)
+{% /card %}
+
+### Integration Capabilities
+
+Connect agents to your data and services:
+
+{% card title="Model Context Protocol (MCP)" icon="puzzle" %}
+Standardized integration with external tools and services through MCP servers.
+
+[Explore →](/capabilities/integration/mcp/)
+{% /card %}
+
+{% card title="Inline Tools" icon="rocket" %}
+Lightweight TypeScript functions for rapid prototyping without Lambda deployment overhead.
+
+[Explore →](/capabilities/integration/inline-tools/)
+{% /card %}
+
+{% card title="Direct Agent Invocation" icon="star" %}
+Call agents programmatically via API for system integrations without chat UI overhead.
+
+[Explore →](/capabilities/integration/direct-invocation/)
+{% /card %}
+
+### Customization Capabilities
+
+Tailor the platform to your needs:
+
+{% card title="Custom Web Components" icon="star" %}
+Build rich, interactive UI elements that agents can render with full AI access and streaming support.
+
+[Explore →](/capabilities/customization/web-components/)
+{% /card %}
+
+{% card title="AI-Driven UI" icon="puzzle" %}
+Let agents dynamically generate UI components based on user needs and context.
+
+[Explore →](/capabilities/customization/ai-ui/)
+{% /card %}
+
+{% card title="Feature Overrides" icon="setting" %}
+Customize platform behavior per chat app with fine-grained feature controls.
+
+[Explore →](/capabilities/customization/feature-overrides/)
+{% /card %}
+
+### Data & Memory Capabilities
+
+Persistent context and session management:
+
+{% card title="User Memory" icon="star" %}
+Agents remember user preferences and context across all sessions for personalized interactions.
+
+[Explore →](/capabilities/data-memory/user-memory/)
+{% /card %}
+
+{% card title="Session Management" icon="document" %}
+Conversations persist with full history, searchable archives, and secure sharing capabilities.
+
+[Explore →](/capabilities/data-memory/session-management/)
+{% /card %}
+
+### Enterprise Capabilities
+
+Tools for managing production deployments:
+
+{% card title="Admin Site" icon="star" %}
+Complete administrative interface for managing apps, users, access controls, and reviewing sessions.
+
+[Explore →](/capabilities/enterprise/admin-site/)
+{% /card %}
+
+{% card title="Access Control & Permissions" icon="approve-check" %}
+Fine-grained control over who can access which chat apps with role-based and entity-based permissions.
+
+[Explore →](/capabilities/enterprise/access-control/)
+{% /card %}
+
+{% card title="Multi-Tenancy Support" icon="puzzle" %}
+Entity-based isolation enables multiple organizations on one deployment with complete data separation.
+
+[Explore →](/capabilities/enterprise/multi-tenancy/)
+{% /card %}
+
+{% card title="Entity Management" icon="document" %}
+Organize users by organizational boundaries with entity-based access control and data isolation.
+
+[Explore →](/capabilities/enterprise/entity-management/)
+{% /card %}
+
+## Understanding Capabilities vs Features
+
+**Capabilities** describe what you can accomplish with Pika - the outcomes and value you can deliver to users.
+
+**Features** are the technical building blocks that enable those capabilities.
+
+This section focuses on capabilities to help you understand what's possible. For technical implementation details, see:
+
+- **[How-To Guides](/how-to/)** - Step-by-step instructions for implementing capabilities
+- **[Concepts](/concepts/)** - Understanding how capabilities work under the hood
+- **[Reference](/reference/)** - Technical specifications and API details
+
+## Getting Started with Capabilities
+
+{% steps %}
+1. **Explore this section** to understand what Pika can do
+2. **Identify capabilities** that match your use cases
+3. **Check How-To Guides** for implementation instructions
+4. **Enable features** in your configuration as needed
+{% /steps %}
+
+{% aside type="tip" title="Configuration Required" %}
+Most capabilities require explicit enablement through your `pika-config.ts` file and chat app configuration. Pika defaults to restricted access for security, which you expand based on your requirements.
+{% /aside %}
+
+## Next Steps
+
+Ready to dive deeper?
+
+{% card title="Start with Core Capabilities" icon="rocket" %}
+Understand the foundation every Pika deployment provides.
+
+[Explore Core →](/capabilities/core/advanced-chat-apps/)
+{% /card %}
+
+{% card title="See Capabilities in Action" icon="star" %}
+Review the Weather Sample to see multiple capabilities working together.
+
+[View Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Learn How to Implement" icon="puzzle" %}
+Move from understanding to implementation with How-To Guides.
+
+[Browse Guides →](/how-to/)
+{% /card %}
+

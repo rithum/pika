@@ -1,0 +1,506 @@
+---
+title: Scalability Model
+description: How Pika scales automatically and handles growing workloads
+---
+
+Pika is built on serverless AWS services that scale automatically with demand. This page explains how Pika handles growth from prototype to enterprise scale.
+
+## Serverless Architecture Benefits
+
+### Auto-Scaling
+
+**Every component scales independently**:
+- Lambda: Concurrent executions scale automatically
+- API Gateway: Handles any request volume
+- DynamoDB: Scales read/write capacity on demand
+- S3: Unlimited storage and throughput
+- OpenSearch: Cluster can be sized appropriately
+
+**No capacity planning required**: Infrastructure adapts to actual usage patterns.
+
+### Pay-Per-Use
+
+**Cost scales with usage**:
+- No idle infrastructure costs
+- Pay only for actual requests and compute time
+- No minimum fees (within free tiers)
+- Predictable cost per transaction
+
+### High Availability
+
+**Built-in redundancy**:
+- Multi-AZ deployment by default
+- No single points of failure
+- Automatic failover
+- 99.9%+ availability SLA (AWS services)
+
+## Component Scalability
+
+### AWS Lambda
+
+#### Automatic Concurrent Execution Scaling
+
+**How it works**:
+- Lambda creates new execution environments automatically
+- Scales from 0 to thousands of concurrent executions
+- Per-function concurrency limits configurable
+
+**Scaling characteristics**:
+```
+Burst concurrency: 500-3000 (region-dependent)
+Sustained scaling: 500 executions/minute
+Account limit: 1000 concurrent (default, can be increased)
+```
+
+**Configuration**:
+```typescript
+new Function(this, 'StreamAgent', {
+    reservedConcurrentExecutions: 100,  // Reserve capacity
+    // Or unlimited (default)
+});
+```
+
+**Cold starts**:
+- First invocation: 1-3 seconds
+- Warm invocations: <100ms
+- Mitigations: 
+  - Keep functions warm with CloudWatch Events
+  - Use provisioned concurrency for critical paths
+  - Optimize bundle size
+
+#### Scaling Limits
+
+**Per function**:
+- Concurrent executions: Configurable (default: unlimited from account pool)
+- Payload size: 6MB (synchronous), 256KB (async)
+- Timeout: 15 minutes max
+
+**Per account** (can be increased):
+- Concurrent executions: 1000 (default)
+- Function storage: 75 GB
+
+### Amazon DynamoDB
+
+#### On-Demand vs. Provisioned
+
+**On-Demand Mode** (Recommended):
+- Automatically scales with traffic
+- No capacity planning required
+- Pay per request
+- Handles sudden spikes
+- Ideal for: Variable workloads, new applications
+
+**Provisioned Mode**:
+- Specify read/write capacity units
+- Auto-scaling policies available
+- More cost-effective at consistent high volume
+- Ideal for: Predictable workloads, cost optimization
+
+#### Scaling Characteristics
+
+**On-Demand**:
+```
+Previous peak traffic: Unlimited
+Accommodates 2x previous peak instantly
+Scales to any level gradually
+```
+
+**Provisioned with Auto-Scaling**:
+```
+Target utilization: 70% (configurable)
+Min capacity: 5 units
+Max capacity: 40,000 units (default, can be increased)
+Scale up: Immediate
+Scale down: Gradual (to prevent thrashing)
+```
+
+#### Performance at Scale
+
+**Single-table design**:
+- Unlimited items per table
+- Partition key distributes load evenly
+- Composite keys (PK + SK) enable flexible queries
+
+**Throughput**:
+```
+Single partition: 3000 read units, 1000 write units
+Table: Unlimited (distributed across partitions)
+Item size: 400 KB max
+Batch operations: 25 items or 16 MB
+```
+
+**Global Secondary Indexes**:
+- Scale independently of base table
+- Each index has own throughput
+
+### Amazon API Gateway
+
+#### Request Handling
+
+**Scaling characteristics**:
+```
+Burst: 5000 requests/second (can be increased)
+Sustained: 10,000 requests/second (default, can be increased)
+Max timeout: 29 seconds
+```
+
+**Throttling**:
+- Account-level throttling
+- Per-stage throttling
+- Per-method throttling
+- Usage plans for API keys
+
+**Configuration**:
+```typescript
+new RestApi(this, 'PikaAPI', {
+    deployOptions: {
+        throttlingRateLimit: 1000,      // Requests per second
+        throttlingBurstLimit: 2000,     // Burst capacity
+    }
+});
+```
+
+### AWS Bedrock
+
+#### Model Scaling
+
+**Bedrock handles**:
+- Automatic model scaling
+- Load balancing across model replicas
+- Burst capacity for spikes
+
+**Limits** (per account, can be increased):
+```
+Claude 3.5 Sonnet:
+  - Tokens per minute: 160,000 (default)
+  - Requests per minute: 2,000
+  
+Nova:
+  - Varies by model variant
+  
+Custom limits: Request via AWS Support
+```
+
+**Monitoring**:
+- CloudWatch metrics for throttling
+- Request limit alarms
+- Automatic retries with exponential backoff
+
+### Amazon S3
+
+#### Virtually Unlimited
+
+**Scaling characteristics**:
+```
+Storage: Unlimited
+Request rate: 3500 PUT/POST/DELETE, 5500 GET/HEAD per prefix per second
+Bucket limit: 100 per account (soft limit)
+```
+
+**Performance optimization**:
+- Use random prefixes for high throughput
+- CloudFront CDN for read-heavy workloads
+- S3 Transfer Acceleration for large files
+
+### Amazon OpenSearch
+
+#### Cluster Sizing
+
+**Scaling approach**:
+- Vertical: Larger instance types
+- Horizontal: More nodes
+- Manual scaling (not automatic)
+
+**Typical configurations**:
+```
+Development:
+  - 1 node, t3.small.search
+  - ~25 GB storage
+  - Cost: ~$25/month
+
+Production:
+  - 3 nodes (HA), r6g.large.search
+  - 100-500 GB storage per node
+  - Cost: ~$300-500/month
+
+Enterprise:
+  - 6+ nodes, r6g.xlarge.search or larger
+  - 1+ TB total storage
+  - Dedicated master nodes
+  - Cost: $1000+/month
+```
+
+**When to scale**:
+- CPU utilization > 70%
+- JVM memory pressure
+- Query latency increasing
+- Indexing lag
+
+**Index optimization**:
+- Use index templates
+- Configure shards appropriately (5-10 GB per shard)
+- Use time-based indices for sessions
+- Archive old data to S3
+
+## Scaling Patterns
+
+### Horizontal Scaling
+
+**Lambda + API Gateway + DynamoDB**:
+- All scale horizontally automatically
+- Add more concurrent executions
+- Distribute load across partitions
+- No code changes required
+
+### Vertical Scaling
+
+**OpenSearch**:
+- Increase instance size for more memory/CPU
+- Requires cluster restart
+- Plan during maintenance window
+
+### Data Partitioning
+
+**DynamoDB partition strategy**:
+```typescript
+// Good: User ID as partition key (distributes evenly)
+PK: `USER#{userId}`
+SK: `SESSION#{timestamp}`
+
+// Bad: ChatApp ID as partition key (hot partitions)
+PK: `CHATAPP#{chatAppId}`  // All traffic to few chatapps hits same partition
+```
+
+**Best practices**:
+- Use high-cardinality partition keys
+- Avoid time-based partition keys
+- Distribute writes evenly
+
+## Traffic Patterns
+
+### Gradual Growth
+
+**Typical startup trajectory**:
+```
+Month 1: 100 requests/day
+Month 3: 1,000 requests/day
+Month 6: 10,000 requests/day
+Year 1: 100,000 requests/day
+```
+
+**Pika handles automatically**: All services scale gradually with usage.
+
+### Sudden Spikes
+
+**Event-driven traffic**:
+```
+Normal: 100 requests/minute
+Event: 10,000 requests/minute (100x spike)
+```
+
+**How Pika handles**:
+- Lambda: Scales to burst limit immediately
+- DynamoDB on-demand: Accommodates 2x previous peak instantly
+- API Gateway: Burst capacity handles initial spike
+- CloudWatch alarms notify of unusual patterns
+
+### Daily/Weekly Patterns
+
+**Business hours workload**:
+```
+Peak: 9am-5pm, Monday-Friday
+Off-peak: Nights and weekends
+```
+
+**Cost optimization**:
+- Serverless pricing means you don't pay for idle time
+- DynamoDB on-demand scales down automatically
+- No need to provision for peak capacity 24/7
+
+## Performance Optimization
+
+### Latency Reduction
+
+**Agent responses**:
+- Typical: 2-10 seconds (LLM processing)
+- Optimization: Enable agent caching (repeated context)
+- Streaming: User sees tokens immediately (perceived performance)
+
+**API calls**:
+- Typical: 50-200ms
+- Optimization: 
+  - DynamoDB local secondary indexes
+  - Lambda warm starts
+  - API Gateway caching
+
+**Session loading**:
+- Typical: 100-300ms for 50 message history
+- Optimization:
+  - Pagination (load recent messages first)
+  - DynamoDB query optimization
+  - Client-side caching
+
+### Throughput Optimization
+
+**Concurrent users**:
+```
+100 concurrent: No optimization needed
+1,000 concurrent: Monitor Lambda concurrency
+10,000 concurrent: Increase account limits
+100,000 concurrent: Contact AWS for limit increases
+```
+
+**Tool invocations**:
+- Parallel: Multiple tools can run concurrently
+- Sequential: Agent waits for each tool result
+- Optimization: Design tools to return quickly
+
+### Cost Optimization
+
+**At scale, optimize costs**:
+
+1. **DynamoDB**: Switch from on-demand to provisioned (20-50% savings)
+2. **Lambda**: Use arm64 Graviton (20% cost reduction)
+3. **S3**: Use lifecycle policies (archive old files to Glacier)
+4. **OpenSearch**: Right-size cluster (avoid over-provisioning)
+5. **Bedrock**: Use caching to reduce token usage
+
+## Monitoring Scale
+
+### Key Metrics
+
+**Lambda**:
+- Concurrent executions
+- Duration (P50, P95, P99)
+- Throttles and errors
+- Memory utilization
+
+**DynamoDB**:
+- Consumed read/write units
+- Throttled requests
+- Latency (P50, P95, P99)
+
+**API Gateway**:
+- Request count
+- 4xx/5xx errors
+- Latency
+- Throttle count
+
+**Bedrock**:
+- Token usage
+- Throttled requests
+- Model latency
+
+### Alarms
+
+**Set CloudWatch alarms for**:
+```
+Lambda concurrent executions > 80% of limit
+DynamoDB throttled requests > 0
+API Gateway 5xx errors > 1%
+Bedrock throttling > 0
+OpenSearch CPU > 80%
+```
+
+## Scaling Checklist
+
+### Phase 1: Prototype (0-1000 users)
+
+- [ ] Use default DynamoDB on-demand
+- [ ] Use t3.small.search OpenSearch (or skip OpenSearch)
+- [ ] Monitor basic metrics
+- [ ] No optimization needed
+
+### Phase 2: Growing (1K-10K users)
+
+- [ ] Set CloudWatch alarms
+- [ ] Monitor Lambda concurrency
+- [ ] Review DynamoDB usage patterns
+- [ ] Consider provisioned DynamoDB if cost-effective
+- [ ] Scale OpenSearch to r6g.large (3 nodes)
+
+### Phase 3: Scaling (10K-100K users)
+
+- [ ] Request increased Lambda concurrency limits
+- [ ] Request increased Bedrock token limits
+- [ ] Switch DynamoDB to provisioned with auto-scaling
+- [ ] Optimize DynamoDB indexes
+- [ ] Scale OpenSearch cluster (6+ nodes)
+- [ ] Implement CloudFront for frontend
+- [ ] Review and optimize tool performance
+
+### Phase 4: Enterprise (100K+ users)
+
+- [ ] Work with AWS TAM (Technical Account Manager)
+- [ ] Request service limit increases across the board
+- [ ] Implement advanced caching strategies
+- [ ] Consider read replicas (DynamoDB global tables)
+- [ ] Optimize costs with reserved capacity
+- [ ] Implement advanced monitoring and alerting
+- [ ] Consider multi-region deployment
+
+## Cost at Scale
+
+### Estimated Monthly Costs
+
+**1,000 active users** (10 sessions/user/month):
+```
+Lambda: $20
+DynamoDB: $50
+API Gateway: $10
+Bedrock (100K tokens/user): $1,500
+OpenSearch: $25
+S3: $5
+Total: ~$1,600/month ($1.60/user)
+```
+
+**10,000 active users**:
+```
+Lambda: $150
+DynamoDB: $400 (provisioned)
+API Gateway: $80
+Bedrock: $15,000
+OpenSearch: $300
+S3: $30
+Total: ~$16,000/month ($1.60/user)
+```
+
+**100,000 active users**:
+```
+Lambda: $1,200
+DynamoDB: $3,000
+API Gateway: $700
+Bedrock: $150,000
+OpenSearch: $1,000
+S3: $200
+Total: ~$156,000/month ($1.56/user)
+```
+
+**Key insight**: Bedrock token costs dominate at scale. Most other costs scale linearly but remain relatively small.
+
+## When to Optimize
+
+### Don't Optimize Prematurely
+
+- Start with defaults (on-demand, auto-scaling)
+- Monitor actual usage
+- Optimize when you see specific bottlenecks or cost issues
+
+### Optimize When
+
+- Monthly AWS bill > $500
+- Consistent high usage patterns
+- Performance degradation observed
+- Predictable workload patterns
+
+## Related Documentation
+
+- **[AWS Infrastructure](/concepts/architecture/aws/)** - Detailed AWS service usage
+- **[System Architecture](/concepts/architecture/system/)** - Overall architecture
+- **[Deploy to AWS](/guides/deployment/aws-cdk/)** - Deployment guide
+- **[Performance Tuning](/concepts/security/best-practices/)** - Optimization techniques
+
+{% aside type="tip" %}
+Pika's serverless architecture means you don't need to plan for scale up front. Start small, monitor, and optimize based on real usage patterns.
+{% /aside %}
+

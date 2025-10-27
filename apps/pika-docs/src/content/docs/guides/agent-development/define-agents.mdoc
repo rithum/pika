@@ -1,0 +1,509 @@
+---
+title: Define Agents Using Configuration
+description: Configure AI agents with instructions, models, and tools for your chat applications
+---
+
+Learn how to define and configure AI agents for your Pika chat applications, including setting instructions, selecting models, and integrating tools.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Define agents in your Pika configuration
+- Write effective agent instructions
+- Select appropriate LLM models
+- Configure agent behavior and parameters
+- Associate tools with agents
+- Deploy agents to your chat apps
+
+## Prerequisites
+
+- A running Pika installation
+- Basic understanding of LLMs and prompting
+- Familiarity with your use case requirements
+
+## Understanding Agents
+
+Agents are the AI entities that power your chat applications. Each agent has:
+
+- **Instructions (System Prompt)**: Defines the agent's role and behavior
+- **Model Configuration**: Which LLM model to use
+- **Tools**: Functions the agent can call
+- **Parameters**: Temperature, max tokens, etc.
+
+## Step 1: Create a Basic Agent
+
+Define your first agent in the configuration.
+
+### Using CDK
+
+**Location:** Your CDK stack file (e.g., `services/my-agents/lib/my-agents-stack.ts`)
+
+```typescript
+import { AgentDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/gzip-util';
+import * as cdk from 'aws-cdk-lib';
+
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'customer-support-agent',
+        basePrompt: `You are a helpful customer support agent for Acme Corp.
+
+Your role is to:
+- Answer customer questions about products and services
+- Help troubleshoot common issues
+- Provide order status information
+- Escalate complex issues to human support
+
+Always be polite, professional, and empathetic. If you don't know something, admit it and offer to connect the customer with someone who can help.`,
+        
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        
+        // Optional: Model parameters
+        temperature: 0.7,
+        maxTokens: 4096
+    }
+};
+
+// Deploy the agent
+new cdk.CustomResource(this, 'CustomerSupportAgent', {
+    serviceToken: agentCustomResourceArn,
+    properties: {
+        AgentData: gzipAndBase64EncodeString(JSON.stringify(agentData))
+    }
+});
+```
+
+### Using Serverless Framework
+
+```yaml
+service: my-agents
+
+plugins:
+    - pika-serverless
+
+custom:
+    pika:
+        agents:
+            customer-support-agent:
+                basePrompt: |
+                    You are a helpful customer support agent for Acme Corp.
+                    
+                    Your role is to:
+                    - Answer customer questions about products and services
+                    - Help troubleshoot common issues
+                    - Provide order status information
+                    - Escalate complex issues to human support
+                    
+                    Always be polite, professional, and empathetic.
+                
+                modelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+                temperature: 0.7
+                maxTokens: 4096
+```
+
+## Step 2: Write Effective Instructions
+
+Good agent instructions are crucial for consistent behavior.
+
+### Instruction Structure
+
+```typescript
+const basePrompt = `
+[ROLE DEFINITION]
+You are a [specific role] for [context/company].
+
+[CAPABILITIES]
+You can:
+- [Capability 1]
+- [Capability 2]
+- [Capability 3]
+
+[GUIDELINES]
+When interacting with users:
+- [Guideline 1]
+- [Guideline 2]
+- [Guideline 3]
+
+[CONSTRAINTS]
+You should NOT:
+- [Constraint 1]
+- [Constraint 2]
+
+[OUTPUT FORMAT]
+Format your responses as:
+- [Format requirement 1]
+- [Format requirement 2]
+`;
+```
+
+### Example: Technical Support Agent
+
+```typescript
+basePrompt: `You are a technical support specialist for a SaaS platform.
+
+You can:
+- Diagnose common technical issues
+- Guide users through troubleshooting steps
+- Explain platform features and functionality
+- Access knowledge base articles to provide accurate information
+
+When helping users:
+- Ask clarifying questions before jumping to solutions
+- Provide step-by-step instructions
+- Use simple, non-technical language when possible
+- Be patient and understanding of user frustration
+- Confirm each step is completed before moving to the next
+
+You should NOT:
+- Make promises about features or timelines
+- Share internal company information
+- Provide advice outside the platform's scope
+- Guess if you're unsure - admit when you need to escalate
+
+Format your responses:
+- Use numbered lists for sequential steps
+- Use bullet points for options or features
+- Include relevant links when available
+- Summarize action items at the end`
+```
+
+### Example: Sales Assistant Agent
+
+```typescript
+basePrompt: `You are a sales assistant for Acme Corp's B2B software solutions.
+
+You can:
+- Explain product features and benefits
+- Provide pricing information for standard packages
+- Qualify leads by asking about needs and budget
+- Schedule demos with the sales team
+- Answer questions about implementation and support
+
+When engaging with prospects:
+- Be consultative, not pushy
+- Ask open-ended questions to understand needs
+- Focus on value and ROI, not just features
+- Tailor your response to their industry and use case
+- Build trust through expertise and transparency
+
+You should NOT:
+- Offer discounts (direct to account executive)
+- Make guarantees about results
+- Disparage competitors
+- Share confidential client information
+
+Format your responses:
+- Lead with value propositions
+- Use concrete examples and case studies when relevant
+- Include clear calls-to-action
+- Offer next steps at the end of conversations`
+```
+
+## Step 3: Select LLM Models
+
+Choose the appropriate model for your use case.
+
+### Available Models
+
+**Claude 3.5 Sonnet** (Recommended):
+```typescript
+modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+```
+- Best balance of intelligence and speed
+- Excellent for most use cases
+- Strong reasoning and tool use
+
+**Claude 3 Opus**:
+```typescript
+modelId: 'anthropic.claude-3-opus-20240229-v1:0'
+```
+- Highest intelligence
+- Best for complex reasoning tasks
+- Slower and more expensive
+
+**Claude 3 Haiku**:
+```typescript
+modelId: 'anthropic.claude-3-haiku-20240307-v1:0'
+```
+- Fastest and most economical
+- Good for simple tasks
+- Lower reasoning capability
+
+### Model Selection Guide
+
+| Use Case | Recommended Model | Why |
+|----------|------------------|-----|
+| Customer Support | Claude 3.5 Sonnet | Balance of quality and speed |
+| Complex Analysis | Claude 3 Opus | Highest reasoning capability |
+| Simple Q&A | Claude 3 Haiku | Fast and economical |
+| Tool-Heavy Workflows | Claude 3.5 Sonnet | Excellent tool use |
+| Long Documents | Claude 3.5 Sonnet | Large context window |
+
+## Step 4: Configure Agent Parameters
+
+Fine-tune agent behavior with parameters.
+
+### Temperature
+
+Controls randomness in responses:
+
+```typescript
+temperature: 0.0  // Deterministic, consistent
+temperature: 0.5  // Balanced
+temperature: 1.0  // Creative, varied
+```
+
+**Guidelines:**
+- **0.0-0.3**: Factual Q&A, data extraction, consistent responses
+- **0.4-0.7**: General chat, customer support, balanced creativity
+- **0.8-1.0**: Creative writing, brainstorming, varied responses
+
+### Max Tokens
+
+Maximum length of agent responses:
+
+```typescript
+maxTokens: 1024   // Short responses
+maxTokens: 4096   // Standard responses
+maxTokens: 8192   // Long-form content
+```
+
+**Guidelines:**
+- Set based on expected response length
+- Higher values increase costs
+- Consider user attention span
+
+### Complete Configuration Example
+
+```typescript
+agent: {
+    agentId: 'data-analyst-agent',
+    basePrompt: 'You are a data analyst...',
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    temperature: 0.3,      // Low for consistent analysis
+    maxTokens: 4096,       // Room for detailed explanations
+    topP: 0.9,             // Nucleus sampling parameter
+    stopSequences: []      // Custom stop sequences
+}
+```
+
+## Step 5: Associate Tools with Agents
+
+Enable agents to call functions and access external systems.
+
+### Basic Tool Association
+
+```typescript
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'weather-agent',
+        basePrompt: 'You are a weather information assistant...',
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [
+        {
+            toolId: 'weather-tool',
+            name: 'get_current_weather',
+            displayName: 'Weather Tool',
+            description: 'Get current weather information for a location',
+            executionType: 'lambda',
+            lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE',
+            functionSchema: {
+                name: 'get_current_weather',
+                description: 'Get the current weather in a given location',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        location: {
+                            type: 'string',
+                            description: 'The city and state, e.g. San Francisco, CA'
+                        },
+                        unit: {
+                            type: 'string',
+                            enum: ['celsius', 'fahrenheit'],
+                            description: 'The unit of temperature'
+                        }
+                    },
+                    required: ['location']
+                }
+            }
+        }
+    ]
+};
+```
+
+## Step 6: Deploy Agent to Chat App
+
+Connect your agent to a chat application.
+
+### Create Chat App
+
+```typescript
+import { ChatAppDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+
+const chatAppData: ChatAppDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    chatApp: {
+        chatAppId: 'customer-support',
+        title: 'Customer Support',
+        description: 'Get help with your questions',
+        
+        // Associate with agent
+        agentId: 'customer-support-agent',
+        
+        // Optional: Chat app specific settings
+        userTypes: ['internal-user', 'external-user'],
+        
+        // Optional: Suggestions for users
+        suggestions: [
+            'How do I reset my password?',
+            'What are your business hours?',
+            'How do I contact support?'
+        ]
+    }
+};
+
+new cdk.CustomResource(this, 'CustomerSupportChatApp', {
+    serviceToken: chatAppCustomResourceArn,
+    properties: {
+        ChatAppData: gzipAndBase64EncodeString(JSON.stringify(chatAppData))
+    }
+});
+```
+
+## Testing Checklist
+
+Verify your agent works correctly:
+
+{% checklist %}
+- [ ] Agent registered in DynamoDB
+- [ ] Agent ID matches in chat app
+- [ ] Instructions clear and complete
+- [ ] Model ID valid and accessible
+- [ ] Temperature appropriate for use case
+- [ ] Max tokens sufficient for responses
+- [ ] Tools associated correctly (if using)
+- [ ] Chat app accessible to users
+- [ ] Agent responds to test queries
+- [ ] Response quality meets requirements
+{% /checklist %}
+
+## Best Practices
+
+### Instruction Design
+
+- **Be Specific**: Clear role definition and capabilities
+- **Provide Examples**: Show desired response format
+- **Set Boundaries**: Explicitly state what agent shouldn't do
+- **Test Thoroughly**: Iterate based on actual responses
+- **Version Control**: Track instruction changes
+
+### Model Selection
+
+- **Start with Sonnet**: Best balance for most use cases
+- **Test Performance**: Measure response quality and speed
+- **Monitor Costs**: Track token usage and expenses
+- **Optimize Parameters**: Adjust temperature and max tokens
+- **Consider Latency**: Balance quality with response time
+
+### Maintenance
+
+- **Monitor Responses**: Regularly review agent outputs
+- **Collect Feedback**: Get user input on quality
+- **Iterate Instructions**: Refine based on real usage
+- **Update Models**: Upgrade when new versions available
+- **Document Changes**: Keep record of modifications
+
+## Common Patterns
+
+### Multi-Purpose Agent
+
+```typescript
+basePrompt: `You are a versatile assistant that can help with multiple tasks.
+
+Based on the user's request, you can:
+
+1. **Information Lookup**: Search knowledge base and provide answers
+2. **Task Execution**: Use tools to complete tasks
+3. **Guidance**: Provide step-by-step instructions
+4. **Triage**: Route complex issues to specialists
+
+Determine the user's intent and respond appropriately. Use available tools when needed. If uncertain, ask clarifying questions.`
+```
+
+### Specialized Expert Agent
+
+```typescript
+basePrompt: `You are a cloud architecture specialist focusing exclusively on AWS solutions.
+
+Your expertise includes:
+- AWS service selection and best practices
+- Cost optimization strategies
+- Security and compliance requirements
+- Performance and scalability patterns
+
+Only provide advice within your domain of expertise. For non-AWS topics, acknowledge the limitation and suggest appropriate resources.`
+```
+
+### Conversational Agent
+
+```typescript
+basePrompt: `You are a friendly conversational assistant.
+
+Engage users in natural, flowing dialogue:
+- Remember context from the conversation
+- Ask follow-up questions
+- Show personality while staying professional
+- Adapt tone to match user's communication style
+- Build rapport through empathy and understanding
+
+Keep conversations productive while being enjoyable.`
+```
+
+## Troubleshooting
+
+### Agent Not Responding
+
+- Verify agent ID registered in DynamoDB
+- Check agent ID matches in chat app configuration
+- Ensure model ID is valid
+- Review CloudWatch logs for errors
+- Verify AWS Bedrock permissions
+
+### Poor Response Quality
+
+- Review and refine instructions
+- Adjust temperature (lower for consistency)
+- Increase max tokens if responses truncated
+- Test with different models
+- Add more examples to instructions
+
+### Tool Invocation Issues
+
+- Verify tool function schemas are correct
+- Check Lambda function permissions
+- Review tool descriptions for clarity
+- Test tools independently
+- Check CloudWatch logs for tool errors
+
+## Next Steps
+
+- [Implement Tool Use with Inline Tools](/guides/agent-development/inline-tools/) - Add custom tools
+- [Use Model Context Protocol](/guides/agent-development/mcp/) - Connect external systems
+- [Enable Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration/) - Multiple agents working together
+
+## Related Documentation
+
+- [Agent Configuration Reference](/reference/config/agents/) - Complete configuration options
+- [Model Selection Guide](/concepts/models/) - Detailed model comparison
+- [Instruction Assistance](/guides/intelligence/instruction-assistance/) - Dynamic instructions
+
+---
+
+{% aside type="tip" title="Start Simple" %}
+Begin with a simple, focused agent and iterate based on real usage. It's easier to expand capabilities than to troubleshoot an overly complex agent from the start.
+{% /aside %}
+

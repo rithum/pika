@@ -1,0 +1,506 @@
+---
+title: Set Up Local Development Environment
+description: Configure your local environment for Pika development and testing
+---
+
+Learn how to set up a complete local development environment for Pika, enabling rapid iteration without deploying to AWS.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Install required development tools
+- Set up the Pika repository locally
+- Configure environment variables
+- Run the development server
+- Test agents and tools locally
+- Use local development features
+- Debug common issues
+
+## Prerequisites
+
+- macOS, Linux, or Windows with WSL2
+- Git installed
+- Basic command line knowledge
+- Text editor or IDE (VS Code recommended)
+
+## Step 1: Install Required Tools
+
+Install the necessary development tools.
+
+### Node.js 22+
+
+```bash
+# Using nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 22
+nvm use 22
+
+# Verify installation
+node --version  # Should show v22.x.x
+```
+
+### pnpm Package Manager
+
+```bash
+# Install pnpm
+npm install -g pnpm
+
+# Verify installation
+pnpm --version
+```
+
+### AWS CLI (for cloud features)
+
+```bash
+# macOS
+brew install awscli
+
+# Linux
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Verify installation
+aws --version
+```
+
+## Step 2: Clone Pika Repository
+
+Get the Pika framework code.
+
+### Clone Repository
+
+```bash
+# Clone from GitHub
+git clone https://github.com/your-org/pika.git
+cd pika
+
+# Or if you forked it
+git clone https://github.com/your-username/pika.git
+cd pika
+```
+
+### Install Dependencies
+
+```bash
+# Install all project dependencies
+pnpm install
+```
+
+This installs dependencies for all packages in the monorepo.
+
+## Step 3: Configure Environment Variables
+
+Set up local environment configuration.
+
+### Pika Service Configuration
+
+**Location:** `services/pika/.env`
+
+```bash
+# Deployment stage
+STAGE=local
+
+# AWS Configuration (optional for local dev)
+AWS_REGION=us-east-1
+AWS_PROFILE=default
+
+# OpenAI API Key (if using OpenAI models)
+OPENAI_API_KEY=your-openai-api-key-here
+
+# Anthropic API Key (if using Claude via API)
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+
+# Local DynamoDB
+DYNAMODB_ENDPOINT=http://localhost:8000
+
+# Debug mode
+DEBUG=true
+LOG_LEVEL=debug
+```
+
+### Chat Application Configuration
+
+**Location:** `apps/pika-chat/.env`
+
+```bash
+# Public environment variables
+PUBLIC_STAGE=local
+
+# API endpoints (when running local backend)
+PUBLIC_API_URL=http://localhost:3001
+PUBLIC_CONVERSE_URL=http://localhost:3002
+
+# AWS region
+PUBLIC_AWS_REGION=us-east-1
+
+# Feature flags for local development
+PUBLIC_DEV_MODE=true
+PUBLIC_ENABLE_DEBUG=true
+```
+
+## Step 4: Set Up Local DynamoDB (Optional)
+
+Run DynamoDB locally for offline development.
+
+### Install DynamoDB Local
+
+```bash
+# Download DynamoDB Local
+cd ~/
+mkdir dynamodb-local
+cd dynamodb-local
+wget https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.tar.gz
+tar -xzf dynamodb_local_latest.tar.gz
+```
+
+### Run DynamoDB Local
+
+```bash
+# Start DynamoDB on port 8000
+java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb
+
+# Or use Docker
+docker run -p 8000:8000 amazon/dynamodb-local
+```
+
+### Create Tables
+
+```bash
+# Run table creation script
+cd pika/services/pika
+pnpm run create-local-tables
+```
+
+## Step 5: Run Development Server
+
+Start the Pika chat application locally.
+
+### Start Chat Application
+
+```bash
+cd apps/pika-chat
+
+# Start development server
+pnpm run dev
+```
+
+The application will be available at `http://localhost:5173`
+
+### Development Server Features
+
+- **Hot Module Replacement**: Changes reflect immediately
+- **Error Overlay**: See errors in browser
+- **Fast Refresh**: Preserves component state
+- **Source Maps**: Debug with original source code
+
+## Step 6: Run Local Backend (Optional)
+
+Run Pika backend services locally for full functionality.
+
+### Start Backend Services
+
+```bash
+cd services/pika
+
+# Run local Lambda simulator
+pnpm run dev:local
+```
+
+This starts:
+- Converse function on `http://localhost:3002`
+- API Gateway simulator on `http://localhost:3001`
+
+### Configure Agents Locally
+
+**Location:** `services/pika/local-config.ts`
+
+```typescript
+import { AgentDataRequest } from 'pika-shared/types/chatbot/chatbot-types';
+
+export const localAgents: AgentDataRequest[] = [
+    {
+        userId: 'local-dev',
+        agent: {
+            agentId: 'test-agent',
+            basePrompt: 'You are a helpful assistant for local development testing.',
+            modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+        }
+    }
+];
+```
+
+## Step 7: Local Development Features
+
+Take advantage of Pika's local development tools.
+
+### Hot Reload
+
+Changes to code are automatically reflected:
+
+```svelte
+<!-- apps/pika-chat/src/routes/+page.svelte -->
+<script lang="ts">
+    // Edit and save - changes appear immediately
+    let greeting = "Hello, Pika!";
+</script>
+
+<h1>{greeting}</h1>
+```
+
+### Debug Mode
+
+Enable detailed logging:
+
+```typescript
+// apps/pika-chat/src/lib/config.ts
+export const DEBUG = import.meta.env.PUBLIC_DEV_MODE === 'true';
+
+if (DEBUG) {
+    console.log('Debug mode enabled');
+}
+```
+
+### Mock Data
+
+Use mock data for testing without AWS:
+
+```typescript
+// src/lib/mocks/mock-agents.ts
+export const mockAgents = [
+    {
+        agentId: 'test-agent',
+        title: 'Test Agent',
+        description: 'For local testing'
+    }
+];
+
+// Use in development
+const agents = import.meta.env.DEV ? mockAgents : await fetchAgents();
+```
+
+### Local Web Component Development
+
+Override web component URLs to load from local:
+
+```typescript
+// apps/pika-chat/src/lib/config.ts
+export const webComponentOverrides = {
+    'acme.dashboard': 'http://localhost:5174/dashboard.js'
+};
+```
+
+Start your web component dev server:
+
+```bash
+cd your-web-component-project
+pnpm run dev  # Runs on port 5174
+```
+
+## Step 8: Testing and Debugging
+
+Use development tools for testing.
+
+### Browser DevTools
+
+- **Console**: View logs and errors
+- **Network**: Monitor API calls
+- **Sources**: Debug with breakpoints
+- **React DevTools**: Inspect component state (if using React)
+
+### VS Code Debugging
+
+**Location:** `.vscode/launch.json`
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Chrome",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/apps/pika-chat"
+        }
+    ]
+}
+```
+
+### Curl Testing
+
+Test backend endpoints:
+
+```bash
+# Test converse endpoint
+curl -X POST http://localhost:3002/converse \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "test-agent",
+    "message": "Hello",
+    "userId": "test-user"
+  }'
+```
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] Node.js 22+ installed
+- [ ] pnpm installed
+- [ ] Repository cloned
+- [ ] Dependencies installed
+- [ ] Environment variables configured
+- [ ] DynamoDB local running (if using)
+- [ ] Development server starts
+- [ ] Application loads in browser
+- [ ] Hot reload working
+- [ ] Can send test messages
+{% /checklist %}
+
+## Best Practices
+
+### Code Organization
+
+- **Keep Components Small**: Easier to understand and test
+- **Use TypeScript**: Catch errors early
+- **Follow Project Structure**: Maintain consistency
+- **Write Tests**: Unit and integration tests
+
+### Development Workflow
+
+```bash
+# 1. Create feature branch
+git checkout -b feature/my-feature
+
+# 2. Make changes and test locally
+pnpm run dev
+
+# 3. Run linting
+pnpm run lint
+
+# 4. Run tests
+pnpm run test
+
+# 5. Commit changes
+git add .
+git commit -m "feat: add my feature"
+
+# 6. Push and create PR
+git push origin feature/my-feature
+```
+
+### Performance
+
+- **Use Dev Tools Profiler**: Identify slow components
+- **Monitor Bundle Size**: Keep bundles small
+- **Lazy Load**: Load components when needed
+- **Optimize Images**: Compress and use appropriate formats
+
+## Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Find process using port 5173
+lsof -ti:5173
+
+# Kill the process
+kill -9 $(lsof -ti:5173)
+
+# Or use different port
+pnpm run dev -- --port 5174
+```
+
+### Module Not Found
+
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules
+rm pnpm-lock.yaml
+pnpm install
+```
+
+### Hot Reload Not Working
+
+```bash
+# Restart dev server
+# Press Ctrl+C to stop
+pnpm run dev
+```
+
+### AWS Credentials Error
+
+```bash
+# Configure AWS CLI
+aws configure
+
+# Or set credentials
+export AWS_ACCESS_KEY_ID=your-key
+export AWS_SECRET_ACCESS_KEY=your-secret
+export AWS_REGION=us-east-1
+```
+
+### TypeScript Errors
+
+```bash
+# Restart TypeScript server in VS Code
+# Command Palette (Cmd/Ctrl+Shift+P)
+# > TypeScript: Restart TS Server
+
+# Or rebuild
+pnpm run build
+```
+
+## Common Development Tasks
+
+### Add New Package
+
+```bash
+# Add to specific package
+cd apps/pika-chat
+pnpm add some-package
+
+# Add to root (development tool)
+pnpm add -D some-package -w
+```
+
+### Run Specific Script
+
+```bash
+# From workspace root
+pnpm --filter pika-chat dev
+pnpm --filter @pika/shared build
+
+# From package directory
+cd apps/pika-chat
+pnpm run dev
+```
+
+### View Logs
+
+```bash
+# Application logs in browser console
+# Backend logs in terminal
+
+# Verbose mode
+DEBUG=* pnpm run dev
+```
+
+## Next Steps
+
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - Deploy to cloud
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create components
+- [Define Agents](/guides/agent-development/define-agents/) - Configure agents
+
+## Related Documentation
+
+- [Project Structure](/docs/developer/project-structure/) - Understand codebase
+- [Contributing Guide](/docs/contributing/) - How to contribute
+- [Troubleshooting](/docs/developer/troubleshooting/) - Common issues
+
+---
+
+{% aside type="tip" title="Faster Iteration" %}
+Local development enables rapid iteration without waiting for cloud deployments. Use mock data and local services to speed up development.
+{% /aside %}

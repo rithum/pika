@@ -1,0 +1,579 @@
+---
+title: Model Context Protocol (MCP)
+description: Understanding how Pika integrates with external tools via Model Context Protocol
+---
+
+Model Context Protocol (MCP) is an open standard that enables AI agents to connect to external data sources and tools. Pika's MCP integration allows agents to expand their capabilities beyond built-in Lambda tools to access real-time information, databases, and third-party services.
+
+## What is MCP?
+
+**Model Context Protocol** is a standardized way for language models to:
+- Access external data sources securely
+- Interact with databases and APIs
+- Integrate with third-party services
+- Maintain security and access controls
+
+**Think of MCP as**: A universal adapter that lets AI agents talk to any external service using a common protocol, similar to how USB-C works for physical devices.
+
+## Why MCP Matters
+
+### Without MCP
+
+**Traditional approach** requires custom Lambda functions for every integration:
+
+```typescript
+// Need to write Lambda for weather API
+const weatherLambda = new Lambda({
+    code: /* custom code to call weather API */
+});
+
+// Need to write Lambda for database
+const dbLambda = new Lambda({
+    code: /* custom code to query database */
+});
+
+// Need to write Lambda for CRM
+const crmLambda = new Lambda({
+    code: /* custom code to integrate with Salesforce */
+});
+```
+
+**Problems**:
+- Custom code for every integration
+- Deploy and manage many Lambda functions
+- Duplicate auth/error handling logic
+- No standard interface
+
+### With MCP
+
+**MCP approach** uses standardized protocol:
+
+```typescript
+// Just configure MCP server URLs
+const weatherTool = {
+    executionType: 'mcp',
+    url: 'https://weather-mcp-server.example.com'
+};
+
+const dbTool = {
+    executionType: 'mcp',
+    url: 'https://db-mcp-server.internal.com'
+};
+
+const crmTool = {
+    executionType: 'mcp',
+    url: 'https://salesforce-mcp.example.com'
+};
+```
+
+**Benefits**:
+- No custom Lambda code needed
+- Standardized protocol
+- Leverage existing MCP servers
+- Rapid integration
+
+## How MCP Works in Pika
+
+### Architecture
+
+```
+User Message
+    ↓
+Agent (Bedrock)
+    ↓
+Needs external data → Calls MCP Tool
+    ↓
+Pika MCP Proxy (Lambda)
+    ↓
+Authenticates → Forwards request
+    ↓
+MCP Server (External)
+    ↓
+Returns data → Pika formats for agent
+    ↓
+Agent synthesizes response
+    ↓
+User sees answer
+```
+
+### Request Flow
+
+1. **Agent determines need**: Bedrock agent decides to call MCP tool
+2. **Pika proxies request**: Lambda function handles MCP communication
+3. **Authentication**: OAuth tokens or custom headers added
+4. **MCP server called**: Request forwarded to external MCP server
+5. **Response processed**: Data returned and formatted for agent
+6. **Agent uses data**: Incorporates external data into response
+
+### Key Components
+
+**MCP Server Manager**:
+- Manages registered MCP tools
+- Handles tool lifecycle
+- Connection pooling
+
+**Transport Layer**:
+- StreamableHTTP client for communication
+- Streaming support for real-time data
+- Connection management
+
+**Authentication Layer**:
+- OAuth 2.0 client credentials flow
+- Automatic token refresh
+- Custom authentication headers
+
+**Proxy System**:
+- Request/response translation
+- Error handling and retries
+- Logging and monitoring
+
+## MCP Tool Configuration
+
+### Basic MCP Tool
+
+```typescript
+const tool: ToolDefinition = {
+    toolId: 'weather-mcp-tool',
+    displayName: 'Weather MCP Tool',
+    name: 'weather-tool',
+    description: 'Get current weather via MCP server',
+    
+    // MCP-specific fields
+    executionType: 'mcp',
+    mcpServerUrl: 'https://weather-mcp.example.com',
+    
+    // Standard fields
+    functionSchema: [{
+        name: 'get_weather',
+        description: 'Get current weather for location',
+        parameters: {
+            type: 'object',
+            properties: {
+                location: { type: 'string' }
+            }
+        }
+    }]
+};
+```
+
+### MCP Tool with OAuth
+
+```typescript
+const tool: ToolDefinition = {
+    toolId: 'crm-mcp-tool',
+    name: 'crm-tool',
+    description: 'Access CRM data via MCP',
+    
+    executionType: 'mcp',
+    mcpServerUrl: 'https://crm-mcp.internal.com',
+    
+    // OAuth configuration
+    authentication: {
+        type: 'oauth2-client-credentials',
+        clientId: process.env.MCP_CLIENT_ID,
+        clientSecret: process.env.MCP_CLIENT_SECRET,
+        tokenUrl: 'https://auth.internal.com/oauth/token',
+        scopes: ['read:customers', 'write:opportunities']
+    },
+    
+    functionSchema: [...]
+};
+```
+
+### MCP Tool with Custom Headers
+
+```typescript
+const tool: ToolDefinition = {
+    toolId: 'api-mcp-tool',
+    name: 'api-tool',
+    description: 'Call custom API via MCP',
+    
+    executionType: 'mcp',
+    mcpServerUrl: 'https://api-mcp.example.com',
+    
+    // Custom authentication
+    authentication: {
+        type: 'custom-headers',
+        headers: {
+            'X-API-Key': process.env.API_KEY,
+            'X-Custom-Auth': process.env.CUSTOM_AUTH
+        }
+    },
+    
+    functionSchema: [...]
+};
+```
+
+## Use Cases
+
+### 1. Real-Time Data Access
+
+**Scenario**: Weather information from live APIs
+
+```typescript
+// Agent can access current weather data
+const weatherTool = {
+    executionType: 'mcp',
+    mcpServerUrl: 'https://weather-mcp-server.example.com',
+    functionSchema: [{
+        name: 'get_current_weather',
+        parameters: {
+            location: { type: 'string' }
+        }
+    }]
+};
+
+// User conversation:
+// User: "What's the weather in San Francisco?"
+// Agent calls MCP tool → Gets real-time data → Responds with current conditions
+```
+
+### 2. Database Integration
+
+**Scenario**: Query production databases securely
+
+```typescript
+const dbTool = {
+    executionType: 'mcp',
+    mcpServerUrl: 'https://customer-db-mcp.internal.com',
+    authentication: {
+        type: 'oauth2-client-credentials',
+        // ... OAuth config
+    },
+    functionSchema: [{
+        name: 'query_customers',
+        parameters: {
+            query: { type: 'string' }
+        }
+    }]
+};
+
+// Agent can query customer database
+// Security: MCP server enforces access controls
+// No direct database access from agent
+```
+
+### 3. Third-Party Service Integration
+
+**Scenario**: Integrate with CRM systems
+
+```typescript
+const salesforceTool = {
+    executionType: 'mcp',
+    mcpServerUrl: 'https://salesforce-mcp.example.com',
+    functionSchema: [{
+        name: 'create_opportunity',
+        name: 'get_customer_info',
+        // ... other CRM operations
+    }]
+};
+
+// Agent can:
+// - Look up customer information
+// - Create opportunities
+// - Update records
+// All via standardized MCP protocol
+```
+
+### 4. Internal Tool Access
+
+**Scenario**: Access company-internal tools
+
+```typescript
+const internalTool = {
+    executionType: 'mcp',
+    mcpServerUrl: 'https://internal-tools-mcp.company.com',
+    authentication: {
+        type: 'custom-headers',
+        headers: {
+            'X-Internal-Token': process.env.INTERNAL_TOKEN
+        }
+    },
+    functionSchema: [...]
+};
+
+// Access company-specific systems
+// Behind firewall/VPN
+// Custom authentication
+```
+
+## MCP vs. Lambda Tools
+
+### Lambda Tools (Traditional)
+
+**Characteristics**:
+```typescript
+{
+    executionType: 'lambda',
+    lambdaArn: 'arn:aws:lambda:...',
+    // Custom Lambda function code deployed
+}
+```
+
+**Pros**:
+- Full control over implementation
+- Optimized for specific use case
+- No external dependencies
+- Lower latency (in-region)
+
+**Cons**:
+- Custom code for each integration
+- Deploy and manage Lambda functions
+- Update requires redeployment
+
+**Use when**:
+- Need custom business logic
+- Performance-critical operations
+- Complex data transformations
+- AWS service integrations
+
+### MCP Tools
+
+**Characteristics**:
+```typescript
+{
+    executionType: 'mcp',
+    mcpServerUrl: 'https://mcp-server.example.com',
+    // Standardized protocol, no custom code
+}
+```
+
+**Pros**:
+- No custom code needed
+- Leverage existing MCP servers
+- Rapid integration
+- Standard protocol
+
+**Cons**:
+- Network latency (external call)
+- Depends on external service availability
+- Less control over implementation
+
+**Use when**:
+- Integrating with third-party services
+- Accessing existing MCP servers
+- Need rapid prototyping
+- External data sources
+
+### Mixing Both Approaches
+
+**Best practice**: Use both Lambda and MCP tools in same agent:
+
+```typescript
+const agent = {
+    agentId: 'hybrid-agent',
+    tools: [
+        'custom-business-logic',    // Lambda tool
+        'salesforce-integration',   // MCP tool
+        'weather-data',             // MCP tool
+        'database-query'            // Lambda tool
+    ]
+};
+```
+
+## Security Considerations
+
+### Authentication
+
+**MCP supports multiple auth methods**:
+- OAuth 2.0 client credentials (recommended)
+- Custom authentication headers
+- API keys
+- Bearer tokens
+
+**Best practices**:
+1. Store credentials in AWS Secrets Manager
+2. Use OAuth with automatic refresh
+3. Implement least-privilege access
+4. Rotate credentials regularly
+
+### Access Control
+
+**Tool-level security**:
+```typescript
+{
+    toolId: 'sensitive-mcp-tool',
+    executionType: 'mcp',
+    
+    // Restrict to specific users
+    accessRules: [{
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['admin', 'power-user']
+    }]
+}
+```
+
+**MCP server-side security**:
+- MCP server validates all requests
+- Enforces authorization rules
+- Audits access
+- Rate limiting
+
+### Data Protection
+
+**Encryption**:
+- All MCP communication over HTTPS/TLS
+- Credentials encrypted at rest
+- No credentials in logs
+
+**Data isolation**:
+- Entity-based access control
+- User context passed securely
+- No cross-organization data leakage
+
+## Performance
+
+### Latency Considerations
+
+**Typical latencies**:
+```
+Lambda tool (in-region): 50-200ms
+MCP tool (external): 200-1000ms (depends on network)
+```
+
+**Optimization strategies**:
+1. Use Lambda tools for latency-critical operations
+2. Use MCP for data that changes frequently
+3. Implement caching where appropriate
+4. Choose geographically close MCP servers
+
+### Connection Management
+
+**Pika handles**:
+- Connection pooling
+- Automatic reconnection
+- Circuit breakers
+- Timeout management
+
+### Streaming
+
+**MCP supports streaming**:
+- Real-time data feeds
+- Large result sets
+- Progressive responses
+- Lower perceived latency
+
+## Future: Phase II - MCP Server Publishing
+
+**Coming soon**: Ability to publish Pika tools as MCP servers
+
+**Use cases**:
+- Share Pika tools with external systems
+- Create tool marketplaces
+- Enable bidirectional integration
+- Build tool ecosystems
+
+**Architecture**:
+```
+External System
+    ↓
+Calls Pika MCP Server
+    ↓
+Pika exposes selected tools
+    ↓
+External system uses Pika capabilities
+```
+
+## Best Practices
+
+### 1. Choose the Right Tool Type
+
+- **Lambda**: Custom logic, AWS services, performance-critical
+- **MCP**: Third-party services, existing MCP servers, rapid integration
+
+### 2. Handle Errors Gracefully
+
+```typescript
+// MCP tools should have fallback behavior
+{
+    toolId: 'weather-mcp',
+    description: 'Get weather data. If unavailable, inform user.',
+    // Agent instruction should handle failures
+}
+```
+
+### 3. Secure Credentials
+
+- Use AWS Secrets Manager
+- Never hardcode credentials
+- Rotate regularly
+- Use least-privilege access
+
+### 4. Monitor MCP Tools
+
+- Track success/failure rates
+- Monitor latency
+- Set up alerts for availability issues
+- Log for debugging
+
+### 5. Document Tool Capabilities
+
+```typescript
+{
+    toolId: 'crm-tool',
+    description: 'Access CRM for customer info and opportunities. Returns customer contact details, account history, and open opportunities.',
+    // Clear description helps agent use tool effectively
+}
+```
+
+## Troubleshooting
+
+### MCP Tool Not Responding
+
+**Symptoms**: Tool calls timeout or fail
+
+**Possible causes**:
+- MCP server down
+- Network issues
+- Authentication failure
+- Firewall blocking
+
+**Solutions**:
+- Check MCP server status
+- Verify credentials
+- Test connectivity
+- Review firewall rules
+
+### Authentication Failures
+
+**Symptoms**: 401/403 errors from MCP server
+
+**Causes**:
+- Expired credentials
+- Incorrect OAuth configuration
+- Missing scopes
+- Token refresh failure
+
+**Solutions**:
+- Rotate credentials
+- Verify OAuth config
+- Check required scopes
+- Monitor token refresh logs
+
+### High Latency
+
+**Symptoms**: Slow tool responses
+
+**Causes**:
+- Distant MCP server
+- Slow MCP server processing
+- Network congestion
+
+**Solutions**:
+- Choose closer MCP server
+- Optimize MCP server performance
+- Consider caching
+- Use Lambda tool if possible
+
+## Related Documentation
+
+- **[Use Model Context Protocol](/guides/agent-development/mcp/)** - Implementation guide
+- **[Inline Tools](/concepts/key-concepts/inline-tools/)** - Alternative tool approach (Lambda)
+- **[Tool Invocation Process](/concepts/how-pika-works/tool-invocation/)** - How tools execute
+- **[Integrate External APIs](/guides/agent-development/external-apis/)** - API integration patterns
+
+{% aside type="tip" %}
+MCP enables rapid integration with external services using a standardized protocol. Start with MCP for third-party integrations, use Lambda tools for custom business logic.
+{% /aside %}
+

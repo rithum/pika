@@ -1,0 +1,311 @@
+---
+title: Access Control & Permissions
+description: Fine-grained control over who can access which chat apps
+---
+
+Pika provides comprehensive access control mechanisms to ensure users only access the chat apps and features appropriate for their role, user type, and organizational membership. Multiple layers of control work together to provide flexible yet secure access management.
+
+## What It Does
+
+Access control in Pika operates through multiple independent layers:
+
+- **User Types** - Internal vs external users
+- **Roles** - Function-based permissions (admin, support, etc.)
+- **Entity** - Organizational boundaries (company, account, department)
+- **User ID** - Specific user allowlists/denylists
+- **Chat App State** - Enabled/disabled status
+- **Feature Flags** - Per-feature access controls
+
+These layers combine to provide precise control over who can access what.
+
+## Access Control Layers
+
+### User Types
+
+Two fundamental user types:
+
+**Internal Users** (`internal-user`):
+- Company employees, staff, administrators
+- Broader access capabilities
+- Can see detailed traces and debugging information
+- Access to admin features based on roles
+- Can support customers across entity boundaries
+
+**External Users** (`external-user`):
+- Customers, clients, partners
+- Entity-scoped access only
+- Limited feature visibility
+- Cannot access admin features
+- See only their organization's data
+
+### Role-Based Access Control (RBAC)
+
+Function-based permissions:
+
+**Built-in Roles**:
+```typescript
+'pika:site-admin'      // Full platform administration
+'pika:content-admin'   // Content and session management
+'pika:content-user'    // Enhanced features for power users
+```
+
+**Custom Roles**:
+```typescript
+'customer-support-tier1'
+'customer-support-tier2'
+'billing-specialist'
+'technical-support'
+```
+
+### Entity-Based Isolation
+
+Multi-tenant data separation:
+
+- Users belong to entities (company, account, department)
+- Users only see data from their entity
+- Perfect isolation between organizations
+- Configurable per chat app
+
+### Chat App Access Control
+
+Multiple gates control access:
+
+{% steps %}
+1. **Enabled Status** - App must be enabled
+2. **User Type Check** - Must match required types
+3. **Entity Verification** - Must belong to allowed entities
+4. **Role Requirements** - Must have required roles
+5. **User Allowlist** - May require specific user IDs
+6. **Feature Access** - Per-feature permissions apply
+{% /steps %}
+
+## Configuration Examples
+
+### Basic Access Control
+
+Simple user type restriction:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'customer-support',
+    chatAppUserTypes: ['external-user'],  // Customers only
+    enabled: true
+};
+```
+
+### Role-Based Access
+
+Require specific roles:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'admin-tools',
+    chatAppUserTypes: ['internal-user'],
+    allowedRoles: ['pika:site-admin', 'pika:content-admin'],
+    enabled: true
+};
+```
+
+### Entity-Restricted Access
+
+Limit to specific organizations:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'enterprise-features',
+    chatAppUserTypes: ['external-user'],
+    allowedEntities: ['acme-corp', 'globex-inc'],
+    enabled: true
+};
+```
+
+### Complex Multi-Layer Control
+
+Combine multiple restrictions:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'premium-support',
+    enabled: true,
+    chatAppUserTypes: ['external-user'],  // Customers only
+    allowedEntities: ['premium-customers'],  // Premium entity
+    requiredRoles: ['premium-subscriber'],  // Must be subscribed
+    featureOverrides: {
+        traces: {
+            enabled: false  // No traces for external users
+        },
+        fileUpload: {
+            enabled: true,
+            maxFileSizeMB: 10,
+            allowedRoles: ['premium-subscriber']
+        }
+    }
+};
+```
+
+## Use Cases
+
+### Internal vs External Separation
+
+Different apps for different audiences:
+
+```typescript
+// Internal employee tools
+const internalApp: ChatAppConfig = {
+    chatAppId: 'employee-assistant',
+    chatAppUserTypes: ['internal-user'],
+    allowedRoles: ['employee']
+};
+
+// Customer-facing support
+const customerApp: ChatAppConfig = {
+    chatAppId: 'customer-support',
+    chatAppUserTypes: ['external-user']
+};
+```
+
+### Tiered Access
+
+Progressive access levels:
+
+```typescript
+// Basic tier
+const basicSupport: ChatAppConfig = {
+    chatAppUserTypes: ['external-user'],
+    allowedRoles: ['basic-subscriber']
+};
+
+// Premium tier
+const premiumSupport: ChatAppConfig = {
+    chatAppUserTypes: ['external-user'],
+    allowedRoles: ['premium-subscriber'],
+    // More features enabled
+};
+```
+
+### Department-Specific Apps
+
+Organize by function:
+
+```typescript
+// HR department only
+const hrAssistant: ChatAppConfig = {
+    chatAppUserTypes: ['internal-user'],
+    allowedRoles: ['hr-team', 'pika:site-admin']
+};
+
+// Finance department only
+const financeTools: ChatAppConfig = {
+    chatAppUserTypes: ['internal-user'],
+    allowedRoles: ['finance-team', 'pika:site-admin']
+};
+```
+
+## Best Practices
+
+### Start Restrictive
+
+Begin with minimal access and expand:
+
+1. **Phase 1**: Internal users only
+2. **Phase 2**: Add specific roles
+3. **Phase 3**: Test with small external group
+4. **Phase 4**: Open to broader audience
+
+### Layer Defenses
+
+Don't rely on single control:
+
+- Use multiple access layers
+- Implement both user type and role checks
+- Add entity boundaries where appropriate
+- Feature-level permissions for sensitive capabilities
+
+### Regular Audits
+
+Review access periodically:
+
+- Who has access to what
+- Are roles still appropriate
+- Remove inactive users
+- Update as organization changes
+
+### Document Policies
+
+Clear access control documentation:
+
+- Who should access each app
+- Required roles and justification
+- Approval processes
+- Change procedures
+
+## Integration with Authentication
+
+Access control relies on your authentication provider:
+
+```typescript
+export class CustomAuthProvider implements AuthProvider {
+    async validateToken(token: string): Promise<UserInfo> {
+        return {
+            userId: 'user123',
+            userType: 'external-user',  // Drives user type checks
+            roles: ['premium-subscriber'],  // Drives RBAC
+            entity: 'acme-corp',  // Drives entity isolation
+            customData: {
+                department: 'engineering'
+            }
+        };
+    }
+}
+```
+
+## Admin Site Integration
+
+The Admin Site provides UI for access control:
+
+- View current access settings
+- Modify allowed roles
+- Enable/disable apps
+- Test access with different user types
+- Audit access history
+
+## Getting Started
+
+{% card title="Configure Access Control" icon="rocket" %}
+Step-by-step guide to setting up permissions.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Authentication Integration" icon="approve-check" %}
+Connect your enterprise authentication system.
+
+[Auth Guide →](/how-to/authentication/)
+{% /card %}
+
+{% card title="Access Control Concepts" icon="puzzle" %}
+Deep dive into access control architecture.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Production-Grade Security" icon="star" %}
+Access control is part of comprehensive security.
+
+[Learn More →](/capabilities/core/security/)
+{% /card %}
+
+{% card title="Multi-Tenancy" icon="puzzle" %}
+Entity-based isolation for organizations.
+
+[Learn More →](/capabilities/enterprise/multi-tenancy/)
+{% /card %}
+
+{% card title="Admin Site" icon="information" %}
+Manage access control through the admin interface.
+
+[Learn More →](/capabilities/enterprise/admin-site/)
+{% /card %}
+

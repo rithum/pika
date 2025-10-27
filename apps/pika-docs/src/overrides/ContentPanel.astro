@@ -1,0 +1,33 @@
+---
+// Override the default ContentPanel to remove borders between panels
+---
+
+<div class="content-panel">
+	<div class="sl-container"><slot /></div>
+</div>
+
+<style>
+	@layer starlight.core {
+		.content-panel {
+			padding: 1.5rem var(--sl-content-pad-x);
+		}
+		.content-panel + .content-panel {
+			/* Remove the border that Starlight adds between panels */
+			border-top: none;
+		}
+		.sl-container {
+			max-width: var(--sl-content-width);
+		}
+
+		.sl-container > :global(* + *) {
+			margin-top: 1.5rem;
+		}
+
+		@media (min-width: 72rem) {
+			.sl-container {
+				margin-inline: var(--sl-content-margin-inline, auto);
+			}
+		}
+	}
+</style>
+

@@ -11,33 +11,6 @@ import { FunctionDefinition } from '@aws-sdk/client-bedrock-agent-runtime';
 
 export const weatherFunctions: FunctionDefinition[] = [
     {
-        name: 'initSession',
-        description: 'Initializes a new session for the user.',
-        parameters: {
-            sessionId: {
-                type: 'string',
-                description: 'Unique identifier for the session',
-                required: true
-            },
-            companyId: {
-                type: 'string',
-                description: 'Unique identifier for the company',
-                required: true
-            },
-            companyType: {
-                type: 'string',
-                description: 'Type of company participating in the session',
-                required: true
-            },
-            date: {
-                type: 'string',
-                description: 'Current date in ISO 8601 format',
-                required: true
-            }
-        },
-        requireConfirmation: 'DISABLED'
-    },
-    {
         name: 'getWeatherForecast',
         description:
             'Retrieves weather forecast data for a specified location and time range. Supports hourly and daily variables, multiple weather models, and various units. Returns forecast data in JSON format. At least one of hourly or daily variables should be specified in jsonParams for meaningful results.',

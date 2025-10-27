@@ -1,7 +1,23 @@
 {
-  "latestVersion": "0.8.0",
-  "currentDevelopment": "0.8.0",
+  "latestVersion": "0.9.0",
+  "currentDevelopment": "0.9.0",
   "releases": [
+    {
+      "version": "0.9.0",
+      "date": "2025-10-27",
+      "status": "released",
+      "breaking": false,
+      "summary": "Complete documentation site overhaul with Astro",
+      "highlights": [
+        "Brand new Astro-based documentation experience",
+        "Comprehensive documentation following Diátaxis framework",
+        "Reorganized content: Why Pika, Getting Started, Concepts, Capabilities, Guides, Reference, Platform",
+        "Enhanced with detailed diagrams, code examples, and step-by-step instructions",
+        "Improved navigation, search, and custom Markdoc components",
+        "Documentation generation prompt template for AI-assisted content creation",
+        "Updated release tooling for better version management"
+      ]
+    },
     {
       "version": "0.8.0",
       "date": "2025-10-24",

@@ -1,0 +1,510 @@
+---
+title: Override Default Features
+description: Customize site-level feature configurations on a per-chat-app basis
+---
+
+Learn how to override site-level feature configurations for individual chat apps, enabling fine-grained control over feature behavior without changing global settings.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand the three-level feature configuration architecture
+- Override site-level features for specific chat apps
+- Configure admin overrides for dynamic control
+- Apply configuration patterns for common scenarios
+- Debug feature override issues
+
+## Prerequisites
+
+- A running Pika installation
+- Configured site features in `pika-config.ts`
+- Understanding of your chat app structure
+- Basic knowledge of feature configuration
+
+## Understanding Feature Overrides
+
+Pika uses a three-level configuration architecture:
+
+### Configuration Hierarchy
+
+1. **Site-Level (Base)** - Default for all apps
+2. **Admin Override** - Dynamic per-app overrides (via Site Admin interface)
+3. **Chat App Override** - Static per-app overrides (in code)
+
+### Resolution Logic
+
+When determining feature settings for a chat app:
+
+1. Start with site-level configuration
+2. Apply admin override (if exists)
+3. Apply chat app override (if exists)
+4. Each level **completely replaces** the previous level
+
+{% aside type="caution" title="Complete Replacement" %}
+Overrides do not merge - they completely replace the configuration from the previous level. You must provide all required settings in each override.
+{% /aside %}
+
+## Configuration Principles
+
+### 1. Complete Override Requirement
+
+When overriding a feature, provide **all** settings:
+
+```typescript
+// ❌ WRONG - Incomplete override
+features: {
+    traces: {
+        featureId: 'traces',
+        enabled: true
+        // Missing userTypes/userRoles - will fail!
+    }
+}
+
+// ✅ CORRECT - Complete override
+features: {
+    traces: {
+        featureId: 'traces',
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['developer']
+    }
+}
+```
+
+### 2. Precedence Order
+
+```
+Site Level → Admin Override → Chat App Override
+(Lowest)                        (Highest)
+```
+
+### 3. Admin Override Capability
+
+Only features with `adminOverrideCapability: true` can be overridden via the Site Admin interface.
+
+## Step 1: Define Site-Level Baseline
+
+Start with site-level configuration as your baseline.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['pika:content-admin']
+            }
+        },
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user']
+        },
+        userMemory: {
+            enabled: true,
+            strategy: 'semantic',
+            conversationMemoryStrategy: 'preferences'
+        }
+    }
+};
+```
+
+## Step 2: Override in Chat App Configuration
+
+Override features for specific chat apps in code.
+
+**Location:** `apps/pika-chat/pika-config.ts` (chat app definition)
+
+```typescript
+const customerSupportApp: ChatApp = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support',
+    instructions: '...',
+    
+    // Override site-level features
+    features: {
+        // Disable traces for this app
+        traces: {
+            featureId: 'traces',
+            enabled: false
+        },
+        
+        // More aggressive verification for customer-facing app
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'B', // Stricter than site default
+            userTypes: ['internal-user', 'external-user'] // Available to all
+        },
+        
+        // Keep site-level user memory settings
+        // (No override needed - inherits from site)
+    }
+};
+```
+
+## Step 3: Enable Admin Override Capability
+
+Allow admins to dynamically override features via the Site Admin interface.
+
+### Enable Admin Override for a Feature
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            // Enable admin to override this feature
+            adminOverrideCapability: true
+        },
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user'],
+            // Enable admin override
+            adminOverrideCapability: true
+        }
+    }
+};
+```
+
+### Create Admin Override
+
+Admin users with `pika:site-admin` role can then create overrides via the Site Admin interface:
+
+1. Navigate to **Site Admin**
+2. Select **Chat App** to override
+3. Configure **Feature Settings**
+4. Save **Override**
+
+The admin interface will only show features where `adminOverrideCapability: true`.
+
+## Common Configuration Patterns
+
+### Pattern 1: Disable Feature for Specific App
+
+```typescript
+const simpleChatApp: ChatApp = {
+    chatAppId: 'simple-faq',
+    title: 'Simple FAQ',
+    // ... other properties
+    features: {
+        // Disable complex features
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: false
+        },
+        traces: {
+            featureId: 'traces',
+            enabled: false
+        }
+    }
+};
+```
+
+### Pattern 2: More Restrictive Access
+
+```typescript
+const executiveApp: ChatApp = {
+    chatAppId: 'executive-insights',
+    title: 'Executive Insights',
+    // ... other properties
+    features: {
+        // Only executives and admins
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user'],
+            userRoles: ['executive', 'pika:content-admin'],
+            applyRulesAs: 'and' // Must be internal AND have role
+        }
+    }
+};
+```
+
+### Pattern 3: Beta Testing Configuration
+
+```typescript
+const betaApp: ChatApp = {
+    chatAppId: 'beta-features',
+    title: 'Beta Testing',
+    // ... other properties
+    features: {
+        // Enable experimental features
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'A', // Most aggressive
+            userTypes: ['internal-user'],
+            userRoles: ['beta-tester']
+        },
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['beta-tester'],
+                applyRulesAs: 'and'
+            }
+        }
+    }
+};
+```
+
+### Pattern 4: Customer-Facing vs Internal
+
+```typescript
+// Internal tool - all features enabled
+const internalApp: ChatApp = {
+    chatAppId: 'internal-tool',
+    title: 'Internal Tool',
+    features: {
+        traces: {
+            featureId: 'traces',
+            enabled: true,
+            userTypes: ['internal-user']
+        },
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user']
+        }
+    }
+};
+
+// External customer app - limited features
+const customerApp: ChatApp = {
+    chatAppId: 'customer-portal',
+    title: 'Customer Portal',
+    features: {
+        // No traces for customers
+        traces: {
+            featureId: 'traces',
+            enabled: false
+        },
+        // Verification enabled but invisible to users
+        verifyResponse: {
+            featureId: 'verifyResponse',
+            enabled: true,
+            autoRepromptThreshold: 'B',
+            userTypes: [] // No user sees verification UI
+        }
+    }
+};
+```
+
+## Admin Override Examples
+
+### Override Created by Admin
+
+When a site admin creates an override via the interface:
+
+```typescript
+// Stored in DynamoDB as admin override
+{
+    chatAppId: 'customer-support',
+    featureOverrides: {
+        traces: {
+            featureId: 'traces',
+            enabled: false
+        }
+    }
+}
+```
+
+### Precedence with Admin Override
+
+```typescript
+// Site level
+siteFeatures: {
+    traces: { enabled: true, userTypes: ['internal-user'] }
+}
+
+// Admin override (via Site Admin interface)
+adminOverride: {
+    traces: { enabled: false }
+}
+
+// Chat app override (in code)
+chatApp.features: {
+    traces: { enabled: true, userTypes: ['developer'] }
+}
+
+// RESULT: Chat app override wins
+// Traces enabled only for 'developer' role
+```
+
+## Testing Checklist
+
+Verify your feature overrides work correctly:
+
+{% checklist %}
+- [ ] Site-level features configured in `pika-config.ts`
+- [ ] Chat app overrides are complete (all required fields)
+- [ ] Admin override capability enabled where needed
+- [ ] Test with users matching override criteria
+- [ ] Test with users NOT matching criteria
+- [ ] Verify precedence order (site → admin → chat app)
+- [ ] Check admin interface shows overridable features
+- [ ] Confirm overrides persist after deployment
+- [ ] Test override removal (returns to site default)
+- [ ] Review CloudWatch logs for override application
+{% /checklist %}
+
+## Debugging Feature Overrides
+
+### Check Configuration Resolution
+
+Log the resolved configuration for debugging:
+
+```typescript
+// In your handler or component
+console.log('Site Features:', pikaConfig.siteFeatures);
+console.log('Chat App Features:', chatApp.features);
+console.log('Resolved Config:', resolvedFeatureConfig);
+```
+
+### Common Issues
+
+**Issue: Override not taking effect**
+- Verify override is complete (all required fields)
+- Check precedence order
+- Ensure proper deployment
+- Review admin override in DynamoDB
+
+**Issue: Admin override capability not working**
+- Confirm `adminOverrideCapability: true` in site config
+- Verify site admin feature enabled
+- Check user has `pika:site-admin` role
+- Look for errors in CloudWatch logs
+
+**Issue: Unexpected feature behavior**
+- Check all three levels of configuration
+- Verify access rules (`userTypes`, `userRoles`, `applyRulesAs`)
+- Test with different user types
+- Review feature-specific documentation
+
+### Enable Debug Logging
+
+```typescript
+// Add to your configuration
+export const pikaConfig: PikaConfig = {
+    // ... other config
+    debug: {
+        logFeatureResolution: true
+    }
+};
+```
+
+## Advanced Scenarios
+
+### Conditional Overrides Based on User
+
+You can programmatically determine overrides:
+
+```typescript
+export function getChatAppForUser(
+    user: AuthenticatedUser, 
+    chatAppId: string
+): ChatApp {
+    const baseChatApp = getChatApp(chatAppId);
+    
+    // Apply user-specific overrides
+    if (user.roles?.includes('beta-tester')) {
+        return {
+            ...baseChatApp,
+            features: {
+                ...baseChatApp.features,
+                traces: {
+                    featureId: 'traces',
+                    enabled: true,
+                    userTypes: ['internal-user']
+                }
+            }
+        };
+    }
+    
+    return baseChatApp;
+}
+```
+
+### Environment-Based Overrides
+
+```typescript
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+const chatApp: ChatApp = {
+    chatAppId: 'my-app',
+    title: 'My App',
+    features: {
+        traces: {
+            featureId: 'traces',
+            enabled: isDevelopment, // Enabled in dev, disabled in prod
+            userTypes: ['internal-user']
+        }
+    }
+};
+```
+
+## Security Considerations
+
+### Least Privilege Principle
+
+- Start with restrictive site defaults
+- Expand access only where needed
+- Use chat app overrides to tighten security
+- Regularly audit override configurations
+
+### Admin Override Audit Trail
+
+- Track who creates overrides
+- Log override changes
+- Implement approval workflow for production
+- Document override rationale
+
+### Sensitive Features
+
+For features handling sensitive data:
+```typescript
+features: {
+    sensitiveFeature: {
+        featureId: 'sensitiveFeature',
+        enabled: true,
+        userTypes: ['internal-user'],
+        userRoles: ['security-cleared'],
+        applyRulesAs: 'and',
+        adminOverrideCapability: false // Prevent admin overrides
+    }
+}
+```
+
+## Next Steps
+
+- [Set Up the Admin Site](/guides/admin/admin-site/) - Enable dynamic overrides
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Control app visibility
+- [Monitor with Traces](/guides/admin/traces/) - Debug with traces feature
+
+## Related Documentation
+
+- [Feature Configuration Reference](/reference/config/features/) - Complete feature options
+- [Site Admin Capability](/capabilities/enterprise/admin-site/) - Learn about admin interface
+- [Access Control](/capabilities/enterprise/access-control/) - User access management
+
+---
+
+{% aside type="success" title="Flexible Configuration" %}
+Feature overrides enable you to maintain a secure default baseline while providing flexibility for specific use cases. Always provide complete overrides to avoid configuration errors.
+{% /aside %}
+

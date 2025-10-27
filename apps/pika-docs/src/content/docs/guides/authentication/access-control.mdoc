@@ -1,0 +1,489 @@
+---
+title: Configure Chat App Access Control
+description: Control which users can access which chat apps using types, roles, and entity-based access control
+---
+
+Learn how to configure fine-grained access control for your chat applications using Pika's secure-by-default system that combines user types, roles, and entity-based restrictions.
+
+{% aside type="caution" title="Secure by Default" %}
+Setting `enabled: true` alone does NOT grant access. You must explicitly specify `userTypes` or `userRoles` for users to access features. Without these, access is denied to everyone.
+{% /aside %}
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand Pika's access control precedence rules
+- Configure user type-based access (internal vs external)
+- Implement role-based access control
+- Set up entity-based restrictions for multi-tenancy
+- Use admin overrides for special cases
+- Debug and troubleshoot access issues
+
+## Prerequisites
+
+- A running Pika installation
+- Custom authentication provider configured
+- Basic understanding of your user types and organizational structure
+- Users with appropriate `userType` and `roles` assigned
+
+## Understanding Access Control
+
+Pika uses a hierarchical, secure-by-default access control system with multiple layers.
+
+### Core Principles
+
+1. **Secure by Default**: Features without explicit access rules deny access to all users
+2. **Hierarchical Precedence**: Rules evaluated in order with higher precedence overriding lower
+3. **Granular Control**: Combine user types, roles, and entities for fine-tuned access
+4. **Admin Override**: Site admins can override any chat app configuration
+
+### User Types
+
+- **`internal-user`**: Company employees, administrators, internal staff
+- **`external-user`**: Customers, partners, external users
+- **Default**: Users without `userType` are treated as `external-user`
+
+### User Roles
+
+- **Pika Roles**: `pika:content-admin`, `pika:site-admin` (framework-defined)
+- **Custom Roles**: Any string you define (e.g., `'support-manager'`, `'sales-rep'`)
+- Users can have multiple roles assigned
+
+## Access Control Precedence
+
+Understanding precedence is critical for debugging access issues.
+
+### Level 1: Chat App Enabled/Disabled
+
+```typescript
+if (!chatApp.enabled) {
+    // Disabled apps deny ALL access
+    return DENY_ACCESS;
+}
+```
+
+### Level 2: Override Rules (If Present)
+
+When a `ChatAppOverride` exists, it takes complete precedence over base settings.
+
+#### 2a. Override Enabled/Disabled
+
+```typescript
+if (override.enabled === false) {
+    // Override can disable an enabled app
+    return DENY_ACCESS;
+}
+```
+
+#### 2b. Exclusive User ID Control (Highest Override)
+
+```typescript
+if (override.exclusiveUserIdAccessControl?.length > 0) {
+    return override.exclusiveUserIdAccessControl.includes(user.userId) 
+        ? ALLOW_ACCESS 
+        : DENY_ACCESS;
+}
+```
+
+**Example**: Beta testing with specific users
+
+```typescript
+const betaOverride = {
+    enabled: true,
+    exclusiveUserIdAccessControl: ['user_123', 'user_456', 'user_789']
+    // ONLY these 3 users can access - all other rules ignored
+};
+```
+
+#### 2c. Exclusive Entity Access Control (Second Priority)
+
+```typescript
+const userType = user.userType ?? 'external-user';
+const accessList = userType === 'internal-user' 
+    ? override.exclusiveInternalAccessControl 
+    : override.exclusiveExternalAccessControl;
+
+if (accessList?.length > 0) {
+    const userEntity = extractEntityFromCustomData(user.customData);
+    return accessList.includes(userEntity) ? ALLOW_ACCESS : DENY_ACCESS;
+}
+```
+
+**Example**: Multi-tenant access
+
+```typescript
+const enterpriseOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['account_001', 'account_002'],
+    exclusiveInternalAccessControl: ['customer_success', 'enterprise_support']
+    // External: Only specified accounts
+    // Internal: Only specified departments
+};
+```
+
+### Level 3: General Access Rules
+
+If no exclusive rules apply, check `userTypes`, `userRoles`, and `applyRulesAs`.
+
+```typescript
+function checkGeneralAccessRules(user, rules) {
+    const { enabled, userTypes, userRoles, applyRulesAs = 'and' } = rules;
+
+    // Feature must be enabled
+    if (!enabled) return false;
+
+    // SECURE BY DEFAULT: No rules = no access
+    if (!userTypes && !userRoles) return false;
+
+    // Check user type match
+    const userTypeMatches = userTypes 
+        ? userTypes.includes(user.userType ?? 'external-user') 
+        : true;
+
+    // Check user role match
+    const userRoleMatches = userRoles 
+        ? (user.roles ?? []).some(role => userRoles.includes(role)) 
+        : true;
+
+    // Apply combination logic
+    return applyRulesAs === 'and' 
+        ? userTypeMatches && userRoleMatches 
+        : userTypeMatches || userRoleMatches;
+}
+```
+
+## Step 1: Configure User Type Access
+
+Control access based on whether users are internal or external.
+
+### Internal Users Only
+
+```typescript
+const internalApp: ChatApp = {
+    chatAppId: 'employee-portal',
+    title: 'Employee Portal',
+    enabled: true,
+    userTypes: ['internal-user']
+};
+```
+
+### External Users Only
+
+```typescript
+const customerApp: ChatApp = {
+    chatAppId: 'customer-support',
+    title: 'Customer Support',
+    enabled: true,
+    userTypes: ['external-user']
+};
+```
+
+### Both User Types
+
+```typescript
+const sharedApp: ChatApp = {
+    chatAppId: 'general-chat',
+    title: 'General Chat',
+    enabled: true,
+    userTypes: ['internal-user', 'external-user']
+};
+```
+
+## Step 2: Add Role-Based Access
+
+Restrict access to users with specific roles.
+
+### Admin Users Only
+
+```typescript
+const adminApp: ChatApp = {
+    chatAppId: 'admin-dashboard',
+    title: 'Admin Dashboard',
+    enabled: true,
+    userRoles: ['pika:site-admin']
+};
+```
+
+### Multiple Roles
+
+```typescript
+const supportApp: ChatApp = {
+    chatAppId: 'support-tools',
+    title: 'Support Tools',
+    enabled: true,
+    userRoles: ['pika:content-admin', 'customer-support', 'technical-support']
+};
+```
+
+## Step 3: Combine Types and Roles
+
+Create sophisticated access rules by combining user types and roles.
+
+### Internal Users with Specific Roles (AND Logic)
+
+```typescript
+const restrictedApp: ChatApp = {
+    chatAppId: 'sensitive-data',
+    title: 'Sensitive Data Access',
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['data-analyst', 'manager'],
+    applyRulesAs: 'and' // Must be internal AND have role
+};
+```
+
+### Flexible Access (OR Logic)
+
+```typescript
+const flexibleApp: ChatApp = {
+    chatAppId: 'reporting',
+    title: 'Reporting Dashboard',
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['external-consultant'],
+    applyRulesAs: 'or' // Internal user OR consultant role
+};
+```
+
+## Step 4: Configure Entity-Based Access
+
+Restrict access to specific organizations, accounts, or departments.
+
+### Prerequisites
+
+First, enable the entity feature in `pika-config.ts`:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId', // Field in user.customData
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts'
+        }
+    }
+};
+```
+
+### Multi-Tenant Access via Override
+
+```typescript
+// Create override through Site Admin interface
+const multiTenantOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'account_enterprise_gold',
+        'account_premium_tier',
+        'account_beta_customer'
+    ],
+    exclusiveInternalAccessControl: [
+        'customer_success_team',
+        'enterprise_support'
+    ]
+    // External users: Only specified accounts
+    // Internal users: Only specified teams
+};
+```
+
+## Step 5: Use Admin Overrides
+
+Site admins can create overrides that completely replace chat app settings.
+
+### Temporary Access for Beta Testing
+
+```typescript
+// Admin creates override
+const betaOverride = {
+    enabled: true,
+    exclusiveUserIdAccessControl: [
+        'product_manager_sarah',
+        'developer_mike',
+        'qa_engineer_alex'
+    ]
+    // Only these users during beta
+};
+```
+
+### Emergency Access Control Changes
+
+```typescript
+// Restrict access immediately
+const emergencyOverride = {
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['pika:content-admin']
+    // Emergency: Only content admins can access
+};
+```
+
+## Configuration Patterns
+
+### Pattern 1: Progressive Access
+
+Start permissive, become more restrictive:
+
+```typescript
+// Public chat app
+const publicApp: ChatApp = {
+    chatAppId: 'general-inquiry',
+    enabled: true,
+    userTypes: ['external-user']
+};
+
+// Premium feature (via override)
+const premiumOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['premium_customers']
+};
+```
+
+### Pattern 2: Department Isolation
+
+Separate internal departments:
+
+```typescript
+// HR department chat
+const hrApp: ChatApp = {
+    chatAppId: 'hr-assistant',
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['hr-team', 'hr-manager']
+};
+
+// Finance department chat
+const financeApp: ChatApp = {
+    chatAppId: 'finance-tools',
+    enabled: true,
+    userTypes: ['internal-user'],
+    userRoles: ['finance-team', 'accountant', 'cfo']
+};
+```
+
+### Pattern 3: Customer Tier Access
+
+Different access by customer tier:
+
+```typescript
+// Basic tier - all external users
+const basicApp: ChatApp = {
+    chatAppId: 'basic-support',
+    enabled: true,
+    userTypes: ['external-user']
+};
+
+// Premium tier (via override)
+const premiumOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['premium_tier', 'enterprise_tier']
+};
+
+// Enterprise only (via override)
+const enterpriseOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['enterprise_tier']
+};
+```
+
+## Testing Checklist
+
+Verify your access control configuration:
+
+{% checklist %}
+- [ ] Internal users can access internal-only chat apps
+- [ ] External users can access external-only chat apps
+- [ ] Admin roles provide appropriate elevated access
+- [ ] Entity-based restrictions work correctly
+- [ ] Admin overrides take precedence properly
+- [ ] Users without required roles are denied access
+- [ ] Secure-by-default works (no access without explicit rules)
+- [ ] `applyRulesAs` logic works as expected ('and' vs 'or')
+{% /checklist %}
+
+## Troubleshooting
+
+### "No access" Warning in UI
+
+If you see "No access - No user types or roles selected":
+
+1. Add `userTypes` to specify which user types can access
+2. Add `userRoles` to specify which roles can access
+3. Check for admin overrides that might be blocking access
+
+### User Can't Access Chat App
+
+1. **Check user type**: Verify user has correct `userType` assigned in auth provider
+2. **Check user roles**: Verify user has required roles
+3. **Check entity access**: If using entity-based access, verify user's entity is allowed
+4. **Check override precedence**: Higher precedence rules might be blocking access
+5. **Review logs**: Check authentication logs for access denial reasons
+
+### Features Not Working
+
+1. **Site-level enabled**: Verify feature is enabled in `pika-config.ts`
+2. **Feature access rules**: Check if feature has its own access restrictions
+3. **Chat app overrides**: Verify chat app hasn't disabled the feature
+
+### Debug Access Rules
+
+```typescript
+// Log access check details
+console.log('Chat App Config:', {
+    enabled: chatApp.enabled,
+    userTypes: chatApp.userTypes,
+    userRoles: chatApp.userRoles,
+    applyRulesAs: chatApp.applyRulesAs
+});
+
+// Check for overrides
+console.log('Override Config:', chatApp.override);
+
+// Check user data
+console.log('User Data:', {
+    userId: user.userId,
+    userType: user.userType,
+    roles: user.roles,
+    customData: user.customData
+});
+```
+
+## Security Best Practices
+
+### 1. Principle of Least Privilege
+
+- Start with minimal access
+- Expand only as needed
+- Regular audit who has access to what
+
+### 2. Configuration Validation
+
+- Always specify `userTypes` or `userRoles`
+- Test access with different user types
+- Document why specific rules were chosen
+
+### 3. Override Management
+
+- Only trusted users should have `pika:site-admin` role
+- Log when overrides are created or modified
+- Regularly review active overrides
+- Remove temporary overrides when no longer needed
+
+## Next Steps
+
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Set up user types and roles
+- [Set Up User-to-Organization Mapping](/guides/authentication/user-org-mapping/) - Configure entity relationships
+- [Work with Entities](/guides/data-sessions/entities/) - Enable entity-based access control
+
+## Related Documentation
+
+- [Access Control Concepts](/capabilities/enterprise/access-control/) - Understanding the access control model
+- [User Types Reference](/reference/types/user-types/) - Complete user type documentation
+- [Entity Management](/capabilities/enterprise/entity-management/) - Multi-tenancy with entities
+
+---
+
+{% aside type="success" title="Test Thoroughly" %}
+Always test access control with multiple user types, roles, and scenarios to ensure your configuration works as expected.
+{% /aside %}
+

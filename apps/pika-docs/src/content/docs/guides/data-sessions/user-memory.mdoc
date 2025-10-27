@@ -1,0 +1,333 @@
+---
+title: Configure User Memory
+description: Enable persistent user context and preferences across chat sessions
+---
+
+Learn how to configure the User Memory feature to help your AI assistants automatically learn and remember information about users across chat sessions, providing increasingly personalized interactions.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable User Memory at the site level
+- Configure memory strategies (preferences and semantic)
+- Customize memory retrieval limits
+- Override memory settings per chat app
+- Understand how memory is stored and retrieved
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site-level configuration
+- Basic understanding of your chat app structure
+- AWS environment with Bedrock Agent Core Memory available
+
+## Understanding User Memory
+
+User Memory automatically captures and stores information about users during conversations, then retrieves relevant context in future sessions.
+
+### What Gets Remembered
+
+**Preferences Strategy** (enabled by default):
+- Communication styles and format preferences
+- Tool and workflow preferences
+- Accessibility needs
+- Stated likes, dislikes, and working methods
+
+**Semantic Strategy** (enabled by default):
+- Professional role and industry context
+- Technical expertise level
+- Project and domain knowledge
+- Organizational context
+
+{% aside type="note" title="Summary Strategy" %}
+The Summary Strategy (conversation history summaries) is currently not supported but may be added in future releases.
+{% /aside %}
+
+### How It Works
+
+1. **During Conversations**: The system identifies memorable information from user messages
+2. **Storage**: Insights are securely stored in AWS Bedrock Agent Core Memory with user-specific isolation
+3. **Retrieval**: When users start new conversations, relevant memories are retrieved and injected into prompts
+4. **Updates**: Memory is updated as new information becomes available
+
+## Step 1: Enable at Site Level
+
+Configure User Memory in your `pika-config.ts` file to enable it across all chat apps.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... other configuration
+    siteFeatures: {
+        userMemory: {
+            enabled: true,
+            maxMemoryRecordsPerPrompt: 25,  // Maximum total memories per prompt
+            maxKMatchesPerStrategy: 10       // Maximum memories per strategy
+        }
+    }
+};
+```
+
+### Configuration Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `enabled` | boolean | false | Enable/disable user memory collection and retrieval |
+| `maxMemoryRecordsPerPrompt` | number | 25 | Maximum total memory results to include in a single prompt |
+| `maxKMatchesPerStrategy` | number | 10 | Maximum memories to retrieve per strategy (preferences, semantic) |
+
+## Step 2: Understand Default Strategies
+
+When you enable User Memory, both `preferences` and `semantic` strategies are automatically enabled by default.
+
+### Why These Defaults?
+
+**Preferences Strategy**:
+- Users benefit immediately from personalized interaction styles
+- Communication preferences are maintained across sessions
+- No need to repeat formatting or accessibility needs
+
+**Semantic Strategy**:
+- AI understands user context and expertise level
+- Responses are appropriately scoped from first interaction
+- Domain knowledge builds over time
+
+{% aside type="tip" title="Recommended Configuration" %}
+The default configuration (preferences + semantic) works well for most chat applications. Start with these defaults and adjust based on your specific needs.
+{% /aside %}
+
+## Step 3: Adjust Retrieval Limits (Optional)
+
+Customize how many memories are included in each prompt based on your use case.
+
+### Conservative Configuration (Faster Responses)
+
+```typescript
+siteFeatures: {
+    userMemory: {
+        enabled: true,
+        maxMemoryRecordsPerPrompt: 15,   // Fewer total memories
+        maxKMatchesPerStrategy: 5         // Fewer per strategy
+    }
+}
+```
+
+### Generous Configuration (More Context)
+
+```typescript
+siteFeatures: {
+    userMemory: {
+        enabled: true,
+        maxMemoryRecordsPerPrompt: 40,   // More total memories
+        maxKMatchesPerStrategy: 20        // More per strategy
+    }
+}
+```
+
+### Balance Considerations
+
+**Lower Limits**:
+- Faster response times
+- Lower token usage
+- Less context per request
+- Better for simple interactions
+
+**Higher Limits**:
+- More comprehensive context
+- Better for complex conversations
+- Higher token usage
+- Slower response times
+
+## Step 4: Override Per Chat App (Optional)
+
+Individual chat apps can customize or disable User Memory even if it's enabled site-wide.
+
+### Disable for Specific Chat App
+
+```typescript
+const simpleChatApp: ChatApp = {
+    chatAppId: 'quick-answers',
+    title: 'Quick Answers',
+    // ... other properties
+    features: {
+        userMemory: {
+            featureId: 'userMemory',
+            enabled: false  // Disable memory for this chat app
+        }
+    }
+};
+```
+
+### Customize Limits for Chat App
+
+```typescript
+const complexChatApp: ChatApp = {
+    chatAppId: 'technical-support',
+    title: 'Technical Support',
+    // ... other properties
+    features: {
+        userMemory: {
+            featureId: 'userMemory',
+            enabled: true,
+            maxMemoryRecordsPerPrompt: 50,   // More context for complex support
+            maxKMatchesPerStrategy: 25        // More memories per strategy
+        }
+    }
+};
+```
+
+{% aside type="caution" %}
+Chat apps CANNOT enable User Memory if it's disabled at the site level. They can only make it more restrictive or customize the limits.
+{% /aside %}
+
+## Step 5: Deploy and Test
+
+### Deploy Your Configuration
+
+```bash
+# If using local development
+cd apps/pika-chat
+npm run dev
+
+# If deploying to AWS
+cd services/pika
+npm run deploy
+```
+
+### Test Memory Collection
+
+1. **Start a chat session** with a user
+2. **Share preferences**: "I prefer detailed technical explanations"
+3. **Share context**: "I'm a senior software engineer working on microservices"
+4. **End the session**
+
+### Test Memory Retrieval
+
+1. **Start a NEW chat session** with the same user
+2. **Ask a technical question**
+3. **Observe**: The AI should provide appropriately technical responses based on remembered context
+
+### Monitor Memory
+
+Check that memories are being:
+- Collected during conversations
+- Stored securely in AWS Bedrock
+- Retrieved in subsequent sessions
+- Applied to agent responses
+
+## Configuration Examples
+
+### Example 1: Standard Customer Support
+
+```typescript
+siteFeatures: {
+    userMemory: {
+        enabled: true,
+        maxMemoryRecordsPerPrompt: 20,
+        maxKMatchesPerStrategy: 10
+    }
+}
+```
+
+### Example 2: Technical Documentation Assistant
+
+```typescript
+siteFeatures: {
+    userMemory: {
+        enabled: true,
+        maxMemoryRecordsPerPrompt: 35,    // More context for technical topics
+        maxKMatchesPerStrategy: 15
+    }
+}
+```
+
+### Example 3: Simple Q&A Bot (Memory Disabled)
+
+```typescript
+siteFeatures: {
+    userMemory: {
+        enabled: false  // No memory needed for simple Q&A
+    }
+}
+```
+
+## Testing Checklist
+
+Verify User Memory is working correctly:
+
+{% checklist %}
+- [ ] User Memory is enabled in `pika-config.ts`
+- [ ] Preferences are being captured during conversations
+- [ ] Semantic context is being identified
+- [ ] Memories persist after session ends
+- [ ] New sessions retrieve relevant memories
+- [ ] AI responses reflect remembered context
+- [ ] Memory limits are respected
+- [ ] Chat app overrides work as expected
+{% /checklist %}
+
+## Troubleshooting
+
+### Memory not being collected
+
+- Verify `enabled: true` in site configuration
+- Check AWS Bedrock Agent Core Memory is available in your region
+- Review agent prompts to ensure they encourage memorable exchanges
+- Check CloudWatch logs for memory collection errors
+
+### Memory not being retrieved
+
+- Ensure new sessions are being created (not continuing old ones)
+- Verify memory retrieval limits aren't set too low
+- Check that memories exist in the database
+- Review CloudWatch logs for retrieval errors
+
+### Too much/too little context
+
+- Adjust `maxMemoryRecordsPerPrompt` to control total memories
+- Modify `maxKMatchesPerStrategy` to limit per-strategy memories
+- Consider different limits for different chat apps
+
+### Performance issues
+
+- Lower memory retrieval limits
+- Review token usage in CloudWatch
+- Consider disabling for simple chat apps that don't benefit from memory
+
+## Security and Privacy
+
+### Data Isolation
+- Each user's memory is completely isolated
+- No cross-contamination between users
+- Memory cannot be accessed by other users
+
+### Encryption
+- All memory data is encrypted at rest
+- Encrypted in transit using AWS security standards
+- Follows AWS Bedrock security best practices
+
+### Data Retention
+- Memory data stays within your AWS environment
+- Subject to your AWS data retention policies
+- Can be purged as needed for compliance
+
+## Next Steps
+
+- [Manage User Sessions](/guides/data-sessions/session-management/) - Control session behavior
+- [Work with Entities](/guides/data-sessions/entities/) - Multi-tenant memory isolation
+- [Use Custom Message Tags](/guides/data-sessions/message-tags/) - Tag messages with metadata
+
+## Related Documentation
+
+- [User Memory Capability](/capabilities/data-memory/user-memory/) - Learn more about memory features
+- [Session Management](/capabilities/data-memory/session-management/) - Understanding sessions
+- [Agent Configuration Reference](/reference/config/agent/) - Agent setup options
+
+---
+
+{% aside type="success" title="Progressive Personalization" %}
+User Memory enables your AI to become more helpful over time, learning each user's preferences and context without explicit configuration.
+{% /aside %}
+

@@ -1,0 +1,108 @@
+---
+interface Props {
+	text: string;
+	variant?: 'note' | 'tip' | 'success' | 'caution' | 'danger' | 'default';
+	size?: 'small' | 'medium' | 'large';
+}
+
+const { text, variant = 'default', size = 'small' } = Astro.props;
+---
+
+<span class={`sl-badge sl-badge-${variant} sl-badge-${size}`} data-badge-text={text}>{text}</span>
+
+<style>
+	.sl-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.25rem;
+		padding: 0.25rem 0.625rem;
+		border-radius: 999px;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		line-height: 1;
+		white-space: nowrap;
+		vertical-align: middle;
+		margin-left: 0.625rem;
+		font-family: var(--sl-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif);
+		transform: translateY(-0.0625rem);
+	}
+
+	.sl-badge-small {
+		font-size: 0.75rem;
+		padding: 0.1875rem 0.5rem;
+	}
+
+	.sl-badge-medium {
+		font-size: 0.8125rem;
+		padding: 0.25rem 0.625rem;
+	}
+
+	.sl-badge-large {
+		font-size: 0.9375rem;
+		padding: 0.3125rem 0.875rem;
+	}
+
+	/* Default variant - Gray */
+	.sl-badge-default {
+		background-color: #6b7280;
+		color: #ffffff;
+	}
+
+	/* Note variant - Blue */
+	.sl-badge-note {
+		background-color: #3b82f6;
+		color: #ffffff;
+	}
+
+	/* Tip variant - Purple */
+	.sl-badge-tip {
+		background-color: #8b5cf6;
+		color: #ffffff;
+	}
+
+	/* Success variant - Green */
+	.sl-badge-success {
+		background-color: #10b981;
+		color: #ffffff;
+	}
+
+	/* Caution variant - Orange */
+	.sl-badge-caution {
+		background-color: #f59e0b;
+		color: #ffffff;
+	}
+
+	/* Danger variant - Red */
+	.sl-badge-danger {
+		background-color: #ef4444;
+		color: #ffffff;
+	}
+
+	@media (prefers-color-scheme: dark) {
+		.sl-badge-default {
+			background-color: #6b7280;
+		}
+		
+		.sl-badge-note {
+			background-color: #2563eb;
+		}
+		
+		.sl-badge-tip {
+			background-color: #7c3aed;
+		}
+		
+		.sl-badge-success {
+			background-color: #059669;
+		}
+		
+		.sl-badge-caution {
+			background-color: #d97706;
+		}
+		
+		.sl-badge-danger {
+			background-color: #dc2626;
+		}
+	}
+</style>
+

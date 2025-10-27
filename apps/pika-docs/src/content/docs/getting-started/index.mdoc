@@ -1,0 +1,135 @@
+---
+title: Getting Started with Pika
+description: Start building AI-powered chat applications with the Pika Platform
+---
+
+Welcome to Pika Platform! This guide will help you get from zero to your first AI-powered chat application quickly and confidently.
+
+## Choose Your Path
+
+{% card title="Quick Start (15 Minutes)" icon="rocket" %}
+Jump right in and deploy your first chat app in 15 minutes. Perfect if you want to see Pika in action immediately.
+
+[Start Quick Start →](/getting-started/quickstart/)
+{% /card %}
+
+{% card title="Detailed Installation" icon="setting" %}
+Take a methodical approach with detailed setup instructions, system requirements, and IDE configuration.
+
+[Read Installation Guide →](/getting-started/installation/)
+{% /card %}
+
+{% card title="Hello World Tutorial" icon="pencil" %}
+Learn by building your first agent from scratch with step-by-step guidance.
+
+[Start Tutorial →](/getting-started/hello-world/)
+{% /card %}
+
+{% card title="Review the Weather Sample" icon="star" %}
+Explore a complete, production-ready example that uses nearly every Pika feature. Perfect for learning by example.
+
+[Explore Weather Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+## What You'll Learn
+
+By completing the Getting Started guides, you'll:
+
+- Install and configure the Pika Platform
+- Deploy your first chat application
+- Understand the project structure
+- Create a simple agent
+- Test your application locally
+- Know where to go next
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+{% aside type="note" title="Required Software" %}
+- **Node.js 22+** - JavaScript runtime
+- **pnpm** - Package manager (required)
+- **Git** - Version control
+- **AWS Account** - For deployment (you will need to deploy at least the back end to get started)
+{% /aside %}
+
+## What You Get with Pika
+
+When you create a Pika application, you receive a complete, production-ready framework:
+
+### Core Components
+
+- **Generic Chat Frontend** - A ready-to-use chat interface that can render any chat app
+- **Generic Chat Backend** - Core infrastructure for agent management and tool orchestration
+- **Sample Weather Service** - Example showing how to define a chat app and agent
+- **Sample Web Application** - Demo of embedded chat mode
+- **Shared Types Package** - Published npm package with TypeScript types
+- **Pika CLI** - Command-line tool for creating and managing applications
+
+### Key Capabilities
+
+- **Authentication System** - Ready-to-customize authentication
+- **Custom Message Tags** - Render XML tags from LLM responses with custom UI components
+- **AWS CDK Integration** - Infrastructure as Code for easy deployment
+- **Sync System** - Keep your customizations while receiving framework updates
+- **AI Transparency** - Traces feature shows AI reasoning and tool invocations
+- **Quality Assurance** - Verify response feature automatically checks AI response accuracy
+- **Feature Overrides** - Customize features per chat app for specialized behavior
+
+## Understanding Pika's Architecture
+
+{% aside type="tip" title="One Framework, Many Chat Apps" %}
+Pika is designed as a **single installation per AWS account** that can host multiple chat applications and agents. You don't create separate Pika installations for each chat app - you define your chat apps and agents within one framework instance.
+{% /aside %}
+
+This architecture means:
+
+- The core Pika service provides the infrastructure for all your chat apps
+- Each chat app you create becomes a separate stack that registers with the core service
+- You can have multiple chat apps (weather, customer service, data analysis, etc.) all running from the same framework
+- Users see a unified interface with access to the chat apps they're authorized to use
+
+## Critical Security Notice
+
+{% aside type="danger" title="Do Not Deploy to Production Without Reading This" %}
+Pika Framework ships with a **mock authentication provider** that:
+
+- Hardcodes a single test user with no password requirement
+- Automatically logs in anyone who visits your site as this test user
+- Provides no real security
+- **Is intended for development and testing only**
+
+**Before deploying to production**, you must implement a custom authentication provider. See the [Authentication Guide](/how-to/authentication/) for details.
+{% /aside %}
+
+### User Types and Access Control
+
+Pika uses a two-tier security model:
+
+**User Types:**
+- `internal-user` - Company employees, administrators, internal staff
+- `external-user` - Customers, partners, external users
+
+**Chat App Visibility:**
+- Internal-only - Accessible only to internal-user types
+- External-only - Accessible only to external-user types
+- Both - Accessible to both user types (default)
+
+This security model allows you to create both internal tools for your employees and customer-facing applications from the same Pika installation.
+
+## Next Steps
+
+Ready to begin? Choose your path:
+
+1. **[Quick Start →](/getting-started/quickstart/)** - Get up and running in 15 minutes
+2. **[Installation Guide →](/getting-started/installation/)** - Detailed setup with all prerequisites
+3. **[Hello World Tutorial →](/getting-started/hello-world/)** - Build your first agent step-by-step
+
+## Getting Help
+
+If you encounter issues:
+
+- Check the troubleshooting section in each guide
+- Visit the [GitHub repository](https://github.com/rithum/pika) for issues and discussions
+- Review the [Why Pika](/why/) section to understand the platform's design philosophy
+

@@ -1,0 +1,500 @@
+---
+title: User Memory System
+description: How Pika maintains persistent user context and preferences across all sessions
+---
+
+Pika's user memory system enables agents to remember individual users across all their conversations, creating increasingly personalized and context-aware interactions over time. This page explains how user memory works and why it matters.
+
+## The Problem User Memory Solves
+
+**Without user memory**, every conversation starts from scratch:
+- Users repeatedly explain their role, preferences, and context
+- Agents can't learn from past interactions
+- No personalization across sessions
+- Frustrating repetitive experiences
+
+**With user memory**, agents remember users:
+- Agents recall user preferences and working styles
+- Past conversations inform current interactions
+- Personalization improves over time
+- Users feel understood, not anonymous
+
+## How User Memory Works
+
+### AWS Bedrock Agent Core Memory
+
+Pika uses **AWS Bedrock's Agent Core Memory** feature to maintain persistent user context:
+
+```typescript
+// When agent processes message, user memory automatically retrieved
+const agentResponse = await bedrockAgent.invoke({
+    sessionId: session.sessionId,
+    userId: user.userId,  // Links to user memory
+    message: userMessage,
+    // Bedrock automatically retrieves and injects user memory
+});
+```
+
+**Key characteristics**:
+- Fully managed by AWS Bedrock
+- Persistent across all sessions
+- Automatically retrieved on every agent invocation
+- Secured within your AWS account
+- No manual memory management required
+
+### What Gets Remembered
+
+User memory stores two types of information:
+
+#### 1. Preferences
+
+**Explicit user choices and stated preferences**:
+- Communication style (detailed vs. concise)
+- Preferred formats (code examples, bullet points)
+- Language preferences
+- Notification settings
+- Working hours
+
+**Example**:
+```
+User: "I prefer detailed technical explanations with code examples."
+Agent: [Stores preference]
+
+Next session:
+User: "How do I implement authentication?"
+Agent: [Retrieves preference, provides detailed explanation with code]
+```
+
+#### 2. Semantic Understanding
+
+**Contextual information learned over time**:
+- User's role and responsibilities
+- Domain expertise level
+- Industry and company context
+- Tools and technologies they use
+- Problems they commonly solve
+- Communication patterns
+
+**Example**:
+```
+Session 1:
+User: "I'm a DevOps engineer working on Kubernetes deployments..."
+Agent: [Stores: Role = DevOps, Tech = Kubernetes]
+
+Session 5:
+User: "How should I handle secrets?"
+Agent: "For your Kubernetes deployments, I recommend using Kubernetes Secrets or..." 
+[Applies remembered context automatically]
+```
+
+## Memory Lifecycle
+
+### 1. Memory Creation
+
+**First interaction with user**:
+```
+User creates account → User ID assigned
+First agent conversation → Memory profile created
+Information extracted during conversation → Stored in memory
+```
+
+### 2. Memory Growth
+
+**Over multiple conversations**:
+```
+User mentions preferences → Added to memory
+User demonstrates expertise → Semantic understanding updated
+User corrects agent → Preferences adjusted
+User asks similar questions → Patterns recognized
+```
+
+### 3. Memory Retrieval
+
+**Every agent invocation**:
+```
+User sends message → Agent invoked
+Bedrock automatically retrieves user memory → Injected into context
+Agent response incorporates user context → Personalized answer
+```
+
+### 4. Memory Updates
+
+**After each conversation**:
+```
+Conversation completes → Memory updated with new insights
+Preference changes detected → Memory adjusted
+Contradictions identified → Previous understanding refined
+```
+
+## Memory Architecture
+
+### Storage
+
+**AWS Bedrock Manages Storage**:
+- Memory stored in AWS Bedrock's managed storage
+- Associated with user ID
+- Encrypted at rest
+- Automatically backed up
+- Managed retention
+
+**Your Responsibility**:
+- Provide consistent user IDs
+- Enable memory feature in agent config
+- Configure memory strategies (optional)
+
+### Memory Structure
+
+**Bedrock organizes memory into strategies**:
+
+```typescript
+userMemory: {
+    userId: 'user_xyz',
+    preferences: {
+        // Explicit preferences
+        communicationStyle: 'detailed',
+        preferredFormat: 'code-examples',
+        expertise: 'intermediate'
+    },
+    semantic: {
+        // Learned understanding
+        role: 'DevOps Engineer',
+        domains: ['Kubernetes', 'AWS', 'CI/CD'],
+        workingContext: 'Enterprise SaaS company',
+        commonTasks: ['deployment', 'troubleshooting', 'scaling']
+    }
+}
+```
+
+### Memory Retrieval
+
+**Automatic injection**:
+```typescript
+// Bedrock agent call
+const response = await bedrockAgent.invoke({
+    userId: user.userId,  // Bedrock uses this to retrieve memory
+    sessionId: session.sessionId,
+    message: userMessage
+});
+
+// Behind the scenes, Bedrock:
+// 1. Retrieves user memory
+// 2. Injects relevant memory into agent context
+// 3. Agent uses memory to personalize response
+```
+
+## Configuration
+
+### Enabling User Memory
+
+**Agent configuration**:
+```typescript
+const agent: ChatAgent = {
+    agentId: 'my-agent',
+    instruction: '...',
+    tools: [...],
+    
+    // Enable user memory
+    memoryConfiguration: {
+        enabledMemoryTypes: ['SESSION_SUMMARY'],
+        storageDays: 90  // Optional retention
+    }
+};
+```
+
+### Memory Strategies
+
+**Available strategies** (Bedrock-provided):
+
+1. **SESSION_SUMMARY**: Summarizes key information from each session
+2. **PREFERENCES**: Tracks explicit user preferences
+3. **SEMANTIC**: Builds understanding of user context
+
+**Configure per agent**:
+```typescript
+memoryConfiguration: {
+    enabledMemoryTypes: ['SESSION_SUMMARY', 'PREFERENCES', 'SEMANTIC'],
+    storageDays: 90  // Retention period
+}
+```
+
+### Per-Chat-App Configuration
+
+**Override memory settings per chat app**:
+```typescript
+chatApp: {
+    chatAppId: 'support-chat',
+    agentId: 'support-agent',
+    
+    features: {
+        userMemory: {
+            featureId: 'userMemory',
+            enabled: true,
+            strategies: ['SESSION_SUMMARY', 'PREFERENCES'],
+            maxContextSize: 2000  // tokens
+        }
+    }
+}
+```
+
+## Use Cases
+
+### 1. Technical Support
+
+**Scenario**: Sarah is a CFO who regularly asks billing questions.
+
+**First conversation**:
+```
+Sarah: "I need help understanding our invoice."
+Agent: "I'd be happy to help. What specifically about the invoice?"
+Sarah: "I'm the CFO, I need detailed breakdowns with accounting codes."
+Agent: [Stores: Role = CFO, Preference = Detailed financial breakdowns]
+```
+
+**Third conversation**:
+```
+Sarah: "Can you explain last month's charges?"
+Agent: "Absolutely, Sarah. As your CFO, here's the detailed breakdown with accounting codes..."
+[Automatically applies remembered preferences]
+```
+
+### 2. Developer Assistance
+
+**Scenario**: Marcus is a Python developer working on microservices.
+
+**Over multiple sessions**:
+```
+Session 1: "I'm building a microservice in Python with FastAPI..."
+[Memory: Language = Python, Framework = FastAPI, Architecture = Microservices]
+
+Session 3: "How do I handle authentication?"
+[Agent provides Python/FastAPI-specific examples automatically]
+
+Session 5: "What's the best way to handle async operations?"
+[Agent knows context: Python async/await patterns for microservices]
+```
+
+### 3. Domain Expert
+
+**Scenario**: Team members with different expertise levels.
+
+**Junior developer**:
+```
+User: "How do I deploy this?"
+[Memory: Expertise = Junior]
+Agent: "I'll walk you through step-by-step with explanations..."
+```
+
+**Senior developer**:
+```
+User: "How do I deploy this?"
+[Memory: Expertise = Senior]
+Agent: "Here's the deployment command with advanced options..."
+```
+
+## Privacy and Security
+
+### Data Isolation
+
+**User memory is isolated**:
+- Each user has separate memory
+- No cross-user memory access
+- Entity boundaries respected (multi-tenancy)
+- Internal vs. external user separation
+
+### Encryption
+
+**Memory encrypted**:
+- Encrypted at rest (AWS Bedrock)
+- Encrypted in transit (TLS)
+- No plaintext storage
+- AWS manages encryption keys
+
+### Access Control
+
+**Who can access user memory**:
+- Only the user's own agents
+- Only within authenticated sessions
+- Subject to entity/organization boundaries
+- Admins cannot directly read memory (managed by Bedrock)
+
+### User Control
+
+**Users can**:
+- Request memory deletion (via admin)
+- Opt out of memory features (if configured)
+- See what's remembered (if you build UI for it)
+
+**Administrators can**:
+- Enable/disable memory per chat app
+- Configure retention periods
+- Control which strategies are active
+
+## Memory vs. Session Context
+
+### Session Context
+
+**Scope**: Single conversation
+**Duration**: Current session only
+**Content**: Full message history
+**Purpose**: Maintain conversation continuity
+
+```typescript
+sessionContext: [
+    { role: 'user', content: 'What's the weather?' },
+    { role: 'assistant', content: 'In which city?' },
+    { role: 'user', content: 'San Francisco' }
+]
+```
+
+### User Memory
+
+**Scope**: All conversations
+**Duration**: Persistent (90 days default)
+**Content**: Preferences and semantic understanding
+**Purpose**: Personalization across sessions
+
+```typescript
+userMemory: {
+    preferences: { communicationStyle: 'concise' },
+    semantic: { role: 'Engineer', expertise: 'Kubernetes' }
+}
+```
+
+### How They Work Together
+
+**Combined context**:
+```typescript
+agentContext = {
+    sessionMessages: [...],  // Current conversation
+    userMemory: {...}        // Persistent user context
+}
+```
+
+Agent sees both:
+- Current conversation (session context)
+- Who the user is and what they prefer (user memory)
+
+Result: **Contextualized and personalized responses**
+
+## Performance Considerations
+
+### Memory Retrieval Latency
+
+**Typical latency**:
+- Memory retrieval: ~50-100ms
+- Included in agent invocation time
+- Generally negligible overhead
+
+**Optimization**:
+- Memory automatically cached by Bedrock
+- No manual caching needed
+- Scales automatically
+
+### Token Usage
+
+**Memory consumes tokens**:
+- Memory injected into agent context
+- Counts toward input tokens
+- Typically 100-500 tokens per request
+
+**Cost consideration**:
+```
+Without memory: 1000 input tokens
+With memory: 1000 + 200 memory tokens = 1200 input tokens
+Cost increase: ~20% (varies by memory size)
+```
+
+**Mitigation**:
+- Configure `maxContextSize` to limit memory tokens
+- Use selective memory strategies
+- Balance personalization vs. cost
+
+### Memory Growth
+
+**Memory size increases over time**:
+- More conversations = more context
+- Bedrock manages memory summarization
+- Old/irrelevant information pruned
+- No unbounded growth
+
+## Best Practices
+
+### For Product Teams
+
+1. **Start with preferences strategy** (explicit user choices)
+2. **Add semantic gradually** as users engage more
+3. **Set appropriate retention** (90 days typical)
+4. **Monitor token costs** with memory enabled
+5. **Educate users** about personalization benefits
+
+### For Developers
+
+1. **Use consistent user IDs** across sessions
+2. **Enable memory in agent config** explicitly
+3. **Test with memory ON and OFF** for comparison
+4. **Handle memory gracefully** if feature disabled
+5. **Don't duplicate memory** in session context
+
+### For Users
+
+1. **Correct the agent** when it misremembers
+2. **State preferences explicitly** early
+3. **Be consistent** in how you describe your role
+4. **Trust the system** to learn over time
+
+## Troubleshooting
+
+### Memory Not Working
+
+**Symptoms**: Agent doesn't remember previous conversations
+
+**Possible causes**:
+- Memory feature not enabled in agent config
+- User ID changing between sessions
+- Memory retention expired
+- Different agent used
+
+**Solutions**:
+- Verify `memoryConfiguration` in agent definition
+- Ensure consistent user ID from auth provider
+- Check retention settings
+
+### Agent Misremembers
+
+**Symptoms**: Agent applies wrong preferences or context
+
+**Causes**:
+- User changed role or preferences
+- Information from old sessions outdated
+- Conflicting information in memory
+
+**Solutions**:
+- Explicitly correct the agent in conversation
+- Request memory reset (admin action)
+- Update user profile information
+
+### High Token Costs
+
+**Symptoms**: Unexpectedly high token usage
+
+**Causes**:
+- Large user memory injected every time
+- Too many memory strategies enabled
+- Long conversation histories plus memory
+
+**Solutions**:
+- Reduce `maxContextSize` for memory
+- Use selective memory strategies
+- Consider memory vs. personalization tradeoff
+
+## Related Documentation
+
+- **[Session Management](/concepts/key-concepts/sessions/)** - Conversation persistence
+- **[Configure User Memory](/guides/data-sessions/user-memory/)** - Implementation guide
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - How memory is used
+- **[AWS Infrastructure](/concepts/architecture/aws/)** - Bedrock Agent Core Memory details
+
+{% aside type="tip" %}
+User memory transforms one-off interactions into continuous relationships. Users feel understood, agents provide better responses, and the experience improves over time - all automatically.
+{% /aside %}
+

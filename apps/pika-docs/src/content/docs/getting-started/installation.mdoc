@@ -1,0 +1,516 @@
+---
+title: Installation Guide
+description: Complete installation and setup guide for Pika Platform
+---
+
+This guide provides comprehensive instructions for installing and setting up Pika Platform on your system with all prerequisites, recommended tools, and configuration options.
+
+## System Requirements
+
+### Operating System
+
+Pika Platform works on:
+- macOS (10.15+)
+- Linux (Ubuntu 20.04+, Debian 10+, CentOS 8+, or similar)
+- Windows (10+)
+
+### Hardware Requirements
+
+Minimum:
+- 4 GB RAM
+- 10 GB available disk space
+- Internet connection for package downloads
+
+Recommended:
+- 8 GB RAM or more
+- 20 GB available disk space for comfortable development
+- Fast internet connection for AWS deployment
+
+## Required Software
+
+### Node.js (Version 22.0.0 or Higher)
+
+Check if Node.js is installed and what version:
+
+```bash
+node --version
+```
+
+If you need to install or update Node.js:
+
+{% tabs %}
+{% tabitem label="macOS" %}
+Using Homebrew:
+
+```bash
+brew install node
+```
+
+Or download from [nodejs.org](https://nodejs.org/)
+{% /tabitem %}
+
+{% tabitem label="Linux" %}
+Using NodeSource repository:
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# CentOS/RHEL
+curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+sudo yum install -y nodejs
+```
+{% /tabitem %}
+
+{% tabitem label="Windows" %}
+Download and install from [nodejs.org](https://nodejs.org/)
+
+The installer includes npm and sets up PATH automatically.
+{% /tabitem %}
+{% /tabs %}
+
+{% aside type="tip" title="Use Node Version Manager (nvm)" %}
+Consider using [nvm](https://github.com/nvm-sh/nvm) to easily switch between Node.js versions. This is especially useful if you work on multiple projects with different Node.js requirements.
+
+```bash
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Restart your terminal or run:
+source ~/.bashrc  # or ~/.zshrc for zsh
+
+# Install and use Node.js 22
+nvm install 22
+nvm use 22
+nvm alias default 22
+```
+{% /aside %}
+
+### pnpm Package Manager (Required)
+
+Pika Platform uses pnpm as the required package manager. If you haven't used it before, you'll find it's just like npm but faster and more efficient.
+
+Check if pnpm is installed:
+
+```bash
+pnpm --version
+```
+
+Install pnpm globally:
+
+{% tabs %}
+{% tabitem label="Using npm" %}
+```bash
+npm install -g pnpm
+```
+{% /tabitem %}
+
+{% tabitem label="Using Installer (Recommended)" %}
+```bash
+# macOS/Linux
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+# Windows (PowerShell)
+iwr https://get.pnpm.io/install.ps1 -useb | iex
+```
+{% /tabitem %}
+
+{% tabitem label="Using Homebrew (macOS)" %}
+```bash
+brew install pnpm
+```
+{% /tabitem %}
+{% /tabs %}
+
+After installation, verify:
+
+```bash
+pnpm --version
+```
+
+### Git
+
+Git is required for version control and cloning the Pika framework repository.
+
+Check if Git is installed:
+
+```bash
+git --version
+```
+
+Install Git if needed:
+
+{% tabs %}
+{% tabitem label="macOS" %}
+```bash
+brew install git
+```
+{% /tabitem %}
+
+{% tabitem label="Linux" %}
+```bash
+# Ubuntu/Debian
+sudo apt-get install git
+
+# CentOS/RHEL
+sudo yum install git
+
+# Fedora
+sudo dnf install git
+```
+{% /tabitem %}
+
+{% tabitem label="Windows" %}
+Download and install from [git-scm.com](https://git-scm.com/)
+
+The installer sets up PATH automatically and includes Git Bash.
+{% /tabitem %}
+{% /tabs %}
+
+## Installing Pika CLI
+
+### Global Installation
+
+Install the Pika CLI globally to access it from anywhere on your system:
+
+```bash
+pnpm install -g pika-app
+```
+
+### Verify Installation
+
+Check that the CLI was installed correctly:
+
+```bash
+pika --version
+```
+
+You should see the version number of the Pika CLI.
+
+### Available CLI Commands
+
+Once installed, you have access to these commands:
+
+```bash
+# Create a new Pika application
+pika create-app <name>
+
+# Sync framework updates to your installation
+pika sync
+
+# Get help with sync options
+pika sync --help
+```
+
+## Optional Tools for Development
+
+### IDE Setup
+
+For the best development experience, we recommend **VS Code** or **Cursor** with these extensions:
+
+{% card title="Svelte for VS Code" icon="approve-check" %}
+**Extension ID**: `svelte.svelte-vscode`
+
+Provides Svelte language support, syntax highlighting, IntelliSense, and component navigation.
+{% /card %}
+
+{% card title="Draw.io Integration" icon="pencil" %}
+**Extension ID**: `hediet.vscode-drawio`
+
+Edit `.drawio` files directly in VS Code for creating and updating architecture diagrams.
+{% /card %}
+
+{% card title="Prettier - Code Formatter" icon="setting" %}
+**Extension ID**: `esbenp.prettier-vscode`
+
+Automatic code formatting for consistent style across your project.
+{% /card %}
+
+#### Installing Extensions
+
+{% tabs %}
+{% tabitem label="VS Code UI" %}
+1. Open VS Code or Cursor
+2. Go to Extensions view (Ctrl+Shift+X / Cmd+Shift+X)
+3. Search for each extension by name
+4. Click Install
+{% /tabitem %}
+
+{% tabitem label="Command Line" %}
+```bash
+# Install all recommended extensions at once
+code --install-extension svelte.svelte-vscode
+code --install-extension hediet.vscode-drawio
+code --install-extension esbenp.prettier-vscode
+```
+{% /tabitem %}
+
+{% tabitem label="Auto-Install" %}
+When you open a Pika project in VS Code/Cursor, you'll see a notification asking if you want to install recommended extensions. Click "Install" to install all of them at once.
+{% /tabitem %}
+{% /tabs %}
+
+### AWS CLI (For Deployment)
+
+If you plan to deploy to AWS, install the AWS CLI:
+
+{% tabs %}
+{% tabitem label="macOS" %}
+```bash
+brew install awscli
+```
+{% /tabitem %}
+
+{% tabitem label="Linux" %}
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+```
+{% /tabitem %}
+
+{% tabitem label="Windows" %}
+Download and install from [aws.amazon.com/cli](https://aws.amazon.com/cli/)
+{% /tabitem %}
+{% /tabs %}
+
+Configure AWS CLI with your credentials:
+
+```bash
+aws configure
+```
+
+Enter your:
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region (e.g., `us-east-1`)
+- Output format (e.g., `json`)
+
+### AWS CDK (For Deployment)
+
+For AWS deployment with CDK, install the AWS CDK CLI:
+
+```bash
+pnpm install -g aws-cdk
+```
+
+Verify installation:
+
+```bash
+cdk --version
+```
+
+## Post-Installation Configuration
+
+### Create Your First Application
+
+After installing all prerequisites, create your first Pika application:
+
+```bash
+pika create-app my-chat-app
+cd my-chat-app
+```
+
+### Configure Project Names
+
+Edit `pika-config.ts` in your project root to customize names used for AWS stacks and resources:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'mycompany',
+        projNameKebabCase: 'mycompany',
+        projNameTitleCase: 'MyCompany',
+        projNameCamel: 'mycompany',
+        projNameHuman: 'My Company'
+    },
+    pikaChat: {
+        projNameL: 'mycompanychat',
+        projNameKebabCase: 'mycompany-chat',
+        projNameTitleCase: 'MyCompanyChat',
+        projNameCamel: 'myCompanyChat',
+        projNameHuman: 'My Company Chat'
+    }
+};
+```
+
+{% aside type="note" title="Why Customize Names?" %}
+These names are used throughout the project for:
+- AWS CloudFormation stack names
+- AWS resource naming
+- Application titles and branding
+- Log group names and identifiers
+
+Customizing them helps avoid conflicts and makes your resources easier to identify.
+{% /aside %}
+
+### Install Project Dependencies
+
+```bash
+pnpm install
+```
+
+This installs all dependencies for the monorepo, including all packages, services, and applications.
+
+## Verification
+
+Verify everything is working correctly:
+
+```bash
+# Check all tools are available
+node --version    # Should show 22.0.0 or higher
+pnpm --version    # Should show 8.0.0 or higher
+git --version     # Any recent version
+pika --version    # Should show Pika CLI version
+
+# Build the project
+pnpm build
+
+# Start development server
+pnpm dev
+```
+
+If all commands complete successfully and you can access your application at `http://localhost:3000`, your installation is complete!
+
+## Troubleshooting Installation
+
+### Node.js Version Issues
+
+{% aside type="caution" title="Version Mismatch" %}
+If you see errors about Node.js version compatibility, make sure you're running Node.js 22 or higher.
+{% /aside %}
+
+```bash
+# Check your Node.js version
+node --version
+
+# If below 22.0.0, update Node.js
+```
+
+Update methods by platform:
+
+{% tabs %}
+{% tabitem label="macOS" %}
+```bash
+brew upgrade node
+```
+{% /tabitem %}
+
+{% tabitem label="Linux" %}
+```bash
+# Reinstall from NodeSource
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+{% /tabitem %}
+
+{% tabitem label="Windows" %}
+Download the latest installer from [nodejs.org](https://nodejs.org/) and run it.
+{% /tabitem %}
+{% /tabs %}
+
+### pnpm Installation Issues
+
+If pnpm installation fails with npm:
+
+```bash
+# Try the official installer
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+# On Windows PowerShell:
+iwr https://get.pnpm.io/install.ps1 -useb | iex
+```
+
+### Permission Errors on Global Install
+
+On macOS/Linux, if you get permission errors:
+
+```bash
+# Don't use sudo - fix npm prefix instead
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+
+# Add to PATH in ~/.bashrc or ~/.zshrc
+export PATH=~/.npm-global/bin:$PATH
+
+# Reload shell config
+source ~/.bashrc  # or ~/.zshrc
+```
+
+### Git Installation Issues
+
+If Git installation fails, download directly:
+- [Git for macOS](https://git-scm.com/download/mac)
+- [Git for Windows](https://git-scm.com/download/win)
+- [Git for Linux](https://git-scm.com/download/linux)
+
+### Build Failures
+
+If the initial build fails:
+
+```bash
+# Clean and rebuild
+pnpm clean
+pnpm install --force
+pnpm build
+```
+
+### AWS CLI Configuration Issues
+
+If `aws configure` fails:
+
+```bash
+# Check if AWS CLI is in PATH
+which aws
+
+# If not found, reinstall or check PATH configuration
+```
+
+## Security Notice for Production
+
+{% aside type="danger" title="Critical: Read Before Deploying" %}
+Pika Framework includes a **mock authentication provider** for development that:
+
+- Automatically authenticates anyone who visits your site as a test user
+- Provides no real security - no passwords or validation required
+- Is designed for development only - **not suitable for production use**
+
+**Before deploying to production:**
+
+1. Implement a custom authentication provider ([Authentication Guide](/how-to/authentication/))
+2. Configure user types (`internal-user` vs `external-user`) properly
+3. Set chat app access controls using `userTypesAllowed`
+4. Test your authentication thoroughly in staging
+{% /aside %}
+
+## Next Steps
+
+Now that you have Pika Platform installed:
+
+{% card title="Quick Start Guide" icon="rocket" %}
+Follow the [Quick Start](/getting-started/quickstart/) to get your first app running in 15 minutes.
+{% /card %}
+
+{% card title="Hello World Tutorial" icon="pencil" %}
+Build your first custom agent with the [Hello World Tutorial](/getting-started/hello-world/).
+{% /card %}
+
+{% card title="Learn the Concepts" icon="puzzle" %}
+Understand how Pika works by reading the [Concepts & Architecture](/concepts/) section.
+{% /card %}
+
+## Getting Help
+
+If you encounter issues during installation:
+
+1. Check the troubleshooting sections above for common solutions
+2. Search existing issues on the [GitHub repository](https://github.com/rithum/pika)
+3. Create a new issue with:
+   - Your operating system and version
+   - Node.js, pnpm, and Git versions
+   - Complete error messages
+   - Steps you've already tried
+
+The Pika community is here to help!
+

@@ -1,0 +1,513 @@
+---
+title: CLI Reference
+description: Complete command reference for the Pika CLI tool
+---
+
+Complete reference for all commands available in the Pika CLI tool.
+
+## Installation
+
+```bash
+# Install globally
+npm install -g pika-app
+
+# Or use with npx (no installation)
+npx pika-app --help
+```
+
+## Global Options
+
+Available for all commands:
+
+| Option | Description |
+|--------|-------------|
+| `--help`, `-h` | Display help information |
+| `--version`, `-v` | Display CLI version |
+
+## Commands
+
+### pika create-app
+
+Creates a new Pika chat application with interactive setup.
+
+**Usage:**
+
+```bash
+pika create-app [name] [options]
+```
+
+**Arguments:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | No | Project name (prompted if not provided) |
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `-t, --template <template>` | `string` | `default` | Template to use (`default`, `minimal`, `enterprise`) |
+| `-d, --directory <directory>` | `string` | `./{name}` | Output directory for the project |
+| `--skip-install` | `boolean` | `false` | Skip installing dependencies |
+| `--skip-git` | `boolean` | `false` | Skip initializing git repository |
+
+**Examples:**
+
+```bash
+# Interactive setup
+pika create-app
+
+# Create with specific name
+pika create-app my-chat-app
+
+# Use minimal template
+pika create-app simple-chat --template minimal
+
+# Custom directory
+pika create-app --directory ./projects/my-chat-app
+
+# Skip automatic steps
+pika create-app --skip-install --skip-git
+```
+
+**Templates:**
+
+- `default` - Full-featured Pika app with all capabilities
+- `minimal` - Minimal setup with basic features only
+- `enterprise` - Enterprise template with advanced security and compliance features
+
+---
+
+### pika sync
+
+Synchronizes your project with the latest Pika Framework updates while protecting your customizations.
+
+**Usage:**
+
+```bash
+pika sync [options]
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--version <version>` | `string` | `latest` | Specific framework version to sync to |
+| `--dry-run` | `boolean` | `false` | Preview changes without applying them |
+| `--force` | `boolean` | `false` | Force sync even if there are conflicts |
+
+**Examples:**
+
+```bash
+# Sync to latest version
+pika sync
+
+# Preview changes first (recommended)
+pika sync --dry-run
+
+# Sync to specific version
+pika sync --version 1.2.0
+
+# Force sync with conflicts
+pika sync --force
+```
+
+**Protected Areas:**
+
+The sync command never modifies:
+- `apps/pika-chat/src/lib/server/auth-provider/`
+- `apps/pika-chat/src/lib/client/features/chat/message-segments/custom-components/`
+- `services/custom/`
+- `apps/custom/`
+- Environment files (`.env*`)
+- `pika-config.ts`
+- `.pika-sync.json`
+- Any path starting with `custom-`
+
+**Best Practice Workflow:**
+
+```bash
+# 1. Check what will change
+pika sync --dry-run
+
+# 2. Commit your work
+git add .
+git commit -m "Save work before sync"
+
+# 3. Perform sync
+pika sync
+
+# 4. Test changes
+pnpm dev
+
+# 5. Commit sync results
+git add .
+git commit -m "Sync to framework version X.Y.Z"
+```
+
+---
+
+### pika component
+
+Manages custom markdown components for your chat application.
+
+**Usage:**
+
+```bash
+pika component [action] [options]
+```
+
+**Actions:**
+
+| Action | Description |
+|--------|-------------|
+| `add <name>` | Add a new custom component |
+| `list` | List all registered components |
+| `validate` | Validate component registry |
+
+**Examples:**
+
+```bash
+# Interactive component management
+pika component
+
+# Add a new component
+pika component add order-status
+
+# List all components
+pika component list
+
+# Validate component configuration
+pika component validate
+```
+
+**Generated Files:**
+
+When adding a component named `order-status`, the CLI creates:
+
+```
+apps/pika-chat/src/lib/client/features/chat/
+└── message-segments/
+    └── custom-components/
+        ├── order-status.svelte      # Component implementation
+        └── index.ts                 # Updated registry
+```
+
+**Component Template:**
+
+```svelte
+<script lang="ts">
+  export let orderId: string;
+  export let status: string = 'pending';
+</script>
+
+<div class="order-status">
+  <h3>Order #{orderId}</h3>
+  <p>Status: {status}</p>
+</div>
+
+<style>
+  .order-status {
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+  }
+</style>
+```
+
+---
+
+### pika auth
+
+Manages authentication configuration for your project.
+
+**Usage:**
+
+```bash
+pika auth [action] [provider] [options]
+```
+
+**Actions:**
+
+| Action | Description |
+|--------|-------------|
+| `setup <provider>` | Setup authentication provider |
+| `status` | Show current authentication status |
+
+**Providers:**
+
+| Provider | Description | Use Case |
+|----------|-------------|----------|
+| `mock` | Simple mock authentication | Development and testing |
+| `auth-js` | OAuth providers (Google, GitHub, etc.) | Standard OAuth authentication |
+| `custom` | Custom authentication system | Existing auth infrastructure |
+| `enterprise-sso` | SAML/OIDC enterprise SSO | Enterprise single sign-on |
+
+**Examples:**
+
+```bash
+# Interactive auth management
+pika auth
+
+# Setup Google OAuth via Auth.js
+pika auth setup auth-js
+
+# Setup custom auth
+pika auth setup custom
+
+# Check current auth status
+pika auth status
+```
+
+**Setup Process:**
+
+1. **Choose Provider** - Select authentication strategy
+2. **Configure Settings** - Provider-specific configuration
+3. **Install Dependencies** - CLI auto-installs required packages
+4. **Set Environment Variables** - Configure provider credentials
+5. **Test** - Verify authentication works
+
+**Custom Auth Implementation:**
+
+After running `pika auth setup custom`, implement these methods in  
+`apps/pika-chat/src/lib/server/auth-provider/custom-auth.ts`:
+
+```typescript
+interface AuthProvider {
+    authenticate(): Promise<User>;
+    logout(): Promise<void>;
+    getCurrentUser(): Promise<User | null>;
+    isAuthenticated(): Promise<boolean>;
+}
+```
+
+---
+
+## Environment Variables
+
+The CLI respects these environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DEBUG` | Enable debug logging | - |
+| `PIKA_DEBUG` | Enable Pika-specific debug output | `false` |
+| `PIKA_HOME` | Custom Pika home directory | `~/.pika` |
+| `NO_COLOR` | Disable colored output | `false` |
+
+**Debug Mode:**
+
+```bash
+# Enable all debug logging
+DEBUG=pika:* pika create-app
+
+# Enable Pika debug only
+PIKA_DEBUG=true pika sync
+```
+
+## Configuration Files
+
+The CLI uses and creates these configuration files:
+
+### .pika-sync.json
+
+Tracks sync status and protected areas.
+
+```json
+{
+    "version": "1.0.0",
+    "lastSync": "2024-01-15T10:00:00Z",
+    "userProtectedAreas": [
+        "my-custom-file.ts",
+        "apps/my-custom-app/"
+    ],
+    "userUnprotectedAreas": [
+        "apps/pika-chat/infra/bin/pika-chat.ts"
+    ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `version` | Last synced framework version |
+| `lastSync` | ISO 8601 timestamp of last sync |
+| `userProtectedAreas` | Additional files to protect from updates |
+| `userUnprotectedAreas` | Default protected files to allow updates |
+
+### pika-config.ts
+
+Generated during create-app with project names and feature configuration.
+
+See [Platform Settings Reference](/reference/configuration/platform-settings/) for complete documentation.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | File system error |
+| `4` | Network error |
+| `5` | Validation error |
+
+## Troubleshooting
+
+### Command Not Found
+
+```bash
+# Solution 1: Install globally
+npm install -g pika-app
+
+# Solution 2: Use npx
+npx pika-app --help
+```
+
+### Permission Errors
+
+```bash
+# On macOS/Linux, use sudo for global install
+sudo npm install -g pika-app
+
+# Or use a Node version manager (recommended)
+nvm use 18
+npm install -g pika-app
+```
+
+### Sync Conflicts
+
+```bash
+# View what would change
+pika sync --dry-run
+
+# Stash your changes
+git stash
+
+# Perform sync
+pika sync
+
+# Restore your changes
+git stash pop
+
+# Resolve any conflicts manually
+```
+
+### Authentication Setup Issues
+
+```bash
+# Check current status
+pika auth status
+
+# Reconfigure provider
+pika auth setup <provider>
+
+# Verify environment variables are set
+cat .env.local
+```
+
+### Component Not Rendering
+
+```bash
+# Validate component registry
+pika component validate
+
+# List all components
+pika component list
+
+# Check component is registered in index.ts
+```
+
+## System Requirements
+
+- **Node.js**: 18.0.0 or higher
+- **Git**: Required for project initialization and sync
+- **Package Manager**: npm (included), pnpm (recommended), or yarn
+- **Operating System**: macOS, Linux, or Windows
+
+**Check Requirements:**
+
+```bash
+node --version  # Should be 18.0.0+
+git --version   # Should be installed
+pnpm --version  # Recommended
+```
+
+## Updating the CLI
+
+```bash
+# Update to latest version
+npm update -g pika-app
+
+# Check current version
+pika --version
+
+# Or use npx to always get latest
+npx pika-app@latest --help
+```
+
+## Getting Help
+
+### Command Help
+
+```bash
+# General help
+pika --help
+
+# Command-specific help
+pika create-app --help
+pika sync --help
+pika component --help
+pika auth --help
+```
+
+### Verbose Output
+
+```bash
+# Enable verbose logging
+pika create-app --verbose
+
+# Enable debug mode
+DEBUG=* pika sync
+```
+
+### Support Resources
+
+- **Documentation**: [https://pika.tools](https://pika.tools)
+- **GitHub Issues**: [Report bugs and request features](https://github.com/your-org/pika/issues)
+- **Discussions**: [Community Q&A](https://github.com/your-org/pika/discussions)
+
+## Related Documentation
+
+- **[Quick Start](/getting-started/)** - Get started with Pika
+- **[Installation Guide](/getting-started/installation/)** - Detailed installation instructions
+- **[Project Structure](/concepts/how-pika-works/project-structure/)** - Understanding the generated project
+- **[Customization Guide](/guides/customization/)** - Customizing your Pika app
+- **[Authentication Setup](/guides/authentication-access/authentication/)** - Authentication configuration
+
+## API for Programmatic Use
+
+The CLI can be used programmatically:
+
+```typescript
+import { createApp, sync } from 'pika-app';
+
+// Create a new app
+await createApp({
+    name: 'my-app',
+    template: 'default',
+    directory: './my-app',
+    skipInstall: false,
+    skipGit: false
+});
+
+// Sync framework
+await sync({
+    version: 'latest',
+    dryRun: false,
+    force: false
+});
+```
+
+{% aside type="note" title="Programmatic API" %}
+The programmatic API is primarily for tool integrations. Most users should use the CLI commands directly.
+{% /aside %}
+

@@ -1,0 +1,668 @@
+---
+title: AI-Driven UI (Tag System)
+description: Enable agents to dynamically generate contextual user interfaces through intelligent tag usage and component rendering
+---
+
+Pika's AI-Driven UI capability allows agents to dynamically create user interfaces by selecting and rendering appropriate components based on user needs. Rather than forcing users through predetermined UI flows, agents adapt the interface to each specific request through an intelligent tag system.
+
+## What It Does
+
+The tag system bridges AI intelligence with UI components, enabling agents to render rich interfaces dynamically:
+
+{% card title="Contextual UI Generation" icon="star" %}
+Agents analyze user requests and render appropriate UI components - charts for data questions, forms for input collection, cards for structured content.
+{% /card %}
+
+{% card title="Intelligent Tag Selection" icon="puzzle" %}
+Agents learn when and how to use each available component through structured instructions, choosing the right UI for each situation.
+{% /card %}
+
+{% card title="Flexible Tag Management" icon="rocket" %}
+Define, configure, and manage UI components through tag definitions with lifecycle management, versioning, and per-chat-app enablement.
+{% /card %}
+
+## Why It Matters
+
+### Beyond Static Interfaces
+
+Traditional applications require developers to anticipate every user need and build specific UI flows for each scenario. This approach:
+- Creates rigid, predetermined paths
+- Forces users to navigate complex menus
+- Requires constant UI updates for new scenarios
+- Limits flexibility and personalization
+
+### Dynamic Interface Generation
+
+Pika's tag system enables agents to construct interfaces on-the-fly:
+
+**User:** "Show me Q4 sales by region"  
+**Agent:** Analyzes request → Renders chart component with regional sales data
+
+**User:** "How do I update my billing information?"  
+**Agent:** Understands intent → Renders billing form component
+
+**User:** "Compare these three products"  
+**Agent:** Identifies comparison need → Renders comparison table component
+
+The interface adapts to user intent rather than forcing users to find the right button.
+
+## Key Concepts
+
+### Tags as UI Vocabulary
+
+Tags are special markup elements that represent UI components. Agents include tags in their responses to trigger component rendering:
+
+```markdown
+Here's your sales data for Q4:
+
+<chart type="bar">
+{
+  "labels": ["Oct", "Nov", "Dec"],
+  "datasets": [{"data": [45000, 52000, 61000]}]
+}
+</chart>
+
+The strongest month was December with 24% growth.
+```
+
+The `<chart>` tag tells the system to render a chart component with the provided data.
+
+### Tag Definitions
+
+Each tag is backed by a formal definition that specifies:
+
+```typescript
+{
+    tag: 'product-card',              // Tag name used in responses
+    scope: 'custom',                  // Namespace to prevent collisions
+    usageMode: 'chat-app',            // Availability model
+    widget: {                         // Component configuration
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'components',
+            s3Key: 'product-card.js'
+        }
+    },
+    llmInstructionsMd: '...',         // How to use this tag
+    renderingContexts: { ... },       // Where it can render
+    status: 'enabled'                 // Lifecycle state
+}
+```
+
+### LLM Instructions
+
+The critical part of tag definitions is teaching agents when and how to use tags:
+
+```markdown
+Use the product-card tag to display product information with images, pricing, and ratings.
+
+**When to Use:**
+- User asks about specific products
+- Showing product recommendations
+- Displaying search results
+
+**Format:**
+<product-card>
+{
+  "id": "prod-123",
+  "name": "Product Name",
+  "price": 99.99,
+  "imageUrl": "https://...",
+  "rating": 4.5
+}
+</product-card>
+
+**Important:**
+- Always include product ID for tracking
+- Use valid JSON format
+- Provide fallback text for accessibility
+```
+
+These instructions are automatically injected into agent prompts when the tag is enabled.
+
+### Usage Modes
+
+Tags operate in two availability models:
+
+**Global Tags** (`usageMode: 'global'`):
+- Automatically available to all chat apps
+- Can be disabled per-chat-app if not needed
+- Ideal for universal components (charts, images)
+
+**Chat-App Tags** (`usageMode: 'chat-app'`):
+- Must be explicitly enabled per chat app
+- Great for specialized domain components
+- Provides fine-grained control
+
+## Tag Categories
+
+### Built-in Platform Tags
+
+Pika provides core tags out of the box:
+
+{% card title="Chart" icon="star" %}
+**Purpose**: Data visualization with multiple chart types
+
+**Usage**: `<chart type="bar">{"labels":[...],"datasets":[...]}</chart>`
+
+**Chart Types**: bar, line, pie, doughnut, radar, scatter
+{% /card %}
+
+{% card title="Image" icon="puzzle" %}
+**Purpose**: Display images with captions
+
+**Usage**: `<image caption="Description">https://image.url</image>`
+
+**Features**: Alt text, responsive sizing, loading states
+{% /card %}
+
+{% card title="Prompt" icon="rocket" %}
+**Purpose**: Suggested follow-up questions
+
+**Usage**: `<prompt>Show me more details</prompt>`
+
+**Features**: Click-to-send, conversational flow
+{% /card %}
+
+{% card title="Download" icon="document" %}
+**Purpose**: File download buttons
+
+**Usage**: `<download>{"s3Key":"file.pdf","title":"Report"}</download>`
+
+**Features**: S3 integration, secure downloads
+{% /card %}
+
+### Custom Tags
+
+Organizations define domain-specific tags for their needs:
+
+**E-commerce:**
+- `<product-card>` - Product display with add-to-cart
+- `<order-status>` - Real-time order tracking
+- `<shopping-cart>` - Cart management widget
+
+**Financial Services:**
+- `<portfolio-chart>` - Investment portfolio visualization
+- `<loan-calculator>` - Loan payment calculator
+- `<transaction-list>` - Transaction history table
+
+**Healthcare:**
+- `<appointment-scheduler>` - Calendar-based booking
+- `<medication-tracker>` - Medication schedule
+- `<symptom-checker>` - Interactive symptom assessment
+
+### Metadata Tags
+
+Non-visual tags for semantic markup:
+
+**Analytics Tags:**
+```markdown
+<analytics>{"event":"query_processed","duration":2.5}</analytics>
+```
+
+**Trace Tags:**
+```markdown
+<trace>{"id":"trace-123","tokens":145,"latency":1.2}</trace>
+```
+
+These tags don't render but trigger side effects or add metadata.
+
+## Configuration
+
+### Site-Wide Tag Enablement
+
+Enable the tag system and set global defaults:
+
+```typescript
+export const siteFeatures: SiteFeatures = {
+    tags: {
+        enabled: true,
+        
+        // Enable specific chat-app tags globally
+        tagsEnabled: [
+            { scope: 'custom', tag: 'product-card' }
+        ],
+        
+        // Disable specific global tags site-wide
+        tagsDisabled: [
+            { scope: 'pika', tag: 'download' }
+        ]
+    }
+};
+```
+
+### Per-Chat-App Configuration
+
+Individual chat apps override site defaults:
+
+```typescript
+{
+    chatAppId: 'customer-support',
+    features: {
+        tags: {
+            enabled: true,
+            
+            // Enable only these tags for this app
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'prompt' },
+                { scope: 'custom', tag: 'ticket-form' }
+            ],
+            
+            // Disable chart tag for this specific app
+            tagsDisabled: [
+                { scope: 'pika', tag: 'download' }
+            ]
+        }
+    }
+}
+```
+
+### Tag Lifecycle Management
+
+Tags progress through lifecycle states:
+
+**Enabled** (`status: 'enabled'`):
+- Active and available for use
+- Included in LLM instructions
+- Fully functional
+
+**Disabled** (`status: 'disabled'`):
+- Temporarily hidden
+- Not included in instructions
+- Can be re-enabled without deletion
+
+**Retired** (`status: 'retired'`):
+- Permanently archived
+- Historical reference only
+- Should be replaced with new versions
+
+## Use Cases
+
+### E-commerce Personalization
+
+The agent adapts UI based on user behavior:
+
+**First-time visitor:**
+```markdown
+Welcome! Here are our top-rated products:
+
+<product-card>{"id":"best-seller-1",...}</product-card>
+<product-card>{"id":"best-seller-2",...}</product-card>
+
+<prompt>Tell me more about your needs</prompt>
+```
+
+**Returning customer with cart:**
+```markdown
+Welcome back! Your cart contains:
+
+<shopping-cart>{"items":[...],"total":156.99}</shopping-cart>
+
+Ready to check out or continue shopping?
+```
+
+**Post-purchase:**
+```markdown
+Your order is confirmed!
+
+<order-status>{"orderId":"ORD-123","status":"processing"}</order-status>
+
+<prompt>Track my shipment</prompt>
+```
+
+### Financial Dashboard
+
+Dynamic interface based on query:
+
+**Portfolio Overview Request:**
+```markdown
+Here's your portfolio performance:
+
+<portfolio-chart>{"accounts":[...],"performance":...}</portfolio-chart>
+
+Your YTD return is 12.4%, outperforming the market by 3.2%.
+```
+
+**Loan Calculation Request:**
+```markdown
+Let me help you calculate that:
+
+<loan-calculator>
+{
+  "principal": 250000,
+  "rate": 6.5,
+  "term": 30
+}
+</loan-calculator>
+
+Based on these terms, your monthly payment would be $1,580.
+```
+
+**Transaction History Request:**
+```markdown
+Here are your recent transactions:
+
+<transaction-list>{"transactions":[...],"total":50}</transaction-list>
+
+<prompt>Show me only investment transactions</prompt>
+```
+
+### Healthcare Support
+
+Context-aware medical assistance:
+
+**Appointment Booking:**
+```markdown
+Available appointments with Dr. Smith:
+
+<appointment-scheduler>
+{
+  "provider": "Dr. Smith",
+  "specialty": "Cardiology",
+  "availableSlots": [...]
+}
+</appointment-scheduler>
+```
+
+**Medication Management:**
+```markdown
+Your current medication schedule:
+
+<medication-tracker>
+{
+  "medications": [
+    {"name": "Lisinopril", "dosage": "10mg", "time": "8:00 AM"},
+    {"name": "Metformin", "dosage": "500mg", "time": "8:00 AM, 8:00 PM"}
+  ]
+}
+</medication-tracker>
+
+<prompt>Set up refill reminder</prompt>
+```
+
+## Benefits
+
+### For Users
+
+{% card title="Intuitive Interactions" icon="star" %}
+Natural conversation combined with contextual UI provides the best of both worlds - conversational ease with GUI power.
+{% /card %}
+
+{% card title="Adaptive Experiences" icon="puzzle" %}
+Interface adapts to user needs and context rather than forcing navigation through predetermined paths.
+{% /card %}
+
+{% card title="Reduced Friction" icon="rocket" %}
+Get the right interface for each task without hunting through menus or forms.
+{% /card %}
+
+### For Developers
+
+{% card title="Declarative UI" icon="document" %}
+Define components and their usage instructions once. Agents learn to use them appropriately through structured guidance.
+{% /card %}
+
+{% card title="Scalable Architecture" icon="approve-check" %}
+Add new components without modifying agent code. Tag definitions and instructions update automatically.
+{% /card %}
+
+{% card title="Version Control" icon="setting" %}
+Manage tag definitions as code with full version control, review processes, and deployment automation.
+{% /card %}
+
+### For Organizations
+
+{% card title="Rapid Iteration" icon="rocket" %}
+Update UI components independently of application deployment. Roll out new interfaces instantly.
+{% /card %}
+
+{% card title="Consistency" icon="star" %}
+Centralized tag definitions ensure consistent component usage across all agents and chat apps.
+{% /card %}
+
+{% card title="Governance" icon="approve-check" %}
+Control which components are available to which chat apps with fine-grained permissions.
+{% /card %}
+
+## Creating Tag Definitions
+
+### 1. Define the Tag
+
+Create a comprehensive tag definition:
+
+```typescript
+{
+    tag: 'data-table',
+    scope: 'custom',
+    usageMode: 'chat-app',
+    
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'my-components',
+            s3Key: 'data-table.js',
+            encoding: 'gzip'
+        }
+    },
+    
+    renderingContexts: {
+        inline: { enabled: true },
+        dialog: { enabled: true },
+        spotlight: { enabled: false },
+        canvas: { enabled: false }
+    },
+    
+    canBeGeneratedByLlm: true,
+    canBeGeneratedByTool: true,
+    
+    status: 'enabled',
+    
+    description: 'Interactive data table with sorting and filtering'
+}
+```
+
+### 2. Write LLM Instructions
+
+Craft clear, detailed instructions:
+
+```markdown
+Use the data-table tag to display tabular data with headers and rows.
+
+**When to Use:**
+- User asks for data in table format
+- Displaying comparison data
+- Showing lists with multiple attributes
+
+**Format:**
+<data-table>
+{
+  "headers": ["Name", "Value", "Status"],
+  "rows": [
+    ["Item 1", "100", "Active"],
+    ["Item 2", "200", "Pending"]
+  ],
+  "sortable": true,
+  "filterable": true
+}
+</data-table>
+
+**Required Fields:**
+- headers: Array of column names
+- rows: Array of row arrays (must match header count)
+
+**Optional Fields:**
+- sortable: Enable column sorting (default: false)
+- filterable: Enable row filtering (default: false)
+
+**Important:**
+- Use valid JSON format
+- Ensure row arrays match header length
+- Keep tables under 100 rows for performance
+```
+
+### 3. Deploy and Enable
+
+**Via Admin Interface:**
+1. Navigate to Admin → Site Administration → Tag Definitions
+2. Create new tag definition
+3. Upload component to S3
+4. Enable in relevant chat apps
+
+**Via Infrastructure as Code:**
+```typescript
+new TagDefinition(this, 'DataTableTag', {
+    definition: {
+        tag: 'data-table',
+        scope: 'custom',
+        // ... rest of definition
+    }
+});
+```
+
+## Best Practices
+
+### Instruction Writing
+
+{% aside type="tip" title="Be Explicit" %}
+Provide clear examples of when to use each tag. Agents need concrete guidance, not vague descriptions.
+{% /aside %}
+
+{% aside type="tip" title="Include Anti-Patterns" %}
+Tell agents when NOT to use a tag. This prevents inappropriate usage and improves decision-making.
+{% /aside %}
+
+{% aside type="tip" title="Validate Format" %}
+Always specify JSON schema requirements and show complete, valid examples. Invalid JSON breaks component rendering.
+{% /aside %}
+
+### Tag Design
+
+{% aside type="note" title="Single Responsibility" %}
+Each tag should represent one clear UI concept. Don't create overly complex, multi-purpose tags.
+{% /aside %}
+
+{% aside type="note" title="Consistent Naming" %}
+Use descriptive, kebab-case names that clearly indicate purpose: `product-card`, not `pc` or `widget1`.
+{% /aside %}
+
+{% aside type="note" title="Scope Organization" %}
+Use scopes to organize tags by domain or team: `ecommerce/product-card`, `finance/calculator`.
+{% /aside %}
+
+### Lifecycle Management
+
+{% aside type="caution" title="Deprecation Path" %}
+When retiring tags, mark as `disabled` first, monitor usage, then move to `retired` after confirming no active usage.
+{% /aside %}
+
+{% aside type="caution" title="Version Strategy" %}
+Include version in tag names or scope for major changes: `product-card-v2` or scope `v2/product-card`.
+{% /aside %}
+
+## Advanced Patterns
+
+### Conditional Tag Availability
+
+Enable tags based on user context:
+
+```typescript
+// Premium features only for premium users
+if (user.tier === 'premium') {
+    tagsEnabled.push({ scope: 'premium', tag: 'advanced-analytics' });
+}
+
+// Internal tools only for internal users
+if (user.type === 'internal') {
+    tagsEnabled.push({ scope: 'internal', tag: 'admin-panel' });
+}
+```
+
+### Tag Composition
+
+Combine multiple tags for rich experiences:
+
+```markdown
+Here's your quarterly report:
+
+<chart type="line">{"labels":["Q1","Q2","Q3","Q4"],...}</chart>
+
+Key insights:
+- Revenue grew 23% YoY
+- Customer acquisition cost decreased 15%
+
+<data-table>{"headers":["Metric","Q4","Change"],...}</data-table>
+
+<download>{"s3Key":"reports/q4-full.pdf","title":"Full Report"}</download>
+
+<prompt>Analyze regional performance</prompt>
+```
+
+### Dynamic Tag Selection
+
+Agents choose appropriate tags based on data characteristics:
+
+**Small dataset** → Simple table  
+**Large dataset** → Paginated table with search  
+**Time series** → Line chart  
+**Categorical comparison** → Bar chart  
+**Proportion display** → Pie chart
+
+The agent analyzes data structure and user intent to select optimal visualization.
+
+## Related Capabilities
+
+- **[Custom Web Components](/capabilities/customization/web-components/)** - Build the components that tags render
+- **[Prompt Engineering](/capabilities/customization/prompt-engineering/)** - Automatic instruction injection for tag usage
+- **[Feature Overrides](/capabilities/customization/feature-overrides/)** - Per-chat-app tag enablement control
+
+## Technical Details
+
+### Tag Resolution Process
+
+1. **Agent generates response** with tag markup
+2. **Message parser** identifies tag elements
+3. **Tag lookup** retrieves definition from cache/DynamoDB
+4. **Access control** verifies tag is enabled for chat app
+5. **Component loading** fetches web component if needed
+6. **Rendering** instantiates component with content
+7. **Streaming support** handles pending/complete/error states
+
+### Tag Definition Storage
+
+Tag definitions are stored in DynamoDB with:
+- Primary key: `{scope}#{tag}`
+- Indexed by status for filtering
+- Cached in application memory
+- Versioned for change tracking
+
+### Instruction Injection
+
+When instruction assistance is enabled, tag instructions are:
+1. Filtered to enabled tags for current chat app
+2. Formatted according to instruction structure
+3. Injected into agent prompt at placeholder or appended
+4. Cached per chat app configuration
+
+## Next Steps
+
+Ready to implement AI-driven UI?
+
+{% card title="Build Components" icon="rocket" %}
+Learn to create custom web components for your agents.
+
+[Build Components →](/capabilities/customization/web-components/)
+{% /card %}
+
+{% card title="Setup Prompt Engineering" icon="document" %}
+Enable automatic instruction injection for tag usage.
+
+[Configure Prompts →](/capabilities/customization/prompt-engineering/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="information" %}
+Step-by-step instructions for tag system setup.
+
+[View How-To →](/how-to/customization/ai-ui/)
+{% /card %}
+

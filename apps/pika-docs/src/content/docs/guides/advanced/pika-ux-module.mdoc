@@ -1,0 +1,583 @@
+---
+title: Work with Pika UX Module
+description: Use pre-built UI components and design system elements for building web components
+---
+
+Learn how to use the `pika-ux` package, which provides pre-built UI components and design system elements for building web components that integrate seamlessly with Pika chat applications.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Install and configure the `pika-ux` package
+- Use pre-built shadcn/ui components
+- Access custom Pika components
+- Understand component variants and theming
+- Apply best practices for component usage
+
+## Prerequisites
+
+- A web component project
+- Node.js 22+ installed
+- Basic understanding of Svelte (recommended)
+- Familiarity with Tailwind CSS
+
+## Understanding pika-ux
+
+The `pika-ux` package provides:
+
+- **shadcn/ui Components** - Pre-built, accessible UI components
+- **Custom Pika Components** - Specialized components for Pika integration
+- **TypeScript Types** - Type definitions for Pika-specific interfaces
+- **Design System** - Consistent styling and theming
+- **Smaller Bundles** - Svelte's small footprint for web components
+
+### Why Use pika-ux?
+
+- **Rapid Development**: Pre-built components speed up development
+- **Consistent Design**: Match Pika's native UI automatically
+- **Accessibility**: Components built with a11y in mind
+- **Type Safety**: Full TypeScript support
+- **Tree Shakeable**: Import only what you need
+
+## Step 1: Install pika-ux
+
+Install the package in your web component project:
+
+```bash
+npm install pika-ux
+```
+
+Or with pnpm:
+
+```bash
+pnpm install pika-ux
+```
+
+## Step 2: Use shadcn/ui Components
+
+### Button Component
+
+```svelte
+<script lang="ts">
+    import { Button } from 'pika-ux/shadcn/button';
+
+    function handleClick() {
+        console.log('Button clicked!');
+    }
+</script>
+
+<Button onclick={handleClick} variant="default" size="lg">
+    Click Me
+</Button>
+
+<Button variant="outline" size="sm">
+    Secondary Action
+</Button>
+
+<Button variant="ghost">
+    Ghost Button
+</Button>
+
+<Button variant="destructive">
+    Delete
+</Button>
+```
+
+### Button Variants
+
+Available `variant` options:
+- `default` - Primary button style
+- `destructive` - For destructive actions (delete, remove)
+- `outline` - Outlined button
+- `secondary` - Secondary style
+- `ghost` - Minimal style
+- `link` - Link-styled button
+
+Available `size` options:
+- `default` - Standard size
+- `sm` - Small
+- `lg` - Large
+- `icon` - Square for icons
+
+### Dialog Component
+
+```svelte
+<script lang="ts">
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+
+    let dialogOpen = $state(false);
+</script>
+
+<Button onclick={() => dialogOpen = true}>
+    Open Dialog
+</Button>
+
+<Dialog.Root bind:open={dialogOpen}>
+    <Dialog.Content>
+        <Dialog.Header>
+            <Dialog.Title>Dialog Title</Dialog.Title>
+            <Dialog.Description>
+                This is a description of the dialog content.
+            </Dialog.Description>
+        </Dialog.Header>
+
+        <div class="py-4">
+            <p>Main dialog content goes here.</p>
+        </div>
+
+        <Dialog.Footer>
+            <Button variant="outline" onclick={() => dialogOpen = false}>
+                Cancel
+            </Button>
+            <Button onclick={() => handleSubmit()}>
+                Submit
+            </Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+```
+
+### Card Component
+
+```svelte
+<script lang="ts">
+    import * as Card from 'pika-ux/shadcn/card';
+    import { Button } from 'pika-ux/shadcn/button';
+</script>
+
+<Card.Root>
+    <Card.Header>
+        <Card.Title>Sales Dashboard</Card.Title>
+        <Card.Description>View your sales metrics and performance</Card.Description>
+    </Card.Header>
+    <Card.Content>
+        <p>Total Sales: $12,345</p>
+        <p>New Customers: 45</p>
+    </Card.Content>
+    <Card.Footer>
+        <Button>View Details</Button>
+    </Card.Footer>
+</Card.Root>
+```
+
+### Form Components
+
+```svelte
+<script lang="ts">
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Textarea } from 'pika-ux/shadcn/textarea';
+    import * as Select from 'pika-ux/shadcn/select';
+    import { Button } from 'pika-ux/shadcn/button';
+
+    let email = $state('');
+    let message = $state('');
+    let agreed = $state(false);
+    let category = $state('general');
+</script>
+
+<div class="space-y-4">
+    <div>
+        <Label for="email">Email</Label>
+        <Input 
+            id="email" 
+            type="email" 
+            placeholder="you@example.com"
+            bind:value={email}
+        />
+    </div>
+
+    <div>
+        <Label for="message">Message</Label>
+        <Textarea 
+            id="message" 
+            placeholder="Your message..."
+            bind:value={message}
+            rows={4}
+        />
+    </div>
+
+    <div>
+        <Label for="category">Category</Label>
+        <Select.Root bind:value={category}>
+            <Select.Trigger>
+                <Select.Value placeholder="Select category" />
+            </Select.Trigger>
+            <Select.Content>
+                <Select.Item value="general">General</Select.Item>
+                <Select.Item value="support">Support</Select.Item>
+                <Select.Item value="sales">Sales</Select.Item>
+            </Select.Content>
+        </Select.Root>
+    </div>
+
+    <div class="flex items-center space-x-2">
+        <Checkbox id="agree" bind:checked={agreed} />
+        <Label for="agree">I agree to the terms</Label>
+    </div>
+
+    <Button disabled={!agreed}>Submit</Button>
+</div>
+```
+
+### Table Component
+
+```svelte
+<script lang="ts">
+    import * as Table from 'pika-ux/shadcn/table';
+
+    const data = [
+        { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin' },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'User' },
+        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'User' }
+    ];
+</script>
+
+<Table.Root>
+    <Table.Header>
+        <Table.Row>
+            <Table.Head>Name</Table.Head>
+            <Table.Head>Email</Table.Head>
+            <Table.Head>Role</Table.Head>
+        </Table.Row>
+    </Table.Header>
+    <Table.Body>
+        {#each data as user}
+            <Table.Row>
+                <Table.Cell>{user.name}</Table.Cell>
+                <Table.Cell>{user.email}</Table.Cell>
+                <Table.Cell>{user.role}</Table.Cell>
+            </Table.Row>
+        {/each}
+    </Table.Body>
+</Table.Root>
+```
+
+## Step 3: Use Custom Pika Components
+
+### TooltipPlus Component
+
+Enhanced tooltip with rich content support:
+
+```svelte
+<script lang="ts">
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import { Button } from 'pika-ux/shadcn/button';
+</script>
+
+<TooltipPlus>
+    <Button slot="trigger">Hover Me</Button>
+    <div slot="content">
+        <h4>Helpful Information</h4>
+        <p>This tooltip can contain rich HTML content.</p>
+    </div>
+</TooltipPlus>
+```
+
+### ExpandableContainer Component
+
+Collapsible content container:
+
+```svelte
+<script lang="ts">
+    import ExpandableContainer from 'pika-ux/pika/expandable-container/expandable-container.svelte';
+</script>
+
+<ExpandableContainer title="View Details">
+    <p>This content is initially collapsed.</p>
+    <p>Click the header to expand and show more information.</p>
+</ExpandableContainer>
+```
+
+## Step 4: Apply Styling with Tailwind
+
+All pika-ux components work seamlessly with Tailwind CSS:
+
+```svelte
+<script lang="ts">
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Card from 'pika-ux/shadcn/card';
+</script>
+
+<!-- Add Tailwind utilities -->
+<Button class="mt-4 w-full">
+    Full Width Button
+</Button>
+
+<Card.Root class="max-w-md mx-auto shadow-lg">
+    <Card.Header class="bg-slate-100">
+        <Card.Title class="text-2xl">Custom Styled Card</Card.Title>
+    </Card.Header>
+    <Card.Content class="p-6">
+        <p class="text-gray-600">Content with custom spacing and colors</p>
+    </Card.Content>
+</Card.Root>
+```
+
+## Available Components Reference
+
+### Layout & Structure
+- `Card` - Flexible content container
+- `Separator` - Visual divider
+- `Sidebar` - Collapsible sidebar navigation
+
+### Forms & Input
+- `Input` - Text input field
+- `Label` - Form label
+- `Checkbox` - Checkbox input
+- `RadioGroup` - Radio button group
+- `Select` - Dropdown select
+- `Switch` - Toggle switch
+- `Textarea` - Multi-line text input
+
+### Feedback & Overlays
+- `Dialog` - Modal dialog
+- `AlertDialog` - Confirmation dialog
+- `Tooltip` - Hover tooltip
+- `Popover` - Floating popover
+- `Toast` - Notification message
+- `Progress` - Progress indicator
+
+### Navigation
+- `DropdownMenu` - Dropdown menu
+- `Tabs` - Tabbed interface
+- `Breadcrumb` - Breadcrumb navigation
+
+### Data Display
+- `Table` - Data table
+- `Badge` - Status badge
+- `Avatar` - User avatar
+
+## Theme Integration
+
+Components automatically inherit theme settings from your Pika chat app:
+
+- **Color Scheme** - Matches configured theme colors
+- **Typography** - Uses same font families and sizes
+- **Spacing** - Consistent with app spacing scale
+- **Border Radius** - Matches app border radius settings
+- **Shadows** - Uses app shadow definitions
+
+No additional configuration needed - components adapt to your theme automatically.
+
+## Best Practices
+
+### Import Only What You Need
+
+```svelte
+<!-- Good: Tree-shakeable imports -->
+import { Button } from 'pika-ux/shadcn/button';
+import { Input } from 'pika-ux/shadcn/input';
+
+<!-- Avoid: Importing entire modules -->
+import * as PikaUX from 'pika-ux';
+```
+
+### Use Semantic HTML
+
+Components render proper semantic HTML:
+
+```svelte
+<!-- Button renders as <button> -->
+<Button>Click Me</Button>
+
+<!-- Label renders as <label> -->
+<Label for="email">Email</Label>
+
+<!-- Input renders as <input> -->
+<Input id="email" type="email" />
+```
+
+### Leverage Variants
+
+Use built-in variants instead of custom styles:
+
+```svelte
+<!-- Good: Use variants -->
+<Button variant="destructive">Delete</Button>
+<Button variant="outline" size="sm">Cancel</Button>
+
+<!-- Avoid: Custom styles for common patterns -->
+<Button class="bg-red-500 text-white">Delete</Button>
+```
+
+### Test Accessibility
+
+Components are built with accessibility in mind, but test your usage:
+
+- Use proper labels for form inputs
+- Provide aria-labels for icon buttons
+- Test keyboard navigation
+- Check screen reader compatibility
+
+### Combine with Pika Context
+
+Integrate pika-ux components with Pika context:
+
+```svelte
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { Button } from 'pika-ux/shadcn/button';
+    import * as Card from 'pika-ux/shadcn/card';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+
+    let context = $state<PikaWCContext>();
+
+    async function init() {
+        context = await getPikaContext($host());
+    }
+
+    async function handleAction() {
+        // Use Pika context methods
+        context.appState.showToast('Action completed!', { type: 'success' });
+        context.chatAppState.closeDialog();
+    }
+
+    $effect(() => { init(); });
+</script>
+
+<Card.Root>
+    <Card.Header>
+        <Card.Title>Hello, {context?.appState.identity.user.firstName}!</Card.Title>
+    </Card.Header>
+    <Card.Content>
+        <p>You're in the {context?.context} context</p>
+    </Card.Content>
+    <Card.Footer>
+        <Button onclick={handleAction}>Complete Action</Button>
+    </Card.Footer>
+</Card.Root>
+```
+
+## Common Patterns
+
+### Loading States
+
+```svelte
+<script lang="ts">
+    import { Button } from 'pika-ux/shadcn/button';
+    import { Progress } from 'pika-ux/shadcn/progress';
+
+    let loading = $state(false);
+    let progress = $state(0);
+
+    async function loadData() {
+        loading = true;
+        progress = 0;
+        
+        for (let i = 0; i <= 100; i += 10) {
+            progress = i;
+            await new Promise(r => setTimeout(r, 100));
+        }
+        
+        loading = false;
+    }
+</script>
+
+{#if loading}
+    <Progress value={progress} />
+{:else}
+    <Button onclick={loadData}>Load Data</Button>
+{/if}
+```
+
+### Form Validation
+
+```svelte
+<script lang="ts">
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+    import { Button } from 'pika-ux/shadcn/button';
+
+    let email = $state('');
+    let emailError = $state('');
+
+    function validateEmail() {
+        if (!email.includes('@')) {
+            emailError = 'Please enter a valid email';
+            return false;
+        }
+        emailError = '';
+        return true;
+    }
+
+    function handleSubmit() {
+        if (validateEmail()) {
+            // Process form
+        }
+    }
+</script>
+
+<div>
+    <Label for="email">Email</Label>
+    <Input 
+        id="email" 
+        type="email" 
+        bind:value={email}
+        onblur={validateEmail}
+        class={emailError ? 'border-red-500' : ''}
+    />
+    {#if emailError}
+        <p class="text-red-500 text-sm mt-1">{emailError}</p>
+    {/if}
+</div>
+
+<Button onclick={handleSubmit}>Submit</Button>
+```
+
+### Confirmation Dialogs
+
+```svelte
+<script lang="ts">
+    import * as AlertDialog from 'pika-ux/shadcn/alert-dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+
+    let confirmOpen = $state(false);
+
+    async function handleDelete() {
+        // Perform deletion
+        confirmOpen = false;
+    }
+</script>
+
+<Button variant="destructive" onclick={() => confirmOpen = true}>
+    Delete Item
+</Button>
+
+<AlertDialog.Root bind:open={confirmOpen}>
+    <AlertDialog.Content>
+        <AlertDialog.Header>
+            <AlertDialog.Title>Are you sure?</AlertDialog.Title>
+            <AlertDialog.Description>
+                This action cannot be undone. This will permanently delete the item.
+            </AlertDialog.Description>
+        </AlertDialog.Header>
+        <AlertDialog.Footer>
+            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action onclick={handleDelete}>Delete</AlertDialog.Action>
+        </AlertDialog.Footer>
+    </AlertDialog.Content>
+</AlertDialog.Root>
+```
+
+## Next Steps
+
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Create components using pika-ux
+- [Deploy Custom Web Components](/guides/customization/deploy-web-components/) - Deploy to production
+- [shadcn/ui Documentation](https://ui.shadcn.com/) - Original component documentation
+
+## Related Documentation
+
+- [Web Components Capability](/capabilities/customization/web-components/) - Learn about web components
+- [Building Web Components Guide](/guides/customization/build-web-components/) - Complete build guide
+- [Tailwind CSS](https://tailwindcss.com/) - Styling documentation
+
+---
+
+{% aside type="success" title="Rapid UI Development" %}
+pika-ux provides all the building blocks you need to create beautiful, accessible, and theme-consistent web components quickly. Focus on your business logic, not UI primitives.
+{% /aside %}
+

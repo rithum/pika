@@ -1,0 +1,591 @@
+---
+title: Custom Web Components
+description: Build rich, interactive UI elements that agents can render dynamically with full AI access and streaming support
+---
+
+Pika enables agents to render sophisticated, interactive user interfaces through custom web components. Build components once, deploy them independently, and let agents incorporate them into responses dynamically based on user needs.
+
+## What It Does
+
+Custom web components provide agents with the ability to render rich, interactive UI that goes far beyond simple text responses:
+
+{% card title="Multi-Context Rendering" icon="star" %}
+Components adapt automatically to different display contexts: inline within messages, dialog overlays, spotlight focus views, and full canvas experiences.
+{% /card %}
+
+{% card title="AI-Powered Interaction" icon="puzzle" %}
+Components can invoke the agent directly, requesting structured data or triggering actions, creating truly dynamic user experiences.
+{% /card %}
+
+{% card title="Streaming Support" icon="rocket" %}
+Handle real-time data streams elegantly with built-in support for pending, completed, and error states during content delivery.
+{% /card %}
+
+## Why It Matters
+
+### Beyond Text Responses
+
+Traditional chat applications limit agents to text output. Pika breaks this constraint by allowing agents to render:
+
+- **Data Visualizations**: Charts, graphs, and interactive dashboards
+- **Interactive Forms**: User input collection with validation
+- **Rich Media**: Image galleries, video players, document viewers
+- **Business Widgets**: Product cards, order status, appointment schedulers
+- **Custom Tools**: Calculators, configurators, comparison tables
+
+### The Power of Dynamic UI
+
+Agents decide **when and how** to render components based on user needs:
+
+**User:** "Show me sales trends for Q4"  
+**Agent:** Renders an interactive chart component
+
+**User:** "Compare our top 3 products"  
+**Agent:** Renders a comparison table component
+
+**User:** "Help me calculate my loan payment"  
+**Agent:** Renders a loan calculator component
+
+The agent chooses the appropriate UI dynamically rather than forcing users through predetermined
+
+ forms.
+
+## Key Capabilities
+
+### Component Types
+
+Pika supports multiple component deployment models:
+
+#### Built-in Components
+
+Platform-provided components available out of the box:
+- **Chart**: Powered by Chart.js for data visualization
+- **Image**: Display images with captions and alt text
+- **Prompt**: Clickable suggested follow-up questions
+- **Download**: File download buttons with S3 integration
+
+#### Custom Compiled-In Components
+
+Svelte components compiled into your application:
+- Fastest performance (no network loading)
+- Full access to application state
+- Ideal for frequently-used components
+- Require application redeployment to update
+
+#### Web Component Tags
+
+Standalone components loaded dynamically from S3:
+- Deploy and update independently
+- No application redeployment needed
+- Standard web components or Svelte compiled to web components
+- Slightly slower initial load (cached after first use)
+
+#### Pass-Through Tags
+
+Semantic markup that doesn't render visually:
+- Useful for analytics tracking
+- Metadata extraction
+- Non-visual agent communication
+
+### Multi-Context Rendering
+
+Components specify which display contexts they support:
+
+```typescript
+renderingContexts: {
+    inline: { enabled: true },    // Within message flow
+    dialog: { enabled: true },    // Modal overlay
+    spotlight: { enabled: true }, // Focused view
+    canvas: { enabled: true }     // Full-screen experience
+}
+```
+
+**Inline Context:**
+- Component appears within the message flow
+- Maintains conversation context
+- Suitable for compact visualizations
+
+**Dialog Context:**
+- Overlays the chat interface
+- Focus user attention
+- Ideal for forms and multi-step interactions
+
+**Spotlight Context:**
+- Dedicated focus area alongside chat
+- Persistent across messages
+- Great for dashboards and monitoring
+
+**Canvas Context:**
+- Full-screen immersive experience
+- Maximum screen real estate
+- Perfect for complex interactions and visualizations
+
+### AI Invocation
+
+Components can request structured data from the agent:
+
+```javascript
+class DataWidget extends HTMLElement {
+    async loadData() {
+        // Component invokes agent for structured data
+        const response = await this.pikaContext.invokeAgent({
+            componentAgentInstructionsMd: `Generate product data matching: ${this.query}`,
+            outputSchema: ProductSchema,
+            conversationId: this.conversationId
+        });
+        
+        this.render(response.data);
+    }
+}
+```
+
+The agent receives:
+- Component's specific instructions
+- TypeScript interface defining expected output
+- Current conversation context
+
+The agent returns structured JSON matching the interface.
+
+### Streaming Support
+
+Handle real-time content delivery gracefully:
+
+```javascript
+connectedCallback() {
+    const content = this.textContent;
+    const status = this.getAttribute('streaming-status');
+    
+    if (status === 'pending') {
+        this.showLoadingState();
+    } else if (status === 'completed') {
+        this.render(JSON.parse(content));
+    } else if (status === 'error') {
+        this.showError();
+    }
+}
+```
+
+**Streaming states:**
+- `pending`: Content still streaming, show loading UI
+- `completed`: Full content received, render normally
+- `error`: Stream failed, show error state
+
+## Use Cases
+
+### E-commerce Platform
+
+{% card title="Product Discovery" icon="star" %}
+**Component**: Interactive product cards with images, pricing, ratings
+
+**Agent Usage**: "Here are the top-rated laptops in your price range:" + product card components
+
+**Features**: Add to cart, compare products, view details
+{% /card %}
+
+{% card title="Order Tracking" icon="puzzle" %}
+**Component**: Real-time order status with shipping timeline
+
+**Agent Usage**: "Your order is:" + order status component
+
+**Features**: Live updates, delivery map, contact carrier
+{% /card %}
+
+### Financial Services
+
+{% card title="Portfolio Dashboard" icon="rocket" %}
+**Component**: Interactive portfolio visualization with drill-down
+
+**Agent Usage**: "Your portfolio performance:" + portfolio component
+
+**Features**: Asset allocation charts, historical performance, what-if analysis
+{% /card %}
+
+{% card title="Loan Calculator" icon="document" %}
+**Component**: Interactive loan calculator with amortization schedule
+
+**Agent Usage**: "Let me help you calculate that:" + calculator component
+
+**Features**: Real-time calculations, comparison scenarios, application starter
+{% /card %}
+
+### Healthcare
+
+{% card title="Appointment Scheduler" icon="approve-check" %}
+**Component**: Calendar-based appointment booking
+
+**Agent Usage**: "Available appointments:" + scheduler component
+
+**Features**: Real-time availability, provider selection, confirmation
+{% /card %}
+
+{% card title="Medication Tracker" icon="information" %}
+**Component**: Visual medication schedule and reminders
+
+**Agent Usage**: "Your medication schedule:" + tracker component
+
+**Features**: Dosage tracking, refill reminders, interaction warnings
+{% /card %}
+
+## Benefits
+
+### For Users
+
+{% card title="Rich Interactions" icon="star" %}
+Natural conversation combined with powerful interactive UI creates intuitive experiences that feel both conversational and productive.
+{% /card %}
+
+{% card title="Context-Aware UI" icon="puzzle" %}
+Agents render appropriate components based on user needs rather than forcing navigation through predetermined interfaces.
+{% /card %}
+
+### For Developers
+
+{% card title="Reusable Components" icon="rocket" %}
+Build components once, use across multiple agents and chat apps. Standard web component technology means portability and reusability.
+{% /card %}
+
+{% card title="Independent Deployment" icon="document" %}
+Update web components without redeploying your application. Deploy new features to production instantly.
+{% /card %}
+
+{% card title="Standard Technologies" icon="approve-check" %}
+Use familiar web technologies: HTML, CSS, JavaScript, or compile from Svelte, React, Vue, or any framework.
+{% /card %}
+
+## Getting Started
+
+### 1. Enable the Tags Feature
+
+In your `pika-config.ts`:
+
+```typescript
+export const siteFeatures: SiteFeatures = {
+    tags: {
+        enabled: true,
+        tagsEnabled: [
+            { scope: 'pika', tag: 'chart' },
+            { scope: 'pika', tag: 'download' }
+        ]
+    }
+};
+```
+
+### 2. Build a Web Component
+
+Create a standard web component:
+
+```javascript
+class ProductCard extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+    
+    connectedCallback() {
+        const data = JSON.parse(this.textContent);
+        this.render(data);
+    }
+    
+    render(product) {
+        this.shadowRoot.innerHTML = `
+            <style>
+                .card {
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 16px;
+                    max-width: 320px;
+                }
+                .product-image {
+                    width: 100%;
+                    height: 200px;
+                    object-fit: cover;
+                    border-radius: 4px;
+                }
+                .product-name {
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin: 12px 0 8px;
+                }
+                .product-price {
+                    font-size: 24px;
+                    color: #059669;
+                    font-weight: 700;
+                }
+            </style>
+            <div class="card">
+                <img class="product-image" 
+                     src="${product.imageUrl}" 
+                     alt="${product.name}">
+                <div class="product-name">${product.name}</div>
+                <div class="product-price">$${product.price}</div>
+                <button class="add-to-cart">Add to Cart</button>
+            </div>
+        `;
+        
+        this.shadowRoot.querySelector('.add-to-cart')
+            .addEventListener('click', () => this.addToCart(product));
+    }
+    
+    addToCart(product) {
+        // Handle add to cart logic
+        console.log('Adding to cart:', product);
+    }
+}
+
+customElements.define('product-card', ProductCard);
+```
+
+### 3. Deploy the Component
+
+Upload to S3 and create a tag definition:
+
+```typescript
+{
+    tag: 'product-card',
+    scope: 'custom',
+    usageMode: 'chat-app',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            s3Bucket: 'my-components-bucket',
+            s3Key: 'product-card.js',
+            encoding: 'gzip'
+        }
+    },
+    renderingContexts: {
+        inline: { enabled: true },
+        dialog: { enabled: true }
+    },
+    llmInstructionsMd: `Use the product-card tag to display product information.
+    
+Example:
+<product-card>{"name":"Laptop","price":999.99,"imageUrl":"https://..."}</product-card>`,
+    status: 'enabled'
+}
+```
+
+### 4. Enable in Chat App
+
+```typescript
+{
+    chatAppId: 'shopping-assistant',
+    features: {
+        tags: {
+            tagsEnabled: [
+                { scope: 'custom', tag: 'product-card' }
+            ]
+        }
+    }
+}
+```
+
+## Advanced Patterns
+
+### AI-Invoked Components
+
+Create components that request structured data from the agent:
+
+```javascript
+class DynamicDataTable extends HTMLElement {
+    async connectedCallback() {
+        const query = this.getAttribute('data-query');
+        const schema = this.getAttribute('data-schema');
+        
+        // Request structured data from agent
+        const response = await this.pikaContext.invokeAgent({
+            componentAgentInstructionsMd: `Retrieve data for: ${query}`,
+            outputSchema: JSON.parse(schema),
+            conversationId: this.conversationId
+        });
+        
+        this.renderTable(response.data);
+    }
+}
+```
+
+### Multi-Context Components
+
+Adapt rendering based on display context:
+
+```javascript
+connectedCallback() {
+    const context = this.getAttribute('pika-context');
+    
+    switch (context) {
+        case 'inline':
+            this.renderCompact();
+            break;
+        case 'dialog':
+            this.renderDetailed();
+            break;
+        case 'spotlight':
+            this.renderDashboard();
+            break;
+        case 'canvas':
+            this.renderFullscreen();
+            break;
+    }
+}
+```
+
+### State Management
+
+Access conversation state and send messages:
+
+```javascript
+class InteractiveWidget extends HTMLElement {
+    handleUserAction(action) {
+        // Send message to agent
+        this.pikaContext.sendMessage(
+            `User selected: ${action}`
+        );
+        
+        // Update component state
+        this.updateState(action);
+    }
+}
+```
+
+## Best Practices
+
+### Design Principles
+
+{% aside type="tip" title="Progressive Enhancement" %}
+Design components to work gracefully across all rendering contexts. Start with inline functionality, then enhance for dialog/spotlight/canvas.
+{% /aside %}
+
+{% aside type="tip" title="Streaming-Aware" %}
+Always handle all three streaming states (pending, completed, error) for robust user experience during real-time updates.
+{% /aside %}
+
+{% aside type="tip" title="Shadow DOM" %}
+Use Shadow DOM for style encapsulation to prevent conflicts with application styles and ensure consistent rendering.
+{% /aside %}
+
+### Performance
+
+{% aside type="note" title="Minimize Bundle Size" %}
+Keep component JavaScript files small. Components are loaded over the network, so minimize dependencies and use code splitting.
+{% /aside %}
+
+{% aside type="note" title="Optimize Images" %}
+Load images lazily and use appropriate formats (WebP where supported). Consider responsive images for different contexts.
+{% /aside %}
+
+{% aside type="note" title="Cache Effectively" %}
+Components are cached after first load. Use versioned filenames (e.g., `product-card-v2.js`) for cache busting when updating.
+{% /aside %}
+
+### Security
+
+{% aside type="danger" title="Sanitize Inputs" %}
+Always sanitize and validate data received from agents. Never use `innerHTML` with unsanitized content.
+{% /aside %}
+
+{% aside type="danger" title="CSP Compliance" %}
+Ensure components work within Content Security Policy restrictions. Avoid inline scripts and eval().
+{% /aside %}
+
+## Related Capabilities
+
+- **[AI-Driven UI](/capabilities/customization/ai-ui/)** - Tag system and teaching agents when to use components
+- **[Prompt Engineering](/capabilities/customization/prompt-engineering/)** - Automatically generate instructions for component usage
+- **[Feature Overrides](/capabilities/customization/feature-overrides/)** - Enable/disable components per chat app
+
+## Technical Details
+
+### Component Lifecycle
+
+1. **Agent Decision**: Agent determines component is needed
+2. **Tag Output**: Agent includes component tag in response
+3. **Parser Detection**: Message parser identifies component tag
+4. **Definition Lookup**: System retrieves tag definition
+5. **Component Loading**: Web component loaded from S3 (if not cached)
+6. **Instantiation**: Component element created and attached
+7. **Rendering**: Component renders based on content and context
+8. **Streaming Updates**: Component receives streaming status updates
+9. **Finalization**: Component transitions to completed state
+
+### Tag Definition Structure
+
+```typescript
+interface TagDefinition {
+    tag: string;                    // Component name
+    scope: string;                  // Namespace (e.g., 'custom', 'pika')
+    usageMode: 'global' | 'chat-app'; // Availability model
+    widget: {
+        type: 'web-component';
+        webComponent: {
+            s3Bucket: string;       // S3 bucket name
+            s3Key: string;          // Component file path
+            encoding: 'gzip' | 'none'; // Compression
+        };
+    };
+    renderingContexts: {
+        inline: { enabled: boolean };
+        dialog: { enabled: boolean };
+        spotlight: { enabled: boolean };
+        canvas: { enabled: boolean };
+    };
+    llmInstructionsMd: string;      // Instructions for agent
+    status: 'enabled' | 'disabled'; // Lifecycle status
+}
+```
+
+### Compiled-In Alternative
+
+For high-performance components, compile directly into your application:
+
+```typescript
+// In customRenderers registry
+import ProductCard from './ProductCard.svelte';
+
+export const customRenderers = {
+    'product-card': ProductCard
+};
+
+// Tag definition
+{
+    tag: 'product-card',
+    scope: 'custom',
+    widget: {
+        type: 'custom-compiled-in'
+    }
+}
+```
+
+## Migration Path
+
+Existing compiled-in components can evolve to web components:
+
+1. **Start**: Custom Svelte component compiled into application
+2. **Add Tag Definition**: Create tag definition with `type: 'custom-compiled-in'`
+3. **Build Web Component**: Compile Svelte to web component
+4. **Upload to S3**: Deploy as standalone component
+5. **Update Tag Definition**: Change to `type: 'web-component'`
+6. **Deploy**: Component now updates independently
+
+No changes to component code required during transition.
+
+## Next Steps
+
+Ready to build custom web components?
+
+{% card title="Learn the Tag System" icon="puzzle" %}
+Understand how tags work and how agents learn to use them.
+
+[Explore AI-Driven UI →](/capabilities/customization/ai-ui/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="document" %}
+Step-by-step instructions for building and deploying components.
+
+[View How-To →](/how-to/customization/web-components/)
+{% /card %}
+
+{% card title="Reference Documentation" icon="information" %}
+Complete API reference for component development.
+
+[View Reference →](/reference/web-components/)
+{% /card %}
+

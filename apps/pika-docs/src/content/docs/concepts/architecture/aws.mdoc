@@ -1,0 +1,570 @@
+---
+title: AWS Infrastructure
+description: How Pika leverages AWS services for scalability, security, and operational excellence
+---
+
+Pika runs exclusively on Amazon Web Services, leveraging native AWS capabilities for security, scalability, and operational excellence. This page details how Pika uses each AWS service and why.
+
+## Core Principle: AWS-Native, Not Abstracted
+
+Pika doesn't abstract away AWS - it **embraces** it. This means:
+- You get full power of AWS services without abstraction penalties
+- Updates to AWS services benefit Pika immediately
+- Operational patterns follow AWS best practices
+- Cost and performance characteristics are transparent
+
+## AWS Services Used
+
+### Amazon Bedrock
+
+**Role**: AI model execution and agent orchestration
+
+**What Pika Uses**:
+- **Bedrock Agents**: Inline agents with function calling for tool orchestration
+- **Foundation Models**: Anthropic Claude (3.5 Sonnet, etc.), Amazon Nova, other supported models
+- **Agent Core Memory**: Persistent user memory across sessions
+- **Streaming Responses**: Token-by-token response streaming
+
+**Why Bedrock**:
+- **Enterprise Security**: Your data never trains AI models (AWS guarantee)
+- **Model Choice**: Access to latest foundation models
+- **Built-in Features**: Agent orchestration, tool calling, memory management
+- **No Infrastructure**: Fully managed service, no model hosting required
+
+**Configuration**:
+```typescript
+{
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    agentResourceRoleArn: '...',  // IAM role for agent
+    actionGroups: [...],           // Tool definitions
+    guardrailConfiguration: {...}  // Optional guardrails
+}
+```
+
+**Cost Considerations**:
+- Pay per token (input + output)
+- Varies by model (Claude 3.5 Sonnet: ~$3/1M input tokens, ~$15/1M output tokens)
+- User memory has additional costs
+- Caching can reduce costs for repeated context
+
+### AWS Lambda
+
+**Role**: Serverless compute for APIs, tools, and agent streaming
+
+**What Pika Uses**:
+- **REST API Handlers**: Process API Gateway requests
+- **Agent Streaming Handler**: Stream Bedrock responses via Function URL
+- **Tool Functions**: Implement business logic callable by agents
+- **Background Jobs**: Insights generation, feedback processing
+- **Admin Operations**: Platform management functions
+
+**Lambda Function Types**:
+
+#### 1. API Handlers
+```typescript
+// Process REST API requests
+export async function handler(event: APIGatewayProxyEvent) {
+    // Session CRUD, message retrieval, etc.
+}
+```
+
+#### 2. Streaming Handler
+```typescript
+// Stream agent responses
+export async function handler(event: StreamingEvent) {
+    // Invoke Bedrock agent, stream tokens back
+}
+```
+
+#### 3. Tool Functions
+```typescript
+// Business logic tools
+export async function handler(event: BedrockActionGroupLambdaEvent) {
+    // Access data, call APIs, return results
+}
+```
+
+**Configuration**:
+- **Memory**: 512MB - 3008MB depending on function
+- **Timeout**: 30 seconds for APIs, 5+ minutes for streaming
+- **Runtime**: Node.js 20.x
+- **Architecture**: arm64 (Graviton for cost efficiency)
+
+**Cost Considerations**:
+- Free tier: 1M requests/month, 400K GB-seconds
+- Typically $0.20 per 1M requests
+- GB-second charges based on memory and duration
+- Streaming functions may run longer (higher costs)
+
+### Amazon DynamoDB
+
+**Role**: Scalable NoSQL database for sessions, messages, and configuration
+
+**Tables and Schema**:
+
+#### Sessions Table
+```typescript
+{
+    PK: 'SESSION#{sessionId}',
+    SK: 'METADATA',
+    userId: string,
+    chatAppId: string,
+    entityId: string,  // For multi-tenancy
+    createdAt: number,
+    updatedAt: number,
+    title: string,
+    pinned: boolean
+}
+```
+
+#### Messages Table
+```typescript
+{
+    PK: 'SESSION#{sessionId}',
+    SK: 'MESSAGE#{timestamp}#{messageId}',
+    role: 'user' | 'assistant',
+    content: string,
+    tokenUsage: {...},
+    toolCalls: [...],
+    selfCorrectionMeta: {...}
+}
+```
+
+#### Agents Table
+```typescript
+{
+    PK: 'AGENT#{agentId}',
+    SK: 'CONFIG',
+    agentName: string,
+    instruction: string,
+    modelId: string,
+    tools: string[],
+    features: {...}
+}
+```
+
+#### Chat Apps Table
+```typescript
+{
+    PK: 'CHATAPP#{chatAppId}',
+    SK: 'CONFIG',
+    chatAppName: string,
+    agentId: string,
+    accessRules: [...],
+    featureOverrides: {...}
+}
+```
+
+#### Users Table
+```typescript
+{
+    PK: 'USER#{userId}',
+    SK: 'PROFILE',
+    email: string,
+    userType: 'internal' | 'external',
+    entityId: string,
+    customData: {...}
+}
+```
+
+**Access Patterns**:
+- Query sessions by user
+- Query messages by session
+- Get agent/chat app configuration
+- Query sessions by entity (multi-tenancy)
+
+**Indexes**:
+- GSI for user → sessions
+- GSI for entity → sessions
+- GSI for chat app → agents
+
+**Cost Considerations**:
+- **On-Demand Mode** (recommended): Pay per request
+- **Provisioned Mode**: Pay for capacity (cheaper at scale)
+- Typical costs: $1.25 per million write requests, $0.25 per million read requests
+
+### Amazon API Gateway
+
+**Role**: RESTful API management and request routing
+
+**What Pika Uses**:
+- **REST API**: Session, message, admin endpoints
+- **JWT Authorizer**: Validates authentication tokens
+- **Request/Response Transformation**: API contract enforcement
+- **Throttling**: Rate limiting per user/API key
+- **CORS**: Cross-origin support for frontend
+
+**API Structure**:
+```
+/sessions
+    GET    - List user sessions
+    POST   - Create new session
+    
+/sessions/{sessionId}
+    GET    - Get session details
+    DELETE - Delete session
+    
+/sessions/{sessionId}/messages
+    GET    - Get message history
+    
+/sessions/{sessionId}/title
+    POST   - Generate session title
+    
+/admin/chatapps
+    GET    - List chat apps
+    POST   - Create chat app
+    
+/insights
+    GET    - Query insights
+```
+
+**Authentication Flow**:
+1. Frontend sends JWT in Authorization header
+2. API Gateway calls Lambda authorizer
+3. Authorizer validates JWT, extracts user context
+4. Request forwarded to Lambda with user context
+
+**Cost Considerations**:
+- $3.50 per million API calls
+- Data transfer charges
+- Caching can reduce backend calls
+
+### Amazon S3
+
+**Role**: Object storage for files, insights, and assets
+
+**Buckets**:
+
+#### File Upload Bucket
+- User-uploaded files and attachments
+- Presigned URLs for secure upload/download
+- Lifecycle policies for cleanup
+
+#### Insights Bucket
+- Generated JSON insight documents
+- LLM feedback analysis
+- Session quality reports
+
+#### Assets Bucket
+- Custom web components
+- Static assets for chat UI
+- Versioned deployments
+
+**Security**:
+- Private buckets with IAM policies
+- Presigned URLs for temporary access
+- Encryption at rest (SSE-S3 or SSE-KMS)
+- CORS configuration for browser uploads
+
+**Cost Considerations**:
+- Storage: $0.023 per GB per month (Standard)
+- Requests: ~$0.005 per 1K PUT, ~$0.0004 per 1K GET
+- Data transfer: Free inbound, $0.09/GB outbound
+
+### Amazon OpenSearch Service
+
+**Role**: Search and analytics for sessions, insights, and feedback
+
+**What Pika Indexes**:
+- **Sessions**: Full-text search across conversations
+- **Insights**: Query generated feedback and patterns
+- **Feedback**: Search by quality metrics
+- **Usage Analytics**: Aggregate usage patterns
+
+**Index Structure**:
+```json
+{
+    "sessions": {
+        "sessionId": "...",
+        "userId": "...",
+        "chatAppId": "...",
+        "entityId": "...",
+        "messages": [...],  // Full conversation text
+        "timestamp": "...",
+        "metadata": {...}
+    }
+}
+```
+
+**Query Patterns**:
+- Full-text search across all user sessions
+- Find sessions by entity or chat app
+- Aggregate usage metrics
+- Query feedback by quality score
+
+**Cost Considerations**:
+- Instance-based pricing (t3.small.search: ~$25/month)
+- Storage costs: $0.10 per GB per month
+- Data transfer charges
+- Can be expensive at scale (consider sizing carefully)
+
+### Amazon EventBridge
+
+**Role**: Scheduled jobs and event-driven workflows
+
+**What Pika Uses**:
+- **Insights Runner**: Scheduled Lambda for feedback generation
+- **Cleanup Jobs**: Session and file cleanup
+- **Usage Reports**: Periodic aggregation
+- **Health Checks**: Monitoring and alerting
+
+**Example Rules**:
+```typescript
+{
+    schedule: 'rate(1 hour)',  // Run every hour
+    target: insightsRunnerLambda,
+    input: {
+        batchSize: 100,  // Process 100 sessions
+        lookbackMinutes: 60
+    }
+}
+```
+
+**Cost Considerations**:
+- $1.00 per million events
+- Typically negligible costs for scheduled jobs
+
+### AWS IAM
+
+**Role**: Identity and access management
+
+**What Pika Uses**:
+- **Service Roles**: Lambda execution roles with least privilege
+- **Resource Policies**: S3 bucket policies, DynamoDB table policies
+- **Tool Tagging**: Tag tools with `agent-tool` for Bedrock access
+- **Cross-Account**: Optional cross-account access for tools
+
+**Key IAM Patterns**:
+
+#### Agent Execution Role
+```json
+{
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": "arn:aws:lambda:*:*:function:*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/agent-tool": "true"
+                }
+            }
+        }
+    ]
+}
+```
+
+#### Tool Execution Role
+```json
+{
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+            "Resource": "arn:aws:dynamodb:*:*:table/SessionsTable"
+        }
+    ]
+}
+```
+
+**Security Best Practices**:
+- Least privilege: Only grant necessary permissions
+- Resource tagging: Tag tools for controlled access
+- Separate roles: One role per Lambda function
+- Regular audits: Review IAM policies
+
+### Amazon CloudWatch
+
+**Role**: Monitoring, logging, and observability
+
+**What Pika Uses**:
+- **Logs**: All Lambda function logs
+- **Metrics**: Custom metrics for usage and performance
+- **Alarms**: Alert on errors or performance degradation
+- **Dashboards**: Operational visibility
+
+**Key Metrics**:
+```typescript
+{
+    namespace: 'Pika',
+    metrics: {
+        'TokenUsage': 'Sum per session',
+        'ResponseLatency': 'Average per request',
+        'ToolInvocations': 'Count per session',
+        'SelfCorrectionRate': 'Percentage'
+    }
+}
+```
+
+**Cost Considerations**:
+- Logs: $0.50 per GB ingested
+- Metrics: $0.30 per custom metric per month
+- Can add up with high log volume
+
+### AWS X-Ray (Optional)
+
+**Role**: Distributed tracing for request flows
+
+**What Pika Uses**:
+- Trace requests across Lambda functions
+- Identify performance bottlenecks
+- Visualize service dependencies
+
+**Cost Considerations**:
+- Free tier: 100K traces per month
+- $5.00 per 1M traces recorded
+
+### Amazon VPC (Optional)
+
+**Role**: Network isolation for enhanced security
+
+**What Pika Uses**:
+- Private subnets for Lambda functions
+- VPC endpoints for AWS service access
+- Security groups and NACLs
+
+**When to Use**:
+- Compliance requirements for network isolation
+- Access to VPC-only resources (RDS, etc.)
+- Enhanced security posture
+
+**Cost Considerations**:
+- VPC endpoints: $0.01 per GB processed
+- NAT Gateways: $0.045 per hour + data transfer
+
+## Infrastructure as Code: AWS CDK
+
+Pika uses AWS CDK (TypeScript) for all infrastructure provisioning:
+
+**Benefits**:
+- Type-safe infrastructure definitions
+- Reusable constructs
+- Automatic dependency management
+- CloudFormation synthesis
+
+**Example CDK Stack**:
+```typescript
+export class PikaBackendStack extends Stack {
+    constructor(scope: Construct, id: string) {
+        super(scope, id);
+        
+        // DynamoDB tables
+        const sessionsTable = new Table(this, 'Sessions', {
+            partitionKey: { name: 'PK', type: AttributeType.STRING },
+            sortKey: { name: 'SK', type: AttributeType.STRING },
+            billingMode: BillingMode.PAY_PER_REQUEST
+        });
+        
+        // Lambda functions
+        const streamingHandler = new Function(this, 'StreamAgent', {
+            runtime: Runtime.NODEJS_20_X,
+            handler: 'index.handler',
+            code: Code.fromAsset('lambda/stream'),
+            environment: {
+                SESSIONS_TABLE: sessionsTable.tableName
+            }
+        });
+        
+        // Grant permissions
+        sessionsTable.grantReadWriteData(streamingHandler);
+    }
+}
+```
+
+## Cost Optimization Strategies
+
+### 1. Right-Size Resources
+- Use on-demand DynamoDB for variable workloads
+- Size OpenSearch appropriately (start small)
+- Use Lambda Graviton (arm64) for cost efficiency
+
+### 2. Optimize Usage
+- Enable agent caching for repeated context
+- Use presigned URLs to offload S3 transfers
+- Batch insights processing to reduce invocations
+
+### 3. Monitor and Alert
+- Set CloudWatch alarms for cost anomalies
+- Track token usage per chat app
+- Review unused resources monthly
+
+### 4. Use Free Tiers
+- Lambda: 1M requests/month free
+- DynamoDB: 25 GB storage free
+- API Gateway: 1M calls/month free (first 12 months)
+
+## AWS Well-Architected Framework
+
+Pika follows the AWS Well-Architected Framework pillars:
+
+### Operational Excellence
+- Infrastructure as Code (CDK)
+- CloudWatch logging and metrics
+- Automated deployments
+
+### Security
+- IAM least privilege
+- Encryption at rest and in transit
+- VPC isolation (optional)
+- Audit logging
+
+### Reliability
+- Serverless for high availability
+- DynamoDB multi-AZ replication
+- Graceful degradation
+
+### Performance Efficiency
+- Serverless auto-scaling
+- DynamoDB on-demand scaling
+- Optimized Lambda runtimes
+
+### Cost Optimization
+- Pay-per-use pricing
+- Right-sized resources
+- Usage monitoring
+
+### Sustainability
+- Serverless minimizes idle resources
+- Graviton processors for efficiency
+- Optimized data transfer
+
+## Operational Patterns
+
+### Deployment
+```bash
+# Deploy core infrastructure
+cd services/pika
+cdk deploy PikaBackendStack
+
+# Deploy custom tools
+cd services/custom/my-tools
+cdk deploy MyToolsStack
+```
+
+### Monitoring
+```bash
+# View logs
+aws logs tail /aws/lambda/pika-stream-agent --follow
+
+# Check metrics
+aws cloudwatch get-metric-statistics \
+    --namespace Pika \
+    --metric-name TokenUsage \
+    --statistics Sum
+```
+
+### Scaling
+- **Automatic**: All services scale automatically
+- **Manual**: Adjust DynamoDB capacity or OpenSearch instance size if needed
+
+## Related Documentation
+
+- **[System Architecture](/concepts/architecture/system/)** - High-level overview
+- **[Security Architecture](/concepts/architecture/security/)** - Security design
+- **[Scalability Model](/concepts/architecture/scalability/)** - How Pika scales
+- **[Deploy to AWS with CDK](/guides/deployment/aws-cdk/)** - Deployment guide
+
+{% aside type="note" %}
+All AWS services used by Pika are serverless or fully managed, minimizing operational overhead while maintaining enterprise-grade capabilities.
+{% /aside %}
+

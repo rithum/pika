@@ -1,0 +1,257 @@
+---
+title: Quick Start
+description: Deploy your first Pika chat application in 15 minutes
+---
+
+Get up and running with Pika Platform in 15 minutes. This guide takes you from zero to your first working chat application as quickly as possible.
+
+## Prerequisites
+
+Before you begin, verify you have these installed:
+
+```bash
+# Check Node.js version (need 22+)
+node --version
+
+# Check if pnpm is installed
+pnpm --version
+
+# Check if Git is installed
+git --version
+```
+
+{% aside type="note" title="Need to Install?" %}
+If any of these commands fail, follow the [detailed installation guide](/getting-started/installation/) to set up your system.
+
+**Quick Install Commands:**
+- **pnpm**: `npm install -g pnpm` or `curl -fsSL https://get.pnpm.io/install.sh | sh -`
+- **Node.js**: Download from [nodejs.org](https://nodejs.org/) or use your package manager
+{% /aside %}
+
+## Step 1: Install Pika CLI
+
+Install the Pika command-line tool globally:
+
+```bash
+pnpm install -g pika-app
+```
+
+Verify the installation:
+
+```bash
+pika --version
+```
+
+## Step 2: Create Your Application
+
+Create a new Pika application with a single command:
+
+```bash
+pika create-app my-chat-app
+```
+
+This command will:
+- Clone the Pika framework repository
+- Set up the complete project structure
+- Install all dependencies
+- Configure the project for your use case
+
+{% aside type="tip" title="What Gets Created" %}
+This creates a **generic framework** for defining multiple chat applications and agents. You typically only need **one Pika installation per AWS account**. The framework provides the infrastructure to host and manage multiple chat apps.
+{% /aside %}
+
+The installation process takes 2-5 minutes depending on your internet connection.
+
+## Step 3: Navigate to Your Project
+
+```bash
+cd my-chat-app
+```
+
+Take a moment to explore the structure:
+
+```
+my-chat-app/
+├── apps/
+│   ├── pika-chat/          # Main chat frontend
+│   └── samples/            # Sample applications
+├── services/
+│   ├── pika/              # Core backend service
+│   └── samples/           # Sample services (like weather)
+├── packages/              # Shared packages
+└── pika-config.ts         # Project configuration
+```
+
+## Step 4: Configure Your Project
+
+Update the project names in `pika-config.ts` to customize your installation:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'mycompany',
+        projNameKebabCase: 'mycompany',
+        projNameTitleCase: 'MyCompany',
+        projNameCamel: 'mycompany',
+        projNameHuman: 'My Company'
+    },
+    pikaChat: {
+        projNameL: 'mycompanychat',
+        projNameKebabCase: 'mycompany-chat',
+        projNameTitleCase: 'MyCompanyChat',
+        projNameCamel: 'myCompanyChat',
+        projNameHuman: 'My Company Chat'
+    }
+};
+```
+
+{% aside type="note" title="Why Configure Names?" %}
+These names are used for AWS stack and resource names. Customizing them helps avoid conflicts with other projects and makes your resources easier to identify in the AWS console.
+{% /aside %}
+
+## Step 5: Start Development Mode
+
+Start the development server:
+
+```bash
+pnpm dev
+```
+
+This command:
+- Builds the project
+- Starts the frontend development server
+- Opens your browser to `http://localhost:3000`
+
+{% aside type="tip" title="First Run Takes Longer" %}
+The first build can take 2-3 minutes as TypeScript compiles all packages. Subsequent starts are much faster thanks to caching.
+{% /aside %}
+
+## Step 6: Explore Your Application
+
+Your application is now running at `http://localhost:3000`!
+
+### What You Can Do:
+
+{% card title="Main Chat Interface" icon="star" %}
+The home page shows available chat applications. With the default setup, you'll see the Weather chat app.
+{% /card %}
+
+{% card title="Weather Chat App" icon="approve-check" %}
+Visit `http://localhost:3000/chat/weather` to interact with the sample weather agent. Try asking "What's the weather in Seattle?"
+{% /card %}
+
+{% card title="Sample Enterprise Site" icon="rocket" %}
+The sample at `http://localhost:5173` demonstrates how to embed Pika chat into an existing website using an iframe.
+{% /card %}
+
+## Understanding the Default Setup
+
+### Mock Authentication
+
+{% aside type="caution" title="Development Only" %}
+By default, Pika uses a mock authentication provider that automatically logs you in as a test user. This is **for development only** and provides no real security. Before deploying to production, you must implement a custom authentication provider.
+{% /aside %}
+
+The mock setup:
+- Hardcodes a single test user
+- No password required
+- Automatically authenticates anyone who visits
+
+See the [Authentication Guide](/how-to/authentication/) to implement real authentication.
+
+### Sample Weather Service
+
+The weather service demonstrates:
+- How to define a chat app
+- How to create an agent with tools
+- How agents use tools to answer questions
+- How responses are rendered in the UI
+
+This is your template for creating your own chat apps and agents.
+
+## Next Steps
+
+Now that you have Pika running, you have several options:
+
+### Option 1: Build Your First Custom Agent
+
+Follow the [Hello World Tutorial](/getting-started/hello-world/) to create your first custom agent from scratch.
+
+### Option 2: Deploy to AWS
+
+To test with real AWS services:
+1. Configure AWS CLI: `aws configure`
+2. Deploy backend: `cd services/pika && pnpm build && pnpm run cdk:deploy`
+3. Deploy sample: `cd services/samples/weather && pnpm build && pnpm run cdk:deploy`
+
+See [Local Development Guide](/how-to/local-development/) for details.
+
+### Option 3: Learn More About Pika
+
+- **[Why Pika?](/why/)** - Understand the platform's design philosophy
+- **[Capabilities](/capabilities/)** - Explore what you can build
+- **[Concepts](/concepts/)** - Learn how Pika works under the hood
+
+### Option 4: Customize Your Installation
+
+- **[Authentication](/how-to/authentication/)** - Implement real authentication
+- **[Customization](/how-to/customization/)** - Customize the UI and behavior
+- **[Access Control](/how-to/access-control/)** - Configure who can access what
+
+## Common Quick Start Issues
+
+### Port 3000 Already in Use
+
+If port 3000 is already in use:
+
+```bash
+# Kill the process using port 3000
+lsof -ti:3000 | xargs kill -9
+
+# Or use a different port
+pnpm run dev -- --port 3001
+```
+
+### Dependencies Fail to Install
+
+If pnpm install fails:
+
+```bash
+# Clear pnpm cache and retry
+pnpm store prune
+pnpm install --force
+```
+
+### TypeScript Errors During Build
+
+If you see TypeScript compilation errors:
+
+```bash
+# Clean and rebuild
+pnpm clean
+pnpm install
+pnpm build
+```
+
+## Getting Help
+
+If you encounter issues:
+
+- Check the [detailed installation guide](/getting-started/installation/) for system-specific instructions
+- Review [troubleshooting tips](/platform/troubleshooting/) for common problems
+- Visit the [GitHub repository](https://github.com/rithum/pika) for issues and discussions
+
+## Summary
+
+In this quick start, you:
+
+1. Installed the Pika CLI
+2. Created a new Pika application
+3. Configured your project
+4. Started the development server
+5. Explored the default weather chat app
+
+You now have a working Pika installation ready for customization!
+
+**Ready to build your own agent?** Head to the [Hello World Tutorial](/getting-started/hello-world/) to create your first custom chat app.
+

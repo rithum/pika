@@ -1,0 +1,432 @@
+---
+title: Work with Entities
+description: Configure entity-based access control and multi-tenancy support
+---
+
+Learn how to configure the Entity feature to associate users with organizational entities (accounts, companies, departments) and enable entity-based access control throughout Pika.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable and configure the Entity feature site-wide
+- Associate users with entities through authentication
+- Implement entity-based access control for chat apps
+- Set up entity filtering in the admin interface
+- Configure entity autocomplete for admin users
+
+## Prerequisites
+
+- A running Pika installation
+- Custom authentication provider configured
+- Users with organizational entity data available
+- Admin access to configure site features
+
+## Understanding Entities
+
+An entity represents an organizational unit that users belong to.
+
+### Common Entity Types
+
+- **Customer Accounts**: Individual customer companies or organizations
+- **Business Units**: Different divisions within your organization
+- **Partners**: External partner organizations
+- **Departments**: Internal organizational departments
+
+### Entity Benefits
+
+- **Multi-Tenancy**: Isolate data and access by organization
+- **Access Control**: Restrict chat apps to specific entities
+- **Session Filtering**: Filter admin insights by entity
+- **User Management**: Organize users by their organizations
+
+## Step 1: Enable Entity Feature
+
+Configure the Entity feature in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId', // Field in customData containing entity ID
+            searchPlaceholderText: 'Search for an account...',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            tableColumnHeaderTitle: 'Account ID'
+        }
+    }
+};
+```
+
+### Configuration Options
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | Whether the entity feature is active site-wide |
+| `attributeName` | string | Field name in `user.customData` containing entity identifier |
+| `searchPlaceholderText` | string | Placeholder text for entity search inputs |
+| `displayNameSingular` | string | Singular form of entity name for UI display |
+| `displayNamePlural` | string | Plural form of entity name for UI display |
+| `tableColumnHeaderTitle` | string | Header text for entity columns in tables |
+
+## Step 2: Configure User Entity Association
+
+Ensure your authentication provider populates user data with entity identifiers.
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/index.ts`
+
+```typescript
+export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    async authenticate(event: RequestEvent): Promise<AuthenticateResult<YourAuthData, YourCustomData>> {
+        // ... authentication logic
+        
+        return {
+            authenticatedUser: {
+                userId: userData.id,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                userType: userData.isEmployee ? 'internal-user' : 'external-user',
+                customData: {
+                    accountId: userData.accountId, // Must match entity.attributeName
+                    accountName: userData.accountName, // Optional: human-readable name
+                    email: userData.email
+                    // ... other custom data
+                },
+                // ... other user properties
+            }
+        };
+    }
+}
+```
+
+{% aside type="caution" %}
+The field name in `customData` must exactly match the `attributeName` configured in your entity feature settings.
+{% /aside %}
+
+## Step 3: Implement Entity Autocomplete
+
+Create the entity lookup function for the admin interface.
+
+**Location:** `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts`
+
+```typescript
+import type { AuthenticatedUser, SimpleOption } from 'pika-shared/types/chatbot/chatbot-types';
+
+export async function getValuesForEntityAutoComplete(
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId?: string
+): Promise<SimpleOption[] | undefined> {
+    // Query your entity data source (API, database, etc.)
+    // Filter based on valueProvidedByUser
+    // Return formatted options
+    
+    // Example implementation:
+    const entities = await fetchEntitiesFromAPI(valueProvidedByUser);
+    
+    return entities.map(entity => ({
+        value: entity.id,        // This gets stored in access control
+        label: entity.displayName // This is displayed to admins
+    }));
+}
+```
+
+### Example Implementations
+
+**Database Query:**
+
+```typescript
+export async function getValuesForEntityAutoComplete(
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<SimpleOption[]> {
+    const query = `
+        SELECT account_id, account_name 
+        FROM accounts 
+        WHERE account_name ILIKE $1 
+        LIMIT 20
+    `;
+    
+    const results = await db.query(query, [`%${valueProvidedByUser}%`]);
+    
+    return results.rows.map(row => ({
+        value: row.account_id,
+        label: row.account_name
+    }));
+}
+```
+
+**External API:**
+
+```typescript
+export async function getValuesForEntityAutoComplete(
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<SimpleOption[]> {
+    const response = await fetch(
+        `https://your-api.com/accounts/search?q=${encodeURIComponent(valueProvidedByUser)}`,
+        {
+            headers: {
+                'Authorization': `Bearer ${process.env.API_TOKEN}`
+            }
+        }
+    );
+    
+    const data = await response.json();
+    
+    return data.accounts.map(account => ({
+        value: account.id,
+        label: `${account.name} (${account.id})`
+    }));
+}
+```
+
+## Step 4: Configure Entity-Based Access Control
+
+Use the Site Admin interface or configuration to restrict chat apps to specific entities.
+
+### Via Admin Interface
+
+1. Navigate to Site Admin
+2. Select a chat app
+3. Scroll to Access Control section
+4. Search and select entities in:
+   - **Exclusive External Access Control**: For external users
+   - **Exclusive Internal Access Control**: For internal users
+
+### Via Configuration Override
+
+```typescript
+// Create override through admin API
+const entityOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'account_enterprise_001',
+        'account_enterprise_002',
+        'account_premium_tier'
+    ],
+    exclusiveInternalAccessControl: [
+        'customer_success_team',
+        'enterprise_support_team'
+    ]
+};
+```
+
+## Step 5: Test Entity Configuration
+
+### Test User Association
+
+1. **Log in as a user** with entity data
+2. **Check user profile** shows correct entity
+3. **Verify entity field** is populated in customData
+
+```typescript
+// In browser console or logs
+console.log('User Entity:', user.customData.accountId);
+```
+
+### Test Access Control
+
+1. **Create test chat app** with entity restrictions
+2. **Log in as user** from allowed entity → Should have access
+3. **Log in as user** from different entity → Should be denied
+4. **Log in as internal user** → Check internal entity rules
+
+### Test Admin Interface
+
+1. **Open Site Admin** as admin user
+2. **Edit a chat app**
+3. **Search for entities** in access control section
+4. **Verify autocomplete** shows matching entities
+5. **Save and test** access with restricted entities
+
+## Entity Access Control Precedence
+
+Understanding how entity-based access works with other rules:
+
+1. **Disabled Override**: If `enabled: false`, no access regardless of entity
+2. **Exclusive User ID Control**: Specific user IDs take precedence over entity rules
+3. **Exclusive Entity Control**: Entity-based restrictions (this feature)
+4. **General Access Rules**: Fall back to user type/role checking
+
+```typescript
+// Precedence example
+if (override.enabled === false) {
+    return DENY_ACCESS; // Level 1: Disabled
+}
+
+if (override.exclusiveUserIdAccessControl?.length > 0) {
+    return checkUserIds(user); // Level 2: Specific users
+}
+
+if (override.exclusiveExternalAccessControl?.length > 0) {
+    return checkEntityAccess(user); // Level 3: Entity-based
+}
+
+return checkGeneralRules(user); // Level 4: Type/role based
+```
+
+## Common Patterns
+
+### Pattern 1: Multi-Tenant SaaS
+
+Different customers can only access their own chat apps:
+
+```typescript
+// Customer A's chat app
+const customerAOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['customer_a_account']
+};
+
+// Customer B's chat app
+const customerBOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: ['customer_b_account']
+};
+```
+
+### Pattern 2: Partner Portal
+
+Different partners have access to different tools:
+
+```typescript
+const partnerToolsOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'partner_gold',
+        'partner_platinum',
+        'partner_diamond'
+    ]
+};
+```
+
+### Pattern 3: Department Isolation
+
+Internal users from specific departments:
+
+```typescript
+const hrToolsOverride = {
+    enabled: true,
+    exclusiveInternalAccessControl: [
+        'hr_department',
+        'executive_team'
+    ]
+};
+```
+
+### Pattern 4: Enterprise Account Access
+
+External users from specific enterprise accounts:
+
+```typescript
+const enterpriseOverride = {
+    enabled: true,
+    exclusiveExternalAccessControl: [
+        'enterprise_client_001',
+        'enterprise_client_002',
+        'enterprise_client_003'
+    ]
+};
+```
+
+## Session Insights Integration
+
+When entity feature is enabled, session insights gain entity filtering:
+
+- **Entity Display**: Shows which entity each session belongs to
+- **Entity Filtering**: Filter session data by specific entities
+- **Entity Aggregation**: Group and analyze sessions by entity
+
+## Testing Checklist
+
+Verify entity configuration works correctly:
+
+{% checklist %}
+- [ ] Entity feature is enabled in `pika-config.ts`
+- [ ] `attributeName` matches field in user `customData`
+- [ ] Users have entity field populated by auth provider
+- [ ] Entity autocomplete function is implemented
+- [ ] Autocomplete returns correctly formatted options
+- [ ] Entity-based access control restricts access properly
+- [ ] Internal and external entity rules work independently
+- [ ] Entity filtering works in admin interface
+- [ ] Session insights show entity information
+{% /checklist %}
+
+## Troubleshooting
+
+### Entity Feature Not Working
+
+- **Verify Configuration**: Ensure `entity.enabled: true` in pika-config
+- **Check attributeName**: Must match field name in `customData`
+- **Validate User Data**: Confirm users have entity field populated
+- **Test Field Path**: Verify `attributeName` points to correct field
+
+### Entity Autocomplete Issues
+
+- **Implement Data Source**: Ensure `getValuesForEntityAutoComplete()` is implemented
+- **Check API Permissions**: Verify web app can access entity data source
+- **Validate Response Format**: Confirm function returns `SimpleOption[]` with `value` and `label`
+- **Test Search**: Try autocomplete with various search terms
+
+### Access Control Not Working
+
+- **Entity Matching**: Ensure entity values in access lists exactly match user data
+- **Field Path**: Verify `entity.attributeName` correctly points to entity field
+- **Precedence Rules**: Check if higher precedence rules are interfering
+- **User Type**: Verify internal vs external entity lists are configured correctly
+
+### Debug Entity Access
+
+```typescript
+// Log entity resolution
+console.log('Entity Config:', pikaConfig.siteFeatures.entity);
+console.log('User Entity:', user.customData[pikaConfig.siteFeatures.entity.attributeName]);
+console.log('Override Rules:', chatApp.override?.exclusiveExternalAccessControl);
+
+// Check entity extraction
+const entityId = user.customData[pikaConfig.siteFeatures.entity.attributeName];
+console.log('Extracted Entity ID:', entityId);
+console.log('Allowed Entities:', allowedEntityList);
+console.log('Has Access:', allowedEntityList.includes(entityId));
+```
+
+## Security Considerations
+
+### Data Validation
+- Always validate entity field exists and contains expected values
+- Ensure entity field is always populated for users who need entity-based access
+- Validate entity values before using in access control
+
+### Field Accessibility
+- Ensure specified field path is always populated for relevant users
+- Handle cases where entity data is missing or invalid
+- Provide clear error messages for configuration issues
+
+### Logging
+- Log entity matching decisions for audit trails
+- Track entity-based access grants and denials
+- Monitor for suspicious access patterns
+
+## Next Steps
+
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Understand full access control system
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Set up entity field mapping
+- [Manage User Sessions](/guides/data-sessions/session-management/) - Entity-scoped sessions
+
+## Related Documentation
+
+- [Entity Management Capability](/capabilities/enterprise/entity-management/) - Learn more about entities
+- [Multi-Tenancy](/capabilities/enterprise/multi-tenancy/) - Multi-tenant architecture
+- [Access Control Reference](/reference/config/access-control/) - Complete access control options
+
+---
+
+{% aside type="success" title="Flexible Entity Model" %}
+The entity model is flexible - use it for accounts, companies, departments, or any organizational unit that makes sense for your application.
+{% /aside %}
+

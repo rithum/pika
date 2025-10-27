@@ -1,0 +1,207 @@
+---
+title: What is Pika?
+description: Understanding the core purpose and positioning of the Pika platform
+---
+
+Pika is an AWS-native agentic framework designed to close the gap between impressive AI demos and production-ready chat applications that your customers can actually use.
+
+## The Core Problem
+
+Building an AI agent that impresses in a demo is straightforward with modern AI tools. The real challenge begins when you try to deploy that agent for actual users:
+
+- How do you handle authentication and multi-tenancy?
+- Where do you store conversation history securely?
+- How do you prevent agents from returning wrong answers?
+- How do you know when your agent isn't working well?
+- How do you iterate and improve based on real usage?
+- How do you deploy and scale the infrastructure?
+
+Pika addresses all of these challenges with a complete, production-ready platform.
+
+## What Pika Provides
+
+### A Complete Chat Application Platform
+
+Pika is **not just an agent framework** - it's a complete platform for hosting multiple chat applications:
+
+- **Production-ready chat UI** with file upload, session management, and rich rendering
+- **Multi-tenancy support** with entity-based isolation
+- **User memory** that persists preferences across all sessions
+- **Admin interface** for managing chat apps, users, and access control
+- **Analytics and insights** to understand usage and improve quality
+
+### Agent-as-Configuration Architecture
+
+Unlike frameworks that require coding agents into your codebase, Pika takes a **configuration-first approach**:
+
+- **Define agents declaratively** using Infrastructure as Code
+- **Deploy agents independently** without touching core platform code
+- **Version control your agents** with full audit trails
+- **A/B test agent variations** through configuration
+- **Keep your codebase clean** - agents live alongside your existing microservices
+
+### AWS-Native Infrastructure
+
+Pika is built exclusively on AWS services, giving you:
+
+- **Automatic scaling** through serverless architecture
+- **Enterprise security** via AWS Bedrock, IAM, and VPC
+- **Production observability** with CloudWatch and X-Ray
+- **Cost efficiency** with pay-per-use pricing
+- **Compliance inheritance** from AWS certifications
+
+### Intelligence Layer
+
+Pika includes advanced capabilities to improve agent quality:
+
+- **Self-correcting responses** with independent verification
+- **Answer reasoning** to understand agent decision-making
+- **LLM-generated feedback** on conversation quality
+- **Instruction assistance** to refine agent prompts
+- **Insights generation** for continuous improvement
+
+## What Pika Is Not
+
+To set clear expectations:
+
+### Not a Generic AI Framework
+
+Pika is **opinionated** and **AWS-specific**:
+
+- It only runs on AWS (not Azure, GCP, or other clouds)
+- It uses AWS Bedrock for LLM capabilities
+- It follows serverless architecture patterns
+- It assumes you want a chat interface (not voice, not embedded SDK)
+
+### Not a Low-Code Platform
+
+While agents are configured declaratively, you still write code:
+
+- Tools are Lambda functions you implement
+- Authentication is a pluggable provider you implement
+- Custom UI components are Svelte components you build
+- Infrastructure customization uses AWS CDK
+
+Pika provides the **structure and plumbing**, but you provide the **business logic**.
+
+### Not Just for External Users
+
+Pika supports both **internal** and **external** use cases:
+
+- Build customer-facing chat applications
+- Build internal tools for employees
+- Build support applications for your support team
+- Host multiple chat apps for different audiences on one platform
+
+## Key Differentiators
+
+### From Scratch Implementation
+
+Building an AI chat app from scratch requires solving many hard problems:
+
+- Authentication and authorization
+- Multi-tenancy and data isolation
+- Session storage and retrieval
+- File upload and processing
+- Streaming responses
+- Tool invocation patterns
+- Infrastructure deployment
+- Security and compliance
+
+**Pika solves all of these out of the box.**
+
+### vs. LangChain/LlamaIndex
+
+These are excellent agent frameworks, but they're **building blocks, not solutions**:
+
+- You still need to build the UI
+- You still need to handle authentication
+- You still need to manage sessions and memory
+- You still need to deploy infrastructure
+- You still need to build admin tools
+
+**Pika includes all of this.**
+
+### vs. Commercial Agent Platforms
+
+Commercial platforms often provide similar capabilities, but:
+
+- They're closed-source and proprietary
+- They charge per-agent or per-message fees
+- Your data goes through their infrastructure
+- You have less control over customization
+- Vendor lock-in is a real risk
+
+**Pika is open-source, runs in your AWS account, and you control the infrastructure.**
+
+### vs. AWS Bedrock Agents Directly
+
+AWS Bedrock Agents provide the core agent capabilities, but:
+
+- You still need to build the chat interface
+- You still need to handle authentication and multi-tenancy
+- You still need session management
+- You still need admin and monitoring tools
+
+**Pika wraps Bedrock Agents with a complete application layer.**
+
+## The Pika Value Proposition
+
+### For Engineering Teams
+
+- **Faster time to production**: Weeks instead of months
+- **Focus on business logic**: Not infrastructure and plumbing
+- **Clean architecture**: Agents as config, tools in your codebase
+- **Production-ready**: Security, scaling, and monitoring included
+
+### For Product Teams
+
+- **Complete chat applications**: Not just backend APIs
+- **Multi-tenancy built-in**: Serve many customers/organizations
+- **Rapid iteration**: Change agents through configuration
+- **Quality tools**: Self-correction, feedback, and insights
+
+### For Enterprise Organizations
+
+- **AWS foundation**: Inherits AWS security and compliance
+- **Data control**: Everything runs in your AWS account
+- **Open source**: No vendor lock-in or per-message fees
+- **Enterprise features**: SSO, audit logs, access control
+
+## Core Technologies
+
+Pika is built on:
+
+- **AWS Bedrock**: LLM execution and agent orchestration
+- **AWS Lambda**: Serverless compute for tools and APIs
+- **Amazon DynamoDB**: Scalable session and configuration storage
+- **Amazon OpenSearch**: Search and analytics
+- **SvelteKit**: Modern, fast frontend framework
+- **AWS CDK**: Infrastructure as code
+
+## Architecture Overview
+
+At a high level, Pika's architecture consists of:
+
+1. **Frontend Layer**: SvelteKit chat application with pluggable authentication
+2. **API Layer**: API Gateway + Lambda for REST APIs
+3. **Agent Layer**: AWS Bedrock Agents with inline tools
+4. **Tool Layer**: Lambda functions implementing business logic
+5. **Storage Layer**: DynamoDB for sessions, S3 for files, OpenSearch for search
+6. **Intelligence Layer**: Self-correction, feedback generation, and insights
+
+For a detailed breakdown, see [System Architecture](/concepts/architecture/system/).
+
+## Getting Started
+
+Now that you understand what Pika is, you can:
+
+- **Learn why we built it this way**: [Core Philosophy](/concepts/overview/core-philosophy/)
+- **Decide if it's right for you**: [When to Use Pika](/concepts/overview/when-to-use/)
+- **See it in action**: [Getting Started](/getting-started/)
+- **Explore capabilities**: [Capabilities](/capabilities/)
+
+{% aside type="note" %}
+Pika is an open-source project maintained by Rithum. We welcome contributions, feedback, and community involvement.
+{% /aside %}
+

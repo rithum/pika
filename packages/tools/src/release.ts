@@ -424,6 +424,69 @@ function checkUncommittedChanges(): boolean {
     }
 }
 
+/**
+ * Check if uncommitted changes are only release-related files
+ * Returns { hasChanges, onlyReleaseFiles, files }
+ */
+function checkUncommittedChangesDetailed(): { hasChanges: boolean; onlyReleaseFiles: boolean; files: string[] } {
+    try {
+        const status = execSync('git status --porcelain', { encoding: 'utf8' });
+
+        console.log(chalk.dim('\n[DEBUG] Raw git status output:'));
+        console.log(chalk.dim(JSON.stringify(status)));
+        console.log(chalk.dim('End raw output\n'));
+
+        const lines = status.split('\n').filter((line) => line.trim()); // Filter empty lines but don't trim yet
+
+        console.log(chalk.dim('[DEBUG] Parsed lines:'));
+        lines.forEach((line, idx) => {
+            console.log(chalk.dim(`  Line ${idx}: "${line}" (length: ${line.length})`));
+            console.log(
+                chalk.dim(
+                    `    Chars: [${Array.from(line)
+                        .map((c) => `${c}(${c.charCodeAt(0)})`)
+                        .join(', ')}]`
+                )
+            );
+        });
+
+        if (lines.length === 0) {
+            return { hasChanges: false, onlyReleaseFiles: true, files: [] };
+        }
+
+        // Git porcelain format: "XY filename" where X=index status, Y=worktree status
+        // We need to skip the first 3 characters (XY and space) to get the filename
+        const files = lines.map((line) => line.substring(3));
+
+        console.log(chalk.dim('\n[DEBUG] Extracted files (after substring(3)):'));
+        files.forEach((file, idx) => {
+            console.log(chalk.dim(`  File ${idx}: "${file}"`));
+        });
+
+        // Release-related files that are expected to change during release process
+        const releaseFilePatterns = [
+            'releases.json',
+            'CHANGELOG.md',
+            'apps/pika-docs/src/content/docs/platform/releases/',
+            'packages/tools/src/release-prompt.md', // Release prompt templates
+            'packages/tools/src/release.ts' // Release tooling improvements
+        ];
+
+        const allAreReleaseFiles = files.every((file) => releaseFilePatterns.some((pattern) => file.includes(pattern)));
+
+        console.log(chalk.dim(`\n[DEBUG] allAreReleaseFiles: ${allAreReleaseFiles}\n`));
+
+        return {
+            hasChanges: true,
+            onlyReleaseFiles: allAreReleaseFiles,
+            files
+        };
+    } catch (error) {
+        console.log(chalk.red('\n[DEBUG] Error in checkUncommittedChangesDetailed:'), error);
+        return { hasChanges: false, onlyReleaseFiles: true, files: [] };
+    }
+}
+
 function getLastTag(): string | null {
     try {
         const tag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', {
@@ -600,11 +663,55 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
     }
 
     // Check for uncommitted changes
-    if (!dryRun && checkUncommittedChanges()) {
-        console.error(chalk.red('✗ You have uncommitted changes'));
-        console.error(chalk.yellow('  Please commit or stash them first\n'));
-        console.error(chalk.dim('  Run: git status'));
-        process.exit(1);
+    if (!dryRun) {
+        const changeStatus = checkUncommittedChangesDetailed();
+
+        if (changeStatus.hasChanges) {
+            if (changeStatus.onlyReleaseFiles) {
+                // Only release-related files changed - this is expected and fine
+                console.log(chalk.cyan('ℹ Uncommitted release files detected (this is normal):'));
+                changeStatus.files.forEach((file) => {
+                    console.log(chalk.dim(`  • ${file}`));
+                });
+                console.log(chalk.dim('\nThese will be committed after publishing.\n'));
+            } else {
+                // Non-release files are uncommitted - warn but allow to continue
+                const releaseFilePatterns = [
+                    'releases.json',
+                    'CHANGELOG.md',
+                    'apps/pika-docs/src/content/docs/platform/releases/',
+                    'packages/tools/src/release-prompt.md',
+                    'packages/tools/src/release.ts'
+                ];
+
+                const nonReleaseFiles = changeStatus.files.filter((file) => !releaseFilePatterns.some((pattern) => file.includes(pattern)));
+
+                if (nonReleaseFiles.length === 0) {
+                    // False alarm - all files are actually release files
+                    console.log(chalk.cyan('ℹ All uncommitted files are release-related. Continuing...\n'));
+                } else {
+                    console.log(chalk.yellow('⚠ You have uncommitted changes beyond release files:'));
+                    nonReleaseFiles.forEach((file) => {
+                        console.log(chalk.yellow(`  • ${file}`));
+                    });
+                    console.log();
+
+                    const { continueAnyway } = await inquirer.prompt([
+                        {
+                            type: 'confirm',
+                            name: 'continueAnyway',
+                            message: 'Continue with publish anyway?',
+                            default: false
+                        }
+                    ]);
+
+                    if (!continueAnyway) {
+                        console.log(chalk.yellow('\nPublish cancelled. Commit your changes and try again.'));
+                        process.exit(0);
+                    }
+                }
+            }
+        }
     }
 
     // Step 1: Update releases.json
@@ -706,9 +813,9 @@ Please verify/update these files:
      * Deprecated (soon-to-be removed features)
    - Verify all descriptions are clear and user-focused
 
-2. apps/pika-docs/src/routes/docs/releases/changelog/+page.md
+2. apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc
    - Verify it matches CHANGELOG.md
-   - Check proper markdown formatting per doc guidelines
+   - Check proper markdoc formatting per doc guidelines
 
 3. releases.json
    - Verify [${version}] entry has status: "released" and today's date
@@ -728,15 +835,10 @@ NOTE: The changelog should already be finalized via "pnpm release notes --finali
 }
 
 function showNextSteps(version: string): void {
-    console.log(chalk.bold.green('\nRelease preparation complete!\n'));
+    console.log(chalk.bold.green('\n✓ Release tag created successfully!\n'));
     console.log(chalk.bold('Next steps:\n'));
 
     const steps = [
-        {
-            emoji: '🤖',
-            title: 'Use Cursor AI to update changelogs',
-            commands: ['Open Cursor Composer (Cmd+Shift+I or Ctrl+Shift+I)', 'Paste the prompt shown above', 'Review and approve the AI-generated changelog']
-        },
         {
             emoji: '✅',
             title: 'Review changes',
@@ -744,12 +846,12 @@ function showNextSteps(version: string): void {
         },
         {
             emoji: '📦',
-            title: 'Commit to your feature branch',
-            commands: ['git add releases.json CHANGELOG.md apps/pika-docs', `git commit -m "docs: release v${version}"`]
+            title: 'Commit release changes to your feature branch',
+            commands: ['git add releases.json CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/', `git commit -m "chore: release v${version}"`]
         },
         {
             emoji: '🔀',
-            title: 'Merge to main',
+            title: 'Merge to main and push',
             commands: ['git checkout main', 'git merge your-feature-branch', 'git push origin main', `git push origin v${version}`]
         },
         {
@@ -759,7 +861,7 @@ function showNextSteps(version: string): void {
         },
         {
             emoji: '🚀',
-            title: 'Publish packages (optional)',
+            title: 'Publish packages (if applicable)',
             commands: ['cd packages/pika-cli && pnpm publish', 'cd packages/pika-serverless && pnpm publish']
         },
         {
@@ -1173,7 +1275,7 @@ async function generateNotesPrompt(
     } else {
         console.log(chalk.green('✨ Next Steps:\n'));
         console.log(chalk.dim('   1. Review the finalized changelog'));
-        console.log(chalk.dim('   2. git add CHANGELOG.md apps/pika-docs'));
+        console.log(chalk.dim('   2. git add CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/'));
         console.log(chalk.dim('   3. git commit -m "docs: release v' + finalizeVersion + '"'));
         console.log(chalk.dim('   4. git push\n'));
     }

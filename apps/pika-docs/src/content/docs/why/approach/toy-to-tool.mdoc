@@ -1,0 +1,534 @@
+---
+title: From Toy to Tool
+description: Production intelligence features that make agents reliable
+---
+
+## TL;DR
+
+The gap between demo and production isn't just infrastructure - it's reliability. Pika includes built-in capabilities that catch errors before users see them (self-correcting responses), learn from real usage (AI-generated feedback), and help you iterate rapidly (instruction engineering tools). These aren't add-ons - they're core to making agents production-ready.
+
+---
+
+## The Reliability Gap
+
+Building a demo agent is easy. Making it reliable is hard.
+
+### What Happens in Practice
+
+**Week 1**: Demo works great in controlled scenarios
+- "Show me the weather in San Francisco" → Perfect response
+- "What's my order status?" → Looks up order correctly
+- Leadership is impressed
+
+**Week 2**: Real users find the edge cases
+- "What's the weather like for my trip next week?" → Confused, asks for location again
+- "Where's my order?" → Which order? Doesn't ask for clarification
+- "Cancel my subscription" → Tries to look up order, doesn't have cancel capability
+
+**Week 3-8**: Constant firefighting
+- Adding edge case handling
+- Refining prompts
+- Discovering gaps in tools
+- No systematic way to improve
+
+**The problem**: You're learning by user complaint, not proactively.
+
+## Pika's Approach: Built-In Intelligence
+
+Pika includes features specifically designed to bridge this gap:
+
+{% card title="Self-Correcting Responses" icon="approve-check" %}
+Catch errors before users see them with independent verification and automatic retry
+{% /card %}
+
+{% card title="AI-Generated Feedback" icon="star" %}
+Learn from every conversation with LLM-powered analysis and improvement suggestions
+{% /card %}
+
+{% card title="AI-Driven Insights" icon="rocket" %}
+Understand patterns across thousands of sessions with automated analytics
+{% /card %}
+
+{% card title="Instruction Engineering Tools" icon="puzzle" %}
+Rapidly iterate on agent behavior with assistance and augmentation features
+{% /card %}
+
+Let's dive into each one.
+
+## Self-Correcting Responses
+
+### The Problem
+
+Agents make mistakes:
+- Hallucinate facts
+- Misunderstand questions
+- Use tools incorrectly
+- Give incomplete answers
+- Miss important details
+
+Users see these mistakes. Trust erodes. You get support tickets.
+
+### How Self-Correction Works
+
+An independent LLM evaluates every response:
+
+{% steps %}
+1. **Agent Generates Response**
+   
+   Your agent uses tools, reasons, and generates an answer.
+
+2. **Verifier Evaluates**
+   
+   A separate LLM model reviews the response:
+   - Does it answer the question?
+   - Is it accurate based on tool outputs?
+   - Does it follow guidelines?
+   - Is it complete and helpful?
+
+3. **Grade Assigned**
+   
+   Verifier assigns a grade:
+   - **A**: Excellent response
+   - **B**: Good response
+   - **C**: Acceptable but could be better
+   - **F**: Fails to answer or has errors
+
+4. **Auto-Reprompt (Optional)**
+   
+   If enabled and grade is below threshold (e.g., C or F):
+   - Verifier provides feedback on what's wrong
+   - System reprompts agent with feedback
+   - Agent gets second chance
+   - Up to 3 attempts
+
+5. **User Sees Best Response**
+   
+   Either the original (if good) or the improved response (if corrected).
+{% /steps %}
+
+### Real Example
+
+**User question**: "What's the refund policy for orders over $100?"
+
+**First attempt (Grade: C)**:
+```
+Agent: According to our policy, refunds are available within 30 days.
+```
+
+**Verifier feedback**:
+```
+Response is incomplete. The user specifically asked about orders over $100,
+but the answer doesn't mention the special handling for large orders.
+The tool output included a threshold field that wasn't used.
+```
+
+**Second attempt (Grade: A)**:
+```
+Agent: For orders over $100, we offer refunds within 45 days (extended from
+our standard 30-day policy). Additionally, orders over $100 qualify for free
+return shipping. You can initiate a refund through your account page or by
+contacting our support team.
+```
+
+**What the user sees**: The second, better response.
+
+### Configuration Options
+
+```typescript
+features: {
+  verifyResponse: {
+    enabled: true,
+    userTypes: ['external-user'],        // Who gets verification
+    autoRepromptThreshold: 'C'           // Auto-fix if C or F
+  }
+}
+```
+
+**Strategies**:
+- **Conservative (threshold: C)**: Auto-fix mediocre responses
+- **Aggressive (threshold: B)**: Only accept excellent responses
+- **Audit-only (no threshold)**: Grade but don't auto-fix (for monitoring)
+
+### When to Use It
+
+{% card title="Customer-Facing Agents" icon="star" %}
+**Use case**: External users where accuracy is critical
+
+**Why**: Catch errors before customers see them. Worth the extra latency (~2-3s) for quality.
+{% /card %}
+
+{% card title="High-Stakes Domains" icon="warning" %}
+**Use case**: Financial, medical, legal information
+
+**Why**: Hallucinations and errors have serious consequences. Verification adds a safety layer.
+{% /card %}
+
+{% card title="Complex Multi-Step Tasks" icon="puzzle" %}
+**Use case**: Agents that use multiple tools or complex reasoning
+
+**Why**: More steps = more opportunities for errors. Verification catches logic mistakes.
+{% /card %}
+
+### Trade-Offs
+
+**Pros**:
+- Catches obvious errors automatically
+- Improves response quality measurably
+- Transparent grades in traces for debugging
+- Reduces user complaints
+
+**Cons**:
+- Adds 2-3 seconds latency (verification + potential reprompt)
+- Doubles Bedrock costs for verified messages
+- Not perfect - verifier can miss issues
+
+**Recommendation**: Start with internal users, expand to external once calibrated.
+
+## AI-Generated Feedback
+
+### The Problem
+
+After deploying an agent, you need to know:
+- What's working well?
+- What questions are users actually asking?
+- Where is the agent struggling?
+- What improvements would help most?
+
+Manual review doesn't scale. You can't read every conversation.
+
+### How Feedback Works
+
+After a session completes, an LLM analyzes the entire conversation:
+
+{% steps %}
+1. **Session Completes**
+   
+   User ends conversation or it times out.
+
+2. **Background Analysis**
+   
+   EventBridge triggers feedback generation (non-blocking):
+   - LLM reviews full conversation
+   - Analyzes tools used
+   - Evaluates responses
+   - Identifies patterns
+
+3. **Feedback Generated**
+   
+   Structured output:
+   ```json
+   {
+     "sessionGoal": "User wanted to check order status and modify shipping address",
+     "outcome": "Partial success - status checked, address not modified",
+     "strengths": [
+       "Quickly located order using order ID",
+       "Clearly communicated current shipping status"
+     ],
+     "issues": [
+       "Failed to offer address modification option",
+       "Didn't verify new address before confirming"
+     ],
+     "suggestions": [
+       "Add 'modify_shipping_address' tool",
+       "Update prompt to proactively offer related actions",
+       "Consider address validation tool integration"
+     ]
+   }
+   ```
+
+4. **Indexed for Exploration**
+   
+   Feedback stored in OpenSearch and available in admin interface.
+{% /steps %}
+
+### Real Example
+
+**Session**: User asks about product compatibility, agent provides generic answer
+
+**Generated feedback**:
+```
+Goal: User wanted to know if Product A works with their existing Product B.
+
+Outcome: Unsuccessful - agent provided general compatibility info but didn't
+determine specific compatibility.
+
+Issues:
+- Agent didn't ask which model of Product B user owns
+- Compatibility tool wasn't used effectively
+- User had to ask follow-up questions to get specific answer
+
+Suggestions:
+- Update prompt to ask clarifying questions about existing equipment
+- Enhance compatibility tool to accept more detailed model information
+- Consider adding tool that looks up user's previous purchases
+```
+
+**What you learn**: Need better clarifying questions and enhanced tool capabilities.
+
+### Aggregating Insights
+
+Individual feedback is helpful. Patterns across thousands of sessions are transformative.
+
+**Common patterns discovered**:
+- "Users frequently ask X but agent doesn't have Y tool" → Build Y tool
+- "Agent often misunderstands Z type of question" → Refine prompt
+- "Tool A fails 15% of the time with timeout errors" → Fix tool reliability
+- "Sessions with file uploads have 40% success rate" → Improve file handling
+
+{% aside type="tip" %}
+**Pro tip**: Run weekly reports aggregating feedback themes. This becomes your product roadmap for agent improvements.
+{% /aside %}
+
+### Configuration
+
+```typescript
+// Site-wide enablement in pika-config.ts
+features: {
+  llmGeneratedFeedback: {
+    enabled: true
+  }
+}
+
+// Per chat-app (inherits from site-wide)
+chatAppConfig: {
+  features: {
+    llmGeneratedFeedback: {
+      enabled: true // Can disable for specific apps
+    }
+  }
+}
+```
+
+**Cost considerations**:
+- Runs asynchronously (doesn't impact user experience)
+- ~$0.01-0.02 per session analyzed
+- Skip analysis for very short sessions (< 3 messages)
+- Configure sampling rate if needed
+
+## AI-Driven Insights
+
+### Beyond Individual Sessions
+
+Feedback analyzes single conversations. Insights aggregate across all sessions.
+
+**Metrics automatically tracked**:
+
+{% card title="Session Metrics" icon="rocket" %}
+- Total sessions per day/week/month
+- Average session length
+- Completion rate (did user get answer?)
+- Abandonment points (where do users give up?)
+- Return user rate
+{% /card %}
+
+{% card title="Sentiment Analysis" icon="star" %}
+- Overall sentiment per session
+- Sentiment change throughout conversation
+- Frustration indicators
+- Satisfaction patterns
+{% /card %}
+
+{% card title="Goal Completion" icon="approve-check" %}
+- What users are trying to accomplish
+- Success rate per goal type
+- Common failure modes
+- Time to completion
+{% /card %}
+
+{% card title="Agent Performance" icon="puzzle" %}
+- Tool usage patterns
+- Tool success rates
+- Common tool combinations
+- Verification grades distribution
+{% /card %}
+
+### Dashboard Views
+
+**Admin interface shows**:
+- Trend graphs (sessions over time, sentiment trends)
+- Top questions asked
+- Most common user intents
+- Agent performance metrics
+- Cost per session
+
+**Actionable insights**:
+- "Top 10 questions the agent handles poorly" → Focus prompt improvements here
+- "80% of frustrated users had this issue" → Priority fix
+- "Tool X is used but fails 30% of the time" → Reliability issue
+- "New topic emerged in last week" → Content gap
+
+### Real-World Use Case
+
+**E-commerce support agent**:
+
+**Week 1 insights**:
+- 500 sessions
+- 65% completion rate
+- Top frustration: "Can't modify order after placement"
+
+**Action**: Add `modify_order` tool
+
+**Week 4 insights**:
+- 800 sessions
+- 82% completion rate
+- New top question: "When will back-ordered items ship?"
+
+**Action**: Integrate with inventory system for ETA tool
+
+**Week 8 insights**:
+- 1200 sessions
+- 88% completion rate
+- Users asking about "order bundling" (not supported)
+
+**Action**: Either add bundling feature or train agent to explain alternatives
+
+**This is continuous improvement driven by data, not guesswork.**
+
+## Instruction Engineering Tools
+
+### Instruction Assistance
+
+Agent struggling? Get AI help improving its prompt.
+
+**How it works**:
+```typescript
+features: {
+  instructionAssistance: {
+    enabled: true,
+    userRoles: ['pika:content-admin'] // Who can request assistance
+  }
+}
+```
+
+**In admin interface**:
+1. Select underperforming agent
+2. Provide examples of bad behavior
+3. AI analyzes agent prompt and suggests improvements
+4. You review and apply suggestions
+
+**Example**:
+```
+Current prompt: "You are a helpful assistant."
+
+Assistance suggests:
+"You are a customer support specialist for Acme Corp. Your goal is to:
+1. Identify the user's specific need
+2. Use available tools to find relevant information
+3. Provide clear, actionable answers
+4. Offer related help proactively
+
+When using tools:
+- Always verify you have required parameters before calling
+- Explain what information you're looking up
+- If a tool fails, explain the issue clearly"
+```
+
+**Result**: More specific, actionable prompt leading to better behavior.
+
+### Instruction Augmentation
+
+Dynamically enhance agent context based on runtime data.
+
+**Use cases**:
+
+{% card title="User Context Injection" icon="star" %}
+Augment prompt with user-specific information:
+```
+Base prompt: "You are a helpful assistant."
+
+Augmented at runtime:
+"You are a helpful assistant. The user is:
+- Name: John Doe
+- Account type: Premium
+- Recent orders: #12345 (shipped), #12346 (delivered)
+- Known preferences: Prefers email over phone contact"
+```
+
+Agent has context without you manually providing it every time.
+{% /card %}
+
+{% card title="Dynamic Policy Injection" icon="document" %}
+Add current policies or rules:
+```
+Base prompt: "Help with returns."
+
+Augmented at runtime:
+"Help with returns. Current return policy:
+- Standard: 30 days
+- Premium members: 45 days
+- Holiday extended: Until Jan 31 (currently active)
+- Exceptions: Final sale items non-returnable"
+```
+
+Policies change without redeploying agents.
+{% /card %}
+
+{% card title="Session Context" icon="puzzle" %}
+Include relevant session history or shared context:
+```
+Augmented with:
+"Previous conversation summary:
+- User previously asked about Product A compatibility
+- Determined user has System B version 2.1
+- User expressed interest in upgrade path"
+```
+
+Agent maintains context across sessions.
+{% /card %}
+
+## Putting It All Together
+
+These features work synergistically:
+
+**Week 1**: Deploy agent with self-correction enabled
+- Catch obvious errors immediately
+- Build user confidence
+
+**Week 2**: Review AI-generated feedback
+- Identify top 5 improvement areas
+- Prioritize based on frequency
+
+**Week 3**: Use instruction assistance
+- Refine prompts for identified issues
+- Add tools for gaps
+
+**Week 4**: Monitor insights dashboard
+- Verify improvements worked
+- Discover next issues
+- Continuous cycle
+
+**Result**: Steady, data-driven improvement instead of reactive firefighting.
+
+## Production Intelligence Checklist
+
+Before launching an agent to real users:
+
+✅ **Enable self-correction** for customer-facing responses
+✅ **Configure feedback generation** to learn from all sessions
+✅ **Set up insights monitoring** to track trends
+✅ **Grant admin access** to content owners for instruction tuning
+✅ **Establish review cadence** (weekly feedback review)
+✅ **Define improvement metrics** (completion rate, sentiment, etc.)
+
+## The Competitive Advantage
+
+Most teams treat agents as "deploy and hope":
+- Ship and see what users complain about
+- Manual review of select conversations
+- Slow, reactive improvements
+- Never know if you're getting better
+
+Pika treats agents as continuously improving systems:
+- Automatic quality checks
+- Comprehensive feedback on all sessions
+- Data-driven improvement priorities
+- Measurable progress
+
+**This is the difference between a toy and a tool.**
+
+---
+
+{% aside type="tip" %}
+**Ready to see all these capabilities in action?** Check out the [Quick Start](/guides/quick-start/) to deploy Pika, or explore [Who Is Pika For](/why/who-is-pika-for/) to see if it fits your team.
+{% /aside %}
+

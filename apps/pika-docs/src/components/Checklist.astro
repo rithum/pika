@@ -1,0 +1,13 @@
+---
+import ChecklistComponent from './checklist.svelte';
+
+const content = await Astro.slots.render('default');
+const { clientLoad = true } = Astro.props;
+---
+
+{clientLoad ? (
+	<ChecklistComponent client:load content={content} />
+) : (
+	<ChecklistComponent content={content} />
+)}
+

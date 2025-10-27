@@ -1,31 +1,37 @@
 {
-    "name": "pika-docs",
-    "type": "module",
-    "version": "0.0.0",
-    "private": true,
-    "packageManager": "pnpm@9.15.0",
-    "license": "MIT",
-    "scripts": {
-        "dev": "vite dev",
-        "build": "vite build && cp CNAME dist",
-        "sync:developer-docs": "node ./scripts/sync-developer-docs.mjs"
-    },
-    "devDependencies": {
-        "pika-shared": "workspace:*",
-        "@shikijs/twoslash": "^3.9.2",
-        "@sveltejs/adapter-static": "^3.0.1",
-        "@sveltejs/kit": "^2.8.1",
-        "@sveltejs/vite-plugin-svelte": "^4.0.1",
-        "@sveltepress/theme-default": "^6.0.4",
-        "@sveltepress/vite": "^1.2.2",
-        "@types/node": "^20.11.20",
-        "@typescript/vfs": "^1.6.1",
-        "shiki": "^3.9.2",
-        "svelte": "^5.0.0",
-        "typescript": "^5.3.3",
-        "vite": "^5.1.4"
-    },
-    "dependencies": {
-        "@sveltepress/twoslash": "^1.2.2"
-    }
+  "name": "pika-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@10.9.0",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/markdoc": "catalog:",
+    "@astrojs/starlight": "catalog:",
+    "@astrojs/starlight-markdoc": "catalog:",
+    "@astrojs/starlight-tailwind": "catalog:",
+    "@astrojs/svelte": "catalog:",
+    "@expressive-code/core": "catalog:",
+    "@expressive-code/plugin-collapsible-sections": "catalog:",
+    "@expressive-code/plugin-line-numbers": "catalog:",
+    "@fujocoded/expressive-code-caption": "catalog:",
+    "@fujocoded/expressive-code-output": "catalog:",
+    "tailwindcss": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "astro": "catalog:",
+    "astro-expressive-code": "catalog:",
+    "astro-mermaid": "catalog:",
+    "expressive-code-color-chips": "catalog:",
+    "mermaid": "catalog:",
+    "sharp": "catalog:",
+    "starlight-sidebar-topics": "catalog:",
+    "svelte": "catalog:",
+    "unist-util-visit": "catalog:"
+  }
 }

@@ -1,0 +1,488 @@
+---
+title: Manage User Sessions
+description: Configure session sharing and pinning features for collaboration and organization
+---
+
+Learn how to enable and configure session sharing and pinning features, allowing users to collaborate on conversations and organize their chat sessions.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable session sharing for collaboration
+- Configure session pinning for organization
+- Understand access control semantics
+- Integrate with the Entity feature
+- Implement visit tracking
+- Secure shared sessions properly
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site configuration
+- Understanding of user types and entities (if using entity-based sharing)
+- Frontend integration for UI components
+
+## Understanding Session Features
+
+### Session Sharing
+
+Allows users to share chat sessions with others:
+- **Internal Sharing**: Share with colleagues
+- **External Sharing**: Share with customers/partners
+- **Access Control**: Different rules for internal vs external recipients
+- **Visit Tracking**: Know when shared sessions are viewed
+
+### Session Pinning
+
+Allows users to pin important sessions:
+- **Quick Access**: Pinned sessions appear at top of list
+- **Organization**: Keep important conversations easily accessible
+- **Per-User**: Each user has their own pinned sessions
+- **Persistence**: Pins survive session closure and reopening
+
+## Step 1: Enable Session Sharing
+
+Configure session sharing in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        sessionSharing: {
+            enabled: true,
+            userTypes: ['internal-user', 'external-user'], // Who can share
+            // Optional: restrict who can share with external users
+            canShareExternally: {
+                userTypes: ['internal-user'],
+                userRoles: ['support-agent', 'account-manager']
+            }
+        }
+    }
+};
+```
+
+### Configuration Options
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | Enable session sharing |
+| `userTypes` | string[] | User types that can share sessions |
+| `userRoles` | string[] | User roles that can share sessions |
+| `canShareExternally` | AccessRules | Additional restrictions for external sharing |
+
+## Step 2: Enable Session Pinning
+
+Configure session pinning in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        sessionPinning: {
+            enabled: true,
+            userTypes: ['internal-user', 'external-user']
+        }
+    }
+};
+```
+
+### Pinning Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | Enable session pinning |
+| `userTypes` | string[] | User types that can pin sessions |
+| `userRoles` | string[] | User roles that can pin sessions |
+
+## Understanding Session Sharing Access Control
+
+### Sharing Semantics
+
+When a session is shared, access control depends on the recipient's user type:
+
+#### External User Recipients
+
+External users can access shared sessions if **ANY** of these are true:
+1. Session was shared directly with their user ID
+2. Session was shared with their entity (if entity feature enabled)
+3. Chat app allows their user type
+
+**Example:**
+```typescript
+// Session shared to:
+sharedWith: {
+    externalUserIds: ['customer_123'],
+    externalEntityIds: ['company_abc']
+}
+
+// Customer with userId='customer_123' → ✅ Access granted
+// Customer with entityId='company_abc' → ✅ Access granted
+// Customer without either → ❌ Access denied (unless chat app allows)
+```
+
+#### Internal User Recipients
+
+Internal users can access shared sessions if **ALL** of these are true:
+1. Session was shared with their user ID OR their entity
+2. Chat app allows their user type/roles
+
+**Example:**
+```typescript
+// Session shared to:
+sharedWith: {
+    internalUserIds: ['support_agent_1'],
+    internalEntityIds: ['support_team']
+}
+
+// Support agent with userId='support_agent_1' → ✅ Access granted (if chat app allows)
+// Support agent with entityId='support_team' → ✅ Access granted (if chat app allows)
+// Developer without either → ❌ Access denied
+// Executive with userId but chat app restricts to support roles → ❌ Access denied
+```
+
+### Why Different Semantics?
+
+- **External Users**: Lenient access encourages customer collaboration
+- **Internal Users**: Stricter access maintains internal security boundaries
+
+## Step 3: Integrate with Entity Feature (Optional)
+
+Enable entity-based sharing for multi-tenant scenarios.
+
+### Enable Entity Feature
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId',
+            searchPlaceholderText: 'Search for an account...',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts'
+        },
+        sessionSharing: {
+            enabled: true,
+            userTypes: ['internal-user', 'external-user']
+        }
+    }
+};
+```
+
+### Entity-Based Sharing Workflow
+
+1. **User shares session**
+2. **Selects entity** from autocomplete
+3. **All users in that entity** can access session
+4. **Access follows** entity membership
+
+For complete entity implementation, see [Work with Entities](/guides/data-sessions/entities/).
+
+## Step 4: Implement Visit Tracking
+
+Track when users visit shared sessions.
+
+### Data Model
+
+Visit tracking stores:
+- **Visitor User ID**: Who viewed the session
+- **Visit Timestamp**: When they viewed it
+- **Visit Count**: How many times they've viewed it
+
+### Stored in DynamoDB
+
+```typescript
+// Session record with visits
+{
+    sessionId: 'session_123',
+    userId: 'original_owner',
+    sharedWith: {
+        externalUserIds: ['customer_1'],
+        externalEntityIds: ['company_abc']
+    },
+    visits: [
+        {
+            userId: 'customer_1',
+            timestamp: '2025-10-27T10:30:00Z',
+            count: 3
+        },
+        {
+            userId: 'customer_2',
+            entityId: 'company_abc',
+            timestamp: '2025-10-27T11:15:00Z',
+            count: 1
+        }
+    ]
+}
+```
+
+### Access Visit Data
+
+```typescript
+// Frontend component
+import { getSessionVisits } from '$lib/api/sessions';
+
+const visits = await getSessionVisits(sessionId);
+
+// Display visit information
+visits.forEach(visit => {
+    console.log(`${visit.userId} visited ${visit.count} times`);
+    console.log(`Last visit: ${visit.timestamp}`);
+});
+```
+
+## Step 5: Frontend Integration
+
+Integrate session sharing and pinning into your UI.
+
+### Sharing UI Component
+
+**Location:** `apps/pika-chat/src/lib/components/SessionShareDialog.svelte`
+
+```svelte
+<script lang="ts">
+    import { shareSession } from '$lib/api/sessions';
+    import { entityAutocomplete } from '$lib/api/entities';
+    
+    export let sessionId: string;
+    
+    let shareMode: 'user' | 'entity' = 'user';
+    let recipientUserId: string = '';
+    let recipientEntityId: string = '';
+    
+    async function handleShare() {
+        await shareSession(sessionId, {
+            userIds: shareMode === 'user' ? [recipientUserId] : [],
+            entityIds: shareMode === 'entity' ? [recipientEntityId] : []
+        });
+    }
+</script>
+
+<dialog>
+    <h2>Share Session</h2>
+    
+    <label>
+        <input type="radio" bind:group={shareMode} value="user" />
+        Share with specific user
+    </label>
+    
+    <label>
+        <input type="radio" bind:group={shareMode} value="entity" />
+        Share with entity
+    </label>
+    
+    {#if shareMode === 'user'}
+        <input bind:value={recipientUserId} placeholder="Enter user ID" />
+    {:else}
+        <Autocomplete 
+            onSearch={entityAutocomplete} 
+            bind:value={recipientEntityId} 
+        />
+    {/if}
+    
+    <button on:click={handleShare}>Share</button>
+</dialog>
+```
+
+### Pinning UI Component
+
+**Location:** `apps/pika-chat/src/lib/components/SessionList.svelte`
+
+```svelte
+<script lang="ts">
+    import { pinSession, unpinSession } from '$lib/api/sessions';
+    
+    export let sessions: Session[];
+    
+    async function togglePin(sessionId: string, isPinned: boolean) {
+        if (isPinned) {
+            await unpinSession(sessionId);
+        } else {
+            await pinSession(sessionId);
+        }
+        // Refresh session list
+    }
+</script>
+
+{#each sessions as session}
+    <div class="session-item" class:pinned={session.isPinned}>
+        <h3>{session.title}</h3>
+        
+        <button on:click={() => togglePin(session.id, session.isPinned)}>
+            {session.isPinned ? '📌 Unpin' : '📍 Pin'}
+        </button>
+        
+        {#if session.sharedWith}
+            <span class="shared-badge">Shared</span>
+        {/if}
+    </div>
+{/each}
+```
+
+## Testing Checklist
+
+Verify session features work correctly:
+
+{% checklist %}
+- [ ] Session sharing enabled in `pika-config.ts`
+- [ ] Session pinning enabled in `pika-config.ts`
+- [ ] Share dialog appears for authorized users
+- [ ] Can share with specific user IDs
+- [ ] Can share with entities (if entity feature enabled)
+- [ ] Shared sessions appear in recipient's session list
+- [ ] Access control works for external recipients
+- [ ] Access control works for internal recipients
+- [ ] Visit tracking records views correctly
+- [ ] Pin/unpin functionality works
+- [ ] Pinned sessions appear at top of list
+- [ ] Pinned sessions persist across sessions
+{% /checklist %}
+
+## Common Scenarios
+
+### Scenario 1: Customer Support Collaboration
+
+```typescript
+siteFeatures: {
+    sessionSharing: {
+        enabled: true,
+        userTypes: ['internal-user'],
+        canShareExternally: {
+            userTypes: ['internal-user'],
+            userRoles: ['support-agent', 'support-lead']
+        }
+    },
+    entity: {
+        enabled: true,
+        attributeName: 'customerId'
+    }
+}
+```
+
+**Workflow:**
+1. Support agent assists customer
+2. Escalates by sharing with support lead
+3. Lead can view full conversation history
+4. All parties stay synchronized
+
+### Scenario 2: Enterprise Multi-Tenant
+
+```typescript
+siteFeatures: {
+    sessionSharing: {
+        enabled: true,
+        userTypes: ['external-user'] // Customers can share
+    },
+    entity: {
+        enabled: true,
+        attributeName: 'companyId'
+    }
+}
+```
+
+**Workflow:**
+1. Customer shares session with entire company entity
+2. Colleagues in same company can access
+3. Visit tracking shows who's engaged
+4. Cross-functional collaboration enabled
+
+### Scenario 3: Internal Knowledge Sharing
+
+```typescript
+siteFeatures: {
+    sessionSharing: {
+        enabled: true,
+        userTypes: ['internal-user']
+    },
+    sessionPinning: {
+        enabled: true,
+        userTypes: ['internal-user']
+    }
+}
+```
+
+**Workflow:**
+1. Developer discovers useful technique via AI agent
+2. Shares session with team entity
+3. Team members pin for reference
+4. Knowledge preserved and accessible
+
+## Troubleshooting
+
+### Sharing Not Working
+
+- Verify `sessionSharing.enabled: true`
+- Check user has required `userTypes` or `userRoles`
+- Confirm recipient exists in system
+- Review access control rules for chat app
+- Check CloudWatch logs for permission errors
+
+### Recipient Can't Access Shared Session
+
+- Verify recipient's user type matches access rules
+- For internal users: Check both user ID/entity AND chat app access
+- For external users: Check user ID OR entity is in shared list
+- Confirm chat app allows recipient's user type
+- Review entity membership if using entity-based sharing
+
+### Pinning Not Persisting
+
+- Verify `sessionPinning.enabled: true`
+- Check DynamoDB table has pinned sessions data
+- Confirm user ID is consistent across sessions
+- Review frontend logic for pin state management
+- Check for API errors in browser console
+
+### Visit Tracking Not Recording
+
+- Confirm shared session is being accessed (not just listed)
+- Check DynamoDB write permissions
+- Review Lambda logs for visit tracking errors
+- Verify visit tracking code is executed on session load
+
+## Security Considerations
+
+### Sharing Permissions
+
+- **Limit external sharing**: Only authorized roles can share externally
+- **Audit sharing activity**: Log who shares what with whom
+- **Revocation capability**: Allow session owners to revoke shares
+- **Expiration**: Consider time-limited sharing
+
+### Access Control
+
+- **Internal users**: Always check chat app access rules
+- **External users**: Respect entity boundaries
+- **Session content**: Sanitize sensitive data before sharing
+- **Visit privacy**: Consider if visit tracking itself needs access control
+
+### Data Privacy
+
+- **Consent**: Inform users when sessions are shared
+- **Visibility**: Show who has access to each session
+- **Compliance**: Ensure sharing complies with data regulations
+- **Retention**: Consider data retention policies for shared sessions
+
+## Next Steps
+
+- [Work with Entities](/guides/data-sessions/entities/) - Implement entity-based sharing
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Set up access rules
+- [Manage Content](/guides/admin/content-admin/) - Admin access to all sessions
+
+## Related Documentation
+
+- [Session Management](/capabilities/collaboration/session-management/) - Learn more about sessions
+- [Entity Management](/capabilities/enterprise/entity-management/) - Multi-tenancy with entities
+- [Access Control](/capabilities/enterprise/access-control/) - User access management
+
+---
+
+{% aside type="success" title="Collaboration Enabled" %}
+Session sharing and pinning transform individual AI interactions into collaborative knowledge management, enabling teams to work together more effectively.
+{% /aside %}
+

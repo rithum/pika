@@ -1,0 +1,334 @@
+---
+title: When to Use Pika
+description: Decision criteria for when Pika is the right choice for your project
+---
+
+Pika isn't the right choice for every AI project. This guide will help you understand when Pika is a great fit, when it's acceptable, and when you should consider alternatives.
+
+## Pika is a Great Fit When...
+
+### You're Building Chat Applications
+
+Pika is **specifically designed for chat-based interactions**:
+
+✅ **Perfect for**:
+- Customer support chat applications
+- Internal knowledge base assistants
+- Domain-specific expert systems
+- Multi-agent collaboration interfaces
+- Conversational tools for employees
+
+❌ **Not designed for**:
+- Voice assistants
+- Embedded AI SDK for other apps
+- Batch processing systems
+- Real-time streaming data analysis
+
+### You're Standardized on AWS
+
+Pika only runs on AWS and leverages AWS-specific services:
+
+✅ **Perfect for**:
+- Organizations standardized on AWS
+- Teams comfortable with AWS CDK
+- Projects requiring AWS Bedrock models
+- Applications already using Lambda/DynamoDB
+
+❌ **Consider alternatives if**:
+- You need multi-cloud deployment
+- You're standardized on Azure or GCP
+- You want cloud-agnostic architecture
+- AWS Bedrock models don't meet your needs
+
+### You Need Production-Ready Infrastructure
+
+Pika shines when you need complete, production-ready systems:
+
+✅ **Perfect for**:
+- Customer-facing applications
+- Multi-tenant SaaS products
+- Enterprise internal tools
+- Applications requiring authentication, sessions, and admin tools
+
+❌ **Consider alternatives if**:
+- You're building a quick prototype or POC
+- You need maximum flexibility in architecture
+- You want to assemble your own stack
+- You're experimenting with different approaches
+
+### You Value Development Speed
+
+Pika accelerates production deployment:
+
+✅ **Perfect for**:
+- Teams with aggressive timelines
+- Organizations wanting to ship AI features quickly
+- Projects where AI is one of many features
+- Teams that want to focus on business logic, not infrastructure
+
+❌ **Consider alternatives if**:
+- You have unlimited development time
+- You enjoy building infrastructure from scratch
+- You want complete control over every architectural decision
+- You're building a unique architecture not suited to chat
+
+### You Need Multi-Tenancy
+
+Pika is built for serving multiple organizations from one deployment:
+
+✅ **Perfect for**:
+- SaaS applications with multiple customers
+- Enterprise tools serving multiple departments
+- Platforms with organizational data isolation
+- Applications requiring per-organization access control
+
+❌ **Consider alternatives if**:
+- You're building a single-tenant application
+- You don't need organizational boundaries
+- You're building for a single organization only
+
+### You Want Configuration-Based Agents
+
+Pika uses a configuration-first approach:
+
+✅ **Perfect for**:
+- Teams that want to version control agent definitions
+- Organizations requiring deployment governance
+- Projects needing rapid agent iteration
+- Teams wanting to separate agent logic from platform code
+
+❌ **Consider alternatives if**:
+- You need complex programmatic agent behaviors
+- You prefer agent logic in application code
+- You need extremely dynamic agent generation
+- Configuration-based approaches feel limiting
+
+### You Want Built-In Quality Assurance
+
+Pika includes self-correction and quality tools:
+
+✅ **Perfect for**:
+- Customer-facing applications where accuracy matters
+- Projects requiring quality metrics
+- Organizations that need audit trails
+- Applications where wrong answers have consequences
+
+❌ **Consider alternatives if**:
+- You don't need quality assurance
+- You're comfortable with unchecked agent responses
+- Your use case tolerates inaccuracy
+
+## Pika is Acceptable When...
+
+These scenarios aren't perfect fits, but Pika can still work:
+
+### You're New to AWS
+
+**Acceptable, with caveats**:
+- Pika provides good AWS defaults
+- AWS CDK can be learned alongside
+- Documentation includes AWS guidance
+
+**But**:
+- You'll need to learn AWS concepts
+- Operational knowledge is required
+- AWS costs can surprise newcomers
+
+**Recommendation**: Go through AWS fundamentals first, or pair with AWS-experienced teammate.
+
+### You Need Custom Agent Architectures
+
+**Acceptable, with workarounds**:
+- You can implement custom logic in tools
+- Direct agent invocation bypasses UI
+- You can extend the platform
+
+**But**:
+- You're working against the grain
+- Custom architectures may complicate updates
+
+**Recommendation**: Evaluate if your "custom" architecture is actually needed or if Pika's patterns work.
+
+### You Want Non-Chat Interfaces
+
+**Acceptable for some cases**:
+- Direct agent invocation API exists
+- You can embed chat in your UI
+- API-only usage is possible
+
+**But**:
+- You're not using Pika's primary strength
+- Chat UI comes whether you want it or not
+- Other frameworks might be better suited
+
+**Recommendation**: If you don't want chat, look at agent-only frameworks.
+
+### You're Cost-Sensitive
+
+**Acceptable, with planning**:
+- Serverless architecture can be cost-effective
+- Pay-per-use model works for many workloads
+- No licensing fees (only AWS costs)
+
+**But**:
+- AWS costs can add up with heavy usage
+- Bedrock model costs are per-token
+- You need to monitor and optimize
+
+**Recommendation**: Start small, monitor costs, optimize based on real usage patterns.
+
+## Pika is NOT a Good Fit When...
+
+### You Need Real-Time Streaming Data Processing
+
+**Why not**: Pika is designed for conversational request-response patterns, not continuous data streams.
+
+**Better alternatives**: AWS Kinesis, Apache Kafka, specialized streaming frameworks.
+
+### You Need Sub-Second Response Times
+
+**Why not**: LLM-based agents have inherent latency (often 2-10 seconds for complete responses).
+
+**Better alternatives**: Traditional APIs, cached responses, rules engines, smaller specialized models.
+
+### You're Building a Pure API Without UI
+
+**Why not**: Pika includes a full chat UI that you won't use. While direct agent invocation exists, you're paying the "cost" of unused features.
+
+**Better alternatives**: AWS Bedrock Agents directly, LangChain, custom Lambda implementation.
+
+### You Need Models Not Available in Bedrock
+
+**Why not**: Pika uses AWS Bedrock exclusively. If you need models not available in Bedrock (some open-source models, very latest releases), you can't use them.
+
+**Better alternatives**: Frameworks supporting direct model hosting, SageMaker-based solutions, OpenAI API-based frameworks.
+
+### You Need On-Premises Deployment
+
+**Why not**: Pika is cloud-native and AWS-specific. On-premises or air-gapped deployments aren't supported.
+
+**Better alternatives**: Deployable open-source models, on-premises LLM solutions, hybrid architectures.
+
+### You're Building Mobile-First
+
+**Why not**: Pika's UI is web-based (SvelteKit). While it works on mobile browsers, it's not a native mobile experience.
+
+**Better alternatives**: Native mobile frameworks, mobile-optimized chat frameworks, embedded SDKs.
+
+### You Need Complex Multi-Model Orchestration
+
+**Why not**: Pika focuses on AWS Bedrock agents. If you need to orchestrate across many different model types, formats, and providers, Pika's opinionated approach may constrain you.
+
+**Better alternatives**: LangChain, custom orchestration, multi-cloud frameworks.
+
+## Decision Framework
+
+Use this framework to evaluate Pika for your project:
+
+### Required (Must Answer Yes)
+
+- [ ] Are you building chat-based interactions?
+- [ ] Are you standardized on (or willing to use) AWS?
+- [ ] Do AWS Bedrock models meet your needs?
+
+If any answer is "no," Pika is likely not the right choice.
+
+### Important (Should Answer Yes to Most)
+
+- [ ] Do you need production-ready infrastructure out of the box?
+- [ ] Do you value development speed over architecture flexibility?
+- [ ] Do you need multi-tenancy or plan to in the future?
+- [ ] Do you want configuration-based agent management?
+- [ ] Do you need quality assurance tools?
+
+If you answered "no" to most of these, evaluate whether Pika's benefits apply to your project.
+
+### Nice to Have (Bonuses if Yes)
+
+- [ ] Do you want to avoid building chat UI from scratch?
+- [ ] Do you need built-in authentication integration?
+- [ ] Do you want session management included?
+- [ ] Do you need admin tools for managing the platform?
+- [ ] Do you want self-correction capabilities?
+
+## Comparison to Alternatives
+
+### vs. Building from Scratch
+
+**Choose Pika over scratch when**:
+- You want to ship faster (weeks vs. months)
+- You don't want to build chat UI, auth, sessions, admin tools
+- You want production patterns built-in
+
+**Choose scratch over Pika when**:
+- You have unique requirements Pika doesn't support
+- You want maximum architectural flexibility
+- You have unlimited development time
+- Your requirements don't match chat applications
+
+### vs. LangChain/LlamaIndex
+
+**Choose Pika over LangChain when**:
+- You want a complete application, not building blocks
+- You want UI, auth, and infrastructure included
+- You're building production chat apps on AWS
+
+**Choose LangChain over Pika when**:
+- You need framework flexibility
+- You're not building chat applications
+- You need to support multiple clouds or models
+- You want to assemble your own architecture
+
+### vs. Commercial Platforms (ChatGPT, Claude, etc.)
+
+**Choose Pika over commercial platforms when**:
+- You need full control over data and infrastructure
+- You want to avoid per-message pricing
+- You need deep customization
+- You need to integrate proprietary tools and data
+
+**Choose commercial platforms over Pika when**:
+- You want zero operations overhead
+- You don't need customization
+- You're okay with vendor lock-in
+- Development time is more costly than subscription fees
+
+### vs. AWS Bedrock Agents Directly
+
+**Choose Pika over direct Bedrock when**:
+- You want chat UI included
+- You need session management
+- You want admin tools
+- You need multi-tenancy
+
+**Choose direct Bedrock over Pika when**:
+- You're building API-only services
+- You want to build your own UI
+- You have specific architecture requirements
+- You need absolute minimal overhead
+
+## Still Not Sure?
+
+If you're still uncertain whether Pika is right for your project:
+
+1. **Try the tutorial**: [Getting Started](/getting-started/quickstart/) takes 15 minutes
+2. **Review capabilities**: See [what Pika can do](/capabilities/)
+3. **Check the architecture**: Understand [how it works](/concepts/architecture/system/)
+4. **Ask the community**: GitHub Discussions for questions
+5. **Start small**: Build a prototype and evaluate
+
+{% aside type="tip" %}
+The best way to know if Pika fits is to try it. The tutorial takes 15 minutes and shows you the complete platform.
+{% /aside %}
+
+## Next Steps
+
+- **If Pika seems like a good fit**: Start with [Getting Started](/getting-started/)
+- **If you need more understanding**: Read [System Architecture](/concepts/architecture/system/)
+- **If you want to see capabilities**: Explore [Capabilities](/capabilities/)
+- **If you have questions**: Check GitHub Discussions
+
+{% aside type="note" %}
+Remember: Choosing Pika doesn't lock you in. It's open source (MIT license), runs in your AWS account, and you have full access to modify it.
+{% /aside %}
+

@@ -1,0 +1,558 @@
+---
+title: Entities & Multi-Tenancy
+description: How Pika enables multiple organizations to use a single deployment with complete data isolation
+---
+
+Pika's entity system enables true multi-tenancy, allowing multiple organizations to use a single Pika deployment while maintaining complete data isolation. This page explains how entities work and how they enable secure multi-tenant applications.
+
+## What is an Entity?
+
+An **entity** represents an organizational boundary within your system:
+- A company or customer organization
+- An account or business unit
+- A department or division
+- Any logical grouping requiring data separation
+
+**Purpose**: Enable multiple organizations to use the same Pika deployment without seeing each other's data.
+
+## The Multi-Tenancy Problem
+
+**Challenge**: Serving multiple organizations from one deployment
+
+**Without entities**:
+- All users see all sessions
+- Shared content visible to everyone
+- No organizational boundaries
+- Data isolation is manual
+
+**With entities**:
+- Users only see their organization's data
+- Automatic data scoping
+- Secure multi-tenancy
+- Architecture-level isolation
+
+## How Entities Work
+
+### Entity Assignment
+
+**Users belong to entities**:
+```typescript
+user: {
+    userId: 'user_123',
+    email: 'john@acme-corp.com',
+    userType: 'external-user',
+    customData: {
+        entityId: 'acme-corp',           // Organization identifier
+        accountId: 'acme-account-456',   // Account within org
+        departmentId: 'engineering'      // Additional context
+    }
+}
+```
+
+**Entity determined by authentication**:
+- Your auth provider assigns entity ID
+- Typically from: Account ID, Company ID, Organization ID, Department ID
+- Consistent across all sessions for that user
+
+### Data Scoping
+
+**All data operations scoped to entity**:
+
+```typescript
+// Get sessions - automatically filtered by entity
+const sessions = await getSessions(userId, entityId);
+// Returns only sessions for this user's entity
+
+// Create session - tagged with entity
+const session = await createSession({
+    userId: 'user_123',
+    chatAppId: 'support-chat',
+    entityId: 'acme-corp'  // Tagged automatically
+});
+
+// Query messages - entity check enforced
+const messages = await getMessages(sessionId, entityId);
+// Fails if session doesn't belong to user's entity
+```
+
+### Entity Boundaries
+
+**What's isolated by entity**:
+- Chat sessions (user can only see their entity's sessions)
+- Shared sessions (sharing restricted to same entity)
+- Search results (OpenSearch filtered by entity)
+- Analytics (insights scoped to entity)
+- User lists (can only see entity members)
+
+**What's NOT isolated**:
+- Chat app configurations (shared across entities)
+- Agent definitions (shared across entities)
+- Tool definitions (shared across entities)
+- Feature configurations (shared, but can be overridden)
+
+## Entity Configuration
+
+### Enable Entity Feature
+
+**Site-wide configuration**:
+```typescript
+// pika-config.ts
+export const pikaConfig = {
+    features: {
+        entities: {
+            enabled: true,
+            entityIdAttribute: 'accountId'  // Which attribute to use
+        }
+    }
+};
+```
+
+**Entity ID source**:
+- Pull from authentication provider
+- Use consistent identifier (account ID, org ID, etc.)
+- Must be unique per organization
+
+### Per-Chat-App Override
+
+**Chat apps can override entity restrictions**:
+```typescript
+chatApp: {
+    chatAppId: 'company-wiki',
+    title: 'Company Knowledge Base',
+    agentId: 'wiki-agent',
+    
+    // Override: Make globally accessible
+    globalAccess: true,  // Disable entity scoping
+    userTypes: ['internal-user']  // But restrict to internal users
+}
+```
+
+**Use cases for global access**:
+- Company-wide internal tools
+- Shared knowledge bases
+- Admin applications
+- Cross-organizational features
+
+## Entity-Based Access Control
+
+### Entity-Scoped Access
+
+**Default behavior when entities enabled**:
+
+```typescript
+// User from Acme Corp creates session
+createSession({
+    userId: 'user_acme',
+    entityId: 'acme-corp',
+    chatAppId: 'support'
+});
+
+// User from Beta Inc cannot access Acme's session
+getSession('acme-session-id', 'beta-inc');
+// ❌ Access denied: entity mismatch
+```
+
+### Internal User Override
+
+**Internal users bypass entity restrictions**:
+
+```typescript
+// Internal user (employee) can access all entities
+if (user.userType === 'internal-user') {
+    // Can access sessions from any entity
+    // For support, troubleshooting, admin purposes
+}
+```
+
+**Why this matters**:
+- Customer support needs to help all customers
+- Admins need to manage all organizations
+- Internal tools need cross-entity visibility
+
+### Cross-Entity Sharing
+
+**Sharing restricted to same entity**:
+
+```
+User A (Acme Corp) shares session
+    ↓
+Share link generated
+    ↓
+User B (Acme Corp) can access ✅
+User C (Beta Inc) cannot access ❌
+Internal User D can access ✅
+```
+
+**Security guarantee**: Organizations cannot access each other's data.
+
+## Multi-Tenancy Patterns
+
+### Pattern 1: Customer Organizations
+
+**SaaS application serving multiple companies**:
+
+```typescript
+// Customer org 1
+{
+    entityId: 'acme-corp',
+    users: ['john@acme.com', 'jane@acme.com'],
+    sessions: [...],  // Only visible to Acme users
+}
+
+// Customer org 2
+{
+    entityId: 'beta-inc',
+    users: ['bob@beta.com', 'alice@beta.com'],
+    sessions: [...],  // Only visible to Beta users
+}
+
+// Complete data isolation
+```
+
+### Pattern 2: Department-Based
+
+**Enterprise with multiple departments**:
+
+```typescript
+// Engineering department
+{
+    entityId: 'engineering',
+    users: ['dev1@company.com', 'dev2@company.com'],
+    sessions: [...],  // Engineering conversations
+}
+
+// Sales department
+{
+    entityId: 'sales',
+    users: ['sales1@company.com', 'sales2@company.com'],
+    sessions: [...],  // Sales conversations
+}
+```
+
+### Pattern 3: Account-Based
+
+**Platform with accounts within organizations**:
+
+```typescript
+// Acme Corp, Account 1
+{
+    entityId: 'acme-corp',
+    accountId: 'acme-account-1',
+    users: [...],
+    sessions: [...]
+}
+
+// Acme Corp, Account 2
+{
+    entityId: 'acme-corp',
+    accountId: 'acme-account-2',
+    users: [...],
+    sessions: [...]
+}
+```
+
+Can use hierarchical entity IDs: `{orgId}-{accountId}`
+
+## Data Storage and Isolation
+
+### DynamoDB Schema
+
+**Entity in every data operation**:
+
+```typescript
+// Sessions table
+{
+    PK: 'SESSION#{sessionId}',
+    SK: 'METADATA',
+    userId: 'user_123',
+    entityId: 'acme-corp',  // Entity tagged
+    chatAppId: 'support',
+    // ...
+}
+
+// GSI for entity queries
+{
+    GSI2PK: 'ENTITY#{entityId}',
+    GSI2SK: 'SESSION#{timestamp}'
+}
+```
+
+**Query pattern**:
+```typescript
+// Get all sessions for an entity
+dynamodb.query({
+    IndexName: 'GSI2',
+    KeyConditionExpression: 'GSI2PK = :entity',
+    FilterExpression: 'userId = :user',
+    ExpressionAttributeValues: {
+        ':entity': `ENTITY#${entityId}`,
+        ':user': userId
+    }
+});
+```
+
+### OpenSearch Indexing
+
+**Entity in search indices**:
+
+```json
+{
+    "sessionId": "sess_123",
+    "userId": "user_456",
+    "entityId": "acme-corp",
+    "messages": [...],
+    "timestamp": 1234567890
+}
+```
+
+**Search with entity filter**:
+```typescript
+// Search only user's entity data
+opensearch.search({
+    query: {
+        bool: {
+            must: [
+                { match: { entityId: user.entityId } },
+                { match: { content: searchQuery } }
+            ]
+        }
+    }
+});
+```
+
+## Security Guarantees
+
+### Architectural Isolation
+
+**Entity checked at multiple layers**:
+
+1. **Frontend**: UI only shows entity's data
+2. **API Gateway**: Request validation includes entity
+3. **Lambda functions**: Entity validated in business logic
+4. **DynamoDB queries**: Entity filter in all queries
+5. **OpenSearch**: Entity filter in all searches
+
+**Defense in depth**: Even if one layer fails, others protect data.
+
+### Tool-Level Isolation
+
+**Tools enforce entity scoping**:
+
+```typescript
+export async function getCustomerData(event) {
+    const userId = event.sessionAttributes.userId;
+    const entityId = event.sessionAttributes.entityId;
+    
+    // Query scoped to entity
+    const data = await db.query({
+        entityId: entityId,
+        userId: userId
+    });
+    
+    return data;  // Only this entity's data
+}
+```
+
+### Session Validation
+
+**Every session access validates entity**:
+
+```typescript
+async function getSession(sessionId, userId, entityId) {
+    const session = await db.getSession(sessionId);
+    
+    // Validate entity match
+    if (session.entityId !== entityId) {
+        throw new Error('Access denied: entity mismatch');
+    }
+    
+    // Validate user owns session or is internal
+    if (session.userId !== userId && user.userType !== 'internal-user') {
+        throw new Error('Access denied: not session owner');
+    }
+    
+    return session;
+}
+```
+
+## Performance Considerations
+
+### Index Design
+
+**Efficient entity queries**:
+- GSI on entityId for fast entity-scoped lookups
+- Composite keys (entity + timestamp) for pagination
+- No full table scans required
+
+**Query performance**:
+```
+Get user's sessions from entity: <10ms
+Search within entity: <50ms
+Validate entity access: <5ms
+```
+
+### Caching
+
+**Entity-aware caching**:
+```typescript
+// Cache key includes entity
+const cacheKey = `sessions:${entityId}:${userId}`;
+const cached = await redis.get(cacheKey);
+```
+
+**Cache invalidation**:
+- Per-entity cache keys
+- No cross-entity cache pollution
+- Efficient cache management
+
+## Monitoring and Analytics
+
+### Entity-Level Metrics
+
+**Track usage per entity**:
+```typescript
+metrics: {
+    entity: 'acme-corp',
+    sessionCount: 1234,
+    messageCount: 5678,
+    tokenUsage: 123456,
+    activeUsers: 42
+}
+```
+
+**Use cases**:
+- Per-customer billing
+- Usage analytics
+- Capacity planning
+- Customer health scores
+
+### Entity Analytics
+
+**OpenSearch aggregations**:
+```typescript
+// Sessions per entity
+{
+    aggs: {
+        by_entity: {
+            terms: { field: 'entityId' },
+            aggs: {
+                sessions: { value_count: { field: 'sessionId' } }
+            }
+        }
+    }
+}
+```
+
+## Best Practices
+
+### 1. Choose Stable Entity IDs
+
+```typescript
+// Good: Stable, unique identifier
+entityId: 'customer-uuid-12345'
+
+// Less good: Name-based (can change)
+entityId: 'acme-corp-name'
+```
+
+### 2. Validate Entity Consistently
+
+Every data operation should check entity:
+```typescript
+if (session.entityId !== user.entityId && user.userType !== 'internal-user') {
+    throw new AccessDeniedError('Entity mismatch');
+}
+```
+
+### 3. Use Hierarchical IDs for Sub-Entities
+
+```typescript
+// Organization + Account
+entityId: 'org-123:account-456'
+
+// Easy to query all accounts in org
+entityId.startsWith('org-123:')
+```
+
+### 4. Document Entity Behavior
+
+Clearly document which features respect entities and which don't:
+```typescript
+features: {
+    sessionSharing: {
+        entityScoped: true,  // Can only share within entity
+    },
+    userSearch: {
+        entityScoped: false,  // Global for admin
+        adminOnly: true
+    }
+}
+```
+
+### 5. Test Cross-Entity Isolation
+
+```typescript
+// Test that org A cannot access org B's data
+test('entity isolation', async () => {
+    const sessionA = await createSession({ entityId: 'org-a' });
+    
+    // Try to access from org B
+    await expect(
+        getSession(sessionA.id, { entityId: 'org-b' })
+    ).rejects.toThrow('Access denied');
+});
+```
+
+## Troubleshooting
+
+### User Can't Access Their Sessions
+
+**Symptoms**: Empty session list for user
+
+**Possible causes**:
+- Entity ID changing between sessions
+- Entity ID not set in auth provider
+- Entity feature not enabled
+
+**Solutions**:
+- Ensure consistent entity ID from auth provider
+- Verify entity feature enabled
+- Check user.customData.entityId
+
+### Cross-Entity Data Visible
+
+**Symptoms**: User seeing other organization's data
+
+**Causes**:
+- Entity filter missing in query
+- Global access accidentally enabled
+- Entity feature disabled
+
+**Solutions**:
+- Add entity filter to all queries
+- Review globalAccess settings
+- Enable entity feature site-wide
+
+### Internal Users Can't Access Data
+
+**Symptoms**: Internal users getting access denied
+
+**Causes**:
+- Internal user type not recognized
+- Entity check too strict
+
+**Solutions**:
+- Verify userType === 'internal-user'
+- Add internal user bypass in access checks
+
+## Related Documentation
+
+- **[Authentication & Access Control](/concepts/key-concepts/auth-access/)** - User types and access
+- **[Session Management](/concepts/key-concepts/sessions/)** - How entities affect sessions
+- **[Security Architecture](/concepts/architecture/security/)** - Multi-tenancy security
+- **[Set Up User-to-Organization Mapping](/guides/authentication/user-org-mapping/)** - Implementation guide
+
+{% aside type="caution" %}
+Always enable the entity feature for multi-tenant applications. Relying solely on application-level checks is insufficient for production security.
+{% /aside %}
+

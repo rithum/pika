@@ -1,0 +1,352 @@
+---
+title: Why Not Just Build It Yourself?
+description: Understanding the true cost and complexity of building production AI infrastructure
+---
+
+## TL;DR
+
+Building production AI chat infrastructure yourself requires substantial development time and ongoing maintenance. The true cost includes not just the initial build, but security reviews, operational complexity, UI polish, and opportunity cost. Most teams underestimate what's required beyond the demo, discovering the hard parts only after committing to the custom path.
+
+---
+
+You absolutely can build this yourself. Many teams do. But understand what you're actually signing up for before you start.
+
+## The Demo-to-Production Gap
+
+Here's what typically happens:
+
+**Phase 1**: Your team builds a working demo. It looks amazing. Leadership is excited. Everyone thinks "this is easier than we thought!"
+
+**Phase 2**: You discover all the things the demo didn't handle. Edge cases. Security. Scale. Error recovery. The list grows.
+
+**Phase 3**: You're now building infrastructure instead of features. The original timeline is blown. The opportunity cost becomes painful.
+
+**Phase 4**: You have something in production, but it requires constant attention. Every new feature requires infrastructure work first.
+
+## What You're Really Building
+
+Let's break down what "building it yourself" actually means.
+
+### Infrastructure Layer
+
+{% card title="Session Management" icon="document" %}
+**What you need:**
+- DynamoDB schema for sessions and messages
+- Efficient query patterns for chat history
+- Pagination for long conversations
+- Session rehydration from after a period of inactivity
+- Session archival and cleanup
+- Migration strategy for schema changes
+
+**Hidden complexity:**
+- Optimizing for both recent messages (display) and full history (context)
+- Handling very long conversations (10,000+ messages)
+- Dealing with malformed data from early versions
+- Backup and disaster recovery
+{% /card %}
+
+{% card title="Streaming Infrastructure" icon="rocket" %}
+**What you need:**
+- WebSocket or SSE connection management
+- Lambda function URL configuration
+- Handling connection drops and reconnection
+- Buffering and flow control
+- Message ordering guarantees
+
+**Hidden complexity:**
+- Lambda timeout handling (15 min limit)
+- Cost optimization for long-running streams
+- Error recovery mid-stream
+- Client-side state management
+{% /card %}
+
+{% card title="Agent Orchestration" icon="puzzle" %}
+**What you need:**
+- Bedrock API integration
+- Tool calling framework
+- Context management and truncation
+- Token counting and cost tracking
+- Model selection logic
+
+**Hidden complexity:**
+- Handling tool call failures gracefully
+- Managing context windows (staying under limits)
+- Retry logic with exponential backoff
+- Cost controls and limits
+{% /card %}
+
+{% card title="File Handling" icon="document" %}
+**What you need:**
+- S3 integration for uploads
+- File type validation and scanning
+- Size limits and quota management
+- Signed URL generation
+- File processing for different types
+
+**Hidden complexity:**
+- Security scanning for malware
+- Image processing and thumbnails
+- Handling large files efficiently
+- Cleanup of abandoned uploads
+- MIME type detection and validation
+{% /card %}
+
+### User Interface
+
+{% card title="Chat Interface" icon="star" %}
+**What you need:**
+- Message rendering with proper formatting
+- Code syntax highlighting
+- Markdown rendering
+- Streaming message display
+- Input handling with file upload
+- Loading states and animations
+
+**Hidden complexity:**
+- Performance with 1000+ message history
+- Copy/paste from code blocks
+- Mobile responsiveness
+- Dark mode support
+- Accessibility (ARIA labels, keyboard nav)
+- Right-to-left language support
+{% /card %}
+
+{% card title="Session Management UI" icon="document" %}
+**What you need:**
+- Session list with search and filter
+- Title generation (manual or AI)
+- Session organization (folders/tags)
+- Delete and archive flows
+- Sharing functionality
+
+**Hidden complexity:**
+- Efficient loading of thousands of sessions
+- Real-time updates across devices
+- Conflict resolution for simultaneous edits
+- Undo/redo for deletes
+- Export functionality
+{% /card %}
+
+{% card title="Mobile Experience" icon="rocket" %}
+**What you need:**
+- Responsive layouts
+- Touch-optimized interactions
+- Mobile keyboard handling
+- Offline support considerations
+- Performance on low-end devices
+
+**Hidden complexity:**
+- iOS Safari quirks (viewport, keyboard)
+- Android fragmentation
+- PWA considerations
+- Battery efficiency
+{% /card %}
+
+### Security & Authentication
+
+{% card title="Authentication Integration" icon="approve-check" %}
+**What you need:**
+- SSO/SAML integration
+- Session token management
+- Token refresh logic
+- Logout and session invalidation
+
+**Hidden complexity:**
+- Multiple auth providers
+- User migration scenarios
+- Testing without production auth
+- Token expiry edge cases
+- Cross-domain cookies
+{% /card %}
+
+{% card title="Authorization System" icon="warning" %}
+**What you need:**
+- User type management (internal/external)
+- Role-based permissions
+- Entity/tenant isolation
+- Access control checks at every layer
+
+**Hidden complexity:**
+- Permission inheritance
+- Temporary access grants
+- Audit logging of access decisions
+- Testing across permission matrices
+- Migration when rules change
+{% /card %}
+
+{% card title="Data Protection" icon="approve-check" %}
+**What you need:**
+- Encryption at rest and in transit
+- PII handling and redaction
+- Compliance controls (GDPR, etc.)
+- Data retention policies
+- Right to deletion
+
+**Hidden complexity:**
+- Cross-region data requirements
+- Audit trail immutability
+- Cascading deletes
+- Backup encryption
+- Key rotation
+{% /card %}
+
+### Operations & Observability
+
+{% card title="Monitoring & Debugging" icon="information" %}
+**What you need:**
+- CloudWatch logs and metrics
+- Distributed tracing
+- Error tracking and alerting
+- Cost tracking per session
+- Usage analytics
+
+**Hidden complexity:**
+- Correlating logs across services
+- Debugging streaming issues
+- Performance profiling
+- Cost anomaly detection
+- Useful dashboards
+{% /card %}
+
+{% card title="Deployment & CI/CD" icon="rocket" %}
+**What you need:**
+- Infrastructure as Code (CDK/Terraform)
+- Multi-environment setup
+- Deployment pipelines
+- Rollback procedures
+- Database migrations
+
+**Hidden complexity:**
+- Zero-downtime deployments
+- Feature flags for gradual rollout
+- Environment parity
+- Secret management
+- Disaster recovery testing
+{% /card %}
+
+## The Hidden Costs
+
+Beyond the initial build, consider:
+
+### Ongoing Maintenance
+
+- **Security patches**: Every dependency needs updates
+- **AWS service changes**: Adapting to new Bedrock features, API changes
+- **Scale issues**: Problems that only appear at volume
+- **Bug fixes**: The long tail of edge cases
+
+This represents significant ongoing engineering effort.
+
+### Opportunity Cost
+
+Every hour spent building chat infrastructure is an hour not spent on:
+- Agent intelligence and capabilities
+- Domain-specific features
+- User research and refinement
+- Business logic
+
+**Question to ask:** Is chat infrastructure your competitive advantage, or is it what your agents do with it?
+
+### Knowledge Retention
+
+- Institutional knowledge walks out the door
+- New team members need to learn custom systems
+- Documentation becomes outdated
+- Technical debt accumulates
+
+### Scaling Surprises
+
+Issues that appear only at scale:
+- DynamoDB hot partitions
+- Lambda concurrency limits
+- Cost spikes from inefficient queries
+- OpenSearch cluster management
+
+## The Alternative Path
+
+Compare the custom build timeline:
+
+{% tabs %}
+{% tabitem label="Custom Build" %}
+**Extended Timeline:**
+
+- Infrastructure basics
+- UI development
+- Security & auth
+- Operations & polish
+- Bug fixes & refinement
+- Ongoing maintenance
+
+**Team allocation:** 2-3 developers full-time
+
+**Result:** Extended development timeline before shipping
+{% /tabitem %}
+
+{% tabitem label="With Pika" %}
+**Rapid Timeline:**
+
+- Deploy Pika infrastructure
+- Configure authentication
+- Define first agent
+- Refine and test
+- Focus on agent intelligence
+
+**Team allocation:** 1 developer part-time
+
+**Result:** Ship quickly and focus on intelligence
+{% /tabitem %}
+{% /tabs %}
+
+## When Building Custom Makes Sense
+
+Building yourself might be the right choice if:
+
+{% card title="Unique Requirements" icon="star" %}
+You have infrastructure requirements so specific that no platform could accommodate them. This is rare - usually means highly specialized domains or extreme scale requirements.
+{% /card %}
+
+{% card title="Strategic Differentiation" icon="rocket" %}
+Your chat infrastructure itself is a competitive advantage (you're building a chat platform company). For most companies, the agents are the value, not the infrastructure.
+{% /card %}
+
+{% card title="Existing Infrastructure" icon="puzzle" %}
+You already have mature chat infrastructure for other purposes and can extend it. Even then, agent-specific needs often require substantial new work.
+{% /card %}
+
+{% card title="Learning Exercise" icon="information" %}
+You're building to learn, not to ship. This is valid, but know it's a learning investment, not a shipping strategy.
+{% /card %}
+
+## The Honest Assessment
+
+Ask your team:
+
+1. **Have we built production chat applications before?** If not, triple your estimates.
+
+2. **Do we understand the AWS services involved?** Bedrock, Lambda, DynamoDB, OpenSearch, EventBridge - each has learning curves.
+
+3. **What's our opportunity cost?** What could we ship if we weren't building infrastructure?
+
+4. **Are we prepared for ongoing maintenance?** This isn't build-and-forget.
+
+5. **What happens when our expert leaves?** Custom infrastructure creates knowledge silos.
+
+## What Pika Provides Instead
+
+When you deploy Pika, you get all of the above, plus:
+- Battle-tested in production
+- Regular updates and security patches
+- Community-driven improvements
+- Documentation and examples
+- Support and troubleshooting help
+
+**The real question**: Do you want to be in the chat infrastructure business, or do you want to ship AI capabilities to your users?
+
+Most teams discover they want the latter. Pika is for them.
+
+---
+
+{% aside type="tip" %}
+**Ready to skip the infrastructure build?** Check out our [Quick Start guide](/guides/quick-start/) to deploy Pika in 15 minutes, or explore [The Pika Approach](/why/approach/) to understand how we've solved these problems.
+{% /aside %}
+

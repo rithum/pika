@@ -1,0 +1,552 @@
+---
+title: Extend User Data Models
+description: Allow authorized users to override authentication-provided user data for specific chat apps
+---
+
+Learn how to implement the User Data Override feature, allowing authorized users to override user values set by the authentication provider, enabling scenarios like account switching and role impersonation.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable the user data override feature
+- Implement server-side logic for data handling
+- Create custom UI for data selection
+- Configure auto-complete functionality
+- Understand use cases and security considerations
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site configuration
+- Understanding of your authentication system
+- Familiarity with Svelte for UI components
+
+## Understanding User Data Override
+
+The User Data Override feature allows authorized users to override values in `ChatUser.customData` set by the authentication provider. This is useful for internal users who need to act on behalf of different accounts, companies, or roles.
+
+### Use Cases
+
+- **Customer Support**: Agents acting on behalf of customer accounts
+- **Multi-tenant Applications**: Users switching between company contexts
+- **Testing & QA**: Testing chat behavior for different user profiles
+- **Account Management**: Managers accessing different organizational contexts
+
+### How It Works
+
+1. **User opens chat app** or clicks override menu item
+2. **Dialog appears** with custom UI for data selection
+3. **User selects override data** (e.g., account, company)
+4. **Server processes and stores** override in session
+5. **Overrides persist** until logout or manual clearing
+
+## Step 1: Enable the Feature
+
+Configure the user data override feature in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        userDataOverrides: {
+            enabled: true,
+            
+            // Optional: Specify which user types can use this feature
+            userTypesAllowed: ['internal-user'], // Defaults to ['internal-user']
+            
+            // Optional: Customize UI text
+            menuItemTitle: 'Switch Account Context',
+            dialogTitle: 'Account Override',
+            dialogDescription: 'Select the account context to use for this chat app.',
+            
+            // Optional: Force users to provide overrides if missing required data
+            promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: [
+                'accountId',
+                'accountType'
+            ]
+        }
+    }
+};
+```
+
+### Configuration Options
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | boolean | **Required**. Enable the feature |
+| `userTypesAllowed` | string[] | User types that can use this feature |
+| `menuItemTitle` | string | Menu item text in chat interface |
+| `dialogTitle` | string | Title of the override dialog |
+| `dialogDescription` | string | Description shown in the dialog |
+| `promptUserIfAnyOf...` | string[] | Force override if these attributes missing |
+
+### Disable Per Chat App
+
+You can disable the feature for specific chat apps:
+
+```typescript
+const chatApp: ChatApp = {
+    chatAppId: 'customer-support',
+    // ... other settings
+    features: {
+        userDataOverride: {
+            featureId: 'userDataOverride',
+            enabled: false
+        }
+    }
+};
+```
+
+## Step 2: Implement Server-side Logic
+
+Implement required methods in the custom data file.
+
+**Location:** `apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-user-data.ts`
+
+### Get Initial Data
+
+```typescript
+import type {
+    AuthenticatedUser,
+    ChatApp,
+    RecordOrUndef
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+export async function getInitialDataForUserDataOverrideDialog(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatApp: ChatApp
+): Promise<unknown | undefined> {
+    // Return existing override data if available
+    if (user.overrideData && user.overrideData[chatApp.chatAppId]) {
+        const overrideData = user.overrideData[chatApp.chatAppId];
+        
+        // Transform stored data back to UI format
+        return {
+            accountId: overrideData.accountId,
+            accountName: overrideData.accountName,
+            accountType: overrideData.accountType
+        };
+    }
+    
+    return undefined;
+}
+```
+
+### Handle Auto-complete
+
+```typescript
+export async function getValuesForAutoComplete(
+    componentName: string,
+    valueProvidedByUser: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatApp: ChatApp
+): Promise<unknown[] | undefined> {
+    if (componentName === 'accountSelector') {
+        // If empty search, return first 20 accounts
+        if (!valueProvidedByUser || valueProvidedByUser.trim() === '') {
+            return getAccounts()
+                .slice(0, 20)
+                .map(account => ({
+                    value: account.id,
+                    label: account.name,
+                    secondaryLabel: account.type
+                }));
+        }
+        
+        // Return filtered results
+        const searchTerm = valueProvidedByUser.toLowerCase();
+        return getAccounts()
+            .filter(account => 
+                account.id.toLowerCase().includes(searchTerm) ||
+                account.name.toLowerCase().includes(searchTerm)
+            )
+            .slice(0, 20)
+            .map(account => ({
+                value: account.id,
+                label: account.name,
+                secondaryLabel: account.type
+            }));
+    }
+    
+    return undefined;
+}
+
+// Helper function - replace with your actual data source
+function getAccounts() {
+    // In real implementation, fetch from your database/API
+    return [
+        { id: 'acct-001', name: 'Acme Corp', type: 'enterprise' },
+        { id: 'acct-002', name: 'Beta Industries', type: 'standard' }
+        // ... more accounts
+    ];
+}
+```
+
+### Process Posted Data
+
+```typescript
+export async function userOverrideDataPostedFromDialog(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatApp: ChatApp,
+    overrideData: unknown | undefined
+): Promise<RecordOrUndef> {
+    if (!overrideData) {
+        return undefined; // Clear overrides
+    }
+    
+    const data = overrideData as any;
+    
+    // Transform UI data to storage format
+    // MUST return Record<string, string | undefined>
+    return {
+        accountId: data.accountId,
+        accountName: data.accountName,
+        accountType: data.accountType
+        // Add any other fields your application needs
+    };
+}
+```
+
+## Step 3: Create Custom UI Component
+
+Create your UI component for the override dialog.
+
+**Location:** `apps/pika-chat/src/lib/client/features/chat/user-data-overrides/custom-data-overrides-ui.svelte`
+
+```svelte
+<script lang="ts">
+    import Combobox from '$ui/pika/combobox/combobox.svelte';
+    import type { UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
+
+    // Required props interface
+    interface Props {
+        isValid: boolean | string;
+        initialDataFromServer: unknown | undefined;
+        disabled: boolean;
+        getValuesForAutoComplete: (
+            componentName: string,
+            valueProvidedByUser: string
+        ) => Promise<void>;
+        valuesForAutoComplete: Record<string, unknown[] | undefined>;
+        userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean>;
+        dataChanged: boolean;
+    }
+
+    let {
+        isValid = $bindable(),
+        dataChanged = $bindable(),
+        initialDataFromServer,
+        getValuesForAutoComplete,
+        valuesForAutoComplete,
+        userDataOverrideOperationInProgress,
+        disabled
+    }: Props = $props();
+
+    // Component state
+    let selectedAccount = $state(initialDataFromServer as Account | undefined);
+    let loading = $derived(userDataOverrideOperationInProgress['getValuesForAutoComplete']);
+
+    const accountOptions = $derived.by(() => {
+        return (valuesForAutoComplete?.['accountSelector'] ?? []) as Account[];
+    });
+
+    // Required methods
+    export function reset() {
+        selectedAccount = initialDataFromServer as Account | undefined;
+        dataChanged = false;
+        isValid = false;
+    }
+
+    export async function getDataToPostToServer(): Promise<unknown | undefined> {
+        return selectedAccount;
+    }
+
+    // Event handlers
+    function valueChanged(value: Account) {
+        selected Account = value;
+
+        // Check if data has changed
+        const initialAccount = initialDataFromServer as Account | undefined;
+        const hasChanged = !areAccountsEqual(initialAccount, selectedAccount);
+
+        dataChanged = hasChanged;
+        isValid = selectedAccount ? true : 'Please select an account';
+    }
+
+    async function onSearchValueChanged(value: string) {
+        await getValuesForAutoComplete('accountSelector', value);
+    }
+
+    function areAccountsEqual(a: Account | undefined, b: Account | undefined): boolean {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        return (
+            a.accountId === b.accountId &&
+            a.accountName === b.accountName &&
+            a.accountType === b.accountType
+        );
+    }
+
+    interface Account {
+        accountId: string;
+        accountName: string;
+        accountType: string;
+    }
+</script>
+
+<div class="space-y-4">
+    <div class="text-sm text-muted-foreground">
+        Select the account context for this chat session:
+    </div>
+
+    <Combobox
+        value={selectedAccount}
+        mapping={{
+            value: (value) => value.accountId,
+            label: (value) => value.accountName,
+            secondaryLabel: (value) => value.accountType
+        }}
+        options={accountOptions}
+        onValueChanged={valueChanged}
+        {onSearchValueChanged}
+        {loading}
+        optionTypeName="account"
+        optionTypeNamePlural="accounts"
+        widthClasses="w-full"
+        showValueInListEntries={true}
+        minCharactersForSearch={1}
+        {disabled}
+    />
+
+    {#if typeof isValid === 'string'}
+        <div class="text-sm text-red-500">{isValid}</div>
+    {/if}
+</div>
+```
+
+### Required Component API
+
+Your UI component must implement:
+
+**Props:**
+- `isValid` - Set to `true`/`false` or error message string
+- `dataChanged` - Bind to track if user modified data
+- `initialDataFromServer` - Data from `getInitialDataForUserDataOverrideDialog`
+- `disabled` - Disable inputs during operations
+- `getValuesForAutoComplete` - Call for auto-complete
+- `valuesForAutoComplete` - Auto-complete results
+- `userDataOverrideOperationInProgress` - Operation states
+
+**Methods:**
+- `reset()` - Reset component to initial state
+- `getDataToPostToServer()` - Return data to save
+
+## Step 4: Configure Required Attributes
+
+Force users to provide overrides if specific data is missing.
+
+```typescript
+siteFeatures: {
+    userDataOverrides: {
+        enabled: true,
+        // Use dot notation to check nested fields
+        promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: [
+            'accountId',          // Checks user.customData.accountId
+            'accountType',        // Checks user.customData.accountType
+            'company.name',       // Checks user.customData.company.name
+            'permissions.level'   // Checks user.customData.permissions.level
+        ]
+    }
+}
+```
+
+When these attributes are missing, users are automatically prompted to provide overrides.
+
+## Testing Checklist
+
+Verify the feature works correctly:
+
+{% checklist %}
+- [ ] Feature enabled in `pika-config.ts`
+- [ ] Server-side methods implemented
+- [ ] Custom UI component created
+- [ ] Auto-complete functionality works
+- [ ] Override data saves correctly
+- [ ] Overrides persist across page refreshes
+- [ ] Can clear overrides
+- [ ] Required data prompts trigger
+- [ ] Only authorized user types see feature
+- [ ] Per-chat-app disabling works
+{% /checklist %}
+
+## Advanced Scenarios
+
+### Multiple Auto-complete Components
+
+Support multiple auto-complete inputs:
+
+```typescript
+export async function getValuesForAutoComplete(
+    componentName: string,
+    valueProvidedByUser: string,
+    user: AuthenticatedUser,
+    chatApp: ChatApp
+): Promise<unknown[] | undefined> {
+    switch (componentName) {
+        case 'accountSelector':
+            return getAccountOptions(valueProvidedByUser);
+        case 'departmentSelector':
+            return getDepartmentOptions(valueProvidedByUser);
+        case 'regionSelector':
+            return getRegionOptions(valueProvidedByUser);
+        default:
+            return undefined;
+    }
+}
+```
+
+### External API Integration
+
+Fetch data from external APIs:
+
+```typescript
+export async function getValuesForAutoComplete(
+    componentName: string,
+    valueProvidedByUser: string,
+    user: AuthenticatedUser,
+    chatApp: ChatApp
+): Promise<unknown[] | undefined> {
+    if (componentName === 'customerSelector') {
+        try {
+            const response = await fetch(
+                `/api/customers/search?q=${valueProvidedByUser}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${getApiToken()}`
+                    }
+                }
+            );
+            
+            const customers = await response.json();
+            return customers.map(customer => ({
+                value: customer.id,
+                label: customer.name,
+                secondaryLabel: customer.type
+            }));
+        } catch (error) {
+            console.error('Failed to fetch customers:', error);
+            return [];
+        }
+    }
+    
+    return undefined;
+}
+```
+
+## AWS Permissions
+
+If calling AWS services, add permissions to the ECS task role:
+
+**Location:** `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`
+
+```typescript
+export class PikaChatCustomStackDefs {
+    public static addStackResourcesBeforeWeCreateThePikaChatConstruct(
+        scope: PikaChatStack
+    ): void {
+        // Add API Gateway permissions
+        scope.stack.webapp.taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['execute-api:Invoke'],
+                resources: [
+                    'arn:aws:execute-api:us-east-1:123456789012:api-id/stage/GET/customers'
+                ]
+            })
+        );
+        
+        // Add DynamoDB permissions
+        scope.stack.webapp.taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['dynamodb:Query', 'dynamodb:GetItem'],
+                resources: [
+                    'arn:aws:dynamodb:us-east-1:123456789012:table/customers'
+                ]
+            })
+        );
+    }
+}
+```
+
+## Troubleshooting
+
+### Override Dialog Not Appearing
+
+- Check user type is in `userTypesAllowed`
+- Verify feature enabled in `pika-config.ts`
+- Ensure not in content admin mode
+- Check browser console for errors
+
+### Auto-complete Not Working
+
+- Verify `getValuesForAutoComplete` returns correct format
+- Check `componentName` matches in both server and UI
+- Ensure options array structure is correct
+- Review CloudWatch logs for server errors
+
+### Data Not Persisting
+
+- Confirm `userOverrideDataPostedFromDialog` returns proper format
+- Check returned data is `Record<string, string | undefined>`
+- Verify cookies are being set correctly
+- Review session management
+
+### Validation Errors
+
+- Ensure UI component sets `isValid` correctly
+- Check `isValid` is boolean or string (not other types)
+- Verify required fields are validated
+- Test edge cases (empty values, special characters)
+
+## Security Considerations
+
+### Access Control
+
+- Only allow trusted user types
+- Validate all user input on server
+- Limit auto-complete results
+- Implement rate limiting
+
+### Data Protection
+
+- Store override data in secure cookies
+- Encrypt sensitive override data
+- Audit override usage
+- Clear overrides on logout
+
+### Compliance
+
+- Document who can override data
+- Log all override actions
+- Implement approval workflows for production
+- Ensure compliance with data regulations
+
+## Next Steps
+
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Control app access
+- [Work with Entities](/guides/data-sessions/entities/) - Entity-based access
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Custom auth
+
+## Related Documentation
+
+- [User Data Override Feature](/capabilities/enterprise/user-data-override/) - Learn more
+- [Authentication Guide](/guides/authentication/integrate-auth/) - Auth integration
+- [Customization](/guides/customization/ui/) - General customization
+
+---
+
+{% aside type="caution" title="Security First" %}
+User Data Override is a powerful feature. Only enable for trusted users, implement proper validation, and audit all override usage for security and compliance.
+{% /aside %}
+

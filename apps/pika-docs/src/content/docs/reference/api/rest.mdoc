@@ -1,0 +1,833 @@
+---
+title: REST API Reference
+description: Complete REST API endpoint reference for Pika Platform
+---
+
+Complete reference for Pika Platform REST API endpoints.
+
+## Base URLs
+
+Pika Platform has two separate APIs:
+
+| API | Base URL | Purpose |
+|-----|----------|---------|
+| **Chat API** | `https://{domain}/api/chat` | User-facing chat operations |
+| **Admin API** | `https://{domain}/api/chat-admin` | Administrative operations |
+
+## Authentication
+
+All API requests require authentication. The authentication method depends on your integration:
+
+### Session-Based (Web App)
+
+Authenticated via HTTP-only secure cookies set during login.
+
+```http
+Cookie: session=xxx; Path=/; HttpOnly; Secure
+```
+
+### Token-Based (API Clients)
+
+Authenticated via JWT bearer token.
+
+```http
+Authorization: Bearer <jwt_token>
+```
+
+## Common Response Format
+
+All endpoints return JSON responses:
+
+**Success:**
+
+```json
+{
+    "success": true,
+    "data": { /* response data */ }
+}
+```
+
+**Error:**
+
+```json
+{
+    "success": false,
+    "error": "Error message description"
+}
+```
+
+## Chat API Endpoints
+
+User-facing endpoints for chat operations.
+
+### POST /api/chat/converse
+
+Send a message to an agent.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+    sessionId?: string;
+    chatAppId: string;
+    agentId: string;
+    message: string;
+    features: ChatAppOverridableFeaturesForConverseFn;
+    files?: ChatMessageFile[];
+    timezone?: string;
+    invocationMode?: 'chat-app' | 'direct-agent-invoke' | 'chat-app-component';
+    source: 'user' | 'component-as-user' | 'component';
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    response: string;          // Agent's response
+    sessionId: string;         // Session ID (created if not provided)
+    messageId: string;         // Message ID
+    usage?: ChatMessageUsage;  // Token usage and cost
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST https://your-domain.com/api/chat/converse \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=xxx" \
+  -d '{
+    "userId": "user-123",
+    "sessionId": "session-456",
+    "chatAppId": "support",
+    "agentId": "support-agent",
+    "message": "What is my order status?",
+    "features": {},
+    "source": "user"
+  }'
+```
+
+### GET /api/chat/sessions
+
+Get user's chat sessions.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `userId` | `string` | User ID (required) |
+| `chatAppId` | `string` | Filter by chat app |
+| `limit` | `number` | Max sessions to return (default: 20) |
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    sessions: ChatSession[];
+}
+```
+
+### GET /api/chat/messages
+
+Get messages for a session.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `userId` | `string` | User ID (required) |
+| `sessionId` | `string` | Session ID (required) |
+| `limit` | `number` | Max messages (default: 50) |
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    messages: ChatMessage[];
+}
+```
+
+### POST /api/chat/session/title
+
+Update session title.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+    sessionId: string;
+    title?: string;                    // Explicit title
+    userQuestionAsked?: string;        // For auto-generation
+    answerToQuestionFromAgent?: string; // For auto-generation
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    title: string;
+}
+```
+
+### POST /api/chat/chatapps
+
+Get chat apps available to user.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+    chatAppId?: string;                // Get specific app
+    chatAppsForHomePage?: boolean;     // Filter for home page
+    customDataFieldPathToMatchUsersEntity?: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    chatApps: ChatApp[];
+}
+```
+
+### POST /api/chat/user
+
+Get or create user.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    user: ChatUser;
+}
+```
+
+### POST /api/chat/user/prefs
+
+Get user preferences.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    userId: string;
+    prefs: UserPrefs;
+}
+```
+
+### PUT /api/chat/user/prefs
+
+Update user preferences.
+
+**Request:**
+
+```typescript
+{
+    userId: string;
+    prefs: UserPrefs;
+    partial?: boolean; // Merge with existing
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    prefs: UserPrefs;
+}
+```
+
+### POST /api/chat/feedback
+
+Add session feedback.
+
+**Request:**
+
+```typescript
+{
+    feedback: ChatSessionFeedbackForCreate;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    feedback: ChatSessionFeedback;
+}
+```
+
+## Admin API Endpoints
+
+Administrative endpoints requiring admin privileges.
+
+### Agent Management
+
+#### POST /api/chat-admin/agent
+
+Create or update agent.
+
+**Request:**
+
+```typescript
+{
+    agent: AgentDefinitionForCreate | AgentDefinitionForUpdate;
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    agent: AgentDefinition;
+}
+```
+
+#### GET /api/chat-admin/agent/:agentId
+
+Get agent definition.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    agent: AgentDefinition;
+}
+```
+
+#### DELETE /api/chat-admin/agent/:agentId
+
+Delete agent.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+}
+```
+
+#### POST /api/chat-admin/agents/search
+
+Search agents.
+
+**Request:**
+
+```typescript
+{
+    agentIds?: string[];
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    agents: AgentDefinition[];
+}
+```
+
+### Tool Management
+
+#### POST /api/chat-admin/tool
+
+Create or update tool.
+
+**Request:**
+
+```typescript
+{
+    tool: ToolDefinitionForCreate | ToolDefinitionForUpdate;
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tool: ToolDefinition;
+}
+```
+
+#### GET /api/chat-admin/tool/:toolId
+
+Get tool definition.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tool: ToolDefinition;
+}
+```
+
+#### DELETE /api/chat-admin/tool/:toolId
+
+Delete tool.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+}
+```
+
+#### POST /api/chat-admin/tools/search
+
+Search tools.
+
+**Request:**
+
+```typescript
+{
+    toolIds: string[];
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    tools: ToolDefinition[];
+}
+```
+
+### Chat App Management
+
+#### POST /api/chat-admin/chatapp
+
+Create or update chat app.
+
+**Request:**
+
+```typescript
+{
+    chatApp: ChatAppForCreate | ChatAppForUpdate;
+    userId: string;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    chatApp: ChatApp;
+}
+```
+
+#### GET /api/chat-admin/chatapp/:chatAppId
+
+Get chat app.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    chatApp: ChatApp;
+}
+```
+
+#### DELETE /api/chat-admin/chatapp/:chatAppId
+
+Delete chat app.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+}
+```
+
+#### POST /api/chat-admin/chatapps/search
+
+Search chat apps.
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    chatApps: ChatApp[];
+}
+```
+
+### Session Management
+
+#### POST /api/chat-admin/sessions/search
+
+Search sessions with advanced filters.
+
+**Request:**
+
+```typescript
+{
+    command: 'sessionSearch';
+    search: SessionSearchRequest;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    sessions: ChatSession[];
+    total: number;
+    scrollId?: string;
+    pageSize: number;
+}
+```
+
+**Search Filters:**
+
+- `userId` - Filter by user
+- `chatAppId` - Filter by chat app
+- `customUserData` - Filter by custom data fields
+- `dateFilter` - Date range filtering
+- `flagged` - Filter flagged sessions
+- `insights` - Filter by AI insights
+- `feedbackInStatus` - Filter by feedback status
+- `sortBy` - Custom sorting
+
+#### POST /api/chat-admin/feedback
+
+Add or update feedback (admin).
+
+**Request:**
+
+```typescript
+{
+    command: 'addChatSessionFeedback' | 'updateChatSessionFeedback';
+    feedback: ChatSessionFeedbackForCreate | ChatSessionFeedbackForUpdate;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    feedback: ChatSessionFeedback;
+}
+```
+
+### User Management
+
+#### POST /api/chat-admin/users/search
+
+Search users.
+
+**Request:**
+
+```typescript
+{
+    userIdPartial?: string;
+    limit?: number;
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: boolean;
+    users: ChatUserLite[];
+}
+```
+
+## Tag Definition API
+
+See [Tag Definitions API Reference](/reference/api/tag-definitions/) for complete tag management endpoints.
+
+## Rate Limiting
+
+Rate limits apply per user/API key:
+
+| Endpoint Type | Limit | Window |
+|--------------|-------|--------|
+| Chat endpoints | 100 requests | 1 minute |
+| Admin endpoints | 1000 requests | 1 minute |
+
+**Rate Limit Headers:**
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1642089600
+```
+
+## Error Codes
+
+| HTTP Status | Meaning |
+|-------------|---------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Authentication required |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource doesn't exist |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error |
+
+**Error Response:**
+
+```json
+{
+    "success": false,
+    "error": "Detailed error message",
+    "code": "ERROR_CODE"
+}
+```
+
+## Common Error Codes
+
+| Code | Description |
+|------|-------------|
+| `INVALID_AGENT_ID` | Agent not found |
+| `INVALID_CHAT_APP_ID` | Chat app not found |
+| `INVALID_SESSION_ID` | Session not found |
+| `INSUFFICIENT_PERMISSIONS` | User lacks required permissions |
+| `RATE_LIMIT_EXCEEDED` | Too many requests |
+| `INVALID_REQUEST` | Request validation failed |
+
+## Pagination
+
+Endpoints returning large datasets support pagination:
+
+**Request:**
+
+```typescript
+{
+    size?: number;      // Page size (default: 20, max: 100)
+    scrollId?: string;  // Continuation token from previous response
+}
+```
+
+**Response:**
+
+```typescript
+{
+    success: true,
+    data: [...],
+    scrollId?: string,  // Token for next page
+    total: number,      // Total results
+    pageSize: number    // Current page size
+}
+```
+
+**Example Pagination:**
+
+```typescript
+// First request
+let response = await fetch('/api/chat-admin/sessions/search', {
+    method: 'POST',
+    body: JSON.stringify({ size: 20 })
+});
+let data = await response.json();
+
+// Next page
+response = await fetch('/api/chat-admin/sessions/search', {
+    method: 'POST',
+    body: JSON.stringify({ 
+        scrollId: data.scrollId 
+    })
+});
+```
+
+## Best Practices
+
+{% aside type="tip" title="API Best Practices" %}
+1. **Cache responses** - Cache chat app and agent definitions
+2. **Handle rate limits** - Implement exponential backoff
+3. **Use pagination** - Don't fetch large datasets at once
+4. **Validate input** - Validate before sending to API
+5. **Handle errors gracefully** - Show user-friendly messages
+6. **Use HTTPS** - Always use secure connections
+{% /aside %}
+
+## SDK Examples
+
+### TypeScript/JavaScript
+
+```typescript
+import type { ConverseRequest, ConverseResponse } from 'pika-shared';
+
+async function sendMessage(
+    message: string,
+    sessionId: string
+): Promise<ConverseResponse> {
+    const request: ConverseRequest = {
+        userId: 'user-123',
+        sessionId,
+        chatAppId: 'support',
+        agentId: 'support-agent',
+        message,
+        features: {},
+        source: 'user'
+    };
+
+    const response = await fetch('/api/chat/converse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        credentials: 'include' // Include cookies
+    });
+
+    return response.json();
+}
+```
+
+### Python
+
+```python
+import requests
+from typing import Dict, Any
+
+def send_message(message: str, session_id: str) -> Dict[str, Any]:
+    payload = {
+        "userId": "user-123",
+        "sessionId": session_id,
+        "chatAppId": "support",
+        "agentId": "support-agent",
+        "message": message,
+        "features": {},
+        "source": "user"
+    }
+    
+    response = requests.post(
+        "https://your-domain.com/api/chat/converse",
+        json=payload,
+        cookies={"session": "xxx"}
+    )
+    
+    return response.json()
+```
+
+### cURL
+
+```bash
+#!/bin/bash
+
+# Send message
+curl -X POST https://your-domain.com/api/chat/converse \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=xxx" \
+  -d '{
+    "userId": "user-123",
+    "sessionId": "session-456",
+    "chatAppId": "support",
+    "agentId": "support-agent",
+    "message": "Hello",
+    "features": {},
+    "source": "user"
+  }'
+
+# Get sessions
+curl -X GET "https://your-domain.com/api/chat/sessions?userId=user-123" \
+  -H "Cookie: session=xxx"
+
+# Create agent (admin)
+curl -X POST https://your-domain.com/api/chat-admin/agent \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=xxx" \
+  -d '{
+    "agent": {
+      "agentId": "new-agent",
+      "basePrompt": "You are helpful.",
+      "toolIds": [],
+      "createdBy": "admin",
+      "lastModifiedBy": "admin"
+    },
+    "userId": "admin"
+  }'
+```
+
+## Webhook Support
+
+Pika can send webhooks for certain events:
+
+| Event | Trigger |
+|-------|---------|
+| `session.created` | New session started |
+| `session.completed` | Session ended |
+| `feedback.created` | Feedback submitted |
+| `insight.generated` | AI insight generated |
+
+**Webhook Payload:**
+
+```json
+{
+    "event": "session.completed",
+    "timestamp": "2024-01-15T10:00:00Z",
+    "data": {
+        "sessionId": "session-123",
+        "userId": "user-456",
+        "chatAppId": "support"
+    }
+}
+```
+
+Configure webhooks in your deployment configuration.
+
+## Related Documentation
+
+- **[Tag Definitions API](/reference/api/tag-definitions/)** - Tag management API
+- **[Agent Configuration](/reference/configuration/agent/)** - Agent schema
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Chat app schema
+- **[Types Reference](/reference/types/)** - TypeScript types
+- **[Authentication Guide](/guides/authentication-access/authentication/)** - Auth setup
+
+## API Changelog
+
+Track API changes in the [Platform Changelog](/platform/releases/changelog/).
+
+### Recent Changes
+
+- **v1.2.0** - Added `instructionAugmentation` feature
+- **v1.1.0** - Added session insights endpoints
+- **v1.0.0** - Initial API release
+

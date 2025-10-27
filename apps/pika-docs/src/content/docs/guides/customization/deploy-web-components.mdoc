@@ -1,0 +1,602 @@
+---
+title: Deploy Custom Web Components
+description: Deploy web components to production using S3 and tag definitions
+---
+
+Learn how to build, deploy, and register web components for use in your Pika chat applications, enabling custom interactive UI elements in AI responses.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Build and gzip web component JavaScript files
+- Deploy components to AWS S3
+- Create tag definitions for your components
+- Register components using CDK or direct upload
+- Configure local development workflows
+- Understand component loading and security
+
+## Prerequisites
+
+- A running Pika installation with AWS deployment
+- Built web component JavaScript file(s)
+- Access to `pika-config.ts` and deployment infrastructure
+- AWS CLI configured (for manual deployments)
+- Understanding of web component basics
+
+## Understanding Web Component Deployment
+
+Deploying web components involves three steps:
+
+1. **Build** - Compile your web component into a single JavaScript file
+2. **Publish** - Upload the file to S3 or your own CDN
+3. **Register** - Create a tag definition that tells Pika about your component
+
+### Deployment Approaches
+
+**Approach 1: Infrastructure as Code (Traditional)**
+- Define resources in CDK/CloudFormation/Serverless stack
+- Deploy entire stack to register tag definitions
+- Best for production deployments
+- Slower iteration (minutes per deployment)
+
+**Approach 2: Direct Upload Tool (Fast Development)**
+- Script directly uploads to S3 and invokes Lambda
+- Much faster than full stack deployments (seconds)
+- Perfect for rapid iteration during development
+- See [Rapid Development](#rapid-tag-definition-deployment) below
+
+## Step 1: Get Pika Infrastructure Details
+
+Before deploying, you need information about your Pika installation.
+
+### Get Pika S3 Bucket Name
+
+The Pika S3 bucket name is stored in SSM Parameter Store.
+
+**SSM Parameter Path:**
+```
+/stack/${pikaProjNameKebabCase}/${stage}/s3/pika_bucket_name
+```
+
+**Get values from pika-config.ts:**
+
+**Location:** `pika-config.ts` (root of your project)
+
+```typescript
+// Find these values:
+export const pika = {
+    projNameKebabCase: 'pika', // Your project name
+    // Stage used during deployment: 'test', 'staging', 'prod', etc.
+};
+```
+
+**Retrieve bucket name:**
+
+```bash
+aws ssm get-parameter \
+    --name "/stack/pika/test/s3/pika_bucket_name" \
+    --query "Parameter.Value" \
+    --output text
+```
+
+### Get Tag Definition Lambda ARN
+
+The tag definition Lambda ARN is also in SSM Parameter Store.
+
+**SSM Parameter Path:**
+```
+/stack/${pikaProjNameKebabCase}/${stage}/lambda/tag_definition_custom_resource_arn
+```
+
+**Retrieve Lambda ARN:**
+
+```bash
+aws ssm get-parameter \
+    --name "/stack/pika/test/lambda/tag_definition_custom_resource_arn" \
+    --query "Parameter.Value" \
+    --output text
+```
+
+## Step 2: Build and Prepare Your Component
+
+### Build Your Component
+
+```bash
+# Using Vite (typical setup)
+cd my-widget-project
+npm run build
+
+# Output: dist/my-widget.js
+```
+
+### Gzip the File
+
+Web components must be gzipped for deployment:
+
+```bash
+gzip -c dist/my-widget.js > dist/my-widget.js.gz
+```
+
+### Calculate Integrity Hash
+
+Calculate SHA256 hash of the gzipped file:
+
+```javascript
+import { createHash } from 'crypto';
+import fs from 'fs';
+
+const gzipped = fs.readFileSync('dist/my-widget.js.gz');
+const hash = createHash('sha256').update(gzipped).digest('base64');
+const size = gzipped.length;
+
+console.log('SHA256 Hash:', hash);
+console.log('File Size:', size, 'bytes');
+```
+
+**Save these values** - you'll need them for the tag definition.
+
+## Step 3: Publish Your Component
+
+### Option 1: Publish to Pika S3 Bucket (Recommended)
+
+Host your component in the private Pika system S3 bucket.
+
+**Benefits:**
+- Integrated with Pika infrastructure
+- Automatic integrity checking (SHA256 validation)
+- No CORS configuration needed
+- Private component hosting
+- Served via secure proxy API
+
+**Requirements:**
+- S3 key must follow pattern: `wc/{scope}/fileName.js.gz`
+- File must be gzipped JavaScript
+- ContentType: `application/javascript`
+- ContentEncoding: `gzip`
+
+**Upload Script:**
+
+```javascript
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { gzipSync } from 'zlib';
+import { createHash } from 'crypto';
+import fs from 'fs';
+
+const pikaProjNameKebabCase = 'pika';
+const stage = 'test';
+const myTagScope = 'acme';
+
+// 1. Get Pika bucket name from SSM
+const ssmClient = new SSMClient({ region: 'us-east-1' });
+const { Parameter } = await ssmClient.send(
+    new GetParameterCommand({
+        Name: `/stack/${pikaProjNameKebabCase}/${stage}/s3/pika_bucket_name`
+    })
+);
+const pikaBucket = Parameter.Value;
+
+// 2. Read and gzip your JavaScript file
+const jsContent = fs.readFileSync('./dist/my-widget.js', 'utf-8');
+const gzipped = gzipSync(jsContent);
+
+// 3. Calculate SHA256 hash of gzipped bytes
+const hash = createHash('sha256').update(gzipped).digest('base64');
+
+// 4. Upload to S3
+const s3Client = new S3Client({ region: 'us-east-1' });
+await s3Client.send(
+    new PutObjectCommand({
+        Bucket: pikaBucket,
+        Key: `wc/${myTagScope}/my-widget.js.gz`,
+        Body: gzipped,
+        ContentType: 'application/javascript',
+        ContentEncoding: 'gzip'
+    })
+);
+
+console.log('Uploaded successfully!');
+console.log('Hash to use in tag definition:', hash);
+console.log('Size:', gzipped.length);
+```
+
+### Option 2: Publish to Your Own URL
+
+Host your component on your own CDN or server.
+
+**Requirements:**
+- Web-accessible HTTPS URL
+- CORS headers configured for Pika domain
+- Component registers itself on load
+
+**CORS Configuration:**
+
+```
+Access-Control-Allow-Origin: https://your-pika-domain.com
+Access-Control-Allow-Methods: GET
+```
+
+## Step 4: Create Tag Definition
+
+Create a tag definition to register your component with Pika.
+
+### Install pika-shared
+
+```bash
+pnpm install -D pika-shared
+```
+
+### Basic Tag Definition
+
+```typescript
+import {
+    type TagDefinitionForCreateOrUpdate,
+    type TagDefinitionWidgetWebComponentForCreateOrUpdate
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+const myWidgetTag: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    // Tag name (without scope prefix)
+    tag: 'my-widget',
+    
+    // Your unique scope (e.g., company name, project name)
+    // Don't use 'pika' - it's reserved for built-in tags
+    scope: 'acme',
+    
+    // Title shown in UI (use plural noun, capitalized)
+    tagTitle: 'My Widgets',
+    
+    // Short example for LLM reference
+    shortTagEx: '<acme.my-widget></acme.my-widget>',
+    
+    // Can LLM generate this tag?
+    canBeGeneratedByLlm: false,
+    
+    // Can agent tools generate this tag?
+    canBeGeneratedByTool: false,
+    
+    // Description for admin UI
+    description: 'A custom widget that displays data interactively',
+    
+    // Set to true during development, false in production
+    dontCacheThis: true,
+    
+    // Associate with specific chat app or use 'chat-app-global' for all apps
+    chatAppId: 'my-chat-app',
+    
+    // Tag status
+    status: 'enabled',
+    
+    // Where this widget can render
+    renderingContexts: {
+        spotlight: {
+            enabled: true
+        },
+        canvas: {
+            enabled: true
+        }
+    },
+    
+    // Widget configuration
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            // Optional: Actual custom element name if different from {scope}.{tag}
+            customElementName: 'acme-my-widget',
+            
+            // S3 location (don't specify bucket - uses Pika bucket)
+            s3: {
+                s3Key: 'wc/acme/my-widget.js.gz'
+            },
+            
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            
+            // From Step 2
+            encodedSizeBytes: 45000, // Your file size
+            encodedSha256Base64: 'your-calculated-hash' // Your SHA256 hash
+        }
+    }
+};
+```
+
+### Understanding Custom Element Names
+
+By default, Pika expects your component to define a custom element named `{scope}.{tag}` (e.g., `acme.my-widget`).
+
+**When to use `customElementName`:**
+
+1. **Multiple tags sharing one file**: Several tag definitions use the same JavaScript file with one custom element
+2. **Legacy element names**: Your component uses a name that doesn't follow the `{scope}.{tag}` pattern
+3. **Widget bundles**: One JavaScript file defines multiple custom elements
+
+**Example: Multiple tags sharing one widget**
+
+```typescript
+// Both tags use the same generic-chart custom element
+const salesChartTag = {
+    tag: 'sales-chart',
+    scope: 'acme',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'generic-chart', // Actual element name
+            s3: { s3Key: 'wc/acme/charts.js.gz' }
+        }
+    }
+};
+
+const analyticsChartTag = {
+    tag: 'analytics-chart',
+    scope: 'acme',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'generic-chart', // Same element
+            s3: { s3Key: 'wc/acme/charts.js.gz' } // Same file
+        }
+    }
+};
+```
+
+## Step 5: Deploy Tag Definition
+
+### Option A: Using CDK (Production)
+
+**Create CDK Stack:**
+
+```typescript
+import { Stack, StackProps, CustomResource } from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/gzip-util';
+
+export class MyWidgetStack extends Stack {
+    constructor(scope: Construct, id: string, props?: StackProps) {
+        super(scope, id, props);
+
+        const stage = 'test';
+        const pikaProjName = 'pika';
+
+        // Get Pika bucket
+        const pikaBucketName = ssm.StringParameter.valueFromLookup(
+            this,
+            `/stack/${pikaProjName}/${stage}/s3/pika_bucket_name`
+        );
+        const pikaBucket = s3.Bucket.fromBucketName(this, 'PikaBucket', pikaBucketName);
+
+        // Get tag definition Lambda ARN
+        const tagDefLambdaArn = ssm.StringParameter.valueFromLookup(
+            this,
+            `/stack/${pikaProjName}/${stage}/lambda/tag_definition_custom_resource_arn`
+        );
+
+        // Deploy web component to S3
+        new BucketDeployment(this, 'MyWidgetDeployment', {
+            sources: [Source.asset('./dist')],
+            destinationBucket: pikaBucket,
+            destinationKeyPrefix: 'wc/acme/',
+            contentType: 'application/javascript',
+            contentEncoding: 'gzip',
+            prune: false
+        });
+
+        // Register tag definition
+        new CustomResource(this, 'MyWidgetTagDef', {
+            serviceToken: tagDefLambdaArn,
+            properties: {
+                Action: 'createOrUpdate',
+                TagDefinition: gzipAndBase64EncodeString(JSON.stringify(myWidgetTag))
+            }
+        });
+    }
+}
+```
+
+**Deploy:**
+
+```bash
+cdk deploy
+```
+
+### Option B: Using Serverless Framework
+
+If using Serverless Framework, the `pika-serverless` npm module includes a plugin:
+
+```yaml
+# serverless.yml
+plugins:
+  - pika-serverless
+
+custom:
+  pikaTagDefinitions:
+    - ${file(./tag-definitions/my-widget.js):myWidgetTag}
+```
+
+## Rapid Tag Definition Deployment
+
+For faster development iterations, use a direct upload tool.
+
+### Why Use Direct Upload?
+
+- **Much faster**: Seconds vs minutes
+- **Quick iterations**: Perfect for development
+- **Focused updates**: Only updates components and tag definitions
+
+### Reference Implementation
+
+The weather sample project has a complete reference implementation:
+
+**Location:** `services/samples/weather/tools/upload-tag-defs/index.ts`
+
+**What it does:**
+1. Discovers required web component files from tag definitions
+2. Uploads built `.js` files to S3 (gzipped with integrity hashing)
+3. Directly invokes tag definition Lambda
+4. Validates all required files exist
+
+**Usage:**
+
+```bash
+# Build and upload in one command
+pnpm run build-upload-tag-defs
+
+# Or separate steps
+pnpm run build
+pnpm run upload-tag-defs
+```
+
+**To adapt for your project:**
+
+1. Copy tool from weather sample
+2. Update tag definitions import path
+3. Add scripts to your `package.json`:
+
+```json
+{
+    "scripts": {
+        "build": "vite build",
+        "upload-tag-defs": "node tools/upload-tag-defs/index.js",
+        "build-upload-tag-defs": "npm run build && npm run upload-tag-defs"
+    }
+}
+```
+
+4. Configure `.env.local`:
+
+```bash
+STAGE=test
+PIKA_SERVICE_PROJ_NAME_KEBAB_CASE=pika
+```
+
+## Local Development Without Redeployment
+
+Develop and test components locally without AWS deployments.
+
+### Using Local URL Overrides
+
+Set environment variable to point tags to local dev server:
+
+**Location:** `apps/pika-chat/.env.local`
+
+```bash
+WEB_COMPONENT_URLS='acme.my-widget::http://localhost:5173/my-widget.js;acme.other-widget::http://localhost:5173/other-widget.js'
+```
+
+**Format:** `{scope}.{tag}::fully-qualified-url` (double colon, semicolon-separated)
+
+### Workflow
+
+```bash
+# 1. Deploy tag definitions once
+pnpm run build-upload-tag-defs
+
+# 2. Start component dev server (two terminals)
+cd my-widget-project
+pnpm run dev      # Terminal 1: Watch and rebuild
+pnpm run serve    # Terminal 2: Serve on localhost:5173
+
+# 3. Set environment variable in pika-chat
+cd apps/pika-chat
+# Add to .env.local:
+# WEB_COMPONENT_URLS='acme.my-widget::http://localhost:5173/my-widget.js'
+
+# 4. Start pika-chat dev server
+pnpm run dev
+
+# 5. Edit components → ~2 second rebuild → refresh browser
+```
+
+**Benefits:**
+- No CDK/CloudFormation deployments
+- No S3 uploads for every change
+- Fast hot module reloading
+- Test changes in seconds
+
+## Testing Checklist
+
+Verify your deployment works correctly:
+
+{% checklist %}
+- [ ] Web component file built and gzipped
+- [ ] SHA256 hash calculated correctly
+- [ ] File uploaded to S3 with correct key pattern
+- [ ] Tag definition created with correct scope and tag name
+- [ ] File size and hash match in tag definition
+- [ ] Custom element name matches JavaScript definition
+- [ ] Tag appears in DynamoDB `TagDefinitions` table
+- [ ] Widget loads in chat app spotlight/canvas
+- [ ] Widget renders correctly with test data
+- [ ] Local development override works (if using)
+{% /checklist %}
+
+## Troubleshooting
+
+### Widget Doesn't Load
+
+- **Check S3 key**: Ensure matches actual file location (`wc/{scope}/fileName.js.gz`)
+- **Verify hash**: SHA256 must match gzipped file exactly
+- **Check size**: `encodedSizeBytes` must be correct
+- **Custom element name**: Ensure matches what JavaScript defines
+- **Check CORS**: If using external URL, verify CORS headers
+- **Review CloudWatch logs**: Check for loading errors
+
+### Tag Definition Not Registered
+
+- **Verify Lambda ARN**: Ensure using correct tag definition Lambda
+- **Check SSM parameters**: Confirm stage and project name are correct
+- **Review CDK output**: Look for custom resource creation errors
+- **Check DynamoDB**: Verify tag appears in `TagDefinitions` table
+- **Validate JSON**: Ensure tag definition JSON is valid
+
+### Local Override Not Working
+
+- **Check environment variable**: Verify `WEB_COMPONENT_URLS` is set correctly
+- **Format validation**: Use double colon `::` between scope.tag and URL
+- **Server running**: Ensure local dev server is serving files
+- **Port conflicts**: Check nothing else is using your dev server port
+- **Cache issues**: Clear browser cache or use incognito mode
+
+### Hash Mismatch Errors
+
+- **Recalculate hash**: Hash must be of gzipped content, not original
+- **Encoding**: Use base64 encoding for hash
+- **File changes**: Recompute hash after any file changes
+- **Gzip consistency**: Use same gzip method for hash and upload
+
+## Security Considerations
+
+### Component Validation
+
+- **Integrity checking**: SHA256 validation ensures components haven't been tampered with
+- **Private hosting**: S3 bucket is private, served via authenticated proxy
+- **Content Security Policy**: Configure CSP headers appropriately
+- **Input validation**: Always validate user inputs in your components
+
+### Access Control
+
+- **Tag permissions**: Control which chat apps can use which tags
+- **User types**: Restrict tag availability by user type
+- **Admin-only components**: Use `chatAppId` to limit availability
+- **Audit logging**: Log component loading and usage
+
+## Next Steps
+
+- [Build Custom Web Components](/guides/customization/build-web-components/) - Learn to create components
+- [Custom Widget Tag Definitions](/guides/advanced/widget-tags/) - Advanced tag definition features
+- [Work with Pika UX Module](/guides/advanced/pika-ux-module/) - Use pre-built UI components
+
+## Related Documentation
+
+- [Web Components Capability](/capabilities/customization/web-components/) - Learn more about components
+- [Tags Feature](/capabilities/intelligence/tags/) - Understand tag system
+- [Component API Reference](/reference/api/web-components/) - Complete API docs
+
+---
+
+{% aside type="success" title="Rapid Iteration" %}
+Use the direct upload tool for development and CDK for production deployments. This gives you fast iteration during development with production-ready infrastructure for releases.
+{% /aside %}
+

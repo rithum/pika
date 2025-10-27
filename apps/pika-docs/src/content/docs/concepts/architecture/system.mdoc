@@ -1,0 +1,363 @@
+---
+title: System Architecture
+description: High-level overview of Pika's system architecture and component interactions
+---
+
+Pika's architecture is designed for production readiness, leveraging AWS serverless services for scalability, security, and operational simplicity. This page provides a high-level overview of how the system components fit together.
+
+## Architecture Overview
+
+Pika consists of four major layers that work together to provide a complete chat application platform, with cross-cutting concerns for configuration, security, and observability:
+
+![Pika System Architecture](/img/diagrams/system-architecture.drawio.svg)
+
+## Component Layers
+
+### 1. Frontend Layer
+
+**Primary Component**: SvelteKit chat application
+
+**Responsibilities**:
+- User interface for chat interactions
+- Authentication integration (pluggable provider)
+- Session management UI (history, pinning, sharing)
+- File upload and download
+- Custom web component rendering
+- Admin interface for platform management
+
+**Key Features**:
+- Responsive design for desktop and mobile
+- Real-time streaming of agent responses
+- Rich markdown rendering with custom components
+- Feature override system for per-app customization
+- Embedded mode for iframe integration
+
+**Deployment**: Typically hosted on separate infrastructure (AWS Amplify, Vercel, or S3+CloudFront)
+
+### 2. API Layer
+
+**Primary Components**: Amazon API Gateway + AWS Lambda
+
+**Responsibilities**:
+- REST API endpoints for chat operations
+- Session CRUD operations
+- Message history retrieval
+- User preferences and pinning
+- Admin operations (chat app management, access control)
+- Insights and analytics queries
+
+**Key Endpoints**:
+- `/sessions` - Create, list, and manage chat sessions
+- `/messages` - Retrieve message history
+- `/suggestions` - Get suggested follow-up questions
+- `/admin/*` - Administrative operations
+- `/insights/*` - Analytics and feedback queries
+
+**Architecture Pattern**: Serverless REST API with JWT authentication
+
+### 3. Agent Layer
+
+**Primary Components**: AWS Bedrock Agents + Lambda Function URL
+
+**Responsibilities**:
+- Execute LLM-based agents with streaming responses
+- Orchestrate tool calls based on user requests
+- Maintain conversation context across turns
+- Handle agent configuration from registry
+- Manage user memory integration
+- Stream responses back to frontend
+
+**Key Features**:
+- **Streaming Responses**: Real-time token streaming via Function URL
+- **Tool Orchestration**: Bedrock agents determine which tools to call
+- **Session Context**: Full conversation history maintained
+- **User Memory**: Persistent context via Bedrock Agent Core Memory
+- **Configuration-Driven**: Agents loaded from DynamoDB registry
+
+**Architecture Pattern**: AWS Bedrock Agents with inline action groups (Lambda tools)
+
+### 4. Tool Layer
+
+**Primary Component**: AWS Lambda functions
+
+**Responsibilities**:
+- Implement business logic as callable tools
+- Access external APIs and data sources
+- Enforce security and access control at tool level
+- Return structured data to agents
+- Handle tool-specific authentication and authorization
+
+**Tool Types**:
+- **Inline Tools**: Lambda functions defined in your codebase
+- **MCP Tools**: Model Context Protocol integrations
+- **Direct Invocation**: API-style agent calls without chat UI
+
+**Architecture Pattern**: Typed Lambda functions with JSON schemas for inputs/outputs
+
+### 5. Storage Layer
+
+**Primary Components**: DynamoDB, S3, OpenSearch
+
+#### DynamoDB Tables
+
+**Sessions Table**: Chat session metadata
+- Session ID, user ID, chat app ID
+- Created/updated timestamps
+- Entity/account association
+- Pinned status
+
+**Messages Table**: Full conversation history
+- Message ID, session ID, role (user/assistant)
+- Content, timestamps, token usage
+- Tool calls and results
+- Self-correction metadata
+
+**Agents Table**: Agent configuration registry
+- Agent definitions, instructions, model configuration
+- Tool associations
+- Feature flags and overrides
+
+**Chat Apps Table**: Chat application configuration
+- Chat app metadata and settings
+- Access control rules
+- Feature overrides
+
+**Users Table**: User metadata and preferences
+- User profiles, roles, entity associations
+- Custom data from authentication provider
+
+#### S3 Buckets
+
+- **File Storage**: Uploaded files and attachments
+- **Insights Storage**: Generated JSON insight documents
+- **Asset Storage**: Custom web components and assets
+
+#### OpenSearch Service
+
+- **Session Search**: Full-text search across sessions
+- **Insights Analytics**: Query and aggregate insights data
+- **Feedback Search**: Find sessions by feedback criteria
+
+### 6. Intelligence Layer
+
+**Primary Components**: Lambda functions + EventBridge scheduler
+
+**Responsibilities**:
+- **Self-Correction**: Independent verification of agent responses
+- **Feedback Generation**: LLM-based session quality analysis
+- **Insights Generation**: Batch analysis of sessions for patterns
+- **Answer Reasoning**: Explanation of agent decision-making
+
+**Key Processes**:
+
+#### Self-Correction Flow
+1. Agent generates response
+2. Verifier agent evaluates response quality
+3. If verification fails, agent re-attempts with feedback
+4. Process repeats up to configured max attempts
+5. Final response returned to user
+
+#### Feedback Generation (Async)
+1. EventBridge triggers insights runner on schedule
+2. Lambda processes recent sessions without feedback
+3. Verifier agent analyzes session quality
+4. Feedback stored in OpenSearch and S3
+5. Available for review in admin interface
+
+#### Insights Analysis
+1. Batch process of sessions across time period
+2. LLM identifies patterns, issues, and opportunities
+3. Aggregated insights for platform improvement
+4. Queryable through admin interface
+
+## Data Flow: User Message to Response
+
+Let's trace how a user message flows through the system:
+
+### Step 1: User Sends Message
+```
+User → Frontend → API Gateway → Lambda (Create Message)
+```
+- Frontend sends message via REST API
+- Lambda stores message in DynamoDB messages table
+- Returns acknowledgment to frontend
+
+### Step 2: Frontend Initiates Streaming
+```
+Frontend → Lambda Function URL (Stream Agent)
+```
+- Frontend opens Server-Sent Events (SSE) connection
+- Passes session ID and authentication context
+
+### Step 3: Agent Execution
+```
+Lambda → AWS Bedrock Agent → Streaming Response
+```
+- Lambda loads agent configuration from registry
+- Initializes Bedrock agent with tools and context
+- Agent processes user message
+- Determines if tools need to be called
+
+### Step 4: Tool Calls (If Needed)
+```
+Bedrock Agent → Lambda Tool Functions → Data Sources
+```
+- Agent calls tools with typed inputs
+- Tools access external APIs, databases, etc.
+- Tools enforce security and access control
+- Structured results returned to agent
+
+### Step 5: Response Generation
+```
+Bedrock Agent → Streaming Tokens → Frontend
+```
+- Agent synthesizes response based on tool results
+- Tokens streamed back through Lambda
+- Frontend displays response in real-time
+
+### Step 6: Self-Correction (If Enabled)
+```
+Verifier Agent → Evaluates Response → Triggers Re-attempt (If Needed)
+```
+- Independent agent verifies response quality
+- If verification fails, agent re-attempts with feedback
+- Process repeats until quality threshold met or max attempts reached
+
+### Step 7: Persistence
+```
+Lambda → DynamoDB Messages Table + OpenSearch Index
+```
+- Final message stored with full context
+- Token usage and performance metrics captured
+- Indexed in OpenSearch for search
+
+### Step 8: Async Processing
+```
+EventBridge → Insights Runner → Feedback Generation
+```
+- Scheduled job processes sessions without feedback
+- LLM generates quality analysis
+- Stored for admin review
+
+## Deployment Architecture
+
+Pika deployments typically consist of multiple AWS CDK stacks:
+
+### Core Infrastructure Stack
+- DynamoDB tables
+- S3 buckets
+- OpenSearch domain
+- IAM roles and policies
+- EventBridge rules
+
+### Backend Services Stack
+- API Gateway
+- Lambda functions (APIs, agent streaming, tools)
+- Lambda Function URLs
+- CloudWatch logs and metrics
+
+### Frontend Stack
+- S3 bucket + CloudFront (if hosting on AWS)
+- Or external hosting (Amplify, Vercel)
+
+### Custom Service Stacks
+- Your custom tools and services
+- External integrations
+- Additional AWS resources
+
+## Key Architectural Patterns
+
+### 1. Serverless-First
+
+**Everything runs on serverless services**:
+- No servers to manage or patch
+- Automatic scaling with demand
+- Pay only for actual usage
+- Built-in high availability
+
+### 2. Event-Driven
+
+**Asynchronous processing where appropriate**:
+- EventBridge for scheduled jobs
+- S3 events for file processing
+- DynamoDB streams for data propagation (if needed)
+
+### 3. Defense in Depth
+
+**Security at multiple layers**:
+- IAM at infrastructure layer
+- Authentication at application layer
+- Authorization at tool layer
+- Entity isolation at data layer
+
+### 4. Registry-Based Configuration
+
+**Dynamic configuration without redeployment**:
+- Agents, tools, and chat apps in DynamoDB
+- Runtime configuration changes
+- A/B testing support
+- Audit trails of changes
+
+### 5. Separation of Concerns
+
+**Clear boundaries between components**:
+- Frontend doesn't directly call Bedrock
+- Tools don't access frontend
+- Agent layer orchestrates, doesn't implement logic
+- Storage layer has no business logic
+
+## Scalability Characteristics
+
+### Automatic Scaling
+- **API Gateway**: Handles any request volume
+- **Lambda**: Concurrent executions scale automatically
+- **DynamoDB**: On-demand scaling or provisioned capacity
+- **OpenSearch**: Cluster can be sized appropriately
+
+### Performance Optimization
+- **Agent Caching**: Optional caching for faster responses
+- **DynamoDB Indexes**: Optimized query patterns
+- **OpenSearch**: Fast full-text search
+- **CloudFront**: CDN for frontend assets
+
+### Cost Management
+- **Serverless Pricing**: Pay per request, not per hour
+- **DynamoDB On-Demand**: Pay for actual reads/writes
+- **Bedrock Pricing**: Pay per token usage
+- **No Idle Costs**: Infrastructure costs only when used
+
+## Integration Points
+
+Pika provides several integration points for customization:
+
+### Authentication Provider
+- Pluggable authentication implementation
+- Supports any enterprise SSO, SAML, OAuth
+- Returns user context and entity assignment
+
+### Custom Tools
+- Lambda functions you implement
+- Access your data and APIs
+- Enforce your business rules
+
+### Custom Web Components
+- Svelte components for custom UI rendering
+- Handle custom XML tags from agents
+- Deploy to S3, referenced in agent responses
+
+### Custom Stacks
+- Add AWS resources to CDK stacks
+- Integrate with existing infrastructure
+- Extend platform capabilities
+
+## Related Documentation
+
+- **[AWS Infrastructure](/concepts/architecture/aws/)** - Detailed AWS service usage
+- **[Frontend Architecture](/concepts/architecture/frontend/)** - Chat app design
+- **[Security Architecture](/concepts/architecture/security/)** - Defense-in-depth model
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - Detailed flow tracing
+
+{% aside type="tip" %}
+This high-level architecture remains stable while individual components evolve. The separation of concerns ensures changes in one layer don't cascade to others.
+{% /aside %}
+

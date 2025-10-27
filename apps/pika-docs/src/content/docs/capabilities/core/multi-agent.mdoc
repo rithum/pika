@@ -1,0 +1,295 @@
+---
+title: Multi-Agent Orchestration
+description: Enable specialized agents to collaborate on complex tasks
+---
+
+Multi-agent orchestration enables sophisticated AI systems where specialized agents work together, each focusing on their area of expertise. Instead of one generalist agent handling everything, you create teams of specialist agents that collaborate to solve complex problems.
+
+## What It Does
+
+Multi-Agent Orchestration allows you to define multiple agents within a single chat app, where a supervisor agent coordinates the work of specialist agents. Each agent has its own tools, knowledge, and instructions, enabling division of labor for complex tasks.
+
+## Why It Matters
+
+Complex tasks often require different types of expertise. Rather than building one massive agent that tries to do everything, multi-agent systems let you:
+
+- **Separate concerns** - Each agent focuses on what it does best
+- **Improve quality** - Specialists outperform generalists
+- **Enhance maintainability** - Update agents independently
+- **Enable scaling** - Add new specialists without affecting existing ones
+- **Provide transparency** - See which agent handled which part of the task
+
+## How It Works
+
+![Multi-Agent Orchestration](/img/diagrams/multi-agent-flow.drawio.svg)
+
+### Supervisor-Specialist Pattern
+
+The most common pattern uses a supervisor agent that:
+
+1. **Understands the user request**
+2. **Identifies required specialists**
+3. **Delegates to appropriate agents**
+4. **Synthesizes their responses**
+5. **Returns coherent answer to user**
+
+### Agent Collaboration
+
+Agents collaborate through structured workflows:
+
+- Supervisor analyzes the request
+- Routes specific sub-tasks to specialists
+- Specialists execute with their tools and knowledge
+- Supervisor integrates specialist outputs
+- User sees seamless, comprehensive response
+
+## Use Cases
+
+### Customer Support with Escalation
+
+**Structure:**
+- **Tier 1 Agent** - Handles common questions using knowledge base
+- **Billing Specialist** - Resolves payment and invoice issues
+- **Technical Specialist** - Troubleshoots product problems
+- **Escalation Agent** - Creates tickets for human agents
+
+**Workflow:**
+User asks about billing issue → Supervisor routes to Billing Specialist → Specialist accesses payment system → Returns solution
+
+### Financial Analysis System
+
+**Structure:**
+- **Query Specialist** - Understands financial questions
+- **Data Retrieval Agent** - Accesses databases and APIs
+- **Analysis Agent** - Performs calculations and trend analysis
+- **Visualization Agent** - Creates charts and reports
+
+**Workflow:**
+User requests revenue analysis → Query Specialist interprets → Data Retrieval fetches records → Analysis calculates metrics → Visualization creates charts
+
+### Enterprise Knowledge Management
+
+**Structure:**
+- **Router Agent** - Classifies questions by domain
+- **HR Policy Agent** - Answers HR-related questions
+- **IT Help Desk Agent** - Resolves technical issues
+- **Finance Agent** - Handles expense and budget questions
+
+**Workflow:**
+Employee asks question → Router classifies domain → Specialist provides domain-specific answer using appropriate tools
+
+### Development Assistant
+
+**Structure:**
+- **Code Review Agent** - Analyzes code quality
+- **Documentation Agent** - Explains code and generates docs
+- **Testing Agent** - Suggests test cases
+- **Security Agent** - Identifies vulnerabilities
+
+**Workflow:**
+Developer submits code → Each specialist reviews their domain → Supervisor synthesizes comprehensive feedback
+
+## Key Benefits
+
+{% card title="Expertise Specialization" icon="star" %}
+Each agent focuses on a specific domain with appropriate tools and knowledge, delivering higher quality results than a generalist approach.
+{% /card %}
+
+{% card title="Maintainability" icon="rocket" %}
+Update specialist agents independently without affecting the entire system. Add, remove, or modify specialists as needs evolve.
+{% /card %}
+
+{% card title="Transparency" icon="information" %}
+See exactly which agent handled which part of the task. Debug and refine agents individually based on performance.
+{% /card %}
+
+{% card title="Scalability" icon="puzzle" %}
+Add new specialists to handle additional domains without rewriting existing agents. Scale complexity by adding agents, not complexity.
+{% /card %}
+
+## Configuration Example
+
+Define multiple agents in your chat app:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    chatAppId: 'customer-support',
+    chatAppName: 'Customer Support',
+    agentIds: [
+        'supervisor-agent',      // Coordinates specialists
+        'billing-specialist',    // Handles billing
+        'technical-specialist',  // Handles technical issues
+        'order-specialist'       // Handles orders
+    ],
+    // Supervisor agent has access to specialist agents as "tools"
+    defaultAgentId: 'supervisor-agent'
+};
+```
+
+The supervisor agent configuration includes references to specialist agents:
+
+```typescript
+const supervisorConfig: AgentConfig = {
+    agentId: 'supervisor-agent',
+    agentName: 'Customer Support Supervisor',
+    instructions: 'Analyze customer requests and route to appropriate specialists...',
+    // Specialist agents appear as tools the supervisor can invoke
+    toolIds: [
+        'billing-specialist-tool',
+        'technical-specialist-tool',
+        'order-specialist-tool'
+    ]
+};
+```
+
+## Design Patterns
+
+### Hub-and-Spoke
+
+One supervisor coordinates multiple specialists:
+
+```
+User → Supervisor → Specialist A
+                  → Specialist B
+                  → Specialist C
+```
+
+Best for: Clear domain boundaries, independent sub-tasks
+
+### Sequential Pipeline
+
+Agents process in sequence:
+
+```
+User → Agent A → Agent B → Agent C → Result
+```
+
+Best for: Multi-stage workflows, each building on previous output
+
+### Hierarchical Teams
+
+Supervisors manage sub-supervisors:
+
+```
+User → Main Supervisor → Team A Supervisor → Specialist A1
+                                            → Specialist A2
+                       → Team B Supervisor → Specialist B1
+                                            → Specialist B2
+```
+
+Best for: Large-scale systems, complex organizational structures
+
+## Best Practices
+
+### Keep Agents Focused
+
+Each agent should have a clear, narrow responsibility:
+
+- **Good**: "Handle billing disputes under $1000"
+- **Bad**: "Handle all customer issues"
+
+### Define Clear Interfaces
+
+Supervisor and specialists communicate through well-defined interfaces:
+
+- Explicit input schemas
+- Structured output formats
+- Error handling protocols
+- Success/failure signals
+
+### Implement Fallback Strategies
+
+Handle cases where specialists can't solve the problem:
+
+- Escalation to human agents
+- Alternative specialist routing
+- Graceful degradation
+- Clear error messages to users
+
+### Monitor Agent Performance
+
+Track metrics for each agent:
+
+- Success rates
+- Response times
+- User satisfaction
+- Error frequencies
+
+## Advanced Features
+
+### Dynamic Agent Selection
+
+Supervisors intelligently choose specialists based on:
+
+- User query analysis
+- Current system state
+- Specialist availability
+- Historical performance
+
+### Agent Learning
+
+Agents improve over time through:
+
+- User memory capturing preferences
+- Feedback on agent performance
+- Instruction refinement
+- Tool optimization
+
+### Cross-Agent Context
+
+Share context between agents:
+
+- User preferences available to all
+- Session history accessible
+- Previous specialist outputs visible
+- Consistent entity context
+
+## Performance Considerations
+
+Multi-agent systems add complexity but deliver better results:
+
+- **Latency**: Slightly higher due to routing, but specialists often faster
+- **Cost**: More LLM calls but smaller context windows per agent
+- **Quality**: Significantly better for complex, multi-domain tasks
+- **Debugging**: Easier to identify and fix specific agent issues
+
+## Getting Started
+
+{% card title="Review Weather Sample" icon="star" %}
+See a simple multi-agent system in action.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Learn the Concepts" icon="puzzle" %}
+Understand agent architecture and tool systems.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="rocket" %}
+Step-by-step instructions for building multi-agent systems.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Agents as Config" icon="rocket" %}
+Define agents declaratively for easy management and updates.
+
+[Learn More →](/capabilities/core/agents-as-config/)
+{% /card %}
+
+{% card title="Direct Agent Invocation" icon="star" %}
+Call individual agents programmatically for system integrations.
+
+[Learn More →](/capabilities/integration/direct-invocation/)
+{% /card %}
+
+{% card title="LLM-Generated Feedback" icon="information" %}
+Analyze multi-agent interactions to improve coordination.
+
+[Learn More →](/capabilities/intelligence/llm-feedback/)
+{% /card %}
+

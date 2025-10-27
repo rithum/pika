@@ -1,0 +1,718 @@
+---
+title: Platform Settings Reference
+description: Complete reference for pika-config.ts platform configuration
+---
+
+Complete reference for the `pika-config.ts` file that controls global platform configuration.
+
+## Overview
+
+The `pika-config.ts` file is the central configuration for your entire Pika Platform instance. It defines:
+
+- Project naming conventions across all stacks
+- Site-wide feature defaults
+- Global UI and behavior settings
+
+{% aside type="caution" title="Protected File" %}
+This file is protected from framework updates and will never be overwritten during sync operations.
+{% /aside %}
+
+## File Location
+
+```
+your-pika-project/
+└── pika-config.ts
+```
+
+## Type Definition
+
+```typescript
+import type { PikaConfig } from 'pika-shared/types/chatbot/chatbot-types';
+
+export const pikaConfig: PikaConfig = {
+    // Configuration here
+};
+```
+
+## Structure
+
+The configuration is divided into two main sections:
+
+1. **Project Names** - Naming conventions for infrastructure stacks
+2. **Site Features** - Global feature configuration
+
+## Project Names Configuration
+
+Define naming conventions for all your infrastructure stacks. Each service gets its own name configuration.
+
+### Name Formats
+
+Each project requires five naming formats:
+
+| Format | Description | Example | Usage |
+|--------|-------------|---------|-------|
+| `projNameL` | Lowercase, no separators | `mycompany` | Resource identifiers |
+| `projNameKebabCase` | Lowercase with hyphens | `my-company` | URLs, file names |
+| `projNameTitleCase` | PascalCase | `MyCompany` | Class names, CloudFormation resources |
+| `projNameCamel` | camelCase | `myCompany` | JavaScript variables |
+| `projNameHuman` | Human-readable | `My Company` | UI display |
+
+### Required Project Configurations
+
+#### pika (Core Service)
+
+```typescript
+pika: {
+    projNameL: 'mycompany',
+    projNameKebabCase: 'my-company',
+    projNameTitleCase: 'MyCompany',
+    projNameCamel: 'myCompany',
+    projNameHuman: 'My Company'
+}
+```
+
+The core Pika service that provides APIs, Lambda functions, and database infrastructure.
+
+#### pikaChat (Chat Frontend)
+
+```typescript
+pikaChat: {
+    projNameL: 'mycompanychat',
+    projNameKebabCase: 'my-company-chat',
+    projNameTitleCase: 'MyCompanyChat',
+    projNameCamel: 'myCompanyChat',
+    projNameHuman: 'My Company Chat'
+}
+```
+
+The chat application frontend and infrastructure.
+
+#### Additional Services (Optional)
+
+You can add custom service names following the same pattern:
+
+```typescript
+weather: {
+    projNameL: 'weather',
+    projNameKebabCase: 'weather',
+    projNameTitleCase: 'Weather',
+    projNameCamel: 'weather',
+    projNameHuman: 'Weather'
+}
+```
+
+## Site Features Configuration
+
+Global defaults for all features. Individual chat apps can override these settings.
+
+### siteFeatures Object
+
+```typescript
+siteFeatures: {
+    homePage: { /* ... */ },
+    entity: { /* ... */ },
+    userDataOverrides: { /* ... */ },
+    // ... more features
+}
+```
+
+### Home Page
+
+Controls the platform home page appearance and navigation.
+
+```typescript
+homePage: {
+    homePageTitle: string;
+    welcomeMessage: string;
+    linksToChatApps: {
+        userChatAppRules: UserChatAppRule[];
+    };
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `homePageTitle` | `string` | Page title displayed in browser |
+| `welcomeMessage` | `string` | Welcome message shown to users |
+| `userChatAppRules` | `UserChatAppRule[]` | Rules for which users see which chat apps |
+
+**UserChatAppRule:**
+
+```typescript
+{
+    userTypes: ['internal-user'], // User types who can see links
+    chatAppUserTypes: ['internal-user', 'external-user'] // Types of apps to show
+}
+```
+
+**Example:**
+
+```typescript
+homePage: {
+    homePageTitle: 'Acme Corp AI Assistants',
+    welcomeMessage: 'Welcome! Choose an assistant below.',
+    linksToChatApps: {
+        userChatAppRules: [
+            {
+                userTypes: ['internal-user'],
+                chatAppUserTypes: ['internal-user', 'external-user']
+            }
+        ]
+    }
+}
+```
+
+### Entity
+
+Configure multi-tenancy with entities (accounts, organizations).
+
+```typescript
+entity: {
+    enabled: boolean;
+    attributeName: string;
+    tableColumnHeaderTitle: string;
+    displayNameSingular: string;
+    displayNamePlural: string;
+    searchPlaceholderText: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable entity-based access control |
+| `attributeName` | `string` | Custom data field name (e.g., `'accountId'`) |
+| `tableColumnHeaderTitle` | `string` | Table column header text |
+| `displayNameSingular` | `string` | Singular form (e.g., `'Account'`) |
+| `displayNamePlural` | `string` | Plural form (e.g., `'Accounts'`) |
+| `searchPlaceholderText` | `string` | Placeholder for search input |
+
+**Example:**
+
+```typescript
+entity: {
+    enabled: true,
+    attributeName: 'organizationId',
+    tableColumnHeaderTitle: 'Org ID',
+    displayNameSingular: 'Organization',
+    displayNamePlural: 'Organizations',
+    searchPlaceholderText: 'Search organizations...'
+}
+```
+
+### User Data Overrides
+
+Allow certain users to override their custom data for testing.
+
+```typescript
+userDataOverrides: {
+    enabled: boolean;
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: string[];
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable the user data override feature |
+| `promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing` | `string[]` | Prompt user if these fields are missing |
+
+**Example:**
+
+```typescript
+userDataOverrides: {
+    enabled: true,
+    promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: [
+        'accountId',
+        'accountType',
+        'region'
+    ]
+}
+```
+
+### Content Admin
+
+Enable content administrators to view all user sessions for debugging.
+
+```typescript
+contentAdmin: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+contentAdmin: {
+    enabled: true
+}
+```
+
+### Traces
+
+Show AI execution traces for transparency.
+
+```typescript
+traces: {
+    enabled: boolean;
+    userTypes: UserType[];
+    detailedTraces: {
+        enabled: boolean;
+        userTypes: UserType[];
+    };
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enable traces feature |
+| `userTypes` | `UserType[]` | User types who can see traces |
+| `detailedTraces.enabled` | `boolean` | Enable detailed technical traces |
+| `detailedTraces.userTypes` | `UserType[]` | User types who see detailed traces |
+
+**Example:**
+
+```typescript
+traces: {
+    enabled: true,
+    userTypes: ['internal-user', 'external-user'],
+    detailedTraces: {
+        enabled: true,
+        userTypes: ['internal-user'] // Only internal users see details
+    }
+}
+```
+
+### Chat Disclaimer Notice
+
+Display disclaimer messages in chat apps.
+
+```typescript
+chatDisclaimerNotice: {
+    enabled: boolean;
+    notice: string;
+}
+```
+
+**Example:**
+
+```typescript
+chatDisclaimerNotice: {
+    enabled: true,
+    notice: 'This AI assistant provides general information. For critical decisions, consult a professional.'
+}
+```
+
+### Verify Response
+
+Enable AI self-correction and response verification.
+
+```typescript
+verifyResponse: {
+    enabled: boolean;
+    autoRepromptThreshold: 'A' | 'B' | 'C' | 'D';
+    userTypes: UserType[];
+}
+```
+
+| Threshold | Meaning |
+|-----------|---------|
+| `'A'` | Accurate and comprehensive |
+| `'B'` | Accurate but incomplete |
+| `'C'` | Accurate with unstated assumptions |
+| `'D'` | Inaccurate |
+
+**Example:**
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoRepromptThreshold: 'C', // Auto-retry if C or worse
+    userTypes: ['internal-user']
+}
+```
+
+### Logout
+
+Configure logout button visibility.
+
+```typescript
+logout: {
+    enabled: boolean;
+    userTypes: UserType[];
+}
+```
+
+**Example:**
+
+```typescript
+logout: {
+    enabled: true,
+    userTypes: ['internal-user', 'external-user']
+}
+```
+
+### Site Admin
+
+Configure the admin website features.
+
+```typescript
+siteAdmin: {
+    websiteEnabled: boolean;
+    supportUserEntityAccessControl: {
+        enabled: boolean;
+    };
+    supportSpecificUserAccessControl: {
+        enabled: boolean;
+    };
+    sessionInsights: {
+        enabled: boolean;
+    };
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `websiteEnabled` | Enable the admin site |
+| `supportUserEntityAccessControl.enabled` | Enable entity-based access control in admin |
+| `supportSpecificUserAccessControl.enabled` | Enable user-specific access control in admin |
+| `sessionInsights.enabled` | Enable session insights in admin |
+
+**Example:**
+
+```typescript
+siteAdmin: {
+    websiteEnabled: true,
+    supportUserEntityAccessControl: {
+        enabled: true
+    },
+    supportSpecificUserAccessControl: {
+        enabled: true
+    },
+    sessionInsights: {
+        enabled: true
+    }
+}
+```
+
+### File Upload
+
+Configure file upload capabilities.
+
+```typescript
+fileUpload: {
+    enabled: boolean;
+    mimeTypesAllowed: string[];
+}
+```
+
+**Example:**
+
+```typescript
+fileUpload: {
+    enabled: true,
+    mimeTypesAllowed: [
+        'text/*',
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'text/csv'
+    ]
+}
+```
+
+### Suggestions
+
+Quick suggestion buttons in chat interface.
+
+```typescript
+suggestions: {
+    enabled: boolean;
+    suggestions: string[];
+    maxToShow: number;
+    randomize: boolean;
+    randomizeAfter: number;
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Enable suggestions feature |
+| `suggestions` | Array of suggestion texts (usually overridden by chat apps) |
+| `maxToShow` | Maximum suggestions to display |
+| `randomize` | Whether to randomize order |
+| `randomizeAfter` | Randomize after this many messages |
+
+**Example:**
+
+```typescript
+suggestions: {
+    enabled: true,
+    suggestions: [], // Set per chat app
+    maxToShow: 3,
+    randomize: true,
+    randomizeAfter: 0
+}
+```
+
+### Prompt Input Field Label
+
+Customize the chat input field placeholder.
+
+```typescript
+promptInputFieldLabel: {
+    enabled: boolean;
+    promptInputFieldLabel: string;
+}
+```
+
+**Example:**
+
+```typescript
+promptInputFieldLabel: {
+    enabled: true,
+    promptInputFieldLabel: 'Ask me anything...'
+}
+```
+
+### UI Customization
+
+Global UI behavior settings.
+
+```typescript
+uiCustomization: {
+    enabled: boolean;
+    showUserRegionInLeftNav: boolean;
+    showChatHistoryInStandaloneMode: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+uiCustomization: {
+    enabled: true,
+    showUserRegionInLeftNav: true,
+    showChatHistoryInStandaloneMode: true
+}
+```
+
+### Session Insights
+
+Enable AI-generated session insights and analytics.
+
+```typescript
+sessionInsights: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+sessionInsights: {
+    enabled: true
+}
+```
+
+### Tags
+
+Enable custom UI tags and widgets.
+
+```typescript
+tags: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+tags: {
+    enabled: true
+}
+```
+
+{% aside type="note" title="Tag Visibility" %}
+Tag visibility is controlled at the tag definition level via `usageMode` and `status` fields, not in this configuration.
+{% /aside %}
+
+### Agent Instruction Assistance
+
+Help users craft better prompts.
+
+```typescript
+agentInstructionAssistance: {
+    enabled: boolean;
+}
+```
+
+**Example:**
+
+```typescript
+agentInstructionAssistance: {
+    enabled: true
+}
+```
+
+### Instruction Augmentation
+
+Automatically enhance user prompts with additional context.
+
+```typescript
+instructionAugmentation: {
+    enabled: boolean;
+    type: 'llm-semantic-directive-search';
+}
+```
+
+**Example:**
+
+```typescript
+instructionAugmentation: {
+    enabled: true,
+    type: 'llm-semantic-directive-search'
+}
+```
+
+### User Memory
+
+Remember user preferences and context across sessions.
+
+```typescript
+userMemory: {
+    enabled: boolean;
+    maxMemoryRecordsPerPrompt: number;
+    maxKMatchesPerStrategy: number;
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Enable user memory feature |
+| `maxMemoryRecordsPerPrompt` | Maximum memory records to include per prompt |
+| `maxKMatchesPerStrategy` | Maximum matches per memory retrieval strategy |
+
+**Example:**
+
+```typescript
+userMemory: {
+    enabled: true,
+    maxMemoryRecordsPerPrompt: 25,
+    maxKMatchesPerStrategy: 5
+}
+```
+
+## Complete Example
+
+```typescript
+import type { PikaConfig } from 'pika-shared/types/chatbot/chatbot-types';
+
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'acmecorp',
+        projNameKebabCase: 'acme-corp',
+        projNameTitleCase: 'AcmeCorp',
+        projNameCamel: 'acmeCorp',
+        projNameHuman: 'Acme Corp'
+    },
+    pikaChat: {
+        projNameL: 'acmecorpchat',
+        projNameKebabCase: 'acme-corp-chat',
+        projNameTitleCase: 'AcmeCorpChat',
+        projNameCamel: 'acmeCorpChat',
+        projNameHuman: 'Acme Corp Chat'
+    },
+    siteFeatures: {
+        homePage: {
+            homePageTitle: 'Acme Corp AI Assistants',
+            welcomeMessage: 'Welcome to Acme Corp AI Assistants!',
+            linksToChatApps: {
+                userChatAppRules: [
+                    {
+                        userTypes: ['internal-user'],
+                        chatAppUserTypes: ['internal-user', 'external-user']
+                    }
+                ]
+            }
+        },
+        entity: {
+            enabled: true,
+            attributeName: 'accountId',
+            tableColumnHeaderTitle: 'Account ID',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts',
+            searchPlaceholderText: 'Search for an account...'
+        },
+        userDataOverrides: {
+            enabled: true,
+            promptUserIfAnyOfTheseCustomUserDataAttributesAreMissing: ['accountId', 'accountType']
+        },
+        contentAdmin: {
+            enabled: true
+        },
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user']
+            }
+        },
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C',
+            userTypes: ['internal-user']
+        },
+        fileUpload: {
+            enabled: true,
+            mimeTypesAllowed: ['text/*', 'application/pdf']
+        },
+        userMemory: {
+            enabled: true,
+            maxMemoryRecordsPerPrompt: 25,
+            maxKMatchesPerStrategy: 5
+        },
+        sessionInsights: {
+            enabled: true
+        },
+        tags: {
+            enabled: true
+        }
+    }
+};
+```
+
+## Best Practices
+
+{% aside type="tip" title="Configuration Tips" %}
+1. **Unique project names** - Avoid conflicts with AWS resource naming
+2. **Start restrictive** - Enable features for internal users first, expand later
+3. **Test changes locally** - Verify configuration before deploying
+4. **Document customizations** - Add comments explaining non-obvious choices
+5. **Version control** - Commit pika-config.ts changes with descriptive messages
+{% /aside %}
+
+## Validation
+
+The configuration is validated at build time. Common errors:
+
+- Missing required name formats
+- Invalid user types (must be `'internal-user'` or `'external-user'`)
+- Invalid threshold values
+- Type mismatches
+
+## Related Documentation
+
+- **[Site Features Reference](/reference/configuration/site-features/)** - Detailed feature-by-feature documentation
+- **[Chat App Configuration](/reference/configuration/chat-app/)** - Override features per chat app
+- **[Environment Variables](/reference/configuration/environment-variables/)** - Runtime configuration
+- **[Customization Guide](/guides/customization/)** - How-to guide for customization
+
+## After Changing Configuration
+
+After modifying `pika-config.ts`:
+
+1. **Build** - Run `pnpm build` in the affected service
+2. **Test locally** - Verify changes with `pnpm dev`
+3. **Deploy** - Deploy updated stack with `cdk deploy` or CI/CD pipeline
+4. **Clear caches** - Some changes may require clearing Lambda caches
+

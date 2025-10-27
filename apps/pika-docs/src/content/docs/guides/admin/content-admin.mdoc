@@ -1,0 +1,457 @@
+---
+title: Manage Content
+description: View and debug user chat sessions for support and troubleshooting
+---
+
+Learn how to configure and use the Content Admin feature, allowing designated administrators to view chat sessions and messages for any user in the system.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable content admin functionality
+- Grant content admin roles to users
+- Access and use the content admin interface
+- View user chat sessions and messages
+- Understand security and audit requirements
+- Debug user issues effectively
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for site configuration
+- Ability to assign user roles (via auth provider or database)
+- Understanding of user privacy and security requirements
+
+## Understanding Content Admin
+
+The Content Admin feature allows designated super-admin users to view chat sessions and messages for any user in the system.
+
+### What Content Admins Can Do
+
+- **View user sessions**: Access any user's chat history for a specific chat app
+- **Read messages**: See complete conversation history
+- **Search users**: Find and select users through searchable interface
+- **Per-chat app control**: Select different users for different chat apps independently
+
+### What Content Admins Cannot Do
+
+- **Create new sessions**: Read-only access for selected user
+- **Send messages**: Cannot interact as another user
+- **Modify content**: No ability to edit or delete user data
+- **Override user data**: Data override features disabled in content admin mode
+
+### Use Cases
+
+- **Customer Support**: Support agents helping customers debug issues
+- **Technical Troubleshooting**: Developers investigating reported bugs
+- **Quality Assurance**: QA teams verifying functionality across user profiles
+- **UX Research**: Understanding how different users interact
+- **Compliance & Auditing**: Reviewing interactions for compliance
+
+## Step 1: Enable the Feature
+
+Configure content admin in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        contentAdmin: {
+            enabled: true
+        }
+    }
+};
+```
+
+{% aside type="note" %}
+Unlike other features, content admin does NOT use `userTypes` configuration. Access is controlled entirely through the `pika:content-admin` role assignment.
+{% /aside %}
+
+## Step 2: Grant Content Admin Role
+
+Users must have the `pika:content-admin` role to access the feature.
+
+### Option A: Authentication Provider Assignment
+
+Automatically assign the role during authentication:
+
+**Location:** `apps/pika-chat/src/lib/server/auth-provider/index.ts`
+
+```typescript
+export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCustomData> {
+    private createAuthenticatedUser(
+        userData: any, 
+        token: string
+    ): AuthenticatedUser<YourAuthData, YourCustomData> {
+        const roles: string[] = [];
+
+        // Add content admin role for authorized users
+        if (userData.email === 'admin@company.com') {
+            roles.push('pika:content-admin');
+        }
+
+        // Add for specific departments
+        if (userData.department === 'support' || userData.department === 'engineering') {
+            roles.push('pika:content-admin');
+        }
+
+        // Add for specific permissions from your system
+        if (userData.permissions?.includes('view_all_chats')) {
+            roles.push('pika:content-admin');
+        }
+
+        return {
+            userId: userData.id,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            email: userData.email,
+            userType: userData.isEmployee ? 'internal-user' : 'external-user',
+            roles,
+            // ... other user data
+        };
+    }
+}
+```
+
+### Option B: Database Assignment
+
+Manually add the role in DynamoDB:
+
+1. Open **AWS Console** → **DynamoDB**
+2. Find table: `chat-users-{your-stack-name}`
+3. Locate **user record** by `userId`
+4. Add `pika:content-admin` to the `roles` array (create array if missing)
+5. **Save** changes
+
+**Example DynamoDB Record:**
+
+```json
+{
+    "userId": "admin_user_123",
+    "firstName": "Admin",
+    "lastName": "User",
+    "email": "admin@company.com",
+    "userType": "internal-user",
+    "roles": ["pika:content-admin", "support-agent"],
+    "customData": { }
+}
+```
+
+## Step 3: Access Content Admin Interface
+
+Once configured and role assigned:
+
+### Navigate to Content Admin
+
+1. **Log in** to Pika Chat with content admin account
+2. **Click** settings/menu icon (usually top right)
+3. **Select** "Content Admin" option
+4. **Content admin dialog** opens
+
+### User Selection Interface
+
+The content admin dialog provides:
+
+- **User Search**: Auto-complete search field to find users
+- **Current Selection**: Shows which user you're viewing (if any)
+- **Save Changes**: Apply selection to begin viewing
+- **Stop Viewing**: Clear selection to return to your own content
+- **Per-Chat App**: Independent selections for each chat app
+
+{% aside type="note" title="Search Functionality" %}
+User search is by user ID only. Search requires at least 3 characters before results appear.
+{% /aside %}
+
+### Search for a User
+
+```
+1. Open content admin dialog
+2. Type user ID in search field (minimum 3 characters)
+3. Select user from autocomplete results
+4. Click "Save Changes"
+5. Refresh the page
+6. You now see the selected user's content
+```
+
+## Step 4: View User Content
+
+### User Experience When Viewing
+
+When viewing content for another user:
+
+**What You See:**
+- All of the selected user's chat sessions for that chat app
+- Complete message history
+- User's custom data and preferences
+- Timestamps and session metadata
+
+**Visual Indicators:**
+- Interface shows you're viewing content for another user
+- Banner or indicator displays target user ID
+- Read-only mode clearly indicated
+
+**Limitations:**
+- Cannot create new sessions
+- Cannot send messages
+- Cannot modify user data
+- User data override features disabled
+- Full refresh required for changes to take effect
+
+### Stop Viewing User Content
+
+To return to your own content:
+
+1. **Open** content admin dialog
+2. **Click** "Stop Viewing" or clear user selection
+3. **Save** changes
+4. **Refresh** the page
+
+## Testing Checklist
+
+Verify content admin works correctly:
+
+{% checklist %}
+- [ ] Content admin feature enabled in `pika-config.ts`
+- [ ] Content admin role (`pika:content-admin`) assigned to test user
+- [ ] Content admin option appears in menu for admin users
+- [ ] Content admin option NOT visible to non-admin users
+- [ ] Can search for users by user ID
+- [ ] Can select and view user's chat sessions
+- [ ] Read-only mode enforced (cannot send messages)
+- [ ] Can view different users per chat app
+- [ ] Can clear selection to return to own content
+- [ ] Visual indicators show whose content is being viewed
+{% /checklist %}
+
+## Security Features
+
+### Access Control
+
+- **Role Verification**: Only users with `pika:content-admin` role can access
+- **Per-Request Validation**: Each API call verifies admin permissions
+- **Feature Toggle**: Can be completely disabled in configuration
+- **Session Isolation**: Viewing doesn't affect target user's experience
+
+### Audit Trail
+
+Implement audit logging for content admin actions:
+
+```typescript
+// In your handler or middleware
+console.log(`[AUDIT] Content admin ${adminUserId} began viewing content for user ${targetUserId} in chat app ${chatAppId}`);
+
+// Consider logging to dedicated audit table
+await auditLog.create({
+    action: 'content_admin_view',
+    adminUserId,
+    targetUserId,
+    chatAppId,
+    timestamp: new Date().toISOString(),
+    ipAddress: request.ip
+});
+```
+
+### Data Protection
+
+- **Read-Only Access**: Cannot modify or create content as another user
+- **Controlled Scope**: Access limited to chat data within the system
+- **No persistent changes**: Viewing state stored in session only
+- **Privacy compliance**: Ensure compliance with data protection regulations
+
+### Feature Restrictions
+
+When viewing content for another user:
+
+- **No message creation**: Send message button disabled
+- **No data overrides**: User data override UI hidden
+- **Limited actions**: Administrative actions restricted
+- **Session scope**: Viewing selection is per-chat app
+
+## Common Scenarios
+
+### Scenario 1: Customer Support
+
+```typescript
+// Configure for support team
+siteFeatures: {
+    contentAdmin: {
+        enabled: true
+    }
+}
+
+// In auth provider
+if (userData.department === 'support') {
+    roles.push('pika:content-admin');
+}
+```
+
+**Workflow:**
+1. Customer reports issue with chat app
+2. Support agent logs in
+3. Opens content admin for affected chat app
+4. Searches for customer's user ID
+5. Views customer's chat history
+6. Identifies issue
+7. Provides solution
+
+### Scenario 2: QA Testing
+
+```typescript
+// QA team access
+if (userData.roles?.includes('qa-engineer')) {
+    roles.push('pika:content-admin');
+}
+```
+
+**Workflow:**
+1. QA needs to verify bug fix
+2. Accesses content admin
+3. Views affected user's sessions
+4. Confirms issue is resolved
+5. Documents findings
+
+### Scenario 3: Development Debugging
+
+```typescript
+// Developers in non-production environments
+if (userData.userType === 'internal-user' && 
+    userData.roles?.includes('developer') &&
+    process.env.NODE_ENV !== 'production') {
+    roles.push('pika:content-admin');
+}
+```
+
+**Workflow:**
+1. Bug report with user ID
+2. Developer enables content admin for test environment
+3. Views user's chat history
+4. Reproduces issue
+5. Identifies root cause
+6. Implements fix
+
+## Troubleshooting
+
+### Content Admin Option Not Visible
+
+- Verify `contentAdmin.enabled: true` in `pika-config.ts`
+- Check user has `pika:content-admin` role assigned
+- Confirm user is logged in with proper authentication
+- Clear browser cache and reload
+- Check console for JavaScript errors
+
+### Cannot Find Users in Search
+
+- Search requires user ID (not name or email)
+- Minimum 3 characters needed to start search
+- Verify user exists in `chat-users` DynamoDB table
+- Check search API endpoint is working
+- Review CloudWatch logs for search errors
+
+### Changes Not Taking Effect
+
+- Remember to refresh page after making selection
+- Check cookies are being set correctly
+- Verify browser isn't blocking cookie updates
+- Clear all cookies and re-login
+- Check session storage for persisted state
+
+### Can See Content But Can't Interact
+
+This is **expected behavior** - content admin is read-only:
+- Cannot send messages as another user
+- Cannot create new sessions
+- Cannot modify user data
+- This is by design for security
+
+### Role Not Being Applied
+
+- Verify role assignment in auth provider
+- Check DynamoDB user record has role in `roles` array
+- Ensure role is spelled exactly: `pika:content-admin`
+- Check role persists across login sessions
+- Review CloudWatch logs for authentication errors
+
+## Database Schema
+
+### User Table Structure
+
+Content admin relies on user data in DynamoDB:
+
+**Table:** `chat-users-{stack-name}`
+
+```json
+{
+    "userId": "user123",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john@example.com",
+    "userType": "internal-user",
+    "roles": ["pika:content-admin"],
+    "customData": { }
+}
+```
+
+### Content Admin State
+
+Viewing selections stored in user's session state:
+
+```json
+{
+    "viewingContentFor": {
+        "chatapp-1": {
+            "userId": "target-user-123"
+        },
+        "chatapp-2": {
+            "userId": "another-user-456"
+        }
+    }
+}
+```
+
+**Storage Location:** Session cookies or server-side session store
+
+## Best Practices
+
+### Access Management
+
+- **Limit role assignment**: Only give to trusted personnel
+- **Regular audits**: Review who has content admin access
+- **Rotate access**: Remove role when no longer needed
+- **Document usage**: Keep records of why access was granted
+
+### Privacy Compliance
+
+- **User notification**: Consider notifying users their content may be reviewed
+- **Data minimization**: Only view what's necessary for the task
+- **Purpose limitation**: Use only for legitimate support/debugging
+- **Audit logging**: Log all content admin activities
+- **Compliance**: Ensure alignment with GDPR, HIPAA, etc.
+
+### Operational Guidelines
+
+- **Clear purpose**: Document why viewing is necessary
+- **Time limits**: Set viewing sessions to specific time frames
+- **Supervisor approval**: Require approval for content admin access
+- **Training**: Train staff on proper content admin usage
+- **Incident response**: Have procedures for abuse detection
+
+## Next Steps
+
+- [Set Up the Admin Site](/guides/admin/admin-site/) - Configure site administration
+- [Monitor with Traces](/guides/admin/traces/) - Debug with trace visibility
+- [Configure Chat App Access Control](/guides/authentication/access-control/) - Control app access
+
+## Related Documentation
+
+- [Content Admin Capability](/capabilities/enterprise/content-admin/) - Learn more about content admin
+- [Authentication Guide](/guides/authentication/integrate-auth/) - Configure user roles
+- [Access Control](/capabilities/enterprise/access-control/) - User access management
+
+---
+
+{% aside type="caution" title="Privacy and Security" %}
+Content admin provides powerful access to user data. Implement strict access controls, comprehensive audit logging, and ensure compliance with all applicable privacy regulations.
+{% /aside %}
+

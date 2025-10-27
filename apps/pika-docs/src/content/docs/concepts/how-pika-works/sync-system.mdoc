@@ -1,0 +1,611 @@
+---
+title: Sync System Mechanics
+description: How the Pika Framework sync system preserves customizations while applying updates
+---
+
+The Pika Framework sync system intelligently merges framework updates with your customizations, ensuring you can receive improvements while maintaining your project-specific changes. This page explains how the sync system works and protects your work.
+
+## The Sync Challenge
+
+**Your Pika project is a fork** of the framework that you check into your own source control. This creates a challenge:
+
+- **Framework evolves**: Bug fixes, new features, security updates
+- **Your project evolves**: Custom agents, tools, UI modifications, business logic
+- **Need both**: You want framework improvements AND your customizations
+
+**Traditional approaches fail**:
+- Manual merges → Error-prone, time-consuming
+- Ignoring updates → Miss important fixes
+- Rebuilding on new version → Lose all customizations
+
+**Pika's sync system**: **Intelligent, automated merging with protection**.
+
+## How Sync Works
+
+### The Sync Process
+
+```
+1. Download Latest Framework
+   ↓
+2. Compare Your Project with Framework
+   ↓
+3. Identify Protected Areas
+   ↓
+4. Smart Package.json Merging
+   ↓
+5. Apply Non-Protected Updates
+   ↓
+6. Handle User Modifications
+   ↓
+7. Generate Update Report
+```
+
+### Step-by-Step Execution
+
+**Step 1: Download Latest Framework**
+
+```bash
+pika sync
+```
+
+- Fetches latest Pika framework from GitHub
+- Downloads to temporary directory
+- Validates integrity
+
+**Step 2: Compare Projects**
+
+- Compares every file in your project with framework version
+- Identifies: Added files, Modified files, Deleted files
+- Tracks which files are protected
+
+**Step 3: Protection Check**
+
+For each file, determine if it's protected:
+
+```typescript
+// Default protected areas
+- pika-config.ts
+- .env files
+- .pika-sync.json
+- package.json
+- pnpm-lock.yaml
+- apps/custom/
+- services/custom/
+- auth-provider/
+- custom-markdown-tag-components/
+
+// User protected areas (from .pika-sync.json)
+userProtectedAreas: ['my-file.ts', 'my-directory/']
+
+// Automatic protection (anything with "custom-" prefix)
+- custom-components/
+- custom-tools.ts
+- my-custom-feature/
+```
+
+**Step 4: Smart Package.json Merging**
+
+**Instead of overwriting**, intelligently merge dependencies:
+
+```typescript
+// Your package.json
+{
+    "scripts": {
+        "dev": "vite",
+        "my-script": "echo 'custom'"
+    },
+    "dependencies": {
+        "react": "^18.0.0",
+        "my-package": "^1.0.0"
+    }
+}
+
+// Framework package.json
+{
+    "scripts": {
+        "dev": "vite",
+        "test": "vitest"
+    },
+    "dependencies": {
+        "react": "^18.2.0",  // Updated version
+        "vite": "^5.0.0"      // New dependency
+    }
+}
+
+// Result after sync
+{
+    "scripts": {
+        "dev": "vite",
+        "test": "vitest",           // Added from framework
+        "my-script": "echo 'custom'" // Preserved from yours
+    },
+    "dependencies": {
+        "react": "^18.2.0",         // Updated from framework
+        "vite": "^5.0.0",           // Added from framework
+        "my-package": "^1.0.0"      // Preserved from yours
+    }
+}
+```
+
+**Merge rules**:
+- Your additions → Preserved
+- Framework additions → Added
+- Conflicts (same key, different value) → Framework wins
+- You're prompted to confirm each package.json change
+
+**Step 5: Apply Updates**
+
+- Non-protected files updated from framework
+- Protected files left untouched
+- New framework files added
+- Deleted framework files removed (if not protected)
+
+**Step 6: Handle Modifications**
+
+**If you modified a non-protected file**, you're prompted:
+
+```
+File 'apps/pika-chat/src/routes/+page.svelte' has been modified.
+What would you like to do?
+
+1. Overwrite with framework version (lose your changes)
+2. Protect this file (add to userProtectedAreas)
+3. Skip this file for now
+4. Cancel sync
+
+Enter your choice (1-4):
+```
+
+**Step 7: Generate Report**
+
+```
+Sync Summary:
+- 45 files updated
+- 3 files added
+- 2 files deleted
+- 12 files protected (yours)
+- 8 files protected (framework default)
+- 0 conflicts requiring attention
+```
+
+## Protection System
+
+### Default Protected Areas
+
+**Configuration Files**:
+```
+pika-config.ts              # Your project configuration
+.pika-sync.json            # Sync configuration
+.env*                      # Environment variables
+.gitignore                 # Git configuration
+package.json               # Smart merge, not overwrite
+pnpm-lock.yaml             # Lock file
+```
+
+**Customization Directories**:
+```
+apps/custom/                                   # Your custom apps
+services/custom/                               # Your custom services
+apps/pika-chat/src/lib/server/auth-provider/  # Auth integration
+apps/pika-chat/.../custom-markdown-tag-components/  # Custom UI
+```
+
+### Automatic Custom Protection
+
+**Any path with "custom-" is automatically protected**:
+
+```
+✓ custom-components/           # Directory
+✓ custom-tools.ts             # File
+✓ my-app/custom-config/       # Subdirectory
+✓ services/api/custom-handler.ts  # File in any location
+```
+
+**This naming convention gives you instant protection anywhere in the project.**
+
+### User-Defined Protection
+
+**Configure additional protection in `.pika-sync.json`**:
+
+```json
+{
+    "userProtectedAreas": [
+        "my-special-file.ts",
+        "apps/my-modified-app/",
+        "Dockerfile",
+        ".env.production"
+    ],
+    
+    "userUnprotectedAreas": [
+        "package.json"  // Allow framework to update
+    ]
+}
+```
+
+**Glob pattern support**:
+
+```json
+{
+    "userProtectedAreas": [
+        "*.config.js",           // Any config file
+        "apps/*/my-file.ts",     # Specific file in all apps
+        "**/*.custom.*"          // Any file with .custom. in name
+    ]
+}
+```
+
+**Pattern matching uses `minimatch` with**:
+- `dot: true` - Matches dotfiles
+- `matchBase: true` - Filename patterns match anywhere
+
+## Package.json Smart Merge
+
+### How It Works
+
+**Traditional file sync**:
+```
+Framework changes package.json → Overwrite yours → Lose custom dependencies
+```
+
+**Pika's smart merge**:
+```
+Framework changes package.json → Intelligent merge → Keep your additions + get framework updates
+```
+
+### Merge Algorithm
+
+**For each top-level attribute**:
+
+1. **You have it, framework doesn't**: Keep yours
+2. **Framework has it, you don't**: Add framework's
+3. **Both have it, same value**: No change
+4. **Both have it, different value**: Framework wins
+
+**For `scripts`, `dependencies`, `devDependencies`**:
+
+1. **Key-level merging**: Each script/dependency evaluated individually
+2. **Your additions**: Kept
+3. **Framework additions**: Added
+4. **Conflicts**: Framework version used
+
+**Interactive confirmation**:
+
+```
+Package.json changes for apps/pika-chat/package.json:
+
+Scripts:
++ test: "vitest"                           (added from framework)
+  my-script: "echo 'custom'"              (preserved from yours)
+  
+Dependencies:
+~ react: "^18.0.0" → "^18.2.0"           (updated from framework)
++ vite: "^5.0.0"                         (added from framework)
+  my-package: "^1.0.0"                   (preserved from yours)
+
+Apply these changes? (y/n):
+```
+
+### Example Scenarios
+
+**Scenario 1: You Added Custom Dependencies**
+
+```json
+// Your package.json
+"dependencies": {
+    "stripe": "^12.0.0",
+    "my-internal-library": "^1.0.0"
+}
+
+// After sync: Preserved + framework updates applied
+"dependencies": {
+    "stripe": "^12.0.0",              # Yours (kept)
+    "my-internal-library": "^1.0.0",  # Yours (kept)
+    "react": "^18.2.0",               # Framework (added)
+    "vite": "^5.0.0"                  # Framework (added)
+}
+```
+
+**Scenario 2: Version Conflicts**
+
+```json
+// Your package.json
+"dependencies": {
+    "react": "^18.0.0"
+}
+
+// Framework package.json
+"dependencies": {
+    "react": "^18.2.0"
+}
+
+// Result: Framework version wins
+"dependencies": {
+    "react": "^18.2.0"  # Updated to framework version
+}
+```
+
+**Scenario 3: Custom Scripts**
+
+```json
+// Your package.json
+"scripts": {
+    "deploy": "node deploy.js",
+    "backup": "node backup.js"
+}
+
+// After sync: Your scripts preserved
+"scripts": {
+    "dev": "vite",               # Framework (added)
+    "build": "vite build",       # Framework (added)
+    "test": "vitest",            # Framework (added)
+    "deploy": "node deploy.js",  # Yours (kept)
+    "backup": "node backup.js"   # Yours (kept)
+}
+```
+
+## Using the Sync Command
+
+### Basic Sync
+
+```bash
+# Standard sync
+pika sync
+
+# See what would change (dry run)
+pika sync --dry-run
+
+# Show detailed diff
+pika sync --diff
+
+# Enable debug logging
+pika sync --debug
+
+# Sync from specific branch
+pika sync --branch develop
+```
+
+### Recommended Workflow
+
+**Step 1: Check Status (Dry Run)**
+
+```bash
+pika sync --dry-run
+```
+
+See what would change without applying anything.
+
+**Step 2: Review Changes (Diff)**
+
+```bash
+pika sync --diff
+```
+
+See detailed file-by-file differences.
+
+**Step 3: Apply Sync**
+
+```bash
+pika sync
+```
+
+Apply updates with interactive prompts.
+
+**Step 4: Review and Test**
+
+```bash
+# Check what changed
+git status
+git diff
+
+# Test your app
+pnpm dev
+```
+
+## Best Practices
+
+### 1. Use Designated Areas
+
+**Always place custom code in the right places**:
+
+```
+✓ apps/custom/              # Custom applications
+✓ services/custom/          # Custom services  
+✓ auth-provider/            # Authentication
+✓ custom-markdown-tag-components/  # Custom UI
+✓ Files with "custom-" prefix      # Automatic protection
+```
+
+### 2. Configure Project Names First
+
+**Update `pika-config.ts` immediately after initial setup**:
+
+```typescript
+export const projectConfig = {
+    projectName: 'my-company-chat',
+    resourcePrefix: 'myco',
+    // ... other settings
+};
+```
+
+This file is protected and never overwritten.
+
+### 3. Track Custom Dependencies
+
+**Document why you added dependencies**:
+
+```json
+{
+    "dependencies": {
+        "stripe": "^12.0.0",  // Payment processing
+        "lodash": "^4.17.21"  // Utility functions in custom tools
+    }
+}
+```
+
+### 4. Version Control Strategy
+
+**Commit before and after sync**:
+
+```bash
+# Before sync
+git add .
+git commit -m "Before framework sync"
+
+# Sync
+pika sync
+
+# After sync
+git add .
+git commit -m "After framework sync - version X.Y.Z"
+```
+
+**Benefit**: Easy rollback if sync causes issues.
+
+### 5. Test After Every Sync
+
+**Framework updates can affect your customizations**:
+
+```bash
+# After sync
+pnpm install   # Update dependencies
+pnpm build     # Verify build works
+pnpm dev       # Test locally
+pnpm test      # Run tests (if you have them)
+```
+
+### 6. Review Package.json Changes Carefully
+
+**Always review dependency updates**:
+
+```bash
+# After sync
+git diff package.json
+
+# Check for breaking changes
+# Review changelogs for updated packages
+```
+
+### 7. Use Custom Naming Convention
+
+**Leverage automatic protection**:
+
+```
+✓ custom-auth-middleware.ts
+✓ custom-validation/
+✓ my-app/custom-handlers/
+```
+
+Anything with "custom-" is automatically protected.
+
+## Conflict Resolution
+
+### User-Modified Non-Protected Files
+
+**If you modified a framework file**:
+
+```
+File 'apps/pika-chat/src/lib/utils.ts' has been modified.
+What would you like to do?
+
+1. Overwrite with framework version
+   → Lose your changes, get framework updates
+   
+2. Protect this file
+   → Add to userProtectedAreas, keep your version
+   
+3. Skip this file
+   → Keep your version for now, will be overwritten next sync
+   
+4. Cancel sync
+   → Stop sync operation
+```
+
+**Choose wisely**:
+- **Option 1**: If your changes were experimental or no longer needed
+- **Option 2**: If your changes are important and permanent
+- **Option 3**: If you need time to review
+- **Option 4**: If you need to analyze impact first
+
+### Manual Merge Required
+
+**For complex conflicts, consider manual merge**:
+
+```bash
+# 1. Protect the file
+# Add to .pika-sync.json userProtectedAreas
+
+# 2. Run sync
+pika sync
+
+# 3. Manually merge framework changes
+# Compare your version with framework version
+# Apply relevant framework changes to your protected version
+```
+
+## Troubleshooting
+
+### Sync Fails Midway
+
+**Sync is atomic**: Either completes fully or rolls back.
+
+```bash
+# Sync failed, project unchanged
+# Fix issues and retry
+pika sync
+```
+
+### Lost Customizations
+
+**If customizations were in non-protected areas**:
+
+```bash
+# Restore from git
+git checkout HEAD -- path/to/file.ts
+
+# Then protect it
+# Add to .pika-sync.json userProtectedAreas
+```
+
+### Package.json Merge Conflicts
+
+**If package.json merge creates issues**:
+
+```bash
+# Revert package.json
+git checkout HEAD -- package.json
+
+# Protect it from future updates
+# Add "package.json" to userProtectedAreas
+
+# Manually apply framework updates as needed
+```
+
+### Dependency Version Conflicts
+
+**Framework updated dependency breaks your code**:
+
+```bash
+# Option 1: Update your code to work with new version
+# Recommended: Stay current with framework
+
+# Option 2: Pin dependency version
+# In your package.json, specify exact version
+"dependencies": {
+    "problematic-package": "1.2.3"  // Exact version
+}
+```
+
+## Related Documentation
+
+- **[Project Structure](/concepts/how-pika-works/project-structure/)** - Understanding project organization
+- **[Security Architecture](/concepts/architecture/security/)** - How protected areas relate to security
+- **[Frontend Architecture](/concepts/architecture/frontend/)** - Chat app customization points
+
+{% aside type="caution" %}
+The sync system protects your work, but it's still important to use version control. Always commit before running sync so you can easily roll back if needed.
+{% /aside %}
+
+{% aside type="tip" %}
+Use the "custom-" naming convention liberally. Any file or directory with "custom-" in the name is automatically protected from framework updates, giving you instant safety without configuration.
+{% /aside %}
+

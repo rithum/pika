@@ -1,0 +1,41 @@
+---
+import Zoom from './Zoom.astro';
+
+const { imageSrc, imageAlt = 'Screenshot', border = true } = Astro.props;
+---
+
+<div class="image-right-layout">
+    <div class="image-right-text">
+        <slot />
+    </div>
+    <div class="image-right-image">
+        <Zoom src={imageSrc} alt={imageAlt} border={border} />
+    </div>
+</div>
+
+<style>
+    .image-right-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3rem;
+        align-items: center;
+        margin-block: 2rem;
+    }
+
+    .image-right-image {
+        width: 100%;
+    }
+
+    .image-right-image :global(img) {
+        width: 100%;
+        height: auto;
+    }
+
+    @media (max-width: 768px) {
+        .image-right-layout {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+    }
+</style>
+

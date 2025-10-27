@@ -1,0 +1,472 @@
+---
+title: Web Component Rendering
+description: How custom web components render dynamically in multiple contexts within the chat interface
+---
+
+Pika's web component system allows agents to render rich, interactive widgets in multiple contexts throughout the chat interface. This page explains how the web component rendering system works and enables dynamic, AI-driven interfaces.
+
+## Multi-Context Rendering
+
+Traditional chatbots provide static responses with pre-built UI components. Pika's web component system allows widgets to render in **four different contexts**:
+
+### Rendering Contexts
+
+**Inline Context**:
+- Embedded within chat messages as part of the conversation flow
+- Use for data visualizations, interactive forms, rich media previews
+- Example: `<chart type="bar" data='...' title="Revenue" />`
+
+**Spotlight Context**:
+- Persistent dashboard carousel above the chat input
+- Provides quick access to frequently used tools and information
+- User can pin/unpin widgets
+- Example: Weather dashboard, recent activity summary, quick actions
+
+**Dialog Context**:
+- Modal overlays for focused interactions
+- Full-screen attention on a specific task or form
+- Example: Configuration wizards, detailed forms, confirmations
+
+**Canvas Context**:
+- Split-screen workspace for complex, rich interfaces
+- Similar to Claude Artifacts
+- Example: Document editors, data explorers, report generators
+
+## How Component Rendering Works
+
+### Step 1: Agent Generates Tag
+
+**Agent decides to render a component**:
+
+```xml
+<weather-dashboard location="San Francisco" view="detailed" />
+```
+
+### Step 2: Tag Detection
+
+**Frontend parses message for XML tags**:
+
+```typescript
+// Message parsing
+const segments = parseMessageContent(message.content);
+// Segments include text and tag elements
+```
+
+### Step 3: Tag Definition Lookup
+
+**System retrieves tag definition from registry**:
+
+```typescript
+const tagDefinition = await loadTagDefinition('weather-dashboard');
+```
+
+**Tag definition specifies**:
+- Component URL (where to load from)
+- Rendering contexts (inline, spotlight, dialog, canvas)
+- Usage mode (global vs. chat-app specific)
+- Status (enabled, disabled, retired)
+
+### Step 4: Component Loading
+
+**System loads web component from URL or S3**:
+
+```typescript
+// Dynamic import
+const componentModule = await import(tagDefinition.componentUrl);
+
+// Register custom element
+customElements.define('weather-dashboard', WeatherDashboard);
+```
+
+### Step 5: Context Injection
+
+**Component receives application and chat state**:
+
+```typescript
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+// In component
+const context = await getPikaContext($host());
+
+// Context provides:
+// - appState (global app state)
+// - chatAppState (current chat app state)
+// - chatState (current session state)
+```
+
+### Step 6: Component Rendering
+
+**Component renders in designated container**:
+
+```typescript
+// For inline context
+<div class="message-tag-container">
+    <weather-dashboard location="San Francisco" />
+</div>
+
+// For spotlight context
+<div class="spotlight-widget">
+    <weather-dashboard location="San Francisco" />
+</div>
+
+// For canvas context
+<div class="canvas-view">
+    <weather-dashboard location="San Francisco" />
+</div>
+```
+
+## Tag Definition System
+
+### Tag Configuration
+
+**Tags are defined in `pika-config.ts`**:
+
+```typescript
+export const tags: TagDefinition[] = [
+    {
+        id: 'weather-dashboard',
+        name: 'Weather Dashboard',
+        description: 'Interactive weather information widget',
+        
+        // Component location
+        componentUrl: 's3://my-bucket/components/weather-dashboard.js',
+        
+        // Which contexts support this tag
+        renderingContexts: {
+            inline: { enabled: true },
+            spotlight: { enabled: true },
+            dialog: { enabled: true },
+            canvas: { enabled: true }
+        },
+        
+        // Availability model
+        usageMode: 'global',  // or 'chat-app' for opt-in
+        
+        status: 'enabled'
+    }
+];
+```
+
+### Usage Modes
+
+**Global Tags** (`usageMode: "global"`):
+- Automatically available to all chat apps
+- Chat apps can disable specific global tags if needed
+- Use for widely applicable components
+
+**Chat-App Tags** (`usageMode: "chat-app"`):
+- Must be explicitly enabled by each chat app
+- Use for specialized or domain-specific components
+- Opt-in model for better control
+
+### Chat App Tag Control
+
+**Chat apps control which tags they use**:
+
+```typescript
+chatApp: {
+    features: {
+        tags: {
+            tagsEnabled: ['specialized-widget', 'domain-tool'],
+            tagsDisabled: ['global-widget-i-dont-want']
+        }
+    }
+}
+```
+
+## Component Development
+
+### Building a Web Component
+
+**Components are Svelte components with custom element support**:
+
+```svelte
+<svelte:options customElement={{ tag: 'my-widget', shadow: 'none' }} />
+
+<script lang="ts">
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    
+    // Props from tag attributes
+    export let location: string = '';
+    export let view: string = 'summary';
+    
+    let context = $state<PikaWCContext>();
+    let data = $state<any>();
+    
+    $effect(() => {
+        loadContext();
+    });
+    
+    async function loadContext() {
+        context = await getPikaContext($host());
+        await loadData();
+    }
+    
+    async function loadData() {
+        // Access agent directly without visible chat
+        const response = await context.chatAppState.invokeChatWithoutSession({
+            prompt: `Get weather for ${location}`,
+            responseFormat: 'json',
+            responseSchema: WeatherSchema
+        });
+        
+        data = response;
+    }
+</script>
+
+<div class="widget-container">
+    {#if data}
+        <h3>{location} Weather</h3>
+        <div class="temperature">{data.temperature}°F</div>
+        <div class="condition">{data.condition}</div>
+    {:else}
+        <div>Loading...</div>
+    {/if}
+</div>
+
+<style>
+    .widget-container {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: var(--widget-bg);
+    }
+</style>
+```
+
+### Component Context API
+
+**Components have access to powerful context**:
+
+```typescript
+context.appState
+    - App-level state and configuration
+    
+context.chatAppState
+    - setOrUpdateCustomTitleBarAction() - Add custom actions
+    - renderTag() - Render other tags programmatically
+    - invokeChatWithoutSession() - Direct agent invocation
+    - setSpotlightWidgets() - Manage spotlight widgets
+    
+context.chatState
+    - currentSession - Session metadata
+    - messages - Conversation history
+    - subscribe() - React to state changes
+```
+
+## Direct Agent Invocation
+
+**Components can invoke agents without creating visible sessions**:
+
+```typescript
+// Get structured data from agent
+const response = await context.chatAppState.invokeChatWithoutSession({
+    prompt: 'Get the top 5 trending topics',
+    responseFormat: 'json',
+    responseSchema: TrendingTopicsSchema,
+    
+    // Override agent instructions for this call
+    agentInstructionOverride: 'Return only the data as JSON, no explanation.'
+});
+
+// Response is typed and structured
+const topics: TrendingTopic[] = response.topics;
+```
+
+**Use cases**:
+- Real-time data fetching (weather, stock prices, metrics)
+- Background updates for dashboard widgets
+- Interactive widgets with live data
+- Component-specific LLM interactions
+
+## Static Context Components
+
+**Components can initialize features without visible UI**:
+
+```typescript
+// Tag with static context
+renderingContexts: {
+    static: {
+        enabled: true,
+        shutDownAfterMs: 5000  // Optional cleanup
+    }
+}
+```
+
+**Static components can**:
+- Register custom title bar actions
+- Initialize app-level services
+- Set up global event listeners
+- Perform one-time setup tasks
+
+**Example**:
+
+```svelte
+<svelte:options customElement={{ tag: 'my-app-init', shadow: 'none' }} />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    
+    $effect(() => {
+        initializeApp();
+    });
+    
+    async function initializeApp() {
+        const context = await getPikaContext($host());
+        
+        // Register custom action in title bar
+        context.chatAppState.setOrUpdateCustomTitleBarAction({
+            id: 'quick-report',
+            type: 'action',
+            title: 'Generate Report',
+            iconSvg: await getIconSvg('file-text'),
+            callback: async () => {
+                await context.chatAppState.renderTag('report-widget', 'canvas');
+            }
+        });
+    }
+</script>
+
+<!-- No visible UI -->
+```
+
+## Built-in Components
+
+Pika includes several built-in components:
+
+### Chart Component
+
+```xml
+<chart type="bar" data='{"labels": ["Q1", "Q2", "Q3", "Q4"], "datasets": [{"data": [100, 150, 200, 175]}]}' title="Quarterly Revenue" />
+```
+
+### Prompt Component
+
+```xml
+<prompt>Compare the weather last year also.</prompt>
+```
+
+Renders as clickable suggestion that continues the conversation.
+
+### Image Component
+
+```xml
+<image src="https://example.com/image.jpg" alt="Description" />
+```
+
+### Download Component
+
+```xml
+<download url="https://example.com/report.pdf" filename="report.pdf">Download Report</download>
+```
+
+## Component Lifecycle
+
+### Loading States
+
+```typescript
+let loading = $state(true);
+let error = $state<string>();
+
+async function init() {
+    try {
+        loading = true;
+        await loadData();
+    } catch (err) {
+        error = err.message;
+    } finally {
+        loading = false;
+    }
+}
+```
+
+### Context Switching
+
+**Components that support multiple contexts can adapt**:
+
+```typescript
+// Detect current rendering context
+const renderContext = context.chatAppState.getCurrentRenderContext();
+
+if (renderContext === 'spotlight') {
+    // Show compact view
+} else if (renderContext === 'canvas') {
+    // Show full, rich view
+}
+```
+
+### Cleanup
+
+```typescript
+import { onDestroy } from 'svelte';
+
+let subscription: () => void;
+
+$effect(() => {
+    subscription = context.chatState.subscribe((state) => {
+        // React to state changes
+    });
+});
+
+onDestroy(() => {
+    if (subscription) {
+        subscription();
+    }
+});
+```
+
+## Security and Access Control
+
+### Component Isolation
+
+- Components run in same security context as chat app
+- No direct backend access (must use agent or APIs)
+- Agent handles all authentication and authorization
+- Tools enforce access control
+
+### Agent-Based Data Access
+
+**All data access goes through agents**:
+
+```typescript
+// Agent enforces security
+const data = await context.chatAppState.invokeChatWithoutSession({
+    prompt: 'Get user orders',
+    // User context automatically included
+});
+
+// Tool checks userId, entityId, permissions
+// Agent never exposes data user shouldn't see
+```
+
+## Performance Considerations
+
+### Lazy Loading
+
+- Components loaded on-demand
+- Only when tag is rendered
+- Cached after first load
+
+### Code Splitting
+
+- Each component is separate bundle
+- No impact on main app bundle size
+- Fast initial load
+
+### Efficient Updates
+
+- Components re-render only when props or state change
+- Svelte's fine-grained reactivity
+- Minimal DOM updates
+
+## Related Documentation
+
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - How messages flow through system
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - Agent processing
+- **[Project Structure](/concepts/how-pika-works/project-structure/)** - Where components live
+- **[Frontend Architecture](/concepts/architecture/frontend/)** - Chat app design
+
+{% aside type="tip" %}
+Web components enable truly dynamic, AI-driven interfaces. Agents can materialize the exact UI needed for each moment in the conversation, rather than relying on pre-built, static interfaces.
+{% /aside %}
+

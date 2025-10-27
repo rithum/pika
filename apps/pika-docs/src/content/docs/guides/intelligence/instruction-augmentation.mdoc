@@ -1,0 +1,500 @@
+---
+title: Implement Instruction Augmentation
+description: Dynamically enhance agent prompts through semantic directives based on context
+---
+
+Learn how to implement Instruction Augmentation (Semantic Directives), a powerful system for dynamically enhancing agent prompts based on scope and context, enabling contextual, personalized AI interactions.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable instruction augmentation feature
+- Create semantic directives via API or infrastructure as code
+- Understand scope patterns and targeting
+- Integrate with entity-based personalization
+- Manage directives through admin interface
+- Optimize performance and selection
+
+## Prerequisites
+
+- A running Pika installation
+- Access to `pika-config.ts` for configuration
+- Understanding of your agents and tools
+- Familiarity with AWS CDK or Serverless Framework (for IaC)
+- Entity feature configured (optional, for entity-based directives)
+
+## Understanding Instruction Augmentation
+
+Instruction Augmentation dynamically enhances agent prompts by injecting relevant semantic directives based on context. The system:
+
+1. **Identifies context** from chat app, agent, tool, and user session
+2. **Queries relevant directives** based on scope matching
+3. **LLM selects directives** that are relevant to the user's query
+4. **Injects instructions** into the agent prompt before LLM invocation
+
+### Key Benefits
+
+- **Contextual Intelligence**: Instructions adapt to specific contexts
+- **Personalization**: Different instructions for different users/entities
+- **Maintainability**: Update instructions without changing agent code
+- **Scalability**: Add new contexts without redeploying agents
+- **Granular Control**: Target instructions at multiple levels
+
+## Step 1: Enable the Feature
+
+Configure instruction augmentation in your `pika-config.ts`.
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        instructionAugmentation: {
+            enabled: true
+        }
+    }
+};
+```
+
+{% aside type="caution" title="Site-Level Enablement Required" %}
+The Instruction Augmentation feature must be enabled at the site level before any semantic directives will be processed, regardless of how they're defined or stored.
+{% /aside %}
+
+## Step 2: Understand Scope Patterns
+
+Semantic directives use scopes to determine when they're relevant.
+
+### Scope Types
+
+**Simple Scopes:**
+
+```typescript
+'chatapp#ecommerce-store'     // Chat app specific
+'agent#customer-service-bot'  // Agent specific
+'tool#weather-forecast-api'   // Tool specific
+'entity#acme-corp-123'        // Entity specific
+```
+
+**Compound Scopes:**
+
+Currently supported: Agent + Entity
+
+```typescript
+'agent#sales-assistant#entity#enterprise-customer-123'
+```
+
+### Scope Definition
+
+When creating directives, specify `scopeType` and `scopeValue`:
+
+```typescript
+{
+    scopeType: 'chatapp',
+    scopeValue: 'ecommerce-store',
+    // System constructs: scope = 'chatapp#ecommerce-store'
+}
+
+{
+    scopeType: 'agent-entity',
+    scopeValue: {
+        agent: 'support-bot',
+        entity: 'premium-customer-456'
+    },
+    // System constructs: scope = 'agent#support-bot#entity#premium-customer-456'
+}
+```
+
+## Step 3: Create Semantic Directives
+
+### Option A: Via Admin API
+
+Create directives using the admin API:
+
+```typescript
+const response = await fetch('/api/chat-admin/semantic-directive', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        semanticDirective: {
+            scopeType: 'chatapp',
+            scopeValue: 'weather-app',
+            id: 'severe-weather-alerts',
+            description: 'Safety instructions for severe weather conditions',
+            instructions: 'When reporting severe weather, always emphasize safety precautions and recommend checking local authorities for emergency guidance.',
+            createdBy: 'admin-user',
+            lastUpdatedBy: 'admin-user'
+        },
+        userId: 'admin-user'
+    })
+});
+```
+
+### Option B: Via Infrastructure as Code (CDK)
+
+Define directives in your CDK stack:
+
+```typescript
+import { SemanticDirectiveForCreateOrUpdate } from 'pika-shared/types/chatbot/chatbot-types';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as cdk from 'aws-cdk-lib';
+
+// Get the custom resource ARN from SSM
+const semanticDirectiveCustomResourceArn = ssm.StringParameter.valueForStringParameter(
+    this,
+    `/stack/${pikaServiceProjNameKebabCase}/${stage}/lambda/semantic_directive_custom_resource_arn`
+);
+
+// Define your semantic directives
+const semanticDirectiveData = {
+    userId: `cloudformation/${this.stackName}`,
+    semanticDirectives: [
+        {
+            scopeType: 'chatapp',
+            scopeValue: 'my-app',
+            id: 'welcome-message',
+            description: 'Friendly welcome for new users',
+            instructions: 'Start conversations with a warm welcome and brief explanation of your capabilities.',
+            createdBy: `cloudformation/${this.stackName}`,
+            lastUpdatedBy: `cloudformation/${this.stackName}`
+        },
+        {
+            scopeType: 'agent-entity',
+            scopeValue: {
+                agent: 'my-agent',
+                entity: 'enterprise-corp'
+            },
+            id: 'enterprise-features',
+            description: 'Enterprise-specific features for enterprise-corp',
+            instructions: 'Highlight enterprise features like dedicated support, advanced analytics, custom integrations, and SLA guarantees.',
+            createdBy: `cloudformation/${this.stackName}`,
+            lastUpdatedBy: `cloudformation/${this.stackName}`
+        }
+    ]
+};
+
+// Create the custom resource
+new cdk.CustomResource(this, 'MySemanticDirectives', {
+    serviceToken: semanticDirectiveCustomResourceArn,
+    properties: {
+        Stage: stage,
+        SemanticDirectiveData: gzipAndBase64EncodeString(
+            JSON.stringify(semanticDirectiveData)
+        ),
+        Timestamp: String(Date.now())
+    }
+});
+```
+
+### Option C: Via Serverless Framework
+
+Define directives in `serverless.yml`:
+
+```yaml
+custom:
+    pika:
+        semanticDirectiveCustomResourceArn: ${ssm:/stack/my-pika-service/dev/lambda/semantic_directive_custom_resource_arn}
+        semanticDirectives:
+            - userId: 'serverless-stack'
+              semanticDirectives:
+                  - scopeType: 'chatapp'
+                    scopeValue: 'serverless-app'
+                    id: 'error-handling'
+                    description: 'Guidelines for handling system errors gracefully'
+                    instructions: 'When system errors occur, apologize, explain the issue briefly, and offer alternative solutions or suggest trying again later.'
+                    createdBy: 'serverless-stack'
+                    lastUpdatedBy: 'serverless-stack'
+                  - scopeType: 'tool'
+                    scopeValue: 'payment-processor'
+                    id: 'payment-security'
+                    description: 'Security reminders for payment processing'
+                    instructions: 'Always remind users that we never store credit card information and all payments are processed securely through our encrypted payment gateway.'
+                    createdBy: 'serverless-stack'
+                    lastUpdatedBy: 'serverless-stack'
+```
+
+## Step 4: Integrate with Entity Feature (Optional)
+
+Enable entity-based semantic directives for personalized experiences.
+
+### Enable Entity Feature
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+siteFeatures: {
+    entity: {
+        enabled: true,
+        attributeName: 'accountId', // Field in user.customData
+        displayNameSingular: 'Account',
+        displayNamePlural: 'Accounts'
+    },
+    instructionAugmentation: {
+        enabled: true
+    }
+}
+```
+
+### Populate User Entity
+
+Your authentication provider sets the entity identifier:
+
+```typescript
+export default class YourAuthProvider extends AuthProvider {
+    private createAuthenticatedUser(userData: any): AuthenticatedUser {
+        return {
+            userId: userData.id,
+            // ... other fields
+            customData: {
+                accountId: 'enterprise-customer-123', // Entity identifier
+                email: userData.email
+            }
+        };
+    }
+}
+```
+
+### Create Entity-Scoped Directives
+
+```typescript
+// Direct entity scope
+{
+    scopeType: 'entity',
+    scopeValue: 'enterprise-customer-123',
+    id: 'company-policies',
+    description: 'Company-specific policies and procedures',
+    instructions: 'Always reference Enterprise Customer 123 policies when discussing procedures.'
+}
+
+// Compound agent + entity scope
+{
+    scopeType: 'agent-entity',
+    scopeValue: {
+        agent: 'support-bot',
+        entity: 'enterprise-customer-123'
+    },
+    id: 'escalation-process',
+    description: 'Customer-specific escalation procedures',
+    instructions: 'For Enterprise Customer 123, escalate to their dedicated account manager for priority issues.'
+}
+```
+
+## Step 5: Manage Directives
+
+### Search Directives
+
+```typescript
+const response = await fetch('/api/chat-admin/semantic-directive/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        scopes: ['chatapp#weather-app'],
+        includeInstructions: true,
+        limit: 50
+    })
+});
+
+const { semanticDirectives, nextToken } = await response.json();
+```
+
+### Update Directive
+
+```typescript
+await fetch('/api/chat-admin/semantic-directive', {
+    method: 'POST',
+    body: JSON.stringify({
+        semanticDirective: {
+            ...existingDirective,
+            instructions: 'Updated instructions...',
+            lastUpdatedBy: 'admin-user'
+        },
+        userId: 'admin-user'
+    })
+});
+```
+
+### Delete Directive
+
+```typescript
+await fetch('/api/chat-admin/semantic-directive', {
+    method: 'DELETE',
+    body: JSON.stringify({
+        semanticDirective: {
+            scope: 'chatapp#weather-app',
+            id: 'severe-weather-alerts'
+        },
+        userId: 'admin-user'
+    })
+});
+```
+
+## Semantic Directive Structure
+
+```typescript
+interface SemanticDirective {
+    scopeType: 'chatapp' | 'agent' | 'tool' | 'entity' | 'agent-entity';
+    scopeValue: string | number | { agent: string; entity: string };
+    id: string;                    // Unique within scope
+    description: string;           // For LLM selection
+    instructions: string;          // Injected into prompt
+    groupId?: string;              // For IaC grouping
+    createdBy: string;
+    lastUpdatedBy: string;
+    createDate: string;            // ISO 8601
+    lastUpdate: string;            // ISO 8601
+}
+```
+
+## Testing Checklist
+
+Verify instruction augmentation works correctly:
+
+{% checklist %}
+- [ ] Feature enabled in `pika-config.ts`
+- [ ] Semantic directives created successfully
+- [ ] Directives appear in admin search
+- [ ] Scopes match expected contexts
+- [ ] LLM selection working (directives injected)
+- [ ] Entity-based directives work (if using entities)
+- [ ] Instructions improve agent responses
+- [ ] Performance acceptable (selection time)
+- [ ] Can update directives via API
+- [ ] Can delete directives cleanly
+{% /checklist %}
+
+## Common Scenarios
+
+### Scenario 1: Chat App Specific Guidance
+
+```typescript
+{
+    scopeType: 'chatapp',
+    scopeValue: 'ecommerce-store',
+    id: 'return-policy',
+    description: 'Return policy details for customer inquiries',
+    instructions: 'Our return policy allows returns within 30 days for standard customers and 60 days for premium members. All items must be in original condition.'
+}
+```
+
+### Scenario 2: Tool-Specific Instructions
+
+```typescript
+{
+    scopeType: 'tool',
+    scopeValue: 'payment-processor',
+    id: 'payment-errors',
+    description: 'How to handle payment processing errors',
+    instructions: 'If payment fails, suggest checking card details, trying a different payment method, or contacting their bank. Never ask for card details in chat.'
+}
+```
+
+### Scenario 3: Entity-Based Personalization
+
+```typescript
+{
+    scopeType: 'entity',
+    scopeValue: 'premium-customer-gold',
+    id: 'premium-perks',
+    description: 'Premium customer benefits and features',
+    instructions: 'Remind premium customers they have: free expedited shipping, priority support, exclusive early access to sales, and 90-day returns.'
+}
+```
+
+### Scenario 4: Agent + Entity Combination
+
+```typescript
+{
+    scopeType: 'agent-entity',
+    scopeValue: {
+        agent: 'sales-assistant',
+        entity: 'enterprise-account-456'
+    },
+    id: 'enterprise-pricing',
+    description: 'Enterprise-specific pricing and discounts',
+    instructions: 'This enterprise account has volume discounts: 20% off orders over $10k, 30% off over $50k, and dedicated account manager for custom quotes.'
+}
+```
+
+## Best Practices
+
+### Directive Design
+
+- **Single Responsibility**: Each directive addresses one specific scenario
+- **Clear Descriptions**: Help LLM make accurate selection decisions
+- **Actionable Instructions**: Provide specific, actionable guidance
+- **Regular Review**: Periodically review and update for relevance
+
+### Scope Management
+
+- **Consistent Naming**: Use clear, consistent naming conventions
+- **Hierarchical Organization**: Structure from general to specific
+- **Documentation**: Document scope meanings and usage
+- **Namespace Separation**: Use distinct prefixes for different domains
+
+### Performance Optimization
+
+- **Scope Targeting**: Use specific scopes to minimize candidates
+- **Instruction Brevity**: Keep instructions concise but complete
+- **Monitor Selection**: Track directive selection performance
+- **Cache Appropriately**: Implement caching where beneficial
+
+### Maintenance
+
+- **Version Control**: Track directive changes over time
+- **A/B Testing**: Test directive variations
+- **User Feedback**: Collect feedback on directive-enhanced responses
+- **Continuous Improvement**: Iteratively refine based on usage
+
+## Troubleshooting
+
+### Directives Not Being Selected
+
+- Verify feature enabled in `pika-config.ts`
+- Check scope patterns match current context
+- Review directive descriptions for clarity
+- Ensure LLM selection service is working
+- Check CloudWatch logs for selection process
+
+### Entity-Based Directives Not Working
+
+- Verify entity feature enabled
+- Check `entity.attributeName` matches user `customData` field
+- Confirm user has entity value populated
+- Ensure entity value matches directive `scopeValue`
+- Review authentication provider logic
+
+### Performance Issues
+
+- Reduce number of candidate directives per scope
+- Optimize directive descriptions for faster selection
+- Implement caching for frequently used directives
+- Monitor LLM selection latency
+- Consider batch processing for similar queries
+
+### Directive Management Issues
+
+- Verify admin permissions for API access
+- Check directive structure matches interface
+- Ensure `scope` is constructed correctly from `scopeType` and `scopeValue`
+- Review DynamoDB table for directive storage
+- Check CloudWatch logs for API errors
+
+## Next Steps
+
+- [Use Instruction Assistance](/guides/intelligence/instruction-assistance/) - Static instruction injection
+- [Work with Entities](/guides/data-sessions/entities/) - Entity-based access control
+- [Set Up the Admin Site](/guides/admin/admin-site/) - Manage directives via UI
+
+## Related Documentation
+
+- [Instruction Augmentation Capability](/capabilities/intelligence/instruction-augmentation/) - Learn more
+- [Entity Management](/capabilities/enterprise/entity-management/) - Multi-tenancy with entities
+- [Agent Configuration Reference](/reference/config/agents/) - Complete agent options
+
+---
+
+{% aside type="success" title="Context-Aware AI" %}
+Instruction Augmentation enables your AI agents to provide contextual, personalized responses that adapt to specific users, accounts, and situations without changing agent code.
+{% /aside %}
+

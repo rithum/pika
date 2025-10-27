@@ -1,0 +1,48 @@
+---
+import ZoomSvelte from './zoom.svelte';
+
+interface Props {
+	label?: string;
+	clientLoad?: boolean;
+	border?: boolean;
+	// Image node properties from Markdoc
+	src?: string | any; // Can be a string or an Astro image object
+	alt?: string;
+	title?: string;
+}
+
+const { label, clientLoad = true, border = false, src, alt, title } = Astro.props;
+
+// If src is provided, this is being used as an image node override from Markdoc
+const isImageNode = !!src;
+const finalLabel = label || alt || title || 'Image';
+
+// Handle both string paths and Astro image objects
+const imageSrc = typeof src === 'string' ? src : (src?.src || src);
+---
+
+<div class="zoom-container">
+	{isImageNode ? (
+		<ZoomSvelte label={finalLabel} border={border} client:load>
+			<img src={imageSrc} alt={alt || ''} title={title} />
+		</ZoomSvelte>
+	) : (
+		clientLoad ? (
+			<ZoomSvelte label={finalLabel} border={border} client:load>
+				<slot />
+			</ZoomSvelte>
+		) : (
+			<ZoomSvelte label={finalLabel} border={border}>
+				<slot />
+			</ZoomSvelte>
+		)
+	)}
+</div>
+
+<style>
+	.zoom-container {
+		display: block;
+		margin: 1rem 0;
+	}
+</style>
+

@@ -1,0 +1,256 @@
+---
+title: Core Philosophy
+description: The design principles and values that guide Pika's development
+---
+
+Pika's design is guided by a set of core principles that shape every decision we make. Understanding these principles will help you understand why Pika works the way it does and how to use it effectively.
+
+## Guiding Principles
+
+### 1. Production First, Not Demo First
+
+**The Problem**: Most AI frameworks optimize for impressive demos. Building a quick proof-of-concept is easy. Making it work for real users is hard.
+
+**Our Approach**: Pika starts with production requirements:
+
+- Authentication isn't an afterthought - it's required
+- Multi-tenancy isn't optional - it's built-in
+- Security isn't a later phase - it's default behavior
+- Observability isn't extra work - it's automatic
+
+**Why It Matters**: You can move from prototype to production without rebuilding everything. The demo version and the production version use the same architecture.
+
+### 2. Configuration Over Code (Where It Makes Sense)
+
+**The Problem**: Hardcoding agents into your application couples AI logic with application code, making iteration slow and risky.
+
+**Our Approach**: Agents are **defined as configuration** and **deployed independently**:
+
+```typescript
+const weatherAgent: ChatAgent = {
+    agentId: 'weather-assistant',
+    agentName: 'Weather Assistant',
+    instruction: 'You help users get weather information...',
+    tools: ['getCurrentWeather', 'getWeatherForecast'],
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+};
+```
+
+**Why It Matters**:
+- Version control your agents like infrastructure
+- Deploy agent updates without application deployments
+- A/B test different agent configurations
+- Keep your codebase focused on business logic
+
+**But**: Tools are still code (Lambda functions) because business logic **should** be code.
+
+### 3. AWS Foundation, Not Abstraction
+
+**The Problem**: Many frameworks try to abstract away cloud differences, creating leaky abstractions and limiting capabilities.
+
+**Our Approach**: Pika **embraces AWS completely**:
+
+- Uses AWS Bedrock (not generic LLM abstraction)
+- Uses DynamoDB (not generic database layer)
+- Uses Lambda (not generic compute)
+- Uses AWS CDK (not Terraform or generic IaC)
+
+**Why It Matters**:
+- Get the full power of AWS services
+- No abstraction tax or performance penalties
+- Direct access to AWS features and updates
+- Clear operational model and cost structure
+
+**Trade-off**: You can't run Pika on other clouds. We accept this trade-off for better AWS integration.
+
+### 4. Complete Solutions, Not Building Blocks
+
+**The Problem**: Frameworks like LangChain provide excellent building blocks, but you still need to assemble them into a complete application.
+
+**Our Approach**: Pika provides **complete, working applications**:
+
+- Chat UI that's ready for users
+- Authentication system (pluggable)
+- Admin interface for management
+- Deployment infrastructure
+- Monitoring and analytics
+
+**Why It Matters**: You spend time on your specific business logic, not building generic chat infrastructure that everyone needs.
+
+**But**: You can still customize everything - it's just that the default is a complete, working system.
+
+### 5. Security by Default, Not Security as Configuration
+
+**The Problem**: Platforms that make security optional often ship insecure by default. "We'll add security later" becomes "We shipped with security holes."
+
+**Our Approach**: Security is **not configurable**:
+
+- Authentication is required (no anonymous mode)
+- Entity isolation is enforced automatically
+- Encryption is enabled by default
+- Audit logging is always on
+- Session security is built-in
+
+**Why It Matters**: You can't accidentally ship insecure. Security isn't a feature you enable - it's the foundation.
+
+### 6. Self-Correction Over Hope
+
+**The Problem**: Most agent systems hope the LLM gets it right. When it doesn't, users see wrong answers.
+
+**Our Approach**: Built-in **self-correction** with independent verification:
+
+- Every response can be verified by a separate LLM
+- Failed verifications trigger automatic correction attempts
+- Quality metrics are captured automatically
+- Feedback is generated for improvement
+
+**Why It Matters**: You can trust agents with real customer interactions. Quality isn't hoped for - it's systematically enforced.
+
+### 7. Open Source, Not Open Core
+
+**The Problem**: Many "open source" AI platforms have a limited open-source version and a paid "enterprise" version with the important features.
+
+**Our Approach**: Pika is **fully open source** (MIT license):
+
+- All features are open source
+- No "enterprise edition" with locked features
+- No per-message pricing
+- No forced SaaS hosting
+
+**Why It Matters**: 
+- You have full control and transparency
+- No vendor lock-in
+- No usage-based fees (only AWS costs)
+- You can fork and modify as needed
+
+**But**: You are responsible for operating it (though we provide full deployment tooling).
+
+### 8. Opinionated Structure, Flexible Implementation
+
+**The Problem**: Too flexible = overwhelming choices and no clear path. Too rigid = can't adapt to your needs.
+
+**Our Approach**: Pika is **opinionated about structure**, **flexible about implementation**:
+
+**Opinionated About**:
+- Agents are configuration
+- Tools are Lambda functions
+- UI is SvelteKit
+- Infrastructure is AWS CDK
+- Storage is DynamoDB
+
+**Flexible About**:
+- What your tools do (your business logic)
+- How authentication works (pluggable)
+- What agents say (your prompts)
+- How UI renders custom content (web components)
+- What AWS resources you add (custom stacks)
+
+**Why It Matters**: Clear structure accelerates development. Flexibility prevents lock-in.
+
+### 9. Real Users Over Test Suites
+
+**The Problem**: It's easy to build agents that pass test cases. It's hard to build agents that satisfy real users with unpredictable questions.
+
+**Our Approach**: Built-in tools for **learning from real usage**:
+
+- Session feedback capture
+- LLM-generated session critiques
+- Insights on common patterns
+- Tools to rapidly add missing context
+
+**Why It Matters**: You improve based on actual usage, not theoretical test cases.
+
+### 10. Multi-Tenancy by Design
+
+**The Problem**: Adding multi-tenancy after building a single-tenant system is extremely difficult and error-prone.
+
+**Our Approach**: Multi-tenancy is **architectural** from day one:
+
+- Entity-based data isolation
+- Per-organization access control
+- Shared infrastructure, isolated data
+- Tested and validated isolation
+
+**Why It Matters**: You can serve multiple customers/organizations from day one. You don't need to rebuild when you grow.
+
+## Design Values
+
+Beyond specific principles, Pika's design reflects these values:
+
+### Pragmatism Over Purity
+
+We make practical choices even if they're not theoretically "pure":
+- Monorepo over microservices (easier to work with)
+- SvelteKit over React (simpler, faster)
+- Configuration-based agents over code (easier to manage)
+
+### Clarity Over Cleverness
+
+We prefer obvious, maintainable code over clever tricks:
+- Explicit configuration over magic conventions
+- Clear naming over brevity
+- Documentation over "self-documenting code"
+
+### Users Over Framework Authors
+
+We optimize for the people using Pika, not for making the framework "cool":
+- Complete solutions over modularity
+- Working defaults over flexibility
+- Clear errors over technical accuracy
+
+## Trade-offs We Embrace
+
+Every design decision involves trade-offs. We explicitly accept these:
+
+### Trade-off: AWS-Only
+
+**We gain**: Deep integration, full features, clear operational model
+**We lose**: Ability to run on other clouds
+**We accept this**: Most enterprises standardize on one cloud anyway
+
+### Trade-off: Opinionated Stack
+
+**We gain**: Faster development, clear patterns, better testing
+**We lose**: Framework flexibility, technology choices
+**We accept this**: Most teams want guidance, not unlimited options
+
+### Trade-off: Configuration-Based Agents
+
+**We gain**: Rapid iteration, version control, clean separation
+**We lose**: Some programming flexibility in agent logic
+**We accept this**: Agent logic belongs in tools anyway
+
+### Trade-off: Complete Platform
+
+**We gain**: Faster time to production, working solutions
+**We lose**: Minimalism, "use only what you need"
+**We accept this**: The unused parts don't hurt you, and completeness helps everyone
+
+## How These Principles Guide Development
+
+When we add features or make decisions, we ask:
+
+1. **Does this work in production?** Not just demos
+2. **Does this require code or config?** Config when possible
+3. **Does this embrace AWS or abstract it?** Embrace it
+4. **Is this a complete solution or a building block?** Complete when possible
+5. **Is this secure by default?** No insecure mode
+6. **Does this improve quality?** Not just capability
+7. **Is this fully open source?** No enterprise-only features
+8. **Is this opinionated structure or implementation?** Structure yes, implementation flexible
+9. **Does this help with real usage?** Not just test cases
+10. **Does this work multi-tenant?** Design for multiple organizations
+
+## Learning More
+
+To see how these principles manifest in practice:
+
+- **[What is Pika?](/concepts/overview/what-is-pika/)** - Core purpose and capabilities
+- **[When to Use Pika](/concepts/overview/when-to-use/)** - Decision criteria
+- **[Design Rationale](/concepts/rationale/why-aws/)** - Specific architectural decisions
+- **[System Architecture](/concepts/architecture/system/)** - How principles become architecture
+
+{% aside type="note" %}
+These principles aren't rigid rules - they're guides for making consistent decisions. When they conflict, we prioritize based on user value and production readiness.
+{% /aside %}
+

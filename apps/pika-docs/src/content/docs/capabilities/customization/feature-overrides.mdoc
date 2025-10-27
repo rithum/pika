@@ -1,0 +1,568 @@
+---
+title: Feature Overrides
+description: Customize platform behavior per chat app with fine-grained feature controls and configuration overrides
+---
+
+While Pika provides site-wide feature defaults, real-world applications require customization for different use cases. Feature overrides enable per-chat-app configuration, allowing you to tailor platform behavior, security settings, and capabilities for each specific application.
+
+## What It Does
+
+Feature overrides provide fine-grained control over how each chat app behaves:
+
+{% card title="Per-App Configuration" icon="setting" %}
+Configure features independently for each chat app, enabling different capabilities for customer-facing vs internal tools.
+{% /card %}
+
+{% card title="Security Customization" icon="approve-check" %}
+Restrict or enhance security features based on chat app sensitivity, user audience, and compliance requirements.
+{% /card %}
+
+{% card title="Targeted Feature Sets" icon="puzzle" %}
+Enable advanced capabilities for power users while keeping simple interfaces for basic use cases.
+{% /card %}
+
+## Why It Matters
+
+### One Platform, Multiple Use Cases
+
+Organizations deploy Pika for diverse scenarios:
+- **Customer support** - External users needing guided assistance
+- **Internal tools** - Employees requiring detailed information
+- **Sales demos** - Prospects seeing curated capabilities
+- **Admin interfaces** - Power users needing full control
+
+Each use case needs different features, security levels, and UI elements.
+
+### The Override Model
+
+**Site-Wide Defaults** establish baseline behavior for all chat apps:
+```typescript
+// In pika-config.ts
+siteFeatures: {
+    traces: { enabled: true, userTypes: ['internal-user'] },
+    verifyResponse: { enabled: true, autoRepromptThreshold: 'C' },
+    tags: { enabled: true, tagsEnabled: [...] }
+}
+```
+
+**Chat App Overrides** customize behavior for specific applications:
+```typescript
+// In chat app configuration
+{
+    chatAppId: 'customer-support',
+    features: {
+        traces: { enabled: false },  // Customers don't see traces
+        verifyResponse: { autoRepromptThreshold: 'F' }  // Less strict
+    }
+}
+```
+
+This allows centralized management with targeted customization.
+
+## Key Capabilities
+
+### Override Hierarchy
+
+The platform resolves features through a clear precedence order:
+
+1. **Chat App Override** - Highest priority
+2. **Site-Wide Default** - Falls back if no override
+3. **Platform Default** - Ultimate fallback
+
+```typescript
+// Resolution example
+function resolveFeature(chatApp, siteFeatures, featureName) {
+    if (chatApp.features?.[featureName]) {
+        return chatApp.features[featureName];  // Use override
+    }
+    return siteFeatures[featureName];  // Use site default
+}
+```
+
+### Restrictive-Only Overrides
+
+Chat apps can only **restrict** features, not expand beyond site-wide configuration:
+
+{% aside type="note" title="Security First" %}
+If a feature is disabled site-wide, chat apps cannot enable it. If a feature is restricted to certain users site-wide, chat apps cannot expand access.
+{% /aside %}
+
+**Valid override** (more restrictive):
+```typescript
+// Site: Traces enabled for internal users
+siteFeatures: {
+    traces: { enabled: true, userTypes: ['internal-user'] }
+}
+
+// Chat app: Disable traces entirely
+features: {
+    traces: { enabled: false }  // ✅ Valid - more restrictive
+}
+```
+
+**Invalid override** (attempting to expand):
+```typescript
+// Site: Traces disabled
+siteFeatures: {
+    traces: { enabled: false }
+}
+
+// Chat app: Try to enable traces
+features: {
+    traces: { enabled: true }  // ❌ Invalid - ignored
+}
+```
+
+### Complete Override Pattern
+
+When overriding features, provide **complete** configuration:
+
+```typescript
+// ❌ WRONG - Incomplete override
+features: {
+    verifyResponse: {
+        enabled: true  // Missing other required fields
+    }
+}
+
+// ✅ RIGHT - Complete override
+features: {
+    verifyResponse: {
+        featureId: 'verifyResponse',
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user'],
+        applyRulesAs: 'or'
+    }
+}
+```
+
+Overrides **replace** site defaults entirely, they don't merge.
+
+## Common Override Scenarios
+
+### Customer-Facing vs Internal Apps
+
+**Customer Support Chat** (External users):
+```typescript
+{
+    chatAppId: 'customer-support',
+    features: {
+        // Hide internal debugging info
+        traces: { enabled: false },
+        
+        // Simpler self-correction
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'F',  // Only retry on failures
+            userTypes: ['external-user']
+        },
+        
+        // Limited tags
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'prompt' }
+            ]
+        },
+        
+        // Add customer-appropriate disclaimer
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This AI assistant provides general information. For urgent issues, contact support@company.com'
+        }
+    }
+}
+```
+
+**Admin Tools** (Internal users):
+```typescript
+{
+    chatAppId: 'admin-tools',
+    features: {
+        // Full debugging visibility
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userRoles: ['pika:content-admin']
+            }
+        },
+        
+        // Strict quality checking
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'C',  // Retry on assumptions
+            userTypes: ['internal-user']
+        },
+        
+        // All tags available
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                { scope: 'pika', tag: 'chart' },
+                { scope: 'pika', tag: 'download' },
+                { scope: 'custom', tag: 'admin-panel' },
+                { scope: 'custom', tag: 'data-export' }
+            ]
+        }
+    }
+}
+```
+
+### Compliance-Sensitive Applications
+
+**Healthcare Chat** (HIPAA compliance):
+```typescript
+{
+    chatAppId: 'patient-portal',
+    features: {
+        // Strict disclaimer
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This AI assistant provides general health information only. It is not a substitute for professional medical advice. Always consult healthcare providers for medical concerns.'
+        },
+        
+        // No file downloads (prevent PHI export)
+        tags: {
+            enabled: true,
+            tagsDisabled: [
+                { scope: 'pika', tag: 'download' }
+            ]
+        },
+        
+        // Maximum quality verification
+        verifyResponse: {
+            enabled: true,
+            autoRepromptThreshold: 'B',  // Very strict
+            userTypes: ['external-user', 'internal-user']
+        }
+    }
+}
+```
+
+**Financial Services** (SOC 2 compliance):
+```typescript
+{
+    chatAppId: 'financial-advisor',
+    features: {
+        // Required compliance disclaimer
+        chatDisclaimerNotice: {
+            featureId: 'chatDisclaimerNotice',
+            notice: 'This AI provides general financial information and is not personalized advice. Consult qualified financial advisors for investment decisions. We are not liable for financial losses based on AI-generated information.'
+        },
+        
+        // Track all interactions
+        traces: {
+            enabled: true,
+            userTypes: ['internal-user'],
+            detailedTraces: {
+                enabled: true,
+                userTypes: ['internal-user'],
+                userRoles: ['compliance-officer', 'pika:content-admin']
+            }
+        }
+    }
+}
+```
+
+### Progressive Feature Rollout
+
+**Beta Testing** (Internal users first):
+```typescript
+{
+    chatAppId: 'beta-features',
+    features: {
+        // New experimental tags
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                { scope: 'custom', tag: 'experimental-widget' }
+            ]
+        },
+        
+        // Only internal users
+        userTypes: ['internal-user']
+    }
+}
+
+// Later, create production version with wider access
+{
+    chatAppId: 'production-app',
+    features: {
+        tags: {
+            enabled: true,
+            tagsEnabled: [
+                { scope: 'custom', tag: 'stable-widget' }
+            ]
+        },
+        userTypes: ['external-user', 'internal-user']
+    }
+}
+```
+
+## Overridable Features
+
+### Security & Access Control
+
+**Traces** - Debugging and execution visibility:
+```typescript
+traces: {
+    enabled: boolean,
+    userTypes: string[],
+    userRoles: PikaUserRole[],
+    applyRulesAs: 'and' | 'or',
+    detailedTraces: {
+        enabled: boolean,
+        userTypes: string[],
+        userRoles: PikaUserRole[]
+    }
+}
+```
+
+**Verify Response** - Response quality checking:
+```typescript
+verifyResponse: {
+    featureId: 'verifyResponse',
+    enabled: boolean,
+    autoRepromptThreshold: 'B' | 'C' | 'F',
+    userTypes: string[],
+    userRoles: PikaUserRole[],
+    applyRulesAs: 'and' | 'or'
+}
+```
+
+### UI & Components
+
+**Tags** - UI component system:
+```typescript
+tags: {
+    enabled: boolean,
+    tagsEnabled: Array<{ scope: string; tag: string }>,
+    tagsDisabled: Array<{ scope: string; tag: string }>
+}
+```
+
+**Instruction Assistance** - Prompt engineering:
+```typescript
+agentInstructionAssistance: {
+    enabled: boolean,
+    includeOutputFormattingRequirements: { enabled: boolean },
+    includeInstructionsForTags: { enabled: boolean }
+}
+```
+
+### User Communication
+
+**Chat Disclaimer Notice** - Legal/informational notices:
+```typescript
+chatDisclaimerNotice: {
+    featureId: 'chatDisclaimerNotice',
+    notice: string
+}
+```
+
+## Configuration Best Practices
+
+### Start with Sensible Defaults
+
+{% aside type="tip" title="Define Site-Wide First" %}
+Establish comprehensive site-wide defaults that work for most chat apps. Override only when specific needs require customization.
+{% /aside %}
+
+### Document Override Rationale
+
+{% aside type="tip" title="Comment Your Overrides" %}
+Add comments explaining why each chat app uses specific overrides. This helps future maintainers understand decisions.
+
+```typescript
+{
+    chatAppId: 'customer-support',
+    features: {
+        // Customers shouldn't see internal debugging traces
+        traces: { enabled: false },
+        
+        // Financial chat requires strict disclaimers (SOC 2)
+        chatDisclaimerNotice: { /* ... */ }
+    }
+}
+```
+{% /aside %}
+
+### Test Override Combinations
+
+{% aside type="caution" title="Verify Access Rules" %}
+When combining userTypes and userRoles with `applyRulesAs`, test thoroughly to ensure access behaves as expected.
+
+- `applyRulesAs: 'and'` - User must meet ALL criteria
+- `applyRulesAs: 'or'` - User must meet ANY criteria
+{% /aside %}
+
+### Use Version Control
+
+{% aside type="note" title="Track Changes" %}
+Chat app configurations are code. Use version control, code review, and deployment processes to manage override changes.
+{% /aside %}
+
+## Advanced Patterns
+
+### Feature Set Templates
+
+Define reusable feature sets for common scenarios:
+
+```typescript
+// Feature set templates
+const CUSTOMER_FACING_FEATURES = {
+    traces: { enabled: false },
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'F',
+        userTypes: ['external-user']
+    }
+};
+
+const INTERNAL_TOOL_FEATURES = {
+    traces: {
+        enabled: true,
+        userTypes: ['internal-user'],
+        detailedTraces: { enabled: true }
+    },
+    verifyResponse: {
+        enabled: true,
+        autoRepromptThreshold: 'C',
+        userTypes: ['internal-user']
+    }
+};
+
+// Apply to chat apps
+const customerApp = {
+    chatAppId: 'customer-support',
+    features: { ...CUSTOMER_FACING_FEATURES }
+};
+
+const adminApp = {
+    chatAppId: 'admin-tools',
+    features: { ...INTERNAL_TOOL_FEATURES }
+};
+```
+
+### Conditional Overrides
+
+Apply overrides based on deployment environment:
+
+```typescript
+const baseFeatures = { /* ... */ };
+
+const features = process.env.NODE_ENV === 'production'
+    ? {
+        ...baseFeatures,
+        traces: { enabled: false },  // Production: no traces
+        verifyResponse: { autoRepromptThreshold: 'C' }  // Strict
+      }
+    : {
+        ...baseFeatures,
+        traces: { enabled: true },  // Development: show traces
+        verifyResponse: { autoRepromptThreshold: 'F' }  // Lenient
+      };
+```
+
+### Entity-Based Customization
+
+Adjust features based on organization entity:
+
+```typescript
+function getChatAppFeatures(entityId: string) {
+    const baseFeatures = { /* ... */ };
+    
+    // Enterprise customers get advanced features
+    if (isEnterpriseEntity(entityId)) {
+        return {
+            ...baseFeatures,
+            tags: {
+                enabled: true,
+                tagsEnabled: [
+                    ...baseFeatures.tags.tagsEnabled,
+                    { scope: 'enterprise', tag: 'advanced-analytics' }
+                ]
+            }
+        };
+    }
+    
+    return baseFeatures;
+}
+```
+
+## Related Capabilities
+
+- **[Prompt Engineering](/capabilities/customization/prompt-engineering/)** - Instruction assistance can be overridden per chat app
+- **[AI-Driven UI](/capabilities/customization/ai-ui/)** - Tag enablement is controlled through overrides
+- **[Access Control](/capabilities/enterprise/access-control/)** - User access rules integrate with feature overrides
+- **[Multi-Tenancy](/capabilities/enterprise/multi-tenancy/)** - Entity-based customization works with overrides
+
+## Technical Details
+
+### Override Resolution
+
+The platform resolves features at chat app load time:
+
+```typescript
+interface ResolvedFeatures {
+    traces?: TracesFeature;
+    verifyResponse?: VerifyResponseFeature;
+    tags?: TagsFeature;
+    chatDisclaimerNotice?: string;
+    // ... other features
+}
+
+function resolveFeatures(
+    chatApp: ChatApp,
+    siteFeatures: SiteFeatures
+): ResolvedFeatures {
+    return {
+        traces: chatApp.features?.traces ?? siteFeatures.traces,
+        verifyResponse: chatApp.features?.verifyResponse ?? siteFeatures.verifyResponse,
+        tags: resolveTags(chatApp.features?.tags, siteFeatures.tags),
+        chatDisclaimerNotice: resolveDisclaimer(chatApp, siteFeatures)
+    };
+}
+```
+
+### Override Validation
+
+The platform validates overrides at deployment:
+
+- **Restrictive check**: Ensures overrides don't expand beyond site defaults
+- **Complete configuration check**: Verifies all required fields present
+- **Type validation**: Confirms correct types for all values
+- **Access rule validation**: Ensures userTypes and userRoles are valid
+
+### Performance Considerations
+
+{% aside type="note" title="Resolution Caching" %}
+Resolved features are cached per chat app, eliminating repeated resolution overhead. Cache invalidates on configuration changes.
+{% /aside %}
+
+## Next Steps
+
+Ready to customize your chat apps?
+
+{% card title="View All Capabilities" icon="star" %}
+Explore all capabilities that can be overridden per chat app.
+
+[Browse Capabilities →](/capabilities/)
+{% /card %}
+
+{% card title="Implementation Guide" icon="document" %}
+Step-by-step instructions for implementing feature overrides.
+
+[View How-To →](/how-to/customization/feature-overrides/)
+{% /card %}
+
+{% card title="Configuration Reference" icon="information" %}
+Complete reference for all overridable features and their options.
+
+[View Reference →](/reference/features/)
+{% /card %}
+

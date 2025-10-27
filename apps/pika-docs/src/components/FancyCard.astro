@@ -1,0 +1,22 @@
+---
+import FancyCardSvelte from './fancy-card.svelte';
+
+interface Props {
+	title: string;
+	bgColor?: string;
+	clientLoad?: boolean;
+}
+
+const { title, bgColor = 'transparent', clientLoad = true } = Astro.props;
+---
+
+{clientLoad ? (
+	<FancyCardSvelte title={title} bgColor={bgColor} client:load>
+		<slot />
+	</FancyCardSvelte>
+) : (
+	<FancyCardSvelte title={title} bgColor={bgColor}>
+		<slot />
+	</FancyCardSvelte>
+)}
+

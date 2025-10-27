@@ -1,0 +1,497 @@
+---
+title: Integrate External APIs
+description: Connect agents to external APIs for real-time data and functionality
+---
+
+Learn how to integrate external APIs into your Pika agents, enabling them to access real-time data, third-party services, and external systems.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create Lambda functions that call external APIs
+- Configure API authentication and headers
+- Handle API responses and errors
+- Pass data between agents and APIs
+- Implement rate limiting and caching
+- Follow security best practices
+
+## Prerequisites
+
+- A running Pika installation
+- Understanding of REST APIs
+- Familiarity with Lambda functions
+- API credentials for your external service
+
+## Understanding External API Integration
+
+External APIs extend your agent's capabilities by connecting to:
+
+- **Third-party Services**: Weather, maps, payment processors
+- **Internal Systems**: CRM, inventory, databases
+- **Real-time Data**: Stock prices, news feeds, sports scores
+- **Cloud Services**: AWS, Google Cloud, Azure services
+
+## Step 1: Create API Tool Lambda Function
+
+Build a Lambda function that calls your external API.
+
+### Basic API Call Example
+
+```typescript
+// src/tools/weather-api.ts
+import { ToolExecutionParams, ToolResponse } from 'pika-shared/types/chatbot/chatbot-types';
+
+interface WeatherInput {
+    location: string;
+    unit?: 'celsius' | 'fahrenheit';
+}
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        const input = event.toolInput as WeatherInput;
+        const location = input.location;
+        const unit = input.unit || 'fahrenheit';
+        
+        // Call external weather API
+        const apiKey = process.env.WEATHER_API_KEY;
+        const response = await fetch(
+            `https://api.weather.com/v1/current?location=${encodeURIComponent(location)}&units=${unit}&apiKey=${apiKey}`
+        );
+        
+        if (!response.ok) {
+            throw new Error(`Weather API returned ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Return formatted result
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify({
+                location: data.location,
+                temperature: data.temp,
+                condition: data.condition,
+                humidity: data.humidity,
+                windSpeed: data.wind.speed
+            })
+        };
+        
+    } catch (error) {
+        console.error('Weather API error:', error);
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({
+                error: error.message || 'Failed to fetch weather data'
+            })
+        };
+    }
+}
+```
+
+## Step 2: Configure API Authentication
+
+Handle different authentication methods securely.
+
+### API Key Authentication
+
+```typescript
+const apiKey = process.env.API_KEY;
+const response = await fetch(apiUrl, {
+    headers: {
+        'X-API-Key': apiKey
+    }
+});
+```
+
+### OAuth 2.0 Bearer Token
+
+```typescript
+const accessToken = process.env.OAUTH_ACCESS_TOKEN;
+const response = await fetch(apiUrl, {
+    headers: {
+        'Authorization': `Bearer ${accessToken}`
+    }
+});
+```
+
+### Basic Authentication
+
+```typescript
+const username = process.env.API_USERNAME;
+const password = process.env.API_PASSWORD;
+const auth = Buffer.from(`${username}:${password}`).toString('base64');
+
+const response = await fetch(apiUrl, {
+    headers: {
+        'Authorization': `Basic ${auth}`
+    }
+});
+```
+
+### Store Credentials in AWS Secrets Manager
+
+```typescript
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+async function getApiCredentials() {
+    const client = new SecretsManagerClient({ region: 'us-east-1' });
+    const response = await client.send(
+        new GetSecretValueCommand({ SecretId: 'my-api-credentials' })
+    );
+    return JSON.parse(response.SecretString);
+}
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    const credentials = await getApiCredentials();
+    
+    const response = await fetch(apiUrl, {
+        headers: {
+            'Authorization': `Bearer ${credentials.accessToken}`
+        }
+    });
+    // ...
+}
+```
+
+## Step 3: Handle API Responses
+
+Process and format API responses for agents.
+
+### Parse and Structure Data
+
+```typescript
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        const response = await fetch(apiUrl);
+        const rawData = await response.json();
+        
+        // Transform to agent-friendly format
+        const structured = {
+            summary: `Found ${rawData.results.length} items`,
+            items: rawData.results.map(item => ({
+                id: item.id,
+                name: item.title,
+                price: item.price,
+                available: item.in_stock
+            }))
+        };
+        
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify(structured)
+        };
+    } catch (error) {
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({ error: error.message })
+        };
+    }
+}
+```
+
+### Handle Different Response Formats
+
+```typescript
+async function parseApiResponse(response: Response) {
+    const contentType = response.headers.get('content-type');
+    
+    if (contentType?.includes('application/json')) {
+        return await response.json();
+    } else if (contentType?.includes('text/xml')) {
+        const text = await response.text();
+        // Parse XML (use xml2js or similar)
+        return parseXml(text);
+    } else {
+        return await response.text();
+    }
+}
+```
+
+## Step 4: Implement Error Handling
+
+Handle API failures gracefully.
+
+### Comprehensive Error Handling
+
+```typescript
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    try {
+        const response = await fetch(apiUrl, {
+            headers: { 'Authorization': `Bearer ${process.env.API_KEY}` }
+        });
+        
+        // Handle HTTP errors
+        if (!response.ok) {
+            if (response.status === 401) {
+                return {
+                    toolExecutionSucceeded: false,
+                    responseFromTool: JSON.stringify({
+                        error: 'API authentication failed. Please check credentials.'
+                    })
+                };
+            } else if (response.status === 429) {
+                return {
+                    toolExecutionSucceeded: false,
+                    responseFromTool: JSON.stringify({
+                        error: 'API rate limit exceeded. Please try again later.'
+                    })
+                };
+            } else if (response.status >= 500) {
+                return {
+                    toolExecutionSucceeded: false,
+                    responseFromTool: JSON.stringify({
+                        error: 'External service is temporarily unavailable.'
+                    })
+                };
+            } else {
+                return {
+                    toolExecutionSucceeded: false,
+                    responseFromTool: JSON.stringify({
+                        error: `API error: ${response.status} ${response.statusText}`
+                    })
+                };
+            }
+        }
+        
+        const data = await response.json();
+        
+        // Validate response data
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid API response format');
+        }
+        
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: JSON.stringify(data)
+        };
+        
+    } catch (error) {
+        console.error('API integration error:', error);
+        
+        // Network errors
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            return {
+                toolExecutionSucceeded: false,
+                responseFromTool: JSON.stringify({
+                    error: 'Unable to connect to external service.'
+                })
+            };
+        }
+        
+        // Timeout errors
+        if (error.name === 'AbortError') {
+            return {
+                toolExecutionSucceeded: false,
+                responseFromTool: JSON.stringify({
+                    error: 'Request timed out. Please try again.'
+                })
+            };
+        }
+        
+        // Generic error
+        return {
+            toolExecutionSucceeded: false,
+            responseFromTool: JSON.stringify({
+                error: 'An unexpected error occurred.'
+            })
+        };
+    }
+}
+```
+
+## Step 5: Implement Rate Limiting and Caching
+
+Optimize API usage and reduce costs.
+
+### Simple In-Memory Cache
+
+```typescript
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function handler(event: ToolExecutionParams): Promise<ToolResponse> {
+    const input = event.toolInput as { location: string };
+    const cacheKey = `weather:${input.location}`;
+    
+    // Check cache
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return {
+            toolExecutionSucceeded: true,
+            responseFromTool: cached.data
+        };
+    }
+    
+    // Call API
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    const result = JSON.stringify(data);
+    
+    // Update cache
+    cache.set(cacheKey, { data: result, timestamp: Date.now() });
+    
+    return {
+        toolExecutionSucceeded: true,
+        responseFromTool: result
+    };
+}
+```
+
+### DynamoDB Cache for Persistence
+
+```typescript
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+
+const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const CACHE_TABLE = process.env.CACHE_TABLE_NAME;
+const CACHE_TTL = 300; // 5 minutes
+
+async function getCachedResult(key: string) {
+    const result = await client.send(new GetCommand({
+        TableName: CACHE_TABLE,
+        Key: { cacheKey: key }
+    }));
+    
+    if (!result.Item) return null;
+    
+    const ttl = result.Item.ttl as number;
+    if (Date.now() / 1000 > ttl) return null;
+    
+    return result.Item.data;
+}
+
+async function setCachedResult(key: string, data: any) {
+    await client.send(new PutCommand({
+        TableName: CACHE_TABLE,
+        Item: {
+            cacheKey: key,
+            data: data,
+            ttl: Math.floor(Date.now() / 1000) + CACHE_TTL
+        }
+    }));
+}
+```
+
+## Step 6: Deploy the Tool
+
+Register the tool with your agent.
+
+### CDK Deployment
+
+```typescript
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+
+// Create Lambda function
+const weatherApiFunction = new nodejs.NodejsFunction(this, 'WeatherApiFunction', {
+    entry: 'src/tools/weather-api.ts',
+    handler: 'handler',
+    runtime: lambda.Runtime.NODEJS_22_X,
+    timeout: cdk.Duration.seconds(30),
+    environment: {
+        WEATHER_API_KEY: process.env.WEATHER_API_KEY!
+    }
+});
+
+// Register tool with agent
+const agentData: AgentDataRequest = {
+    userId: `cloudformation/${this.stackName}`,
+    agent: {
+        agentId: 'weather-agent',
+        basePrompt: 'You are a weather assistant...',
+        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+    },
+    tools: [{
+        toolId: 'weather-api-tool',
+        name: 'get_weather',
+        displayName: 'Weather API',
+        description: 'Get current weather for any location',
+        executionType: 'lambda',
+        lambdaArn: 'WILL_BE_REPLACED_BY_CUSTOM_RESOURCE',
+        functionSchema: {
+            name: 'get_weather',
+            description: 'Get current weather information',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    location: {
+                        type: 'string',
+                        description: 'City name or coordinates'
+                    }
+                },
+                required: ['location']
+            }
+        }
+    }]
+};
+```
+
+## Best Practices
+
+### Security
+
+- **Never hardcode credentials** in code
+- Store secrets in AWS Secrets Manager or Systems Manager
+- Use IAM roles for AWS service access
+- Validate and sanitize all inputs
+- Implement request signing when available
+
+### Reliability
+
+- Implement exponential backoff for retries
+- Set appropriate timeouts
+- Handle partial failures gracefully
+- Log errors for debugging
+- Monitor API health
+
+### Performance
+
+- Cache frequently requested data
+- Use connection pooling
+- Implement request batching when possible
+- Compress large payloads
+- Monitor latency and optimize
+
+### Cost Optimization
+
+- Cache responses to reduce API calls
+- Use appropriate Lambda memory settings
+- Implement request throttling
+- Monitor API usage and costs
+- Consider reserved capacity for high-volume APIs
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] API connection works
+- [ ] Authentication succeeds
+- [ ] Responses parse correctly
+- [ ] Error handling works
+- [ ] Rate limiting prevents overuse
+- [ ] Caching reduces redundant calls
+- [ ] Timeouts prevent hanging
+- [ ] Credentials stored securely
+- [ ] Agent can invoke tool successfully
+- [ ] Responses useful to agent
+{% /checklist %}
+
+## Next Steps
+
+- [Implement Tool Use with Inline Tools](/guides/agent-development/inline-tools/) - Simpler tool option
+- [Use Model Context Protocol](/guides/agent-development/mcp/) - Standardized tool protocol
+- [Enable Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration/) - Multiple agents
+
+## Related Documentation
+
+- [Tool Configuration Reference](/reference/config/tools/) - Complete tool options
+- [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/) - Credential storage
+- [Lambda Best Practices](https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html) - AWS guidance
+
+---
+
+{% aside type="tip" title="Start Simple" %}
+Begin with a simple GET request to verify connectivity, then add authentication, error handling, and caching incrementally. Test each layer before adding the next.
+{% /aside %}
+

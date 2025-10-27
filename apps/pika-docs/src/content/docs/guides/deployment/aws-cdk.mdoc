@@ -1,0 +1,456 @@
+---
+title: Deploy to AWS with CDK
+description: Deploy your Pika application to AWS using AWS CDK for infrastructure as code
+---
+
+Learn how to deploy Pika to AWS using AWS CDK (Cloud Development Kit), providing type-safe infrastructure as code for your application.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Configure AWS credentials
+- Set up your CDK project
+- Deploy the Pika service stack
+- Deploy the Pika chat application
+- Configure environment variables
+- Verify your deployment
+
+## Prerequisites
+
+- AWS account with appropriate permissions
+- AWS CLI installed and configured
+- Node.js 22+ installed
+- pnpm package manager
+- Pika project cloned locally
+
+## Understanding CDK Deployment
+
+AWS CDK uses TypeScript to define cloud infrastructure, which is then synthesized into CloudFormation templates.
+
+### Pika Stacks
+
+Pika typically consists of two stacks:
+
+1. **Pika Service Stack** (`services/pika/`) - Backend infrastructure
+   - Lambda functions
+   - DynamoDB tables
+   - API Gateway
+   - IAM roles and policies
+
+2. **Pika Chat Stack** (`apps/pika-chat/infra/`) - Frontend application
+   - CloudFront distribution
+   - S3 bucket for static assets
+   - Lambda@Edge for SSR
+
+## Step 1: Configure AWS Credentials
+
+Set up your AWS credentials for deployment.
+
+### Using AWS CLI
+
+```bash
+aws configure
+
+# You'll be prompted for:
+# AWS Access Key ID: YOUR_ACCESS_KEY
+# AWS Secret Access Key: YOUR_SECRET_KEY
+# Default region name: us-east-1
+# Default output format: json
+```
+
+### Using Named Profiles
+
+```bash
+# Configure a named profile
+aws configure --profile pika-dev
+
+# Set the profile for deployment
+export AWS_PROFILE=pika-dev
+```
+
+### Verify Configuration
+
+```bash
+aws sts get-caller-identity
+```
+
+You should see your AWS account information.
+
+## Step 2: Install Dependencies
+
+Install CDK and project dependencies.
+
+### Install AWS CDK CLI
+
+```bash
+npm install -g aws-cdk
+
+# Verify installation
+cdk --version
+```
+
+### Install Project Dependencies
+
+```bash
+# From project root
+pnpm install
+```
+
+## Step 3: Configure Environment
+
+Set up environment variables and configuration.
+
+### Create Environment File
+
+**Location:** `services/pika/.env`
+
+```bash
+# Deployment stage
+STAGE=dev
+
+# AWS configuration
+AWS_REGION=us-east-1
+AWS_ACCOUNT_ID=123456789012
+
+# OpenAI API key (if using OpenAI models)
+OPENAI_API_KEY=your-openai-api-key
+
+# Other configuration
+PIKA_SERVICE_NAME=pika
+```
+
+### Update CDK Context
+
+**Location:** `services/pika/cdk.json`
+
+```json
+{
+  "app": "npx ts-node --project tsconfig.json bin/pika.ts",
+  "context": {
+    "@aws-cdk/core:enableStackNameDuplicates": "true",
+    "aws-cdk:enableDiffNoFail": "true",
+    "@aws-cdk/core:stackRelativeExports": "true",
+    "@aws-cdk/aws-ecr-assets:dockerIgnoreSupport": true,
+    "@aws-cdk/aws-secretsmanager:parseOwnedSecretName": true,
+    "@aws-cdk/aws-kms:defaultKeyPolicies": true
+  }
+}
+```
+
+## Step 4: Bootstrap CDK
+
+Bootstrap your AWS environment for CDK deployments (one-time setup per account/region).
+
+```bash
+cd services/pika
+
+# Bootstrap with your account and region
+cdk bootstrap aws://123456789012/us-east-1
+```
+
+This creates necessary resources for CDK deployments (S3 bucket, IAM roles, etc.).
+
+## Step 5: Deploy Pika Service Stack
+
+Deploy the backend infrastructure.
+
+### Preview Changes
+
+```bash
+cd services/pika
+
+# See what will be created
+pnpm cdk:diff
+```
+
+### Deploy Stack
+
+```bash
+# Deploy with approval prompts
+pnpm cdk:deploy
+
+# Or deploy without prompts (use with caution)
+pnpm cdk:deploy --require-approval never
+```
+
+### Deployment Output
+
+You'll see progress as resources are created:
+
+```
+✨  Synthesis time: 5.32s
+
+pika-dev: deploying...
+pika-dev: creating CloudFormation changeset...
+
+ ✅  pika-dev
+
+✨  Deployment time: 425.67s
+
+Outputs:
+pika-dev.ConverseFunctionUrl = https://abc123.lambda-url.us-east-1.on.aws/
+pika-dev.ApiGatewayUrl = https://xyz789.execute-api.us-east-1.amazonaws.com/dev/
+
+Stack ARN:
+arn:aws:cloudformation:us-east-1:123456789012:stack/pika-dev/guid
+```
+
+### Save Important Outputs
+
+Save the function URLs and API endpoints - you'll need them for configuration.
+
+## Step 6: Deploy Pika Chat Stack
+
+Deploy the frontend application.
+
+### Configure Chat App Environment
+
+**Location:** `apps/pika-chat/.env`
+
+```bash
+# Stage
+PUBLIC_STAGE=dev
+
+# Backend API endpoint (from service stack output)
+PUBLIC_API_URL=https://xyz789.execute-api.us-east-1.amazonaws.com/dev
+
+# Converse function URL (from service stack output)
+PUBLIC_CONVERSE_URL=https://abc123.lambda-url.us-east-1.on.aws/
+
+# AWS region
+PUBLIC_AWS_REGION=us-east-1
+```
+
+### Deploy Chat Stack
+
+```bash
+cd apps/pika-chat
+
+# Preview changes
+pnpm cdk:diff
+
+# Deploy
+pnpm cdk:deploy
+```
+
+### Deployment Output
+
+```
+✅  pika-chat-dev
+
+Outputs:
+pika-chat-dev.CloudFrontUrl = https://d123456.cloudfront.net
+pika-chat-dev.S3BucketName = pika-chat-dev-bucket-abc123
+
+Stack ARN:
+arn:aws:cloudformation:us-east-1:123456789012:stack/pika-chat-dev/guid
+```
+
+### Access Your Application
+
+Open the CloudFront URL in your browser to access your deployed Pika chat application.
+
+## Step 7: Configure Custom Domain (Optional)
+
+Set up a custom domain for your application.
+
+### Prerequisites
+
+- Domain registered (Route 53, Google Domains, etc.)
+- SSL certificate in ACM (must be in us-east-1 for CloudFront)
+
+### Update Chat Stack
+
+**Location:** `apps/pika-chat/infra/lib/pika-chat-stack.ts`
+
+```typescript
+const distribution = new cloudfront.Distribution(this, 'Distribution', {
+    // ... other config
+    domainNames: ['chat.yourdomain.com'],
+    certificate: acm.Certificate.fromCertificateArn(
+        this,
+        'Certificate',
+        'arn:aws:acm:us-east-1:123456789012:certificate/your-cert-id'
+    )
+});
+```
+
+### Create Route 53 Record
+
+```typescript
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
+
+const zone = route53.HostedZone.fromLookup(this, 'Zone', {
+    domainName: 'yourdomain.com'
+});
+
+new route53.ARecord(this, 'ChatARecord', {
+    zone: zone,
+    recordName: 'chat',
+    target: route53.RecordTarget.fromAlias(
+        new targets.CloudFrontTarget(distribution)
+    )
+});
+```
+
+### Redeploy
+
+```bash
+pnpm cdk:deploy
+```
+
+## Step 8: Verify Deployment
+
+Test your deployed application.
+
+### Check Service Health
+
+```bash
+# Test converse function
+curl https://abc123.lambda-url.us-east-1.on.aws/health
+
+# Test API Gateway
+curl https://xyz789.execute-api.us-east-1.amazonaws.com/dev/health
+```
+
+### Test Chat Application
+
+1. Open CloudFront URL in browser
+2. Verify authentication works
+3. Test sending a message
+4. Check agent responds correctly
+
+### Check CloudWatch Logs
+
+```bash
+# View Lambda logs
+aws logs tail /aws/lambda/pika-dev-converse --follow
+
+# View API Gateway logs
+aws logs tail /aws/apigateway/pika-dev --follow
+```
+
+## Common Tasks
+
+### Update Deployment
+
+```bash
+# Service stack
+cd services/pika
+pnpm cdk:deploy
+
+# Chat stack
+cd apps/pika-chat
+pnpm cdk:deploy
+```
+
+### Rollback Deployment
+
+```bash
+# List stack history
+aws cloudformation describe-stack-events --stack-name pika-dev
+
+# Rollback to previous version
+# In CloudFormation console: Stack Actions → Roll back
+```
+
+### Delete Stacks
+
+```bash
+# Delete chat stack first
+cd apps/pika-chat
+pnpm cdk:destroy
+
+# Then delete service stack
+cd services/pika
+pnpm cdk:destroy
+```
+
+## Testing Checklist
+
+{% checklist %}
+- [ ] AWS credentials configured
+- [ ] CDK CLI installed
+- [ ] Dependencies installed
+- [ ] Environment variables set
+- [ ] Service stack deployed successfully
+- [ ] Chat stack deployed successfully
+- [ ] Application accessible via CloudFront
+- [ ] Authentication working
+- [ ] Agent responding to messages
+- [ ] CloudWatch logs available
+{% /checklist %}
+
+## Best Practices
+
+### Security
+
+- **Use IAM Roles**: Don't hardcode credentials
+- **Principle of Least Privilege**: Grant minimal necessary permissions
+- **Secrets Management**: Store secrets in Secrets Manager
+- **Enable CloudTrail**: Audit AWS API calls
+
+### Cost Optimization
+
+- **Use On-Demand Pricing**: Start with on-demand, optimize later
+- **Monitor Costs**: Set up billing alerts
+- **Right-Size Resources**: Adjust Lambda memory and timeout
+- **Cleanup Unused Resources**: Remove old stacks and resources
+
+### Deployment
+
+- **Use Stages**: Separate dev, staging, and production
+- **Preview Changes**: Always run `cdk:diff` before deploy
+- **Automated Testing**: Test before production deployment
+- **Gradual Rollout**: Consider blue/green deployments
+
+## Troubleshooting
+
+### CDK Bootstrap Fails
+
+```bash
+# Check permissions
+aws iam get-user
+
+# Ensure you have CloudFormation permissions
+aws cloudformation describe-stacks
+```
+
+### Deployment Timeout
+
+- Check CloudFormation events in AWS Console
+- Increase Lambda timeout if needed
+- Review security group and VPC settings
+
+### Application Not Loading
+
+- Check CloudFront distribution status (wait for deployment)
+- Verify S3 bucket permissions
+- Check browser console for errors
+- Verify API URLs in environment variables
+
+### Permission Errors
+
+- Review IAM role policies in CloudFormation
+- Check Lambda execution role
+- Verify API Gateway permissions
+
+## Next Steps
+
+- [Deploy Using Serverless Framework](/guides/deployment/serverless-framework/) - Alternative deployment
+- [Set Up Local Development](/guides/deployment/local-development/) - Local testing
+- [Use Stack Management](/guides/admin/stack-management/) - Manage deployments
+
+## Related Documentation
+
+- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/) - Official AWS docs
+- [CloudFormation Best Practices](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html) - AWS guidance
+- [Pika Architecture](/docs/architecture/) - System architecture
+
+---
+
+{% aside type="tip" title="Start with Dev Environment" %}
+Deploy to a development environment first to validate your configuration. Once stable, deploy to staging and production with separate stacks.
+{% /aside %}

@@ -1,0 +1,461 @@
+---
+title: Security Architecture
+description: Pika's defense-in-depth security model and data protection guarantees
+---
+
+Pika implements enterprise-grade security through a defense-in-depth architecture with multiple independent security layers. This page explains how Pika protects your data and ensures organizational isolation.
+
+## Core Security Principle: Defense in Depth
+
+Pika's security model ensures that **even if one layer is compromised, multiple other layers continue to protect your data**. Security operates through three independent layers:
+
+```
+┌─────────────────────────────────────────────────┐
+│          AI Model Layer (AWS Bedrock)           │
+│  • LLM cannot control user/entity identity      │
+│  • No data retention or model training          │
+│  • Ephemeral processing only                    │
+└──────────────────┬──────────────────────────────┘
+                   │
+                   ↓
+┌─────────────────────────────────────────────────┐
+│           Application Layer (Tools)             │
+│  • Tool-level access control                    │
+│  • Entity-based data scoping                    │
+│  • Business logic enforcement                   │
+└──────────────────┬──────────────────────────────┘
+                   │
+                   ↓
+┌─────────────────────────────────────────────────┐
+│      Infrastructure Layer (AWS Services)        │
+│  • IAM resource policies                        │
+│  • VPC network isolation                        │
+│  • Encryption at rest and in transit            │
+└─────────────────────────────────────────────────┘
+```
+
+## Layer 1: AI Model Security
+
+### Identity Context Isolation
+
+**Critical Design**: The LLM agent **cannot control or modify**:
+- User ID or authentication context
+- Entity/organization assignment
+- Session ownership
+- Administrative permissions
+
+**Why This Matters**: Even if an agent hallucinates or is manipulated via prompt injection, it cannot change WHO the request is being made on behalf of.
+
+### Secure Context Passing
+
+Identity information is passed via **AWS Bedrock's session attributes** (not LLM prompts):
+
+```typescript
+// These attributes are passed to tools, but LLM cannot set or modify them
+sessionAttributes: {
+    userId: authenticatedUser.userId,
+    chatAppId: session.chatAppId,
+    agentId: agent.agentId,
+    entityId: user.customData.entityId  // Organization context
+}
+```
+
+**Security Benefits**:
+- LLM sees responses but cannot influence identity
+- Tools receive authenticated context independently
+- No risk of prompt injection affecting identity
+- Transparent to users (they can query "who am I?")
+
+### No Data Retention
+
+**AWS Bedrock Guarantee**: 
+- Customer prompts and responses **never persist** in AI models
+- No data used for model training
+- Ephemeral processing only
+- Data discarded immediately after generation
+
+This is an **explicit AWS commitment** for enterprise customers.
+
+## Layer 2: Application Security
+
+### Tool-Level Access Control
+
+Every tool function enforces security independently:
+
+```typescript
+export async function getCustomerData(
+    event: BedrockActionGroupLambdaEvent
+) {
+    // Extract AUTHENTICATED context (set by platform, not LLM)
+    const userId = event.sessionAttributes.userId;
+    const entityId = event.sessionAttributes.entityId;
+    
+    // Enforce access control
+    if (!userHasAccess(userId, entityId)) {
+        throw new Error('Access denied');
+    }
+    
+    // Scope data to entity
+    const data = await fetchDataForEntity(entityId);
+    
+    return data;  // Only data this entity can access
+}
+```
+
+**Key Points**:
+- Tools validate permissions independently
+- Entity scoping enforced at data query level
+- No reliance on LLM for access control
+- Fail-secure: Deny access on any error
+
+### Entity-Based Data Isolation
+
+When entity feature is enabled:
+- Every data access is scoped to entity
+- DynamoDB queries include entity filters
+- Session sharing respects entity boundaries
+- No cross-entity data leakage possible
+
+**Example Query**:
+```typescript
+// Get sessions - automatically scoped to entity
+const result = await dynamodb.query({
+    TableName: 'Sessions',
+    KeyConditionExpression: 'PK = :userId',
+    FilterExpression: 'entityId = :entityId',
+    ExpressionAttributeValues: {
+        ':userId': userId,
+        ':entityId': entityId
+    }
+});
+```
+
+### Authentication Requirements
+
+**No Anonymous Access**: Pika requires authentication by design.
+- Every request must include valid JWT
+- Anonymous or public access is not supported
+- Authentication validated before any processing
+
+### Session Security
+
+- **Secure Cookies**: HTTP-only, Secure, SameSite=Strict
+- **JWT Tokens**: Short-lived (1-24 hours configurable)
+- **CSRF Protection**: Built into SvelteKit
+- **Session Isolation**: Cryptographic session IDs
+
+## Layer 3: Infrastructure Security
+
+### IAM Least Privilege
+
+Every Lambda function has minimal permissions:
+
+```typescript
+// Agent execution role - can only invoke tagged tools
+{
+    "Effect": "Allow",
+    "Action": "lambda:InvokeFunction",
+    "Resource": "*",
+    "Condition": {
+        "StringEquals": {
+            "aws:ResourceTag/agent-tool": "true"
+        }
+    }
+}
+
+// Tool execution role - specific resource access only
+{
+    "Effect": "Allow",
+    "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+    "Resource": "arn:aws:dynamodb:*:*:table/SpecificTable"
+}
+```
+
+**Benefits**:
+- Tools can only access explicitly granted resources
+- Agent can only invoke tagged tools
+- Compromise of one function doesn't expose others
+- Clear audit trail of permissions
+
+### Encryption
+
+**At Rest**:
+- DynamoDB: AES-256 encryption
+- S3: SSE-S3 or SSE-KMS encryption
+- OpenSearch: Encryption at rest enabled
+- Lambda environment variables: KMS encrypted
+
+**In Transit**:
+- All API calls: TLS 1.3
+- Frontend to backend: HTTPS only
+- Lambda to AWS services: AWS PrivateLink
+- No unencrypted communication
+
+### Network Isolation (Optional)
+
+Deploy in VPC for enhanced security:
+- Lambda functions in private subnets
+- VPC endpoints for AWS service access
+- Security groups restrict traffic
+- Network ACLs for additional protection
+
+**When to Use**:
+- Compliance requirements
+- Access to VPC-only resources (RDS, etc.)
+- Enhanced network security posture
+
+### Audit Logging
+
+**CloudTrail**: All AWS API calls logged
+- Who made the call
+- What resource was accessed
+- When it happened
+- Source IP address
+
+**CloudWatch Logs**: All application activity
+- User sessions created
+- Messages sent/received
+- Tool invocations
+- Errors and exceptions
+
+**Immutable Logs**: 
+- Cannot be modified or deleted (with proper configuration)
+- Tamper-proof audit trail
+- Compliance-ready
+
+## Security by Default
+
+Pika ships with enterprise security **enabled by default**:
+
+### Out-of-the-Box Security
+
+✅ **Enabled automatically**:
+- Encryption at rest and in transit
+- Authentication requirement (no anonymous access)
+- Session security and CSRF protection
+- Audit logging
+- IAM least privilege
+- Entity isolation (when enabled)
+
+❌ **Not configurable** (by design):
+- Cannot disable authentication
+- Cannot disable encryption
+- Cannot disable audit logs
+- Cannot bypass entity boundaries
+
+**Philosophy**: Security isn't a feature you enable - it's the foundation.
+
+## Multi-Tenancy Security
+
+### Organizational Data Isolation
+
+**Zero cross-contamination guarantee**:
+- Entity ID enforced at every data access
+- Tools scope queries to entity
+- Sessions tagged with entity
+- No shared state between entities
+
+**Architecture Validation**:
+```typescript
+// Every data query includes entity check
+async function getSession(sessionId: string, entityId: string) {
+    const session = await db.get(sessionId);
+    
+    // Security check - even with session ID, entity must match
+    if (session.entityId !== entityId) {
+        throw new Error('Access denied');
+    }
+    
+    return session;
+}
+```
+
+### Entity Configuration
+
+**Global vs. Entity-Scoped Access**:
+- **Entity-Scoped**: Content visible only to same entity
+- **Global**: Content visible to any authenticated user (for internal tools)
+
+**Per-Chat-App Overrides**: 
+- Site-wide defaults established
+- Individual chat apps can override to global mode
+- Flexibility for different use cases
+
+## Threat Model and Mitigations
+
+### Threat: Prompt Injection
+
+**Attack**: User tries to manipulate agent via crafted prompts
+**Mitigation**: 
+- Identity context isolated from LLM control
+- Tools validate inputs independently
+- Access control at tool level
+- Guardrails can be configured
+
+### Threat: Data Exfiltration
+
+**Attack**: Malicious tool tries to access unauthorized data
+**Mitigation**:
+- IAM policies restrict resource access
+- Entity scoping at query level
+- Audit logs capture all access
+- Network isolation (VPC)
+
+### Threat: Cross-Entity Data Access
+
+**Attack**: User tries to access another organization's data
+**Mitigation**:
+- Entity ID enforced at every layer
+- Tools validate entity matches
+- DynamoDB queries filter by entity
+- Fail-secure on any mismatch
+
+### Threat: Session Hijacking
+
+**Attack**: Attacker steals session token
+**Mitigation**:
+- Short-lived JWT tokens
+- Secure, HTTP-only cookies
+- CSRF protection
+- IP validation (optional)
+
+### Threat: Malicious File Upload
+
+**Attack**: User uploads malicious file
+**Mitigation**:
+- File type validation
+- Size limits
+- Virus scanning (optional integration)
+- Presigned URLs (no direct access)
+
+### Threat: Denial of Service
+
+**Attack**: Overwhelming system with requests
+**Mitigation**:
+- API Gateway throttling
+- Lambda concurrency limits
+- DynamoDB auto-scaling
+- CloudWatch alarms
+
+## Compliance Support
+
+### SOC 2
+
+**Controls Supported**:
+- Access controls and authentication
+- Encryption at rest and in transit
+- Audit logging and monitoring
+- Incident response capabilities
+
+**Inherited from AWS**: AWS services provide SOC 2 certified infrastructure
+
+### GDPR
+
+**Data Protection**:
+- Data minimization (only store what's needed)
+- Right to access (user can export sessions)
+- Right to delete (sessions can be deleted)
+- Data portability (JSON export)
+- Consent management (via your auth provider)
+
+### HIPAA
+
+**If BAA with AWS**:
+- Encryption requirements met
+- Audit logging enabled
+- Access controls enforced
+- PHI can be handled (with proper configuration)
+
+**Additional Steps Required**:
+- Sign AWS BAA
+- Configure encryption with KMS
+- Enable VPC deployment
+- Implement additional access controls
+
+## Security Best Practices
+
+### For Platform Operators
+
+1. **Use VPC deployment** for sensitive workloads
+2. **Enable CloudTrail** with log file validation
+3. **Rotate JWT secrets** regularly
+4. **Monitor CloudWatch alarms** for anomalies
+5. **Review IAM policies** quarterly
+6. **Keep framework updated** for security patches
+
+### For Tool Developers
+
+1. **Always validate entity context** in tools
+2. **Never trust LLM-provided identity** information
+3. **Use prepared statements** for database queries
+4. **Sanitize external API inputs**
+5. **Log security-relevant events**
+6. **Handle secrets via AWS Secrets Manager**
+
+### For Administrators
+
+1. **Grant minimum necessary access** to users
+2. **Review session logs** regularly
+3. **Monitor for unusual patterns** (unexpected entity access)
+4. **Rotate credentials** for external integrations
+5. **Test access controls** periodically
+
+## Security Validation
+
+### AWS Partnership
+
+- Security architecture reviewed by AWS AI team
+- Follows AWS Well-Architected Framework security pillar
+- Leverages AWS-recommended patterns
+
+### Regular Updates
+
+- Inherit AWS security patches automatically
+- Framework security updates via sync system
+- Dependency updates for known vulnerabilities
+
+## Incident Response
+
+### Detection
+
+- CloudWatch alarms for anomalous behavior
+- CloudTrail logs for forensic analysis
+- OpenSearch for pattern detection
+
+### Response
+
+- Revoke compromised JWT tokens
+- Rotate affected credentials
+- Review audit logs for scope
+- Update affected users
+
+### Recovery
+
+- Restore from DynamoDB point-in-time recovery
+- Review and strengthen affected controls
+- Update security policies
+
+## Summary: Security Guarantees
+
+For enterprise decision makers, Pika provides:
+
+1. **Defense in Depth**: Multiple independent security layers
+2. **Zero Cross-Entity Leakage**: Architectural guarantee
+3. **No AI Training**: AWS Bedrock commitment
+4. **Security by Default**: All features enabled out-of-box
+5. **Complete Audit Trail**: Immutable logs
+6. **Enterprise Encryption**: At rest and in transit
+7. **Compliance Ready**: SOC 2, GDPR, HIPAA support
+8. **AWS Foundation**: Inherits AWS security certifications
+
+{% aside type="caution" %}
+**Production Security**: Before production deployment, replace the dev authentication provider, configure JWT secrets, enable CloudTrail, and review IAM policies.
+{% /aside %}
+
+## Related Documentation
+
+- **[Data Protection](/concepts/security/data-protection/)** - Detailed encryption and isolation
+- **[Authentication & Access](/concepts/key-concepts/auth-access/)** - User types and permissions
+- **[Entities & Multi-Tenancy](/concepts/key-concepts/entities/)** - Organizational boundaries
+- **[AWS Infrastructure](/concepts/architecture/aws/)** - Infrastructure security details
+

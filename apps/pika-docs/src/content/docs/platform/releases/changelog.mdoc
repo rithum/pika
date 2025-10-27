@@ -1,0 +1,311 @@
+---
+title: Changelog
+description: Complete version history of the Pika Framework
+---
+
+Complete version history of the Pika Framework.
+
+---
+
+## [0.9.0] - 2025-10-27
+
+### Added
+
+- **Complete Documentation Site Overhaul** - Brand new documentation experience built with Astro
+    - Comprehensive documentation following Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference)
+    - New documentation structure:
+        - **Why Pika** - Understanding the framework's approach and benefits
+        - **Getting Started** - Installation, quickstart, hello world, and sample walkthrough
+        - **Concepts** - Core philosophy, architecture, and how Pika works internally
+        - **Capabilities** - Feature documentation organized by category (Core, Intelligence, Integration, Customization, Data & Memory, Enterprise)
+        - **Guides** - Step-by-step how-to guides for agent development, authentication, customization, deployment, data management, admin tools, and intelligence features
+        - **Reference** - API documentation, configuration reference, CLI commands, TypeScript types, and UI components
+        - **Platform** - Community, contributing, releases, changelog, migration guides, and troubleshooting
+    - Enhanced content with diagrams, code examples, and detailed explanations
+    - Improved navigation with sidebar organization and search functionality
+    - Custom Markdoc components for enhanced documentation presentation
+    - Documentation generation prompt template for AI-assisted docs creation
+- **Release Tooling Improvements** - Enhanced release management capabilities
+    - Updated release prompt with comprehensive finalization workflow
+    - Improved release.ts tooling for version management
+
+---
+
+## [0.8.0] - 2025-10-24
+
+### Added
+
+- **Widget Instance Registry** - Comprehensive tracking system for all rendered web components
+    - Centralized registry accessible via `chatAppState.widgetInstances` Map keyed by instanceId
+    - Tracks all widget types: spotlight, canvas, dialog, inline, and static rendering contexts
+    - Each `WidgetInstance` includes: DOM element reference, instanceId, tagId, customElementName, renderingContext, tagDefinition, and creation timestamp
+    - New public API methods on `ChatAppState`:
+        - `widgetInstances` getter - Access the complete Map of all tracked instances
+        - `registerWidgetInstance(instance)` - Register new widget (called automatically by renderers)
+        - `unregisterWidgetInstance(instanceId)` - Unregister widget (called automatically on cleanup)
+        - `getWidgetInstance(instanceId)` - Get specific instance by ID
+    - Automatic lifecycle tracking with proper cleanup when widgets are removed from DOM
+    - Canvas and dialog widgets unregistered on `closeCanvas()` / `closeDialog()`
+    - Spotlight widgets unregistered when unpinned from spotlight list
+    - Static widgets unregistered after `shutDownAfterMs` timeout expires
+    - Inline widgets unregistered via Svelte `onDestroy` when message component unmounts
+    - Enhanced `injectChatAppWebComponent()` function returns `{ instanceId, element }` instead of just instanceId
+    - Enables cross-widget communication via custom events, direct DOM manipulation, and programmatic widget discovery
+    - Perfect for debugging widget state, testing, and advanced widget coordination
+    - Memory leak prevention with comprehensive automatic cleanup across all rendering contexts
+    - Comprehensive documentation with examples in Building Web Components guide
+
+---
+
+## [0.7.0] - 2025-10-24
+
+### Added
+
+- **Web Component Initialization Enhancement** - Direct property and attribute setting when rendering components
+    - New `DataForWidget` interface with three reserved fields for component initialization
+    - **`attributes`** - Set as HTML attributes (stringified via `setAttributeNS()`). If a corresponding property exists on the element, it's also set with the original (non-stringified) value
+    - **`properties`** - Set as JavaScript properties only (not as HTML attributes). Only properties that exist on the element will be set. Perfect for complex objects, arrays, functions, etc.
+    - **`onReady`** - Callback invoked when the web component is created and ready. Called after element creation, property/attribute setting, and context setup, but before the element is added to the DOM
+    - Provides element reference, instance ID, and full Pika context in the `onReady` callback
+    - All other fields in `dataForWidget` remain available through `context.dataForWidget` but are not automatically set on the element
+    - Enables passing configuration, initial data, or complex objects to web components programmatically
+    - Comprehensive documentation with detailed examples in Building Web Components guide
+
+---
+
+## [0.6.2] - 2025-10-22
+
+### Fixed
+
+- **Chat Input Height** - Textarea now properly resets to original size after submitting questions
+    - Fixed height reset behavior in chat input component
+    - Ensures consistent UI appearance after message submission
+    - Improves user experience with predictable input field sizing
+
+---
+
+## [0.6.1] - 2025-10-21
+
+### Fixed
+
+- **S3 File Content Route** - Improved reliability and safety for S3 text file retrieval
+    - Added 50MB file size limit to prevent memory exhaustion
+    - Fixed route path structure for proper parameter handling in SvelteKit
+    - Implemented streaming with size checks for safer file loading
+    - Better error handling for oversized files (returns 413 status)
+
+---
+
+## [0.6.0] - 2025-10-21
+
+### Added
+
+- **S3 File Access for Web Components** - Secure file retrieval capability for web components
+    - New `getS3TextFileContent()` method on `IChatAppState` interface
+    - Retrieves text content from files stored in the Pika S3 bucket
+    - No AWS credential management required in component code
+    - Server-side authentication and bucket access controls enforced
+    - Supports JSON, CSV, TXT, XML, Markdown, and other text-based file formats
+    - Ideal for loading configuration files, data files, or dynamic content
+    - Comprehensive documentation in Building Web Components guide
+
+---
+
+## [0.5.2] - 2025-10-21
+
+### Fixed
+
+- Instruction augmentation prompt now correctly reads "return an empty array" instead of "return and empty array"
+    - Fixes grammar in LLM prompt that determines which additional instructions to apply
+    - Improves prompt clarity for better instruction matching
+- Added logging to instruction augmentation for improved debugging
+    - Helps troubleshoot instruction selection issues
+
+---
+
+## [0.5.1] - 2025-10-21
+
+### Fixed
+
+- Interim chat sessions now properly include `source` field for consistent session tracking and filtering
+    - Ensures all sessions created during chat app initialization have correct source attribution
+    - Fixes filtering behavior when querying sessions by source type
+
+---
+
+## [0.5.0] - 2025-10-21
+
+### Breaking Changes
+
+- **Tag System Refactor** - Moved from `chatAppId` to `usageMode` model
+    - DynamoDB schema changes required
+    - GSI replacement: `chatappid-status-index` → `scope-status-index`
+    - Chat app configuration updates needed
+    - See [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-5-0/)
+- **Chat Session GSI Update** - Fixed chronological sorting and added source filtering
+    - Updated `user-chat-app-index` GSI with composite sort key
+    - Sort key changed from `chat_app_id` to `chat_app_sk`
+    - New format: `chatAppId#source#lastUpdate` (source is 'user' or 'component')
+    - Enables correct chronological ordering and filtering by session source
+    - Added `source` field to sessions to distinguish user vs component-initiated sessions
+    - See [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-5-0/)
+- **Site Tag Configuration** - `tagsProhibited` renamed to `tagsDisabled`
+    - Update site configuration to use new field name
+    - Semantic change: disables global tags rather than prohibiting all tags
+- **Tag Search API** - `TagDefinitionSearchRequest` interface updated
+    - Removed `chatAppId` parameter (no longer used with new tag system)
+    - Added `includeGlobal` boolean to optionally include global tags alongside specific tags
+
+### Added
+
+- **Custom Title Bar Actions** - Web components can register custom buttons and menus in chat app title bar
+    - New `setOrUpdateCustomTitleBarAction()` and `removeCustomTitleBarAction()` methods
+    - Enables widgets to add persistent global actions visible across sessions
+    - Supports both single actions and dropdown menus
+    - Support for action groups with titles to organize related actions in menus
+- **Static Widget Context** - New rendering context for widgets that execute initialization code
+    - Runs once when chat app loads, no visual UI rendered
+    - Optional `shutDownAfterMs` to auto-remove container after initialization
+    - Perfect for registering title bar actions, setting up event listeners, or other setup tasks
+    - Example: Register a title bar button without needing a visible widget
+- **Release System Infrastructure** - Automated version tracking and breaking change detection
+    - `releases.json` metadata file tracks version history and breaking changes
+    - `pika sync` displays relevant changelog entries between versions
+    - Automatic breaking change warnings with migration guide links
+    - `--acknowledge-breaking-changes` flag for explicit upgrade consent
+- **Agent Tool Management Enhancement** - Flexible tool definition patterns
+    - Made `agent.toolIds` optional - no longer required when defining new tools
+    - Mixed pattern: provide both `tools` (new definitions) and `agent.toolIds` (references) simultaneously
+    - Create new tools while referencing existing ones in a single operation
+    - Three supported patterns: tools only, toolIds only, or mixed approach
+    - Clearer documentation of three supported patterns with examples
+- **Widget Sizing Configuration** - Comprehensive sizing system for web components
+    - Dialog preset sizes: `'fullscreen'` (95vw x 90vh), `'large'` (85vw x 80vh), `'medium'` (70vw x 70vh), `'small'` (50vw x 50vh)
+    - Custom dialog dimensions with viewport-relative units or percentages
+    - Inline auto-height support with `sizing.inline.height: "auto"` for content-driven sizing
+    - Configurable fixed heights for inline widgets (defaults to 400px)
+- **Global Tag System** - Tags automatically available to all chat apps
+- **Chat-App Tags** - Explicit enablement for app-specific tags
+- **Tag Configuration** - `tagsEnabled` and `tagsDisabled` in chat app config
+- **Component Session Source** - `source` field on `InvokeAgentAsComponentOptions` to control session visibility
+
+### Changed
+
+- Tag availability now controlled by `usageMode` ('global' or 'chat-app')
+- Built-in tags (chart, image, prompt) are now global by default
+- README includes release and update documentation
+- Web component inline rendering supports configurable height (defaults to 400px)
+- Feature documentation enhanced with detailed examples and usage patterns for:
+    - Agent tool definition patterns (3 approaches: new tools, existing references, or mixed)
+    - Tag visibility model (global vs chat-app tags)
+    - Widget contexts and sizing options
+    - Instruction assistance placeholder system
+
+### Fixed
+
+- **Instruction Assistance Tag Filtering** - Properly handles global vs chat-app tag distinctions
+    - Global tags now correctly included by default unless explicitly disabled
+    - Chat-app tags only included when explicitly enabled
+    - Fixes issue where global tags weren't appearing in agent instructions
+- Web component renderer respects custom inline height configuration
+
+### Removed
+
+- Mock tag development artifacts (moved to graveyard)
+- Debug logging from instruction assistance utilities
+
+---
+
+## [0.4.0] - 2025-10-20
+
+Initial tracked release establishing baseline for version management.
+
+### Framework Features
+
+- Multi-agent collaboration
+- User memory system
+- Session management
+- Tag-based UI components
+- Site admin interface
+- Entity-based access control
+- Instruction assistance and augmentation
+- AWS deployment infrastructure
+
+### Developer Tools
+
+- `pika-cli` for project scaffolding
+- `pika sync` for framework updates
+- Protected areas system
+- Custom component support
+
+---
+
+## Version Schema
+
+**While in 0.x (pre-1.0):**
+
+- `0.x.0` → Breaking changes or major features
+- `0.x.y` → Bug fixes and improvements
+
+**After 1.0:**
+
+- `x.0.0` → Breaking changes
+- `x.y.0` → New features (backward compatible)
+- `x.y.z` → Bug fixes
+
+---
+
+## How to Use This Changelog
+
+When running `pika sync`, the CLI compares your `.pika-sync.json` version with the latest release and shows relevant changes.
+
+### Check Your Version
+
+```bash
+cat .pika-sync.json | grep pikaVersion
+```
+
+### See What's New
+
+```bash
+# Preview changes without applying
+pika sync --dry-run
+
+# See detailed diffs
+pika sync --diff
+```
+
+### Breaking Change Warnings
+
+The sync tool will:
+
+- Detect breaking changes between versions
+- Display migration requirements
+- Link to step-by-step guides
+- Require explicit acknowledgment
+
+---
+
+## Legend
+
+- 🔴 **Breaking** - Requires manual migration
+- 🟢 **Added** - New features
+- 🟡 **Changed** - Modified behavior
+- 🔵 **Fixed** - Bug fixes
+- ⚪ **Deprecated** - Will be removed soon
+- 🟣 **Security** - Security improvements
+
+---
+
+## Stay Updated
+
+```bash
+# Regular updates
+pika sync
+
+# Check for breaking changes first
+pika sync --dry-run
+```
+
+For migration guides, see [Migration Guides](/platform/releases/migration-guides/).
+

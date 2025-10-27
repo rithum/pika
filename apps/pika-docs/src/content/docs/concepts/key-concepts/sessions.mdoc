@@ -1,0 +1,582 @@
+---
+title: Session Management
+description: How conversations persist, are shared, and are organized in Pika
+---
+
+Pika's session management system ensures that conversations persist across user visits, can be shared with colleagues, and can be organized for easy access. This page explains how sessions work and why they matter.
+
+## What is a Session?
+
+A **session** represents a single conversation between a user and an agent. Each session:
+
+- Has a unique ID
+- Contains a complete message history
+- Persists indefinitely (unless deleted)
+- Can be resumed at any time
+- Can be shared with others
+- Can be pinned for quick access
+- Belongs to a specific chat app and user
+
+## Session Lifecycle
+
+### 1. Creation
+
+Sessions are created when a user starts a new conversation:
+
+```
+User opens chat app → Clicks "New Chat" → Backend creates session
+```
+
+**What's stored**:
+```typescript
+{
+    sessionId: 'sess_abc123',
+    userId: 'user_xyz',
+    chatAppId: 'weather-chat',
+    entityId: 'acme-corp',  // For multi-tenancy
+    createdAt: 1234567890,
+    updatedAt: 1234567890,
+    title: null,  // Generated later
+    pinned: false
+}
+```
+
+### 2. Conversation
+
+As users and agents exchange messages:
+
+```
+User sends message → Stored in messages table
+Agent responds → Stored in messages table  
+Session updatedAt timestamp refreshed
+```
+
+**Message storage**:
+```typescript
+{
+    messageId: 'msg_def456',
+    sessionId: 'sess_abc123',
+    role: 'user' | 'assistant',
+    content: 'What's the weather in SF?',
+    timestamp: 1234567890,
+    tokenUsage: { input: 15, output: 0 },
+    toolCalls: [],  // For assistant messages
+    metadata: { ... }
+}
+```
+
+### 3. Title Generation
+
+After 2-3 exchanges, Pika automatically generates a session title:
+
+```
+Agent → LLM: "Generate a 3-5 word title for this conversation..."
+LLM → "San Francisco Weather Inquiry"
+Session title updated
+```
+
+**Benefits**:
+- Users can identify sessions at a glance
+- Search becomes easier
+- History is scannable
+
+### 4. Persistence
+
+Sessions persist indefinitely:
+- No automatic deletion
+- Available across devices (authenticated)
+- Full conversation history maintained
+- Can be explicitly deleted by user
+
+### 5. Closure/Inactivity
+
+Sessions don't "close" - they simply become inactive:
+- No timeout or expiration
+- Can be resumed anytime
+- Full context preserved
+
+## Session Features
+
+### Session Sharing
+
+**Purpose**: Share valuable conversations with colleagues
+
+**How it works**:
+1. User clicks "Share" button on a session
+2. Backend generates shareable link
+3. Link copied to clipboard
+4. Recipient opens link (must be authenticated)
+5. Session appears in recipient's "Recent Shared" list
+
+**Access control**:
+```typescript
+// Entity-based access (default)
+if (session.entityId === viewer.entityId || viewer.userType === 'internal') {
+    // Grant access
+}
+
+// Global access (optional per chat app)
+if (chatApp.globalAccess) {
+    // Any authenticated user can access
+}
+```
+
+**Key behaviors**:
+- Share links work only for authenticated users
+- Entity-based permission checks apply
+- Internal users can access all shared sessions
+- Original owner can revoke sharing
+- Visit tracking shows who accessed the session
+
+### Session Pinning
+
+**Purpose**: Keep important conversations easily accessible
+
+**How it works**:
+1. User clicks "Pin" on any session (own or shared)
+2. Session marked with `pinned: true`
+3. Appears in "Pinned" section of sidebar
+4. Persists across browser sessions and devices
+
+**Use cases**:
+- Quick reference for frequently used information
+- Bookmark important shared sessions from colleagues
+- Organize sessions by project or priority
+- Build personal knowledge base
+
+**Visual indicators**:
+- Pinned sessions appear at top of sidebar
+- Pin icon indicates pinned status
+- Clear distinction between own and shared sessions
+
+### Session History
+
+**Browsing conversations**:
+- Chronological list of all user sessions
+- Most recent first
+- Search/filter by title or content (via OpenSearch)
+- Infinite scroll for long histories
+
+**Organization**:
+```
+Sidebar sections:
+├── Pinned Sessions
+│   ├── Your pinned sessions
+│   └── Pinned shared sessions
+├── Recent Shared
+│   └── Shared sessions you've accessed
+└── Your Sessions
+    └── All your conversations (newest first)
+```
+
+## Data Storage
+
+### DynamoDB Schema
+
+**Sessions Table**:
+```typescript
+{
+    PK: 'SESSION#{sessionId}',
+    SK: 'METADATA',
+    GSI1PK: 'USER#{userId}',
+    GSI1SK: 'SESSION#{timestamp}',
+    GSI2PK: 'ENTITY#{entityId}',
+    GSI2SK: 'SESSION#{timestamp}',
+    
+    sessionId: string,
+    userId: string,
+    chatAppId: string,
+    entityId: string,
+    title: string,
+    pinned: boolean,
+    shared: boolean,
+    createdAt: number,
+    updatedAt: number
+}
+```
+
+**Messages Table**:
+```typescript
+{
+    PK: 'SESSION#{sessionId}',
+    SK: 'MESSAGE#{timestamp}#{messageId}',
+    
+    messageId: string,
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    timestamp: number,
+    tokenUsage: {
+        inputTokens: number,
+        outputTokens: number,
+        totalTokens: number
+    },
+    toolCalls?: ToolCall[],
+    selfCorrectionMeta?: { ... }
+}
+```
+
+**Access Patterns**:
+- Query sessions by user (GSI1)
+- Query sessions by entity (GSI2) for multi-tenancy
+- Query messages by session (PK + SK range query)
+- Pagination support for long histories
+
+### OpenSearch Indexing
+
+Sessions indexed for full-text search:
+
+```json
+{
+    "sessionId": "sess_abc123",
+    "userId": "user_xyz",
+    "chatAppId": "weather-chat",
+    "entityId": "acme-corp",
+    "title": "San Francisco Weather",
+    "messages": [
+        "What's the weather in SF?",
+        "Current weather in San Francisco is 65°F..."
+    ],
+    "timestamp": 1234567890,
+    "metadata": { ... }
+}
+```
+
+**Search capabilities**:
+- Full-text search across conversation content
+- Filter by chat app, date range, entity
+- Aggregate usage metrics
+- Power admin search interface
+
+## Multi-Tenancy and Access Control
+
+### Entity-Based Isolation
+
+When entity feature is enabled:
+
+**Data scoping**:
+```typescript
+// Get user's sessions - automatically scoped to entity
+const sessions = await dynamodb.query({
+    IndexName: 'GSI2',  // Entity index
+    KeyConditionExpression: 'GSI2PK = :entity AND begins_with(GSI2SK, :prefix)',
+    FilterExpression: 'userId = :userId',
+    ExpressionAttributeValues: {
+        ':entity': `ENTITY#${user.entityId}`,
+        ':prefix': 'SESSION#',
+        ':userId': user.userId
+    }
+});
+```
+
+**Sharing within entity**:
+- Shared sessions visible to same-entity users
+- Cross-entity sharing not allowed (security boundary)
+- Internal users can access all entities (support)
+
+### Global Access Mode
+
+Chat apps can disable entity restrictions:
+
+```typescript
+chatApp: {
+    chatAppId: 'internal-tools',
+    globalAccess: true,  // Disable entity scoping
+    userTypes: ['internal-user']  // Internal only
+}
+```
+
+**Use cases**:
+- Internal-only tools
+- Company-wide knowledge bases
+- Admin applications
+
+## Session Context and Memory
+
+### Conversation Context
+
+**Full history included**:
+```typescript
+// When agent processes new message
+const context = {
+    sessionId: 'sess_abc123',
+    messages: [
+        { role: 'user', content: 'What's the weather?' },
+        { role: 'assistant', content: 'In which city?' },
+        { role: 'user', content: 'San Francisco' }  // Current message
+    ]
+};
+```
+
+Agent sees entire conversation history for context.
+
+### User Memory Integration
+
+**Persistent user context** (via Bedrock Agent Core Memory):
+```typescript
+// User memory retrieved automatically
+const userMemory = await bedrockAgent.getUserMemory(userId);
+
+// Memory includes preferences and semantic understanding
+// Injected into agent context automatically
+```
+
+**Combines with session context**:
+- Session: Conversation-specific context
+- User Memory: Cross-session preferences and understanding
+- Agent gets both for personalized responses
+
+## Session Metadata
+
+### Token Usage Tracking
+
+Per-session token metrics:
+
+```typescript
+sessionMetrics: {
+    totalInputTokens: 1234,
+    totalOutputTokens: 5678,
+    totalTokens: 6912,
+    messageCount: 8,
+    toolInvocations: 3,
+    avgResponseTime: 2500  // milliseconds
+}
+```
+
+**Use cases**:
+- Cost tracking per session
+- Performance monitoring
+- Usage analytics
+- Billing (if needed)
+
+### Self-Correction Metadata
+
+If self-correction enabled:
+
+```typescript
+selfCorrectionData: {
+    attempts: 2,
+    grades: ['C', 'B'],
+    verifierNotes: [
+        'Response lacks specific temperature data',
+        'Improved - includes current conditions'
+    ],
+    finalGrade: 'B'
+}
+```
+
+Tracked per assistant message for quality monitoring.
+
+## Session Operations
+
+### Creating a Session
+
+**API call**:
+```typescript
+POST /api/sessions
+{
+    "chatAppId": "weather-chat",
+    "userId": "user_xyz",
+    "entityId": "acme-corp"
+}
+
+Response:
+{
+    "sessionId": "sess_abc123",
+    "createdAt": 1234567890
+}
+```
+
+### Listing Sessions
+
+**API call**:
+```typescript
+GET /api/sessions?userId=user_xyz&limit=50&offset=0
+
+Response:
+{
+    "sessions": [
+        {
+            "sessionId": "sess_abc123",
+            "title": "San Francisco Weather",
+            "updatedAt": 1234567890,
+            "pinned": false,
+            "messageCount": 8
+        },
+        // ... more sessions
+    ],
+    "hasMore": true
+}
+```
+
+### Retrieving Messages
+
+**API call**:
+```typescript
+GET /api/sessions/sess_abc123/messages?limit=50
+
+Response:
+{
+    "messages": [
+        {
+            "messageId": "msg_001",
+            "role": "user",
+            "content": "What's the weather?",
+            "timestamp": 1234567890
+        },
+        // ... more messages
+    ]
+}
+```
+
+### Pinning a Session
+
+**API call**:
+```typescript
+PUT /api/sessions/sess_abc123/pin
+{
+    "pinned": true
+}
+
+Response:
+{
+    "success": true
+}
+```
+
+### Sharing a Session
+
+**API call**:
+```typescript
+POST /api/sessions/sess_abc123/share
+
+Response:
+{
+    "shareUrl": "https://chat.example.com/shared/sess_abc123",
+    "shareId": "share_xyz789"
+}
+```
+
+### Deleting a Session
+
+**API call**:
+```typescript
+DELETE /api/sessions/sess_abc123
+
+Response:
+{
+    "success": true
+}
+```
+
+**What happens**:
+- Session metadata deleted
+- All messages deleted
+- Cannot be recovered
+- Shared links stop working
+
+## Performance Considerations
+
+### Pagination
+
+**For long conversations**:
+```typescript
+// Load most recent messages first
+GET /api/sessions/sess_abc123/messages?limit=50&offset=0
+
+// Load older messages on scroll
+GET /api/sessions/sess_abc123/messages?limit=50&offset=50
+```
+
+**Benefits**:
+- Fast initial load
+- Reduced data transfer
+- Better UX for long histories
+
+### Caching
+
+**Frontend caching**:
+- Session list cached in browser
+- Message history cached per session
+- Invalidated on new messages
+
+**Backend caching**:
+- DynamoDB fast reads (<10ms)
+- No additional caching layer needed
+
+### Indexing
+
+**DynamoDB GSIs**:
+- User → Sessions index (fast user session lookup)
+- Entity → Sessions index (fast entity session lookup)
+- Efficient pagination
+
+## Best Practices
+
+### For Users
+
+1. **Pin important sessions** for quick access
+2. **Share valuable conversations** with team members
+3. **Use descriptive context** in conversations (helps with title generation)
+4. **Delete old/test sessions** to keep history clean
+
+### For Administrators
+
+1. **Monitor session growth** and storage costs
+2. **Review shared session patterns** for collaboration insights
+3. **Set up session retention policies** if needed
+4. **Use OpenSearch for session analytics**
+
+### For Developers
+
+1. **Implement pagination** for session lists
+2. **Cache session data** appropriately in frontend
+3. **Handle concurrent updates** gracefully
+4. **Index sessions in OpenSearch** for search features
+
+## Troubleshooting
+
+### Session Not Found
+
+**Symptoms**: 404 error when accessing session
+
+**Causes**:
+- Session deleted by owner
+- User lacks entity access
+- Session ID typo
+
+**Solution**: Verify session ID and user permissions
+
+### Slow Session Loading
+
+**Symptoms**: Long wait for message history
+
+**Causes**:
+- Very long conversation (1000+ messages)
+- No pagination implemented
+- Network issues
+
+**Solution**: Implement pagination, load recent first
+
+### Shared Session Access Denied
+
+**Symptoms**: Can't access shared session link
+
+**Causes**:
+- Different entity (entity isolation enabled)
+- Not authenticated
+- Session sharing revoked
+
+**Solution**: Verify entity membership and authentication
+
+## Related Documentation
+
+- **[User Memory System](/concepts/key-concepts/user-memory/)** - Persistent user context
+- **[Entities & Multi-Tenancy](/concepts/key-concepts/entities/)** - Organizational boundaries
+- **[Manage User Sessions](/guides/data-sessions/session-management/)** - Implementation guide
+- **[Request Lifecycle](/concepts/how-pika-works/request-lifecycle/)** - How messages flow
+
+{% aside type="note" %}
+Session management is a core platform capability that requires no configuration. It works out of the box with sensible defaults while supporting customization for specific use cases.
+{% /aside %}
+

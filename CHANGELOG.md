@@ -5,6 +5,28 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-10-27
+
+### Added
+
+- **Complete Documentation Site Overhaul** - Brand new documentation experience built with Astro
+    - Comprehensive documentation following Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference)
+    - New documentation structure:
+        - **Why Pika** - Understanding the framework's approach and benefits
+        - **Getting Started** - Installation, quickstart, hello world, and sample walkthrough
+        - **Concepts** - Core philosophy, architecture, and how Pika works internally
+        - **Capabilities** - Feature documentation organized by category (Core, Intelligence, Integration, Customization, Data & Memory, Enterprise)
+        - **Guides** - Step-by-step how-to guides for agent development, authentication, customization, deployment, data management, admin tools, and intelligence features
+        - **Reference** - API documentation, configuration reference, CLI commands, TypeScript types, and UI components
+        - **Platform** - Community, contributing, releases, changelog, migration guides, and troubleshooting
+    - Enhanced content with diagrams, code examples, and detailed explanations
+    - Improved navigation with sidebar organization and search functionality
+    - Custom Markdoc components for enhanced documentation presentation
+    - Documentation generation prompt template for AI-assisted docs creation
+- **Release Tooling Improvements** - Enhanced release management capabilities
+    - Updated release prompt with comprehensive finalization workflow
+    - Improved release.ts tooling for version management
+
 ## [0.8.0] - 2025-10-24
 
 ### Added

@@ -1,0 +1,388 @@
+---
+title: Production-Grade Security
+description: Enterprise authentication, multi-tenancy, access controls, and compliance features
+---
+
+Pika provides enterprise-grade security from initial deployment without requiring additional configuration. Built on AWS security foundations, the platform implements authentication, authorization, data protection, and compliance features that production AI applications require.
+
+## What It Does
+
+Production-Grade Security encompasses authentication integration, multi-level access controls, data encryption, audit logging, and compliance support. Every aspect of the platform is designed with security-first principles, providing defense-in-depth architecture that protects data across organizational boundaries.
+
+## Why It Matters
+
+AI chat applications often handle sensitive business data and customer information. Without proper security:
+
+- Customer data could leak across organizational boundaries
+- Unauthorized users could access restricted chat apps
+- Audit trails might be insufficient for compliance
+- Data encryption might be incomplete or misconfigured
+- AI training could use your confidential data
+
+Pika addresses all of these concerns by default, letting you focus on capabilities rather than security infrastructure.
+
+## Key Security Features
+
+### Enterprise Authentication Integration
+
+**Pluggable Authentication Provider Pattern**
+
+Integrate with any enterprise authentication system:
+
+- SSO (Single Sign-On)
+- SAML 2.0
+- OAuth 2.0 / OpenID Connect
+- Custom authentication systems
+- Multi-factor authentication (MFA)
+
+{% aside type="caution" title="Mock Auth for Development Only" %}
+Pika ships with a mock authentication provider for development. This provides no real security and must be replaced with your enterprise authentication before production deployment.
+{% /aside %}
+
+**Authentication Flow:**
+
+1. User attempts to access chat app
+2. Pika redirects to your authentication provider
+3. Provider validates credentials (with MFA if configured)
+4. Provider returns user information and claims
+5. Pika creates secure session with encrypted cookies
+6. User accesses authorized chat apps
+
+### Multi-Level Access Control
+
+**User Types**
+
+Two fundamental user types with different privilege models:
+
+**Internal Users** (Employees, Staff, Administrators):
+- Broader access capabilities
+- Can see detailed traces and debugging information
+- Access to admin features based on roles
+- Can support customers across entity boundaries
+
+**External Users** (Customers, Clients, Partners):
+- Entity-scoped access only
+- Limited feature visibility
+- Cannot access admin features
+- See only their organization's data
+
+**Role-Based Access Control (RBAC)**
+
+Fine-grained permissions through roles:
+
+```typescript
+// Built-in roles
+'pika:site-admin'      // Full platform administration
+'pika:content-admin'   // Content and session management
+'pika:content-user'    // Enhanced features for power users
+
+// Custom roles
+'customer-support-tier2'  // Your custom role
+'billing-specialist'      // Your custom role
+```
+
+**Entity-Based Isolation**
+
+Multi-tenant data separation:
+
+- Each user belongs to an entity (company, account, department)
+- Users only see data from their entity
+- Perfect isolation between organizations
+- Configurable per chat app
+
+**Chat App Access Control**
+
+Multiple layers control who can access each chat app:
+
+1. **Enabled Status** - App must be enabled
+2. **User Type** - internal-user, external-user, or both
+3. **Entity Access** - Specific entities only or all entities
+4. **Role Requirements** - Specific roles required
+5. **User Allowlist** - Specific user IDs only
+
+### Data Protection
+
+**Encryption at Rest and in Transit**
+
+All data is encrypted automatically:
+
+- **DynamoDB tables** - Server-side encryption with AWS KMS
+- **S3 buckets** - AES-256 encryption for uploaded files
+- **OpenSearch** - Encryption at rest and node-to-node encryption
+- **In-transit** - TLS 1.2+ for all network communication
+
+**Secure Session Management**
+
+Industry-standard session security:
+
+- HTTP-only cookies prevent XSS attacks
+- Secure flag ensures HTTPS-only transmission
+- SameSite protection against CSRF
+- Configurable session timeouts
+- Secure token refresh flows
+
+**Data Isolation Architecture**
+
+Defense-in-depth approach:
+
+1. **AI Model Isolation** - AWS Bedrock never persists data
+2. **Application Layer** - Entity-based access controls
+3. **Database Layer** - Encrypted storage with access policies
+4. **Network Layer** - VPC isolation (optional)
+5. **Infrastructure Layer** - IAM roles with least privilege
+
+### Zero AI Training on Customer Data
+
+**AWS Bedrock Guarantees**
+
+Explicit protections against data persistence:
+
+- Customer conversations never persist in AI models
+- Data is not used for model training
+- All AI interactions are ephemeral
+- Processed and discarded immediately after response
+
+This is contractually guaranteed by AWS Bedrock service agreements.
+
+### Comprehensive Audit Logging
+
+**What Gets Logged**
+
+Complete audit trail for compliance:
+
+- User authentication events
+- Chat app access attempts
+- Agent invocations
+- Tool executions
+- Configuration changes
+- Admin actions
+- Session sharing events
+- Data access patterns
+
+**CloudTrail Integration**
+
+All AWS API calls logged automatically:
+
+- Infrastructure changes
+- IAM role assumptions
+- Database access
+- S3 operations
+- Lambda invocations
+
+**Immutable Security Logs**
+
+Tamper-proof audit records:
+
+- Logs written to append-only stores
+- Cannot be modified or deleted by users
+- Retained per compliance requirements
+- Exportable for external analysis
+
+## Compliance Support
+
+### Enterprise Compliance Frameworks
+
+Pika supports major frameworks through AWS foundations:
+
+**SOC 2 Type II**
+- AWS services are SOC 2 certified
+- Comprehensive audit trails
+- Security controls documentation
+- Access control verification
+
+**ISO 27001**
+- Information security management
+- AWS certification inheritance
+- Security policy enforcement
+- Risk management processes
+
+**GDPR (General Data Protection Regulation)**
+- Right to erasure support
+- Data portability features
+- Consent management integration
+- Privacy-by-design architecture
+
+**HIPAA (Healthcare)**
+- AWS HIPAA eligible services
+- Business Associate Agreement (BAA) through AWS
+- Protected Health Information (PHI) handling
+- Audit logging for compliance
+
+### Data Retention and Deletion
+
+**Configurable Retention Policies**
+
+Control how long data is kept:
+
+- Session history retention periods
+- User memory retention
+- Audit log retention
+- File upload retention
+
+**Right to Erasure**
+
+Support for data deletion requirements:
+
+- User-initiated session deletion
+- Cascade deletion across related records
+- User memory clearing
+- Audit trail of deletions (retained for compliance)
+
+## Security Best Practices
+
+### Least Privilege Access
+
+Start with minimal permissions and expand as needed:
+
+```typescript
+// Default: Restrictive
+const chatAppConfig: ChatAppConfig = {
+    chatAppUserTypes: ['internal-user'],  // Internal only
+    allowedRoles: ['customer-support'],   // Specific role
+    enabled: true
+};
+
+// Expand when validated
+const publicChatApp: ChatAppConfig = {
+    chatAppUserTypes: ['internal-user', 'external-user'],
+    allowedRoles: undefined,  // All roles
+    enabled: true
+};
+```
+
+### Defense in Depth
+
+Layer multiple security controls:
+
+1. **Authentication** - Valid users only
+2. **User Type** - Internal vs external
+3. **Entity** - Organizational boundaries
+4. **Role** - Function-based access
+5. **Chat App** - Enabled/disabled state
+6. **Feature Flags** - Sensitive features gated
+
+### Regular Security Reviews
+
+Maintain security posture:
+
+- **Review access logs** regularly
+- **Audit role assignments** quarterly
+- **Update authentication** configurations
+- **Review entity** mappings
+- **Test access controls** with different user types
+
+### Incident Response
+
+Prepare for security events:
+
+- **Immediate actions** - Disable compromised accounts or chat apps
+- **Investigation** - Review CloudTrail and audit logs
+- **Remediation** - Fix vulnerabilities, update configurations
+- **Communication** - Notify affected users per policies
+
+## Advanced Security Features
+
+### Custom Authentication Providers
+
+Implement complex authentication logic:
+
+```typescript
+export class EnterpriseAuthProvider implements AuthProvider {
+    async validateToken(token: string): Promise<UserInfo> {
+        // Your authentication logic
+        // Integrate with enterprise SSO
+        // Fetch user attributes and roles
+        // Map to Pika user model
+    }
+    
+    async getUserEntity(userId: string): Promise<string> {
+        // Map user to entity (org/account)
+        // Query your user directory
+        // Return entity identifier
+    }
+}
+```
+
+### API Security
+
+Direct agent invocation uses same security model:
+
+- API keys or JWT tokens for authentication
+- Same RBAC and entity isolation
+- Rate limiting per client
+- Audit logging of API calls
+
+### Network Security
+
+Optional VPC deployment for enhanced isolation:
+
+- Private subnets for Lambda functions
+- VPC endpoints for AWS services
+- No internet gateway for sensitive workloads
+- Security groups controlling traffic
+
+## Monitoring and Alerting
+
+### Security Monitoring
+
+Track security-relevant events:
+
+- **Failed authentication** attempts
+- **Unauthorized access** attempts
+- **Unusual access patterns**
+- **Configuration changes**
+- **Privilege escalations**
+
+### CloudWatch Alarms
+
+Set up alerts for security events:
+
+```typescript
+new Alarm(this, 'FailedAuthAlarm', {
+    metric: failedAuthMetric,
+    threshold: 10,
+    evaluationPeriods: 1,
+    alarmDescription: 'Multiple failed auth attempts'
+});
+```
+
+## Getting Started
+
+{% card title="Configure Authentication" icon="rocket" %}
+Replace mock authentication with your enterprise system.
+
+[Authentication Guide →](/how-to/authentication/)
+{% /card %}
+
+{% card title="Set Up Access Control" icon="approve-check" %}
+Define user types, roles, and entity mappings.
+
+[Access Control Guide →](/how-to/access-control/)
+{% /card %}
+
+{% card title="Security Concepts" icon="puzzle" %}
+Understand the security architecture in depth.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Admin Site" icon="star" %}
+Manage access controls and review security events.
+
+[Learn More →](/capabilities/enterprise/admin-site/)
+{% /card %}
+
+{% card title="Multi-Tenancy" icon="puzzle" %}
+Entity-based isolation for multiple organizations.
+
+[Learn More →](/capabilities/enterprise/multi-tenancy/)
+{% /card %}
+
+{% card title="Access Control" icon="approve-check" %}
+Fine-grained permissions and role management.
+
+[Learn More →](/capabilities/enterprise/access-control/)
+{% /card %}
+

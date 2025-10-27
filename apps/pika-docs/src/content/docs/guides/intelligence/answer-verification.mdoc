@@ -1,0 +1,496 @@
+---
+title: Configure Answer Verification
+description: Enable automatic verification of AI responses for accuracy and reliability
+---
+
+Learn how to configure answer verification in Pika, where a second LLM agent automatically evaluates and verifies the accuracy of responses before they're sent to users.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable answer verification for chat apps
+- Configure verification prompts and criteria
+- Understand the verification workflow
+- Handle verification failures
+- Monitor verification effectiveness
+- Optimize verification performance
+
+## Prerequisites
+
+- A running Pika installation
+- Agents configured for your chat apps
+- Understanding of your accuracy requirements
+- Familiarity with LLM capabilities
+
+## Understanding Answer Verification
+
+Answer verification uses a separate LLM agent to evaluate responses before delivery:
+
+1. **Primary Agent** generates a response
+2. **Verifier Agent** evaluates the response
+3. **System** either delivers or regenerates based on verification
+4. **User** receives verified, high-quality response
+
+### Benefits
+
+- **Improved Accuracy**: Catches errors before users see them
+- **Quality Assurance**: Maintains consistent response quality
+- **Trust Building**: Increases user confidence
+- **Error Detection**: Identifies hallucinations and mistakes
+
+## Step 1: Enable Verification Feature
+
+Configure answer verification at the site or chat app level.
+
+### Site-Wide Configuration
+
+**Location:** `apps/pika-chat/pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        verifyResponse: {
+            enabled: true,
+            
+            // Default verification prompt
+            defaultVerificationPrompt: `Review the following response for accuracy, relevance, and quality.
+
+Original Question: {question}
+Agent's Response: {response}
+
+Evaluate:
+1. Accuracy: Is the information correct?
+2. Relevance: Does it answer the question?
+3. Completeness: Is anything important missing?
+4. Clarity: Is it easy to understand?
+
+If the response passes all criteria, respond with "VERIFIED".
+If issues exist, respond with "FAILED: [brief explanation]".`,
+            
+            // Optional: Max verification attempts
+            maxAttempts: 2,
+            
+            // Optional: Verifier model
+            verifierModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+        }
+    }
+};
+```
+
+### Chat App Configuration
+
+Enable for specific chat apps:
+
+```typescript
+chatApps: [
+    {
+        chatAppId: 'medical-advisor',
+        title: 'Medical Advisor',
+        agentId: 'medical-agent',
+        
+        // Enable verification for this high-stakes app
+        features: {
+            verifyResponse: {
+                enabled: true,
+                
+                // Custom verification for medical domain
+                verificationPrompt: `You are a medical accuracy reviewer.
+
+Patient Question: {question}
+AI Response: {response}
+
+Verify:
+1. Medical accuracy and current guidelines
+2. Appropriate disclaimers present
+3. No harmful advice given
+4. Encourages professional consultation when appropriate
+
+Respond "VERIFIED" only if all criteria met.
+Respond "FAILED: [reason]" if any issues found.`,
+                
+                maxAttempts: 3,  // Higher for critical domains
+                verifierModelId: 'anthropic.claude-3-opus-20240229-v1:0'  // Use most capable model
+            }
+        }
+    }
+]
+```
+
+## Step 2: Configure Verification Criteria
+
+Define what makes a response acceptable.
+
+### General Purpose Verification
+
+```typescript
+verificationPrompt: `Evaluate the response for quality.
+
+User Question: {question}
+Agent Response: {response}
+Context: {context}
+
+Criteria:
+- Factually accurate
+- Directly addresses the question
+- Well-structured and clear
+- Appropriate tone and length
+- No contradictions or confusion
+
+Result: VERIFIED or FAILED: [explanation]`
+```
+
+### Factual Accuracy Focus
+
+```typescript
+verificationPrompt: `Verify factual accuracy of the response.
+
+Question: {question}
+Response: {response}
+Available Tools: {tools}
+
+Check:
+1. All facts are correct and verifiable
+2. No speculation presented as fact
+3. Sources or reasoning provided when appropriate
+4. Uncertainty acknowledged when present
+
+If factually sound: VERIFIED
+If errors detected: FAILED: [specific issues]`
+```
+
+### Safety and Compliance
+
+```typescript
+verificationPrompt: `Review response for safety and compliance.
+
+User Input: {question}
+AI Response: {response}
+
+Verify:
+1. No harmful, illegal, or unethical advice
+2. Appropriate warnings and disclaimers
+3. Complies with company policies
+4. Protects user privacy
+5. Escalates sensitive issues appropriately
+
+Safe to deliver: VERIFIED
+Issues found: FAILED: [concerns]`
+```
+
+### Domain-Specific Verification
+
+```typescript
+// Financial advice verification
+verificationPrompt: `Review financial advice for accuracy and compliance.
+
+Client Question: {question}
+Advisor Response: {response}
+
+Requirements:
+1. Complies with financial regulations
+2. Includes required risk disclosures
+3. Factually accurate market information
+4. Appropriate for client's stated situation
+5. Recommends professional consultation when needed
+
+Approved: VERIFIED
+Issues: FAILED: [details]`
+```
+
+## Step 3: Configure Verification Behavior
+
+Control how the system handles verification results.
+
+### Retry on Failure
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    maxAttempts: 3,  // Regenerate up to 3 times
+    
+    // Prompt modification for retry
+    retryPrompt: `Previous response failed verification: {failureReason}
+
+Please provide an improved response that addresses these issues.
+
+Original Question: {question}`,
+}
+```
+
+### Fallback Behavior
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    maxAttempts: 2,
+    
+    // What to do if all attempts fail
+    fallbackBehavior: 'show_error',  // or 'show_last_attempt'
+    
+    fallbackMessage: 'I apologize, but I was unable to generate a sufficiently accurate response. Please try rephrasing your question or contact support for assistance.'
+}
+```
+
+### Verification Timeout
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    verificationTimeoutMs: 10000,  // 10 seconds max for verification
+    
+    // Behavior on timeout
+    onTimeout: 'deliver',  // or 'fail'
+}
+```
+
+## Step 4: Monitor Verification
+
+Track verification performance and effectiveness.
+
+### CloudWatch Metrics
+
+Verification automatically logs metrics:
+
+```typescript
+// Logged automatically
+{
+    metric: 'ResponseVerification',
+    agentId: 'medical-agent',
+    chatAppId: 'medical-advisor',
+    verified: true,  // or false
+    attempts: 1,
+    verificationTimeMs: 1250,
+    failureReason: null  // or string explaining failure
+}
+```
+
+### View Verification Logs
+
+```bash
+# View verification results in CloudWatch
+aws logs tail /aws/lambda/pika-dev-converse --follow --filter-pattern "ResponseVerification"
+
+# Count failures
+aws logs filter-log-events \
+    --log-group-name /aws/lambda/pika-dev-converse \
+    --filter-pattern '"verified":false' \
+    --start-time $(date -d '1 hour ago' +%s)000
+```
+
+### Custom Verification Logging
+
+```typescript
+// In custom verification handler
+export function customVerificationLogger(result: VerificationResult) {
+    if (!result.verified) {
+        console.warn('Verification failed', {
+            chatAppId: result.chatAppId,
+            reason: result.failureReason,
+            attempts: result.attempts,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Send to monitoring service
+        sendToDatadog({
+            metric: 'verification.failure',
+            tags: [`app:${result.chatAppId}`, `reason:${result.failureReason}`]
+        });
+    }
+}
+```
+
+## Step 5: Optimize Verification
+
+Balance accuracy with performance and cost.
+
+### Selective Verification
+
+Only verify certain types of responses:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    
+    // Verify only when certain conditions met
+    verifyWhen: {
+        // Verify if response contains specific keywords
+        responseContains: ['medical', 'financial', 'legal', 'safety'],
+        
+        // Verify if tools were used
+        toolsInvoked: true,
+        
+        // Verify for specific user types
+        userTypes: ['external-user', 'trial-user'],
+    }
+}
+```
+
+### Faster Verifier Model
+
+Use a faster model for verification:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    // Use Haiku for speed (Sonnet for balance, Opus for accuracy)
+    verifierModelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+}
+```
+
+### Cached Verification
+
+Cache verification results for similar responses:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    cacheResults: true,
+    cacheTTLSeconds: 3600,  // 1 hour
+    
+    // Cache key includes question and response
+    cacheKeyGenerator: (question, response) => {
+        return `${hashString(question)}-${hashString(response)}`;
+    }
+}
+```
+
+## Testing Checklist
+
+Verify answer verification works correctly:
+
+{% checklist %}
+- [ ] Verification enabled in configuration
+- [ ] Verification prompt defined
+- [ ] Verifier model accessible
+- [ ] Good responses pass verification
+- [ ] Poor responses fail verification
+- [ ] Retry logic works correctly
+- [ ] Fallback behavior appropriate
+- [ ] Metrics logged to CloudWatch
+- [ ] Performance acceptable
+- [ ] User experience smooth
+{% /checklist %}
+
+## Best Practices
+
+### Verification Design
+
+- **Clear Criteria**: Define specific, measurable verification criteria
+- **Binary Decision**: Verification should clearly pass or fail
+- **Actionable Feedback**: Failure reasons should guide regeneration
+- **Domain-Specific**: Tailor verification to your use case
+
+### Performance
+
+- **Model Selection**: Balance accuracy with speed
+- **Timeout Configuration**: Prevent hanging requests
+- **Selective Verification**: Don't verify everything
+- **Cache When Possible**: Reduce redundant verifications
+
+### Quality
+
+- **Test Extensively**: Verify verification works as intended
+- **Monitor Failures**: Track patterns in verification failures
+- **Iterate Prompts**: Refine verification criteria over time
+- **User Feedback**: Collect user input on quality
+
+### Cost Management
+
+- **Use Appropriate Models**: Haiku for simple checks, Sonnet for balanced, Opus for critical
+- **Limit Attempts**: Prevent excessive regeneration
+- **Cache Results**: Reduce redundant API calls
+- **Selective Application**: Verify only high-risk responses
+
+## Common Patterns
+
+### Progressive Verification
+
+Start with fast checks, escalate to thorough review:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    stages: [
+        {
+            name: 'quick-check',
+            verifierModelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+            prompt: 'Quick safety and relevance check...',
+            timeoutMs: 2000
+        },
+        {
+            name: 'thorough-review',
+            verifierModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            prompt: 'Detailed accuracy and quality review...',
+            timeoutMs: 5000,
+            onlyIfPreviousPassed: true
+        }
+    ]
+}
+```
+
+### Confidence-Based Verification
+
+Verify based on primary agent's confidence:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    verifyWhen: {
+        primaryAgentConfidence: { lessThan: 0.8 },
+        or: {
+            responseLength: { greaterThan: 500 },
+            toolsUsed: { count: { greaterThan: 2 } }
+        }
+    }
+}
+```
+
+## Troubleshooting
+
+### All Responses Failing
+
+- Review verification prompt for overly strict criteria
+- Check verifier model has appropriate capabilities
+- Test verification prompt independently
+- Verify verifier has access to necessary context
+
+### Verification Too Slow
+
+- Use faster verifier model (Haiku instead of Sonnet)
+- Reduce verification timeout
+- Implement caching
+- Make verification prompt more concise
+
+### False Positives/Negatives
+
+- Refine verification criteria
+- Add specific examples to prompt
+- Test with edge cases
+- Iterate based on production data
+
+### High Costs
+
+- Use less expensive verifier model
+- Reduce max attempts
+- Implement selective verification
+- Cache verification results
+
+## Next Steps
+
+- [Enable Self-Correcting Responses](/guides/intelligence/self-correcting/) - Automatic correction
+- [Use Instruction Assistance](/guides/intelligence/instruction-assistance/) - Improve prompts
+- [Monitor with Traces](/guides/admin/traces/) - Debug verification
+
+## Related Documentation
+
+- [Verify Response Feature](/capabilities/intelligence/verify-response/) - Complete feature details
+- [Model Selection Guide](/concepts/models/) - Choose appropriate models
+- [Monitoring Guide](/docs/operations/monitoring/) - Track performance
+
+---
+
+{% aside type="success" title="Quality Assurance" %}
+Answer verification provides an automated quality gate, ensuring users receive accurate, helpful responses. Use it for high-stakes domains where accuracy is critical.
+{% /aside %}
+

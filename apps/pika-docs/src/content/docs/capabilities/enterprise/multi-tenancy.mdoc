@@ -1,0 +1,386 @@
+---
+title: Multi-Tenancy Support
+description: Entity-based isolation enables multiple organizations on one deployment
+---
+
+Multi-Tenancy Support in Pika enables a single deployment to serve multiple organizations with complete data isolation. Through entity-based access control, different companies, accounts, or departments can use the same infrastructure while maintaining strict separation of their data and sessions.
+
+## What It Does
+
+Multi-tenancy in Pika provides:
+
+- **Entity-based isolation** - Complete data separation between organizations
+- **Shared infrastructure** - Single deployment serves many tenants
+- **Flexible entity definition** - Companies, accounts, departments, or custom groupings
+- **Per-tenant configuration** - Customize behavior for each entity
+- **Security guarantees** - No cross-entity data leakage
+
+## Why It Matters
+
+Without multi-tenancy:
+
+- Need separate deployment for each customer
+- Infrastructure costs multiply
+- Management complexity increases
+- Scaling is inefficient
+- Updates require touching every deployment
+
+With multi-tenancy:
+
+- One deployment serves many organizations
+- Infrastructure costs shared
+- Centralized management
+- Efficient scaling
+- Updates deployed once
+
+## How It Works
+
+![Multi-Tenancy Entity Isolation](/img/diagrams/multi-tenancy-flow.drawio.svg)
+
+### Entity Definition
+
+Entities represent organizational boundaries:
+
+```typescript
+// Customer entities
+'acme-corp'
+'globex-inc'
+'initech-ltd'
+
+// Internal entities
+'engineering-dept'
+'sales-dept'
+'support-team'
+
+// Hierarchical entities
+'enterprise-customer/division-a'
+'enterprise-customer/division-b'
+```
+
+### Entity Assignment
+
+Users are assigned to entities through your authentication provider:
+
+```typescript
+export class CustomAuthProvider implements AuthProvider {
+    async validateToken(token: string): Promise<UserInfo> {
+        return {
+            userId: 'user123',
+            userType: 'external-user',
+            entity: 'acme-corp',  // Entity assignment
+            roles: ['user']
+        };
+    }
+}
+```
+
+### Automatic Isolation
+
+Pika automatically enforces entity boundaries:
+
+{% steps %}
+1. **User authenticates** - Entity determined from auth provider
+2. **Session created** - Tagged with user's entity
+3. **Data queries** - Automatically filtered by entity
+4. **Sharing** - Restricted to same entity
+5. **Admin access** - Internal users can cross boundaries (if permitted)
+{% /steps %}
+
+## Configuration
+
+### Enable Entity Feature
+
+```typescript
+const siteConfig = {
+    entity: {
+        enabled: true,
+        attributeName: 'entity',  // Attribute from auth provider
+        enforceIsolation: true
+    }
+};
+```
+
+### Per-Chat App Entity Control
+
+```typescript
+// Entity-scoped chat app
+const customerApp: ChatAppConfig = {
+    chatAppId: 'customer-support',
+    chatAppUserTypes: ['external-user'],
+    entityIsolation: true  // Enforce entity boundaries
+};
+
+// Global chat app (no entity isolation)
+const internalTools: ChatAppConfig = {
+    chatAppId: 'internal-tools',
+    chatAppUserTypes: ['internal-user'],
+    entityIsolation: false  // All internal users see same data
+};
+```
+
+### Hierarchical Entities
+
+Support entity hierarchies:
+
+```typescript
+entity: {
+    enabled: true,
+    hierarchical: true,
+    separator: '/',
+    // 'parent/child' entities inherit parent's permissions
+}
+```
+
+## Use Cases
+
+### SaaS Platform
+
+Serve multiple customers:
+
+```
+Deployment: pika-platform
+├── Customer A (entity: 'customer-a')
+│   ├── Users: 50
+│   └── Sessions: isolated to Customer A
+├── Customer B (entity: 'customer-b')
+│   ├── Users: 200
+│   └── Sessions: isolated to Customer B
+└── Customer C (entity: 'customer-c')
+    ├── Users: 100
+    └── Sessions: isolated to Customer C
+```
+
+**Benefit**: One deployment, many customers, complete isolation
+
+### Enterprise Departments
+
+Internal multi-tenancy:
+
+```
+Company: Acme Corp
+├── Engineering (entity: 'engineering')
+├── Sales (entity: 'sales')
+├── Support (entity: 'support')
+└── Finance (entity: 'finance')
+```
+
+**Benefit**: Department-specific chat apps and data
+
+### Partner Ecosystem
+
+Multiple partner organizations:
+
+```
+Platform: Partner Portal
+├── Partner A
+├── Partner B
+├── Partner C
+└── Platform Team (can see all)
+```
+
+**Benefit**: Partners collaborate on platform with data separation
+
+### Managed Service Provider
+
+Serve multiple client organizations:
+
+```
+MSP: TechServices Inc.
+├── Client 1
+├── Client 2
+├── Client 3
+└── MSP Staff (cross-client access)
+```
+
+**Benefit**: Manage multiple clients from one deployment
+
+## Entity Boundaries
+
+### What's Isolated
+
+Entity isolation applies to:
+
+- **Sessions** - Users only see their entity's conversations
+- **Shared content** - Sharing respects entity boundaries
+- **User memory** - Context stored per-entity
+- **Insights** - Analytics scoped to entity
+- **Search** - Results filtered by entity
+
+### What's Shared
+
+Some resources are deployment-wide:
+
+- **Agents** - Shared across all entities
+- **Tools** - Available to all (with access controls)
+- **Chat apps** - Defined once, accessed by many
+- **Infrastructure** - Shared AWS resources
+
+## Security Guarantees
+
+### Data Isolation
+
+Strict separation enforced at multiple layers:
+
+**Application Layer**:
+- Entity checks on every query
+- Session filters by entity
+- User validation against entity
+
+**Database Layer**:
+- Entity attribute in every record
+- Queries include entity filters
+- Indexes optimized for entity queries
+
+**Infrastructure Layer**:
+- IAM policies restrict access
+- Encryption keys per entity (optional)
+- Audit logs track cross-entity access
+
+### Defense in Depth
+
+Multiple independent protections:
+
+1. **Authentication** - Entity assigned at login
+2. **Authorization** - Entity checked on every request
+3. **Data Access** - Entity filter on all queries
+4. **Audit** - All access logged
+5. **Monitoring** - Alert on suspicious patterns
+
+## Best Practices
+
+### Clear Entity Strategy
+
+Define entity model upfront:
+
+- What constitutes an entity?
+- How are entities assigned?
+- Can entities be hierarchical?
+- Who can cross entity boundaries?
+
+### Internal vs External
+
+Different entity rules:
+
+```typescript
+// External users: strict entity isolation
+if (userType === 'external-user') {
+    enforceEntityIsolation = true;
+}
+
+// Internal users: may cross boundaries (with proper roles)
+if (userType === 'internal-user' && hasRole('support-admin')) {
+    enforceEntityIsolation = false;
+}
+```
+
+### Monitor Entity Assignment
+
+Regular audits:
+
+- Verify users in correct entities
+- Check for orphaned entities
+- Validate entity hierarchy
+- Review cross-entity access
+
+### Test Isolation
+
+Validate boundaries:
+
+- Create test users in different entities
+- Verify they can't see each other's data
+- Test sharing respects entities
+- Confirm admin overrides work correctly
+
+## Advanced Features
+
+### Entity Metadata
+
+Store entity-specific configuration:
+
+```typescript
+const entityConfig = {
+    'acme-corp': {
+        displayName: 'Acme Corporation',
+        tier: 'premium',
+        features: ['advanced-analytics', 'priority-support'],
+        customBranding: {
+            logo: 'acme-logo.png',
+            primaryColor: '#FF0000'
+        }
+    }
+};
+```
+
+### Dynamic Entity Assignment
+
+Change entities at runtime:
+
+```typescript
+// User switches between organizations
+await updateUserEntity(userId, 'new-entity-id');
+
+// Reload with new entity context
+await refreshUserSession();
+```
+
+### Cross-Entity Features
+
+Carefully controlled cross-entity access:
+
+```typescript
+// Support agent can view any entity's sessions
+if (hasRole('support-admin') && userType === 'internal-user') {
+    // Special admin UI showing all entities
+    const allSessions = await getAllSessionsAcrossEntities();
+}
+```
+
+### Entity Analytics
+
+Per-entity insights:
+
+- Usage metrics per entity
+- Quality scores per entity
+- Cost allocation per entity
+- Performance comparison
+
+## Getting Started
+
+{% card title="Configure Multi-Tenancy" icon="rocket" %}
+Set up entity-based isolation for your deployment.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="Authentication Integration" icon="approve-check" %}
+Configure your auth provider to assign entities.
+
+[Auth Guide →](/how-to/authentication/)
+{% /card %}
+
+{% card title="Multi-Tenancy Architecture" icon="puzzle" %}
+Deep dive into entity isolation design.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Production-Grade Security" icon="star" %}
+Entity isolation is part of comprehensive security.
+
+[Learn More →](/capabilities/core/security/)
+{% /card %}
+
+{% card title="Access Control" icon="approve-check" %}
+Entity-based access control for fine-grained permissions.
+
+[Learn More →](/capabilities/enterprise/access-control/)
+{% /card %}
+
+{% card title="Admin Site" icon="information" %}
+Manage entities and isolation through admin interface.
+
+[Learn More →](/capabilities/enterprise/admin-site/)
+{% /card %}
+

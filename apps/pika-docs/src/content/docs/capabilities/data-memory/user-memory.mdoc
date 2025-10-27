@@ -1,0 +1,372 @@
+---
+title: User Memory
+description: Persistent user context and preferences for personalized interactions
+---
+
+User Memory enables agents to remember information about users across all sessions, learning preferences and context to deliver increasingly personalized interactions over time. Powered by AWS Bedrock's Agent Core Memory feature, this capability transforms one-off conversations into ongoing relationships.
+
+## What It Does
+
+User Memory automatically captures and stores information about each user during conversations. This information is securely stored and seamlessly retrieved when the user returns for future conversations, enabling agents to provide contextually relevant, personalized responses without requiring users to repeat themselves.
+
+## Why It Matters
+
+Without user memory, every conversation starts from scratch:
+
+- Users must re-explain their role and preferences
+- Agents can't adapt to individual communication styles
+- Context from previous sessions is lost
+- Personalization is impossible
+- User experience feels impersonal and repetitive
+
+With user memory:
+
+- Agents remember who users are and what they care about
+- Responses adapt to individual preferences
+- Context builds over time
+- Each conversation is better than the last
+- Users feel understood and valued
+
+## What Gets Remembered
+
+The system intelligently stores two types of user information:
+
+### Preferences
+
+Explicit choices, settings, and stated preferences:
+
+- **Communication Style**: Prefers detailed explanations vs brief summaries
+- **Format Preferences**: Likes bullet points, tables, or narrative format
+- **Domain Specifics**: Works in healthcare, manufacturing, finance, etc.
+- **Role Information**: CFO, engineer, support agent, etc.
+- **Tool Preferences**: Prefers certain tools or approaches
+
+### Semantic Understanding
+
+Contextual understanding of the user:
+
+- **Domain Expertise**: Level of technical knowledge
+- **Working Environment**: Team size, company type, industry
+- **Interests**: Topics they frequently discuss
+- **Goals**: What they're trying to accomplish
+- **Patterns**: How they use the system
+
+## How It Works
+
+![User Memory Lifecycle](/img/diagrams/user-memory-flow.drawio.svg)
+
+{% steps %}
+1. **User interacts with agent**
+   
+   During conversation, agent notes information worth remembering
+
+2. **Memory automatically captured**
+   
+   Relevant information stored in AWS Bedrock Agent Core Memory
+
+3. **User returns later**
+   
+   Memory seamlessly loaded when user starts new session
+
+4. **Agent uses context**
+   
+   Responses incorporate remembered preferences and context
+
+5. **Memory evolves**
+   
+   Each conversation adds to and refines understanding
+{% /steps %}
+
+## Personalization in Action
+
+### Sarah's Support Experience
+
+**First Conversation** (Week 1):
+- Sarah asks about billing policies
+- Mentions she's CFO of mid-sized manufacturing company
+- Prefers detailed financial breakdowns
+- Agent remembers these details
+
+**Second Conversation** (Week 2):
+- Sarah asks different question
+- Agent already knows her role and preferences
+- Immediately provides CFO-appropriate level of detail
+- No need to re-establish context
+
+**Result**: Faster, more relevant support
+
+### Marcus's Technical Consultation
+
+**First Conversation**:
+- Marcus asks about API integrations
+- Mentions he works with Python
+- Prefers code examples
+- Building microservices architecture
+
+**Subsequent Conversations**:
+- Agent automatically includes Python examples
+- References microservices context
+- Provides appropriate technical depth
+- No repetitive context-setting needed
+
+**Result**: More efficient technical assistance
+
+### Team Knowledge Building
+
+As your organization uses the system:
+
+- Each user builds their own knowledge profile
+- New team members get immediately relevant help
+- Seasoned users receive increasingly sophisticated assistance
+- System adapts to individual needs and expertise levels
+
+## Configuration
+
+### Enable User Memory
+
+```typescript
+const agentConfig: AgentConfig = {
+    agentId: 'support-agent',
+    agentName: 'Customer Support Agent',
+    userMemory: {
+        enabled: true,
+        strategies: ['preferences', 'semantic'],
+        maxMemorySize: 5000  // tokens
+    }
+};
+```
+
+### Customize Memory Strategies
+
+Control what gets remembered:
+
+```typescript
+userMemory: {
+    enabled: true,
+    strategies: ['preferences'],  // Only explicit preferences
+    
+    // Or both:
+    strategies: ['preferences', 'semantic'],  // Full memory
+    
+    retentionDays: 90  // Clear after 90 days of inactivity
+}
+```
+
+### Per-Chat App Configuration
+
+Different settings for different apps:
+
+```typescript
+// Customer support: remember preferences
+customerSupportAgent: {
+    userMemory: {
+        enabled: true,
+        strategies: ['preferences']
+    }
+}
+
+// Technical assistant: deep semantic understanding
+techAssistant: {
+    userMemory: {
+        enabled: true,
+        strategies: ['preferences', 'semantic'],
+        maxMemorySize: 10000  // More context for technical work
+    }
+}
+```
+
+## Use Cases
+
+### Customer Support
+
+Remember customer context:
+
+- Previous issues and resolutions
+- Product preferences
+- Communication style
+- Account history
+
+**Benefit**: Customers don't repeat themselves
+
+### Technical Assistance
+
+Adapt to developer expertise:
+
+- Programming language preferences
+- Framework choices
+- Complexity level appropriate to skill
+- Project context
+
+**Benefit**: More relevant technical guidance
+
+### Sales Assistance
+
+Personalize recommendations:
+
+- Budget constraints
+- Feature priorities
+- Decision criteria
+- Purchase history
+
+**Benefit**: Better product recommendations
+
+### Internal Knowledge Base
+
+Tailor information delivery:
+
+- Department and role
+- Areas of responsibility
+- Information preferences
+- Access patterns
+
+**Benefit**: Faster information discovery
+
+## Privacy and Security
+
+### User Control
+
+Users own their memory:
+
+- Can request to view stored memory
+- Can ask agent to forget specific information
+- Can clear all memory
+- Transparent about what's remembered
+
+### Entity Isolation
+
+Memory respects organizational boundaries:
+
+- External users: memory scoped to their entity
+- Internal users: broader but controlled access
+- No cross-entity memory leakage
+- Secure isolation guaranteed
+
+### Data Protection
+
+Secure storage and handling:
+
+- Encrypted at rest in AWS Bedrock
+- Not used for AI model training
+- Subject to retention policies
+- Audit trail of memory access
+
+## Best Practices
+
+### Start Conservative
+
+Begin with limited memory:
+
+1. **Phase 1**: Enable preferences only
+2. **Phase 2**: Monitor what gets remembered
+3. **Phase 3**: Add semantic understanding if beneficial
+4. **Phase 4**: Adjust based on user feedback
+
+### Set Appropriate Retention
+
+Match retention to use case:
+
+- **Customer support**: 90-180 days
+- **Internal tools**: Longer retention (1+ year)
+- **Sensitive domains**: Shorter retention
+- **Consider regulations**: GDPR, data protection laws
+
+### Educate Users
+
+Make memory transparent:
+
+- Explain what gets remembered
+- Provide examples of benefits
+- Show how to manage memory
+- Build trust through transparency
+
+### Monitor and Refine
+
+Continuously improve:
+
+- Review what's being remembered
+- Identify useful vs noise
+- Refine memory strategies
+- Measure personalization quality
+
+## Advanced Features
+
+### Explicit Memory Commands
+
+Users can directly instruct memory:
+
+"Remember that I prefer technical explanations"
+"Forget my previous project context"
+"What do you remember about me?"
+
+### Memory Inheritance
+
+Share memory patterns:
+
+- Team memory profiles
+- Role-based defaults
+- Department preferences
+- Organizational standards
+
+### Memory Analytics
+
+Understand memory usage:
+
+- Most commonly remembered facts
+- Memory utilization per user
+- Personalization effectiveness
+- Privacy compliance metrics
+
+## The Learning Advantage
+
+User Memory creates a continuous learning cycle:
+
+{% steps %}
+1. **First Interaction**: Agent learns basic information
+2. **Subsequent Interactions**: Context deepens
+3. **Preferences Refined**: Understanding improves
+4. **Anticipatory Service**: Agent predicts needs
+5. **Relationship Deepens**: Each conversation better than the last
+{% /steps %}
+
+This transforms AI assistants from tools into knowledgeable colleagues who understand your team's unique needs and working styles.
+
+## Getting Started
+
+{% card title="Enable User Memory" icon="rocket" %}
+Configure memory strategies for your agents.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="See Memory in Action" icon="star" %}
+Experience personalization in the Weather Sample.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Understanding Memory" icon="puzzle" %}
+Deep dive into memory architecture and privacy.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Session Management" icon="document" %}
+Conversations persist with full history alongside user memory.
+
+[Learn More →](/capabilities/data-memory/session-management/)
+{% /card %}
+
+{% card title="Advanced Chat Apps" icon="star" %}
+User memory enhances the chat experience.
+
+[Learn More →](/capabilities/core/advanced-chat-apps/)
+{% /card %}
+
+{% card title="Multi-Tenancy" icon="puzzle" %}
+Memory respects entity boundaries for secure isolation.
+
+[Learn More →](/capabilities/enterprise/multi-tenancy/)
+{% /card %}
+

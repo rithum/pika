@@ -1,0 +1,502 @@
+---
+title: Agents as Configuration
+description: Understanding Pika's configuration-first approach to agent definition
+---
+
+Pika takes a fundamentally different approach to agent development: agents are **defined as configuration**, not hardcoded into your application. This page explains why this matters and how it works.
+
+## The Problem with Code-Based Agents
+
+In most AI frameworks, you define agents directly in application code:
+
+```typescript
+// Traditional approach - agent logic in application code
+const agent = new Agent({
+    prompt: "You are a helpful assistant...",
+    tools: [weatherTool, calculatorTool]
+});
+
+app.post('/chat', (req, res) => {
+    const response = await agent.run(req.body.message);
+    res.json(response);
+});
+```
+
+**Problems with this approach**:
+- Agents are coupled to application deployments
+- Changing a prompt requires redeploying the app
+- No easy way to A/B test agent variations
+- Difficult to version control agent iterations
+- Prompt engineering requires code deployments
+
+## Pika's Configuration-First Approach
+
+In Pika, agents are **declarative configuration deployed independently**:
+
+```typescript
+// Pika approach - agent as configuration
+const weatherAgent: ChatAgent = {
+    agentId: 'weather-assistant-v1',
+    agentName: 'Weather Assistant',
+    instruction: 'You are a helpful weather assistant...',
+    tools: ['getCurrentWeather', 'getWeatherForecast'],
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+};
+```
+
+This configuration is:
+- **Deployed via CDK/CloudFormation** (Infrastructure as Code)
+- **Stored in DynamoDB** (runtime registry)
+- **Version controlled** (Git history)
+- **Deployed independently** (no app redeploy needed)
+
+## How It Works
+
+### 1. Define Agents
+
+Create agent definitions in your CDK stack:
+
+```typescript
+// services/my-agents/lib/agents.ts
+export const weatherAgent: ChatAgent = {
+    agentId: 'weather-assistant',
+    agentName: 'Weather Assistant',
+    instruction: `You are a helpful weather assistant.
+    
+Help users get weather information for any location worldwide.
+Be concise but friendly. Always use the weather tools to get current data.`,
+    
+    tools: ['getCurrentWeather', 'getForecast'],
+    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+};
+```
+
+### 2. Deploy via CDK
+
+Use AWS CDK Custom Resources to register agents:
+
+```typescript
+// services/my-agents/bin/deploy.ts
+new PikaAgentRegistration(stack, 'WeatherAgent', {
+    agentData: {
+        userId: 'cloudformation/my-weather-stack',
+        agent: weatherAgent,
+        tools: [weatherTool, forecastTool]
+    }
+});
+```
+
+### 3. Runtime Loading
+
+When a user sends a message:
+1. Frontend calls streaming Lambda
+2. Lambda looks up agent config from DynamoDB
+3. Bedrock agent initialized with configuration
+4. Tools invoked based on agent definition
+5. Response streamed back to user
+
+**Key point**: Agent behavior changes immediately when you deploy new configuration. No frontend redeployment needed.
+
+## Configuration Components
+
+### Agent Definition
+
+```typescript
+interface AgentDefinition {
+    agentId: string;              // Unique identifier
+    agentName?: string;           // Display name
+    instruction: string;          // Base prompt/system message
+    tools?: string[];             // Tool IDs to make available
+    modelId: string;              // Bedrock model ID
+    knowledgeBases?: {            // Optional KB integration
+        knowledgeBaseId: string;
+        description?: string;
+    }[];
+    accessRules?: {               // Who can use this agent
+        enabled: boolean;
+        userTypes?: ('internal-user' | 'external-user')[];
+        userRoles?: string[];
+    }[];
+    dontCacheThis?: boolean;      // Disable Bedrock caching
+}
+```
+
+### Tool Definition
+
+Tools are also configuration:
+
+```typescript
+interface ToolDefinition {
+    toolId: string;               // Unique identifier
+    displayName: string;          // Human-readable name
+    name: string;                 // Function name (no spaces)
+    description: string;          // What the tool does (<500 chars)
+    executionType: 'lambda';      // Currently only Lambda supported
+    lambdaArn: string;            // Lambda function ARN
+    functionSchema: {             // Bedrock function schema
+        name: string;
+        description: string;
+        parameters: {
+            type: 'object';
+            properties: { ... };
+            required: string[];
+        }
+    }[];
+    tags?: Record<string, string>;
+    lifecycle?: {
+        status: 'enabled' | 'disabled' | 'retired';
+    };
+}
+```
+
+### Chat App Definition
+
+Chat apps connect users to agents:
+
+```typescript
+interface ChatAppDefinition {
+    chatAppId: string;            // Unique identifier
+    title: string;                // Display title
+    description: string;          // Description (<300 chars)
+    agentId: string;              // Which agent powers this app
+    enabled: boolean;             // Is it accessible?
+    userTypes?: string[];         // Who can access
+    modesSupported?: ('standalone' | 'embedded')[];
+    features?: {                  // Feature overrides
+        fileUpload?: { ... };
+        suggestions?: { ... };
+        traces?: { ... };
+        verifyResponse?: { ... };
+    };
+}
+```
+
+## Tool Definition Patterns
+
+### Pattern 1: Define New Tools
+
+Create and associate new tools with an agent:
+
+```typescript
+const agentData: AgentDataRequest = {
+    userId: 'cloudformation/my-stack',
+    agent: {
+        agentId: 'my-agent',
+        instruction: '...'
+        // toolIds auto-populated from tools array
+    },
+    tools: [{
+        toolId: 'my-new-tool',
+        name: 'my-tool',
+        description: 'Does something useful',
+        executionType: 'lambda',
+        lambdaArn: 'arn:aws:lambda:...',
+        functionSchema: [...]
+    }]
+};
+```
+
+Use when creating a new tool that doesn't exist yet.
+
+### Pattern 2: Reference Existing Tools
+
+Reuse tools defined elsewhere:
+
+```typescript
+const agentData: AgentDataRequest = {
+    userId: 'cloudformation/my-stack',
+    agent: {
+        agentId: 'my-agent',
+        instruction: '...',
+        tools: ['existing-tool-1', 'existing-tool-2']
+    }
+    // No tools array - just referencing existing tools
+};
+```
+
+Use when sharing tools across multiple agents.
+
+### Pattern 3: Mixed Approach
+
+Combine new tools with existing references:
+
+```typescript
+const agentData: AgentDataRequest = {
+    userId: 'cloudformation/my-stack',
+    agent: {
+        agentId: 'my-agent',
+        instruction: '...',
+        tools: ['shared-tool-1']  // Existing shared tool
+    },
+    tools: [{
+        // New specialized tool
+        toolId: 'specialized-tool',
+        // ... tool definition
+    }]
+};
+```
+
+Agent will have access to all tools (shared + new).
+
+## Benefits of Configuration-Based Agents
+
+### 1. Rapid Iteration
+
+**Without Pika** (code-based):
+```
+Change prompt → Test locally → Deploy app → Wait for deployment → Test in prod
+(30-60 minutes)
+```
+
+**With Pika** (config-based):
+```
+Change config → Deploy CDK stack → Test in prod
+(5-10 minutes)
+```
+
+### 2. Version Control
+
+Agents are just TypeScript/JSON:
+
+```bash
+git diff HEAD~1 lib/agents.ts
+
+- instruction: "You are a weather assistant."
++ instruction: "You are a friendly weather assistant who provides detailed forecasts."
+```
+
+Full history of every prompt change, tool addition, model update.
+
+### 3. Safe Rollouts
+
+Deploy to subset of users first:
+
+```typescript
+{
+    agentId: 'weather-assistant-v2',
+    // ... definition
+    rolloutPolicy: {
+        betaAccounts: ['acme-corp', 'test-company']
+    }
+}
+```
+
+Test with beta users before full rollout.
+
+### 4. A/B Testing
+
+Deploy multiple agent versions:
+
+```typescript
+// Production agent
+{ agentId: 'weather-assistant-prod', ... }
+
+// Experimental agent
+{ agentId: 'weather-assistant-experimental', ... }
+```
+
+Route different users to different agents. Compare performance.
+
+### 5. Separation of Concerns
+
+**Application code** (frontend, APIs) doesn't know about:
+- Agent prompts
+- Tool selection
+- Model choices
+- Instruction engineering
+
+**Agent definitions** are separate, versioned, and deployed independently.
+
+**Tools** (business logic) are separate Lambda functions:
+- Independently deployed
+- Independently scaled
+- Independently tested
+
+### 6. No Code Changes for Prompt Engineering
+
+Product managers and prompt engineers can:
+- Iterate on instructions
+- Adjust tone and style
+- Add/remove tools
+- Change models
+
+Without involving application developers or redeploying the frontend.
+
+## Configuration Deployment
+
+### Via CDK Custom Resource
+
+```typescript
+import { PikaAgentRegistration } from '@pika/cdk-constructs';
+
+new PikaAgentRegistration(this, 'MyAgent', {
+    agentData: {
+        userId: 'cloudformation/my-stack',
+        agent: myAgentConfig,
+        tools: myToolsConfig
+    }
+});
+```
+
+**On `cdk deploy`**:
+- Custom resource Lambda called
+- Agent/tools registered in DynamoDB
+- Available immediately for use
+
+### Via REST API
+
+You can also register agents via API (for dynamic scenarios):
+
+```typescript
+const response = await fetch('/api/admin/agents', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${jwt}` },
+    body: JSON.stringify({
+        userId: 'api-user',
+        agent: myAgentConfig
+    })
+});
+```
+
+### Via Seed Lambda
+
+For initial setup or testing:
+
+```typescript
+await registerAgent({
+    userId: 'seed-data',
+    agent: myAgentConfig,
+    tools: myToolsConfig
+});
+```
+
+## Dynamic Registry
+
+All configurations stored in DynamoDB:
+
+```
+AgentsTable:
+  PK: AGENT#weather-assistant
+  SK: CONFIG
+  Data: { instruction: '...', tools: [...], ... }
+
+ToolsTable:
+  PK: TOOL#getCurrentWeather  
+  SK: CONFIG
+  Data: { lambdaArn: '...', schema: {...}, ... }
+
+ChatAppsTable:
+  PK: CHATAPP#weather-chat
+  SK: CONFIG
+  Data: { agentId: 'weather-assistant', features: {...}, ... }
+```
+
+**Benefits**:
+- Runtime configuration changes (no infrastructure redeploy)
+- A/B testing support
+- Audit trails of changes
+- Fast lookups (<10ms)
+
+## Best Practices
+
+### 1. Version Your Agents
+
+```typescript
+const agentV1 = {
+    agentId: 'weather-assistant-v1',
+    // ... old version
+};
+
+const agentV2 = {
+    agentId: 'weather-assistant-v2',
+    // ... new version
+};
+```
+
+Deploy both, route users gradually to v2.
+
+### 2. Use Descriptive IDs
+
+```typescript
+// Good
+agentId: 'customer-support-billing-specialist'
+
+// Less good
+agentId: 'agent-3'
+```
+
+### 3. Keep Instructions Focused
+
+```typescript
+// Good - focused and clear
+instruction: `You are a weather assistant.
+
+Help users get weather information for any location.
+Always use tools to get current data - never make up weather information.`
+
+// Less good - too vague
+instruction: 'You help users with stuff.'
+```
+
+### 4. Document Tool Purposes
+
+```typescript
+tools: [
+    'getCurrentWeather',      // Real-time conditions
+    'getWeatherForecast',     // 7-day forecast
+    'getWeatherAlerts'        // Severe weather warnings
+]
+```
+
+### 5. Use Access Rules
+
+```typescript
+accessRules: [{
+    enabled: true,
+    userTypes: ['internal-user'],  // Employees only
+    userRoles: ['customer-support']  // Specific role
+}]
+```
+
+Control who can use which agents.
+
+## Trade-offs
+
+### What You Gain
+
+✅ Rapid agent iteration
+✅ Version control for prompts
+✅ Deployment independence
+✅ A/B testing capability
+✅ Clear separation of concerns
+✅ No-code prompt engineering
+
+### What You Give Up
+
+❌ Some programmatic flexibility (agent logic is config, not code)
+❌ Dynamic agent generation (agents are pre-defined)
+❌ Runtime prompt modification (changes require deployment)
+
+**Pika's philosophy**: These trade-offs are worthwhile for production systems where governance, version control, and safe rollouts matter.
+
+## When Configuration Isn't Enough
+
+If you need truly dynamic agent generation or complex programmatic agent behaviors, you can:
+
+1. **Use Direct Agent Invocation**: Call agents via API without chat UI
+2. **Generate configs programmatically**: Create configs at deploy time
+3. **Use multiple agent variants**: Deploy many configs, route dynamically
+
+But for 95% of use cases, configuration-based agents provide the right balance of flexibility and governance.
+
+## Related Documentation
+
+- **[Define Agents Using Configuration](/guides/agent-development/define-agents/)** - How-to guide
+- **[Agent Execution Flow](/concepts/how-pika-works/agent-execution/)** - How agents run
+- **[Tool Invocation Process](/concepts/how-pika-works/tool-invocation/)** - How tools work
+- **[Why Config-Based Agents?](/concepts/rationale/why-config/)** - Design rationale
+
+{% aside type="tip" %}
+Start with a simple agent config, deploy it, test it, then iterate. The configuration approach makes experimentation fast and safe.
+{% /aside %}
+

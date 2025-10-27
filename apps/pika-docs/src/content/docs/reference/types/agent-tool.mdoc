@@ -1,0 +1,620 @@
+---
+title: Agent & Tool Types
+description: TypeScript type definitions for agents, tools, and Bedrock integrations
+---
+
+Complete TypeScript type reference for agents, tools, and AWS Bedrock integrations.
+
+## Import Statement
+
+```typescript
+import type {
+    AgentDefinition,
+    AgentDefinitionForCreate,
+    AgentDefinitionForUpdate,
+    ToolDefinition,
+    LambdaToolDefinition,
+    McpToolDefinition,
+    InlineToolDefinition,
+    FunctionDefinition,
+    AccessRule,
+    RolloutPolicy
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+import type {
+    BedrockActionGroupLambdaEvent,
+    BedrockActionGroupLambdaResponse
+} from 'pika-shared/types/chatbot/bedrock';
+```
+
+## Agent Types
+
+### AgentDefinition
+
+Complete agent configuration with all fields.
+
+```typescript
+interface AgentDefinition {
+    agentId: string;
+    foundationModel?: string;
+    verificationFoundationModel?: string;
+    basePrompt: string;
+    accessRules?: AccessRule[];
+    runtimeAdapter?: string;
+    rolloutPolicy?: RolloutPolicy;
+    dontCacheThis?: boolean;
+    collaborators?: Collaborator[];
+    agentCollaboration?: AgentCollaboration;
+    toolIds: string[];
+    knowledgeBases?: KnowledgeBase[];
+    version: number;
+    createdBy: string;
+    lastModifiedBy: string;
+    createdAt: string;
+    updatedAt: string;
+    testType?: 'mock';
+}
+```
+
+### AgentDefinitionForCreate
+
+For creating new agents (omits system-managed fields).
+
+```typescript
+type AgentDefinitionForCreate = Omit<
+    AgentDefinition, 
+    'version' | 'createdAt' | 'updatedAt'
+> & {
+    agentId?: AgentDefinition['agentId']; // Optional for auto-generation
+};
+```
+
+### AgentDefinitionForUpdate
+
+For updating existing agents (only include fields to change).
+
+```typescript
+type AgentDefinitionForUpdate = Partial<
+    Omit<AgentDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy'>
+> & {
+    agentId: string; // Required to identify agent
+};
+```
+
+### Collaborator
+
+Multi-agent collaboration configuration.
+
+```typescript
+interface Collaborator {
+    agentId: string;
+    instruction: string;
+    historyRelay: 'TO_COLLABORATOR' | 'TO_AGENT';
+}
+```
+
+**Fields:**
+- `agentId` - ID of the collaborator agent
+- `instruction` - Instructions for this collaborator's role
+- `historyRelay` - How to relay conversation history
+
+### AgentCollaboration
+
+```typescript
+type AgentCollaboration = 'supervisor' | 'sequential' | 'parallel';
+```
+
+**Values:**
+- `supervisor` - Supervisor agent coordinates collaborators
+- `sequential` - Collaborators execute in sequence
+- `parallel` - Collaborators execute in parallel
+
+## Access Control Types
+
+### AccessRule
+
+Fine-grained access control for agents and tools.
+
+```typescript
+interface AccessRule {
+    condition?: string;
+    effect: 'allow' | 'deny';
+    order?: number;
+    description?: string;
+}
+```
+
+**Fields:**
+- `condition` - CEL expression (e.g., `"user.userType = 'internal-user'"`)
+- `effect` - Whether to allow or deny access
+- `order` - Evaluation priority (lower numbers first)
+- `description` - Human-readable explanation
+
+**Example:**
+
+```typescript
+const rules: AccessRule[] = [
+    {
+        effect: 'allow',
+        condition: "user.userType = 'internal-user'",
+        order: 1,
+        description: 'Allow all internal users'
+    },
+    {
+        effect: 'allow',
+        condition: "user.userType = 'external-user' AND customData.tier = 'premium'",
+        order: 2,
+        description: 'Allow premium customers'
+    },
+    {
+        effect: 'deny',
+        order: 999,
+        description: 'Deny all others'
+    }
+];
+```
+
+### RolloutPolicy
+
+Gradual rollout and A/B testing configuration.
+
+```typescript
+interface RolloutPolicy {
+    betaAccounts?: string[];
+    regionRestrictions?: string[];
+    toolOverrides?: Record<string, string>;
+}
+```
+
+**Fields:**
+- `betaAccounts` - Account IDs with early access
+- `regionRestrictions` - AWS regions where available
+- `toolOverrides` - Map old tool IDs to new versions
+
+## Tool Types
+
+### ToolDefinition
+
+Union type for all tool types.
+
+```typescript
+type ToolDefinition = 
+    | LambdaToolDefinition 
+    | McpToolDefinition 
+    | InlineToolDefinition;
+```
+
+### LambdaToolDefinition
+
+AWS Lambda function tools.
+
+```typescript
+interface LambdaToolDefinition extends ToolDefinitionBase {
+    executionType: 'lambda';
+    lambdaArn: string; // Required
+}
+```
+
+### McpToolDefinition
+
+Model Context Protocol tools.
+
+```typescript
+interface McpToolDefinition extends ToolDefinitionBase {
+    executionType: 'mcp';
+    url: string; // Required
+    auth?: OAuth;
+}
+```
+
+### InlineToolDefinition
+
+JavaScript code executed in-process.
+
+```typescript
+interface InlineToolDefinition extends ToolDefinitionBase {
+    executionType: 'inline';
+    code: string; // Required: stringified function
+    handler?: (event: ActionGroupInvocationInput, params: Record<string, any>) => Promise<unknown>;
+}
+```
+
+### ToolDefinitionBase
+
+Common fields for all tool types.
+
+```typescript
+interface ToolDefinitionBase {
+    executionType: ExecutionType;
+    toolId: string;
+    displayName: string;
+    name: string;
+    description: string; // Max 500 characters
+    executionTimeout?: number;
+    supportedAgentFrameworks: AgentFramework[];
+    functionSchema?: FunctionDefinition[];
+    tags?: Record<string, string>;
+    lifecycle?: ToolLifecycle;
+    accessRules?: AccessRule[];
+    version: number;
+    createdBy: string;
+    lastModifiedBy: string;
+    createdAt: string;
+    updatedAt: string;
+    testType?: 'mock';
+}
+```
+
+### ExecutionType
+
+```typescript
+type ExecutionType = 'lambda' | 'mcp' | 'inline';
+```
+
+### AgentFramework
+
+```typescript
+type AgentFramework = 'bedrock';
+```
+
+Currently only AWS Bedrock is supported.
+
+### ToolLifecycle
+
+Manage tool deprecation and migration.
+
+```typescript
+interface ToolLifecycle {
+    status: LifecycleStatus;
+    deprecationDate?: string; // ISO 8601
+    migrationPath?: string;
+}
+
+type LifecycleStatus = 'active' | 'deprecated' | 'retired';
+```
+
+### OAuth
+
+OAuth configuration for MCP tools.
+
+```typescript
+interface OAuth {
+    clientId: string;
+    clientSecret: string;
+    tokenUrl: string;
+    token?: {
+        accessToken: string;
+        expires: number;
+    };
+}
+```
+
+## Function Schema Types
+
+### FunctionDefinition
+
+Defines how LLM should call your tool.
+
+```typescript
+interface FunctionDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, ParameterDefinition>;
+}
+```
+
+### ParameterDefinition
+
+Individual parameter specification.
+
+```typescript
+interface ParameterDefinition {
+    description: string;
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    required: boolean;
+    enum?: string[]; // For string types
+    items?: ParameterDefinition; // For array types
+    properties?: Record<string, ParameterDefinition>; // For object types
+}
+```
+
+**Example:**
+
+```typescript
+const functionSchema: FunctionDefinition[] = [
+    {
+        name: 'search_products',
+        description: 'Search for products in catalog',
+        parameters: {
+            query: {
+                description: 'Search query',
+                type: 'string',
+                required: true
+            },
+            category: {
+                description: 'Product category',
+                type: 'string',
+                required: false,
+                enum: ['electronics', 'clothing', 'home']
+            },
+            filters: {
+                description: 'Additional filters',
+                type: 'object',
+                required: false,
+                properties: {
+                    minPrice: {
+                        description: 'Minimum price',
+                        type: 'number',
+                        required: false
+                    },
+                    maxPrice: {
+                        description: 'Maximum price',
+                        type: 'number',
+                        required: false
+                    }
+                }
+            }
+        }
+    }
+];
+```
+
+## Bedrock Types
+
+### BedrockActionGroupLambdaEvent
+
+Event received by Lambda tool handlers.
+
+```typescript
+interface BedrockActionGroupLambdaEvent {
+    messageVersion: string;
+    agent: {
+        name: string;
+        id: string;
+        alias: string;
+        version: string;
+    };
+    inputText: string;
+    sessionId: string;
+    actionGroup: string;
+    function: string;
+    parameters: Array<{
+        name: string;
+        type: string;
+        value: string;
+    }>;
+    sessionAttributes: Record<string, string>;
+    promptSessionAttributes: Record<string, string>;
+}
+```
+
+### BedrockActionGroupLambdaResponse
+
+Response format for Lambda tool handlers.
+
+```typescript
+interface BedrockActionGroupLambdaResponse {
+    messageVersion: string;
+    response: {
+        actionGroup: string;
+        function: string;
+        functionResponse: {
+            responseBody: {
+                TEXT: {
+                    body: string;
+                };
+            };
+        };
+    };
+}
+```
+
+### ActionGroupInvocationInput
+
+Simplified input for inline tools.
+
+```typescript
+interface ActionGroupInvocationInput {
+    function: string;
+    parameters: Record<string, any>;
+    sessionAttributes: Record<string, string>;
+}
+```
+
+## Utility Types
+
+### For Creating Agents/Tools
+
+```typescript
+// Agent creation
+type AgentDataRequest = {
+    agent: Omit<AgentDefinition, 'version' | 'createdAt' | 'updatedAt'>;
+    userId: string;
+};
+
+// Tool creation
+type ToolDataRequest = {
+    tool: Omit<ToolDefinition, 'version' | 'createdAt' | 'updatedAt'>;
+    userId: string;
+};
+```
+
+### For Updates
+
+```typescript
+// Updateable agent fields
+type UpdateableAgentDefinitionFields = Extract<
+    keyof AgentDefinition,
+    'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 
+    'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases'
+>;
+
+// Updateable tool fields
+type UpdateableToolDefinitionFields = Extract<
+    keyof ToolDefinitionBase,
+    'name' | 'displayName' | 'description' | 'executionType' | 
+    'executionTimeout' | 'supportedAgentFrameworks' | 'functionSchema' | 
+    'tags' | 'lifecycle' | 'accessRules'
+> | 'lambdaArn' | 'url' | 'auth' | 'code';
+```
+
+## Complete Examples
+
+### Type-Safe Agent Creation
+
+```typescript
+import type { AgentDefinitionForCreate } from 'pika-shared/types/chatbot/chatbot-types';
+
+const agent: AgentDefinitionForCreate = {
+    agentId: 'support-agent',
+    basePrompt: 'You are a helpful support agent.',
+    toolIds: ['customer-lookup', 'order-status'],
+    accessRules: [
+        {
+            effect: 'allow',
+            condition: "user.userType = 'internal-user'",
+            order: 1
+        }
+    ],
+    createdBy: 'admin@example.com',
+    lastModifiedBy: 'admin@example.com'
+};
+```
+
+### Type-Safe Lambda Tool Handler
+
+```typescript
+import { Handler } from 'aws-lambda';
+import type {
+    BedrockActionGroupLambdaEvent,
+    BedrockActionGroupLambdaResponse
+} from 'pika-shared/types/chatbot/bedrock';
+import {
+    createBedrockLambdaResponse,
+    handleBedrockError,
+    convertBedrockParamsToCorrectType
+} from 'pika-shared/util/bedrock';
+
+export const handler: Handler = async (
+    event: BedrockActionGroupLambdaEvent
+): Promise<BedrockActionGroupLambdaResponse> => {
+    try {
+        const params = convertBedrockParamsToCorrectType(event.parameters);
+        
+        const result = await handleFunction(event.function, params);
+        
+        return createBedrockLambdaResponse(
+            JSON.stringify(result),
+            event.actionGroup,
+            event.messageVersion,
+            event.function
+        );
+    } catch (error) {
+        return handleBedrockError(error, event);
+    }
+};
+```
+
+### Type-Safe Inline Tool
+
+```typescript
+import type { InlineToolDefinition } from 'pika-shared/types/chatbot/chatbot-types';
+
+const calculator: InlineToolDefinition = {
+    executionType: 'inline',
+    toolId: 'calculator@1',
+    name: 'calculate',
+    displayName: 'Calculator',
+    description: 'Performs basic arithmetic calculations',
+    supportedAgentFrameworks: ['bedrock'],
+    code: `
+        async function calculate(event, params) {
+            const { operation, a, b } = params;
+            let result;
+            
+            switch(operation) {
+                case 'add': result = a + b; break;
+                case 'subtract': result = a - b; break;
+                case 'multiply': result = a * b; break;
+                case 'divide': result = a / b; break;
+                default: throw new Error('Invalid operation');
+            }
+            
+            return { result, operation, a, b };
+        }
+    `,
+    functionSchema: [
+        {
+            name: 'calculate',
+            description: 'Perform arithmetic calculation',
+            parameters: {
+                operation: {
+                    description: 'Operation to perform',
+                    type: 'string',
+                    required: true
+                },
+                a: {
+                    description: 'First number',
+                    type: 'number',
+                    required: true
+                },
+                b: {
+                    description: 'Second number',
+                    type: 'number',
+                    required: true
+                }
+            }
+        }
+    ],
+    version: 1,
+    createdBy: 'admin',
+    lastModifiedBy: 'admin',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
+};
+```
+
+## Utility Functions
+
+### Bedrock Utilities
+
+```typescript
+import {
+    convertBedrockParamsToCorrectType,
+    createBedrockLambdaResponse,
+    handleBedrockError,
+    normalizeSessionAttributes
+} from 'pika-shared/util/bedrock';
+
+// Convert Bedrock parameter format to typed object
+const params = convertBedrockParamsToCorrectType(event.parameters);
+
+// Create properly formatted response
+const response = createBedrockLambdaResponse(
+    'Response text',
+    event.actionGroup,
+    event.messageVersion,
+    event.function
+);
+
+// Handle errors with proper format
+const errorResponse = handleBedrockError(error, event, sessionData);
+
+// Normalize session attributes
+const session = normalizeSessionAttributes(event.sessionAttributes);
+```
+
+## Related Documentation
+
+- **[Agent Configuration](/reference/configuration/agent/)** - Agent config schema reference
+- **[Tool Configuration](/reference/configuration/tool/)** - Tool config schema reference
+- **[Types Overview](/reference/types/)** - Introduction to pika-shared types
+- **[Inline Tools Guide](/guides/agent-development/inline-tools/)** - How-to guide
+- **[Multi-Agent Guide](/guides/agent-development/multi-agent/)** - Collaboration patterns
+
+## Type Source Files
+
+- [chatbot-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts) - Agent and tool types
+- [bedrock.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/bedrock.ts) - Bedrock-specific types
+- [bedrock utils](https://github.com/your-org/pika/tree/main/packages/shared/src/util/bedrock.ts) - Utility functions
+

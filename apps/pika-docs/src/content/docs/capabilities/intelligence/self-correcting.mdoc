@@ -1,0 +1,372 @@
+---
+title: Self-Correcting Responses
+description: Independent LLM verifies agent responses and can trigger automatic reprompting
+---
+
+Self-Correcting Responses improve answer quality by having an independent verifier LLM review agent outputs. The verifier grades responses for accuracy, completeness, and policy adherence, and can trigger automatic reprompting when quality falls below acceptable thresholds.
+
+![Answer Grade](/src/assets/screenshots/why/answer-grade.png)
+
+## What It Does
+
+After an agent generates a response, a separate verifier model evaluates the answer before it reaches the user. The verifier assigns a grade (A/B/C/F), provides reasoning for the grade, and can automatically request a better response if quality is insufficient.
+
+## Why It Matters
+
+AI agents make mistakes. Sometimes they:
+
+- Misunderstand the question
+- Provide incorrect information
+- Miss important context
+- Violate company policies
+- Give incomplete answers
+
+Self-correcting responses catch these mistakes before users see them, improving reliability and building trust in your AI systems.
+
+## How It Works
+
+![Self-Correcting Response Verification Loop](/img/diagrams/self-correcting-flow.drawio.svg)
+
+### The Verification Loop
+
+{% steps %}
+1. **Primary Agent Responds**
+   
+   The configured agent processes the user's question and generates an initial response using its tools and knowledge.
+
+2. **Verifier Evaluates**
+   
+   An independent LLM (typically a different model) reviews the response against criteria like accuracy, completeness, policy compliance, and helpfulness.
+
+3. **Grade Assignment**
+   
+   The verifier assigns a letter grade:
+   - **A** - Excellent response, no issues
+   - **B** - Good response, minor issues
+   - **C** - Acceptable but has problems
+   - **F** - Failed, significant issues
+
+4. **Auto-Reprompt Decision**
+   
+   If enabled and grade falls below threshold (typically C or F), the system automatically asks the agent to try again with the verifier's feedback.
+
+5. **Final Response**
+   
+   User receives the improved response (or original if quality was sufficient).
+{% /steps %}
+
+### Verification Criteria
+
+The verifier evaluates responses on multiple dimensions:
+
+- **Accuracy** - Is the information correct?
+- **Completeness** - Does it fully answer the question?
+- **Policy Compliance** - Does it follow company guidelines?
+- **Tool Usage** - Did it use tools appropriately?
+- **Tone** - Is the communication style appropriate?
+- **Safety** - Does it avoid harmful content?
+
+## Configuration
+
+### Enable for Specific Roles
+
+Start conservatively and expand:
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+    featureOverrides: {
+        verifyResponse: {
+            enabled: true,
+            // Only for internal power users initially
+            allowedRoles: ['pika:content-admin'],
+            autoRepromptThreshold: 'C'
+        }
+    }
+};
+```
+
+### Configure Grading Thresholds
+
+Adjust based on your quality requirements:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    autoReprompt: true,
+    autoRepromptThreshold: 'C',  // Reprompt for C or F
+    maxRepromptAttempts: 2,      // Try twice max
+    showGradeToUser: false       // Hide from external users
+}
+```
+
+### Control Visibility
+
+Different visibility for different audiences:
+
+```typescript
+// Internal users see everything
+verifyResponse: {
+    enabled: true,
+    allowedUserTypes: ['internal-user'],
+    showGradeToUser: true,
+    showReasoningToUser: true
+}
+
+// External users get benefits without seeing mechanics
+verifyResponse: {
+    enabled: true,
+    allowedUserTypes: ['external-user'],
+    showGradeToUser: false,
+    showReasoningToUser: false
+}
+```
+
+## Use Cases
+
+### Customer-Facing Chatbots
+
+Ensure high quality before customers see responses:
+
+- Catch factual errors in product information
+- Verify policy compliance in support responses
+- Ensure professional tone in customer communications
+- Prevent inappropriate or off-brand messaging
+
+### High-Stakes Domains
+
+Extra verification for sensitive areas:
+
+- **Financial Advice** - Verify calculations and recommendations
+- **Medical Information** - Check accuracy of health guidance
+- **Legal Guidance** - Ensure policy compliance
+- **Customer Commitments** - Verify promises and commitments
+
+### Training and Development
+
+Use verification during agent development:
+
+- Identify common failure patterns
+- Refine agent instructions based on verifier feedback
+- Test improvements against previous failure cases
+- Build confidence before production deployment
+
+## Key Benefits
+
+### Catch Mistakes Early
+
+Problems identified before users see them:
+
+- Incorrect information corrected automatically
+- Missing context added on second attempt
+- Policy violations prevented
+- Tone issues addressed
+
+### Transparent Quality
+
+Grade visibility for debugging and improvement:
+
+- Internal teams see verification reasoning
+- Track quality trends over time
+- Identify agents needing refinement
+- Measure improvement from changes
+
+### Configurable Quality Bars
+
+Different standards for different situations:
+
+- **Strict** (A/B only) for customer-facing apps
+- **Moderate** (B/C acceptable) for internal tools
+- **Aggressive** (auto-reprompt on C) for high stakes
+- **Conservative** (no reprompt) for testing
+
+### Continuous Improvement
+
+Verifier feedback drives agent refinement:
+
+- Identifies instruction gaps
+- Reveals tool usage issues
+- Highlights knowledge gaps
+- Guides training data needs
+
+## Performance Considerations
+
+### Latency Impact
+
+Verification adds processing time:
+
+- **Typical overhead**: 1-3 seconds per response
+- **Auto-reprompt**: Additional 3-5 seconds when triggered
+- **User experience**: Most users don't notice with streaming
+
+Mitigation strategies:
+
+- Start verification while user reads streamed response
+- Show "verifying..." indicator during verification
+- Only verify for high-stakes responses
+- Disable for simple queries
+
+### Cost Impact
+
+Additional LLM calls increase costs:
+
+- **Verification call**: Smaller context than primary agent
+- **Reprompt calls**: Full agent invocation with feedback
+- **Typical increase**: 20-30% of base agent cost
+
+Optimization strategies:
+
+- Use smaller/cheaper model for verification
+- Enable only for important chat apps
+- Skip verification for simple queries
+- Set max reprompt attempts
+
+## Advanced Features
+
+### Custom Verification Prompts
+
+Tailor verification criteria:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    customVerificationPrompt: `
+        Evaluate this customer support response for:
+        1. Accuracy of product information
+        2. Compliance with refund policy (max $500 without approval)
+        3. Professional, empathetic tone
+        4. Complete answer to customer question
+        
+        Assign grade and explain reasoning.
+    `
+}
+```
+
+### Verification Bypass Rules
+
+Skip verification when not needed:
+
+```typescript
+verifyResponse: {
+    enabled: true,
+    skipForSimpleQueries: true,      // Skip "hello", "thanks"
+    skipForLowConfidence: true,      // Skip when agent uncertain
+    skipAfterGoodStreak: 10          // Skip after 10 A grades
+}
+```
+
+### Learning from Verification
+
+Track patterns to improve agents:
+
+- Log all verifier feedback
+- Analyze common failure modes
+- Update instructions based on patterns
+- Test fixes against historical failures
+
+## Best Practices
+
+### Start with Internal Users
+
+Roll out gradually:
+
+1. **Phase 1**: Enable for internal power users only
+2. **Phase 2**: Measure impact, tune thresholds
+3. **Phase 3**: Extend to all internal users
+4. **Phase 4**: Enable for external users (hidden grades)
+
+### Set Appropriate Thresholds
+
+Match thresholds to use case:
+
+- **Customer-facing**: Reprompt on C or F
+- **Internal tools**: Accept C grades
+- **High-stakes**: Accept only A/B grades
+- **Development**: Log all but don't reprompt
+
+### Monitor Verification Metrics
+
+Track important indicators:
+
+- Grade distribution (% A/B/C/F)
+- Reprompt frequency
+- Reprompt success rate (improvement after reprompt)
+- User satisfaction correlation with grades
+
+### Use Feedback for Training
+
+Continuously improve agents:
+
+- Review F-graded responses weekly
+- Update instructions to address common issues
+- Add tools to fill capability gaps
+- Refine prompts based on verifier feedback
+
+## Debugging
+
+### Review Verification Details
+
+Access full verification context:
+
+- Original agent response
+- Verifier's grade and reasoning
+- Reprompt attempts and results
+- Final delivered response
+
+### Analyze Grade Trends
+
+Identify patterns:
+
+- Which agents get low grades?
+- What types of questions cause failures?
+- Does time of day affect quality?
+- Are certain tools problematic?
+
+### Test Verification Logic
+
+Validate verification behavior:
+
+- Send test queries with known-good answers
+- Send queries that should fail verification
+- Measure verification accuracy
+- Tune verification prompts as needed
+
+## Getting Started
+
+{% card title="Enable Self-Correction" icon="rocket" %}
+Step-by-step guide to configuring verification.
+
+[How-To Guide →](/how-to/)
+{% /card %}
+
+{% card title="View in Weather Sample" icon="star" %}
+See self-correction working in the sample app.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Understand the Concepts" icon="puzzle" %}
+Deep dive into verification architecture.
+
+[Read Concepts →](/concepts/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Answer Reasoning" icon="information" %}
+See detailed traces of what agents do and why.
+
+[Learn More →](/capabilities/intelligence/answer-reasoning/)
+{% /card %}
+
+{% card title="LLM-Generated Feedback" icon="star" %}
+Automatic analysis of completed sessions for improvement.
+
+[Learn More →](/capabilities/intelligence/llm-feedback/)
+{% /card %}
+
+{% card title="Insights" icon="puzzle" %}
+Session metrics and quality tracking automatically generated.
+
+[Learn More →](/capabilities/intelligence/insights/)
+{% /card %}
+

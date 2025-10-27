@@ -1,0 +1,494 @@
+---
+title: pika-ux Module Reference
+description: Pre-built UI components and design system from the pika-ux package
+---
+
+The `pika-ux` package provides pre-built UI components and design system elements for building web components that integrate seamlessly with Pika chat applications.
+
+## Installation
+
+```bash
+npm install pika-ux
+```
+
+## What's Included
+
+### shadcn/ui Components
+
+Pre-built, accessible UI components based on [shadcn/ui](https://ui.shadcn.com/):
+
+- Fully accessible (WCAG compliant)
+- Customizable with Tailwind CSS
+- Type-safe with TypeScript
+- Works with Svelte 5 (runes mode)
+
+### Custom Pika Components
+
+Additional components specific to Pika Platform functionality.
+
+## Component Categories
+
+### Layout & Structure
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **Card** | Flexible content container | `pika-ux/shadcn/card` |
+| **Separator** | Visual divider | `pika-ux/shadcn/separator` |
+| **Sidebar** | Collapsible sidebar navigation | `pika-ux/shadcn/sidebar` |
+
+### Forms & Input
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **Input** | Text input field | `pika-ux/shadcn/input` |
+| **Label** | Form label | `pika-ux/shadcn/label` |
+| **Checkbox** | Checkbox input | `pika-ux/shadcn/checkbox` |
+| **RadioGroup** | Radio button group | `pika-ux/shadcn/radio-group` |
+| **Select** | Dropdown select | `pika-ux/shadcn/select` |
+| **Switch** | Toggle switch | `pika-ux/shadcn/switch` |
+| **Textarea** | Multi-line text input | `pika-ux/shadcn/textarea` |
+
+### Feedback & Overlays
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **Dialog** | Modal dialog | `pika-ux/shadcn/dialog` |
+| **AlertDialog** | Confirmation dialog | `pika-ux/shadcn/alert-dialog` |
+| **Tooltip** | Hover tooltip | `pika-ux/shadcn/tooltip` |
+| **Popover** | Floating popover | `pika-ux/shadcn/popover` |
+| **Toast** | Notification message | `pika-ux/shadcn/toast` |
+| **Progress** | Progress indicator | `pika-ux/shadcn/progress` |
+
+### Navigation
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **Dropdown Menu** | Dropdown menu | `pika-ux/shadcn/dropdown-menu` |
+| **Tabs** | Tabbed interface | `pika-ux/shadcn/tabs` |
+| **Breadcrumb** | Breadcrumb navigation | `pika-ux/shadcn/breadcrumb` |
+
+### Data Display
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **Table** | Data table | `pika-ux/shadcn/table` |
+| **Badge** | Status badge | `pika-ux/shadcn/badge` |
+| **Avatar** | User avatar | `pika-ux/shadcn/avatar` |
+
+### Pika-Specific Components
+
+| Component | Description | Import |
+|-----------|-------------|--------|
+| **TooltipPlus** | Enhanced tooltip with additional features | `pika-ux/pika/tooltip-plus` |
+| **ExpandableContainer** | Collapsible content container | `pika-ux/pika/expandable-container` |
+
+## Usage Examples
+
+### Button
+
+```typescript
+<script lang="ts">
+    import { Button } from 'pika-ux/shadcn/button';
+
+    function handleClick() {
+        console.log('Button clicked!');
+    }
+</script>
+
+<Button onclick={handleClick} variant="default" size="lg">
+    Click Me
+</Button>
+
+<Button variant="outline" size="sm">
+    Secondary Action
+</Button>
+
+<Button variant="ghost">
+    Ghost Button
+</Button>
+```
+
+**Button Variants:**
+- `default` - Primary button style
+- `destructive` - For destructive actions
+- `outline` - Outlined button
+- `secondary` - Secondary style
+- `ghost` - Minimal style
+- `link` - Link-styled button
+
+**Button Sizes:**
+- `default` - Standard size
+- `sm` - Small
+- `lg` - Large
+- `icon` - Square for icons
+
+### Dialog
+
+```typescript
+<script lang="ts">
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { Button } from 'pika-ux/shadcn/button';
+
+    let dialogOpen = $state(false);
+</script>
+
+<Button onclick={() => dialogOpen = true}>
+    Open Dialog
+</Button>
+
+<Dialog.Root bind:open={dialogOpen}>
+    <Dialog.Content>
+        <Dialog.Header>
+            <Dialog.Title>Dialog Title</Dialog.Title>
+            <Dialog.Description>
+                This is a description of the dialog content.
+            </Dialog.Description>
+        </Dialog.Header>
+
+        <div class="py-4">
+            <!-- Dialog content -->
+            <p>Your dialog content goes here.</p>
+        </div>
+
+        <Dialog.Footer>
+            <Button variant="outline" onclick={() => dialogOpen = false}>
+                Cancel
+            </Button>
+            <Button onclick={() => dialogOpen = false}>
+                Confirm
+            </Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+```
+
+### Card
+
+```typescript
+<script lang="ts">
+    import * as Card from 'pika-ux/shadcn/card';
+    import { Button } from 'pika-ux/shadcn/button';
+</script>
+
+<Card.Root>
+    <Card.Header>
+        <Card.Title>Card Title</Card.Title>
+        <Card.Description>Card description goes here</Card.Description>
+    </Card.Header>
+    <Card.Content>
+        <p>Main content of the card</p>
+    </Card.Content>
+    <Card.Footer>
+        <Button>Action</Button>
+    </Card.Footer>
+</Card.Root>
+```
+
+### Input with Label
+
+```typescript
+<script lang="ts">
+    import { Input } from 'pika-ux/shadcn/input';
+    import { Label } from 'pika-ux/shadcn/label';
+
+    let email = $state('');
+</script>
+
+<div class="space-y-2">
+    <Label for="email">Email</Label>
+    <Input 
+        id="email" 
+        type="email" 
+        placeholder="you@example.com"
+        bind:value={email}
+    />
+</div>
+```
+
+### Select Dropdown
+
+```typescript
+<script lang="ts">
+    import * as Select from 'pika-ux/shadcn/select';
+
+    let selectedValue = $state('');
+</script>
+
+<Select.Root bind:value={selectedValue}>
+    <Select.Trigger>
+        <Select.Value placeholder="Select an option" />
+    </Select.Trigger>
+    <Select.Content>
+        <Select.Item value="option1">Option 1</Select.Item>
+        <Select.Item value="option2">Option 2</Select.Item>
+        <Select.Item value="option3">Option 3</Select.Item>
+    </Select.Content>
+</Select.Root>
+```
+
+### Checkbox
+
+```typescript
+<script lang="ts">
+    import { Checkbox } from 'pika-ux/shadcn/checkbox';
+    import { Label } from 'pika-ux/shadcn/label';
+
+    let checked = $state(false);
+</script>
+
+<div class="flex items-center space-x-2">
+    <Checkbox id="terms" bind:checked />
+    <Label for="terms">Accept terms and conditions</Label>
+</div>
+```
+
+### Tabs
+
+```typescript
+<script lang="ts">
+    import * as Tabs from 'pika-ux/shadcn/tabs';
+</script>
+
+<Tabs.Root value="tab1" class="w-full">
+    <Tabs.List>
+        <Tabs.Trigger value="tab1">Tab 1</Tabs.Trigger>
+        <Tabs.Trigger value="tab2">Tab 2</Tabs.Trigger>
+        <Tabs.Trigger value="tab3">Tab 3</Tabs.Trigger>
+    </Tabs.List>
+    <Tabs.Content value="tab1">
+        <p>Content for Tab 1</p>
+    </Tabs.Content>
+    <Tabs.Content value="tab2">
+        <p>Content for Tab 2</p>
+    </Tabs.Content>
+    <Tabs.Content value="tab3">
+        <p>Content for Tab 3</p>
+    </Tabs.Content>
+</Tabs.Root>
+```
+
+### Table
+
+```typescript
+<script lang="ts">
+    import * as Table from 'pika-ux/shadcn/table';
+
+    const data = [
+        { id: 1, name: 'John Doe', email: 'john@example.com' },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
+    ];
+</script>
+
+<Table.Root>
+    <Table.Header>
+        <Table.Row>
+            <Table.Head>ID</Table.Head>
+            <Table.Head>Name</Table.Head>
+            <Table.Head>Email</Table.Head>
+        </Table.Row>
+    </Table.Header>
+    <Table.Body>
+        {#each data as row}
+            <Table.Row>
+                <Table.Cell>{row.id}</Table.Cell>
+                <Table.Cell>{row.name}</Table.Cell>
+                <Table.Cell>{row.email}</Table.Cell>
+            </Table.Row>
+        {/each}
+    </Table.Body>
+</Table.Root>
+```
+
+## Styling
+
+### Using Tailwind Classes
+
+All pika-ux components are styled with Tailwind CSS and can be customized:
+
+```typescript
+<Button class="mt-4 w-full bg-blue-600 hover:bg-blue-700">
+    Full Width Blue Button
+</Button>
+
+<Card.Root class="max-w-md shadow-lg">
+    <!-- Card content -->
+</Card.Root>
+```
+
+### Theme Integration
+
+Components automatically use the theme configured in your Pika chat app, including:
+
+- Color scheme (primary, secondary, accent colors)
+- Typography (font families, sizes, weights)
+- Spacing and padding
+- Border radius
+- Shadows and elevations
+
+### Custom CSS Variables
+
+Override theme variables in your component:
+
+```css
+<style>
+    :global(.my-custom-button) {
+        --primary: 220 100% 50%;
+        --primary-foreground: 0 0% 100%;
+    }
+</style>
+```
+
+## Pika-Specific Components
+
+### TooltipPlus
+
+Enhanced tooltip with additional features:
+
+```typescript
+<script lang="ts">
+    import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+</script>
+
+<TooltipPlus text="This is a helpful tooltip">
+    <Button>Hover me</Button>
+</TooltipPlus>
+```
+
+### ExpandableContainer
+
+Collapsible content container:
+
+```typescript
+<script lang="ts">
+    import ExpandableContainer from 'pika-ux/pika/expandable-container/expandable-container.svelte';
+</script>
+
+<ExpandableContainer 
+    title="Click to expand"
+    initiallyExpanded={false}
+>
+    <p>This content is hidden by default.</p>
+    <p>Click the title to reveal it.</p>
+</ExpandableContainer>
+```
+
+## Best Practices
+
+{% aside type="tip" title="Component Usage Tips" %}
+1. **Import only what you need** - Tree-shake unused components
+2. **Use semantic HTML** - Components render proper HTML elements
+3. **Leverage variants** - Use built-in variants instead of custom styles
+4. **Test accessibility** - Components are built with a11y in mind, but test your usage
+5. **Follow Tailwind conventions** - Use utility classes for consistency
+{% /aside %}
+
+## Accessibility Features
+
+All shadcn/ui components include:
+
+- **Keyboard navigation** - Full keyboard support
+- **Screen reader support** - Proper ARIA labels and roles
+- **Focus management** - Clear focus indicators
+- **Color contrast** - WCAG AA compliant colors
+- **Semantic HTML** - Proper element usage
+
+## TypeScript Support
+
+All components are fully typed:
+
+```typescript
+import type { Button } from 'pika-ux/shadcn/button';
+import type { DialogProps } from 'pika-ux/shadcn/dialog';
+
+// Component props are typed
+const buttonProps: ComponentProps<typeof Button> = {
+    variant: 'default',
+    size: 'lg',
+    onclick: () => console.log('clicked')
+};
+```
+
+## Component Composition
+
+Build complex UIs by composing components:
+
+```typescript
+<Card.Root class="w-96">
+    <Card.Header>
+        <Card.Title>User Profile</Card.Title>
+    </Card.Header>
+    <Card.Content class="space-y-4">
+        <div class="space-y-2">
+            <Label for="name">Name</Label>
+            <Input id="name" placeholder="Enter your name" />
+        </div>
+        
+        <div class="space-y-2">
+            <Label for="email">Email</Label>
+            <Input id="email" type="email" placeholder="Enter your email" />
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <Checkbox id="newsletter" />
+            <Label for="newsletter">Subscribe to newsletter</Label>
+        </div>
+    </Card.Content>
+    <Card.Footer>
+        <Button class="w-full">Save Profile</Button>
+    </Card.Footer>
+</Card.Root>
+```
+
+## Related Documentation
+
+- **[Custom Component Interface](/reference/ui-components/custom-components/)** - Building custom components
+- **[Widget System](/reference/ui-components/widget-system/)** - Tag definitions and widgets
+- **[Building Web Components Guide](/guides/customization/web-components/)** - How-to guide
+- **[shadcn/ui Docs](https://ui.shadcn.com/)** - Original component documentation
+- **[Tailwind CSS](https://tailwindcss.com/)** - Styling framework
+
+## Troubleshooting
+
+### Components Not Rendering
+
+Ensure you have the correct imports and Svelte version:
+
+```bash
+npm install svelte@^5.0.0 pika-ux
+```
+
+### Styling Issues
+
+Make sure Tailwind CSS is configured:
+
+```javascript
+// tailwind.config.js
+export default {
+    content: [
+        './src/**/*.{html,js,svelte,ts}',
+        './node_modules/pika-ux/**/*.{html,js,svelte,ts}'
+    ],
+    // ...
+};
+```
+
+### Type Errors
+
+Ensure you're using TypeScript 5.0 or higher:
+
+```bash
+npm install -D typescript@^5.0.0
+```
+
+## Version Compatibility
+
+| pika-ux | Svelte | TypeScript | Tailwind |
+|---------|--------|------------|----------|
+| 1.x | ^5.0.0 | ^5.0.0 | ^3.4.0 |
+
+## Source Code
+
+View components on GitHub:
+- [pika-ux on GitHub](https://github.com/your-org/pika/tree/main/packages/pika-ux)
+- [shadcn/ui original](https://github.com/shadcn-ui/ui)
+
