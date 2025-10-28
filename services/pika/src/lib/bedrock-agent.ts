@@ -62,6 +62,7 @@ import {
 } from './model-types-utils';
 import { parsers } from './tool-input-parser';
 import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
+import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
@@ -178,6 +179,22 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
         }
 
         hooks.onStart();
+
+        // Add LLM instruction trace: This shows the full instruction sent to the model
+        if (cmdInput.instruction) {
+            const compressedInstruction = gzipAndBase64EncodeString(cmdInput.instruction);
+            hooks.onTrace({
+                orchestrationTrace: {
+                    rationale: {
+                        traceId: 'llm-instruction',
+                        text: JSON.stringify({
+                            type: 'llm-instruction',
+                            compressedData: compressedInstruction
+                        })
+                    }
+                }
+            });
+        }
 
         // Add semantic directives trace for debugging (admin only on frontend)
         // Send early so it appears at the top of the reasoning

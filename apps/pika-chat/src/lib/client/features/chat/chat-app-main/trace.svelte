@@ -3,11 +3,14 @@
     import ChevronRight from '$icons/lucide/chevron-right';
     import CircleCheck from '$icons/lucide/circle-check';
     import Expand from '$icons/lucide/expand';
+    import Maximize2 from '$icons/lucide/maximize-2';
     import Shrink from '$icons/lucide/shrink';
+    import { gunzipBase64EncodedString } from '$lib/client/util';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
     import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
     import TextWaveShimmer from 'pika-ux/pika/text-wave-shimmer/text-wave-shimmer.svelte';
     import { Button } from 'pika-ux/shadcn/button';
     import { toast } from 'svelte-sonner';
@@ -44,6 +47,9 @@
     const detailedTrace = $derived(features.traces.detailedTraces);
     const isContentAdmin = $derived(chatAppState?.userIsContentAdmin ?? false);
     let expandedTraces = $state<Record<string, boolean>>({});
+    let decompressedInstructions = $state<Record<string, string>>({});
+    let instructionDialogOpen = $state(false);
+    let instructionDialogContent = $state<string>('');
 
     // TODO: Pull this from the correct user setting
     const dontGroupTraces = $derived(features.traceDontGroup?.value);
@@ -228,6 +234,11 @@
               title?: string;
               id: string;
               grade: string;
+          }
+        | {
+              type: 'llm-instruction';
+              id: string;
+              compressedData: string;
           };
 
     function extractFunctionName(parametersRawText: string): string | null {
@@ -297,6 +308,16 @@
                             type: 'text',
                             markdown: html,
                             rawText: JSON.stringify(parsed.directives, null, 2),
+                        });
+                        return; // Skip further processing for this trace
+                    }
+
+                    // Check if this is an LLM instruction trace (detailed traces permission required)
+                    if (parsed.type === 'llm-instruction' && detailedTrace && parsed.compressedData) {
+                        grouped.push({
+                            id: val.orchestrationTrace.rationale.traceId ?? 'llm-instruction',
+                            type: 'llm-instruction',
+                            compressedData: parsed.compressedData,
                         });
                         return; // Skip further processing for this trace
                     }
@@ -610,6 +631,8 @@
                                 {@render toolInvocationTrace(trace)}
                             {:else if trace.type === 'verification'}
                                 {@render verificationTrace(trace)}
+                            {:else if trace.type === 'llm-instruction'}
+                                {@render llmInstructionTrace(trace)}
                             {:else}
                                 {@render textTrace(trace)}
                             {/if}
@@ -724,6 +747,72 @@
     </div>
 {/snippet}
 
+{#snippet llmInstructionTrace(trace: GroupedTrace & { type: 'llm-instruction' })}
+    <div class="border border-slate-200 rounded-lg overflow-hidden mt-2">
+        <button
+            class="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+            onclick={() => {
+                if (expandedTraces[trace.id]) {
+                    delete expandedTraces[trace.id];
+                } else {
+                    // Decompress on first expansion
+                    if (!decompressedInstructions[trace.id]) {
+                        decompressedInstructions[trace.id] = gunzipBase64EncodedString(trace.compressedData);
+                    }
+                    expandedTraces[trace.id] = true;
+                }
+            }}
+        >
+            <div class="flex items-center gap-2">
+                <ChevronRight
+                    class="w-4 h-4 transition-transform duration-200 text-slate-500 {expandedTraces[trace.id]
+                        ? 'rotate-90'
+                        : ''}"
+                />
+                <span class="font-medium text-slate-700">LLM Instruction Prompt</span>
+            </div>
+            {#if expandedTraces[trace.id]}
+                <div class="flex items-center gap-1" role="group">
+                    <Button
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            const decompressed =
+                                decompressedInstructions[trace.id] || gunzipBase64EncodedString(trace.compressedData);
+                            navigator.clipboard.writeText(decompressed);
+                            toast.info('Copied to clipboard', { duration: 1500 });
+                        }}
+                        variant="ghost"
+                        size="icon"
+                    >
+                        <Copy class="w-4 h-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            const decompressed =
+                                decompressedInstructions[trace.id] || gunzipBase64EncodedString(trace.compressedData);
+                            instructionDialogContent = decompressed;
+                            instructionDialogOpen = true;
+                        }}
+                    >
+                        <Maximize2 class="w-4 h-4" />
+                    </Button>
+                </div>
+            {/if}
+        </button>
+
+        {#if expandedTraces[trace.id] && decompressedInstructions[trace.id]}
+            <div class="px-4 pb-4 border-t border-slate-200 bg-slate-50">
+                <div class="prose prose-sm max-w-none pt-3">
+                    {@html md.render(decompressedInstructions[trace.id])}
+                </div>
+            </div>
+        {/if}
+    </div>
+{/snippet}
+
 {#snippet toolInvocationTrace(
     trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' }
 )}
@@ -807,6 +896,38 @@
         </div>
     </div>
 {/snippet}
+
+<!-- Full-screen dialog for viewing LLM instruction -->
+<Dialog.Root bind:open={instructionDialogOpen}>
+    <Dialog.Content class="overflow-hidden flex flex-col" style="width: 95vw; height: 90vh;">
+        <Dialog.Header>
+            <Dialog.Title>
+                <div class="flex items-center gap-2">
+                    <span>LLM Instruction Prompt</span>
+                </div>
+            </Dialog.Title>
+        </Dialog.Header>
+
+        <div class="flex-1 overflow-auto p-4">
+            <div class="prose prose-sm max-w-none">
+                {@html md.render(instructionDialogContent)}
+            </div>
+        </div>
+
+        <Dialog.Footer class="flex items-center justify-end gap-2">
+            <Button
+                onclick={() => {
+                    navigator.clipboard.writeText(instructionDialogContent);
+                    toast.info('Copied to clipboard', { duration: 1500 });
+                }}
+                variant="outline"
+            >
+                <Copy class="w-4 h-4 mr-2" />
+                Copy
+            </Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
 
 <style>
     .thinking-step-btn {

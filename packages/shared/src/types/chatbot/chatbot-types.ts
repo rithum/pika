@@ -27,6 +27,23 @@ export interface SessionData {
 }
 
 /**
+ * Represents a context item that was sent to the LLM in this session.
+ * Used to track which contexts have been sent to avoid redundant transmission.
+ */
+export interface SentContextRecord {
+    /** The sourceId of the context that was sent */
+    sourceId: string;
+    /** Array of message IDs where this context was sent (tracks all occurrences) */
+    messageIds: string[];
+    /** The content hash of the context when it was sent */
+    contentHash: string;
+    /** ISO 8601 timestamp of the last time this context was sent */
+    lastSentAt: string;
+    /** The origin of the context (user or auto) */
+    origin: WidgetContextSourceOrigin;
+}
+
+/**
  * Represents a chat session between a user and an agent.  A session is a sequential
  * collection of messages between a user and an agent.  The most recent message is
  * lastMessageId.
@@ -148,6 +165,17 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
      * when the session is created and when the last message ID is added.  This should be fine.
      */
     insightStatus?: InsightStatusNeedsInsightsAnalysis | undefined;
+
+    /**
+     * Tracks context items that have been sent to the LLM in this session.
+     * Keyed by sourceId to allow efficient lookups when determining if a context has changed or needs to be resent.
+     *
+     * This is used to:
+     * - Avoid sending the same context multiple times
+     * - Detect when context has changed (via contentHash comparison)
+     * - Track which message included each piece of context
+     */
+    sentContexts?: Record<string, SentContextRecord>;
     /** The share ID if this session is shared */
     shareId?: string;
     /** User ID of the user who created the share */
@@ -1069,6 +1097,13 @@ export interface ConverseRequest extends BaseRequestData {
      * If 'component', then the converse request is coming from a component.
      */
     source: ConverseSource;
+
+    /**
+     * The context items to include in the LLM prompt.  Before we call the LLM to answer the
+     * user's question, we will first use another LLM request to determine which context items are relevant to the user's question.
+     * The relevant context items are then appended to the prompt sent to the LLM.
+     */
+    llmContextItems?: LLMContextItem[];
 }
 
 export const ConverseSource = ['user', 'component-as-user', 'component'] as const;
@@ -4349,6 +4384,10 @@ export interface SpotlightContextConfig {
     enabled: boolean;
     isDefault?: boolean;
     displayOrder?: number;
+    /** If true (default), only one instance of this widget can exist in spotlight at a time */
+    singleton?: boolean;
+    /** If false, widget won't appear in unpinned menu. Default: true. Use false for base widgets that only create instances */
+    showInUnpinnedMenu?: boolean;
 }
 
 export interface InlineContextConfig {
@@ -4426,6 +4465,54 @@ export interface WidgetInstance {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     /** When this instance was created */
     createdAt: number;
+}
+
+/**
+ * This is used when manually registering a custom element as a spotlight widget by a comopnent in the client.
+ */
+export interface SpotlightWidgetDefinition {
+    /** @see TagDefinition.tag */
+    tag: string;
+
+    /** @see TagDefinition.scope */
+    scope: string;
+
+    /** @see TagDefinitionWidgetWebComponent.customElementName */
+    customElementName?: string;
+
+    /** @see TagDefinition.tagTitle */
+    tagTitle: string;
+
+    /** @see TagDefinitionWidgetWebComponent.sizing */
+    sizing?: WidgetSizing;
+
+    /** @see TagDefinition.componentAgentInstructionsMd */
+    componentAgentInstructionsMd?: Record<string, string>;
+
+    /**
+     * If true and there isn't an instance of this widget already created as a spotlight widget, then a new instance will be created.
+     */
+    autoCreateInstance?: boolean;
+
+    /** The display order of the widget in the spotlight. If not provided, is put first. */
+    displayOrder?: number;
+
+    /** Defaults to true.  If true, then only one instance of this widget can be created. */
+    singleton?: boolean;
+
+    /** If false, widget won't appear in unpinned menu. Default: true. Use false for base widgets that only create instances */
+    showInUnpinnedMenu?: boolean;
+}
+
+/**
+ * Metadata for a persistent spotlight instance (saved via Virtual Tags Pattern)
+ */
+export interface SpotlightInstanceMetadata {
+    displayName: string;
+    savedAt: string; // ISO-8601
+    displayOrder: number;
+    parentTag: string; // Base tag without instance suffix
+    instanceId: string; // UUID
 }
 
 export interface TagDefinition<T extends TagDefinitionWidget> {
@@ -5302,6 +5389,13 @@ export interface WidgetMetadata {
     /** Widget title shown in chrome */
     title: string;
 
+    /**
+     * Optional Lucide icon name (will be fetched automatically and set as iconSvg).
+     *
+     * The name will be snake cased as in `arrow-big-down` and not `arrowBigDown`
+     */
+    lucideIconName?: string;
+
     /** Optional icon SVG markup for the widget title */
     iconSvg?: string;
 
@@ -5344,3 +5438,104 @@ export interface IUserWidgetDataStoreState {
     setValue(key: string, value: unknown): Promise<void>;
     deleteValue(key: string): Promise<void>;
 }
+
+/**
+ * Represents a unit of contextual information that can be considered for inclusion
+ * in an LLM prompt when responding to a user's request.
+ */
+export interface LLMContextItem {
+    /** A unique identifier for this context item. */
+    id: string;
+
+    /**
+     * A short natural-language summary describing what this context is about.
+     * Used by smaller / cheaper LLMs to determine if this item is relevant
+     * to the user's current query.
+     */
+    description: string;
+
+    /**
+     * The actual contextual content that can be inserted into the LLM prompt
+     * if deemed relevant by the model.
+     */
+    context: unknown;
+
+    /** Whether this was added automatically by the component or by the user */
+    origin: WidgetContextSourceOrigin;
+
+    /** SHA-256 hash of the content, used to detect changes. */
+    contentHash: string;
+
+    /** ISO-8601 timestamp of when this context was last updated. */
+    lastUpdated: string;
+
+    /**
+     * Optional expiration for the cached context.
+     * - `0` means it is always considered "changed" (always re-included).
+     * - If omitted, re-inclusion depends on hash changes.
+     * - If set, after this duration (in ms), the context is considered stale
+     *   and should be re-fetched or re-included even if the hash is unchanged.
+     */
+    maxAgeMs?: number;
+}
+
+/**
+ * Here is a generic source of context that can be added to the conversation.
+ */
+export interface ContextSourceDef {
+    /** A unique identifier for this context source. Must be unique system wide so be sure. Used for caching and tracking. */
+    sourceId: string;
+
+    /**
+     * This is a description that will be given an LLM before the agent is invoked to determine if this context should be included in the prompt.
+     * It will be given a list of all contexts that are available, the inquiry from the user and then asked which
+     * contexts should be included in the prompt.
+     */
+    llmInclusionDescription: string;
+
+    /** Whether this was added automatically by the component or by the user */
+    origin: WidgetContextSourceOrigin;
+
+    /** The name of the lucide icon to show the user to represent this context.  A default will be used if not provided. */
+    lucideIconName?: string;
+
+    /** The title of the context. This will be shown to the user as the name of this context. */
+    title: string;
+
+    /** The description of the context. This will be shown to the user as the description of this context. */
+    description: string;
+
+    /** The data to include in the context. This will be sent to the agent as the context. */
+    data: unknown;
+
+    /** Whether to add this context automatically when the component is added to the conversation. */
+    addAutomatically?: boolean;
+
+    /**
+     * Optional expiration for the cached context.
+     * - `0` means it is always considered "changed" (always re-included).
+     * - If omitted, re-inclusion depends on hash changes.
+     * - If set, after this duration (in ms), the context is considered stale
+     *   and should be re-fetched or re-included even if the hash is unchanged.
+     */
+    maxAgeMs?: number;
+}
+
+export const WidgetContextSourceOrigins = ['user', 'auto'] as const;
+export type WidgetContextSourceOrigin = (typeof WidgetContextSourceOrigins)[number];
+
+/**
+ * Components that have a getContext method will return a ContextSourceDef
+ * object and then Pika will include the instanceId and store it as a
+ * WidgetContextSourceDef so it knows the source of the context is
+ * a widget.
+ */
+export interface WidgetContextSourceDef extends ContextSourceDef {
+    type: 'widget';
+
+    /** The web component instance ID that is adding the context. This is used to identify the instance of the component that is adding the context. */
+    instanceId: string;
+}
+
+/** These are what get added to the converstaion state as context sources. */
+export type ContextSource = WidgetContextSourceDef;

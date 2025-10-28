@@ -2,7 +2,7 @@
 
 <script lang="ts">
     import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
-    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { InvokeAgentAsComponentOptions, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
@@ -10,7 +10,6 @@
     import OctagonX from '$icons/lucide/octagon-x';
     import Eye from '$icons/lucide/eye';
     import CircleAlert from '$icons/lucide/circle-alert';
-    import { Component } from 'svelte';
 
     interface WeatherAlert {
         severity: string;
@@ -105,6 +104,11 @@
             if (cacheAge > REFRESH_INTERVAL_MS) {
                 // Auto-refresh stale data (once a day)
                 await checkAlerts();
+            } else {
+                // Cached data is fresh - notify system that context is available
+                if (context && context.instanceId) {
+                    context.chatAppState.updateWidgetContext(context.instanceId);
+                }
             }
         } else {
             // No cached data, fetch immediately (auto-load)
@@ -139,6 +143,7 @@
 
         try {
             const options: InvokeAgentAsComponentOptions = {
+                source: 'component',
                 onThinking: (text: string) => {
                     // Skip semantic-directives messages
                     if (text.startsWith('{"type":"semantic-directives"')) return;
@@ -168,6 +173,12 @@
             lastRefreshTime = timestamp;
 
             applyAlertsData(response);
+
+            // Notify system that context has changed
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
+
             thinkingStatus = '';
             toolStatus = '';
         } catch (e) {
@@ -194,6 +205,42 @@
         if (sev.includes('watch')) return 'watch';
         if (sev.includes('advisory')) return 'advisory';
         return 'advisory';
+    }
+
+    /**
+     * Provide context about active weather alerts.
+     * NOT added automatically - user must manually add this sensitive alert information.
+     * This ensures users explicitly choose to share alert data with AI.
+     */
+    export function getContextForLlm(): ContextSourceDef[] | undefined {
+        // Only provide context if we have alerts
+        if (!alerts || alerts.length === 0) {
+            return undefined;
+        }
+
+        return [
+            {
+                sourceId: 'weather-alerts-active',
+                llmInclusionDescription: 'Active weather alerts and warnings including severity, type, description, and affected locations',
+                origin: 'auto',
+                lucideIconName: 'triangle-alert',
+                title: 'Weather Alerts',
+                description: `${alerts.length} active ${alerts.length === 1 ? 'alert' : 'alerts'}`,
+                data: {
+                    alerts: alerts.map((a) => ({
+                        severity: a.severity,
+                        title: a.title,
+                        location: a.location,
+                        description: a.description,
+                        issuedAt: a.issuedAt,
+                        expiresAt: a.expiresAt
+                    })),
+                    checkedAt: lastRefreshTime
+                },
+                addAutomatically: false, // User must explicitly add alert context
+                maxAgeMs: 60 * 60 * 1000 // 1 hour - alerts can change quickly
+            }
+        ];
     }
 </script>
 

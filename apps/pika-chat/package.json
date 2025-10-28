@@ -88,6 +88,7 @@
         "embla-carousel-svelte": "catalog:",
         "esbuild": "catalog:",
         "eslint": "catalog:",
+        "fflate": "catalog:",
         "file-type": "catalog:",
         "glob": "catalog:",
         "highlight.js": "catalog:",

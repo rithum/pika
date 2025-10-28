@@ -1,5 +1,13 @@
 import { InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { type InstructionAugmentationScopeType, type InvocationScopes, type SemanticDirective, type SemanticDirectiveScope } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    type ChatSession,
+    type InstructionAugmentationScopeType,
+    type InvocationScopes,
+    type LLMContextItem,
+    type RecordOrUndef,
+    type SemanticDirective,
+    type SemanticDirectiveScope
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { getBedrockClient } from './bedrock-agent';
 import { searchSemanticDirectives } from './chat-admin-ddb';
 import { jsonparse } from './jsonparse';
@@ -157,4 +165,174 @@ async function getMatchingSemanticDirectives(scopes: InvocationScopes): Promise<
         // Return empty array rather than throwing - instruction augmentation should be resilient
         return [];
     }
+}
+
+/**
+ * Filters LLM context items based on relevance to the user's prompt and session history.
+ * Always includes items where origin === 'user'.
+ * Uses a cheaper LLM to determine relevance for auto-added contexts.
+ * Skips contexts that have already been sent and haven't changed (based on contentHash).
+ */
+export async function filterLLMContextItems(
+    contextItems: LLMContextItem[],
+    userPrompt: string,
+    chatSession: ChatSession<RecordOrUndef>,
+    model: string = MODELS.AMAZON.NovaLite.id
+): Promise<LLMContextItem[]> {
+    console.log('[context-filtering] Processing', contextItems.length, 'context items for user prompt');
+
+    // Return early if no context items
+    if (contextItems.length === 0) {
+        console.log('[context-filtering] No context items provided, returning empty array');
+        return [];
+    }
+
+    // Check each context against session history to filter out unchanged contexts
+    const sentContexts = chatSession.sentContexts || {};
+    const contextsToConsider: LLMContextItem[] = [];
+
+    for (const item of contextItems) {
+        const sentRecord = sentContexts[item.id];
+
+        // Always include user-requested contexts
+        if (item.origin === 'user') {
+            console.log(`[context-filtering] Including user-requested context: ${item.id}`);
+            contextsToConsider.push(item);
+            continue;
+        }
+
+        // For auto contexts, check if they've been sent before
+        if (!sentRecord) {
+            console.log(`[context-filtering] Context ${item.id} never sent before, including`);
+            contextsToConsider.push(item);
+            continue;
+        }
+
+        // Check if content has changed
+        if (sentRecord.contentHash !== item.contentHash) {
+            console.log(`[context-filtering] Context ${item.id} has changed (hash mismatch), including`);
+            contextsToConsider.push(item);
+            continue;
+        }
+
+        // Check if context has expired based on maxAgeMs
+        if (item.maxAgeMs !== undefined && item.maxAgeMs >= 0) {
+            const sentAtTime = new Date(sentRecord.lastSentAt).getTime();
+            const nowTime = Date.now();
+            const ageMs = nowTime - sentAtTime;
+
+            if (item.maxAgeMs === 0) {
+                // maxAgeMs === 0 means always re-include
+                console.log(`[context-filtering] Context ${item.id} has maxAgeMs=0, always including`);
+                contextsToConsider.push(item);
+                continue;
+            }
+
+            if (ageMs > item.maxAgeMs) {
+                console.log(`[context-filtering] Context ${item.id} is stale (age: ${ageMs}ms > maxAge: ${item.maxAgeMs}ms), including`);
+                contextsToConsider.push(item);
+                continue;
+            }
+        }
+
+        console.log(`[context-filtering] Context ${item.id} already sent and unchanged, skipping`);
+    }
+
+    console.log('[context-filtering] After history check:', contextsToConsider.length, 'contexts to consider');
+
+    // Separate user-requested contexts from auto-added contexts within contexts to consider
+    const userRequestedContexts = contextsToConsider.filter((item) => item.origin === 'user');
+    const autoContexts = contextsToConsider.filter((item) => item.origin === 'auto');
+
+    console.log('[context-filtering] User-requested contexts:', userRequestedContexts.length);
+    console.log('[context-filtering] Auto-added contexts to filter:', autoContexts.length);
+
+    // If no auto-contexts to filter, just return user-requested ones
+    if (autoContexts.length === 0) {
+        console.log('[context-filtering] No auto-contexts to filter, returning', userRequestedContexts.length, 'user-requested contexts');
+        return userRequestedContexts;
+    }
+
+    const bedrockClient = getBedrockClient();
+
+    // Build the contexts string for LLM filtering
+    const contextsString = autoContexts.map((context) => `<context><id>${context.id}</id><description>${context.description}</description></context>`).join('\n');
+
+    const prompt = `Given this user query, determine which of the available contexts are relevant and should be included in the prompt to help answer the question.
+
+Return only the IDs of relevant contexts as a JSON array inside an <answer></answer> tag. If no contexts are relevant, return an empty array [].
+Do not include any other text or reasoning. Just the JSON array inside the <answer></answer> tag.
+
+<contexts>
+${contextsString}
+</contexts>
+
+<example_output><answer>["context-id-1", "context-id-2", "context-id-3"]</answer></example_output>
+
+<user_query>${userPrompt}</user_query>`;
+
+    console.log('[context-filtering] Calling LLM to filter contexts');
+
+    // Call LLM to determine applicable contexts
+    const body = buildModelInvokeBody(model, {
+        maxTokens: 2000,
+        topK: 250,
+        temperature: 1,
+        topP: 0.999,
+        messages: [
+            {
+                role: 'user',
+                content: [{ type: 'text', text: prompt }]
+            }
+        ]
+    });
+
+    let response = await bedrockClient.send(
+        new InvokeModelCommand({
+            modelId: model,
+            contentType: 'application/json',
+            accept: 'application/json',
+            body: JSON.stringify(body)
+        })
+    );
+
+    // Get and parse the model response
+    const responseBody = new TextDecoder().decode(response.body);
+    let llmResponse = getModelResponse(model, responseBody);
+
+    // Extract the answer from the response
+    const answerMatch = llmResponse.match(/<\/? *answer>(.*?)<\/? *answer>/s);
+    const rawAnswer = answerMatch?.[1] ?? '[]';
+    let selectedIds: string[] = jsonparse<string[]>(rawAnswer);
+
+    console.log('[context-filtering] LLM selected context IDs:', selectedIds);
+
+    // Create a lookup map of auto-contexts by ID
+    const autoContextsById = autoContexts.reduce(
+        (acc, context) => {
+            acc[context.id] = context;
+            return acc;
+        },
+        {} as Record<string, LLMContextItem>
+    );
+
+    // Map the LLM-chosen IDs to the full context objects
+    const chosenAutoContexts = selectedIds
+        .map((contextId) => {
+            const context = autoContextsById[contextId];
+            if (!context) {
+                console.log(`[context-filtering] Warning: Context ID "${contextId}" not found`);
+            }
+            return context;
+        })
+        .filter((context) => context != null);
+
+    console.log('[context-filtering] Selected', chosenAutoContexts.length, 'relevant auto-contexts');
+
+    // Combine user-requested contexts with LLM-filtered auto-contexts
+    const finalContexts = [...userRequestedContexts, ...chosenAutoContexts];
+
+    console.log('[context-filtering] Returning', finalContexts.length, 'total contexts');
+
+    return finalContexts;
 }

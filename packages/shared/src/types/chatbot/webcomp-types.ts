@@ -28,7 +28,8 @@ import type {
     IUserWidgetDataStoreState,
     ChatAppActionMenu,
     ChatAppAction,
-    WidgetInstance
+    WidgetInstance,
+    SpotlightWidgetDefinition
 } from './chatbot-types';
 
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
@@ -223,12 +224,138 @@ export interface IChatAppState {
     getMessageByMessageId(messageId: string): ChatMessageForRendering | undefined;
     uploadFiles(files: File[]): Promise<void>;
     initializeData(): Promise<void>;
-    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas', data?: Record<string, any>): Promise<void>;
+    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
     setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction): void;
     removeCustomTitleBarAction(actionId: string): void;
     getWidgetInstance(instanceId: string): WidgetInstance | undefined;
+
+    /**
+     * Update context for a widget. Call this when your widget's context has changed.
+     *
+     * This method will re-check your widget's `getContextForLlm()` method and update
+     * the context accordingly. Use this when:
+     * - Your widget initially had no context, but now has context to share
+     * - Your widget's context data has changed (e.g., user selected different items)
+     * - You want to change whether context should be auto-added
+     *
+     * @param instanceId - Your widget's instance ID (from getPikaContext())
+     *
+     * @example
+     * ```typescript
+     * // In a Svelte widget component:
+     * let selectedCities = $state<string[]>([]);
+     *
+     * onMount(async () => {
+     *     const context = await getPikaContext($host());
+     *
+     *     // Update context whenever selection changes
+     *     $effect(() => {
+     *         if (selectedCities.length > 0) {
+     *             // This triggers re-evaluation of getContextForLlm()
+     *             context.chatAppState.updateWidgetContext(context.instanceId);
+     *         }
+     *     });
+     * });
+     *
+     * // Your getContextForLlm() method will be called again
+     * getContextForLlm() {
+     *     if (selectedCities.length === 0) return undefined;
+     *
+     *     return {
+     *         origin: 'auto',
+     *         title: 'Selected Cities',
+     *         description: `User selected ${selectedCities.length} cities`,
+     *         data: { cities: selectedCities },
+     *         addAutomatically: true
+     *     };
+     * }
+     * ```
+     */
+    updateWidgetContext(instanceId: string): void;
+
+    /**
+     * Manually register a web component as a spotlight widget. This allows components to
+     * dynamically add themselves to the spotlight area at runtime.
+     *
+     * Note: Registration is ephemeral and does not persist across page refreshes.
+     * Components must re-register themselves on each page load.
+     *
+     * @param definition - Simplified definition for the spotlight widget
+     *
+     * @example
+     * ```typescript
+     * chatAppState.manuallyRegisterSpotlightWidget({
+     *     tag: 'my-widget',
+     *     scope: 'my-app',
+     *     tagTitle: 'My Widget',
+     *     displayOrder: 0
+     * });
+     * ```
+     */
+    manuallyRegisterSpotlightWidget(definition: SpotlightWidgetDefinition): void;
+
+    /**
+     * Save a persistent spotlight instance using the Virtual Tags Pattern.
+     * Creates a new instance with its own UserWidgetDataStore (400KB limit per instance),
+     * saves the data, registers it as a spotlight widget, and renders it immediately.
+     *
+     * Use this when users save content (like charts, queries, etc.) to spotlight.
+     *
+     * @param scope - Widget scope (e.g., 'weather')
+     * @param baseTag - Base tag name (e.g., 'chart-saved')
+     * @param displayName - User-facing name for this instance
+     * @param customElementName - The custom element name (same for all instances)
+     * @param data - The data to pass to this instance
+     * @param dataKey - The key to store data under (default: 'data')
+     * @param metadata - Optional widget metadata (title, actions, icon, etc.)
+     * @returns The instance ID (UUID)
+     *
+     * @example
+     * ```typescript
+     * const instanceId = await chatAppState.saveSpotlightInstance(
+     *     'weather',
+     *     'chart-saved',
+     *     'Q4 Revenue Chart',
+     *     'weather-chart-saved',
+     *     { chartType: 'bar', data: [...] },
+     *     'chartData',
+     *     {
+     *         title: 'Q4 Revenue Chart',
+     *         iconSvg: '<svg>...</svg>',
+     *         actions: [...]
+     *     }
+     * );
+     * ```
+     */
+    saveSpotlightInstance(
+        scope: string,
+        baseTag: string,
+        displayName: string,
+        customElementName: string,
+        data: Record<string, any>,
+        dataKey?: string,
+        metadata?: WidgetMetadata
+    ): Promise<string>;
+
+    /**
+     * Delete a saved spotlight instance.
+     * Removes from spotlight, removes from registry, and unregisters from state.
+     *
+     * Note: Instance data is currently orphaned (not deleted) but could be recovered.
+     * Future: Will add deleteAll() method to UserWidgetDataStore.
+     *
+     * @param scope - Widget scope
+     * @param baseTag - Base tag name
+     * @param instanceId - Instance UUID
+     *
+     * @example
+     * ```typescript
+     * await chatAppState.deleteSpotlightInstance('weather', 'chart-saved', instanceId);
+     * ```
+     */
+    deleteSpotlightInstance(scope: string, baseTag: string, instanceId: string): Promise<void>;
 
     /**
      * Invoke the agent directly from a web component using the 'chat-app-component' invocation mode.

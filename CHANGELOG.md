@@ -5,6 +5,53 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-10-28
+
+### Added
+
+- **Dynamic Spotlight Widget Registration** - Web components can programmatically register themselves in spotlight at runtime
+
+    - New `manuallyRegisterSpotlightWidget()` method for runtime widget registration
+    - No database tag definitions required - perfect for development, testing, and dynamic scenarios
+    - Configure via `SpotlightWidgetDefinition` interface: tag, scope, title, element name, and sizing
+    - Control behavior with `autoCreateInstance`, `singleton`, `showInUnpinnedMenu`, and `displayOrder` options
+    - Use cases: third-party integrations, conditional widgets, Virtual Tags Pattern
+    - Integrates seamlessly with database-sourced tags and respects user preferences
+
+- **Context-Aware Widgets** - Widgets can provide dynamic context to AI conversations
+
+    - Implement `getContextForLlm()` method to declare available context sources
+    - Intelligent LLM-based filtering automatically includes only relevant context
+    - Smart deduplication via content hashing - unchanged context isn't resent
+    - Time-based staleness detection with `maxAgeMs` for real-time data
+    - User transparency with context chips showing active contexts in chat input
+    - Users can manually add/remove contexts via "Add Context" menu
+    - Call `chatAppState.updateWidgetContext(instanceId)` when context changes
+    - Complete TypeScript interfaces: `ContextSourceDef`, `LLMContextItem`, `SentContextRecord`
+
+- **Context Documentation** - Comprehensive guides for context-aware widgets
+
+    - [Context-Aware Widgets Capability](/capabilities/customization/context-aware-widgets/) - Overview and benefits
+    - [Provide Context from Widgets Guide](/guides/customization/widget-context/) - Implementation guide
+    - [Widget Context API Reference](/reference/types/widget-context/) - API documentation
+    - [AI-Driven UI Architecture](/why/approach/ai-driven-ui/) - Architectural philosophy
+
+- **Widget Metadata in renderTag()** - Pass metadata directly when rendering
+
+    - Optional `metadata` parameter sets title, icon, actions, and loading status at render time
+    - Alternative to calling `setOrUpdateWidgetMetadata()` separately
+    - Example: `renderTag('acme.widget', 'spotlight', data, { title: 'My Widget', lucideIconName: 'settings' })`
+
+- **Auto-Enabled Canvas and Dialog Contexts** - Flexible rendering without explicit configuration
+
+    - Canvas and dialog contexts auto-enable when requested via `renderTag()`
+    - No longer requires explicit `renderingContexts` in tag definitions
+    - Particularly useful for manually registered spotlight widgets
+
+- **Enhanced Multi-Instance Widget Documentation** - Clearer guidance on `singleton: false`
+    - Virtual Tags Pattern for saved configurations
+    - Multiple monitors, comparison views, and workspace customization examples
+
 ## [0.9.0] - 2025-10-27
 
 ### Added

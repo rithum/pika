@@ -234,10 +234,21 @@ interface WidgetRenderingContexts {
 renderingContexts: {
     inline: true,    // Can appear in text
     canvas: true,    // Can appear full-width
-    dialog: false,   // Cannot appear in dialogs
-    spotlight: false // Cannot be spotlighted
+    dialog: false,   // Explicitly disabled for dialogs
+    spotlight: false // Explicitly disabled for spotlight
 }
 ```
+
+{% aside type="note" title="Auto-Enabled Contexts" %}
+**Canvas and Dialog contexts are auto-enabled** when requested via `renderTag()`, even if not explicitly configured in the tag definition. This provides flexibility for programmatic rendering.
+
+When a web component calls `renderTag()` with `'canvas'` or `'dialog'` context on a tag that doesn't explicitly enable it, the system will:
+- Log a warning to the console
+- Dynamically enable the context for that render
+- Allow the widget to render successfully
+
+**Inline and Spotlight contexts** still require explicit configuration in the tag definition.
+{% /aside %}
 
 ## LLM Instructions
 
@@ -575,6 +586,143 @@ const tagDef: TagDefinition<WebComponentWidget> = {
 
 // POST to /api/chat-admin/tagdef
 ```
+
+### Dynamic Spotlight Registration
+
+Components can register themselves in spotlight programmatically at runtime without creating database tag definitions.
+
+#### manuallyRegisterSpotlightWidget()
+
+Register a web component as a spotlight widget from code.
+
+```typescript
+manuallyRegisterSpotlightWidget(definition: SpotlightWidgetDefinition): void
+```
+
+**Parameters:**
+
+```typescript
+interface SpotlightWidgetDefinition {
+    /** Tag name (e.g., 'my-widget') */
+    tag: string;
+    
+    /** Scope/namespace (e.g., 'my-app') */
+    scope: string;
+    
+    /** Display title in UI */
+    tagTitle: string;
+    
+    /** Custom element name (optional, inferred if not provided) */
+    customElementName?: string;
+    
+    /** Widget sizing configuration (optional) */
+    sizing?: WidgetSizing;
+    
+    /** Component agent instructions (optional) */
+    componentAgentInstructionsMd?: Record<string, string>;
+    
+    /** 
+     * Auto-show widget immediately? 
+     * - true: Widget appears in spotlight automatically
+     * - false: Widget registered but not shown until renderTag() called
+     * @default true
+     */
+    autoCreateInstance?: boolean;
+    
+    /** 
+     * Display order in spotlight (lower = higher)
+     * @default 0
+     */
+    displayOrder?: number;
+    
+    /** 
+     * Only allow one instance?
+     * @default true
+     */
+    singleton?: boolean;
+    
+    /** 
+     * Show in unpinned widget menu?
+     * @default true
+     */
+    showInUnpinnedMenu?: boolean;
+}
+```
+
+**Behavior:**
+
+- Registration is **ephemeral** - does not persist across page refreshes
+- Component must re-register on each page load
+- Merges with database-sourced tag definitions
+- Respects user preferences (unpinning, ordering)
+- Compatible with all spotlight features
+
+**Example:**
+
+```typescript
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+class MyWidget extends HTMLElement {
+    async connectedCallback() {
+        const context = await getPikaContext(this);
+        
+        // Register in spotlight
+        context.chatAppState.manuallyRegisterSpotlightWidget({
+            tag: 'my-widget',
+            scope: 'acme',
+            tagTitle: 'My Widget',
+            customElementName: 'acme-my-widget',
+            displayOrder: 0,
+            autoCreateInstance: true
+        });
+    }
+}
+```
+
+**Common Use Cases:**
+
+```typescript
+// Conditional registration (admin-only)
+if (context.appState.identity.isSiteAdmin) {
+    context.chatAppState.manuallyRegisterSpotlightWidget({
+        tag: 'admin-tools',
+        scope: 'internal',
+        tagTitle: 'Admin Tools'
+    });
+}
+
+// Feature-gated widget
+const features = await getEnabledFeatures();
+if (features.includes('beta-analytics')) {
+    context.chatAppState.manuallyRegisterSpotlightWidget({
+        tag: 'analytics',
+        scope: 'acme',
+        tagTitle: 'Analytics Dashboard',
+        displayOrder: 5
+    });
+}
+
+// Base widget for saved instances
+context.chatAppState.manuallyRegisterSpotlightWidget({
+    tag: 'saved-chart',
+    scope: 'acme',
+    tagTitle: 'Saved Chart',
+    autoCreateInstance: false, // Don't show by default
+    singleton: false, // Allow multiple instances
+    showInUnpinnedMenu: false // Hide from menu
+});
+```
+
+**Best Practices:**
+
+{% aside type="tip" title="Dynamic Registration Tips" %}
+- Use for third-party integrations and runtime-determined widgets
+- Always re-register on page load (registration doesn't persist)
+- Set `autoCreateInstance: false` for widgets that should only appear conditionally
+- Use `displayOrder` to control position in spotlight
+- Set `singleton: false` for saved instance patterns
+- Combine with `renderTag()` to pass initial data
+{% /aside %}
 
 ## Best Practices
 

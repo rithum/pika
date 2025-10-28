@@ -14,11 +14,13 @@ I've implemented (or am implementing) a new feature that needs documentation. Pl
 
 1. **What is the feature?** (Brief technical description)
 2. **What problem does it solve?** (User perspective)
-3. **Who is it for?** (Target audience: developers, admins, end users)
+3. **Who is it for?** (Target audience: product managers, engineering managers, developers)
 4. **What files/code changed?** (Implementation details)
 5. **Are there configuration options?** (Settings, environment variables, etc.)
 6. **Are there new APIs or types?** (Endpoints, TypeScript interfaces, etc.)
 7. **Are there prerequisites or dependencies?** (What users need before using this)
+
+**Important**: Pika documentation is for **decision-makers and builders** (product managers, engineering managers, developers), NOT end users of chat applications.
 
 Ask me these questions to understand what needs to be documented.
 
@@ -103,7 +105,31 @@ Pika documentation follows the **Diátaxis framework**, which organizes docs by 
 
 ---
 
-### Step 3: Determine Documentation Placement
+### Step 3: Determine Documentation Scope
+
+**For New Features or Capabilities:**
+Create comprehensive documentation across ALL relevant categories:
+
+- Capability overview in `capabilities/` (what it does, why it matters)
+- Concept explanation in `concepts/` (how it works, design philosophy)
+- How-to guide in `guides/` (step-by-step implementation)
+- Reference documentation in `reference/` (API specs, types, configuration)
+
+**For Improvements to Existing Features:**
+Update existing documentation where the feature is discussed:
+
+- Find capability/concept/guide docs that mention the feature
+- Update with new capabilities, examples, or patterns
+- Add notes about improvements or changes
+
+**For Bug Fixes:**
+Generally no documentation changes needed unless:
+
+- The bug fix changes expected behavior
+- Users need to know about the fix for migration
+- The fix enables new use cases
+
+### Step 4: Determine Documentation Placement
 
 Based on the feature information, determine what documentation is needed:
 
@@ -131,7 +157,7 @@ Based on the feature information, determine what documentation is needed:
 
 ---
 
-### Step 4: Markdoc Syntax and Components
+### Step 5: Markdoc Syntax and Components
 
 **CRITICAL**: All Pika documentation uses **Markdoc only** (not MDX). Follow these rules:
 
@@ -183,7 +209,7 @@ description: Brief description for SEO and navigation
 
 ---
 
-### Step 5: Update Navigation in sidebar-config.ts
+### Step 6: Update Navigation in sidebar-config.ts
 
 **CRITICAL**: Every new documentation file must be added to the navigation.
 
@@ -237,7 +263,7 @@ description: Brief description for SEO and navigation
 
 ---
 
-### Step 6: Documentation Quality Standards
+### Step 7: Documentation Quality Standards
 
 **Writing Style**:
 
@@ -273,7 +299,7 @@ description: Brief description for SEO and navigation
 
 ---
 
-### Step 7: Generate the Documentation
+### Step 8: Generate the Documentation
 
 Based on the feature information, create the appropriate documentation files:
 
@@ -304,7 +330,7 @@ Based on the feature information, create the appropriate documentation files:
 
 ---
 
-### Step 8: Quality Checklist
+### Step 9: Quality Checklist
 
 Before finalizing, verify:
 

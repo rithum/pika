@@ -238,9 +238,9 @@ export function convertChatUserToCamelFromSnakeCase(user: SnakeCase<ChatUser>): 
 
 // Convert ChatSession to snake_case for OpenSearch storage
 export function convertChatSessionToSnakeFromCamelCase<T extends RecordOrUndef = undefined>(session: ChatSession<T>): SnakeCase<ChatSession<T>> {
-    const { sessionAttributes, ...sessionWithoutAttributes } = session;
+    const { sessionAttributes, sentContexts, ...sessionWithoutAttributes } = session;
 
-    // Convert everything except sessionAttributes
+    // Convert everything except sessionAttributes and sentContexts
     const converted = convertToSnakeCase(sessionWithoutAttributes as any) as any;
 
     // Add sessionAttributes back with snake_case key but preserve custom data structure
@@ -262,14 +262,24 @@ export function convertChatSessionToSnakeFromCamelCase<T extends RecordOrUndef =
         };
     }
 
+    // Handle sentContexts: preserve sourceId keys, convert record values to snake_case
+    if (sentContexts !== undefined) {
+        (converted as any).sent_contexts = Object.fromEntries(
+            Object.entries(sentContexts).map(([sourceId, record]) => [
+                sourceId, // Preserve sourceId key as-is
+                convertToSnakeCase(record) // Convert SentContextRecord fields to snake_case
+            ])
+        );
+    }
+
     return converted as SnakeCase<ChatSession<T>>;
 }
 
 // Convert ChatSession from snake_case (from OpenSearch) to camelCase
 export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef = undefined>(session: SnakeCase<ChatSession<T>>): ChatSession<T> {
-    const { session_attributes, chat_app_sk, ...sessionWithoutAttributes } = session as any;
+    const { session_attributes, chat_app_sk, sent_contexts, ...sessionWithoutAttributes } = session as any;
 
-    // Convert everything except session_attributes and chat_app_sk (internal GSI field)
+    // Convert everything except session_attributes, chat_app_sk (internal GSI field), and sent_contexts
     const converted = convertToCamelCase(sessionWithoutAttributes as any) as any;
 
     // Add sessionAttributes back with camelCase key but preserve custom data structure
@@ -289,6 +299,16 @@ export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef =
             currentDate: current_date,
             ...customData // Preserve custom data keys and values as-is (this is the T generic spread)
         } as SessionDataWithChatUserCustomDataSpreadIn<T>;
+    }
+
+    // Handle sent_contexts: preserve sourceId keys, convert record values to camelCase
+    if (sent_contexts !== undefined) {
+        (converted as any).sentContexts = Object.fromEntries(
+            Object.entries(sent_contexts).map(([sourceId, record]: [string, any]) => [
+                sourceId, // Preserve sourceId key as-is
+                convertToCamelCase(record) // Convert SentContextRecord fields to camelCase
+            ])
+        );
     }
 
     return converted as ChatSession<T>;

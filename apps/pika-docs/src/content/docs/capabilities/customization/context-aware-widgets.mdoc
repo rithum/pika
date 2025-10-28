@@ -1,0 +1,127 @@
+---
+title: Context-Aware Widgets
+description: Widgets that intelligently share relevant context with AI to create dynamic, adaptive user experiences
+---
+
+## The Future of AI-Driven UI
+
+Traditional chat applications require developers to anticipate every user workflow, manually wire up context, and tightly couple UI to backend logic. This approach breaks down when AI needs to dynamically understand what's relevant to each user question.
+
+Pika's context-aware widgets solve this by letting UI components intelligently share their context with the AI assistant. The system automatically determines what's relevant, presents it transparently to users, and manages the complexity of context lifecycle.
+
+## What Context-Aware Widgets Enable
+
+### Dynamic, AI-Composed Experiences
+
+Instead of pre-designing every possible user flow, widgets declare what context they can provide. The AI assistant then dynamically composes responses using the context that's actually relevant to each question.
+
+**Traditional Approach**:
+- Designer designs specific flows
+- Developer implements each flow
+- User follows pre-conceived paths
+- Limited to anticipated use cases
+
+**Pika's Approach**:
+- Widgets declare available context
+- AI determines relevance per question
+- Users can override automatic decisions
+- Unlimited emergent use cases
+
+### Intelligent Context Management
+
+{% card title="Automatic Relevance Filtering" icon="approve-check" %}
+A lightweight LLM pre-filters context before sending to your main agent. Only relevant context is included, reducing token costs and improving response quality.
+{% /card %}
+
+{% card title="Smart Deduplication" icon="rocket" %}
+Context is tracked across the conversation. Unchanged context isn't resent unless it expires or changes, dramatically reducing session bloat.
+{% /card %}
+
+{% card title="User Transparency & Control" icon="star" %}
+Context appears as chips in the chat input. Users see what's being sent, can remove auto-added context, and manually add context the system didn't select.
+{% /card %}
+
+## Real-World Use Cases
+
+### Customer Support Dashboard
+
+A support agent has multiple widgets open: customer profile, order history, recent tickets, and knowledge base articles. When they ask "Why is this order delayed?", the system automatically includes:
+- Current order details (from order widget)
+- Customer's shipping address (from profile widget)
+- Recent delivery issues in the region (from knowledge base widget)
+
+It excludes the ticket history (not relevant to this specific question).
+
+### Financial Analysis Platform
+
+An analyst reviews market data with charts, portfolios, and news feeds visible. When they ask "What's driving this volatility?", the system includes:
+- The specific chart data they're viewing
+- Relevant portfolio positions
+- Breaking news from the past hour
+
+Context adapts to each question automatically.
+
+### Enterprise Admin Tools
+
+An admin has dashboards for users, systems, and logs open. When they ask "Why can't users access the reporting module?", the system includes:
+- Current system health metrics
+- Recent permission changes
+- Error logs from the reporting service
+
+Different question, different context - all automatic.
+
+## Key Benefits
+
+{% fancyCard title="Reduced Token Costs" bgColor="#065f46" %}
+Intelligent filtering and deduplication mean you only pay for context that matters. Unchanged context isn't resent across conversation turns.
+{% /fancyCard %}
+
+{% fancyCard title="Improved Response Quality" bgColor="#1e40af" %}
+LLMs get exactly the context they need - not too much (which degrades performance) and not too little (which leads to incorrect answers).
+{% /fancyCard %}
+
+{% fancyCard title="Better User Experience" bgColor="#7c2d12" %}
+Users understand what context is being used and can control it. No black boxes. No surprises. Full transparency.
+{% /fancyCard %}
+
+{% fancyCard title="Future-Proof Architecture" bgColor="#1e293b" %}
+Decentralized widgets adapt to new use cases without central coordination. Add new widgets, and they automatically participate in context sharing.
+{% /fancyCard %}
+
+## Technical Highlights
+
+### Content Hashing & Staleness Detection
+
+Context is hashed (SHA-256) to detect changes. You can set expiration times (`maxAgeMs`) so time-sensitive data is refreshed automatically, while stable data is cached.
+
+### LLM-Based Pre-Filtering
+
+Before your main agent sees the context, a cheaper LLM (Amazon Nova Lite) filters it based on the user's question. This two-stage approach optimizes both cost and quality.
+
+### Session-Level Tracking
+
+The system tracks which context was sent in which messages. This enables:
+- Audit trails for debugging
+- Analytics on context usage
+- Cost attribution per context source
+
+## Getting Started
+
+Context-aware widgets are available for:
+- **Spotlight widgets** (always visible in sidebar)
+- **Canvas widgets** (embedded in responses)
+- **Dialog widgets** (modal overlays)
+- **Inline widgets** (embedded in messages)
+
+Any web component can provide context by implementing the `getContextForLlm()` method.
+
+{% aside type="tip" %}
+Most widgets should provide context with `addAutomatically: true`. This gives users the best experience while maintaining full transparency and control.
+{% /aside %}
+
+## Next Steps
+
+- [Understand Web Components →](/concepts/how-pika-works/web-components/)
+- [Build Your First Context-Aware Widget →](/guides/customization/widget-context/)
+- [Context API Reference →](/reference/types/widget-context/)
+

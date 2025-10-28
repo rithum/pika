@@ -293,6 +293,228 @@ $effect(() => {
 });
 ```
 
+### Register Spotlight Widgets Dynamically
+
+Instead of creating database tag definitions, web components can register themselves in spotlight programmatically at runtime.
+
+{% aside type="tip" title="When to Use Dynamic Registration" %}
+Perfect for:
+- Third-party integrations that need runtime registration
+- Conditional widgets based on user permissions or features
+- Development and testing without database management
+- Components that control their own spotlight presence
+{% /aside %}
+
+#### Basic Registration
+
+```typescript
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+// Inside your component's initialization
+async function init() {
+    const context = await getPikaContext(this);
+    
+    // Register this component in spotlight
+    context.chatAppState.manuallyRegisterSpotlightWidget({
+        tag: 'my-widget',
+        scope: 'my-app',
+        tagTitle: 'My Widget',
+        customElementName: 'my-app-my-widget',
+        displayOrder: 0, // Optional: controls position
+        autoCreateInstance: true, // Optional: show immediately (default: true)
+        singleton: true // Optional: only one instance (default: true)
+    });
+}
+```
+
+{% aside type="caution" title="Ephemeral Registration" %}
+Dynamic registration does **not** persist across page refreshes. Your component must re-register itself on each page load.
+{% /aside %}
+
+#### Advanced: Conditional Registration
+
+Register widgets only when certain conditions are met:
+
+```typescript
+async function checkAndRegister() {
+    const context = await getPikaContext(this);
+    const user = context.appState.identity.user;
+    
+    // Only register for admin users
+    if (context.appState.identity.isSiteAdmin) {
+        context.chatAppState.manuallyRegisterSpotlightWidget({
+            tag: 'admin-tools',
+            scope: 'acme',
+            tagTitle: 'Admin Tools',
+            displayOrder: 0,
+            autoCreateInstance: true
+        });
+    }
+    
+    // Or register based on feature flags
+    const hasFeature = await checkFeatureFlag('beta-features');
+    if (hasFeature) {
+        context.chatAppState.manuallyRegisterSpotlightWidget({
+            tag: 'beta-widget',
+            scope: 'acme',
+            tagTitle: 'Beta Features',
+            displayOrder: 10
+        });
+    }
+}
+```
+
+#### Control Auto-Display
+
+Register a widget definition but don't show it automatically:
+
+```typescript
+// Register the definition
+context.chatAppState.manuallyRegisterSpotlightWidget({
+    tag: 'notification-center',
+    scope: 'acme',
+    tagTitle: 'Notifications',
+    autoCreateInstance: false // Don't show automatically
+});
+
+// Later, show it programmatically when needed
+async function showNotifications() {
+    await context.chatAppState.renderTag('acme.notification-center', 'spotlight', {
+        unreadCount: 5
+    });
+}
+```
+
+#### Pass Initial Data
+
+Combine registration with data passing:
+
+```typescript
+// Register
+context.chatAppState.manuallyRegisterSpotlightWidget({
+    tag: 'user-dashboard',
+    scope: 'acme',
+    tagTitle: 'User Dashboard',
+    autoCreateInstance: false
+});
+
+// Render with data
+await context.chatAppState.renderTag('acme.user-dashboard', 'spotlight', {
+    userId: user.userId,
+    preferences: userPreferences,
+    theme: 'dark'
+});
+```
+
+#### SpotlightWidgetDefinition Interface
+
+```typescript
+interface SpotlightWidgetDefinition {
+    /** Unique tag name (e.g., 'my-widget') */
+    tag: string;
+    
+    /** Scope/namespace (e.g., 'my-app') */
+    scope: string;
+    
+    /** Display title shown in UI */
+    tagTitle: string;
+    
+    /** Custom element name (optional, inferred from tag if not provided) */
+    customElementName?: string;
+    
+    /** Widget sizing configuration */
+    sizing?: WidgetSizing;
+    
+    /** Agent instructions for component invocation */
+    componentAgentInstructionsMd?: Record<string, string>;
+    
+    /** Auto-show widget? Default: true */
+    autoCreateInstance?: boolean;
+    
+    /** Display order in spotlight (lower = higher). Default: 0 */
+    displayOrder?: number;
+    
+    /** Only allow one instance? Default: true */
+    singleton?: boolean;
+    
+    /** Show in unpinned menu? Default: true */
+    showInUnpinnedMenu?: boolean;
+}
+```
+
+#### Common Patterns
+
+**Development Mode Registration:**
+
+```typescript
+if (import.meta.env.DEV) {
+    context.chatAppState.manuallyRegisterSpotlightWidget({
+        tag: 'dev-tools',
+        scope: 'internal',
+        tagTitle: 'Dev Tools',
+        displayOrder: 0
+    });
+}
+```
+
+**Feature-Gated Widget:**
+
+```typescript
+const features = await context.chatAppState.getEnabledFeatures();
+if (features.includes('advanced-analytics')) {
+    context.chatAppState.manuallyRegisterSpotlightWidget({
+        tag: 'analytics-dashboard',
+        scope: 'acme',
+        tagTitle: 'Analytics',
+        displayOrder: 5
+    });
+}
+```
+
+**Base Widget for Saved Instances (Virtual Tags Pattern):**
+
+```typescript
+// Register base definition (doesn't show by default)
+context.chatAppState.manuallyRegisterSpotlightWidget({
+    tag: 'saved-chart',
+    scope: 'acme',
+    tagTitle: 'Saved Chart',
+    autoCreateInstance: false, // Don't create a default instance
+    singleton: false, // Allow multiple instances (KEY: enables saved instances)
+    showInUnpinnedMenu: false // Don't show in menu (use save flow instead)
+});
+
+// Later, create saved instances programmatically
+await context.chatAppState.saveSpotlightInstance(
+    'acme',
+    'saved-chart',
+    'Q4 Revenue Chart',
+    'acme-saved-chart',
+    { chartData: {...} }
+);
+```
+
+{% aside type="tip" title="When to Use singleton: false" %}
+Use `singleton: false` when you want to allow **multiple instances** of the same widget tag with different data:
+
+**Use Cases:**
+- **Saved configurations**: User creates multiple saved charts, dashboards, or reports
+- **Multiple monitors**: Show the same widget type for different items (e.g., multiple stock tickers)
+- **Comparison views**: Display the same widget side-by-side with different parameters
+- **Workspace layouts**: Let users customize their spotlight with multiple instances
+
+**Default behavior** (`singleton: true`):
+- Only one instance of the tag can exist in spotlight at a time
+- Attempting to add another replaces the first
+- Perfect for utility widgets like settings, notifications, or status displays
+
+**With** `singleton: false`:
+- Each instance can have unique data via `dataForWidget`
+- User can save and name individual instances
+- System tracks multiple instances independently and persists them across page refreshes
+- Ideal for user-created content
+{% /aside %}
+
 ## Step 4: Invoke Agents from Components
 
 Components can directly invoke LLM agents.

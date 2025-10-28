@@ -1,0 +1,495 @@
+---
+title: Widget Context API Reference
+description: Complete reference for context-aware widget types, interfaces, and methods
+---
+
+This reference documents the types and APIs for implementing context-aware widgets.
+
+## Core Interfaces
+
+### ContextSourceDef
+
+Defines a single piece of context that a widget can provide.
+
+```typescript
+interface ContextSourceDef {
+  /** Unique identifier for this context source */
+  sourceId: string;
+
+  /** 
+   * Description for LLM-based relevance filtering.
+   * Should be specific about what the context contains.
+   */
+  llmInclusionDescription: string;
+
+  /** How this context was added: 'auto' or 'user' */
+  origin: WidgetContextSourceOrigin;
+
+  /** Display title for UI chip */
+  title: string;
+
+  /** Display description for UI chip */
+  description: string;
+
+  /** The actual context data to send to the LLM */
+  data: unknown;
+
+  /** 
+   * Should this context be added automatically when relevant?
+   * @default false
+   */
+  addAutomatically?: boolean;
+
+  /**
+   * How long this context stays relevant (milliseconds).
+   * - `undefined`: Never expires (stable data)
+   * - `0`: Always re-include (volatile data)
+   * - `> 0`: Re-include after this duration
+   */
+  maxAgeMs?: number;
+
+  /**
+   * Lucide icon name for UI chip.
+   * Examples: 'package', 'user', 'chart', 'file'
+   */
+  lucideIconName?: string;
+}
+```
+
+### WidgetContextSourceOrigin
+
+Defines how context was added to the conversation.
+
+```typescript
+type WidgetContextSourceOrigin = 'auto' | 'user';
+```
+
+- **`'auto'`**: Context was automatically discovered and added by the system
+- **`'user'`**: Context was manually added by the user
+
+## Widget Methods
+
+### getContextForLlm()
+
+Optional method that widgets implement to provide context.
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined
+```
+
+**Returns**:
+- `ContextSourceDef[]`: Array of context items the widget provides
+- `undefined`: Widget has no context to provide right now
+- `[]`: Widget has no context to provide right now (alternative)
+
+**When Called**:
+- When widget is registered with chat app state
+- After `updateWidgetContext()` is called
+- When user opens the add context menu
+
+**Example**:
+
+```typescript
+class MyWidget extends HTMLElement {
+  getContextForLlm(): ContextSourceDef[] | undefined {
+    if (!this.hasData()) {
+      return undefined;
+    }
+
+    return [{
+      sourceId: 'my-widget-data',
+      llmInclusionDescription: 'Data from my widget',
+      origin: 'auto',
+      title: 'My Data',
+      description: 'Current view',
+      data: this.getData(),
+      addAutomatically: true
+    }];
+  }
+}
+```
+
+## Chat App State Methods
+
+Widgets access these methods through `this.chatAppState`.
+
+### updateWidgetContext()
+
+Notifies the system that a widget's context has changed and should be re-evaluated.
+
+```typescript
+updateWidgetContext(instanceId: string): void
+```
+
+**Parameters**:
+- `instanceId`: The unique instance ID of the widget (available as `this.instanceId`)
+
+**When to Call**:
+- After initial data load
+- When data changes
+- When context becomes available/unavailable
+- When any field in `ContextSourceDef` would change
+
+**Example**:
+
+```typescript
+async loadData() {
+  this.data = await fetchData();
+  // Notify system to re-evaluate context
+  this.chatAppState.updateWidgetContext(this.instanceId);
+}
+```
+
+### addContextSource()
+
+Manually add a context source (typically not called by widgets).
+
+```typescript
+addContextSource(source: ContextSource): void
+```
+
+### removeContextSource()
+
+Manually remove a context source (typically not called by widgets).
+
+```typescript
+removeContextSource(sourceId: string): void
+```
+
+### getAvailableContexts()
+
+Get all available context sources (typically not called by widgets).
+
+```typescript
+getAvailableContexts(): ContextSource[]
+```
+
+## Internal Types
+
+These types are used internally by the system but may be helpful to understand.
+
+### LLMContextItem
+
+Context item as sent to the backend LLM.
+
+```typescript
+interface LLMContextItem {
+  /** Unique identifier (from sourceId) */
+  id: string;
+
+  /** Description for LLM filtering (from llmInclusionDescription) */
+  description: string;
+
+  /** The actual context data */
+  context: unknown;
+
+  /** How context was added */
+  origin: WidgetContextSourceOrigin;
+
+  /** SHA-256 hash for change detection */
+  contentHash: string;
+
+  /** ISO 8601 timestamp of last inclusion */
+  lastUpdated: string;
+
+  /** How long context stays relevant (ms) */
+  maxAgeMs?: number;
+}
+```
+
+### SentContextRecord
+
+Tracks which contexts were sent in the conversation (stored in session).
+
+```typescript
+interface SentContextRecord {
+  /** The sourceId of the context */
+  sourceId: string;
+
+  /** Array of message IDs where this context was sent */
+  messageIds: string[];
+
+  /** Content hash when sent */
+  contentHash: string;
+
+  /** ISO 8601 timestamp of last time sent */
+  lastSentAt: string;
+
+  /** Origin of the context */
+  origin: WidgetContextSourceOrigin;
+}
+```
+
+## Field Validation Rules
+
+### sourceId
+
+- **Type**: `string`
+- **Required**: Yes
+- **Pattern**: Kebab-case recommended (`my-context-id`)
+- **Uniqueness**: Must be unique across the application
+- **Stability**: Should remain constant for the same logical context
+- **Length**: Keep under 100 characters
+
+**Valid Examples**:
+```typescript
+'current-order'
+'user-profile'
+'chart-data'
+'order-12345' // When you need instance-specific IDs
+```
+
+**Invalid Examples**:
+```typescript
+''           // Empty
+'data'       // Too generic
+'MyContext'  // Should use kebab-case
+```
+
+### llmInclusionDescription
+
+- **Type**: `string`
+- **Required**: Yes
+- **Length**: 50-200 characters recommended
+- **Content**: Specific description of what the context contains
+- **Audience**: Written for LLM consumption, not humans
+
+**Good Descriptions**:
+```typescript
+'Order details including items, quantities, prices, shipping address, and delivery status'
+'User profile with account tier, preferences, billing information, and subscription status'
+'Real-time stock price data for the currently selected ticker symbol'
+```
+
+**Poor Descriptions**:
+```typescript
+'Order data'                    // Too vague
+'Some information about stuff'  // Not specific
+'Click here for more'          // Not descriptive
+```
+
+### title
+
+- **Type**: `string`
+- **Required**: Yes
+- **Length**: 3-50 characters recommended
+- **Content**: Human-readable label for UI chip
+- **Style**: Title case
+
+**Examples**:
+```typescript
+'Order #12345'
+'User Profile'
+'Sales Chart'
+'System Metrics'
+```
+
+### description
+
+- **Type**: `string`
+- **Required**: Yes
+- **Length**: 3-100 characters recommended
+- **Content**: Brief status or summary
+- **Style**: Sentence case
+
+**Examples**:
+```typescript
+'3 items, shipped'
+'Premium account'
+'Last 30 days'
+'CPU: 45%, Memory: 67%'
+```
+
+### data
+
+- **Type**: `unknown`
+- **Required**: Yes
+- **Content**: Any JSON-serializable value
+- **Size**: Keep under 50KB recommended (for token efficiency)
+
+**Best Practices**:
+```typescript
+// Include only relevant fields
+data: {
+  orderId: this.order.id,
+  status: this.order.status,
+  items: this.order.items,
+  total: this.order.total
+}
+
+// Don't include everything
+data: this.entireDatabaseDump // BAD
+
+// Include metadata for context
+data: {
+  _metadata: {
+    timestamp: new Date().toISOString(),
+    version: '1.0'
+  },
+  ...actualData
+}
+```
+
+### addAutomatically
+
+- **Type**: `boolean`
+- **Required**: No
+- **Default**: `false`
+- **Recommendation**: Use `true` for most cases
+
+**Use `true` when**:
+- Context is from visible UI (spotlight, canvas)
+- Context is clearly relevant to the widget's purpose
+- User has explicitly opened/pinned the widget
+
+**Use `false` when**:
+- Context contains sensitive data
+- Widget is temporary (dialog)
+- Context is rarely relevant
+
+### maxAgeMs
+
+- **Type**: `number | undefined`
+- **Required**: No
+- **Default**: `undefined` (never expires)
+- **Unit**: Milliseconds
+
+**Common Values**:
+```typescript
+30 * 1000           // 30 seconds (real-time data)
+60 * 1000           // 1 minute (frequently updated)
+5 * 60 * 1000       // 5 minutes (session-relevant)
+30 * 60 * 1000      // 30 minutes (conversation-relevant)
+undefined           // Never expires (stable data)
+0                   // Always re-include (volatile)
+```
+
+**Guidelines**:
+- Set for time-sensitive data (prices, status, metrics)
+- Omit for stable reference data (profiles, settings)
+- Use `0` only for extremely volatile data
+- Consider token costs vs freshness needs
+
+### lucideIconName
+
+- **Type**: `string | undefined`
+- **Required**: No
+- **Default**: `undefined` (uses default icon)
+- **Valid Values**: Any [Lucide icon name](https://lucide.dev/icons/)
+
+**Common Icons**:
+```typescript
+'package'       // Orders, shipments
+'user'          // Users, profiles
+'chart-line'    // Charts, analytics
+'file'          // Documents, reports
+'database'      // Data, storage
+'settings'      // Configuration, preferences
+'alert-circle'  // Alerts, warnings
+'calendar'      // Dates, schedules
+'map'           // Location, geography
+'dollar-sign'   // Billing, payments
+```
+
+## Usage Examples
+
+### Minimal Example
+
+Simplest possible context implementation:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  if (!this.data) return undefined;
+
+  return [{
+    sourceId: 'my-data',
+    llmInclusionDescription: 'Description of what this data contains',
+    origin: 'auto',
+    title: 'My Data',
+    description: 'Status',
+    data: this.data,
+    addAutomatically: true
+  }];
+}
+```
+
+### Complete Example
+
+Full-featured implementation with all options:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  if (!this.order) return undefined;
+
+  return [{
+    sourceId: `order-${this.order.id}`,
+    llmInclusionDescription: 'Order details including items, quantities, prices, shipping address, tracking information, and current delivery status',
+    origin: 'auto',
+    lucideIconName: 'package',
+    title: `Order #${this.order.id}`,
+    description: `${this.order.items.length} items, ${this.order.status}`,
+    data: {
+      _metadata: {
+        lastUpdated: this.order.updatedAt,
+        currency: this.order.currency
+      },
+      orderId: this.order.id,
+      status: this.order.status,
+      items: this.order.items,
+      total: this.order.total,
+      shipping: this.order.shippingAddress,
+      tracking: this.order.trackingNumber
+    },
+    addAutomatically: true,
+    maxAgeMs: 5 * 60 * 1000 // 5 minutes
+  }];
+}
+```
+
+### Multiple Contexts Example
+
+Widget providing multiple related contexts:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  const contexts: ContextSourceDef[] = [];
+
+  // Add user context
+  if (this.user) {
+    contexts.push({
+      sourceId: 'current-user',
+      llmInclusionDescription: 'User profile information including account details and preferences',
+      origin: 'auto',
+      lucideIconName: 'user',
+      title: this.user.name,
+      description: `${this.user.accountType} account`,
+      data: this.user,
+      addAutomatically: true
+    });
+  }
+
+  // Add session context
+  if (this.session) {
+    contexts.push({
+      sourceId: 'user-session',
+      llmInclusionDescription: 'Current user session information including login time and activity',
+      origin: 'auto',
+      lucideIconName: 'clock',
+      title: 'Session Info',
+      description: `Started ${this.formatTime(this.session.startedAt)}`,
+      data: this.session,
+      addAutomatically: false, // Less frequently relevant
+      maxAgeMs: 10 * 60 * 1000 // 10 minutes
+    });
+  }
+
+  return contexts.length > 0 ? contexts : undefined;
+}
+```
+
+## See Also
+
+- [Provide Context from Widgets Guide](/guides/customization/widget-context/)
+- [Context-Aware Widgets Capability](/capabilities/customization/context-aware-widgets/)
+- [Widget System Reference](/reference/ui-components/widget-system/)
+

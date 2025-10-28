@@ -16,7 +16,8 @@ import type {
     SharedSessionVisitHistory,
     SharedSessionVisitHistoryDynamoDb,
     UserWidgetData,
-    UserPrefs
+    UserPrefs,
+    SentContextRecord
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
@@ -438,6 +439,62 @@ export async function updateSession(
                                output_cost :outputCost,
                                output_tokens :outputTokens,
                                total_cost :totalCost`,
+        ExpressionAttributeValues: expressionAttributeValues
+    });
+}
+
+/**
+ * Updates the sentContexts field in a chat session to track which contexts have been sent to the LLM.
+ * This is used to avoid resending unchanged contexts and to track when contexts were included.
+ *
+ * This function efficiently merges new sentContexts using DynamoDB's SET if_not_exists expression
+ * and individual field updates. Uses automatic conversion functions to handle field name transformations.
+ *
+ * @param userId - The user ID
+ * @param sessionId - The session ID
+ * @param sentContextsUpdate - Record of sourceId -> SentContextRecord (in camelCase) to merge into the session's sentContexts
+ */
+export async function updateSessionSentContexts(userId: string, sessionId: string, sentContextsUpdate: Record<string, SentContextRecord>): Promise<void> {
+    if (Object.keys(sentContextsUpdate).length === 0) {
+        return;
+    }
+
+    // Build SET expressions for each context field using DynamoDB's nested attribute syntax
+    // This allows us to update individual contexts without reading the entire session first
+    const setExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {
+        '#sc': 'sent_contexts'
+    };
+    const expressionAttributeValues: Record<string, any> = {
+        ':empty': {}
+    };
+
+    let valueIndex = 0;
+    for (const [sourceId, record] of Object.entries(sentContextsUpdate)) {
+        // Create attribute name placeholders for the sourceId (in case it contains special characters)
+        const sourceIdPlaceholder = `#sourceId${valueIndex}`;
+        expressionAttributeNames[sourceIdPlaceholder] = sourceId;
+
+        // Create value placeholders for the record (convert to snake_case using generic conversion)
+        const valuePlaceholder = `:val${valueIndex}`;
+        expressionAttributeValues[valuePlaceholder] = convertToSnakeCase(record);
+
+        // Add SET expression for this specific sourceId
+        setExpressions.push(`#sc.${sourceIdPlaceholder} = ${valuePlaceholder}`);
+        valueIndex++;
+    }
+
+    // Initialize sent_contexts to empty object if it doesn't exist, then set each field
+    const updateExpression = `SET #sc = if_not_exists(#sc, :empty), ${setExpressions.join(', ')}`;
+
+    await ddbDocClient.update({
+        TableName: getChatSessionTable(),
+        Key: {
+            user_id: userId,
+            session_id: sessionId
+        },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues
     });
 }

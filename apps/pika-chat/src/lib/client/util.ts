@@ -1,4 +1,27 @@
 import type { ShowToastFn } from 'pika-shared/types/chatbot/chatbot-types';
+import { gzipSync, gunzipSync } from 'fflate';
+
+export function gunzipBase64EncodedString(base64EncodedString: string): string {
+    const binaryString = atob(base64EncodedString);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const decompressed = gunzipSync(bytes);
+    return new TextDecoder().decode(decompressed);
+}
+
+export function gzipAndBase64EncodeString(input: string): string {
+    const encoded = new TextEncoder().encode(input);
+    const compressed = gzipSync(encoded);
+
+    let binaryString = '';
+    compressed.forEach((byte) => {
+        binaryString += String.fromCharCode(byte);
+    });
+    return btoa(binaryString);
+}
 
 /**
  * Client-side error messages for different HTTP status codes.

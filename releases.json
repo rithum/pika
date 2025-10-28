@@ -1,7 +1,24 @@
 {
-  "latestVersion": "0.9.0",
-  "currentDevelopment": "0.9.0",
+  "latestVersion": "0.10.0",
+  "currentDevelopment": "0.10.0",
   "releases": [
+    {
+      "version": "0.10.0",
+      "date": "2025-10-28",
+      "status": "released",
+      "breaking": false,
+      "summary": "Context-aware widgets and dynamic spotlight registration",
+      "highlights": [
+        "Dynamic spotlight widget registration - Web components can register themselves programmatically at runtime",
+        "manuallyRegisterSpotlightWidget() method with simplified SpotlightWidgetDefinition interface",
+        "Ephemeral registration with autoCreateInstance, singleton, and displayOrder controls",
+        "Context-aware widgets - Widgets provide context to AI through getContextForLlm() method",
+        "Intelligent LLM-based context filtering using Amazon Nova Lite for relevance determination",
+        "Smart deduplication with content hashing and staleness detection with maxAgeMs",
+        "User transparency and control with context chips in chat input",
+        "Comprehensive documentation for both features with guides and reference docs"
+      ]
+    },
     {
       "version": "0.9.0",
       "date": "2025-10-27",
