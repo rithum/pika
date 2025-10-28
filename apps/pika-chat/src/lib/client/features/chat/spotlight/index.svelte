@@ -19,6 +19,7 @@
     import * as Carousel from 'pika-ux/shadcn/carousel/index';
     import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu/index';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
+    import { getIconSvg } from 'pika-shared/util/icon-utils';
     import type { Snippet } from 'svelte';
     import { getContext } from 'svelte';
 
@@ -173,7 +174,7 @@
                     appState: appState,
                     chatAppState: chat,
                     chatAppId: chat.chatApp.chatAppId,
-                    dataForWidget: {},
+                    dataForWidget: widget.data || {},
                 },
                 true
             );
@@ -201,6 +202,31 @@
             if (spotlightWidget) {
                 spotlightWidget.instanceId = result.instanceId;
                 spotlightWidget.element = result.element;
+            }
+
+            // Apply metadata if provided
+            if (widget.metadata) {
+                const metadataAPI = chat.getWidgetMetadataAPI(
+                    widget.tagDefinition.scope,
+                    widget.tagDefinition.tag,
+                    result.instanceId,
+                    'spotlight'
+                );
+
+                // If lucideIconName is provided, fetch the icon SVG
+                const metadata = { ...widget.metadata };
+                if (metadata.lucideIconName && !metadata.iconSvg) {
+                    try {
+                        metadata.iconSvg = await getIconSvg(metadata.lucideIconName, 'lucide');
+                    } catch (error) {
+                        console.error('[Spotlight] Failed to fetch lucide icon', {
+                            iconName: metadata.lucideIconName,
+                            error,
+                        });
+                    }
+                }
+
+                metadataAPI.setMetadata(metadata);
             }
 
             // Mark as successfully injected

@@ -26,6 +26,7 @@ import type {
     PinnedObjAndChatSession,
     PinSessionRequest,
     RecordOrUndef,
+    SentContextRecord,
     SharedSessionVisitHistory,
     SimpleAuthenticatedUser,
     TagDefinitionSearchRequest,

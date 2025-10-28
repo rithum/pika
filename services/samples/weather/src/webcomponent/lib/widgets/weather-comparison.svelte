@@ -2,7 +2,7 @@
 
 <script lang="ts">
     import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
-    import type { InvokeAgentAsComponentOptions } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { InvokeAgentAsComponentOptions, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
@@ -107,6 +107,11 @@
         if (cachedData) {
             lastRefreshTime = cachedData.timestamp;
             cities = cachedData.response.cities;
+
+            // Notify system that context is available
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
         }
 
         // setTimeout(() => {
@@ -124,6 +129,7 @@
 
         try {
             const options: InvokeAgentAsComponentOptions = {
+                source: 'component',
                 onThinking: (text: string) => {
                     // Skip semantic-directives messages
                     if (text.startsWith('{"type":"semantic-directives"')) return;
@@ -155,6 +161,12 @@
             lastRefreshTime = timestamp;
 
             cities = response.cities;
+
+            // Notify system that context has changed
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
+
             thinkingStatus = '';
             toolStatus = '';
         } catch (e) {
@@ -179,6 +191,39 @@
         if (tempF >= 70) return 'warm';
         if (tempF >= 50) return 'cool';
         return 'cold';
+    }
+
+    /**
+     * Provide context about the cities currently being compared.
+     * This helps AI understand what locations are being viewed side-by-side.
+     */
+    export function getContextForLlm(): ContextSourceDef[] | undefined {
+        // Only provide context if we have cities data
+        if (!cities || cities.length === 0) {
+            return undefined;
+        }
+
+        return [
+            {
+                sourceId: 'weather-comparison-cities',
+                llmInclusionDescription: 'Cities currently being compared in the weather comparison widget with their temperatures and conditions',
+                origin: 'auto',
+                lucideIconName: 'git-compare-arrows',
+                title: 'Weather Comparison',
+                description: cities.map((c) => c.location).join(', '),
+                data: {
+                    cities: cities.map((c) => ({
+                        location: c.location,
+                        tempF: c.tempF,
+                        tempC: c.tempC,
+                        condition: c.condition
+                    })),
+                    comparedAt: lastRefreshTime
+                },
+                addAutomatically: true,
+                maxAgeMs: 2 * 60 * 60 * 1000 // 2 hours - comparison data
+            }
+        ];
     }
 </script>
 

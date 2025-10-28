@@ -2,7 +2,7 @@
 
 <script lang="ts">
     import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
-    import type { InvokeAgentAsComponentOptions, WidgetAction } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { InvokeAgentAsComponentOptions, WidgetAction, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Button from 'pika-ux/shadcn/button/button.svelte';
@@ -86,6 +86,11 @@
             lastRefreshTime = cachedData.timestamp;
             searchCity = cachedData.searchTerm;
             weatherData = cachedData.response;
+
+            // Notify system that context is available
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
         }
 
         if (weatherData) {
@@ -134,6 +139,12 @@
             lastRefreshTime = timestamp;
 
             weatherData = response;
+
+            // Notify system that context has changed
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
+
             thinkingStatus = '';
             toolStatus = '';
         } catch (e) {
@@ -158,6 +169,39 @@
         if (lower.includes('snow')) return '❄️';
         if (lower.includes('storm') || lower.includes('thunder')) return '⛈️';
         return '🌤️';
+    }
+
+    /**
+     * Provide context about the last searched weather location to AI.
+     * This gives the AI awareness of what location the user recently looked up.
+     */
+    export function getContextForLlm(): ContextSourceDef[] | undefined {
+        // Only provide context if we have weather data
+        if (!weatherData) {
+            return undefined;
+        }
+
+        return [
+            {
+                sourceId: 'quick-weather-last-search',
+                llmInclusionDescription: 'The most recent weather location searched by the user with current conditions and temperature',
+                origin: 'auto',
+                lucideIconName: 'search',
+                title: 'Last Weather Search',
+                description: weatherData.location,
+                data: {
+                    location: weatherData.location,
+                    tempF: weatherData.tempF,
+                    tempC: weatherData.tempC,
+                    condition: weatherData.condition,
+                    humidity: weatherData.humidity,
+                    windSpeed: weatherData.windSpeed,
+                    searchedAt: lastRefreshTime
+                },
+                addAutomatically: true,
+                maxAgeMs: 30 * 60 * 1000 // 30 minutes - recent search context
+            }
+        ];
     }
 </script>
 

@@ -1,0 +1,489 @@
+---
+title: Provide Context from Widgets
+description: Step-by-step guide to making your widgets context-aware so they can intelligently share information with AI
+---
+
+Context-aware widgets can provide relevant information to the AI assistant automatically. This guide shows you how to implement context in your web components.
+
+## Prerequisites
+
+Before starting, you should understand:
+
+- [Web Components basics](/concepts/how-pika-works/web-components/)
+- [How to build web components for Pika](/guides/customization/build-web-components/)
+- [Tag definitions and widget types](/guides/advanced/widget-tags/)
+
+## Overview
+
+Widgets provide context by implementing a `getContextForLlm()` method that returns an array of `ContextSourceDef` objects. The system calls this method to discover what context the widget can provide.
+
+{% aside type="note" %}
+The method name uses "Llm" (not "LLM") to follow JavaScript naming conventions. This is intentional.
+{% /aside %}
+
+## Basic Implementation
+
+### Step 1: Implement getContextForLlm()
+
+Add the method to your web component:
+
+```typescript title="order-widget.ts"
+class OrderWidget extends HTMLElement {
+  private currentOrder: Order | null = null;
+
+  getContextForLlm(): ContextSourceDef[] | undefined {
+    // Return undefined or empty array if no context to provide
+    if (!this.currentOrder) {
+      return undefined;
+    }
+
+    return [{
+      // Unique identifier for this context source
+      sourceId: 'current-order',
+      
+      // Description for LLM-based relevance filtering
+      llmInclusionDescription: 'Details about the order currently being viewed, including items, status, and shipping information',
+      
+      // Origin: 'auto' for automatic inclusion, 'user' for user-requested
+      origin: 'auto',
+      
+      // Display information for UI chips
+      title: `Order #${this.currentOrder.id}`,
+      description: `${this.currentOrder.items.length} items, ${this.currentOrder.status}`,
+      
+      // The actual context data
+      data: this.currentOrder,
+      
+      // Should this be added automatically when relevant?
+      addAutomatically: true,
+      
+      // Optional: How long this context stays relevant (in milliseconds)
+      maxAgeMs: 5 * 60 * 1000 // 5 minutes
+    }];
+  }
+}
+```
+
+### Step 2: Notify on Context Changes
+
+When your widget's data changes, notify the system:
+
+```typescript title="order-widget.ts"
+class OrderWidget extends HTMLElement {
+  private chatAppState: IChatAppState;
+
+  async loadOrder(orderId: string) {
+    this.currentOrder = await fetchOrder(orderId);
+    
+    // Notify system that context has changed
+    this.chatAppState.updateWidgetContext(this.instanceId);
+  }
+}
+```
+
+{% aside type="tip" title="When to Call updateWidgetContext()" %}
+Call this method whenever:
+- Data loads for the first time
+- Data changes (user navigates, data refreshes, etc.)
+- Context becomes available or unavailable
+{% /aside %}
+
+## Understanding Context Fields
+
+### Required Fields
+
+```typescript
+interface ContextSourceDef {
+  // Unique ID for tracking across conversation
+  sourceId: string;
+  
+  // Description for LLM relevance filtering
+  llmInclusionDescription: string;
+  
+  // How context was added: 'auto' or 'user'
+  origin: WidgetContextSourceOrigin;
+  
+  // Display text for UI chip
+  title: string;
+  description: string;
+  
+  // The actual context data (sent to LLM)
+  data: unknown;
+}
+```
+
+### Optional Fields
+
+```typescript
+interface ContextSourceDef {
+  // Should context be added automatically?
+  addAutomatically?: boolean; // Default: false
+  
+  // How long context stays relevant (milliseconds)
+  maxAgeMs?: number; // Default: undefined (never expires)
+  
+  // Lucide icon name for UI chip
+  lucideIconName?: string; // Example: 'package', 'user', 'chart'
+}
+```
+
+## Field Guidelines
+
+### sourceId
+
+**Purpose**: Unique identifier for deduplication and tracking.
+
+**Best Practices**:
+- Use kebab-case: `current-order`, `user-profile`, `chart-data`
+- Make it globally unique across your application
+- Keep it stable (don't include dynamic IDs unless necessary)
+- For multiple instances, use: `${baseId}-${uniqueId}`
+
+```typescript
+// Good
+sourceId: 'current-order'
+sourceId: 'user-profile'
+
+// Also good (when you need multiple instances)
+sourceId: `chart-${this.chartId}`
+sourceId: `order-${orderId}`
+
+// Bad (too generic)
+sourceId: 'data'
+sourceId: 'context'
+```
+
+### llmInclusionDescription
+
+**Purpose**: Helps the filtering LLM determine if this context is relevant to the user's question.
+
+**Best Practices**:
+- Be specific about what the context contains
+- Mention key fields or categories
+- Write for an LLM, not a human
+- 1-2 sentences is ideal
+
+```typescript
+// Good
+llmInclusionDescription: 'Order details including items, quantities, prices, shipping address, and current status'
+
+llmInclusionDescription: 'User profile with account information, preferences, subscription tier, and billing details'
+
+llmInclusionDescription: 'Time-series chart showing sales data over the past 30 days, broken down by region and product category'
+
+// Bad (too vague)
+llmInclusionDescription: 'Order information'
+llmInclusionDescription: 'User data'
+```
+
+### addAutomatically
+
+**Purpose**: Controls whether context appears automatically or requires user action.
+
+**When to use `true` (default for most widgets)**:
+- Spotlight widgets (always visible)
+- Canvas widgets (embedded in responses)
+- Any context that's clearly relevant to visible UI
+
+**When to use `false`**:
+- Dialog widgets (temporary/modal)
+- Widgets with sensitive data requiring explicit consent
+- Context that's rarely relevant
+
+```typescript
+// Spotlight widget - always visible, always relevant
+addAutomatically: true
+
+// Dialog widget - user opened it for a reason
+addAutomatically: false
+```
+
+### maxAgeMs
+
+**Purpose**: Defines how long context stays relevant without changing.
+
+**When to set it**:
+- Real-time data (stock prices, system status)
+- Time-sensitive information (recent orders, today's schedule)
+- Data that becomes stale quickly
+
+**When to omit it**:
+- Stable reference data (user profile, settings)
+- Historical data that doesn't change
+
+```typescript
+// Real-time stock prices - refresh every 30 seconds
+maxAgeMs: 30 * 1000
+
+// Recent orders - relevant for 5 minutes
+maxAgeMs: 5 * 60 * 1000
+
+// User profile - no expiration needed
+maxAgeMs: undefined
+```
+
+## Multiple Context Items
+
+A single widget can return multiple context items:
+
+```typescript
+class DashboardWidget extends HTMLElement {
+  getContextForLlm(): ContextSourceDef[] | undefined {
+    const contexts: ContextSourceDef[] = [];
+
+    // Add metrics context
+    if (this.metrics) {
+      contexts.push({
+        sourceId: 'dashboard-metrics',
+        llmInclusionDescription: 'Key performance metrics including revenue, user count, and conversion rates',
+        origin: 'auto',
+        title: 'Dashboard Metrics',
+        description: 'Current KPIs',
+        data: this.metrics,
+        addAutomatically: true,
+        maxAgeMs: 60 * 1000 // 1 minute
+      });
+    }
+
+    // Add alerts context
+    if (this.alerts && this.alerts.length > 0) {
+      contexts.push({
+        sourceId: 'active-alerts',
+        llmInclusionDescription: 'Active system alerts and warnings requiring attention',
+        origin: 'auto',
+        title: 'Active Alerts',
+        description: `${this.alerts.length} alerts`,
+        data: this.alerts,
+        addAutomatically: true,
+        maxAgeMs: 30 * 1000 // 30 seconds
+      });
+    }
+
+    return contexts.length > 0 ? contexts : undefined;
+  }
+}
+```
+
+## Advanced Patterns
+
+### Conditional Context
+
+Only provide context when it's relevant:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  // Don't provide context if widget is minimized
+  if (this.isMinimized) {
+    return undefined;
+  }
+
+  // Don't provide context if data is loading
+  if (this.isLoading) {
+    return undefined;
+  }
+
+  // Don't provide context if error state
+  if (this.hasError) {
+    return undefined;
+  }
+
+  return [{
+    // ... context definition
+  }];
+}
+```
+
+### Context with Metadata
+
+Include metadata in your data for better LLM understanding:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  return [{
+    sourceId: 'order-details',
+    llmInclusionDescription: 'Complete order information',
+    origin: 'auto',
+    title: `Order #${this.order.id}`,
+    description: this.order.status,
+    data: {
+      // Include metadata for context
+      _metadata: {
+        orderDate: this.order.createdAt,
+        lastUpdated: this.order.updatedAt,
+        currency: this.order.currency
+      },
+      // Actual order data
+      ...this.order
+    },
+    addAutomatically: true
+  }];
+}
+```
+
+### Scoped Context
+
+For widgets showing filtered or scoped data:
+
+```typescript
+getContextForLlm(): ContextSourceDef[] | undefined {
+  return [{
+    sourceId: `orders-${this.filterType}`,
+    llmInclusionDescription: `List of ${this.filterType} orders with summary information`,
+    origin: 'auto',
+    title: `${this.filterType} Orders`,
+    description: `${this.orders.length} orders`,
+    data: {
+      filter: this.filterType,
+      dateRange: this.dateRange,
+      orders: this.orders
+    },
+    addAutomatically: true,
+    maxAgeMs: 2 * 60 * 1000 // 2 minutes
+  }];
+}
+```
+
+## Testing Context
+
+### Manual Testing
+
+1. **Open Developer Console** and run:
+```javascript
+// Get your widget instance
+const widget = document.querySelector('your-widget');
+
+// Check context
+const context = widget.getContextForLlm();
+console.log('Context:', context);
+```
+
+2. **Test in Chat UI**:
+   - Open chat input
+   - Verify context chip appears
+   - Click chip to see details
+   - Ask a question and verify context is used
+
+### Context Lifecycle
+
+```typescript
+// Initial state - no context
+getContextForLlm() {
+  return undefined; // Widget shows no chip
+}
+
+// Data loads
+async connectedCallback() {
+  await this.loadData();
+  this.chatAppState.updateWidgetContext(this.instanceId);
+  // Now shows chip
+}
+
+// Data changes
+async refreshData() {
+  await this.loadData();
+  this.chatAppState.updateWidgetContext(this.instanceId);
+  // Chip updates
+}
+
+// Widget removed
+disconnectedCallback() {
+  // Chip automatically removed
+}
+```
+
+## Common Patterns by Widget Type
+
+### Spotlight Widgets
+
+```typescript
+// Always visible - provide context with high confidence
+getContextForLlm(): ContextSourceDef[] | undefined {
+  return [{
+    sourceId: 'spotlight-data',
+    llmInclusionDescription: 'Data from the always-visible spotlight panel',
+    origin: 'auto',
+    title: 'Spotlight Data',
+    description: 'Current view',
+    data: this.data,
+    addAutomatically: true, // Spotlight is intentionally visible
+    maxAgeMs: undefined // Stable data
+  }];
+}
+```
+
+### Canvas Widgets
+
+```typescript
+// Embedded in responses - context is highly relevant
+getContextForLlm(): ContextSourceDef[] | undefined {
+  return [{
+    sourceId: `canvas-${this.instanceId}`,
+    llmInclusionDescription: 'Data visualization embedded in the AI response',
+    origin: 'auto',
+    title: 'Chart Data',
+    description: this.chartType,
+    data: this.chartData,
+    addAutomatically: true, // AI put it there for a reason
+    maxAgeMs: 5 * 60 * 1000 // Relevant for duration of conversation
+  }];
+}
+```
+
+### Dialog Widgets
+
+```typescript
+// User explicitly opened - context is intentional
+getContextForLlm(): ContextSourceDef[] | undefined {
+  return [{
+    sourceId: 'dialog-data',
+    llmInclusionDescription: 'Data from the dialog the user opened',
+    origin: 'user', // User action initiated this
+    title: 'Dialog Data',
+    description: 'User-requested',
+    data: this.data,
+    addAutomatically: false, // User should choose
+    maxAgeMs: undefined
+  }];
+}
+```
+
+## Troubleshooting
+
+### Context Not Appearing
+
+**Check**:
+1. Is `getContextForLlm()` returning a value?
+2. Is `addAutomatically` set to `true`?
+3. Did you call `updateWidgetContext()` after data loaded?
+4. Is the widget instance registered with chat app state?
+
+```typescript
+// Debug logging
+getContextForLlm(): ContextSourceDef[] | undefined {
+  const contexts = /* ... build contexts ... */;
+  console.log('[WidgetContext] Providing contexts:', contexts);
+  return contexts;
+}
+```
+
+### Context Not Being Used
+
+**Check**:
+1. Is `llmInclusionDescription` specific enough?
+2. Is the description relevant to the question?
+3. Try asking a more specific question
+4. Check if context was filtered out (see browser network tab)
+
+### Context Sent Too Often
+
+**Check**:
+1. Set `maxAgeMs` for time-sensitive data
+2. Ensure `sourceId` is stable (not changing unnecessarily)
+3. Check if data is actually changing when you think it's stable
+
+## Next Steps
+
+- [Widget System Reference →](/reference/ui-components/widget-system/)
+- [Context Types Reference →](/reference/types/widget-context/)
+- [Deploy Web Components →](/guides/customization/deploy-web-components/)
+

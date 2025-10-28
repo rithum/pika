@@ -12,12 +12,15 @@ import type {
     ChatAppActionMenu,
     ChatAppMode,
     ChatSessionFeedbackForCreate,
+    ContextSource,
+    ContextSourceDef,
     CreateSharedSessionRequest,
     CreateSharedSessionResponse,
     GetPinnedSessionsRequest,
     GetPinnedSessionsResponse,
     GetRecentSharedResponse,
     InvokeAgentAsComponentOptions,
+    LLMContextItem,
     PinnedObjAndChatSession,
     PinSessionRequest,
     RecordOrUndef,
@@ -28,6 +31,8 @@ import type {
     SharedSessionVisitHistory,
     ShareSessionState,
     ShowToastFn,
+    SpotlightInstanceMetadata,
+    SpotlightWidgetDefinition,
     StaticWidgetTagDefinition,
     TagDefinition,
     TagDefinitionWidget,
@@ -39,6 +44,7 @@ import type {
     ValidateShareAccessRequest,
     ValidateShareAccessResponse,
     WidgetAction,
+    WidgetContextSourceDef,
     WidgetInstance,
     WidgetMetadata,
     WidgetMetadataState,
@@ -81,6 +87,7 @@ import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
 import { WidgetRegistry } from './widgets/widget-registry';
+import { getContentHashString } from 'pika-shared/util/server-client-utils';
 
 const MAX_FILES = 5;
 
@@ -117,6 +124,12 @@ export class ChatAppState implements IChatAppState {
 
     // Widget instance tracking - maps instanceId to WidgetInstance (includes DOM element reference)
     #widgetInstances = $state<Map<string, WidgetInstance>>(new SvelteMap());
+
+    // Context sources, both those added manually by the user and those added automatically by a component.
+    #contextSources = $state<Array<ContextSource>>([]);
+
+    // Track auto-contexts that user has manually removed (don't auto-add again this session)
+    #removedAutoContexts = $state<Set<string>>(new Set());
 
     // Action button/action button menu that will appear at the top of the chat app in the title bar. Used by widgets to register global actions.
     #customTitleBarActions = $state<(ChatAppActionMenu | ChatAppAction)[]>([]);
@@ -283,6 +296,7 @@ export class ChatAppState implements IChatAppState {
     #features = $state<ChatAppOverridableFeatures>() as ChatAppOverridableFeatures;
     #customDataUiRepresentation = $state<CustomDataUiRepresentation | undefined>(undefined);
     #tagDefs = $state<TagDefinition<TagDefinitionWidget>[]>([]);
+    #manuallyRegisteredTagDefs = $state<TagDefinition<TagDefinitionWidget>[]>([]);
     #showToast: ShowToastFn;
     #entityFeatureEnabled = $derived.by(() => {
         return this.#features.entity.enabled;
@@ -291,6 +305,12 @@ export class ChatAppState implements IChatAppState {
     #spotlightWidgets = $state<SpotlightWidget[]>([]);
     #staticWidgets = $state<StaticWidgetTagDefinition[]>([]);
     #spotlightUserPrefs = $state<UserSpotlightPreferences | undefined>(undefined);
+    // Track unpinned state for manually registered widgets (not persisted to server)
+    #manuallyRegisteredUnpinned = $state<Set<string>>(new Set());
+    // Store data for manually registered spotlight widgets (persists across pin/unpin)
+    #manuallyRegisteredSpotlightData = $state<Map<string, Record<string, any>>>(new Map());
+    // Store metadata for spotlight widgets (applied after injection)
+    #spotlightWidgetMetadata = $state<Map<string, WidgetMetadata>>(new Map());
     #canvasWidget = $state<CanvasWidgetState | undefined>(undefined);
     #canvasOpen = $state(false);
     #dialogWidget = $state<DialogWidgetState | undefined>(undefined);
@@ -466,7 +486,17 @@ export class ChatAppState implements IChatAppState {
      * Called by renderers after injecting a web component.
      */
     registerWidgetInstance(instance: WidgetInstance): void {
+        // console.log('[Context] registerWidgetInstance called:', {
+        //     instanceId: instance.instanceId,
+        //     tagId: instance.tagId,
+        //     customElementName: instance.customElementName,
+        //     renderingContext: instance.renderingContext
+        // });
+
         this.#widgetInstances.set(instance.instanceId, instance);
+
+        // Discover and potentially auto-add context from this widget
+        this.discoverWidgetContext(instance.instanceId);
     }
 
     /**
@@ -475,6 +505,9 @@ export class ChatAppState implements IChatAppState {
      */
     unregisterWidgetInstance(instanceId: string): void {
         this.#widgetInstances.delete(instanceId);
+
+        // Remove all contexts from this widget
+        this.removeAllContextsForWidget(instanceId);
     }
 
     /**
@@ -482,6 +515,415 @@ export class ChatAppState implements IChatAppState {
      */
     getWidgetInstance(instanceId: string): WidgetInstance | undefined {
         return this.#widgetInstances.get(instanceId);
+    }
+
+    /**
+     * Update context for a widget. Call this when a widget's context has changed.
+     * This will re-check the widget's getContextForLlm() method and update the context accordingly.
+     *
+     * Use cases:
+     * - Widget initially had no context, but now has context to share
+     * - Widget's context data has changed (e.g., user selected different items)
+     * - Widget wants to change whether context should be auto-added
+     *
+     * @param instanceId The widget instance ID
+     *
+     * @example
+     * ```typescript
+     * // In your widget when state changes:
+     * onMount(async () => {
+     *     const context = await getPikaContext($host());
+     *
+     *     // When user selects cities, update context
+     *     $effect(() => {
+     *         if (selectedCities.length > 0) {
+     *             context.chatAppState.updateWidgetContext(context.instanceId);
+     *         }
+     *     });
+     * });
+     * ```
+     */
+    updateWidgetContext(instanceId: string): void {
+        const instance = this.#widgetInstances.get(instanceId);
+        if (!instance || !instance.element) {
+            console.warn(`[Context] Cannot update context: widget instance ${instanceId} not found`);
+            return;
+        }
+
+        // Check if widget has getContextForLlm method
+        const element = instance.element as any;
+        if (typeof element.getContextForLlm !== 'function') {
+            // Widget doesn't provide context, remove all existing contexts
+            this.removeAllContextsForWidget(instanceId);
+            return;
+        }
+
+        try {
+            const contextDefs = element.getContextForLlm() as ContextSourceDef[] | undefined;
+
+            if (!contextDefs || contextDefs.length === 0) {
+                // Widget no longer has context to share, remove all
+                this.removeAllContextsForWidget(instanceId);
+                return;
+            }
+
+            // Get current contexts from this widget
+            const existingContexts = this.#contextSources.filter((s) => s.instanceId === instanceId);
+            const newSourceIds = new Set(contextDefs.map((c) => c.sourceId));
+
+            // Update or add contexts from the new array
+            for (const contextDef of contextDefs) {
+                const existingContext = existingContexts.find((c) => c.sourceId === contextDef.sourceId);
+
+                if (existingContext) {
+                    // Update existing context (preserve origin - user vs auto)
+                    const updatedContext: WidgetContextSourceDef = {
+                        ...contextDef,
+                        type: 'widget',
+                        instanceId: instanceId,
+                        origin: existingContext.origin // Preserve whether user or auto added
+                    };
+                    this.addContextSource(updatedContext);
+                    // console.log(`[Context] Updated context ${contextDef.sourceId} for widget ${instanceId}`);
+                } else {
+                    // Context not currently active, try to auto-add
+                    if (contextDef.addAutomatically && !this.#removedAutoContexts.has(contextDef.sourceId)) {
+                        const widgetContext: WidgetContextSourceDef = {
+                            ...contextDef,
+                            type: 'widget',
+                            instanceId: instanceId,
+                            origin: 'auto'
+                        };
+                        this.addContextSource(widgetContext);
+                        // console.log(`[Context] Auto-added new context ${contextDef.sourceId} for widget ${instanceId}`);
+                    }
+                }
+            }
+
+            // Remove contexts that are no longer in the widget's returned array
+            for (const existingContext of existingContexts) {
+                if (!newSourceIds.has(existingContext.sourceId)) {
+                    this.#contextSources = this.#contextSources.filter((s) => s.sourceId !== existingContext.sourceId);
+                    // console.log(`[Context] Removed stale context ${existingContext.sourceId} for widget ${instanceId}`);
+                }
+            }
+        } catch (error) {
+            console.error(`[Context] Error updating context for widget ${instanceId}:`, error);
+        }
+    }
+
+    /**
+     * Discover context from a widget and potentially auto-add it.
+     * Checks if the widget has a getContextForLlm method and calls it.
+     * If addAutomatically is true, adds the context to active sources.
+     * A widget can return multiple context items.
+     */
+    discoverWidgetContext(instanceId: string): void {
+        // console.log('[Context] discoverWidgetContext called:', { instanceId });
+
+        const instance = this.#widgetInstances.get(instanceId);
+        if (!instance || !instance.element) {
+            console.log('[Context] Widget instance or element not found:', {
+                instanceId,
+                hasInstance: !!instance,
+                hasElement: !!instance?.element
+            });
+            return;
+        }
+
+        // Check if widget has getContextForLlm method
+        const element = instance.element as any;
+        const hasMethod = typeof element.getContextForLlm === 'function';
+        // console.log('[Context] Checking for getContextForLlm method:', {
+        //     instanceId,
+        //     tagId: instance.tagId,
+        //     hasMethod,
+        //     elementType: element.constructor.name
+        // });
+
+        if (!hasMethod) {
+            return;
+        }
+
+        try {
+            const contextDefs = element.getContextForLlm() as ContextSourceDef[] | undefined;
+            // console.log('[Context] getContextForLlm() returned:', {
+            //     instanceId,
+            //     tagId: instance.tagId,
+            //     contextDefs,
+            //     contextCount: contextDefs?.length || 0
+            // });
+
+            if (!contextDefs || contextDefs.length === 0) {
+                return; // Widget has no context to share
+            }
+
+            // Process each context item
+            for (const contextDef of contextDefs) {
+                // console.log('[Context] Processing context def:', {
+                //     sourceId: contextDef.sourceId,
+                //     title: contextDef.title,
+                //     addAutomatically: contextDef.addAutomatically,
+                //     wasRemoved: this.#removedAutoContexts.has(contextDef.sourceId)
+                // });
+
+                // Create WidgetContextSourceDef
+                const widgetContext: WidgetContextSourceDef = {
+                    ...contextDef,
+                    type: 'widget',
+                    instanceId: instanceId
+                };
+
+                // Check if user has manually removed this context (don't auto-add again)
+                // Use sourceId for tracking since it's globally unique
+                if (this.#removedAutoContexts.has(contextDef.sourceId)) {
+                    // console.log('[Context] Skipping - user previously removed this context:', contextDef.sourceId);
+                    continue;
+                }
+
+                // Auto-add if specified
+                if (contextDef.addAutomatically) {
+                    widgetContext.origin = 'auto';
+                    this.addContextSource(widgetContext);
+                    // console.log('[Context] Auto-added context:', {
+                    //     sourceId: contextDef.sourceId,
+                    //     title: contextDef.sourceId
+                    // });
+                }
+            }
+        } catch (error) {
+            console.error(`[Context] Error discovering context for widget ${instanceId}:`, error);
+        }
+    }
+
+    /**
+     * Add a context source to the active list.
+     * If a context with the same sourceId already exists, it will be replaced.
+     */
+    addContextSource(source: ContextSource): void {
+        // console.log('[Context] addContextSource called:', {
+        //     sourceId: source.sourceId,
+        //     title: source.title,
+        //     origin: source.origin,
+        //     type: source.type,
+        //     totalContextsBeforeAdd: this.#contextSources.length
+        // });
+
+        // Remove existing context with this sourceId first (update operation)
+        this.#contextSources = this.#contextSources.filter((s) => s.sourceId !== source.sourceId);
+
+        // Add new context
+        this.#contextSources.push(source);
+
+        // console.log('[Context] Context source added. Total contexts:', this.#contextSources.length, {
+        //     autoContexts: this.#contextSources.filter((s) => s.origin === 'auto').length,
+        //     userContexts: this.#contextSources.filter((s) => s.origin === 'user').length
+        // });
+
+        // If adding manually, remove from removed list
+        if (source.origin === 'user') {
+            this.#removedAutoContexts.delete(source.sourceId);
+        }
+    }
+
+    /**
+     * Remove a context source by sourceId.
+     * If it was auto-added, remember that user removed it (don't auto-add again).
+     */
+    removeContextSource(sourceId: string): void {
+        const source = this.#contextSources.find((s) => s.sourceId === sourceId);
+
+        if (source && source.origin === 'auto') {
+            // Remember that user removed this auto-context
+            this.#removedAutoContexts.add(sourceId);
+        }
+
+        this.#contextSources = this.#contextSources.filter((s) => s.sourceId !== sourceId);
+    }
+
+    /**
+     * Remove all context sources from a specific widget instance.
+     * Called when a widget is unregistered/destroyed.
+     */
+    removeAllContextsForWidget(instanceId: string): void {
+        // Get all contexts from this widget
+        const widgetContexts = this.#contextSources.filter((s) => s.instanceId === instanceId);
+
+        // Remove each one (this ensures proper tracking in #removedAutoContexts)
+        for (const context of widgetContexts) {
+            // Note: We don't mark as removed for unregistered widgets - they're gone
+            // If the widget comes back, it can auto-add again
+            this.#contextSources = this.#contextSources.filter((s) => s.sourceId !== context.sourceId);
+        }
+    }
+
+    /**
+     * Get all available context sources (widgets with context not currently added).
+     * Returns contexts from all widgets that aren't currently in the active list.
+     *
+     * If getAll is true, then all contexts will be returned, otherwise only contexts that are not currently active will be returned.
+     * @param getAll - If true, all contexts will be returned, otherwise only contexts that are not currently active will be returned.
+     * @returns A list of available context sources.
+     * @example
+     * ```
+     * const availableContexts = chatAppState.getAvailableContexts(true);
+     * console.log(availableContexts);
+     * ```
+     */
+    getAvailableContexts(getAll: boolean = false): WidgetContextSourceDef[] {
+        // console.log('[Context] getAvailableContexts called:', {
+        //     totalWidgetInstances: this.#widgetInstances.size,
+        //     activeContextSources: this.#contextSources.length
+        // });
+
+        const available: WidgetContextSourceDef[] = [];
+        const activeSourceIds = new Set(this.#contextSources.map((s) => s.sourceId));
+
+        for (const [instanceId, instance] of this.#widgetInstances) {
+            // Check if widget has getContextForLlm method
+            const element = instance.element as any;
+            const hasMethod = typeof element.getContextForLlm === 'function';
+
+            if (!hasMethod) {
+                // console.log('[Context] Widget does not have getContextForLlm:', {
+                //     instanceId,
+                //     tagId: instance.tagId
+                // });
+                continue;
+            }
+
+            try {
+                const contextDefs = element.getContextForLlm() as ContextSourceDef[] | undefined;
+                // console.log('[Context] Widget provided context defs:', {
+                //     instanceId,
+                //     tagId: instance.tagId,
+                //     contextCount: contextDefs?.length || 0
+                // });
+
+                if (contextDefs && contextDefs.length > 0) {
+                    for (const contextDef of contextDefs) {
+                        const isActive = activeSourceIds.has(contextDef.sourceId);
+                        // console.log('[Context] Checking context def:', {
+                        //     sourceId: contextDef.sourceId,
+                        //     title: contextDef.title,
+                        //     isActive,
+                        //     willBeAvailable: getAll || !isActive
+                        // });
+
+                        // Include if getAll is true OR if not already active
+                        if (getAll || !isActive) {
+                            available.push({
+                                ...contextDef,
+                                type: 'widget',
+                                instanceId: instanceId,
+                                origin: 'user' // Will be user-added if they select it
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`[Context] Error getting context for widget ${instanceId}:`, error);
+            }
+        }
+
+        // console.log('[Context] getAvailableContexts returning:', {
+        //     availableCount: available.length,
+        //     contexts: available.map((c) => ({ sourceId: c.sourceId, title: c.title }))
+        // });
+
+        return available;
+    }
+
+    /**
+     * Refresh all widget contexts (re-check all widgets for context).
+     * Useful before sending a message to ensure all context data is up-to-date.
+     * Only refreshes auto-added contexts; user-added contexts are also refreshed.
+     */
+    refreshAllContext(): void {
+        // Get unique widget instances that have active contexts
+        const widgetInstancesWithContext = new Set(this.#contextSources.map((s) => s.instanceId));
+
+        for (const instanceId of widgetInstancesWithContext) {
+            const instance = this.#widgetInstances.get(instanceId);
+            if (!instance || !instance.element) {
+                // Widget no longer exists, remove all its contexts
+                this.removeAllContextsForWidget(instanceId);
+                continue;
+            }
+
+            // Re-fetch context
+            const element = instance.element as any;
+            if (typeof element.getContextForLlm !== 'function') {
+                // Widget no longer provides context
+                this.removeAllContextsForWidget(instanceId);
+                continue;
+            }
+
+            try {
+                const contextDefs = element.getContextForLlm() as ContextSourceDef[] | undefined;
+                const currentContexts = this.#contextSources.filter((s) => s.instanceId === instanceId);
+
+                if (!contextDefs || contextDefs.length === 0) {
+                    // Widget no longer has context, remove all
+                    this.removeAllContextsForWidget(instanceId);
+                } else {
+                    // Update each active context from this widget
+                    for (const contextDef of contextDefs) {
+                        const currentContext = currentContexts.find((c) => c.sourceId === contextDef.sourceId);
+                        if (currentContext) {
+                            // Update with fresh data, preserving origin
+                            this.addContextSource({
+                                ...contextDef,
+                                type: 'widget',
+                                instanceId: instanceId,
+                                origin: currentContext.origin
+                            });
+                        }
+                    }
+
+                    // Remove contexts that no longer exist in widget's return value
+                    const newSourceIds = new Set(contextDefs.map((c) => c.sourceId));
+                    for (const currentContext of currentContexts) {
+                        if (!newSourceIds.has(currentContext.sourceId)) {
+                            this.removeContextSource(currentContext.sourceId);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`[Context] Error refreshing context for widget ${instanceId}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Get all active context sources.
+     */
+    get contextSources(): ContextSource[] {
+        return this.#contextSources;
+    }
+
+    /**
+     * Get auto-added context sources (for the auto-chip dropdown).
+     */
+    get autoContextSources(): ContextSource[] {
+        const auto = this.#contextSources.filter((s) => s.origin === 'auto');
+        // console.log('[Context] autoContextSources accessed:', {
+        //     count: auto.length,
+        //     contexts: auto.map((c) => ({ sourceId: c.sourceId, title: c.title }))
+        // });
+        return auto;
+    }
+
+    /**
+     * Get manually-added context sources (for individual chips).
+     */
+    get manualContextSources(): ContextSource[] {
+        const manual = this.#contextSources.filter((s) => s.origin === 'user');
+        // console.log('[Context] manualContextSources accessed:', {
+        //     count: manual.length,
+        //     contexts: manual.map((c) => ({ sourceId: c.sourceId, title: c.title }))
+        // });
+        return manual;
     }
 
     /**
@@ -1332,6 +1774,38 @@ export class ChatAppState implements IChatAppState {
 
         const wasInterimSession = this.#isInterimSession;
 
+        // Refresh all context sources to get latest data before sending
+        this.refreshAllContext();
+
+        // Collect active context sources
+        const contextSources = this.#contextSources.map((source) => ({
+            type: source.type,
+            instanceId: source.instanceId,
+            sourceId: source.sourceId,
+            llmInclusionDescription: source.llmInclusionDescription,
+            origin: source.origin,
+            title: source.title,
+            description: source.description,
+            data: source.data
+        }));
+
+        let llmContextItems: LLMContextItem[] = [];
+
+        if (contextSources.length > 0) {
+            // console.log(`[Context] Sending ${contextSources.length} context source(s) with message:`, contextSources);
+            llmContextItems = await Promise.all(
+                contextSources.map(async (source) => ({
+                    id: source.sourceId,
+                    description: source.llmInclusionDescription,
+                    context: source.data,
+                    origin: source.origin,
+                    contentHash: await getContentHashString(source.data),
+                    lastUpdated: new Date().toISOString()
+                }))
+            );
+            // console.log(`[Context] LLM context items:`, llmContextItems);
+        }
+
         try {
             const converseRequest: ConverseRequest = {
                 message: messageToSendToServer,
@@ -1342,7 +1816,8 @@ export class ChatAppState implements IChatAppState {
                 chatAppId: this.#chatApp.chatAppId,
                 features: {} as ChatAppOverridableFeatures, // This will be set server side
                 timezone: this.#currentSession.sessionAttributes?.timezone,
-                ...(files && { files })
+                ...(files && { files }),
+                ...(llmContextItems.length > 0 && { llmContextItems })
             };
             // Send the message to the server and stream the response
             const response = await this.fetchz('/api/message', {
@@ -2367,12 +2842,232 @@ export class ChatAppState implements IChatAppState {
     async initializeSpotlight() {
         // 1. Filter tag definitions for spotlight-enabled widgets
         const spotlightTags = this.#tagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
+        const manuallyRegisteredTags = this.#manuallyRegisteredTagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
 
         // 2. Load user preferences for spotlight
         this.#spotlightUserPrefs = await this.loadSpotlightPreferences();
 
         // 3. Resolve which widgets to show and in what order
-        this.#spotlightWidgets = this.resolveSpotlightWidgets(spotlightTags, this.#spotlightUserPrefs);
+        this.#spotlightWidgets = this.resolveSpotlightWidgets([...spotlightTags, ...manuallyRegisteredTags], this.#spotlightUserPrefs);
+    }
+
+    /**
+     * Save a spotlight instance with data (Virtual Tags Pattern).
+     * Creates a new instance of a base widget, saves its data to UserWidgetDataStore,
+     * registers it as a spotlight widget, and renders it immediately.
+     *
+     * @param scope Widget scope (e.g., 'weather')
+     * @param baseTag Base tag name (e.g., 'chart-saved')
+     * @param displayName User-facing name for this instance
+     * @param customElementName The custom element name (same for all instances)
+     * @param data The data to pass to this instance
+     * @param dataKey The key to store data under (e.g., 'chartData')
+     * @param metadata Optional widget metadata (title, actions, icon, etc.)
+     * @returns The instance ID (UUID)
+     */
+    async saveSpotlightInstance(
+        scope: string,
+        baseTag: string,
+        displayName: string,
+        customElementName: string,
+        data: Record<string, any>,
+        dataKey: string = 'data',
+        metadata?: WidgetMetadata
+    ): Promise<string> {
+        const instanceId = crypto.randomUUID();
+
+        // 1. Add instance ID to registry in base widget's store
+        const baseStore = this.getUserWidgetDataStoreState(scope, baseTag);
+        const registry = (await baseStore.getValue<string[]>('pika.instances')) || [];
+        registry.push(instanceId);
+        await baseStore.setValue('pika.instances', registry);
+
+        // 2. Save instance data in its own store (gets 400KB!)
+        const instanceTag = `${baseTag}-instance-${instanceId}`;
+        const instanceStore = this.getUserWidgetDataStoreState(scope, instanceTag);
+
+        await instanceStore.setValue('pika.instanceMetadata', {
+            displayName,
+            savedAt: new Date().toISOString(),
+            displayOrder: registry.length - 1,
+            parentTag: baseTag,
+            instanceId
+        } as SpotlightInstanceMetadata);
+
+        await instanceStore.setValue(dataKey, data);
+
+        // 3. Register as spotlight widget
+        this.manuallyRegisterSpotlightWidget({
+            tag: instanceTag,
+            scope,
+            tagTitle: displayName,
+            customElementName,
+            autoCreateInstance: true, // Show immediately
+            singleton: false,
+            showInUnpinnedMenu: false // Don't clutter menu with instances
+        });
+
+        // 4. Render with data and optional metadata
+        await this.renderTag(`${scope}.${instanceTag}`, 'spotlight', data, metadata);
+
+        console.log(`[SpotlightInstance] Saved and rendered ${scope}.${instanceTag}`);
+        return instanceId;
+    }
+
+    /**
+     * Load all saved spotlight instances for registered persistable widgets.
+     * Called during initialization to restore user's saved widget instances.
+     *
+     * @param persistableWidgets List of base widgets that support persistent instances
+     */
+    async loadSavedSpotlightInstances(persistableWidgets: Array<{ scope: string; tag: string; customElementName: string; dataKey?: string }>): Promise<void> {
+        console.log('[SpotlightInstance] Loading saved instances...');
+
+        for (const { scope, tag: baseTag, customElementName, dataKey = 'data' } of persistableWidgets) {
+            try {
+                // 1. Get instance registry from base widget store
+                const baseStore = this.getUserWidgetDataStoreState(scope, baseTag);
+                const registry = (await baseStore.getValue<string[]>('pika.instances')) || [];
+
+                console.log(`[SpotlightInstance] Found ${registry.length} instances of ${scope}.${baseTag}`);
+
+                // 2. Load each instance
+                for (const instanceId of registry) {
+                    try {
+                        const instanceTag = `${baseTag}-instance-${instanceId}`;
+                        const instanceStore = this.getUserWidgetDataStoreState(scope, instanceTag);
+
+                        // Load metadata and data
+                        const metadata = await instanceStore.getValue<SpotlightInstanceMetadata>('pika.instanceMetadata');
+                        const data = await instanceStore.getValue(dataKey);
+
+                        if (!metadata) {
+                            console.warn(`[SpotlightInstance] No metadata for ${scope}.${instanceTag}, skipping`);
+                            continue;
+                        }
+
+                        // 3. Register the instance as a spotlight widget
+                        this.manuallyRegisterSpotlightWidget({
+                            tag: instanceTag,
+                            scope,
+                            tagTitle: metadata.displayName,
+                            customElementName,
+                            displayOrder: metadata.displayOrder,
+                            autoCreateInstance: true, // Show immediately
+                            singleton: false,
+                            showInUnpinnedMenu: false
+                        });
+
+                        // 4. Pass data (will be stored in #manuallyRegisteredSpotlightData)
+                        if (data) {
+                            await this.renderTag(`${scope}.${instanceTag}`, 'spotlight', data);
+                        }
+
+                        console.log(`[SpotlightInstance] Restored ${scope}.${instanceTag}: "${metadata.displayName}"`);
+                    } catch (error) {
+                        console.error(`[SpotlightInstance] Failed to restore instance ${instanceId}:`, error);
+                    }
+                }
+            } catch (error) {
+                console.error(`[SpotlightInstance] Failed to load instances for ${scope}.${baseTag}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Delete a saved spotlight instance (Future: TODO - implement UI for this)
+     *
+     * @param scope Widget scope
+     * @param baseTag Base tag name
+     * @param instanceId Instance UUID
+     */
+    async deleteSpotlightInstance(scope: string, baseTag: string, instanceId: string): Promise<void> {
+        // 1. Remove from spotlight immediately
+        const instanceTag = `${baseTag}-instance-${instanceId}`;
+        await this.removeFromSpotlight(`${scope}.${instanceTag}`);
+
+        // 2. Remove from registry in base widget
+        const baseStore = this.getUserWidgetDataStoreState(scope, baseTag);
+        const registry = (await baseStore.getValue<string[]>('pika.instances')) || [];
+        const newRegistry = registry.filter((id) => id !== instanceId);
+        await baseStore.setValue('pika.instances', newRegistry);
+
+        // 3. TODO: Delete instance data (would need deleteAll() method on UserWidgetDataStoreState)
+        // For now, data is orphaned but could be recovered
+
+        // 4. Unregister from state
+        const tagId = `${scope}.${instanceTag}`;
+        this.#manuallyRegisteredTagDefs = this.#manuallyRegisteredTagDefs.filter((t) => !(t.scope === scope && t.tag === instanceTag));
+        this.#manuallyRegisteredUnpinned.delete(tagId);
+        this.#manuallyRegisteredSpotlightData.delete(tagId);
+
+        console.log(`[SpotlightInstance] Deleted ${scope}.${instanceTag}`);
+    }
+
+    /**
+     * Manually add a widget to spotlight. This is for widgets dynamically registered by code
+     * (e.g., web components registering themselves) rather than tag definitions from the database.
+     *
+     * Note: This widget will not persist across page refreshes unless re-registered by code.
+     * The actual DOM injection happens later via the spotlight renderer Svelte component.
+     *
+     * @param definition Widget definition including autoCreateInstance flag
+     */
+    manuallyRegisterSpotlightWidget(definition: SpotlightWidgetDefinition) {
+        const tagId = `${definition.scope}.${definition.tag}`;
+
+        if (this.#manuallyRegisteredTagDefs.find((t) => t.tag === definition.tag && t.scope === definition.scope)) {
+            console.log(`Spotlight widget ${definition.tag} already registered`);
+            return;
+        }
+
+        // Convert to TagDefinition<TagDefinitionWidgetWebComponent>
+        const tagDef: TagDefinition<TagDefinitionWidgetWebComponent> = {
+            tag: definition.tag,
+            scope: definition.scope,
+            tagTitle: definition.tagTitle,
+            renderingContexts: {
+                spotlight: {
+                    enabled: true,
+                    displayOrder: definition.displayOrder,
+                    singleton: definition.singleton ?? true,
+                    showInUnpinnedMenu: definition.showInUnpinnedMenu ?? true
+                }
+            },
+            usageMode: 'chat-app',
+            status: 'enabled',
+            createdBy: this.#user.userId,
+            lastUpdatedBy: this.#user.userId,
+            createDate: new Date().toISOString(),
+            lastUpdate: new Date().toISOString(),
+            shortTagEx: definition.tag,
+            canBeGeneratedByLlm: false,
+            canBeGeneratedByTool: false,
+            description: 'Manually registered spotlight widget',
+            componentAgentInstructionsMd: definition.componentAgentInstructionsMd,
+            widget: {
+                type: 'web-component',
+                webComponent: {
+                    customElementName: definition.customElementName,
+                    sizing: definition.sizing,
+                    encoding: 'gzip',
+                    encodedSizeBytes: 0,
+                    encodedSha256Base64: '',
+                    mediaType: 'application/javascript'
+                }
+            }
+        };
+
+        this.#manuallyRegisteredTagDefs.push(tagDef);
+
+        // Handle autoCreateInstance (defaults to true)
+        const autoCreateInstance = definition.autoCreateInstance ?? true;
+        if (!autoCreateInstance) {
+            // Mark as unpinned so it won't be automatically created
+            this.#manuallyRegisteredUnpinned.add(tagId);
+        }
+
+        this.initializeSpotlight();
     }
 
     /**
@@ -2396,7 +3091,14 @@ export class ChatAppState implements IChatAppState {
         // Filter out unpinned widgets
         const pinnedTags = spotlightTags.filter((tag) => {
             const tagId = `${tag.scope}.${tag.tag}`;
-            return !unpinnedSet.has(tagId);
+            const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag.tag && t.scope === tag.scope);
+
+            // Check unpinned status based on source
+            if (isManuallyRegistered) {
+                return !this.#manuallyRegisteredUnpinned.has(tagId);
+            } else {
+                return !unpinnedSet.has(tagId);
+            }
         });
 
         // Sort by displayOrder
@@ -2407,11 +3109,23 @@ export class ChatAppState implements IChatAppState {
                 return orderA - orderB;
             })
             .forEach((tag, index) => {
+                const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag.tag && t.scope === tag.scope);
+                const tagId = `${tag.scope}.${tag.tag}`;
+
+                // Restore data if this is a manually registered widget with stored data
+                const data = isManuallyRegistered ? this.#manuallyRegisteredSpotlightData.get(tagId) : undefined;
+
+                // Restore metadata if available
+                const metadata = this.#spotlightWidgetMetadata.get(tagId);
+
                 widgets.push({
                     tagDefinition: tag as TagDefinition<TagDefinitionWidgetWebComponent>,
                     renderOrder: index,
                     isVisible: true,
-                    contextConfig: tag.renderingContexts!.spotlight!
+                    contextConfig: tag.renderingContexts!.spotlight!,
+                    isManuallyRegistered,
+                    data,
+                    metadata
                 });
             });
 
@@ -2421,45 +3135,80 @@ export class ChatAppState implements IChatAppState {
     /**
      * Add a widget to spotlight (or reopen if unpinned).
      * Removes the widget from the unpinned list.
+     *
+     * @param tagId The tag identifier (scope.tag)
+     * @param data Optional data to pass to the widget instance
+     * @param metadata Optional widget metadata (title, actions, icon, etc.)
      */
-    async addToSpotlight(tagId: string) {
-        // Initialize preferences if needed
-        if (!this.#spotlightUserPrefs) {
-            this.#spotlightUserPrefs = {
-                unpinned: []
-            };
+    async addToSpotlight(tagId: string, data?: Record<string, any>, metadata?: WidgetMetadata) {
+        // Check if this is a manually registered widget
+        const [scope, tag] = tagId.split('.');
+        const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag && t.scope === scope);
+
+        if (isManuallyRegistered) {
+            // Remove from manually registered unpinned set
+            this.#manuallyRegisteredUnpinned.delete(tagId);
+        } else {
+            // Initialize preferences if needed
+            if (!this.#spotlightUserPrefs) {
+                this.#spotlightUserPrefs = {
+                    unpinned: []
+                };
+            }
+
+            // Remove from unpinned list (making it visible/pinned)
+            const index = this.#spotlightUserPrefs.unpinned.indexOf(tagId);
+            if (index > -1) {
+                this.#spotlightUserPrefs.unpinned.splice(index, 1);
+            }
+
+            // Persist preferences
+            await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
         }
 
-        // Remove from unpinned list (making it visible/pinned)
-        const index = this.#spotlightUserPrefs.unpinned.indexOf(tagId);
-        if (index > -1) {
-            this.#spotlightUserPrefs.unpinned.splice(index, 1);
+        // If data was provided, store it for manually registered widgets
+        if (data && isManuallyRegistered) {
+            this.#manuallyRegisteredSpotlightData.set(tagId, data);
         }
 
-        // Persist preferences
-        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
+        // If metadata was provided, store it
+        if (metadata) {
+            this.#spotlightWidgetMetadata.set(tagId, metadata);
+        }
 
-        // Refresh spotlight widgets
+        // Refresh spotlight widgets (will restore data and metadata from store if manual widget)
         await this.initializeSpotlight();
     }
 
     /**
      * Remove a widget from spotlight (unpin/hide it).
      * Adds the widget to the unpinned list.
+     * For manually registered widgets, tracks unpinned state in memory only (not persisted).
      */
     async removeFromSpotlight(tagId: string) {
-        if (!this.#spotlightUserPrefs) {
-            this.#spotlightUserPrefs = {
-                unpinned: []
-            };
+        // Check if this is a manually registered widget
+        const [scope, tag] = tagId.split('.');
+        const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag && t.scope === scope);
+
+        if (isManuallyRegistered) {
+            // Add to manually registered unpinned set (memory only)
+            this.#manuallyRegisteredUnpinned.add(tagId);
+        } else {
+            // For database widgets, persist to server
+            if (!this.#spotlightUserPrefs) {
+                this.#spotlightUserPrefs = {
+                    unpinned: []
+                };
+            }
+
+            // Add to unpinned list if not already there
+            if (!this.#spotlightUserPrefs.unpinned.includes(tagId)) {
+                this.#spotlightUserPrefs.unpinned.push(tagId);
+            }
+
+            await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
         }
 
-        // Add to unpinned list if not already there
-        if (!this.#spotlightUserPrefs.unpinned.includes(tagId)) {
-            this.#spotlightUserPrefs.unpinned.push(tagId);
-        }
-
-        await this.saveSpotlightPreferences(this.#spotlightUserPrefs);
         await this.initializeSpotlight();
     }
 
@@ -2468,16 +3217,32 @@ export class ChatAppState implements IChatAppState {
     }
 
     /**
-     * Get all unpinned spotlight widgets.
+     * Get all unpinned spotlight widgets (from both database and manually registered).
      * Used to populate the settings dropdown menu.
+     * Filters out widgets with showInUnpinnedMenu: false.
      */
     getUnpinnedSpotlightWidgets(): TagDefinition<TagDefinitionWidget>[] {
-        if (!this.#spotlightUserPrefs) return [];
+        const unpinned: TagDefinition<TagDefinitionWidget>[] = [];
 
-        return this.#tagDefs.filter((tag) => {
+        // Get unpinned database widgets
+        if (this.#spotlightUserPrefs) {
+            const dbUnpinned = this.#tagDefs.filter((tag) => {
+                const tagId = `${tag.scope}.${tag.tag}`;
+                const showInMenu = tag.renderingContexts?.spotlight?.showInUnpinnedMenu ?? true;
+                return tag.renderingContexts?.spotlight?.enabled === true && this.#spotlightUserPrefs!.unpinned.includes(tagId) && showInMenu;
+            });
+            unpinned.push(...dbUnpinned);
+        }
+
+        // Get unpinned manually registered widgets
+        const manualUnpinned = this.#manuallyRegisteredTagDefs.filter((tag) => {
             const tagId = `${tag.scope}.${tag.tag}`;
-            return tag.renderingContexts?.spotlight?.enabled === true && this.#spotlightUserPrefs!.unpinned.includes(tagId);
+            const showInMenu = tag.renderingContexts?.spotlight?.showInUnpinnedMenu ?? true;
+            return tag.renderingContexts?.spotlight?.enabled === true && this.#manuallyRegisteredUnpinned.has(tagId) && showInMenu;
         });
+        unpinned.push(...manualUnpinned);
+
+        return unpinned;
     }
 
     /**
@@ -2512,10 +3277,15 @@ export class ChatAppState implements IChatAppState {
      * @param renderingContext Which rendering context to use
      * @param data Optional data/props to pass to the component
      */
-    async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>): Promise<void> {
+    async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void> {
         // 1. Validate tag exists and is enabled for this context
         const [scope, tag] = tagId.split('.');
-        const tagDef = this.#tagDefs.find((t) => t.scope === scope && t.tag === tag);
+
+        // Look in both #tagDefs and #manuallyRegisteredTagDefs
+        let tagDef = this.#tagDefs.find((t) => t.scope === scope && t.tag === tag);
+        if (!tagDef) {
+            tagDef = this.#manuallyRegisteredTagDefs.find((t) => t.scope === scope && t.tag === tag);
+        }
 
         if (!tagDef) {
             throw new Error(`Tag ${tagId} not found`);
@@ -2525,15 +3295,25 @@ export class ChatAppState implements IChatAppState {
             throw new Error(`Tag ${tagId} is not enabled (status: ${tagDef.status})`);
         }
 
-        if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
+        // Auto-enable canvas and dialog contexts if not explicitly configured
+        if ((renderingContext === 'canvas' || renderingContext === 'dialog') && !tagDef.renderingContexts?.[renderingContext]?.enabled) {
+            console.warn(`Tag ${tagId} does not have ${renderingContext} context explicitly enabled. Auto-enabling for this render.`);
+
+            // Dynamically add the context to the tag definition
+            if (!tagDef.renderingContexts) {
+                tagDef.renderingContexts = {};
+            }
+            tagDef.renderingContexts[renderingContext] = { enabled: true };
+        } else if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
+            // For other contexts (spotlight, inline), enforce the restriction
             throw new Error(`Tag ${tagId} does not support ${renderingContext} context`);
         }
 
         // 2. Render based on context
         switch (renderingContext) {
             case 'spotlight':
-                // Add to spotlight if not already visible
-                await this.addToSpotlight(tagId);
+                // Add to spotlight with optional data and metadata
+                await this.addToSpotlight(tagId, data, metadata);
                 break;
 
             case 'canvas':
@@ -2603,10 +3383,16 @@ export interface SpotlightWidget {
     renderOrder: number;
     isVisible: boolean;
     contextConfig: any;
+    /** Optional data passed to the widget */
+    data?: Record<string, any>;
+    /** Optional metadata (title, actions, icon) - applied after injection */
+    metadata?: WidgetMetadata;
     /** Instance ID of the injected widget (set after injection) */
     instanceId?: string;
     /** DOM element reference of the injected widget (set after injection) */
     element?: HTMLElement;
+    /** If true, this widget was manually registered (not from database) */
+    isManuallyRegistered?: boolean;
 }
 
 /**

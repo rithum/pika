@@ -257,7 +257,18 @@ export const chatSessionOpenSearchMappings = {
             share_id: { type: 'keyword' },
             share_created_by_user_id: { type: 'keyword' },
             share_date: { type: 'date' },
-            share_revoked_date: { type: 'date' }
+            share_revoked_date: { type: 'date' },
+
+            // Context tracking - map as an object with dynamic sourceId keys
+            sent_contexts: {
+                type: 'object',
+                enabled: true,
+                properties: {
+                    // Each sourceId key will have these properties
+                    // Note: OpenSearch will automatically create mappings for each sourceId key
+                    // We define the structure that each nested object should have
+                }
+            }
         }
     }
 };

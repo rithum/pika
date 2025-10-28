@@ -5,6 +5,135 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-10-28
+
+### Added
+
+- **Dynamic Spotlight Widget Registration** - Web components can programmatically register themselves in spotlight at runtime
+    - **`manuallyRegisterSpotlightWidget()` Method** - Register widgets without database tag definitions
+        - Simplified `SpotlightWidgetDefinition` interface (tag, scope, tagTitle, customElementName, sizing)
+        - Ephemeral registration - doesn't persist across page refreshes
+        - `autoCreateInstance` flag controls automatic display (default: true)
+        - `singleton` flag enforces single instance (default: true)
+        - `showInUnpinnedMenu` controls visibility in add widget menu (default: true)
+        - `displayOrder` controls position in spotlight sidebar
+        - Perfect for components that need dynamic registration based on runtime conditions
+    - **Use Cases**
+        - Third-party integrations that register components programmatically
+        - Conditional widgets that only appear when certain conditions are met
+        - Development and testing without database tag management
+        - Components that need to control their own spotlight presence
+        - Base widgets that spawn multiple saved instances (Virtual Tags Pattern)
+    - **Integration with Existing Systems**
+        - Merges seamlessly with database-sourced tag definitions
+        - Respects user preferences (unpinning, ordering)
+        - Works with `renderTag()` to pass initial data
+        - Compatible with Widget Instance Registry for tracking
+        - Supports all spotlight features (unpinning, deletion, reordering)
+- **Context-Aware Widgets** - Intelligent, dynamic context sharing from web components to AI assistants
+    - **Widget Context API** - Widgets implement `getContextForLlm()` method to declare available context
+        - Returns array of `ContextSourceDef` objects describing context sources
+        - `sourceId` - Unique identifier for deduplication and tracking
+        - `llmInclusionDescription` - Description for LLM-based relevance filtering
+        - `title` and `description` - Human-readable labels for UI chips
+        - `data` - The actual context content (any JSON-serializable value)
+        - `addAutomatically` - Controls automatic vs manual context inclusion
+        - `maxAgeMs` - Optional expiration time for time-sensitive context
+        - `lucideIconName` - Optional icon for UI representation
+        - `origin` - Tracks whether context was added automatically or by user
+    - **Intelligent Context Filtering** - LLM-based pre-filtering reduces token costs and improves response quality
+        - Amazon Nova Lite performs lightweight relevance filtering before main agent
+        - Only relevant context sent to your agent based on user's question
+        - User-requested contexts (`origin: 'user'`) always included without filtering
+        - Automatic contexts (`origin: 'auto'`) filtered for relevance
+    - **Smart Context Deduplication** - Session-level tracking eliminates redundant context
+        - Content hashing (SHA-256) detects when context hasn't changed
+        - Unchanged context isn't resent across conversation turns
+        - Dramatically reduces token usage in multi-turn conversations
+        - Tracks sent contexts per session in `sentContexts` record
+    - **Staleness Detection** - Time-based context expiration for fresh data
+        - `maxAgeMs` defines how long context stays relevant
+        - Expired context automatically resent even if unchanged
+        - Perfect for real-time data (stock prices, system status, metrics)
+        - `maxAgeMs: 0` forces context to be included every time
+        - `maxAgeMs: undefined` means context never expires (stable data)
+    - **User Transparency & Control** - Full visibility into what context is being used
+        - Context chips appear in chat input showing active contexts
+        - Users can see context title, description, and icon
+        - Remove auto-added contexts that aren't relevant
+        - Manually add contexts the system didn't select
+        - "Add Context" menu lists all available contexts from visible widgets
+    - **Session-Level Context Tracking** - Complete audit trail of context usage
+        - `SentContextRecord` tracks which contexts sent in which messages
+        - Records: sourceId, messageIds, contentHash, lastSentAt, origin
+        - Enables debugging, analytics, and cost attribution
+        - Stored in chat session's `sentContexts` field
+    - **Widget Lifecycle Integration** - Automatic context registration and updates
+        - `chatAppState.updateWidgetContext(instanceId)` notifies system of context changes
+        - Call after data loads, changes, or becomes available/unavailable
+        - System automatically calls `getContextForLlm()` to discover current context
+        - Context chips automatically appear/disappear as widgets mount/unmount
+    - **New UI Components** - Enhanced chat input with context management
+        - `context-chip.svelte` - Visual representation of context sources
+        - `add-context-menu.svelte` - Menu for manually adding contexts
+        - `auto-context-dropdown.svelte` - Dropdown showing auto-added contexts
+        - Seamless integration with existing chat input component
+    - **Backend Context Processing** - Server-side filtering and session management
+        - `filterLLMContextItems()` in `instruction-augmentation.ts` handles filtering logic
+        - Checks session history to skip unchanged contexts
+        - Validates context age against `maxAgeMs` expiration
+        - Calls LLM to filter auto-contexts for relevance
+        - Updates `sentContexts` record after contexts sent to agent
+    - **Type Safety** - Comprehensive TypeScript interfaces for context system
+        - `ContextSourceDef` - Widget-provided context definition
+        - `WidgetContextSourceDef` - Extended with instanceId for tracking
+        - `ContextSource` - Union type for all context source types
+        - `LLMContextItem` - Context item as sent to backend
+        - `SentContextRecord` - Session tracking record
+        - `WidgetContextSourceOrigin` - 'auto' or 'user' origin type
+- **Comprehensive Context Documentation** - Four new docs following Diátaxis framework
+    - [Context-Aware Widgets Capability](/capabilities/customization/context-aware-widgets/) - High-level overview and benefits
+        - Real-world use cases (customer support, financial analysis, admin tools)
+        - Key benefits (reduced costs, improved quality, better UX, future-proof)
+        - Technical highlights (hashing, pre-filtering, session tracking)
+    - [Provide Context from Widgets Guide](/guides/customization/widget-context/) - Step-by-step implementation
+        - Basic implementation with getContextForLlm()
+        - Context change notifications with updateWidgetContext()
+        - Field guidelines and best practices
+        - Multiple context items, conditional context, advanced patterns
+        - Testing and troubleshooting
+    - [Widget Context API Reference](/reference/types/widget-context/) - Complete API documentation
+        - Core interfaces with detailed field documentation
+        - Chat app state methods for context management
+        - Validation rules and usage examples
+        - Internal types for understanding system behavior
+    - [AI-Driven UI Architecture](/why/approach/ai-driven-ui/) - Philosophical explanation
+        - Comparison with traditional monolithic chat apps
+        - Benefits of decentralized widget architecture
+        - Why teams resist this approach and why it's worth it
+        - Real-world examples demonstrating the paradigm shift
+- **Widget Metadata in renderTag()** - Pass widget metadata directly when rendering
+    - New optional `metadata` parameter in `renderTag()` method
+    - Set widget title, icon, actions, and loading status at render time
+    - Alternative to calling `setOrUpdateWidgetMetadata()` separately
+    - Supports `WidgetMetadata` interface with title, lucideIconName, iconSvg, iconColor, actions, and loadingStatus
+    - Particularly useful for spotlight widgets where metadata is needed immediately
+    - Example: `renderTag('acme.widget', 'spotlight', data, { title: 'My Widget', lucideIconName: 'settings' })`
+- **Auto-Enabled Canvas and Dialog Contexts** - Flexible rendering without explicit tag configuration
+    - Canvas and dialog contexts now auto-enable when requested via `renderTag()`
+    - No longer requires explicit `renderingContexts` configuration in tag definitions
+    - System logs warning and dynamically enables context for programmatic renders
+    - Inline and spotlight contexts still require explicit configuration
+    - Provides flexibility for web components to render other components in canvas/dialog
+    - Especially useful for manually registered spotlight widgets using `manuallyRegisterSpotlightWidget()`
+- **Enhanced Singleton Documentation** - Clearer guidance on multi-instance widgets
+    - Expanded documentation explaining `singleton: false` use cases
+    - Virtual Tags Pattern for saved configurations (charts, dashboards, reports)
+    - Multiple monitors showing same widget with different data
+    - Comparison views with side-by-side instances
+    - Workspace customization with multiple instances
+    - Clear distinction between singleton (default) and multi-instance behavior
+
 ## [0.9.0] - 2025-10-27
 
 ### Added

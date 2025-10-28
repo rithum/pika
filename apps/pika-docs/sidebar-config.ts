@@ -16,6 +16,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Overview', slug: 'why/approach' },
                     { label: 'AWS Foundation', slug: 'why/approach/aws-foundation' },
                     { label: 'Agent-as-Config', slug: 'why/approach/agent-as-config' },
+                    { label: 'AI-Driven UI Architecture', slug: 'why/approach/ai-driven-ui' },
                     { label: 'Production-Ready', slug: 'why/approach/production-ready' },
                     { label: 'From Toy to Tool', slug: 'why/approach/toy-to-tool' }
                 ]
@@ -79,6 +80,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 collapsed: true,
                 items: [
                     { label: 'Custom Web Components', slug: 'capabilities/customization/web-components' },
+                    { label: 'Context-Aware Widgets', slug: 'capabilities/customization/context-aware-widgets' },
                     { label: 'AI-Driven UI', slug: 'capabilities/customization/ai-ui' },
                     { label: 'Feature Overrides', slug: 'capabilities/customization/feature-overrides' }
                 ]
@@ -145,6 +147,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 items: [
                     { label: 'Customize the UI', slug: 'guides/customization/ui' },
                     { label: 'Build Custom Web Components', slug: 'guides/customization/build-web-components' },
+                    { label: 'Provide Context from Widgets', slug: 'guides/customization/widget-context' },
                     { label: 'Deploy Custom Web Components', slug: 'guides/customization/deploy-web-components' },
                     { label: 'Override Default Features', slug: 'guides/customization/override-features' },
                     { label: 'Extend User Data Models', slug: 'guides/customization/user-data-models' },
@@ -284,7 +287,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 items: [
                     { label: 'Types Overview', slug: 'reference/types' },
                     { label: 'Agent & Tool Types', slug: 'reference/types/agent-tool' },
-                    { label: 'Session & User Types', slug: 'reference/types/session-user' }
+                    { label: 'Session & User Types', slug: 'reference/types/session-user' },
+                    { label: 'Widget Context API', slug: 'reference/types/widget-context' }
                 ]
             },
             {

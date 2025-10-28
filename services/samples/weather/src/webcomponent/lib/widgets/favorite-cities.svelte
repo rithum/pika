@@ -2,7 +2,7 @@
 
 <script lang="ts">
     import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
-    import type { InvokeAgentAsComponentOptions, WidgetAction } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { InvokeAgentAsComponentOptions, WidgetAction, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
@@ -140,6 +140,11 @@
                 if (cacheAge > REFRESH_INTERVAL_MS) {
                     // Auto-refresh stale data
                     await refreshWeather();
+                } else {
+                    // Cached data is fresh - notify system that context is available
+                    if (context && context.instanceId) {
+                        context.chatAppState.updateWidgetContext(context.instanceId);
+                    }
                 }
             } else {
                 // No cached data, fetch immediately (auto-load)
@@ -163,6 +168,7 @@
             const cityNames = cities.map((c) => c.name).join(', ');
 
             const options: InvokeAgentAsComponentOptions = {
+                source: 'component',
                 onThinking: (text: string) => {
                     // Skip semantic-directives messages
                     if (text.startsWith('{"type":"semantic-directives"')) return;
@@ -201,6 +207,11 @@
                 };
             });
 
+            // Notify system that context has changed
+            if (context && context.instanceId) {
+                context.chatAppState.updateWidgetContext(context.instanceId);
+            }
+
             thinkingStatus = '';
             toolStatus = '';
         } catch (e) {
@@ -216,6 +227,47 @@
         if (temp >= 60) return '⛅';
         if (temp >= 40) return '☁️';
         return '🌧️';
+    }
+
+    /**
+     * Provide context about favorite cities and their current weather to AI.
+     * This context is added automatically and includes current temperature data.
+     */
+    export function getContextForLlm(): ContextSourceDef[] | undefined {
+        // Only provide context if we have weather data
+        if (!cities || cities.length === 0 || !cities.some((c) => c.weather)) {
+            return undefined;
+        }
+
+        const citiesWithWeather = cities
+            .filter((c) => c.weather)
+            .map((c) => ({
+                name: c.name,
+                tempF: c.weather!.tempF,
+                tempC: c.weather!.tempC,
+                location: c.weather!.location
+            }));
+
+        if (citiesWithWeather.length === 0) {
+            return undefined;
+        }
+
+        return [
+            {
+                sourceId: 'favorite-cities-weather',
+                llmInclusionDescription: "Current weather conditions for the user's favorite cities including temperature in Fahrenheit and Celsius",
+                origin: 'auto',
+                lucideIconName: 'heart',
+                title: 'Favorite Cities Weather',
+                description: `${citiesWithWeather.length} cities`,
+                data: {
+                    cities: citiesWithWeather,
+                    lastUpdated: lastRefreshTime
+                },
+                addAutomatically: true,
+                maxAgeMs: 60 * 60 * 1000 // 1 hour - weather data becomes stale
+            }
+        ];
     }
 </script>
 

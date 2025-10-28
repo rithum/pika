@@ -14,7 +14,9 @@ import type {
     ConverseRequestWithCommand,
     InstructionAssistanceConfig,
     InvocationScopes,
+    LLMContextItem,
     RecordOrUndef,
+    SentContextRecord,
     SimpleAuthenticatedUser,
     TagDefinition,
     TagDefinitionLite,
@@ -41,7 +43,8 @@ import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
-import { getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
+import { updateSessionSentContexts } from '../../lib/chat-ddb';
+import { filterLLMContextItems, getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getMemoryInstructions } from '../../lib/memory';
 import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
 import { getEffectiveChatAppId, getMemoryId } from '../../lib/utils';
@@ -312,7 +315,8 @@ export const handler = enhancedStreamifyResponse(
                 scopes,
                 invocationMode,
                 converseRequest.files,
-                converseRequest.chatAppComponentConfig
+                converseRequest.chatAppComponentConfig,
+                converseRequest.llmContextItems
             );
             console.log('Conversation completed successfully');
         } catch (e) {
@@ -521,7 +525,8 @@ async function converse(
     scopes: InvocationScopes,
     mode: ConverseInvocationMode,
     files?: ChatMessageFile[],
-    chatAppComponentConfig?: ChatAppComponentConfig
+    chatAppComponentConfig?: ChatAppComponentConfig,
+    llmContextItems?: LLMContextItem[]
 ) {
     console.log('=== CONVERSE FUNCTION START ===');
     console.log('converse called with:', {
@@ -603,6 +608,8 @@ async function converse(
         ...(files && { files })
     };
 
+    // Prepare sentContexts update first so we can include the actual messageId
+    // Note: We'll prepare it now but pass it when we know the messageId after creating the message
     console.log('Adding user message to chat');
     const userMessage = await addChatMessage(userMessageForCreate, chatSession);
     console.log('User message added:', {
@@ -625,10 +632,76 @@ async function converse(
         ? await getAdditionalUserPromptInstructions(scopes, message)
         : { instructions: '', appliedDirectives: [] };
 
-    const questionFromUser = `${instructions}${additionalUserPromptInstructions.instructions}${message}${filesStr}`;
+    // Filter and format LLM context items if provided
+    let contextStr = '';
+    let filteredContexts: LLMContextItem[] = [];
+    if (llmContextItems && llmContextItems.length > 0) {
+        console.log('Processing', llmContextItems.length, 'LLM context items');
+
+        try {
+            // Filter contexts using cheaper LLM and session history
+            filteredContexts = await filterLLMContextItems(llmContextItems, message, chatSession);
+            console.log('Filtered to', filteredContexts.length, 'relevant context items');
+
+            if (filteredContexts.length > 0) {
+                // Format the filtered contexts for inclusion in the prompt
+                const contextBlocks = filteredContexts
+                    .map((context, index) => {
+                        const contextData = typeof context.context === 'string' ? context.context : JSON.stringify(context.context, null, 2);
+
+                        return `<context id="${context.id}" index="${index + 1}">
+<description>${context.description}</description>
+<data>
+${contextData}
+</data>
+</context>`;
+                    })
+                    .join('\n\n');
+
+                contextStr = `\n\n<additional-context>
+The following additional context may be relevant to answering the user's question:
+
+${contextBlocks}
+</additional-context>\n\n`;
+
+                console.log('Formatted context string:', contextStr.length, 'characters');
+
+                // Update session's sentContexts to track what we're sending to the LLM
+                // Merge with existing sentContexts to preserve messageIds history
+                const existingSentContexts = chatSession.sentContexts || {};
+                const sentContextsUpdate: Record<string, SentContextRecord> = {};
+
+                for (const context of filteredContexts) {
+                    const existingRecord = existingSentContexts[context.id];
+                    const existingMessageIds = existingRecord?.messageIds || [];
+
+                    // Append new messageId to the array (avoid duplicates)
+                    const updatedMessageIds = existingMessageIds.includes(userMessage.messageId) ? existingMessageIds : [...existingMessageIds, userMessage.messageId];
+
+                    sentContextsUpdate[context.id] = {
+                        sourceId: context.id,
+                        messageIds: updatedMessageIds,
+                        contentHash: context.contentHash,
+                        lastSentAt: new Date().toISOString(),
+                        origin: context.origin
+                    };
+                }
+
+                // Update the session with the sent contexts
+                await updateSessionSentContexts(chatSession.userId, chatSession.sessionId, sentContextsUpdate);
+                console.log('Session sentContexts updated with', filteredContexts.length, 'contexts');
+            }
+        } catch (error) {
+            console.error('Error filtering LLM context items:', error);
+            // Continue without context rather than failing the entire request
+        }
+    }
+
+    const questionFromUser = `${instructions}${additionalUserPromptInstructions.instructions}${contextStr}${message}${filesStr}`;
     console.log('Question from user:', questionFromUser);
     console.log('Prepared question for agent:', {
         hasInstructions: !!instructions,
+        hasContext: !!contextStr,
         questionLength: questionFromUser.length
     });
 

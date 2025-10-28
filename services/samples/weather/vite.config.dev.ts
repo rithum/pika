@@ -50,7 +50,10 @@ export default defineConfig({
                 'weather-comparison': resolve(__dirname, 'dev-entry/weather-comparison.ts'),
                 'weather-fun-fact': resolve(__dirname, 'dev-entry/weather-fun-fact.ts'),
                 'quick-weather-search': resolve(__dirname, 'dev-entry/quick-weather-search.ts'),
-                'full-forecast': resolve(__dirname, 'dev-entry/full-forecast.ts')
+                'full-forecast': resolve(__dirname, 'dev-entry/full-forecast.ts'),
+                'weather-static-init': resolve(__dirname, 'dev-entry/weather-static-init.ts'),
+                'weather-preferences': resolve(__dirname, 'dev-entry/weather-preferences.ts'),
+                'weather-summary': resolve(__dirname, 'dev-entry/weather-summary.ts')
             },
             formats: ['es'],
             fileName: (format, entryName) => `${entryName}.js`

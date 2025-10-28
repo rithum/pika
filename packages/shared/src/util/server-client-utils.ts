@@ -139,5 +139,17 @@ function parseScope(scope: string): { scopeType: string; scopeValue: string | nu
     throw new Error(`Unsupported scope format: ${scope}`);
 }
 
+/**
+ * Useful for simple hashing like to figure out if content has changed since last sent or something.
+ */
+async function getContentHashString(content: unknown): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(JSON.stringify(content));
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
+
 // Export both functions
-export { redactData, redactValue, constructScope, parseScope };
+export { redactData, redactValue, constructScope, parseScope, getContentHashString };

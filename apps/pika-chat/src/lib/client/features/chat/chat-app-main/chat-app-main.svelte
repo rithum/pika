@@ -184,7 +184,7 @@
                 false // Don't replace, append
             )
                 .then((result) => {
-                    console.log(`[Static Widget] Successfully injected ${tagId}`);
+                    // console.log(`[Static Widget] Successfully injected ${tagId}`);
 
                     // Register widget instance with ChatAppState
                     const customElementName = tagDef.widget.webComponent.customElementName || tagId;
@@ -212,7 +212,7 @@
 
                                 containerToRemove.remove();
                                 staticWidgetContainers.delete(tagId);
-                                console.log(`[Static Widget] Cleaned up ${tagId} after ${shutDownAfterMs}ms`);
+                                // console.log(`[Static Widget] Cleaned up ${tagId} after ${shutDownAfterMs}ms`);
                             }
                         }, shutDownAfterMs);
                     }

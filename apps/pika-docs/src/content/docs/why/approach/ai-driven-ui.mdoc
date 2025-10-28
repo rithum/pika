@@ -1,0 +1,195 @@
+---
+title: AI-Driven UI Architecture
+description: Why Pika embraces decentralized, context-aware widgets instead of monolithic, pre-designed flows
+---
+
+## The Shift from Pre-Designed Flows to AI-Composed Experiences
+
+The way we build software is changing. For decades, the workflow was clear:
+1. Designers design flows
+2. Developers implement flows
+3. Users follow flows
+4. Feedback drives new flows
+
+This works when you can anticipate use cases. But AI assistants break this model. Users don't follow pre-designed paths - they ask questions in natural language, and the system needs to dynamically understand what's relevant.
+
+## The Monolithic Chat App Problem
+
+Many teams building AI chat applications create tightly-coupled systems:
+
+```typescript
+// Traditional approach - tightly coupled
+function handleUserQuestion(question: string) {
+  const context = {
+    userProfile: await getUserProfile(),
+    orderHistory: await getOrderHistory(),
+    accountBalance: await getAccountBalance(),
+    systemStatus: await getSystemStatus(),
+    recentNotifications: await getNotifications()
+    // ... everything we might need
+  };
+  
+  return await llm.query(question, context);
+}
+```
+
+**Problems with this approach:**
+
+{% aside type="danger" title="Everything, Every Time" %}
+Every question sends all context, whether relevant or not. This wastes tokens, degrades LLM performance, and increases costs.
+{% /aside %}
+
+{% aside type="danger" title="Central Coordination Required" %}
+Adding new context sources requires changing central query logic. Every new feature requires coordination across the codebase.
+{% /aside %}
+
+{% aside type="danger" title="Pre-Conceived Use Cases Only" %}
+The system only works for scenarios you anticipated. Emergent use cases require code changes.
+{% /aside %}
+
+{% aside type="danger" title="No User Transparency" %}
+Users don't know what context is being used or have any control over it. This creates trust issues.
+{% /aside %}
+
+## Pika's Decentralized Widget Architecture
+
+Pika takes a fundamentally different approach - **widgets are independent, context-aware components** that declare what they know:
+
+```typescript
+// Pika approach - decentralized widgets
+class OrderWidget extends HTMLElement {
+  getContextForLlm(): ContextSourceDef[] {
+    if (!this.currentOrder) return [];
+    
+    return [{
+      sourceId: 'current-order',
+      llmInclusionDescription: 'Details about the order being viewed',
+      title: `Order #${this.currentOrder.id}`,
+      data: this.currentOrder,
+      addAutomatically: true,
+      maxAgeMs: 5 * 60 * 1000 // Relevant for 5 minutes
+    }];
+  }
+}
+```
+
+**Why this is better:**
+
+### 1. Widgets Declare Context
+
+Each widget knows what context it provides. No central coordinator. No tight coupling. Add a new widget, and it automatically participates.
+
+### 2. System Determines Relevance
+
+A lightweight LLM pre-filters context based on the user's question. Only relevant context is sent to the main agent.
+
+### 3. Users Have Transparency & Control
+
+Context appears as chips in the chat input. Users see what's being sent and can add or remove context.
+
+### 4. Intelligent Optimization
+
+The system tracks context across the conversation:
+- **Deduplication**: Unchanged context isn't resent
+- **Staleness detection**: Time-sensitive context expires automatically
+- **Change tracking**: Context is resent when it changes
+
+## Why Traditional Teams Resist This
+
+This architecture requires a mindset shift that challenges traditional software development:
+
+### The Control Temptation
+
+Teams want control. They want to know exactly what context goes to the LLM for each query. They want to design flows.
+
+**But this desire for control becomes a cage** that prevents embracing AI-driven experiences. You end up building a ChatGPT clone with hardcoded context selection instead of a platform that can dynamically adapt to what users need.
+
+### The Integration Pressure
+
+Product pressure often drives teams to tightly integrate chat into existing applications. This feels like the "right" architecture - everything in one place, unified experience.
+
+**But tight integration forces pre-designed flows.** You can't have decentralized widgets when everything is coupled. You're back to designing flows instead of letting AI compose experiences.
+
+### The Designer-Developer Workflow
+
+The traditional workflow (designer → developer → user → feedback) creates organizational pressure to pre-design everything.
+
+**But AI-driven UIs work differently.** The "design" is emergent from the interaction between widgets, user questions, and AI capabilities. Designers become widget designers, not flow designers.
+
+## The Pika Philosophy
+
+Pika embraces decentralized, context-aware widgets because we believe:
+
+{% card title="AI Should Adapt to Users" icon="star" %}
+Not force users into pre-designed paths. Let the AI dynamically understand what's relevant to each question.
+{% /card %}
+
+{% card title="Widgets Should Be Independent" icon="puzzle" %}
+No central coordinator. No tight coupling. Each widget declares what it knows. The system composes experiences.
+{% /card %}
+
+{% card title="Users Should Have Control" icon="approve-check" %}
+Full transparency about what context is being used. Ability to add or remove context. No black boxes.
+{% /card %}
+
+{% card title="Architecture Should Enable Emergence" icon="rocket" %}
+The platform should support use cases you haven't imagined yet. Emergent capabilities, not pre-designed flows.
+{% /card %}
+
+## Who This Architecture Is For
+
+### You're a Good Fit If:
+
+- You're building on AWS or planning to
+- You want to embrace AI-driven experiences, not just add chat
+- You're comfortable with decentralized architecture
+- You value clean boundaries over tight integration
+- You're building for evolving use cases, not fixed workflows
+
+### You Might Want Something Else If:
+
+- You need every detail under central control
+- Your use cases are completely fixed and known
+- You're building a single, simple chatbot
+- You want to tightly integrate chat into existing monolithic apps
+
+## The Trade-Off
+
+**You give up:** Central control over exactly what context is sent for each query type.
+
+**You gain:** A platform that can dynamically adapt to what users need, support emergent use cases, and scale to complex scenarios without becoming unmaintainable.
+
+For teams building production AI assistants that need to grow beyond initial use cases, this trade-off is worth it.
+
+## Examples in Practice
+
+### Customer Support Platform
+
+**Traditional**: Design flows for "Check Order Status", "Process Refund", "Update Address", etc. Each flow hardcodes which data to fetch.
+
+**Pika**: Widgets show orders, profile, tickets, knowledge base. User asks any question in natural language. System determines what's relevant. New widgets add new capabilities without central coordination.
+
+### Financial Analysis Tool
+
+**Traditional**: Design flows for "Portfolio Performance", "Market Analysis", "Risk Assessment", etc. Each flow fetches specific datasets.
+
+**Pika**: Widgets show charts, portfolios, news, fundamentals. Analyst asks questions like "Why did this drop?". System uses visible context to answer. Add new data widgets, and they automatically participate.
+
+### Enterprise Admin Console
+
+**Traditional**: Design flows for each admin task. "User Management", "System Health", "Access Control", etc.
+
+**Pika**: Widgets show users, systems, logs, metrics. Admin asks "Why is X broken?" System includes relevant operational context. New monitoring widgets add new diagnostic capabilities.
+
+## The Bottom Line
+
+Most teams will build monolithic chat apps with hardcoded context because that's what they know. They'll hit scalability problems, struggle with emergent use cases, and end up with unmaintainable systems.
+
+Pika provides a better path - **if you're willing to embrace decentralized architecture and AI-driven composition over pre-designed flows**.
+
+## Next Steps
+
+- [Context-Aware Widgets Capability →](/capabilities/customization/context-aware-widgets/)
+- [Build Your First Widget →](/guides/customization/build-web-components/)
+- [Widget Context How-To →](/guides/customization/widget-context/)
+
