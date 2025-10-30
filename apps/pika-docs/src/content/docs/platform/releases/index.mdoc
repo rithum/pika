@@ -7,13 +7,24 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.11.2` (October 30, 2025)
+**Latest Stable:** `0.11.3` (October 30, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+### What's New in 0.11.3
+
+- **pika-cli Sync Command Improvements** - Better temp file handling and visual diff functionality
+  - Changed temp directory location from project directory to OS temp directory for cleaner workspace
+  - Added automatic cleanup of old `pika-sync-*` temp directories
+  - Fixed `--visualdiff` mode to keep temp files available for editor review
+  - Fixed visual diff command execution for better cross-platform compatibility
+  - Added informative logging about temp file location when using `--visualdiff`
+- **Site Admin General Settings Fix** - Fixed page header right snippet not being assigned
+- **OpenSearch Error Logging** - Improved error message logging for source filtering failures
 
 ### What's New in 0.11.2
 

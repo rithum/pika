@@ -5,6 +5,19 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] - 2025-10-30
+
+### Fixed
+
+- **pika-cli Sync Command** - Improved temp file handling and visual diff functionality
+    - Changed temp directory location from project directory to OS temp directory
+    - Added automatic cleanup of old `pika-sync-*` temp directories
+    - Fixed `--visualdiff` mode to keep temp files available for editor review
+    - Fixed visual diff command execution using spawn instead of exec for better argument handling
+    - Added informative logging about temp file location when using `--visualdiff`
+- **Site Admin General Settings** - Fixed page header right snippet not being assigned
+- **OpenSearch Error Logging** - Improved error message logging for source filtering failures
+
 ## [0.11.2] - 2025-10-30
 
 ### Fixed
