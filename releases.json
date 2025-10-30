@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.11.0",
-  "currentDevelopment": "0.11.0",
+  "latestVersion": "0.11.1",
+  "currentDevelopment": "0.11.1",
   "releases": [
+    {
+      "version": "0.11.1",
+      "date": "2025-10-30",
+      "status": "released",
+      "breaking": false,
+      "summary": "Type safety improvements in site admin pages",
+      "highlights": [
+        "Improved TypeScript type handling in site admin pages",
+        "Removed unnecessary 'as any' type casts for page header snippets",
+        "Fixed type safety in 6 site admin components: chat apps, general settings, instruction augmentation, memory, session analytics, and session insights"
+      ]
+    },
     {
       "version": "0.11.0",
       "date": "2025-10-30",
