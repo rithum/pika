@@ -1,16 +1,15 @@
-import inquirer from 'inquirer';
-import path from 'path';
-import { minimatch } from 'minimatch';
-import { fileManager } from '../utils/file-manager.js';
-import { gitManager } from '../utils/git-manager.js';
-import { logger } from '../utils/logger.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import type { ExecOptions } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
-import { readdir, stat } from 'fs/promises';
-import fsExtra from 'fs-extra';
 import chalk from 'chalk';
+import { exec, spawn } from 'child_process';
+import { existsSync, readFileSync } from 'fs';
+import fsExtra from 'fs-extra';
+import { mkdtemp, readdir } from 'fs/promises';
+import inquirer from 'inquirer';
+import { minimatch } from 'minimatch';
+import { tmpdir } from 'os';
+import path from 'path';
+import { promisify } from 'util';
+import { fileManager } from '../utils/file-manager.js';
+import { logger } from '../utils/logger.js';
 
 const execAsync = promisify(exec);
 
@@ -802,13 +801,17 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                         for (const change of changes) {
                             await showDiff(change);
                         }
+                        await cleanupTempDir(tempDir);
                     } else {
                         for (const change of changes) {
                             await openVisualDiff(change, editor);
                         }
                         console.log(chalk.green('All diffs opened in your editor.'));
+                        console.log(chalk.gray(`\nTemp files location: ${tempDir}`));
+                        console.log(chalk.gray('These files will remain until you manually delete them or run the sync again.'));
+                        // Don't cleanup - let the user review the diffs in their editor
+                        // The files will be in OS temp directory and will be cleaned up on next sync or system restart
                     }
-                    await cleanupTempDir(tempDir);
                     return;
                 }
 
@@ -878,12 +881,30 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 }
 
 async function downloadPikaFramework(version: string, branch: string = 'main'): Promise<string> {
-    const tempDir = path.join(process.cwd(), '.pika-temp');
+    // Use OS temp directory instead of project directory
+    const osTempDir = tmpdir();
 
-    // Remove existing temp directory
-    if (await fileManager.exists(tempDir)) {
-        await fileManager.removeDirectory(tempDir);
+    // Clean up old pika-sync-* directories (they might be left from --visualdiff)
+    try {
+        const tempContents = await readdir(osTempDir);
+        for (const item of tempContents) {
+            if (item.startsWith('pika-sync-')) {
+                const oldTempDir = path.join(osTempDir, item);
+                try {
+                    await fileManager.removeDirectory(oldTempDir);
+                    logger.debug(`Cleaned up old temp directory: ${oldTempDir}`);
+                } catch (e) {
+                    // Ignore errors - directory might be in use
+                    logger.debug(`Could not clean up old temp directory ${oldTempDir}: ${e}`);
+                }
+            }
+        }
+    } catch (e) {
+        // Ignore errors reading temp directory
+        logger.debug(`Could not clean up old temp directories: ${e}`);
     }
+
+    const tempDir = await mkdtemp(path.join(osTempDir, 'pika-sync-'));
 
     // Clone framework
     try {
@@ -1599,18 +1620,40 @@ async function detectEditor(): Promise<'cursor' | 'code' | null> {
 }
 
 async function openVisualDiff(change: SyncChange, editor: 'cursor' | 'code'): Promise<void> {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-    const chalk = (await import('chalk')).default;
+    // Resolve to absolute paths to ensure they're found
+    const sourcePathResolved = path.resolve(change.sourcePath);
+    const targetPathResolved = path.resolve(change.targetPath);
+
+    // Build arguments array - spawn handles escaping automatically
+    // For diffs: put NEW file (source) on LEFT, EXISTING file (target) on RIGHT
+    // so changes can be easily pulled from left to right
+    let args: string[];
     if (change.type === 'modified') {
-        await execAsync(`${editor} --diff "${change.targetPath}" "${change.sourcePath}"`);
+        args = ['--diff', sourcePathResolved, targetPathResolved];
+    } else if (change.type === 'added') {
+        args = [sourcePathResolved];
+    } else if (change.type === 'deleted') {
+        args = [targetPathResolved];
+    } else {
+        return;
+    }
+
+    // Use spawn instead of exec to avoid shell interpretation issues
+    // spawn passes arguments directly without any shell parsing
+    const child = spawn(editor, args, {
+        detached: true,
+        stdio: 'ignore'
+    });
+
+    // Detach the child process so it continues after our process exits
+    child.unref();
+
+    // Log success
+    if (change.type === 'modified') {
         console.log(chalk.cyan(`[${editor}] Diff opened for: ${change.path}`));
     } else if (change.type === 'added') {
-        await execAsync(`${editor} "${change.sourcePath}"`);
         console.log(chalk.green(`[${editor}] New file opened: ${change.path}`));
     } else if (change.type === 'deleted') {
-        await execAsync(`${editor} "${change.targetPath}"`);
         console.log(chalk.red(`[${editor}] Deleted file opened (local): ${change.path}`));
     }
 }

@@ -22,6 +22,8 @@
 
     let { pageHeaderRight = $bindable() }: Props = $props();
 
+    pageHeaderRight = pageHeaderRightSnippet;
+
     const features = $derived(siteAdmin.siteFeatures);
 
     function formatUserTypes(userTypes?: string[]): string {

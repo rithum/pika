@@ -404,8 +404,9 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                     if (excludes.length > 0) {
                         (body as any)._source = { excludes };
                     }
-                } catch {
+                } catch (e) {
                     // best-effort; ignore source filtering errors
+                    console.error(`Failed to configure source filtering: ${e instanceof Error ? e.message : 'Unknown error'}`);
                 }
             } catch (error) {
                 return {
