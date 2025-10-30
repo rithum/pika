@@ -33,6 +33,7 @@ import type {
     TagDefinitionSearchResponse,
     UnpinSessionRequest,
     UserPrefs,
+    UserType,
     ValidateShareAccessResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
@@ -152,7 +153,8 @@ export async function ensureChatSession(
     invocationMode: ConverseInvocationMode,
     entityEnabled: boolean,
     entityValue: string | undefined,
-    source: ConverseSource
+    source: ConverseSource,
+    userType?: UserType
 ): Promise<[ChatSession<RecordOrUndef>, boolean]> {
     console.log('ensureChatSession called with:', {
         userId: user.userId,
@@ -162,7 +164,8 @@ export async function ensureChatSession(
         simpleUser,
         invocationMode,
         entityEnabled,
-        entityValue
+        entityValue,
+        userType
     });
 
     let isNewSession = false;
@@ -194,7 +197,8 @@ export async function ensureChatSession(
                 userId: user.userId
             },
             identityId: user.userId,
-            entityId: entityEnabled && entityValue ? entityValue : 'chat-app-global'
+            entityId: entityEnabled && entityValue ? entityValue : 'chat-app-global',
+            userType: userType ?? 'external-user'
         });
 
         console.log('New session created:', {

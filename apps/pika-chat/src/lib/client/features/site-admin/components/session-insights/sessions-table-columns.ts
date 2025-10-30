@@ -144,14 +144,14 @@ const actionProps: RowActionsProps<ChatSession<RecordOrUndef>> = {
         {
             label: 'View Session',
             icon: Eye,
-            onclick: (row, appState) => {
+            onclick: (row) => {
                 console.log('View session:', row.original.sessionId);
             }
         },
         {
             label: 'View Messages',
             icon: MessageSquare,
-            onclick: (row, appState) => {
+            onclick: (row) => {
                 console.log('View messages:', row.original.sessionId);
             }
         },
@@ -162,14 +162,14 @@ const actionProps: RowActionsProps<ChatSession<RecordOrUndef>> = {
             menuItems: [
                 {
                     label: 'Archive Session',
-                    onclick: (row, appState) => {
+                    onclick: (row) => {
                         console.log('Archive session:', row.original.sessionId);
                     }
                 },
                 {
                     label: 'Delete Session',
                     icon: Trash2,
-                    onclick: (row, appState) => {
+                    onclick: (row) => {
                         if (confirm('Are you sure you want to delete this session?')) {
                             console.log('Delete session:', row.original.sessionId);
                         }

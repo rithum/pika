@@ -358,6 +358,32 @@ export const handle: Handle = async ({ event, resolve }) => {
                     //     mergedUserRoles: user.roles,
                     //     chatUserRoles: chatUser.roles
                     // });
+
+                    // Check if firstName or lastName from DSCO differs from ChatUser and update if needed
+                    // Only update if new values are non-empty (protect manually set names from being overwritten with empty values)
+                    const shouldUpdateFirstName = user.firstName && user.firstName.trim() !== '' && user.firstName !== chatUser.firstName;
+                    const shouldUpdateLastName = user.lastName && user.lastName.trim() !== '' && user.lastName !== chatUser.lastName;
+
+                    if (shouldUpdateFirstName || shouldUpdateLastName) {
+                        console.log('[Hooks] Updating ChatUser with fresh firstName/lastName from DSCO:', {
+                            userId: user.userId,
+                            oldFirstName: chatUser.firstName || '(empty)',
+                            newFirstName: shouldUpdateFirstName ? user.firstName : chatUser.firstName,
+                            firstNameWillUpdate: shouldUpdateFirstName,
+                            oldLastName: chatUser.lastName || '(empty)',
+                            newLastName: shouldUpdateLastName ? user.lastName : chatUser.lastName,
+                            lastNameWillUpdate: shouldUpdateLastName
+                        });
+
+                        // Update the ChatUser - include all existing data and only override names if they have valid values
+                        await createChatUser({
+                            ...chatUser,
+                            firstName: shouldUpdateFirstName ? user.firstName : chatUser.firstName,
+                            lastName: shouldUpdateLastName ? user.lastName : chatUser.lastName
+                        });
+
+                        console.log('[Hooks] ChatUser firstName/lastName updated successfully');
+                    }
                 }
 
                 // Serialize the user to cookies using versioned approach

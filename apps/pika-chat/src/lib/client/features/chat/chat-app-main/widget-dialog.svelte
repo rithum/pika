@@ -114,6 +114,17 @@
                     if (chat.dialogWidget) {
                         chat.dialogWidget.instanceId = result.instanceId;
                         chat.dialogWidget.element = result.element;
+
+                        // Copy initial metadata to widgetMetadata map (single source of truth)
+                        if (chat.dialogWidget.metadata) {
+                            const metadataAPI = chat.getWidgetMetadataAPI(
+                                tagDef.scope,
+                                tagDef.tag,
+                                result.instanceId,
+                                'dialog'
+                            );
+                            metadataAPI.setMetadata(chat.dialogWidget.metadata);
+                        }
                     }
                 })
                 .catch((error) => {
@@ -124,7 +135,7 @@
         }
     });
 
-    // Derived values for metadata
+    // Derived values for metadata - single source of truth: widgetMetadata map
     const metadata = $derived(instanceId ? chat.widgetMetadata.get(instanceId) : undefined);
     const title = $derived(metadata?.title ?? chat.dialogWidget?.tagDefinition.tagTitle ?? 'Widget');
     const actions = $derived(metadata?.actions ?? []);
@@ -157,7 +168,7 @@
             {#if actions.length > 0}
                 <Dialog.Footer class="flex items-center justify-end gap-2">
                     {#each actions as action (action.id)}
-                        <WidgetActionButton {action} variant="with-text" size="default" />
+                        <WidgetActionButton {action} instanceId={instanceId!} variant="with-text" size="default" />
                     {/each}
                 </Dialog.Footer>
             {/if}

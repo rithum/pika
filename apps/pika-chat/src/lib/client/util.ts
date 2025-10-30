@@ -191,5 +191,6 @@ export const CLIENT_RESOURCE_NAMES = {
     MEMORY: 'memory record',
     TAG_DEFINITION: 'tag definition',
     SEMANTIC_DIRECTIVE: 'semantic directive',
-    FEEDBACK: 'feedback'
+    FEEDBACK: 'feedback',
+    SESSION_ANALYTICS: 'session analytics'
 } as const;

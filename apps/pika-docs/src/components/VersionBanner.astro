@@ -1,0 +1,20 @@
+---
+import VersionBannerSvelte from './version-banner.svelte';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Read version from releases.json at build time
+const releasesPath = join(process.cwd(), '..', '..', 'releases.json');
+let latestVersion = '0.0.0';
+
+try {
+    const releasesContent = readFileSync(releasesPath, 'utf-8');
+    const releases = JSON.parse(releasesContent);
+    latestVersion = releases.latestVersion || '0.0.0';
+} catch (error) {
+    console.warn('Could not read releases.json, using default version:', error);
+}
+---
+
+<VersionBannerSvelte version={latestVersion} client:load />
+

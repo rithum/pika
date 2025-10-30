@@ -18,7 +18,7 @@
     $effect(() => {
         const canvasWidget = chat.canvasWidget;
 
-        if (containerEl && canvasWidget && !initialized) {
+        if (containerEl && canvasWidget && (!initialized || canvasWidget?.instanceId !== instanceId)) {
             const tagDef = canvasWidget.tagDefinition;
 
             // Inject component and get instance ID + element (async operation)
@@ -56,6 +56,17 @@
                     if (chat.canvasWidget) {
                         chat.canvasWidget.instanceId = result.instanceId;
                         chat.canvasWidget.element = result.element;
+
+                        // Copy initial metadata to widgetMetadata map (single source of truth)
+                        if (chat.canvasWidget.metadata) {
+                            const metadataAPI = chat.getWidgetMetadataAPI(
+                                tagDef.scope,
+                                tagDef.tag,
+                                result.instanceId,
+                                'canvas'
+                            );
+                            metadataAPI.setMetadata(chat.canvasWidget.metadata);
+                        }
                     }
                 })
                 .catch((error) => {
@@ -66,7 +77,7 @@
         }
     });
 
-    // Derived values for metadata
+    // Derived values for metadata - single source of truth: widgetMetadata map
     const metadata = $derived(instanceId ? chat.widgetMetadata.get(instanceId) : undefined);
     const title = $derived(metadata?.title ?? chat.canvasWidget?.tagDefinition.tagTitle ?? 'Widget');
     const actions = $derived(metadata?.actions ?? []);
@@ -86,7 +97,7 @@
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
             {#each actions as action (action.id)}
-                <WidgetActionButton {action} />
+                <WidgetActionButton {action} instanceId={instanceId!} />
             {/each}
             <Button variant="ghost" size="icon" onclick={() => chat.closeCanvas()} aria-label="Close">
                 <X class="h-4 w-4" />

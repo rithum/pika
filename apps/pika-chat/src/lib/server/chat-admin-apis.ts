@@ -28,6 +28,8 @@ import {
     type SemanticDirectiveCreateOrUpdateResponse,
     type SemanticDirectiveDeleteRequest,
     type SemanticDirectiveDeleteResponse,
+    type SessionAnalyticsRequest,
+    type SessionAnalyticsResponse,
     type SessionSearchRequest,
     type SessionSearchResponse,
     type TagDefinitionCreateOrUpdateRequest,
@@ -414,6 +416,24 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
         errorInfo: {
             operation: 'searchForSessions',
             resourceName: 'session search'
+        }
+    });
+
+    return response.body;
+}
+
+export async function getSessionAnalytics(request: SessionAnalyticsRequest): Promise<SessionAnalyticsResponse> {
+    const response = await invokeApi<SessionAnalyticsResponse>({
+        apiId: appConfig.chatAdminApiId,
+        path: `${appConfig.stage}/api/chat-admin/session/analytics`,
+        method: 'POST',
+        body: request,
+        headers: {
+            'Accept-Encoding': 'gzip'
+        },
+        errorInfo: {
+            operation: 'getSessionAnalytics',
+            resourceName: 'session analytics'
         }
     });
 

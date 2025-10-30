@@ -1,7 +1,33 @@
 {
-  "latestVersion": "0.10.0",
-  "currentDevelopment": "0.10.0",
+  "latestVersion": "0.11.0",
+  "currentDevelopment": "0.11.0",
   "releases": [
+    {
+      "version": "0.11.0",
+      "date": "2025-10-30",
+      "status": "released",
+      "breaking": true,
+      "summary": "Enhanced session analytics with widget metadata system - Breaking changes require data migration",
+      "highlights": [
+        "Enhanced Session Analytics Dashboard with advanced filtering and aggregations",
+        "Widget Metadata System - Dynamic UI chrome for widgets across all rendering contexts",
+        "Dynamic Widget Registration for Canvas/Dialog - Auto-generation of tag definitions",
+        "Widget Context API - Access full context from widget action callbacks",
+        "Automatic User Profile Sync - Framework syncs firstName/lastName from auth provider",
+        "Type Organization Improvements - Moved widget types to webcomp-types.ts with @since annotations",
+        "Breaking: OpenSearch keyword field migration required for session analytics aggregations",
+        "Breaking: User type migration required for chat sessions",
+        "Breaking: WidgetAction callback signature changed to receive context object"
+      ],
+      "migrationGuideUrl": "https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0",
+      "requiresManualSteps": true,
+      "affectedComponents": [
+        "OpenSearch session index (new keyword fields for aggregations)",
+        "DynamoDB chat-session table (user_type field)",
+        "Widget action callbacks (signature change)",
+        "Session analytics queries and UI"
+      ]
+    },
     {
       "version": "0.10.0",
       "date": "2025-10-28",

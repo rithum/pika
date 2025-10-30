@@ -6,7 +6,7 @@
 
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import PikaTable from 'pika-ux/pika/pika-table/pika-table.svelte';
-    import type { ServerSideConfig, ServerSideTableState } from 'pika-ux/pika/pika-table/types';
+    import type { ServerSideConfig, ServerSideTableState, TableSettingsFacade } from 'pika-ux/pika/pika-table/types';
     import { Button } from 'pika-ux/shadcn/button';
     import { Card } from 'pika-ux/shadcn/card';
     import { Separator } from 'pika-ux/shadcn/separator';
@@ -18,6 +18,17 @@
     const appState = getContext<AppState>('appState');
     const siteAdminState = appState.siteAdmin;
     const iaState = siteAdminState.instructionAugmentation;
+
+    // Table settings facade to decouple PikaTable from AppState
+    const tableSettings: TableSettingsFacade = {
+        getTableColumnVisibilityObject: (tableKey: string) =>
+            appState.settings.getTableColumnVisibilityObject(tableKey),
+        getTableNumRows: (tableKey: string, defaultValue: number) =>
+            appState.settings.getTableNumRows(tableKey, defaultValue),
+        setTableNumRows: (tableKey: string, value: number) => appState.settings.setTableNumRows(tableKey, value),
+        setTableColumnVisibilityFromObject: (tableKey: string, visibility: any) =>
+            appState.settings.setTableColumnVisibilityFromObject(tableKey, visibility),
+    };
 
     // Server-side table state
     let serverSideTableState = $state<ServerSideTableState>({
@@ -160,6 +171,7 @@
         data={iaState.semanticDirectives}
         tableKey="instruction-augmentation"
         bind:serverSideConfig
+        {tableSettings}
         classes="h-full flex flex-col"
         {toolbarContent}
     />

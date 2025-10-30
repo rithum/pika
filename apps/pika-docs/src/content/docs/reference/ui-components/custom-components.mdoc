@@ -644,13 +644,161 @@ aws s3 cp dist/widget.js.gz s3://my-bucket/widgets/ \
 
 ## Type Definitions
 
+### Core Interfaces
+
 ```typescript
-// Available from pika-ux/types
+// Available from pika-shared/types/chatbot/chatbot-types
 export interface IChatAppState { /* ... */ }
 export interface IWidgetMetadataAPI { /* ... */ }
 export interface ChatUser { /* ... */ }
 export interface ChatApp { /* ... */ }
 ```
 
-Full type definitions available in [pika-ux source code](https://github.com/your-org/pika/tree/main/packages/pika-ux/src/types).
+### Widget Metadata and Actions
+
+```typescript
+// Available from pika-shared/types/chatbot/webcomp-types
+export interface WidgetMetadata {
+    title: string;
+    lucideIconName?: string;
+    iconSvg?: string;
+    iconColor?: string;
+    actions?: WidgetAction[];
+    loadingStatus?: {
+        loading: boolean;
+        loadingMsg?: string;
+    };
+}
+
+export interface WidgetAction {
+    id: string;
+    title: string;
+    iconSvg: string;
+    disabled?: boolean;
+    primary?: boolean;
+    /**
+     * Callback when action is clicked.
+     * Automatically receives WidgetCallbackContext parameter.
+     * @since 0.11.0
+     */
+    callback: (context: WidgetCallbackContext) => void | Promise<void>;
+}
+
+export interface WidgetCallbackContext {
+    /** The web component element */
+    element: HTMLElement;
+    /** Unique instance ID */
+    instanceId: string;
+    /** Full Pika context */
+    context: PikaWCContext;
+}
+
+export interface SpotlightWidgetDefinition {
+    tag: string;
+    scope: string;
+    tagTitle: string;
+    customElementName?: string;
+    sizing?: WidgetSizing;
+    componentAgentInstructionsMd?: Record<string, string>;
+    autoCreateInstance?: boolean;
+    displayOrder?: number;
+    singleton?: boolean;
+    showInUnpinnedMenu?: boolean;
+    /** @since 0.11.0 */
+    metadata?: WidgetMetadata;
+}
+```
+
+### IChatAppState Methods
+
+Key methods available on `chatAppState`:
+
+```typescript
+interface IChatAppState {
+    // Rendering
+    renderTag(
+        tagId: string, 
+        context: WidgetRenderingContextType, 
+        data?: Record<string, any>,
+        metadata?: WidgetMetadata  // @since 0.11.0
+    ): Promise<void>;
+    closeCanvas(): void;
+    closeDialog(): void;
+    
+    // Widget Management
+    getWidgetInstance(instanceId: string): WidgetInstance | undefined;
+    getWidgetContext(instanceId: string): PikaWCContext | undefined; // @since 0.11.0
+    getWidgetMetadataAPI(scope: string, tag: string, instanceId: string, context: WidgetRenderingContextType): IWidgetMetadataAPI;
+    manuallyRegisterSpotlightWidget(definition: SpotlightWidgetDefinition): void;
+    
+    // State Access
+    readonly user: ChatUser; // @since 0.11.0
+    readonly currentSession: ChatSession;
+    readonly currentSessionMessages: ChatMessageForRendering[];
+    readonly customDataForChatApp: Record<string, unknown> | undefined;
+    readonly widgetInstances: Map<string, WidgetInstance>;
+    
+    // Actions
+    sendMessage(): Promise<void>;
+    uploadFiles(files: File[]): Promise<void>;
+}
+```
+
+### IWidgetMetadataAPI Methods
+
+Methods for updating widget metadata dynamically:
+
+```typescript
+interface IWidgetMetadataAPI {
+    // Set all metadata at once
+    setMetadata(metadata: WidgetMetadata): void;
+    
+    // Update individual fields
+    updateTitle(title: string): void;
+    setLoadingStatus(loading: boolean, loadingMsg?: string): void;
+    
+    // Manage actions
+    addAction(action: WidgetAction): void;
+    updateAction(actionId: string, updates: Partial<Omit<WidgetAction, 'id' | 'callback'>>): void;
+    removeAction(actionId: string): void;
+}
+```
+
+### Import Statements
+
+```typescript
+// Tag definitions and core types
+import type {
+    TagDefinition,
+    WidgetInstance,
+    ChatSession,
+    ChatUser
+} from 'pika-shared/types/chatbot/chatbot-types';
+
+// Widget metadata and action types
+import type {
+    WidgetMetadata,
+    WidgetAction,
+    WidgetCallbackContext,
+    SpotlightWidgetDefinition,
+    PikaWCContext
+} from 'pika-shared/types/chatbot/webcomp-types';
+
+// Utility functions
+import { getPikaContext, extractIconSvg } from 'pika-shared/util/wc-utils';
+```
+
+{% aside type="note" title="Breaking Change in v0.11.0" %}
+**WidgetAction callback signature changed**:
+- **Before v0.11.0**: `callback: () => void | Promise<void>`
+- **Since v0.11.0**: `callback: (context: WidgetCallbackContext) => void | Promise<void>`
+
+Action callbacks now automatically receive widget context (element, instanceId, PikaWCContext).
+
+**Type Locations Changed**:
+- `WidgetMetadata`, `WidgetAction`, and `SpotlightWidgetDefinition` moved from `chatbot-types` to `webcomp-types`
+- Update import statements accordingly
+{% /aside %}
+
+Full type definitions available in [pika-shared source code](https://github.com/rithum/pika/tree/main/packages/shared/src/types/chatbot).
 

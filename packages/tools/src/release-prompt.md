@@ -48,6 +48,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 These will be included in the next release after {{existingVersion}}.
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
@@ -89,6 +112,7 @@ If adding breaking changes, also update:
 - \`releases.json\` - Ensure version entry has \`breaking: true\`, migration guide URL, and affected components
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update unreleased section
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link
+- \`apps/pika-docs/sidebar-config.ts\` - Add new migration guide to the "Migration Guides" items array (newest first)
 
 **Action Required:** Add new entries to the next version section (NOT [{{existingVersion}}]). [{{existingVersion}}] is locked and published.
 ```
@@ -138,6 +162,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 These documentation updates should be included in [{{finalizeVersion}}].
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
@@ -171,6 +218,7 @@ If adding breaking changes to [{{finalizeVersion}}], ensure:
 
 - \`releases.json\` - Ensure {{finalizeVersion}} entry has \`breaking: true\` if adding breaking changes
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section to reflect breaking changes
+- \`apps/pika-docs/sidebar-config.ts\` - Ensure migration guide is added to sidebar navigation if not already present
 
 **Action Required:** Add to [{{finalizeVersion}}] - perfect for last-minute fixes!
 ```
@@ -218,6 +266,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 Ensure these documentation updates are reflected in the release notes.
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before finalizing the release.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
@@ -255,6 +326,7 @@ If you added new features but haven't documented them yet, use the documentation
 If [{{finalizeVersion}}] has breaking changes:
 
 - Ensure migration guide exists at \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[name].mdoc\`
+- **Ensure migration guide is in sidebar**: Update \`apps/pika-docs/sidebar-config.ts\` to add to "Migration Guides" items array (newest first)
 - Link from changelog entry to migration guide
 - Verify \`releases.json\` entry has \`breaking: true\` and migration guide URL
 - Update \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` with breaking change notice
@@ -305,6 +377,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 Documentation updates should be reflected in the release notes under **Added** or **Changed** categories.
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference).
 
@@ -339,7 +434,7 @@ If you detect breaking changes:
 2. Create migration guide at: \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[feature-name].mdoc\`
 3. Include: What changed, Why, Who's affected, Step-by-step migration, Before/After examples
 4. Link from changelog: \`See: [Migration Guide](/platform/releases/migration-guides/[name])\`
-5. Update \`apps/pika-docs/astro.config.mjs\` if adding new migration guides to the Platform Info sidebar navigation
+5. **Add to sidebar navigation**: Update \`apps/pika-docs/sidebar-config.ts\` to add the new migration guide to the "Migration Guides" items array (add at the top, newest first)
 6. Update \`releases.json\` - Ensure the version {{workingVersion}} entry has \`breaking: true\` and proper migration guide URL
 
 **Writing Standards:**
@@ -356,6 +451,7 @@ If adding breaking changes, also update:
 - \`releases.json\` - Ensure version {{workingVersion}} has \`breaking: true\`, migration guide URL, and affected components listed
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update the "What's New" section if needed
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link to the index
+- \`apps/pika-docs/sidebar-config.ts\` - Add new migration guide to the "Migration Guides" items array (newest first)
 
 **Action Required:** Add new entries to [{{workingVersion}}]. If I've run this before, append to existing entries.
 ```
@@ -407,7 +503,21 @@ Use code blocks with \`\`\`typescript for TypeScript and \`\`\`bash for shell co
 
 Include warnings/notes using markdoc syntax: \`{% aside type="caution" %}\` for critical steps.
 
-**Note:** If creating a new migration guide, you need to add it to the Platform Info sidebar navigation in \`apps/pika-docs/astro.config.mjs\` under the Platform Info > Releases > Migration Guides section.
+**CRITICAL:** After creating a new migration guide, you MUST add it to the sidebar navigation in \`apps/pika-docs/sidebar-config.ts\` under the "Migration Guides" collapsed section. Add it to the \`items\` array at the top (newest first):
+
+\`\`\`typescript
+{
+    label: 'Migration Guides',
+    collapsed: true,
+    items: [
+        { label: 'Overview', slug: 'platform/releases/migration-guides' },
+        { label: 'Upgrading to X.Y.Z', slug: 'platform/releases/migration-guides/upgrading-to-x-y-z' }, // <-- Add new one here
+        { label: 'Upgrading to 0.5.0', slug: 'platform/releases/migration-guides/upgrading-to-0-5-0' }
+    ]
+}
+\`\`\`
+
+Without this step, the docs build will fail with "Failed to find the topic" error.
 
 **Step 3: Add placeholder to changelog**
 
@@ -432,6 +542,7 @@ Also update:
 - \`releases.json\` - Ensure the unreleased version entry has \`breaking: true\`, \`migrationGuideUrl\`, and \`affectedComponents\`
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide to the index
+- \`apps/pika-docs/sidebar-config.ts\` - Add migration guide to the "Migration Guides" items array (newest first)
 
 **Step 4: Create implementation checklist**
 

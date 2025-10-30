@@ -24,7 +24,8 @@
 
     $effect(() => {
         setTimeout(() => {
-            pageHeaderRight = pageHeaderRightSnippet;
+            //TODO: fix any
+            pageHeaderRight = pageHeaderRightSnippet as any;
         }, 1);
     });
 </script>

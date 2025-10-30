@@ -3,8 +3,11 @@
     type TValue = unknown;
 </script>
 
+<!-- @component
+PikaTable - A reusable table component with server-side pagination, sorting, and filtering support
+-->
 <script lang="ts" generics="TData, TValue">
-    import type { AppState } from '$client/app/app.state.svelte';
+    // @ts-ignore - Props interface is private but this is a Svelte framework limitation
     import { createSvelteTable } from '../../shadcn/data-table/data-table.svelte';
     import FlexRender from '../../shadcn/data-table/flex-render.svelte';
     import * as Table from '../../shadcn/table';
@@ -20,10 +23,10 @@
         type RowSelectionState,
         type SortingState
     } from '@tanstack/table-core';
-    import { getContext, type Snippet } from 'svelte';
+    import { type Snippet } from 'svelte';
     import TablePagination from './pika-table-pagination.svelte';
     import TableToolbar from './pika-table-toolbar.svelte';
-    import type { FacetedFilters, GlobalFilterProps, ServerSideConfig, ServerSideTableState } from './types';
+    import type { FacetedFilters, GlobalFilterProps, ServerSideConfig, ServerSideTableState, TableSettingsFacade } from './types';
 
     interface Props {
         columns: ColumnDef<TData, TValue>[];
@@ -48,6 +51,15 @@
 
         // Server-side configuration
         serverSideConfig?: ServerSideConfig;
+
+        // Facade for table settings (required)
+        tableSettings: TableSettingsFacade;
+
+        // Show rows per page selector in pagination
+        showRowsPerPage?: boolean;
+
+        // Where to show pagination controls
+        paginationPlacement?: 'top' | 'bottom' | 'both';
     }
 
     let {
@@ -59,61 +71,64 @@
         toolbarContent,
         beneathToolbarContent,
         tableKey,
-        serverSideConfig = $bindable<ServerSideConfig>()
+        serverSideConfig = $bindable<ServerSideConfig>(),
+        tableSettings,
+        showRowsPerPage = true,
+        paginationPlacement = 'bottom'
     }: Props = $props();
 
-    const appState = getContext<AppState>('appState');
-    const appSettings = appState.settings;
-
     let rowSelection = $state<RowSelectionState>({});
-    let columnVisibility = $derived(appSettings.getTableColumnVisibilityObject(tableKey));
-    //$state<VisibilityState>(appSettings.getTableColumnVisibilityObject(tableKey));
+    let columnVisibility = $derived(tableSettings.getTableColumnVisibilityObject(tableKey));
     let columnFilters = $state<ColumnFiltersState>([]);
     let sorting = $state<SortingState>([]);
     let pageIndex = $state(0);
-    let pageSize = $derived(appSettings.getTableNumRows(tableKey, 10));
+    let pageSize = $derived(tableSettings.getTableNumRows(tableKey, 10));
 
     // === SERVER-SIDE LOGIC ===
 
     let debouncedRequestData: ((tableState: ServerSideTableState) => Promise<void>) | undefined;
 
     // Create debounced function when serverSide config changes
-    // $effect(() => {
-    //     const serverState = serverSideConfig;
-    //     if (serverState) {
-    //         const debounceMs = serverState.debounceMs ?? 300;
-    //         debouncedRequestData = debounce(async (tableState: ServerSideTableState) => {
-    //             try {
-    //                 await serverState.requestData(tableState);
+    $effect(() => {
+        const serverState = serverSideConfig;
+        if (serverState) {
+            const debounceMs = serverState.debounceMs ?? 300;
+            debouncedRequestData = debounce(async (tableState: ServerSideTableState) => {
+                try {
+                    await serverState.requestData(tableState);
 
-    //                 // If using new API, update the tableState
-    //                 if (serverSideConfig) {
-    //                     serverSideConfig.tableState = { ...serverSideConfig.tableState, ...tableState };
-    //                 }
-    //             } catch (error) {
-    //                 serverState.onError?.(error instanceof Error ? error.message : 'Unknown error');
-    //             }
-    //         }, debounceMs);
-    //     } else {
-    //         debouncedRequestData = undefined;
-    //     }
-    // });
+                    // If using new API, update the tableState
+                    if (serverSideConfig) {
+                        serverSideConfig.tableState = { ...serverSideConfig.tableState, ...tableState };
+                    }
+                } catch (error) {
+                    serverState.onError?.(error instanceof Error ? error.message : 'Unknown error');
+                }
+            }, debounceMs);
+        } else {
+            debouncedRequestData = undefined;
+        }
+    });
 
     // Trigger server request when table state changes
-    // function triggerServerRequest() {
-    //     const serverState = serverSideConfig;
-    //     if (!serverState || !debouncedRequestData) return;
+    function triggerServerRequest() {
+        const serverState = serverSideConfig;
+        if (!serverState || !debouncedRequestData) return;
 
-    //     const tableState: ServerSideTableState = {
-    //         pageIndex,
-    //         pageSize,
-    //         sorting,
-    //         columnFilters,
-    //         requestId: crypto.randomUUID(),
-    //     };
+        const tableState: ServerSideTableState = {
+            pageIndex,
+            pageSize,
+            sorting,
+            columnFilters,
+            totalRecords: serverState.tableState?.totalRecords,
+            scrollId: serverState.tableState?.scrollId,
+            hasNextPage: serverState.tableState?.hasNextPage,
+            isLoading: true,
+            requestId: crypto.randomUUID()
+        };
 
-    //     debouncedRequestData(tableState);
-    // }
+        debouncedRequestData(tableState);
+    }
 
     // Utility function for debouncing
     function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -194,9 +209,9 @@
             }
 
             // Trigger server request for server-side tables
-            // if (serverSideConfig) {
-            //     triggerServerRequest();
-            // }
+            if (serverSideConfig) {
+                triggerServerRequest();
+            }
         },
         onColumnFiltersChange: (updater) => {
             if (typeof updater === 'function') {
@@ -206,13 +221,13 @@
             }
 
             // Trigger server request for server-side tables
-            // if (serverSideConfig) {
-            //     triggerServerRequest();
-            // }
+            if (serverSideConfig) {
+                triggerServerRequest();
+            }
         },
         onColumnVisibilityChange: (updater) => {
             if (typeof updater === 'function') {
-                appSettings.setTableColumnVisibilityFromObject(tableKey, updater(columnVisibility));
+                tableSettings.setTableColumnVisibilityFromObject(tableKey, updater(columnVisibility));
             } else {
                 throw new Error('onColumnVisibilityChange updater must be a function');
                 //columnVisibility = updater;
@@ -222,12 +237,12 @@
             if (typeof updater === 'function') {
                 const val = updater({ pageIndex, pageSize });
                 pageIndex = val.pageIndex;
-                appSettings.setTableNumRows(tableKey, val.pageSize);
+                tableSettings.setTableNumRows(tableKey, val.pageSize);
 
                 // Trigger server request for server-side tables
-                // if (serverSideConfig) {
-                //     triggerServerRequest();
-                // }
+                if (serverSideConfig) {
+                    triggerServerRequest();
+                }
             } else {
                 throw new Error('onPaginationChange updater must be a function');
             }
@@ -237,9 +252,9 @@
                 globalFilterProps.globalFilterValue = value;
 
                 // Trigger server request for server-side tables
-                // if (serverSideConfig) {
-                //     triggerServerRequest();
-                // }
+                if (serverSideConfig) {
+                    triggerServerRequest();
+                }
             }
         },
 
@@ -257,8 +272,15 @@
     });
 </script>
 
-<div class="space-y-4 {classes ? classes : ''} ">
-    <TableToolbar {table} {globalFilterProps} {facetedFilters} {toolbarContent} {beneathToolbarContent} />
+<div class="{classes ? classes : ''} ">
+    <div class="mb-4">
+        <TableToolbar {table} {globalFilterProps} {facetedFilters} {toolbarContent} {beneathToolbarContent} />
+    </div>
+    {#if paginationPlacement === 'top' || paginationPlacement === 'both'}
+        <div class="mt-2 pb-1">
+            <TablePagination {table} serverSide={serverSideConfig} {showRowsPerPage} />
+        </div>
+    {/if}
     <div class="rounded-md border h-full flex flex-col overflow-y-auto">
         <Table.Root class="h-full">
             <Table.Header>
@@ -291,5 +313,9 @@
             </Table.Body>
         </Table.Root>
     </div>
-    <TablePagination {table} serverSide={serverSideConfig} />
+    {#if paginationPlacement === 'bottom' || paginationPlacement === 'both'}
+        <div class="mt-2">
+            <TablePagination {table} serverSide={serverSideConfig} {showRowsPerPage} />
+        </div>
+    {/if}
 </div>

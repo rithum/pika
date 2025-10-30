@@ -45,7 +45,7 @@
         {:else if 'menuItems' in item}
             {@render subMenu(item)}
         {:else}
-            <DropdownMenu.Item onclick={() => item.onclick?.(row, appState)}>
+            <DropdownMenu.Item onclick={() => item.onclick?.(row)}>
                 <div class="flex items-center gap-2">
                     {#if item.icon}
                         <item.icon />

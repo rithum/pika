@@ -7,7 +7,11 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.10.0` (October 28, 2025)
+**Latest Stable:** `0.11.0` (October 30, 2025)
+
+{% aside type="caution" %}
+**Breaking Changes in 0.11.0:** This release requires running data migration scripts before deployment. See the [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-11-0) for detailed instructions.
+{% /aside %}
 
 Check your project version:
 
@@ -15,20 +19,35 @@ Check your project version:
 cat .pika-sync.json | grep pikaVersion
 ```
 
-### What's New in 0.10.0
+### What's New in 0.11.0
 
-- **Dynamic Spotlight Widget Registration** - Web components can programmatically register themselves in spotlight at runtime
-- New `manuallyRegisterSpotlightWidget()` method - no database tag definitions required
-- Perfect for development, testing, third-party integrations, and conditional widgets
-- **Context-Aware Widgets** - Widgets can provide dynamic context to AI conversations
-- Implement `getContextForLlm()` method to declare available context sources
-- Intelligent LLM-based filtering automatically includes only relevant context
-- Smart deduplication and time-based staleness detection reduce token costs
-- User transparency with context chips and manual add/remove controls
-- **Comprehensive Context Documentation** - Four new docs covering capability overview, implementation guide, API reference, and architectural philosophy
-- **Widget Metadata in renderTag()** - Pass metadata directly when rendering
-- **Auto-Enabled Canvas and Dialog Contexts** - No explicit configuration required
-- **Enhanced Multi-Instance Widget Documentation** - Virtual Tags Pattern and use cases
+- **Enhanced Session Analytics Dashboard** - Comprehensive analytics with advanced filtering and aggregations
+  - Filter sessions by invocation mode, user type, and source
+  - Cost aggregations by invocation mode with visual charts
+  - Session count trends and distribution visualizations
+- **Widget Metadata System** - Dynamic UI chrome for widgets across all rendering contexts
+  - Set title, icon, loading status, and custom actions for widgets
+  - Metadata can be set initially or dynamically updated
+  - Support for spotlight, canvas, and dialog widgets
+- **Dynamic Widget Registration for Canvas/Dialog** - No tag definitions required
+  - Auto-generation of tag definitions when needed
+  - Auto-enables requested rendering context
+- **Widget Context API** - Access full context from widget action callbacks
+  - New `getWidgetContext(instanceId)` method
+  - Widget actions receive element reference and full context
+- **Automatic User Profile Sync** - Framework syncs firstName/lastName from auth provider
+- **Type Organization Improvements** - Better organized TypeScript types with `@since` annotations
+
+**Breaking Changes:**
+- OpenSearch keyword field migration required for session analytics aggregations
+- User type migration required for chat sessions
+- WidgetAction callback signature changed to receive context object
+
+See the [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-11-0) for complete upgrade instructions.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.11.0) for @since 0.11.0 to find all type definitions that were added, updated, or removed in this release.
 
 ### What's New in 0.9.0
 
@@ -152,6 +171,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.11.0  | Oct 30 2025 | Breaking | Session analytics and widget metadata system  |
 | 0.10.0  | Oct 28 2025 | Feature  | Context-aware widgets and dynamic spotlight   |
 | 0.9.0   | Oct 27 2025 | Feature  | Complete documentation site overhaul          |
 | 0.8.0   | Oct 24 2025 | Feature  | Widget instance registry with DOM tracking    |

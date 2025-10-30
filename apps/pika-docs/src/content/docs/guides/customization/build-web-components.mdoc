@@ -267,6 +267,25 @@ await context.chatAppState.renderTag('acme.editor', 'canvas', {
 
 // Add widget to spotlight
 await context.chatAppState.renderTag('acme.quick-actions', 'spotlight');
+
+// Open widget with metadata (title, actions, icon)
+await context.chatAppState.renderTag('acme.dashboard', 'canvas', 
+    { userId: '123' },
+    {
+        title: 'Sales Dashboard',
+        lucideIconName: 'bar-chart',
+        actions: [
+            {
+                id: 'refresh',
+                title: 'Refresh Data',
+                iconSvg: refreshIconSvg,
+                callback: async ({ context }) => {
+                    // Refresh logic
+                }
+            }
+        ]
+    }
+);
 ```
 
 ### Pass Data Between Widgets
@@ -292,6 +311,268 @@ $effect(() => {
     }
 });
 ```
+
+### Add Action Buttons to Widgets
+
+Widgets can provide interactive action buttons in their chrome (title bar). Action buttons automatically receive full context when clicked.
+
+#### Basic Action Button
+
+```typescript
+import { extractIconSvg } from 'pika-shared/util/icon-utils';
+import type { WidgetAction, WidgetMetadata } from 'pika-shared/types/chatbot/webcomp-types';
+
+async function createRefreshAction(): Promise<WidgetAction> {
+    return {
+        id: 'refresh',
+        title: 'Refresh Data',
+        iconSvg: await extractIconSvg('refresh-cw', 'lucide'),
+        callback: async ({ element, instanceId, context }) => {
+            // element: Direct access to widget DOM element
+            // instanceId: Unique ID for this widget instance
+            // context: Full PikaWCContext with app/chat state
+            
+            const widget = element as MyWidget;
+            await widget.refreshData();
+            context.appState.showToast('Data refreshed!', { type: 'success' });
+        }
+    };
+}
+```
+
+#### Registering Actions via Metadata
+
+**Option 1: Pass metadata when rendering**
+
+```typescript
+const refreshAction = await createRefreshAction();
+
+await context.chatAppState.renderTag(
+    'acme.dashboard',
+    'canvas',
+    { userId: '123' },
+    {
+        title: 'My Dashboard',
+        lucideIconName: 'chart-line',
+        actions: [refreshAction]
+    }
+);
+```
+
+**Option 2: Update metadata dynamically**
+
+```typescript
+async function init() {
+    const context = await getPikaContext(this);
+    
+    // Get metadata API
+    const metadata = context.chatAppState.getWidgetMetadataAPI(
+        'acme',
+        'dashboard',
+        context.instanceId,
+        context.renderingContext
+    );
+    
+    // Set initial metadata with actions
+    metadata.setMetadata({
+        title: 'Sales Dashboard',
+        lucideIconName: 'bar-chart',
+        actions: [
+            await createRefreshAction(),
+            await createExportAction()
+        ]
+    });
+}
+```
+
+**Option 3: Include in SpotlightWidgetDefinition**
+
+```typescript
+context.chatAppState.manuallyRegisterSpotlightWidget({
+    tag: 'dashboard',
+    scope: 'acme',
+    tagTitle: 'Sales Dashboard',
+    metadata: {
+        title: 'Sales Dashboard',
+        lucideIconName: 'chart-line',
+        actions: [await createRefreshAction()]
+    }
+});
+```
+
+#### Complete Action Button Example
+
+```svelte
+<svelte:options customElement={{ tag: 'acme-widget', shadow: 'none' }} />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import { extractIconSvg } from 'pika-shared/util/icon-utils';
+    import type { PikaWCContext, WidgetAction } from 'pika-shared/types/chatbot/webcomp-types';
+    
+    let context = $state<PikaWCContext>();
+    let data = $state<any[]>([]);
+    let loading = $state(false);
+    
+    async function init() {
+        context = await getPikaContext($host());
+        
+        // Define actions
+        const refreshAction: WidgetAction = {
+            id: 'refresh',
+            title: 'Refresh',
+            iconSvg: await extractIconSvg('refresh-cw', 'lucide'),
+            callback: async ({ element, context: widgetContext }) => {
+                const widget = element as any;
+                await widget.refreshData();
+            }
+        };
+        
+        const exportAction: WidgetAction = {
+            id: 'export',
+            title: 'Export CSV',
+            iconSvg: await extractIconSvg('download', 'lucide'),
+            callback: async ({ element, context: widgetContext }) => {
+                const widget = element as any;
+                await widget.exportData();
+            }
+        };
+        
+        // Register metadata with actions
+        const metadata = context.chatAppState.getWidgetMetadataAPI(
+            'acme',
+            'widget',
+            context.instanceId,
+            context.renderingContext
+        );
+        
+        metadata.setMetadata({
+            title: 'Data View',
+            lucideIconName: 'table',
+            actions: [refreshAction, exportAction]
+        });
+        
+        await loadData();
+    }
+    
+    async function loadData() {
+        loading = true;
+        try {
+            data = await fetchData();
+        } finally {
+            loading = false;
+        }
+    }
+    
+    // Exposed methods called by action buttons
+    export async function refreshData() {
+        await loadData();
+        context?.appState.showToast('Data refreshed', { type: 'success' });
+    }
+    
+    export async function exportData() {
+        const csv = convertToCSV(data);
+        downloadFile(csv, 'export.csv');
+        context?.appState.showToast('Export complete', { type: 'success' });
+    }
+    
+    $effect(() => { init(); });
+</script>
+
+{#if loading}
+    <p>Loading...</p>
+{:else}
+    <div class="data-view">
+        {#each data as item}
+            <div>{item.name}</div>
+        {/each}
+    </div>
+{/if}
+```
+
+#### Action Button Features
+
+**Loading States**
+
+```typescript
+callback: async ({ instanceId, context }) => {
+    const metadata = context.chatAppState.getWidgetMetadataAPI(
+        'acme',
+        'widget',
+        instanceId,
+        context.renderingContext
+    );
+    
+    metadata.setLoadingStatus(true, 'Processing...');
+    try {
+        await processData();
+    } finally {
+        metadata.setLoadingStatus(false);
+    }
+}
+```
+
+**Disabled Actions**
+
+```typescript
+const action: WidgetAction = {
+    id: 'save',
+    title: 'Save',
+    iconSvg: saveIconSvg,
+    disabled: !hasChanges, // Disable when no changes
+    callback: async ({ context }) => {
+        await saveChanges();
+    }
+};
+
+// Update disabled state dynamically
+metadata.updateAction('save', { disabled: false });
+```
+
+**Primary Actions (Dialog Footer)**
+
+```typescript
+const confirmAction: WidgetAction = {
+    id: 'confirm',
+    title: 'Confirm',
+    iconSvg: checkIconSvg,
+    primary: true, // Renders as prominent button in dialogs
+    callback: async ({ context }) => {
+        await handleConfirm();
+        context.chatAppState.closeDialog();
+    }
+};
+```
+
+**Dynamic Action Updates**
+
+```typescript
+// Add action
+metadata.addAction({
+    id: 'new-action',
+    title: 'New Action',
+    iconSvg: iconSvg,
+    callback: async () => { /* ... */ }
+});
+
+// Update action properties
+metadata.updateAction('refresh', { 
+    disabled: true,
+    title: 'Refreshing...' 
+});
+
+// Remove action
+metadata.removeAction('export');
+```
+
+{% aside type="note" title="Action Callback Context" %}
+**As of v0.11.0**, action callbacks automatically receive a `WidgetCallbackContext` parameter with:
+- **element**: The widget's DOM element
+- **instanceId**: The widget instance ID
+- **context**: Full PikaWCContext
+
+You no longer need to manually capture context in closure variables!
+{% /aside %}
 
 ### Register Spotlight Widgets Dynamically
 
@@ -439,6 +720,13 @@ interface SpotlightWidgetDefinition {
     
     /** Show in unpinned menu? Default: true */
     showInUnpinnedMenu?: boolean;
+    
+    /**
+     * Optional initial metadata (title, actions, icon).
+     * Applied when widget is rendered.
+     * @since 0.11.0
+     */
+    metadata?: WidgetMetadata;
 }
 ```
 

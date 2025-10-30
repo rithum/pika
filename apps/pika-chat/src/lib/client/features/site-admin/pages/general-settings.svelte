@@ -22,7 +22,8 @@
 
     let { pageHeaderRight = $bindable() }: Props = $props();
 
-    pageHeaderRight = pageHeaderRightSnippet;
+    //TODO: fix any
+    pageHeaderRight = pageHeaderRightSnippet as any;
 
     const features = $derived(siteAdmin.siteFeatures);
 

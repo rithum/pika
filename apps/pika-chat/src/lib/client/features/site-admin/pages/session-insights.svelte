@@ -26,12 +26,13 @@
 
     let { pageHeaderRight = $bindable() }: Props = $props();
 
-    // Tis causes the state to be created if it doesn't exist.
+    // This causes the state to be created if it doesn't exist.
     const sessionInsights = siteAdmin.sessionInsights;
 
     $effect(() => {
         setTimeout(() => {
-            pageHeaderRight = pageHeaderRightSnippet;
+            //TODO: fix any
+            pageHeaderRight = pageHeaderRightSnippet as any;
         }, 1);
     });
 </script>

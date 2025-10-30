@@ -547,8 +547,8 @@ export class SessionInsightsState {
 
             const savedQuery = cloneDeep(this.searchQuery);
             const query = { ...cloneDeep(this.searchQuery), scrollId: this.#scrollId };
-            const titlePartial = (query.titlePartial ?? '').trim();
-            query.titlePartial = titlePartial.length >= 3 ? titlePartial : undefined;
+            const queryStr = (query.query ?? '').trim();
+            query.query = queryStr.length >= 3 ? queryStr : undefined;
 
             let request: SessionSearchAdminRequest = {
                 command: 'sessionSearch',

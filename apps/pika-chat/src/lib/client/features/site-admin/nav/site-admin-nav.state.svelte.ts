@@ -13,6 +13,7 @@ import GeneralSettings from '../pages/general-settings.svelte';
 import InstructionAugmentation from '../pages/instruction-augmentation.svelte';
 import Memory from '../pages/memory.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
+import SessionAnalytics from '../pages/session-analytics.svelte';
 
 const ITEMS: NavItem[] = [
     {
@@ -39,6 +40,13 @@ const ITEMS: NavItem[] = [
         url: '/admin/session-insights',
         icon: ChartBar,
         pageComponent: SessionInsights,
+        enabled: (siteFeatures: SiteFeatures) => siteFeatures.sessionInsights?.enabled ?? false
+    },
+    {
+        title: 'Session Analytics',
+        url: '/admin/session-analytics',
+        icon: ChartBar,
+        pageComponent: SessionAnalytics,
         enabled: (siteFeatures: SiteFeatures) => siteFeatures.sessionInsights?.enabled ?? false
     },
     {

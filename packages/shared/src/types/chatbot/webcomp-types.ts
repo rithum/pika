@@ -6,6 +6,8 @@
 import { type UploadStatus } from '../upload-types';
 import type {
     ChatApp,
+    ChatAppAction,
+    ChatAppActionMenu,
     ChatAppMode,
     ChatAppOverridableFeatures,
     ChatMessageForRendering,
@@ -13,23 +15,18 @@ import type {
     ChatUser,
     CustomDataUiRepresentation,
     InvokeAgentAsComponentOptions,
+    IUserWidgetDataStoreState,
     RecordOrUndef,
     ShareSessionState,
     ShowToastFn,
     TagDefinition,
     TagDefinitionWidget,
     UserAwsCredentials,
-    UserWidgetData,
     UserDataOverrideSettings,
     UserPrefs,
-    WidgetAction,
-    WidgetMetadata,
-    WidgetRenderingContextType,
-    IUserWidgetDataStoreState,
-    ChatAppActionMenu,
-    ChatAppAction,
     WidgetInstance,
-    SpotlightWidgetDefinition
+    WidgetRenderingContextType,
+    WidgetSizing
 } from './chatbot-types';
 
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
@@ -213,6 +210,11 @@ export interface IChatAppState {
     readonly customDataForChatApp: Record<string, unknown> | undefined;
     readonly customTitleBarActions: (ChatAppActionMenu | ChatAppAction)[];
     readonly widgetInstances: Map<string, WidgetInstance>;
+    /**
+     * Current user information
+     * @since 0.11.0
+     */
+    readonly user: ChatUser<RecordOrUndef>;
 
     setCurrentSessionById(sessionId: string): void;
     removeFile(s3Key: string): void;
@@ -224,12 +226,22 @@ export interface IChatAppState {
     getMessageByMessageId(messageId: string): ChatMessageForRendering | undefined;
     uploadFiles(files: File[]): Promise<void>;
     initializeData(): Promise<void>;
-    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
+    /**
+     * Render a tag in a specific context
+     * @param metadata - Optional metadata for the widget (title, actions, icon)
+     * @since 0.11.0 - Added metadata parameter
+     */
+    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
     setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction): void;
     removeCustomTitleBarAction(actionId: string): void;
     getWidgetInstance(instanceId: string): WidgetInstance | undefined;
+    /**
+     * Get the full context for a widget instance
+     * @since 0.11.0
+     */
+    getWidgetContext(instanceId: string): PikaWCContext | undefined;
 
     /**
      * Update context for a widget. Call this when your widget's context has changed.
@@ -311,6 +323,7 @@ export interface IChatAppState {
      * @param dataKey - The key to store data under (default: 'data')
      * @param metadata - Optional widget metadata (title, actions, icon, etc.)
      * @returns The instance ID (UUID)
+     * @since 0.11.0 - Added metadata parameter
      *
      * @example
      * ```typescript
@@ -501,14 +514,59 @@ export interface IUploadInstance {
  * Called after the element is created but before it's added to the DOM.
  */
 export interface OnReadyCallback {
-    (params: {
-        /** The web component element that was created */
-        element: HTMLElement;
-        /** The unique instance ID assigned to this component */
-        instanceId: string;
-        /** The full Pika context with instanceId */
-        context: PikaWCContext;
-    }): void;
+    (params: WidgetCallbackContext): void;
+}
+
+/**
+ * Action button that appears in the widget's chrome (title bar, toolbar, etc.)
+ *
+ * @example
+ * ```js
+ * const action: WidgetAction = {
+ *   id: 'refresh',
+ *   title: 'Refresh data',
+ *   iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">...</svg>',
+ *   callback: async () => { await fetchData(); }
+ * };
+ * ```
+ *
+ * @since 0.11.0 - Moved from chatbot-types to webcomp-types
+ */
+export interface WidgetAction {
+    /** Unique identifier for this action */
+    id: string;
+
+    /** Tooltip/label for the action (also button text in dialog context) */
+    title: string;
+
+    /** SVG markup string for the icon (e.g., from extractIconSvg() helper) */
+    iconSvg: string;
+
+    /** Whether action is currently disabled */
+    disabled?: boolean;
+
+    /** If true, renders as default/prominent button (used in dialog context) */
+    primary?: boolean;
+
+    /**
+     * Handler when clicked
+     * @since 0.11.0 - Callback now receives WidgetCallbackContext parameter
+     */
+    callback: (context: WidgetCallbackContext) => void | Promise<void>;
+}
+
+/**
+ * The context object that is passed to the onReady callback and in action callbacks functions.
+ *
+ * @since 0.11.0
+ */
+export interface WidgetCallbackContext {
+    /** The web component element that was created */
+    element: HTMLElement;
+    /** The unique instance ID assigned to this component */
+    instanceId: string;
+    /** The full Pika context with instanceId */
+    context: PikaWCContext;
 }
 
 /**
@@ -579,4 +637,112 @@ export interface PikaWCContextRequestDetail {
 
 export interface PikaWCContextRequestEvent extends CustomEvent<PikaWCContextRequestDetail> {
     detail: PikaWCContextRequestDetail;
+}
+
+/**
+ * Metadata that widgets register with the parent app
+ *
+ * @example
+ * ```js
+ * const metadata: WidgetMetadata = {
+ *   title: 'My Widget',
+ *   iconSvg: '<svg>...</svg>',
+ *   iconColor: '#001F3F',
+ *   actions: [
+ *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() }
+ *   ]
+ * };
+ * ```
+ *
+ * @since 0.11.0 - Moved from chatbot-types to webcomp-types
+ */
+export interface WidgetMetadata {
+    /** Widget title shown in chrome */
+    title: string;
+
+    /**
+     * Optional Lucide icon name (will be fetched automatically and set as iconSvg).
+     *
+     * The name will be snake cased as in `arrow-big-down` and not `arrowBigDown`
+     */
+    lucideIconName?: string;
+
+    /** Optional icon SVG markup for the widget title */
+    iconSvg?: string;
+
+    /** Optional color for the widget icon (hex, rgb, or CSS color name) */
+    iconColor?: string;
+
+    /** Optional action buttons */
+    actions?: WidgetAction[];
+
+    /** Optional loading status */
+    loadingStatus?: {
+        loading: boolean;
+        loadingMsg?: string;
+    };
+}
+
+/**
+ * Internal state tracked for each widget instance
+ *
+ * @since 0.11.0 - Moved from chatbot-types to webcomp-types
+ */
+export interface WidgetMetadataState extends WidgetMetadata {
+    /** Unique instance ID for this widget */
+    instanceId: string;
+
+    /** Widget scope (e.g., 'weather', 'pika') */
+    scope: string;
+
+    /** Widget tag (e.g., 'favorite-cities') */
+    tag: string;
+
+    /** Rendering context (spotlight, canvas, dialog, inline) */
+    renderingContext: WidgetRenderingContextType;
+}
+
+/**
+ * This is used when manually registering a custom element as a spotlight widget by a component in the client.
+ *
+ * @since 0.11.0 - Moved from chatbot-types to webcomp-types
+ */
+export interface SpotlightWidgetDefinition {
+    /** @see TagDefinition.tag */
+    tag: string;
+
+    /** @see TagDefinition.scope */
+    scope: string;
+
+    /** @see TagDefinitionWidgetWebComponent.customElementName */
+    customElementName?: string;
+
+    /** @see TagDefinition.tagTitle */
+    tagTitle: string;
+
+    /** @see TagDefinitionWidgetWebComponent.sizing */
+    sizing?: WidgetSizing;
+
+    /** @see TagDefinition.componentAgentInstructionsMd */
+    componentAgentInstructionsMd?: Record<string, string>;
+
+    /**
+     * If true and there isn't an instance of this widget already created as a spotlight widget, then a new instance will be created.
+     */
+    autoCreateInstance?: boolean;
+
+    /** The display order of the widget in the spotlight. If not provided, is put first. */
+    displayOrder?: number;
+
+    /** Defaults to true.  If true, then only one instance of this widget can be created. */
+    singleton?: boolean;
+
+    /** If false, widget won't appear in unpinned menu. Default: true. Use false for base widgets that only create instances */
+    showInUnpinnedMenu?: boolean;
+
+    /**
+     * Optional metadata (title, actions, icon) to apply to the widget when rendered
+     * @since 0.11.0
+     */
+    metadata?: WidgetMetadata;
 }

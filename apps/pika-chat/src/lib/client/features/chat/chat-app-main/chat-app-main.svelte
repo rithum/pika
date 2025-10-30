@@ -339,7 +339,7 @@
 
     <!-- Spotlight spans full width without max-w constraint -->
     <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} min-h-[80px]">
-        <div class="max-w-full">
+        <div class="max-w-full w-full">
             <Spotlight
                 bind:isVisible={spotlightIsVisible}
                 mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
