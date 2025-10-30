@@ -76,6 +76,8 @@ import {
     SemanticDirectiveCreateOrUpdateResponse,
     SemanticDirectiveDeleteRequest,
     SemanticDirectiveDeleteResponse,
+    SessionAnalyticsRequest,
+    SessionAnalyticsResponse,
     SessionSearchRequest,
     SessionSearchResponse,
     TagDefinitionCreateOrUpdateRequest,
@@ -115,6 +117,7 @@ import {
     getAgents,
     getChatApp,
     getChatApps,
+    getSessionAnalytics,
     getTool,
     getTools,
     searchForSessions,
@@ -283,6 +286,9 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/session/search': {
         handler: handleSearchSessions
+    },
+    'POST:/api/chat-admin/session/analytics': {
+        handler: handleGetSessionAnalytics
     },
     'POST:/api/chat-admin/tagdef': {
         handler: handleCreateOrUpdateTagDef
@@ -1011,6 +1017,22 @@ async function handleSearchSessions(event: APIGatewayProxyEventPika<SessionSearc
     }
 
     return await searchForSessions(searchSessionsRequest);
+}
+
+/**
+ * POST:/api/chat-admin/session/analytics
+ */
+async function handleGetSessionAnalytics(event: APIGatewayProxyEventPika<SessionAnalyticsRequest>): Promise<SessionAnalyticsResponse> {
+    const analyticsRequest = event.body;
+    if (!analyticsRequest) {
+        throw new BadRequestError('Request body is required');
+    }
+
+    if (!analyticsRequest.dateRange || !analyticsRequest.dateRange.start || !analyticsRequest.dateRange.end) {
+        throw new BadRequestError('Date range with start and end dates is required');
+    }
+
+    return await getSessionAnalytics(analyticsRequest);
 }
 
 /**

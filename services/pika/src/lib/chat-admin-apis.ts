@@ -34,6 +34,8 @@ import type {
     SemanticDirectiveCreateOrUpdateResponse,
     SemanticDirectiveDeleteRequest,
     SemanticDirectiveDeleteResponse,
+    SessionAnalyticsRequest,
+    SessionAnalyticsResponse,
     SessionSearchRequest,
     SessionSearchResponse,
     TagDefinitionCreateOrUpdateRequest,
@@ -103,7 +105,7 @@ import {
     toolsAreSame,
     validateEntitiesExist
 } from './chat-admin-utils';
-import { queryForSessions } from './opensearch/opensearch';
+import { queryForSessionAnalytics, queryForSessions } from './opensearch/opensearch';
 
 /**
  * Get all defined agents
@@ -1448,6 +1450,17 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
     }
 
     return await queryForSessions<RecordOrUndef>(search);
+}
+
+/**
+ * Get session analytics with aggregations for metrics, time series, top entities, and top chat apps
+ * POST /api/chat-admin/session/analytics
+ */
+export async function getSessionAnalytics(request: SessionAnalyticsRequest): Promise<SessionAnalyticsResponse> {
+    // Log what we're about to pass to the OS query layer
+    console.log('getSessionAnalytics: calling queryForSessionAnalytics with', JSON.stringify(request, null, 2));
+
+    return await queryForSessionAnalytics(request);
 }
 
 // ===== TAG DEFINITION OPERATIONS =====

@@ -6,10 +6,14 @@ Used in spotlight, canvas, and dialog contexts.
 <script lang="ts">
     import { Button } from 'pika-ux/shadcn/button';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
-    import type { WidgetAction } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { WidgetAction } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { ChatAppState } from '../chat-app.state.svelte';
+    import { getContext } from 'svelte';
 
     interface Props {
         action: WidgetAction;
+        /** Widget instance ID - required to provide context to the callback */
+        instanceId: string;
         /** Display style - 'icon-only' for toolbar, 'with-text' for dialog footer */
         variant?: 'icon-only' | 'with-text';
         /** Button size */
@@ -22,17 +26,38 @@ Used in spotlight, canvas, and dialog contexts.
 
     let {
         action,
+        instanceId,
         variant = 'icon-only',
         size = 'sm',
         buttonVariant = 'ghost',
         class: className = '',
     }: Props = $props();
 
+    const chat = getContext<ChatAppState>('chatAppState');
+
     async function handleClick() {
         try {
-            await action.callback();
+            // Get the widget instance and context
+            const instance = chat.getWidgetInstance(instanceId);
+            const context = chat.getWidgetContext(instanceId);
+
+            if (!instance || !context) {
+                throw new Error(
+                    `[WidgetActionButton] Cannot execute action "${action.id}": widget instance or context not found`
+                );
+            }
+
+            // Call the action callback with full context
+            await action.callback({
+                element: instance.element,
+                instanceId,
+                context,
+            });
         } catch (error) {
             console.error(`[WidgetActionButton] Error executing action "${action.id}":`, error);
+            chat.showToast('An unexpected error occurred.  Please try again.', {
+                type: 'error',
+            });
         }
     }
 </script>

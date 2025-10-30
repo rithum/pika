@@ -2,7 +2,11 @@
     type TData = unknown;
 </script>
 
+<!-- @component
+PikaTablePagination - Pagination controls for PikaTable
+-->
 <script lang="ts" generics="TData">
+    // @ts-ignore - Props interface is private but this is a Svelte framework limitation
     import ChevronLeft from '$icons/lucide/chevron-left';
     import ChevronRight from '$icons/lucide/chevron-right';
     import ChevronsLeft from '$icons/lucide/chevrons-left';
@@ -15,9 +19,10 @@
     interface Props {
         table: Table<TData>;
         serverSide: ServerSideConfig;
+        showRowsPerPage?: boolean;
     }
 
-    let { table, serverSide }: Props = $props();
+    let { table, serverSide, showRowsPerPage = true }: Props = $props();
 
     // For cursor-based pagination, we can't jump to arbitrary pages
     const isCursorBased = $derived(serverSide?.paginationMode === 'cursor');
@@ -33,30 +38,32 @@
             {table.getFilteredRowModel().rows.length} row(s) selected.
         {/if}
     </div>
-    <div class="flex items-center space-x-6 lg:space-x-8">
-        <div class="flex items-center space-x-2">
-            <p class="text-sm font-medium">Rows per page</p>
-            <Select.Root
-                allowDeselect={false}
-                type="single"
-                value={`${table.getState().pagination.pageSize}`}
-                onValueChange={(value) => {
-                    table.setPageSize(Number(value));
-                }}
-            >
-                <Select.Trigger class="h-8 w-[70px]">
-                    {String(table.getState().pagination.pageSize)}
-                </Select.Trigger>
-                <Select.Content side="top">
-                    {#each [10, 20, 50, 100, 500, 1000] as pageSize (pageSize)}
-                        <Select.Item value={`${pageSize}`}>
-                            {pageSize}
-                        </Select.Item>
-                    {/each}
-                </Select.Content>
-            </Select.Root>
-        </div>
-        <div class="flex w-[100px] items-center justify-center text-sm font-medium">
+    <div class="flex items-center space-x-8">
+        {#if showRowsPerPage}
+            <div class="flex items-center space-x-2">
+                <p class="text-sm font-medium">Rows per page</p>
+                <Select.Root
+                    allowDeselect={false}
+                    type="single"
+                    value={`${table.getState().pagination.pageSize}`}
+                    onValueChange={(value) => {
+                        table.setPageSize(Number(value));
+                    }}
+                >
+                    <Select.Trigger class="h-8 w-[70px]">
+                        {String(table.getState().pagination.pageSize)}
+                    </Select.Trigger>
+                    <Select.Content side="top">
+                        {#each [10, 20, 50, 100, 500, 1000] as pageSize (pageSize)}
+                            <Select.Item value={`${pageSize}`}>
+                                {pageSize}
+                            </Select.Item>
+                        {/each}
+                    </Select.Content>
+                </Select.Root>
+            </div>
+        {/if}
+        <div class="flex w-[100px] items-center justify-center text-sm font-medium mr-2">
             {#if table.getPageCount() > 0}
                 Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
             {:else}

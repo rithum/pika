@@ -58,6 +58,11 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     sessionId: string;
     /** Unique identifier of the user participating in the session */
     userId: string;
+    /**
+     * The type of user who created this session.  Used for filtering sessions by internal vs external users
+     * in session insights. Defaults to 'external-user' if not provided.
+     */
+    userType?: UserType;
     /** Identifier for the specific agent instance */
     agentId: string;
     /** Identifier for the chat app */
@@ -1161,6 +1166,11 @@ export interface SessionSearchAdminRequest {
     search: SessionSearchRequest<RecordOrUndef>;
 }
 
+export interface GetSessionAnalyticsAdminRequest {
+    command: 'getSessionAnalytics';
+    analyticsRequest: SessionAnalyticsRequest;
+}
+
 export interface GetAgentRequest {
     command: 'getAgent';
     agentId: string;
@@ -1351,13 +1361,19 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
      */
     customUserData?: T;
 
-    /** Allows searching for sessions with a title that contains the given string. */
-    titlePartial?: string;
+    /**
+     * Allows searching for sessions by title (partial match), sessionId (exact match), or userId (exact match).
+     * The search will try to match any of these fields.
+     */
+    query?: string;
 
     /**
      * Filter by date range.
      */
     dateFilter?: SessionSearchDateFilter;
+
+    /** Filter by user type (internal-user or external-user). */
+    userType?: UserType[];
 
     /** If true, then we will only return sessions that are flagged for human review and if false the converse. */
     flagged?: boolean;
@@ -2907,6 +2923,7 @@ export type SiteAdminRequest =
     | AddChatSessionFeedbackAdminRequest
     | UpdateChatSessionFeedbackAdminRequest
     | SessionSearchAdminRequest
+    | GetSessionAnalyticsAdminRequest
     | GetChatMessagesAsAdminRequest
     | CreateOrUpdateTagDefinitionAdminRequest
     | DeleteTagDefinitionAdminRequest
@@ -2934,6 +2951,7 @@ export const SiteAdminCommand = [
     'addChatSessionFeedback',
     'updateChatSessionFeedback',
     'sessionSearch',
+    'getSessionAnalytics',
     'getChatMessagesAsAdmin',
     'createOrUpdateTagDefinition',
     'deleteTagDefinition',
@@ -4468,43 +4486,6 @@ export interface WidgetInstance {
 }
 
 /**
- * This is used when manually registering a custom element as a spotlight widget by a comopnent in the client.
- */
-export interface SpotlightWidgetDefinition {
-    /** @see TagDefinition.tag */
-    tag: string;
-
-    /** @see TagDefinition.scope */
-    scope: string;
-
-    /** @see TagDefinitionWidgetWebComponent.customElementName */
-    customElementName?: string;
-
-    /** @see TagDefinition.tagTitle */
-    tagTitle: string;
-
-    /** @see TagDefinitionWidgetWebComponent.sizing */
-    sizing?: WidgetSizing;
-
-    /** @see TagDefinition.componentAgentInstructionsMd */
-    componentAgentInstructionsMd?: Record<string, string>;
-
-    /**
-     * If true and there isn't an instance of this widget already created as a spotlight widget, then a new instance will be created.
-     */
-    autoCreateInstance?: boolean;
-
-    /** The display order of the widget in the spotlight. If not provided, is put first. */
-    displayOrder?: number;
-
-    /** Defaults to true.  If true, then only one instance of this widget can be created. */
-    singleton?: boolean;
-
-    /** If false, widget won't appear in unpinned menu. Default: true. Use false for base widgets that only create instances */
-    showInUnpinnedMenu?: boolean;
-}
-
-/**
  * Metadata for a persistent spotlight instance (saved via Virtual Tags Pattern)
  */
 export interface SpotlightInstanceMetadata {
@@ -5257,39 +5238,6 @@ export interface InvokeAgentAsComponentOptions {
 }
 
 /**
- * Action button that appears in the widget's chrome (title bar, toolbar, etc.)
- *
- * @example
- * ```js
- * const action: WidgetAction = {
- *   id: 'refresh',
- *   title: 'Refresh data',
- *   iconSvg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">...</svg>',
- *   callback: async () => { await fetchData(); }
- * };
- * ```
- */
-export interface WidgetAction {
-    /** Unique identifier for this action */
-    id: string;
-
-    /** Tooltip/label for the action (also button text in dialog context) */
-    title: string;
-
-    /** SVG markup string for the icon (e.g., from extractIconSvg() helper) */
-    iconSvg: string;
-
-    /** Whether action is currently disabled */
-    disabled?: boolean;
-
-    /** If true, renders as default/prominent button (used in dialog context) */
-    primary?: boolean;
-
-    /** Handler when clicked */
-    callback: () => void | Promise<void>;
-}
-
-/**
  * A single action button that will appear at the top of the chat app in the title bar or
  * that will appear in a button menu that pops up when the user clicks the title bar action button.
  *
@@ -5368,65 +5316,6 @@ export interface ChatAppActionMenu {
      *   ]
      */
     actions: ChatAppActionMenuElements[];
-}
-
-/**
- * Metadata that widgets register with the parent app
- *
- * @example
- * ```js
- * const metadata: WidgetMetadata = {
- *   title: 'My Widget',
- *   iconSvg: '<svg>...</svg>',
- *   iconColor: '#001F3F',
- *   actions: [
- *     { id: 'refresh', title: 'Refresh', iconSvg: '<svg>...</svg>', callback: () => refresh() }
- *   ]
- * };
- * ```
- */
-export interface WidgetMetadata {
-    /** Widget title shown in chrome */
-    title: string;
-
-    /**
-     * Optional Lucide icon name (will be fetched automatically and set as iconSvg).
-     *
-     * The name will be snake cased as in `arrow-big-down` and not `arrowBigDown`
-     */
-    lucideIconName?: string;
-
-    /** Optional icon SVG markup for the widget title */
-    iconSvg?: string;
-
-    /** Optional color for the widget icon (hex, rgb, or CSS color name) */
-    iconColor?: string;
-
-    /** Optional action buttons */
-    actions?: WidgetAction[];
-
-    /** Optional loading status */
-    loadingStatus?: {
-        loading: boolean;
-        loadingMsg?: string;
-    };
-}
-
-/**
- * Internal state tracked for each widget instance
- */
-export interface WidgetMetadataState extends WidgetMetadata {
-    /** Unique instance ID for this widget */
-    instanceId: string;
-
-    /** Widget scope (e.g., 'weather', 'pika') */
-    scope: string;
-
-    /** Widget tag (e.g., 'favorite-cities') */
-    tag: string;
-
-    /** Rendering context (spotlight, canvas, dialog, inline) */
-    renderingContext: WidgetRenderingContextType;
 }
 
 export interface IUserWidgetDataStoreState {
@@ -5539,3 +5428,150 @@ export interface WidgetContextSourceDef extends ContextSourceDef {
 
 /** These are what get added to the converstaion state as context sources. */
 export type ContextSource = WidgetContextSourceDef;
+
+/**
+ * Session Analytics Types
+ * Used for the Session Analytics dashboard to show platform usage metrics, cost analytics, and at-a-glance KPIs.
+ */
+
+export interface SessionAnalyticsRequest {
+    /** Date range for the analytics query (ISO 8601 formatted strings) */
+    dateRange: {
+        start: string;
+        end: string;
+    };
+    /** Optional filter by specific entity ID */
+    entityId?: string;
+    /** Entity attribute name from siteFeatures, used for entity aggregations */
+    entityAttributeName?: string;
+    /** Optional filter by specific chat app IDs */
+    chatAppIds?: string[];
+    /** Optional filter by user types (internal-user, external-user) */
+    userTypes?: UserType[];
+    /** Optional filter by invocation modes. Defaults to undefined and 'chat-app' (user-initiated only) if not provided. */
+    invocationModes?: (ConverseInvocationMode | 'undefined')[];
+    /** Time grouping for time series data (day, week, month) */
+    groupBy?: 'day' | 'week' | 'month';
+    /** Limit for top entities/chat apps results */
+    limit?: number;
+}
+
+export interface SessionAnalyticsResponse {
+    /** Whether the request was successful */
+    success: boolean;
+    /** Error message if success is false */
+    error?: string;
+    /** Summary metrics across the entire date range */
+    summary: SessionAnalyticsSummary;
+    /** Time series data points */
+    timeSeries: SessionAnalyticsTimeSeriesPoint[];
+    /** Top entities by usage (only populated if entityAttributeName was provided) */
+    topEntities: SessionAnalyticsEntityUsage[];
+    /** Top chat apps by usage */
+    topChatApps: SessionAnalyticsChatAppUsage[];
+    /** Cost breakdown by invocation mode */
+    costByInvocationMode: SessionAnalyticsCostByMode[];
+}
+
+export interface SessionAnalyticsSummary {
+    /** Total number of sessions */
+    totalSessions: number;
+    /** Number of unique users */
+    uniqueUsers: number;
+    /** Number of unique entities (only populated if entity feature enabled) */
+    uniqueEntities?: number;
+    /** Total number of messages across all sessions */
+    totalMessages: number;
+    /** Total input tokens consumed */
+    totalInputTokens: number;
+    /** Total output tokens generated */
+    totalOutputTokens: number;
+    /** Total input cost in USD */
+    totalInputCost: number;
+    /** Total output cost in USD */
+    totalOutputCost: number;
+    /** Total cost (input + output) in USD */
+    totalCost: number;
+    /** Average cost per session in USD */
+    avgCostPerSession: number;
+    /** Average tokens per session */
+    avgTokensPerSession: number;
+}
+
+export interface SessionAnalyticsTimeSeriesPoint {
+    /** ISO 8601 formatted date for this data point */
+    date: string;
+    /** Number of sessions in this time period */
+    sessionCount: number;
+    /** Number of unique users in this time period */
+    uniqueUserCount: number;
+    /** Number of messages in this time period */
+    messageCount: number;
+    /** Input tokens consumed in this time period */
+    inputTokens: number;
+    /** Output tokens generated in this time period */
+    outputTokens: number;
+    /** Input cost in USD for this time period */
+    inputCost: number;
+    /** Output cost in USD for this time period */
+    outputCost: number;
+    /** Total cost in USD for this time period */
+    totalCost: number;
+}
+
+export interface SessionAnalyticsEntityUsage {
+    /** Entity identifier */
+    entityId: string;
+    /** Entity name (human-readable) */
+    entityName?: string;
+    /** Number of sessions for this entity */
+    sessionCount: number;
+    /** Number of unique users for this entity */
+    uniqueUserCount: number;
+    /** Number of messages for this entity */
+    messageCount: number;
+    /** Total cost in USD for this entity */
+    totalCost: number;
+    /** Input tokens consumed for this entity */
+    inputTokens: number;
+    /** Output tokens generated for this entity */
+    outputTokens: number;
+}
+
+export interface SessionAnalyticsChatAppUsage {
+    /** Chat app identifier */
+    chatAppId: string;
+    /** Chat app name (human-readable) */
+    chatAppName?: string;
+    /** Number of sessions for this chat app */
+    sessionCount: number;
+    /** Number of unique users for this chat app */
+    uniqueUserCount: number;
+    /** Number of messages for this chat app */
+    messageCount: number;
+    /** Total cost in USD for this chat app */
+    totalCost: number;
+    /** Input tokens consumed for this chat app */
+    inputTokens: number;
+    /** Output tokens generated for this chat app */
+    outputTokens: number;
+}
+
+export interface SessionAnalyticsCostByMode {
+    /** Invocation mode (including 'undefined' for missing/undefined mode) */
+    invocationMode: string;
+    /** Number of sessions for this mode */
+    sessionCount: number;
+    /** Total cost in USD for this mode */
+    totalCost: number;
+    /** Input cost in USD for this mode */
+    inputCost: number;
+    /** Output cost in USD for this mode */
+    outputCost: number;
+    /** Input tokens consumed for this mode */
+    inputTokens: number;
+    /** Output tokens generated for this mode */
+    outputTokens: number;
+    /** Human-readable description of the mode */
+    description: string;
+}

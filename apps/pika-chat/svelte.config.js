@@ -13,9 +13,6 @@ const config = {
         csp: {
             mode: 'auto'
         },
-        csrf: {
-            checkOrigin: true
-        },
         alias: {
             $lib: path.resolve('./src/lib'),
             '$lib/*': path.resolve('./src/lib/*'),

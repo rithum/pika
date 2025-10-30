@@ -120,29 +120,28 @@
             <SlideoutContent class="overflow-hidden">
                 <ChatTitlebar />
 
-                {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
-                    <!-- Canvas mode: Split screen with resizable panels -->
-                    <Resizable.PaneGroup direction="horizontal" class="w-full h-full">
-                        <Resizable.Pane defaultSize={50} minSize={30}>
-                            <div class="overflow-auto w-full h-full">
-                                {@render children?.()}
-                            </div>
-                        </Resizable.Pane>
+                <!-- Always use resizable layout to keep ChatHome in stable DOM location -->
+                <Resizable.PaneGroup direction="horizontal" class="w-full h-full">
+                    <Resizable.Pane
+                        defaultSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 50 : 100}
+                        minSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 30 : 100}
+                        maxSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 70 : 100}
+                    >
+                        <div class="overflow-auto w-full h-full">
+                            {@render children?.()}
+                        </div>
+                    </Resizable.Pane>
 
+                    {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
                         <Resizable.Handle withHandle />
 
-                        <Resizable.Pane defaultSize={50} minSize={30}>
+                        <Resizable.Pane defaultSize={50} minSize={30} maxSize={70}>
                             <div class="w-full h-full overflow-auto">
                                 <CanvasWidgetRenderer />
                             </div>
                         </Resizable.Pane>
-                    </Resizable.PaneGroup>
-                {:else}
-                    <!-- Normal mode: Full width chat -->
-                    <div class="overflow-auto w-full h-full">
-                        {@render children?.()}
-                    </div>
-                {/if}
+                    {/if}
+                </Resizable.PaneGroup>
             </SlideoutContent>
         </Slideout>
     </SlideoutProvider>

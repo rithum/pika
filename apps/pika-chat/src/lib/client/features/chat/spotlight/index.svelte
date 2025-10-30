@@ -349,7 +349,7 @@
         {#if spotlightWidgets.length > 0}
             <div class="spotlight-content {isVisible ? 'visible' : 'hidden'}">
                 <Carousel.Root setApi={(emblaApi: any) => (api = emblaApi)} opts={{ align: 'start' }}>
-                    <Carousel.Content>
+                    <Carousel.Content class="justify-center">
                         {#each spotlightWidgets as widget (widget.tagDefinition.scope + '.' + widget.tagDefinition.tag)}
                             {@const tagId = `${widget.tagDefinition.scope}.${widget.tagDefinition.tag}`}
                             {@const instanceId = widgetInstanceIds.get(tagId)}
@@ -395,10 +395,10 @@
                                                 </span>
                                             </div>
                                             <div class="flex items-center flex-shrink-0 -mr-0.5">
-                                                {#if actions.length === 1}
-                                                    <WidgetActionButton action={actions[0]} />
-                                                {:else if actions.length > 1}
-                                                    <WidgetActionMenu {actions} />
+                                                {#if actions.length === 1 && instanceId}
+                                                    <WidgetActionButton action={actions[0]} {instanceId} />
+                                                {:else if actions.length > 1 && instanceId}
+                                                    <WidgetActionMenu {actions} {instanceId} />
                                                 {/if}
                                                 <TooltipPlus tooltip="Unpin (click pin button top right to re-pin)">
                                                     <Button
@@ -419,7 +419,7 @@
                                         <!-- Content Section (takes remaining height) -->
                                         <div class="w-full flex-1 overflow-y-auto relative">
                                             <!-- Widget Container -->
-                                            <div class="w-full min-h-full" use:registerContainer={tagId}></div>
+                                            <div class="w-full min-h-full h-full" use:registerContainer={tagId}></div>
 
                                             <!-- Footer Section (overlays on content, animates up) -->
 

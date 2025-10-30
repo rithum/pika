@@ -78,7 +78,9 @@ export const chatSessionOpenSearchMappings = {
             title: { type: 'text' },
             last_message_id: { type: 'keyword' },
             test_type: { type: 'keyword' },
-            source: { type: 'keyword' },
+            source_keyword: { type: 'keyword' },
+            user_type_keyword: { type: 'keyword' },
+            invocation_mode_keyword: { type: 'keyword' },
 
             // Cost and token fields
             input_cost: { type: 'double' },
@@ -292,11 +294,17 @@ export const osIndexMeta: { [K in DomainIndex]: OpenSearchIndexMetadata<K> } = {
             const converted = convertChatSessionToSnakeFromCamelCase(obj);
             return {
                 ...converted,
-                last_index_date: new Date().toISOString()
+                last_index_date: new Date().toISOString(),
+                // Copy fields to keyword variants for aggregations
+                invocation_mode_keyword: converted.invocation_mode,
+                user_type_keyword: converted.user_type,
+                source_keyword: converted.source
             } as ChatSessionOs<any>;
         },
         convertFromOsToBaseType: (obj: ChatSessionOs<any>) => {
-            return convertChatSessionToCamelFromSnakeCase(obj);
+            // Strip out internal keyword fields used only for aggregations
+            const { invocation_mode_keyword, user_type_keyword, source_keyword, ...osDataWithoutKeywordFields } = obj as any;
+            return convertChatSessionToCamelFromSnakeCase(osDataWithoutKeywordFields);
         }
     }
 };

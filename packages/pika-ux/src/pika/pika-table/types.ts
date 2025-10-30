@@ -1,6 +1,16 @@
-import type { AppState } from '$client/app/app.state.svelte';
-import type { Column, ColumnFiltersState, Row, SortingState } from '@tanstack/table-core';
+import type { Column, ColumnFiltersState, Row, SortingState, VisibilityState } from '@tanstack/table-core';
 import type { Component } from 'svelte';
+
+/**
+ * Facade for table settings (column visibility, page size, etc.)
+ * This allows the pika-table component to be used without depending on AppState
+ */
+export interface TableSettingsFacade {
+    getTableColumnVisibilityObject(tableKey: string): VisibilityState;
+    getTableNumRows(tableKey: string, defaultValue: number): number;
+    setTableNumRows(tableKey: string, value: number): void;
+    setTableColumnVisibilityFromObject(tableKey: string, visibility: VisibilityState): void;
+}
 
 export interface FacetedFilterData {
     label: string;
@@ -44,7 +54,7 @@ export interface GlobalFilterProps {
 export interface RowActionMenuItemNode<TData> {
     label: string;
     icon?: Component;
-    onclick?: (row: Row<TData>, appState: AppState) => void;
+    onclick?: (row: Row<TData>) => void;
 }
 
 export interface RowActionMenuItemSubMenu<TData> {

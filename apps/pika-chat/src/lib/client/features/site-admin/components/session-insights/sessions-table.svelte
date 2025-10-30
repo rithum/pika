@@ -6,7 +6,7 @@
 
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import PikaTable from 'pika-ux/pika/pika-table/pika-table.svelte';
-    import type { ServerSideConfig, ServerSideTableState } from 'pika-ux/pika/pika-table/types';
+    import type { ServerSideConfig, ServerSideTableState, TableSettingsFacade } from 'pika-ux/pika/pika-table/types';
     import { Button } from 'pika-ux/shadcn/button';
     import { Card } from 'pika-ux/shadcn/card';
     import { Input } from 'pika-ux/shadcn/input';
@@ -19,6 +19,26 @@
     const appState = getContext<AppState>('appState');
     const siteAdminState = appState.siteAdmin;
     const sessionInsights = siteAdminState.sessionInsights;
+
+    // Create table settings facade
+    const tableSettings: TableSettingsFacade = {
+        getTableColumnVisibilityObject: (tableKey: string) =>
+            appState.settings.getTableColumnVisibilityObject(tableKey),
+        getTableNumRows: (tableKey: string, defaultValue: number) =>
+            appState.settings.getTableNumRows(tableKey, defaultValue),
+        setTableNumRows: (tableKey: string, value: number) => appState.settings.setTableNumRows(tableKey, value),
+        setTableColumnVisibilityFromObject: (tableKey: string, visibility: any) =>
+            appState.settings.setTableColumnVisibilityFromObject(tableKey, visibility),
+    };
+
+    // Track the page size for slicing data (matches server page size)
+    let currentPageSize = $state(500);
+    let currentPageStartIndex = $state(0);
+
+    // Computed: Only show the current page of sessions for traditional pagination
+    let currentPageSessions = $derived(
+        sessionInsights.sessions.slice(currentPageStartIndex, currentPageStartIndex + currentPageSize)
+    );
 
     // Create properly typed versions of Pika components for ChatSession data
 
@@ -73,55 +93,67 @@
         },
 
         requestData: async (tableState: ServerSideTableState) => {
-            // console.log('requestData', tableState);
+            console.log('[SessionsTable] requestData called', {
+                pageIndex: tableState.pageIndex,
+                pageSize: tableState.pageSize,
+                scrollId: tableState.scrollId,
+            });
 
             // Update our local table state
             serverSideTableState = { ...serverSideTableState, ...tableState, isLoading: true };
 
-            // try {
-            //     // Convert TanStack state to SessionSearchRequest format
-            //     const searchRequest: SessionSearchRequest = {
-            //         size: 50,
-            //         scrollId: sessionInsights.searchQuery.scrollId,
+            try {
+                const isFirstPage = tableState.pageIndex === 0;
 
-            //         // Map sorting
-            //         sortBy: tableState.sorting.map((s) => ({
-            //             field: s.id as any,
-            //             order: s.desc ? 'desc' : 'asc',
-            //         })),
+                console.log('[SessionsTable] Performing search:', {
+                    pageIndex: tableState.pageIndex,
+                    isFirstPage,
+                    currentScrollId: sessionInsights.searchQuery.scrollId,
+                });
 
-            //         // Map global filter
-            //         titlePartial: tableState.globalFilter,
+                if (isFirstPage) {
+                    // New search - clear everything and start fresh
+                    currentPageStartIndex = 0;
+                    await sessionInsights.performSearch(false);
+                    currentPageSize = sessionInsights.sessions.length;
+                } else {
+                    // Pagination - append new data to preserve scrollId
+                    currentPageStartIndex = sessionInsights.sessions.length;
+                    await sessionInsights.performSearch(true);
+                    currentPageSize = sessionInsights.sessions.length - currentPageStartIndex;
 
-            //         // Extract specific filters from columnFilters
-            //         insights: extractInsightsFilter(tableState.columnFilters),
-            //         feedbackSeverity: extractFeedbackFilter(tableState.columnFilters),
+                    console.log('[SessionsTable] Page boundaries:', {
+                        startIndex: currentPageStartIndex,
+                        endIndex: sessionInsights.sessions.length,
+                        pageSize: currentPageSize,
+                    });
+                }
 
-            //         // Use session insights date range
-            //         // createDate: sessionInsights.simpleSearch.dateRange.start.toISOString(),
-            //         // endCreateDate: sessionInsights.simpleSearch.dateRange.end?.toISOString(),
-            //     };
+                // Update table state with response data
+                serverSideTableState = {
+                    ...serverSideTableState,
+                    isLoading: false,
+                    totalRecords: undefined, // We don't have total count with cursor pagination
+                    hasNextPage: sessionInsights.hasMore,
+                    scrollId: sessionInsights.searchQuery.scrollId,
+                    error: undefined,
+                };
 
-            //     // Call session insights search with the constructed request
-            //     // await sessionInsights.performSearchWithRequest(searchRequest);
-
-            //     // Update table state with response data
-            //     serverSideTableState = {
-            //         ...serverSideTableState,
-            //         isLoading: false,
-            //         totalRecords: undefined, //TODO: sessionInsights.totalRecords,
-            //         hasNextPage: sessionInsights.hasMore,
-            //         scrollId: sessionInsights.searchQuery.scrollId,
-            //         error: undefined,
-            //     };
-            // } catch (error) {
-            //     serverSideTableState = {
-            //         ...serverSideTableState,
-            //         isLoading: false,
-            //         error: error instanceof Error ? error.message : 'Unknown error',
-            //     };
-            //     throw error;
-            // }
+                console.log('[SessionsTable] Search complete:', {
+                    totalSessionsCount: sessionInsights.sessions.length,
+                    currentPageStart: currentPageStartIndex,
+                    currentPageSize: currentPageSize,
+                    hasMore: sessionInsights.hasMore,
+                });
+            } catch (error) {
+                console.error('[SessionsTable] Search error:', error);
+                serverSideTableState = {
+                    ...serverSideTableState,
+                    isLoading: false,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                };
+                throw error;
+            }
         },
 
         onError: (error: string) => {
@@ -186,9 +218,12 @@
     <!-- PikaTable Component -->
     <PikaTable
         {columns}
-        data={sessionInsights.sessions}
+        data={currentPageSessions}
         tableKey="session-insights"
         bind:serverSideConfig
+        {tableSettings}
+        showRowsPerPage={false}
+        paginationPlacement="both"
         classes="h-full flex flex-col"
         {toolbarContent}
     />
@@ -202,14 +237,14 @@
         <div class="flex gap-3 items-start">
             <div class="flex items-center gap-1">
                 <Input
-                    placeholder="Search by session title..."
-                    value={sessionInsights.searchQuery.titlePartial}
+                    placeholder="title/session id/user id/user name..."
+                    value={sessionInsights.searchQuery.query}
                     oninput={(e) => {
-                        sessionInsights.searchQuery.titlePartial = (e.currentTarget.value ?? '').trim();
+                        sessionInsights.searchQuery.query = (e.currentTarget.value ?? '').trim();
 
                         // if (
-                        //     sessionInsights.searchQuery.titlePartial &&
-                        //     sessionInsights.searchQuery.titlePartial.length > 3
+                        //     sessionInsights.searchQuery.query &&
+                        //     sessionInsights.searchQuery.query.length > 3
                         // ) {
                         //     sessionInsights.performSearch(false);
                         // }

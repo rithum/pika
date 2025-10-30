@@ -14,6 +14,7 @@ import {
     getChatApp,
     getInstructionAssistanceConfigFromSsm,
     getInstructionsAddedForUserMemory,
+    getSessionAnalytics,
     getUserMemoriesForStrategy,
     searchForSessions,
     searchSemanticDirectives,
@@ -221,6 +222,13 @@ export const POST: RequestHandler = async (event) => {
 
             const search = await searchForSessions(siteAdminReq.search);
             return json({ ...search });
+        } else if (siteAdminReq.command === 'getSessionAnalytics') {
+            if (!('analyticsRequest' in siteAdminReq)) {
+                throw error(400, 'analyticsRequest is required');
+            }
+
+            const analytics = await getSessionAnalytics(siteAdminReq.analyticsRequest);
+            return json({ ...analytics });
         } else if (siteAdminReq.command === 'getChatMessagesAsAdmin') {
             if (!('sessionId' in siteAdminReq)) {
                 throw error(400, 'sessionId is required');

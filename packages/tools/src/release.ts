@@ -105,17 +105,24 @@ function getPrompt(options: { baseBranch: string; workingVersion?: string; exist
     if (options.existingVersion) {
         templateName = 'PROMPT_EXISTING_VERSION';
         variables.existingVersion = options.existingVersion;
+        // For existing version, we're working on the NEXT version, so we need to detect it
+        // For now, just use the existing version in the link (user can update if needed)
+        variables.version = options.existingVersion;
     } else if (options.addToUnpublishedVersion && options.finalizeVersion) {
         templateName = 'PROMPT_UNPUBLISHED_VERSION';
         variables.finalizeVersion = options.finalizeVersion;
+        variables.version = options.finalizeVersion;
     } else if (options.finalizeVersion) {
         templateName = 'PROMPT_FINALIZE';
         variables.finalizeVersion = options.finalizeVersion;
+        variables.version = options.finalizeVersion;
     } else if (options.workingVersion) {
         templateName = 'PROMPT_INCREMENTAL';
         variables.workingVersion = options.workingVersion;
+        variables.version = options.workingVersion;
     } else {
         templateName = 'PROMPT_INCREMENTAL';
+        variables.version = '0.0.0'; // Fallback, should not happen
     }
 
     const template = templates.get(templateName);

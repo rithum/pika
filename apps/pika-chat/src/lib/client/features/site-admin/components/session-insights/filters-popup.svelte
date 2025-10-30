@@ -13,6 +13,7 @@
     import DatePopup from './date-popup.svelte';
     import ChatAppsFilter from './filters/chatapps-filter.svelte';
     import EntityFilter from './filters/entity-filter.svelte';
+    import UserTypeFilter from './filters/user-type-filter.svelte';
     import FeedbackInternalCommentStatusFilter from './filters/feedback-internal-comment-status-filter.svelte';
     import FeedbackInternalCommentTypeFilter from './filters/feedback-internal-comment-type-filter.svelte';
     import FeedbackSeverityFilter from './filters/feedback-severity-filter.svelte';
@@ -104,6 +105,7 @@
                             <EntityFilter bind:sessionAttributes={sessionInsights.searchQuery.customUserData} />
                         {/if}
                     {/if}
+                    <UserTypeFilter bind:userType={sessionInsights.searchQuery.userType} />
                     <FlaggedFilter bind:flagged={sessionInsights.searchQuery.flagged} />
                 </div>
             </div>

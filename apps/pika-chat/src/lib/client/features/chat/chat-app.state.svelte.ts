@@ -8,17 +8,33 @@ import type { Page } from '@sveltejs/kit';
 import findAndParseJsonLikeText from 'json-like-parse';
 import type {
     AddChatSessionFeedbackRequest,
+    ChatApp,
     ChatAppAction,
     ChatAppActionMenu,
     ChatAppMode,
+    ChatAppOverridableFeatures,
+    ChatMessage,
+    ChatMessageFile,
+    ChatMessageForRendering,
+    ChatMessagesResponse,
+    ChatSession,
     ChatSessionFeedbackForCreate,
+    ChatSessionsResponse,
+    ChatUserLite,
+    ContentAdminRequest,
+    ContentAdminResponse,
     ContextSource,
     ContextSourceDef,
+    ConverseRequest,
     CreateSharedSessionRequest,
     CreateSharedSessionResponse,
+    CustomDataUiRepresentation,
+    GetInitialDialogDataResponse,
     GetPinnedSessionsRequest,
     GetPinnedSessionsResponse,
     GetRecentSharedResponse,
+    GetValuesForAutoCompleteResponse,
+    GetValuesForContentAdminAutoCompleteResponse,
     InvokeAgentAsComponentOptions,
     LLMContextItem,
     PinnedObjAndChatSession,
@@ -27,12 +43,12 @@ import type {
     RetrievedMemoryRecordSummary,
     RevokeSharedSessionRequest,
     RevokeSharedSessionResponse,
+    SaveUserOverrideDataResponse,
     SearchAllMyMemoryRecordsResponse,
     SharedSessionVisitHistory,
     ShareSessionState,
     ShowToastFn,
     SpotlightInstanceMetadata,
-    SpotlightWidgetDefinition,
     StaticWidgetTagDefinition,
     TagDefinition,
     TagDefinitionWidget,
@@ -41,40 +57,20 @@ import type {
     UnrevokeSharedSessionRequest,
     UnrevokeSharedSessionResponse,
     UserDataOverrideSettings,
+    UserOverrideDataCommandRequest,
+    UserOverrideDataCommandResponse,
     ValidateShareAccessRequest,
     ValidateShareAccessResponse,
-    WidgetAction,
     WidgetContextSourceDef,
     WidgetInstance,
-    WidgetMetadata,
-    WidgetMetadataState,
     WidgetRenderingContextType
 } from 'pika-shared/types/chatbot/chatbot-types';
 import {
     ContentAdminCommand,
     DEFAULT_MEMORY_STRATEGIES,
     UserOverrideDataCommand,
-    type ChatApp,
-    type ChatAppOverridableFeatures,
-    type ChatMessage,
-    type ChatMessageFile,
-    type ChatMessageForRendering,
-    type ChatMessagesResponse,
-    type ChatSession,
-    type ChatSessionsResponse,
-    type ChatUserLite,
-    type ContentAdminRequest,
-    type ContentAdminResponse,
-    type ConverseRequest,
-    type CustomDataUiRepresentation,
-    type GetInitialDialogDataResponse,
-    type GetValuesForAutoCompleteResponse,
-    type GetValuesForContentAdminAutoCompleteResponse,
-    type SaveUserOverrideDataResponse,
-    type UserOverrideDataCommandRequest,
-    type UserOverrideDataCommandResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
-import type { IChatAppState, IWidgetMetadataAPI } from 'pika-shared/types/chatbot/webcomp-types';
+import type { IChatAppState, IWidgetMetadataAPI, PikaWCContext, SpotlightWidgetDefinition, WidgetAction, WidgetMetadata, WidgetMetadataState } from 'pika-shared/types/chatbot/webcomp-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import type { Component, Snippet } from 'svelte';
@@ -515,6 +511,30 @@ export class ChatAppState implements IChatAppState {
      */
     getWidgetInstance(instanceId: string): WidgetInstance | undefined {
         return this.#widgetInstances.get(instanceId);
+    }
+
+    /**
+     * Get the full PikaWCContext for a widget instance.
+     * This is useful for action callbacks and other scenarios where you need the complete context.
+     * 
+     * @param instanceId The widget instance ID
+     * @returns The PikaWCContext for this instance, or undefined if instance not found
+     */
+    getWidgetContext(instanceId: string): PikaWCContext | undefined {
+        const instance = this.#widgetInstances.get(instanceId);
+        if (!instance) {
+            return undefined;
+        }
+
+        // Reconstruct the PikaWCContext (same structure as created during injection)
+        return {
+            instanceId,
+            renderingContext: instance.renderingContext,
+            appState: this.#appState,
+            chatAppState: this,
+            chatAppId: this.#chatApp.chatAppId,
+            dataForWidget: {}, // Data is already in the widget, doesn't need to be in context
+        };
     }
 
     /**
@@ -3060,6 +3080,11 @@ export class ChatAppState implements IChatAppState {
 
         this.#manuallyRegisteredTagDefs.push(tagDef);
 
+        // Store metadata if provided
+        if (definition.metadata) {
+            this.#spotlightWidgetMetadata.set(tagId, definition.metadata);
+        }
+
         // Handle autoCreateInstance (defaults to true)
         const autoCreateInstance = definition.autoCreateInstance ?? true;
         if (!autoCreateInstance) {
@@ -3276,40 +3301,85 @@ export class ChatAppState implements IChatAppState {
      * @param tagId Format: "scope.tag"
      * @param renderingContext Which rendering context to use
      * @param data Optional data/props to pass to the component
+     * @param metadata Optional metadata (title, actions, icon) for the widget
      */
     async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void> {
-        // 1. Validate tag exists and is enabled for this context
+        // 1. Parse tagId
         const [scope, tag] = tagId.split('.');
+        if (!scope || !tag) {
+            throw new Error(`Invalid tagId format: ${tagId}. Expected format: "scope.tag"`);
+        }
 
-        // Look in both #tagDefs and #manuallyRegisteredTagDefs
+        // 2. Look for existing tag definition
         let tagDef = this.#tagDefs.find((t) => t.scope === scope && t.tag === tag);
         if (!tagDef) {
             tagDef = this.#manuallyRegisteredTagDefs.find((t) => t.scope === scope && t.tag === tag);
         }
 
-        if (!tagDef) {
-            throw new Error(`Tag ${tagId} not found`);
+        // 3. Auto-generate tag definition for canvas/dialog contexts if needed
+        if (renderingContext === 'canvas' || renderingContext === 'dialog') {
+            if (!tagDef) {
+                // Create a new tag definition
+                console.log(`Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.`);
+                
+                tagDef = {
+                    tag,
+                    scope,
+                    tagTitle: tag,
+                    shortTagEx: tag,
+                    canBeGeneratedByLlm: false,
+                    canBeGeneratedByTool: false,
+                    description: tagId,
+                    usageMode: 'chat-app',
+                    status: 'enabled',
+                    renderingContexts: {
+                        [renderingContext]: { enabled: true }
+                    },
+                    widget: {
+                        type: 'web-component',
+                        webComponent: {
+                            customElementName: tagId,
+                            encoding: 'gzip',
+                            encodedSizeBytes: 0,
+                            encodedSha256Base64: '',
+                            mediaType: 'application/javascript'
+                        }
+                    },
+                    createdBy: this.#user.userId,
+                    lastUpdatedBy: this.#user.userId,
+                    createDate: new Date().toISOString(),
+                    lastUpdate: new Date().toISOString()
+                };
+
+                // Register the new tag definition
+                this.#manuallyRegisteredTagDefs.push(tagDef);
+            } else if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
+                // Tag exists but doesn't have the requested rendering context - add it
+                console.log(`Tag ${tagId} exists but doesn't have ${renderingContext} context. Auto-enabling.`);
+                
+                if (!tagDef.renderingContexts) {
+                    tagDef.renderingContexts = {};
+                }
+                tagDef.renderingContexts[renderingContext] = { enabled: true };
+            }
+        } else {
+            // For other contexts (spotlight, inline), require the tag to exist
+            if (!tagDef) {
+                throw new Error(`Tag ${tagId} not found`);
+            }
         }
 
+        // 4. Validate tag status
         if (tagDef.status !== 'enabled') {
             throw new Error(`Tag ${tagId} is not enabled (status: ${tagDef.status})`);
         }
 
-        // Auto-enable canvas and dialog contexts if not explicitly configured
-        if ((renderingContext === 'canvas' || renderingContext === 'dialog') && !tagDef.renderingContexts?.[renderingContext]?.enabled) {
-            console.warn(`Tag ${tagId} does not have ${renderingContext} context explicitly enabled. Auto-enabling for this render.`);
-
-            // Dynamically add the context to the tag definition
-            if (!tagDef.renderingContexts) {
-                tagDef.renderingContexts = {};
-            }
-            tagDef.renderingContexts[renderingContext] = { enabled: true };
-        } else if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
-            // For other contexts (spotlight, inline), enforce the restriction
+        // 5. Validate rendering context is supported
+        if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
             throw new Error(`Tag ${tagId} does not support ${renderingContext} context`);
         }
 
-        // 2. Render based on context
+        // 6. Render based on context
         switch (renderingContext) {
             case 'spotlight':
                 // Add to spotlight with optional data and metadata
@@ -3317,19 +3387,23 @@ export class ChatAppState implements IChatAppState {
                 break;
 
             case 'canvas':
+                // Store metadata in widget state temporarily (will be copied to widgetMetadata map during injection)
                 this.#canvasWidget = {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                     contextConfig: tagDef.renderingContexts.canvas!,
-                    data
+                    data,
+                    metadata
                 };
                 this.#canvasOpen = true;
                 break;
 
             case 'dialog':
+                // Store metadata in widget state temporarily (will be copied to widgetMetadata map during injection)
                 this.#dialogWidget = {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                     contextConfig: tagDef.renderingContexts.dialog!,
-                    data
+                    data,
+                    metadata
                 };
                 this.#widgetDialogOpen = true;
                 break;
@@ -3409,6 +3483,8 @@ export interface CanvasWidgetState {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     contextConfig: any;
     data?: Record<string, any>;
+    /** Optional metadata (title, actions, icon) - applied after injection */
+    metadata?: WidgetMetadata;
     /** Instance ID of the injected widget */
     instanceId?: string;
     /** DOM element reference of the injected widget */
@@ -3422,6 +3498,8 @@ export interface DialogWidgetState {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     contextConfig: any;
     data?: Record<string, any>;
+    /** Optional metadata (title, actions, icon) - applied after injection */
+    metadata?: WidgetMetadata;
     /** Instance ID of the injected widget */
     instanceId?: string;
     /** DOM element reference of the injected widget */

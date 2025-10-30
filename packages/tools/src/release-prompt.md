@@ -48,6 +48,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 These will be included in the next release after {{existingVersion}}.
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
@@ -138,6 +161,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 
 These documentation updates should be included in [{{finalizeVersion}}].
 
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
 
@@ -217,6 +263,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
 Ensure these documentation updates are reflected in the release notes.
+
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before finalizing the release.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
 
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference) before finalizing the release.
@@ -304,6 +373,29 @@ git diff {{baseBranch}}...HEAD -- apps/pika-docs/src/content/docs/
 \`\`\`
 
 Documentation updates should be reflected in the release notes under **Added** or **Changed** categories.
+
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files changed, verify all new interfaces, methods, and properties have @since tags:
+
+\`\`\`bash
+
+# Check for changes to type definition files
+
+git diff {{baseBranch}}...HEAD -- packages/shared/src/types/chatbot/chatbot-types.ts packages/shared/src/types/chatbot/webcomp-types.ts
+\`\`\`
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
 
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference).

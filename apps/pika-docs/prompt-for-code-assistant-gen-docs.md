@@ -296,6 +296,7 @@ description: Brief description for SEO and navigation
 - Reference prerequisite docs
 - Point to detailed reference documentation
 - Suggest "next steps" at the end
+- Use `https://github.com/rithum/pika/` for GitHub repository links
 
 ---
 
@@ -304,7 +305,6 @@ description: Brief description for SEO and navigation
 Based on the feature information, create the appropriate documentation files:
 
 1. **Create the .mdoc file(s)** in the correct location(s)
-
     - Include proper frontmatter (title, description)
     - Follow Diátaxis principles for that doc type
     - Use appropriate Markdoc components
@@ -312,13 +312,11 @@ Based on the feature information, create the appropriate documentation files:
     - Include complete code examples
 
 2. **Update astro.config.mjs navigation**
-
     - Add entries to the appropriate section(s)
     - Place in logical order
     - Use consistent naming
 
 3. **Cross-reference related docs**
-
     - Link from existing docs to new docs where relevant
     - Update index/overview pages if needed
 

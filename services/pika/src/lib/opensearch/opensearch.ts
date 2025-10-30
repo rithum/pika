@@ -1,6 +1,15 @@
 import { Client, Types } from '@opensearch-project/opensearch';
 
-import type { ChatSession, ChatSessionFeedback, RecordOrUndef, ScoreSearchParams, SessionSearchRequest, SessionSearchResponse } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    ChatSession,
+    ChatSessionFeedback,
+    RecordOrUndef,
+    ScoreSearchParams,
+    SessionAnalyticsRequest,
+    SessionAnalyticsResponse,
+    SessionSearchRequest,
+    SessionSearchResponse
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToSnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { convertChatSessionToCamelFromSnakeCase, getEnv, isDevLikeEnv } from '../utils';
 import OsClient from './opensearch-client';
@@ -380,7 +389,12 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 }
                 // Update source filtering based on include flags for this request
                 try {
-                    const excludes: string[] = [];
+                    const excludes: string[] = [
+                        // Internal keyword fields for aggregations (not needed in results)
+                        'invocation_mode_keyword',
+                        'user_type_keyword',
+                        'source_keyword'
+                    ];
                     if (!searchRequest.includeInsights) {
                         excludes.push('insights');
                     }
@@ -389,11 +403,6 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                     }
                     if (excludes.length > 0) {
                         (body as any)._source = { excludes };
-                    } else {
-                        // If both are requested, ensure we don't carry over excludes from previous pages
-                        if ((body as any)._source && (body as any)._source.excludes) {
-                            delete (body as any)._source.excludes;
-                        }
                     }
                 } catch {
                     // best-effort; ignore source filtering errors
@@ -421,8 +430,14 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 track_total_hits: true
             };
             // Configure source filtering so that by default we exclude large nested fields
+            // and internal keyword fields used only for aggregations
             try {
-                const excludes: string[] = [];
+                const excludes: string[] = [
+                    // Internal keyword fields for aggregations (not needed in results)
+                    'invocation_mode_keyword',
+                    'user_type_keyword',
+                    'source_keyword'
+                ];
                 if (!searchRequest.includeInsights) {
                     excludes.push('insights');
                 }
@@ -432,8 +447,9 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 if (excludes.length > 0) {
                     (body as any)._source = { excludes };
                 }
-            } catch {
+            } catch (e) {
                 // best-effort; ignore source filtering errors
+                throw new GeneralError('Failed to configure source filtering' + (e instanceof Error ? `: ${e.message}` : ''));
             }
         }
 
@@ -476,16 +492,60 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 });
             }
 
-            // Text search (titlePartial)
-            if (searchRequest.titlePartial && searchRequest.titlePartial.trim().length > 0) {
+            // Multi-field query search (searches title, sessionId, userId, or user name)
+            if (searchRequest.query && searchRequest.query.trim().length > 0) {
                 if (!body.query.bool.must) {
                     body.query.bool.must = [];
                 }
+                // Use a bool query with should clauses so any of these can match
                 (body.query.bool.must as any[]).push({
-                    wildcard: {
-                        title: `*${searchRequest.titlePartial.toLowerCase()}*`
+                    bool: {
+                        should: [
+                            {
+                                // Partial match on title (case-insensitive)
+                                wildcard: {
+                                    title: `*${searchRequest.query.toLowerCase()}*`
+                                }
+                            },
+                            {
+                                // Exact match on sessionId
+                                term: {
+                                    session_id: searchRequest.query
+                                }
+                            },
+                            {
+                                // Exact match on userId
+                                term: {
+                                    user_id: searchRequest.query
+                                }
+                            },
+                            {
+                                // Partial match on first name (case-insensitive)
+                                wildcard: {
+                                    'session_attributes.first_name': {
+                                        value: `*${searchRequest.query}*`,
+                                        case_insensitive: true
+                                    }
+                                }
+                            },
+                            {
+                                // Partial match on last name (case-insensitive)
+                                wildcard: {
+                                    'session_attributes.last_name': {
+                                        value: `*${searchRequest.query}*`,
+                                        case_insensitive: true
+                                    }
+                                }
+                            }
+                        ],
+                        minimum_should_match: 1
                     }
                 });
+            }
+
+            // User type filtering
+            if (searchRequest.userType && searchRequest.userType.length > 0) {
+                filter.push({ terms: { user_type: searchRequest.userType } });
             }
 
             // Insights filtering (most complex)
@@ -866,6 +926,375 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
             error: error instanceof Error ? error.message : 'Unknown error occurred',
             total: 0,
             pageSize: searchRequest.size ?? MAX_RESULTS
+        };
+    }
+}
+
+/**
+ * Query for session analytics with aggregations for metrics, time series, top entities, and top chat apps
+ */
+export async function queryForSessionAnalytics(request: SessionAnalyticsRequest): Promise<SessionAnalyticsResponse> {
+    try {
+        const index: DomainIndex = 'session';
+        const limit = request.limit ?? 10;
+
+        // Build filters array
+        const filters: any[] = [];
+
+        // Date range filter (required)
+        filters.push({
+            range: {
+                create_date: {
+                    gte: request.dateRange.start,
+                    lte: request.dateRange.end
+                }
+            }
+        });
+
+        // Invocation mode filter
+        // Default behavior: if not provided, include undefined and 'chat-app' (user-initiated only)
+        const invocationModes = request.invocationModes ?? ['undefined', 'chat-app'];
+        const shouldClauses: any[] = [];
+
+        for (const mode of invocationModes) {
+            if (mode === 'undefined') {
+                // Handle missing/undefined invocation_mode_keyword
+                shouldClauses.push({
+                    bool: {
+                        must_not: { exists: { field: 'invocation_mode_keyword' } }
+                    }
+                });
+            } else {
+                // Handle specific invocation mode values
+                shouldClauses.push({
+                    term: { invocation_mode_keyword: mode }
+                });
+            }
+        }
+
+        // Add invocation mode filter with should clauses
+        filters.push({
+            bool: {
+                should: shouldClauses,
+                minimum_should_match: 1
+            }
+        });
+
+        // User type filter
+        if (request.userTypes && request.userTypes.length > 0) {
+            filters.push({
+                terms: { user_type_keyword: request.userTypes }
+            });
+        }
+
+        // Chat app IDs filter
+        if (request.chatAppIds && request.chatAppIds.length > 0) {
+            filters.push({
+                terms: { chat_app_id: request.chatAppIds }
+            });
+        }
+
+        // Entity filter (via session_attributes)
+        if (request.entityId && request.entityAttributeName) {
+            const entityField = `session_attributes.${request.entityAttributeName}`;
+            filters.push({
+                term: { [entityField]: request.entityId }
+            });
+        }
+
+        // Determine calendar_interval for date_histogram based on groupBy
+        let calendarInterval: string;
+        switch (request.groupBy) {
+            case 'week':
+                calendarInterval = '1w';
+                break;
+            case 'month':
+                calendarInterval = '1M';
+                break;
+            case 'day':
+            default:
+                calendarInterval = '1d';
+                break;
+        }
+
+        // Build aggregations
+        const aggs: any = {
+            // Summary metrics
+            total_sessions: {
+                value_count: { field: 'session_id' }
+            },
+            unique_users: {
+                cardinality: { field: 'user_id' }
+            },
+            total_input_tokens: {
+                sum: { field: 'input_tokens' }
+            },
+            total_output_tokens: {
+                sum: { field: 'output_tokens' }
+            },
+            total_input_cost: {
+                sum: { field: 'input_cost' }
+            },
+            total_output_cost: {
+                sum: { field: 'output_cost' }
+            },
+            total_cost: {
+                sum: { field: 'total_cost' }
+            },
+
+            // Time series aggregation
+            time_series: {
+                date_histogram: {
+                    field: 'create_date',
+                    calendar_interval: calendarInterval,
+                    format: 'yyyy-MM-dd',
+                    min_doc_count: 0,
+                    extended_bounds: {
+                        min: request.dateRange.start,
+                        max: request.dateRange.end
+                    }
+                },
+                aggs: {
+                    unique_users: {
+                        cardinality: { field: 'user_id' }
+                    },
+                    input_tokens: {
+                        sum: { field: 'input_tokens' }
+                    },
+                    output_tokens: {
+                        sum: { field: 'output_tokens' }
+                    },
+                    input_cost: {
+                        sum: { field: 'input_cost' }
+                    },
+                    output_cost: {
+                        sum: { field: 'output_cost' }
+                    },
+                    total_cost: {
+                        sum: { field: 'total_cost' }
+                    }
+                }
+            },
+
+            // Top chat apps aggregation
+            top_chat_apps: {
+                terms: {
+                    field: 'chat_app_id',
+                    size: limit,
+                    order: { total_cost: 'desc' }
+                },
+                aggs: {
+                    unique_users: {
+                        cardinality: { field: 'user_id' }
+                    },
+                    total_cost: {
+                        sum: { field: 'total_cost' }
+                    },
+                    input_tokens: {
+                        sum: { field: 'input_tokens' }
+                    },
+                    output_tokens: {
+                        sum: { field: 'output_tokens' }
+                    }
+                }
+            },
+
+            // Cost by invocation mode aggregation
+            cost_by_mode: {
+                terms: {
+                    field: 'invocation_mode_keyword',
+                    missing: '_undefined',
+                    size: 10
+                },
+                aggs: {
+                    session_count: {
+                        value_count: { field: 'session_id' }
+                    },
+                    input_tokens: {
+                        sum: { field: 'input_tokens' }
+                    },
+                    output_tokens: {
+                        sum: { field: 'output_tokens' }
+                    },
+                    input_cost: {
+                        sum: { field: 'input_cost' }
+                    },
+                    output_cost: {
+                        sum: { field: 'output_cost' }
+                    },
+                    total_cost: {
+                        sum: { field: 'total_cost' }
+                    }
+                }
+            }
+        };
+
+        // Add unique entities aggregation only if entityAttributeName is provided
+        if (request.entityAttributeName) {
+            // Entity fields in session_attributes are dynamically mapped as keywords via the dynamic template
+            // So we don't need the .keyword suffix
+            const entityField = `session_attributes.${request.entityAttributeName}`;
+            aggs.unique_entities = {
+                cardinality: { field: entityField }
+            };
+
+            // Add top entities aggregation
+            aggs.top_entities = {
+                terms: {
+                    field: entityField,
+                    size: limit,
+                    order: { total_cost: 'desc' }
+                },
+                aggs: {
+                    unique_users: {
+                        cardinality: { field: 'user_id' }
+                    },
+                    total_cost: {
+                        sum: { field: 'total_cost' }
+                    },
+                    input_tokens: {
+                        sum: { field: 'input_tokens' }
+                    },
+                    output_tokens: {
+                        sum: { field: 'output_tokens' }
+                    }
+                }
+            };
+        }
+
+        // Build the query body
+        const body = {
+            query: {
+                bool: {
+                    filter: filters
+                }
+            },
+            aggs,
+            size: 0 // We only want aggregations, not individual documents
+        };
+
+        // Execute the query
+        const resp = await execOpenSearchCmd(`queryForSessionAnalytics`, `Failed queryForSessionAnalytics`, async (client: Client): Promise<any> => {
+            return await client.search({ index, body } as any);
+        });
+
+        // Process the response
+        const aggregations = resp.body.aggregations;
+
+        // Build summary
+        const totalSessions = aggregations.total_sessions?.value ?? 0;
+        const totalInputTokens = aggregations.total_input_tokens?.value ?? 0;
+        const totalOutputTokens = aggregations.total_output_tokens?.value ?? 0;
+        const totalTokens = totalInputTokens + totalOutputTokens;
+
+        const summary = {
+            totalSessions,
+            uniqueUsers: aggregations.unique_users?.value ?? 0,
+            uniqueEntities: aggregations.unique_entities?.value,
+            totalMessages: 0, // Note: We don't track message count per session in current schema
+            totalInputTokens,
+            totalOutputTokens,
+            totalInputCost: aggregations.total_input_cost?.value ?? 0,
+            totalOutputCost: aggregations.total_output_cost?.value ?? 0,
+            totalCost: aggregations.total_cost?.value ?? 0,
+            avgCostPerSession: totalSessions > 0 ? (aggregations.total_cost?.value ?? 0) / totalSessions : 0,
+            avgTokensPerSession: totalSessions > 0 ? totalTokens / totalSessions : 0
+        };
+
+        // Build time series
+        const timeSeries = (aggregations.time_series?.buckets ?? []).map((bucket: any) => ({
+            date: bucket.key_as_string,
+            sessionCount: bucket.doc_count,
+            uniqueUserCount: bucket.unique_users?.value ?? 0,
+            messageCount: 0, // Note: We don't track message count per session
+            inputTokens: bucket.input_tokens?.value ?? 0,
+            outputTokens: bucket.output_tokens?.value ?? 0,
+            inputCost: bucket.input_cost?.value ?? 0,
+            outputCost: bucket.output_cost?.value ?? 0,
+            totalCost: bucket.total_cost?.value ?? 0
+        }));
+
+        // Build top entities
+        const topEntities = (aggregations.top_entities?.buckets ?? []).map((bucket: any) => ({
+            entityId: bucket.key,
+            entityName: bucket.key, // Will be enriched by caller if needed
+            sessionCount: bucket.doc_count,
+            uniqueUserCount: bucket.unique_users?.value ?? 0,
+            messageCount: 0,
+            totalCost: bucket.total_cost?.value ?? 0,
+            inputTokens: bucket.input_tokens?.value ?? 0,
+            outputTokens: bucket.output_tokens?.value ?? 0
+        }));
+
+        // Build top chat apps
+        const topChatApps = (aggregations.top_chat_apps?.buckets ?? []).map((bucket: any) => ({
+            chatAppId: bucket.key,
+            chatAppName: bucket.key, // Will be enriched by caller if needed
+            sessionCount: bucket.doc_count,
+            uniqueUserCount: bucket.unique_users?.value ?? 0,
+            messageCount: 0,
+            totalCost: bucket.total_cost?.value ?? 0,
+            inputTokens: bucket.input_tokens?.value ?? 0,
+            outputTokens: bucket.output_tokens?.value ?? 0
+        }));
+
+        // Build cost by invocation mode with human-readable descriptions
+        const getModeDescription = (mode: string): string => {
+            switch (mode) {
+                case '_undefined':
+                case 'undefined':
+                    return 'User-Initiated (Undefined)';
+                case 'chat-app':
+                    return 'User-Initiated (Chat App)';
+                case 'direct-agent-invoke':
+                    return 'Direct Agent API';
+                case 'chat-app-component':
+                    return 'Widget Invocations';
+                default:
+                    return mode;
+            }
+        };
+
+        const costByInvocationMode = (aggregations.cost_by_mode?.buckets ?? []).map((bucket: any) => ({
+            invocationMode: bucket.key,
+            sessionCount: bucket.session_count?.value ?? bucket.doc_count,
+            totalCost: bucket.total_cost?.value ?? 0,
+            inputCost: bucket.input_cost?.value ?? 0,
+            outputCost: bucket.output_cost?.value ?? 0,
+            inputTokens: bucket.input_tokens?.value ?? 0,
+            outputTokens: bucket.output_tokens?.value ?? 0,
+            description: getModeDescription(bucket.key)
+        }));
+
+        return {
+            success: true,
+            summary,
+            timeSeries,
+            topEntities,
+            topChatApps,
+            costByInvocationMode
+        };
+    } catch (error) {
+        console.error('queryForSessionAnalytics error:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred',
+            summary: {
+                totalSessions: 0,
+                uniqueUsers: 0,
+                totalMessages: 0,
+                totalInputTokens: 0,
+                totalOutputTokens: 0,
+                totalInputCost: 0,
+                totalOutputCost: 0,
+                totalCost: 0,
+                avgCostPerSession: 0,
+                avgTokensPerSession: 0
+            },
+            timeSeries: [],
+            topEntities: [],
+            topChatApps: [],
+            costByInvocationMode: []
         };
     }
 }

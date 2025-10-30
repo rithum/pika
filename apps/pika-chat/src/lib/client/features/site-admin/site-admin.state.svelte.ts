@@ -47,6 +47,7 @@ import { InstructionAugmentationState } from './components/instruction-augmentat
 import { MemoryState } from './components/memory/memory.state.svelte';
 import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
+import { SessionAnalyticsState } from './components/session-analytics/session-analytics.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -62,6 +63,7 @@ export class SiteAdminState {
     #mode: ChatAppMode = $state('standalone');
     #chatSessions = $state<ChatSession[]>([]);
     #sessionInsights = $state<SessionInsightsState>() as SessionInsightsState;
+    #sessionAnalytics = $state<SessionAnalyticsState>() as SessionAnalyticsState;
     #instructionAugmentation = $state<InstructionAugmentationState>() as InstructionAugmentationState;
     #memory = $state<MemoryState>() as MemoryState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
@@ -96,6 +98,7 @@ export class SiteAdminState {
         addChatSessionFeedback: false,
         updateChatSessionFeedback: false,
         sessionSearch: false,
+        getSessionAnalytics: false,
         getChatMessagesAsAdmin: false,
         createOrUpdateTagDefinition: false,
         deleteTagDefinition: false,
@@ -149,6 +152,13 @@ export class SiteAdminState {
             this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry, this.#identity, this.#showToast);
         }
         return this.#sessionInsights;
+    }
+
+    get sessionAnalytics() {
+        if (!this.#sessionAnalytics) {
+            this.#sessionAnalytics = new SessionAnalyticsState(this.fetchz, this.#appState, this.#userPrefs, this.#identity, this.#showToast);
+        }
+        return this.#sessionAnalytics;
     }
 
     get instructionAugmentation() {

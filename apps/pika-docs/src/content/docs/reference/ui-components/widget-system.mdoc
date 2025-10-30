@@ -14,7 +14,9 @@ The widget system allows LLMs to generate custom UI elements by including specia
 - Instructions for the LLM
 - Access control
 
-## Import Statement
+## Import Statements
+
+### Tag Definition Types
 
 ```typescript
 import type {
@@ -24,6 +26,18 @@ import type {
     TagInstructionForLlm,
     WidgetRenderingContexts
 } from 'pika-shared/types/chatbot/chatbot-types';
+```
+
+### Widget and Metadata Types
+
+```typescript
+import type {
+    WidgetAction,
+    WidgetMetadata,
+    WidgetMetadataState,
+    SpotlightWidgetDefinition,
+    WidgetCallbackContext
+} from 'pika-shared/types/chatbot/webcomp-types';
 ```
 
 ## Tag Definition Types
@@ -646,6 +660,13 @@ interface SpotlightWidgetDefinition {
      * @default true
      */
     showInUnpinnedMenu?: boolean;
+    
+    /**
+     * Optional initial metadata (title, actions, icon) to apply when rendered.
+     * Metadata can be updated later via getWidgetMetadataAPI().
+     * @since 0.11.0
+     */
+    metadata?: WidgetMetadata;
 }
 ```
 
@@ -724,6 +745,198 @@ context.chatAppState.manuallyRegisterSpotlightWidget({
 - Combine with `renderTag()` to pass initial data
 {% /aside %}
 
+## Widget Metadata and Actions
+
+### WidgetMetadata Interface
+
+Widgets can dynamically update their chrome (title bar, actions, loading state):
+
+```typescript
+interface WidgetMetadata {
+    /** Widget title shown in chrome */
+    title: string;
+
+    /**
+     * Optional Lucide icon name (fetched automatically and set as iconSvg).
+     * Use snake-case: 'arrow-big-down' not 'arrowBigDown'
+     */
+    lucideIconName?: string;
+
+    /** Optional icon SVG markup for the widget title */
+    iconSvg?: string;
+
+    /** Optional color for the widget icon (hex, rgb, or CSS color name) */
+    iconColor?: string;
+
+    /** Optional action buttons */
+    actions?: WidgetAction[];
+
+    /** Optional loading status */
+    loadingStatus?: {
+        loading: boolean;
+        loadingMsg?: string;
+    };
+}
+```
+
+### WidgetAction Interface
+
+Action buttons that appear in widget chrome (spotlight, canvas, dialog):
+
+```typescript
+interface WidgetAction {
+    /** Unique identifier for this action */
+    id: string;
+
+    /** Tooltip/label for the action (also button text in dialog context) */
+    title: string;
+
+    /** SVG markup string for the icon */
+    iconSvg: string;
+
+    /** Whether action is currently disabled */
+    disabled?: boolean;
+
+    /** If true, renders as default/prominent button (dialog footer) */
+    primary?: boolean;
+
+    /**
+     * Handler called when action is clicked.
+     * Automatically receives widget context with element, instanceId, and full Pika context.
+     * @since 0.11.0 - Callback now receives WidgetCallbackContext parameter
+     */
+    callback: (context: WidgetCallbackContext) => void | Promise<void>;
+}
+```
+
+### WidgetCallbackContext Interface
+
+Context automatically provided to action button callbacks:
+
+```typescript
+interface WidgetCallbackContext {
+    /** The web component element */
+    element: HTMLElement;
+    
+    /** The unique instance ID assigned to this component */
+    instanceId: string;
+    
+    /** The full Pika context with app state, chat state, and more */
+    context: PikaWCContext;
+}
+```
+
+### Action Button Example
+
+```typescript
+import { extractIconSvg } from 'pika-shared/util/icon-utils';
+
+// Define an action
+const refreshAction: WidgetAction = {
+    id: 'refresh',
+    title: 'Refresh Data',
+    iconSvg: await extractIconSvg('refresh-cw', 'lucide'),
+    disabled: false,
+    callback: async ({ element, instanceId, context }) => {
+        // Access the widget element
+        const widget = element as MyWidget;
+        
+        // Show loading state
+        const metadata = context.chatAppState.getWidgetMetadataAPI(
+            'my-app',
+            'my-widget',
+            instanceId,
+            context.renderingContext
+        );
+        metadata.setLoadingStatus(true, 'Refreshing...');
+        
+        try {
+            // Refresh data
+            await widget.refreshData();
+            context.appState.showToast('Data refreshed!', { type: 'success' });
+        } catch (error) {
+            context.appState.showToast('Refresh failed', { type: 'error' });
+        } finally {
+            metadata.setLoadingStatus(false);
+        }
+    }
+};
+
+// Register metadata with action
+const metadata: WidgetMetadata = {
+    title: 'My Widget',
+    lucideIconName: 'chart-line',
+    actions: [refreshAction]
+};
+
+// Apply metadata when rendering
+await context.chatAppState.renderTag('my-app.my-widget', 'canvas', { data }, metadata);
+```
+
+{% aside type="note" title="Action Callback Context" %}
+**As of v0.11.0**, action button callbacks automatically receive the `WidgetCallbackContext` parameter containing:
+- **element**: Direct access to the widget's DOM element
+- **instanceId**: The unique instance ID for API calls
+- **context**: Full PikaWCContext for accessing app/chat state
+
+This eliminates the need to manually capture context in action definitions.
+{% /aside %}
+
+### Rendering Widgets with Metadata
+
+The `renderTag()` method now accepts optional metadata:
+
+```typescript
+// Render with initial metadata
+await chatAppState.renderTag(
+    'acme.dashboard',
+    'canvas',
+    { userId: '123' },
+    {
+        title: 'Sales Dashboard',
+        lucideIconName: 'bar-chart',
+        actions: [
+            {
+                id: 'export',
+                title: 'Export Data',
+                iconSvg: await extractIconSvg('download', 'lucide'),
+                callback: async ({ context }) => {
+                    // Export logic here
+                }
+            }
+        ]
+    }
+);
+```
+
+**Metadata can be:**
+- Passed initially via `renderTag()` (as shown above)
+- Updated dynamically via `getWidgetMetadataAPI().setMetadata()`
+- Applied when manually registering spotlight widgets via `SpotlightWidgetDefinition.metadata`
+
+### Auto-Generated Tag Definitions
+
+When `renderTag()` is called with `'canvas'` or `'dialog'` context for a tag that doesn't exist, the system automatically generates a minimal tag definition:
+
+```typescript
+// This works even if 'acme.custom-widget' isn't registered in the database
+await chatAppState.renderTag('acme.custom-widget', 'canvas', { data });
+```
+
+**Auto-generated tags include:**
+- Minimal required fields (scope, tag, status)
+- The requested rendering context enabled
+- `usageMode: 'chat-app'`
+- `status: 'enabled'`
+
+{% aside type="tip" title="Flexible Widget Rendering" %}
+This auto-generation feature allows web components to dynamically render other widgets without requiring database tag definitions, perfect for:
+- Development and testing
+- Dynamic component composition
+- Third-party integrations
+- Conditional widgets based on runtime state
+{% /aside %}
+
 ## Best Practices
 
 {% aside type="tip" title="Tag Definition Tips" %}
@@ -734,6 +947,7 @@ context.chatAppState.manuallyRegisterSpotlightWidget({
 5. **Version your widgets** - Include version in S3 key: `widget-v2.js`
 6. **Keep widgets small** - Minimize bundle size for faster loading
 7. **Handle errors gracefully** - Web components should fail gracefully
+8. **Use metadata for dynamic UI** - Leverage action buttons and loading states
 {% /aside %}
 
 ## Security Considerations
@@ -779,6 +993,6 @@ context.chatAppState.manuallyRegisterSpotlightWidget({
 
 ## Type Source Files
 
-- [chatbot-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts) - Tag definition types
-- [webcomp-types.ts](https://github.com/your-org/pika/tree/main/packages/shared/src/types/chatbot/webcomp-types.ts) - Web component interfaces
+- [chatbot-types.ts](https://github.com/rithum/pika/tree/main/packages/shared/src/types/chatbot/chatbot-types.ts) - Tag definition types
+- [webcomp-types.ts](https://github.com/rithum/pika/tree/main/packages/shared/src/types/chatbot/webcomp-types.ts) - Web component interfaces
 

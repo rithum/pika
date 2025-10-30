@@ -79,6 +79,13 @@ const tagDefinitionCache = new LRUCache<string, TagDefinition<TagDefinitionWidge
     ttlAutopurge: true
 });
 
+// Cache for users to avoid re-fetching them repeatedly
+const userCache = new LRUCache<string, ChatUser<RecordOrUndef>>({
+    max: 100,
+    ttl: 1000 * 60 * 5, // 5 minutes
+    ttlAutopurge: true
+});
+
 /**
  * This is a handler for a lambda function that is used to stream a conversation to the client.
  * It is decorated with the enhancedStreamifyResponse decorator which is a wrapper around the lambda-stream library.
@@ -271,6 +278,31 @@ export const handler = enhancedStreamifyResponse(
 
             const entityValue = getEntityIdForUser(user, simpleUser.customUserData, converseRequest.entityAttributeNameInUserCustomData);
 
+            // Look up userType from the ChatUser table
+            let userType = user.userType;
+            if (!userType) {
+                // Try to get from cache first
+                let cachedUser = userCache.get(simpleUser.userId);
+                if (!cachedUser) {
+                    // Not in cache, fetch from database
+                    try {
+                        cachedUser = await getUser(simpleUser.userId);
+                        if (cachedUser) {
+                            userCache.set(simpleUser.userId, cachedUser);
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to fetch user ${simpleUser.userId} for userType lookup:`, error);
+                        // TODO: Should we be throwing an exception if the user doesn't really exist? I think so
+                    }
+                }
+                userType = cachedUser?.userType ?? 'external-user'; // Default to external-user if not found
+                console.log('UserType lookup:', {
+                    userId: simpleUser.userId,
+                    userType,
+                    fromCache: !!userCache.get(simpleUser.userId)
+                });
+            }
+
             console.log('Ensuring chat session...');
             const [chatSession, isNewSession] = await ensureChatSession(
                 user,
@@ -281,7 +313,8 @@ export const handler = enhancedStreamifyResponse(
                 invocationMode,
                 features?.entity?.enabled ?? false,
                 entityValue,
-                converseRequest.source ?? 'user'
+                converseRequest.source ?? 'user',
+                userType
             );
             console.log('Chat session ensured:', {
                 sessionId: chatSession.sessionId,
