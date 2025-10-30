@@ -112,6 +112,7 @@ If adding breaking changes, also update:
 - \`releases.json\` - Ensure version entry has \`breaking: true\`, migration guide URL, and affected components
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update unreleased section
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link
+- \`apps/pika-docs/sidebar-config.ts\` - Add new migration guide to the "Migration Guides" items array (newest first)
 
 **Action Required:** Add new entries to the next version section (NOT [{{existingVersion}}]). [{{existingVersion}}] is locked and published.
 ```
@@ -217,6 +218,7 @@ If adding breaking changes to [{{finalizeVersion}}], ensure:
 
 - \`releases.json\` - Ensure {{finalizeVersion}} entry has \`breaking: true\` if adding breaking changes
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section to reflect breaking changes
+- \`apps/pika-docs/sidebar-config.ts\` - Ensure migration guide is added to sidebar navigation if not already present
 
 **Action Required:** Add to [{{finalizeVersion}}] - perfect for last-minute fixes!
 ```
@@ -324,6 +326,7 @@ If you added new features but haven't documented them yet, use the documentation
 If [{{finalizeVersion}}] has breaking changes:
 
 - Ensure migration guide exists at \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[name].mdoc\`
+- **Ensure migration guide is in sidebar**: Update \`apps/pika-docs/sidebar-config.ts\` to add to "Migration Guides" items array (newest first)
 - Link from changelog entry to migration guide
 - Verify \`releases.json\` entry has \`breaking: true\` and migration guide URL
 - Update \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` with breaking change notice
@@ -431,7 +434,7 @@ If you detect breaking changes:
 2. Create migration guide at: \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[feature-name].mdoc\`
 3. Include: What changed, Why, Who's affected, Step-by-step migration, Before/After examples
 4. Link from changelog: \`See: [Migration Guide](/platform/releases/migration-guides/[name])\`
-5. Update \`apps/pika-docs/astro.config.mjs\` if adding new migration guides to the Platform Info sidebar navigation
+5. **Add to sidebar navigation**: Update \`apps/pika-docs/sidebar-config.ts\` to add the new migration guide to the "Migration Guides" items array (add at the top, newest first)
 6. Update \`releases.json\` - Ensure the version {{workingVersion}} entry has \`breaking: true\` and proper migration guide URL
 
 **Writing Standards:**
@@ -448,6 +451,7 @@ If adding breaking changes, also update:
 - \`releases.json\` - Ensure version {{workingVersion}} has \`breaking: true\`, migration guide URL, and affected components listed
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update the "What's New" section if needed
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link to the index
+- \`apps/pika-docs/sidebar-config.ts\` - Add new migration guide to the "Migration Guides" items array (newest first)
 
 **Action Required:** Add new entries to [{{workingVersion}}]. If I've run this before, append to existing entries.
 ```
@@ -499,7 +503,21 @@ Use code blocks with \`\`\`typescript for TypeScript and \`\`\`bash for shell co
 
 Include warnings/notes using markdoc syntax: \`{% aside type="caution" %}\` for critical steps.
 
-**Note:** If creating a new migration guide, you need to add it to the Platform Info sidebar navigation in \`apps/pika-docs/astro.config.mjs\` under the Platform Info > Releases > Migration Guides section.
+**CRITICAL:** After creating a new migration guide, you MUST add it to the sidebar navigation in \`apps/pika-docs/sidebar-config.ts\` under the "Migration Guides" collapsed section. Add it to the \`items\` array at the top (newest first):
+
+\`\`\`typescript
+{
+    label: 'Migration Guides',
+    collapsed: true,
+    items: [
+        { label: 'Overview', slug: 'platform/releases/migration-guides' },
+        { label: 'Upgrading to X.Y.Z', slug: 'platform/releases/migration-guides/upgrading-to-x-y-z' }, // <-- Add new one here
+        { label: 'Upgrading to 0.5.0', slug: 'platform/releases/migration-guides/upgrading-to-0-5-0' }
+    ]
+}
+\`\`\`
+
+Without this step, the docs build will fail with "Failed to find the topic" error.
 
 **Step 3: Add placeholder to changelog**
 
@@ -524,6 +542,7 @@ Also update:
 - \`releases.json\` - Ensure the unreleased version entry has \`breaking: true\`, \`migrationGuideUrl\`, and \`affectedComponents\`
 - \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update "What's New" section
 - \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide to the index
+- \`apps/pika-docs/sidebar-config.ts\` - Add migration guide to the "Migration Guides" items array (newest first)
 
 **Step 4: Create implementation checklist**
 

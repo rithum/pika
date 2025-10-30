@@ -92,4 +92,25 @@ https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
         font-weight: 600 !important;
         color: var(--sl-color-text) !important;
     }
+
+    /* Make theme selector more compact by hiding option text */
+    starlight-theme-select select {
+        width: auto !important;
+        min-width: 2.5rem !important;
+        padding-inline-end: 1.75rem !important;
+    }
+
+    /* Hide text in theme selector options (dropdown) */
+    starlight-theme-select select option {
+        font-size: 0 !important;
+    }
+
+    /* Additional mobile optimization for theme selector */
+    @media (max-width: 49.999rem) {
+        starlight-theme-select select {
+            width: 2.5rem !important;
+            padding-inline-start: 0.5rem !important;
+            padding-inline-end: 1.5rem !important;
+        }
+    }
 }

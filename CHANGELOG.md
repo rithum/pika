@@ -73,6 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `copy-to-keyword-fields.ts` - Copy data to keyword fields for existing sessions
     - `add-user-type-to-chat-sessions.ts` - Add user type to existing chat sessions
 
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.11.0) for @since 0.11.0 to find all type definitions that were added, updated, or removed in this release.
+
 ### Changed
 
 - **Widget Metadata Flow** - Unified metadata management

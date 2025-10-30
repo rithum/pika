@@ -43,6 +43,7 @@ export default defineConfig({
             },
             favicon: 'favicon-32x32.png',
             components: {
+                Header: './src/overrides/Header.astro',
                 TableOfContents: './src/overrides/TableOfContents.astro',
                 MobileTableOfContents: './src/overrides/MobileTableOfContents.astro',
                 PageTitle: './src/overrides/PageTitle.astro',
