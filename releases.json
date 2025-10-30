@@ -1,7 +1,22 @@
 {
-  "latestVersion": "0.11.2",
-  "currentDevelopment": "0.11.2",
+  "latestVersion": "0.11.3",
+  "currentDevelopment": "0.11.3",
   "releases": [
+    {
+      "version": "0.11.3",
+      "date": "2025-10-30",
+      "status": "released",
+      "breaking": false,
+      "summary": "pika-cli sync command improvements and minor bug fixes",
+      "highlights": [
+        "Improved temp file handling in pika-cli sync command - moved to OS temp directory for cleaner workspace",
+        "Fixed --visualdiff mode to keep temp files available for editor review",
+        "Fixed visual diff command execution for better cross-platform compatibility",
+        "Added automatic cleanup of old pika-sync-* temp directories",
+        "Fixed site admin general settings page header snippet assignment",
+        "Improved OpenSearch error logging for source filtering failures"
+      ]
+    },
     {
       "version": "0.11.2",
       "date": "2025-10-30",
