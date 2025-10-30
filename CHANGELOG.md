@@ -5,12 +5,98 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2025-10-30
+
+### Breaking Changes
+
+- **OpenSearch Keyword Field Migration Required** - Session analytics now uses dedicated keyword fields for aggregations
+    - Requires running `update-session-mapping.ts` to add new fields to OpenSearch index
+    - Requires running `copy-to-keyword-fields.ts` to populate keyword fields for existing sessions
+    - New fields: `invocation_mode_keyword`, `user_type_keyword`, `source_keyword`
+    - Original text fields remain unchanged (additive-only migration)
+    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
+
+- **User Type Migration Required** - Chat sessions now include user type classification
+    - Requires running `add-user-type-to-chat-sessions.ts` to add `user_type` field to existing sessions
+    - Enables filtering sessions by internal vs external users in analytics
+    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
+
+- **WidgetAction Callback Signature Changed** - Widget action callbacks now receive context object
+    - Old: `callback: () => void | Promise<void>`
+    - New: `callback: (context: WidgetCallbackContext) => void | Promise<void>`
+    - Provides access to widget element, instanceId, and full PikaWCContext
+    - Update all custom widget action callbacks to accept the context parameter
+    - See [`WidgetCallbackContext` documentation](https://pika.tools/docs/reference/ui-components/custom-components#WidgetCallbackContext)
+
+### Added
+
+- **Enhanced Session Analytics Dashboard** - Comprehensive analytics with advanced filtering and aggregations
+    - Filter sessions by invocation mode (agent, tool, autonomous, component)
+    - Filter sessions by user type (internal-user, external-user)
+    - Filter sessions by source (user, component-as-user, component)
+    - Cost aggregations by invocation mode with visual charts
+    - Session count trends and distribution visualizations
+    - Export session data with all filters applied
+
+- **Widget Metadata System** - Dynamic UI chrome for widgets across all rendering contexts
+    - Set title, icon, loading status, and custom actions for widgets
+    - Metadata can be set initially via `renderTag()` or dynamically via `getWidgetMetadataAPI()`
+    - Support for spotlight, canvas, and dialog widgets
+    - Actions can be primary buttons or overflow menu items
+    - Widget actions receive full context including element reference
+    - `SpotlightWidgetDefinition` now includes optional `metadata` field
+
+- **Dynamic Widget Registration for Canvas/Dialog** - No tag definitions required
+    - Canvas and dialog rendering contexts now auto-generate tag definitions when needed
+    - Eliminates need for manual tag definition creation during development
+    - Auto-enables requested rendering context if tag exists but context is disabled
+    - Seamlessly integrates with manually registered spotlight widgets
+
+- **Widget Context API** - New method for accessing widget context
+    - `getWidgetContext(instanceId)` returns full `PikaWCContext` for any widget instance
+    - Enables widgets to access context from action callbacks
+    - Provides element reference, instance ID, app state, and data
+
+- **Type Organization Improvements** - Better TypeScript type definitions
+    - Moved `WidgetAction`, `WidgetMetadata`, `WidgetMetadataState`, and `SpotlightWidgetDefinition` to `webcomp-types.ts`
+    - Added `@since 0.11.0` annotations for all new and updated types
+    - Improved JSDoc documentation for widget-related interfaces
+
+- **Automatic User Profile Sync** - Framework automatically syncs updated user information from auth provider
+    - Detects when auth provider returns updated `firstName` or `lastName` for existing users
+    - Automatically updates `chat-user` table when profile information changes
+    - No manual sync required - happens seamlessly during authentication
+    - Ensures user display names stay current across the platform
+
+- **Migration Tooling** - Scripts for data migration
+    - `update-session-mapping.ts` - Add keyword fields to OpenSearch session index
+    - `copy-to-keyword-fields.ts` - Copy data to keyword fields for existing sessions
+    - `add-user-type-to-chat-sessions.ts` - Add user type to existing chat sessions
+
+### Changed
+
+- **Widget Metadata Flow** - Unified metadata management
+    - Metadata from `renderTag()` is now copied to centralized `widgetMetadata` map after injection
+    - `widgetMetadata.get(instanceId)` is now the single source of truth after initialization
+    - Dynamic metadata updates via `getWidgetMetadataAPI()` immediately reflect in UI
+    - Applies consistently across spotlight, canvas, and dialog contexts
+
+- **Session Analytics Backend** - OpenSearch query improvements
+    - All analytics queries now use keyword fields for aggregations
+    - Added `_source` filtering to exclude keyword fields from results
+    - Improved query performance with proper field type usage
+
+### Fixed
+
+- Canvas and dialog widgets now properly respect initial metadata provided to `renderTag()`
+- Widget action button callbacks now receive proper context with element and instance references
+- Metadata updates via `getWidgetMetadataAPI()` now immediately reflect in canvas and dialog renderers
+
 ## [0.10.0] - 2025-10-28
 
 ### Added
 
 - **Dynamic Spotlight Widget Registration** - Web components can programmatically register themselves in spotlight at runtime
-
     - New `manuallyRegisterSpotlightWidget()` method for runtime widget registration
     - No database tag definitions required - perfect for development, testing, and dynamic scenarios
     - Configure via `SpotlightWidgetDefinition` interface: tag, scope, title, element name, and sizing
@@ -19,7 +105,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Integrates seamlessly with database-sourced tags and respects user preferences
 
 - **Context-Aware Widgets** - Widgets can provide dynamic context to AI conversations
-
     - Implement `getContextForLlm()` method to declare available context sources
     - Intelligent LLM-based filtering automatically includes only relevant context
     - Smart deduplication via content hashing - unchanged context isn't resent
@@ -30,20 +115,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Complete TypeScript interfaces: `ContextSourceDef`, `LLMContextItem`, `SentContextRecord`
 
 - **Context Documentation** - Comprehensive guides for context-aware widgets
-
     - [Context-Aware Widgets Capability](/capabilities/customization/context-aware-widgets/) - Overview and benefits
     - [Provide Context from Widgets Guide](/guides/customization/widget-context/) - Implementation guide
     - [Widget Context API Reference](/reference/types/widget-context/) - API documentation
     - [AI-Driven UI Architecture](/why/approach/ai-driven-ui/) - Architectural philosophy
 
 - **Widget Metadata in renderTag()** - Pass metadata directly when rendering
-
     - Optional `metadata` parameter sets title, icon, actions, and loading status at render time
     - Alternative to calling `setOrUpdateWidgetMetadata()` separately
     - Example: `renderTag('acme.widget', 'spotlight', data, { title: 'My Widget', lucideIconName: 'settings' })`
 
 - **Auto-Enabled Canvas and Dialog Contexts** - Flexible rendering without explicit configuration
-
     - Canvas and dialog contexts auto-enable when requested via `renderTag()`
     - No longer requires explicit `renderingContexts` in tag definitions
     - Particularly useful for manually registered spotlight widgets

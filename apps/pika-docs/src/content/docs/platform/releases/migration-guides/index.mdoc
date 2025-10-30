@@ -9,10 +9,45 @@ Step-by-step instructions for upgrading through breaking changes.
 
 ## Available Guides
 
+### [Upgrading to 0.11.0](/platform/releases/migration-guides/upgrading-to-0-11-0/)
+
+**Version:** 0.10.x → 0.11.0  
+**Status:** Current
+
+Breaking changes in this release:
+
+**1. OpenSearch Keyword Field Migration**
+
+- Add new keyword fields to session index for aggregation support
+- Copy data from text fields to keyword fields for existing sessions
+- Required for session analytics dashboard
+
+**2. User Type Migration**
+
+- Add `user_type` field to all chat sessions
+- Enables filtering sessions by internal vs external users
+
+**3. Widget Action Callback Signature Change**
+
+- Action callbacks now receive context object with element reference
+- Breaking API change requires updating custom widget code
+
+**Who's Affected:**
+
+- All deployments (data migration required before deployment)
+- Projects using session analytics
+- Projects with custom widget actions
+
+**Estimated Time:** 15-30 minutes (varies with data volume)
+
+[View Complete Guide →](/platform/releases/migration-guides/upgrading-to-0-11-0/)
+
+---
+
 ### [Upgrading to 0.5.0](/platform/releases/migration-guides/upgrading-to-0-5-0/)
 
 **Version:** 0.4.x → 0.5.0  
-**Status:** Current
+**Status:** Previous
 
 Two breaking changes in this release:
 

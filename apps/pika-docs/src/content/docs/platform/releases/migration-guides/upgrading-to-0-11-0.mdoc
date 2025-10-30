@@ -1,0 +1,344 @@
+---
+title: Upgrading to 0.11.0
+description: Migration guide for upgrading from Pika 0.10.x to 0.11.0 with breaking changes
+---
+
+**Version:** 0.10.x → 0.11.0  
+**Status:** Current Breaking Change
+
+It is breaking in that we need to migrate data from the old fields to the new fields.
+
+This guide covers **breaking changes** in version 0.11.0 that require data migration before deployment.
+
+---
+
+## Overview
+
+Version 0.11.0 introduces significant enhancements to session analytics and widget system that require data migration:
+
+1. **OpenSearch Keyword Fields** - New keyword fields for aggregation support in session analytics
+2. **User Type Migration** - Add user type classification to chat sessions
+
+{% aside type="caution" %}
+**Important:** All migration scripts must be run **before deploying** version 0.11.0 to production. These migrations update existing data in OpenSearch and DynamoDB.
+{% /aside %}
+
+---
+
+## Required Migration Steps
+
+### Prerequisites
+
+Before starting the migration, ensure you have:
+
+1. **Environment Configuration**:
+   - `services/pika/.env.local` with:
+     - `stage` - Your deployment stage
+     - `PIKA_DOMAIN_ENDPOINT` - OpenSearch endpoint
+     - `AWS_REGION` - AWS region
+     - `PIKA_SERVICE_PROJ_NAME_KEBAB_CASE` - Your project name
+
+2. **AWS Credentials**:
+   - Ensure AWS CLI is configured with credentials that have access to:
+     - OpenSearch domain
+     - DynamoDB tables (chat-session, chat-user)
+
+3. **Backup Your Data**:
+   - Consider taking snapshots of your DynamoDB tables and OpenSearch indices before proceeding
+
+---
+
+## Part A: OpenSearch Keyword Field Migration
+
+### Background
+
+Session analytics requires aggregations on certain fields (`invocation_mode`, `user_type`, `source`). These fields were auto-indexed as `text` type by OpenSearch, which doesn't support aggregations. Instead of reindexing all data, we're adding new keyword-specific fields.
+
+**Fields being migrated:**
+- `invocation_mode` → `invocation_mode_keyword`
+- `user_type` → `user_type_keyword`
+- `source` → `source_keyword`
+
+### Step A1: Update OpenSearch Index Mapping
+
+Add the new keyword fields to your existing OpenSearch session index:
+
+```bash
+cd services/pika
+pnpm tsx tools/os/update-session-mapping.ts
+```
+
+**What this does:**
+- Adds `invocation_mode_keyword`, `user_type_keyword`, and `source_keyword` fields to the session index
+- This is an additive-only operation - no existing data is modified
+- The original text fields remain unchanged
+
+**Expected output:**
+```
+Starting session index mapping update...
+Checking if session exists...
+Updating mapping for session...
+✓ Successfully updated mapping for session
+Verifying mapping...
+✓ Confirmed: invocation_mode_keyword field is now in the mapping
+✓ Confirmed: user_type_keyword field is now in the mapping
+✓ Confirmed: source_keyword field is now in the mapping
+
+✅ Mapping update complete!
+```
+
+### Step A2: Copy Data to Keyword Fields
+
+Copy values from text fields to the new keyword fields for all existing documents:
+
+```bash
+cd services/pika
+pnpm tsx tools/os/copy-to-keyword-fields.ts
+```
+
+**What this does:**
+- Uses OpenSearch's `update_by_query` API to bulk-update all session documents
+- Copies values: `invocation_mode` → `invocation_mode_keyword`, `user_type` → `user_type_keyword`, `source` → `source_keyword`
+- Processes documents in batches of 1000 to avoid timeouts
+- Original fields remain unchanged (additive-only operation)
+
+**Expected output:**
+```
+Starting field copy from text fields to keyword variants...
+Checking if session exists...
+Counting all documents...
+Found 15234 total documents
+Copying fields to keyword variants for 15234 documents...
+  - invocation_mode -> invocation_mode_keyword
+  - user_type -> user_type_keyword
+  - source -> source_keyword
+This may take a while for large datasets...
+✓ Update complete!
+  - Total: 15234
+  - Updated: 15234
+  - Deleted: 0
+  - Batches: 16
+  - Version conflicts: 0
+  - Noops: 0
+  - Failures: 0
+
+Verifying the copy...
+✓ Verified 5 sample documents:
+  Session abc123:
+    invocation_mode: agent -> invocation_mode_keyword: agent
+    user_type: internal-user -> user_type_keyword: internal-user
+    source: user -> source_keyword: user
+
+✅ Field copy complete!
+```
+
+{% aside type="tip" %}
+**Note:** After deploying 0.11.0, the lambda functions will automatically populate these keyword fields for all new sessions. This migration only handles existing historical data.
+{% /aside %}
+
+---
+
+## Part B: User Type Migration
+
+### Background
+
+Version 0.11.0 adds user type classification to chat sessions, enabling filtering and analytics by user type (e.g., `internal-user`, `external-user`).
+
+### Step B1: Add User Type to Chat Sessions
+
+Scan all chat sessions and add the `user_type` field by looking up each user in the `chat-user` table:
+
+```bash
+cd services/pika
+pnpm tsx tools/add-user-type-to-chat-user/add-user-type-to-chat-sessions.ts
+```
+
+**What this does:**
+- Scans the chat-session table
+- For each session, looks up the user in the chat-user table
+- Adds `user_type` field to the session (e.g., `internal-user`, `external-user`)
+- Defaults to `external-user` if user is not found in chat-user table
+- Uses caching to minimize DynamoDB reads for users with multiple sessions
+
+**Expected output:**
+```
+Starting migration: Add userType to chat sessions
+Environment:
+  Stage: prod
+  Project: my-project
+  Chat Session Table: my-project-prod-chat-session
+  Chat User Table: my-project-prod-chat-user
+
+Scanning chat sessions and updating with user types...
+Progress: 1000 scanned, 950 updated, 50 skipped
+Progress: 2000 scanned, 1900 updated, 100 skipped
+...
+✅ Migration complete!
+Statistics:
+  Scanned: 15234
+  Updated: 14500
+  Skipped: 734 (already had user_type)
+  Errors: 0
+  User Cache Lookups: 14500
+  User DB Lookups: 342
+```
+
+{% aside type="note" %}
+**Performance:** The script uses an in-memory cache for user lookups, so users with many sessions are only queried once. Typical runtime: 5-15 minutes for 10,000 sessions.
+{% /aside %}
+
+{% aside type="tip" %}
+**Safe to Re-run:** Both migration scripts are idempotent and safe to run multiple times. If a record already has the required data, it will be skipped.
+{% /aside %}
+
+---
+
+## Deployment Steps
+
+After completing all required migration steps:
+
+### 1. Verify Migration Success
+
+Confirm all migrations completed successfully by checking:
+
+**OpenSearch:**
+```bash
+cd services/pika
+# Check a sample session document has keyword fields
+pnpm tsx tools/os/os-tools.ts get session <some-session-id>
+# Should show invocation_mode_keyword, user_type_keyword, source_keyword
+```
+
+**DynamoDB (Chat Sessions):**
+```bash
+# Check that sessions have user_type field
+aws dynamodb get-item \
+  --table-name <your-project>-<stage>-chat-session \
+  --key '{"session_id": {"S": "<some-session-id>"}}'
+# Should show user_type field
+```
+
+### 2. Deploy Version 0.11.0
+
+Deploy your updated application:
+
+```bash
+# Deploy infrastructure (CDK stacks)
+cd services/pika
+pnpm cdk deploy --all
+
+# Deploy application
+cd ../../
+pnpm run deploy
+```
+
+### 3. Test Session Analytics
+
+1. Navigate to Site Admin → Session Analytics
+2. Verify filters work correctly:
+   - Invocation Mode filter (agent, tool, etc.)
+   - User Type filter (internal-user, external-user)
+   - Source filter (user, component)
+3. Check that charts render correctly with aggregated data
+
+---
+
+## Rollback Plan
+
+If you need to rollback after deployment:
+
+### Code Rollback
+
+1. Revert the code changes:
+   ```bash
+   git revert <commit-hash>
+   git push
+   ```
+
+2. Redeploy previous version:
+   ```bash
+   pnpm run deploy
+   ```
+
+### Data Considerations
+
+**Good News:** All migrations are additive-only. No original data was modified or deleted.
+
+- **OpenSearch**: Original fields (`invocation_mode`, `user_type`, `source`) remain unchanged. New keyword fields can be ignored by older code.
+- **DynamoDB Sessions**: `user_type` field can remain (older code will ignore it).
+
+{% aside type="tip" %}
+You can safely rollback the code without rolling back the data. The new fields won't affect older versions of the application.
+{% /aside %}
+
+---
+
+## Troubleshooting
+
+### Migration Script Fails
+
+**Problem:** Script exits with error.
+
+**Solutions:**
+- Check AWS credentials are valid and have required permissions
+- Verify environment variables are correctly set in `.env.local`
+- Check CloudWatch logs for detailed error messages
+- Ensure DynamoDB tables and OpenSearch indices exist
+
+### Partial Migration
+
+**Problem:** Migration script processed some but not all records.
+
+**Solution:**
+- All scripts are idempotent - simply re-run the script
+- Already-migrated records will be skipped
+- Script will continue from where it left off
+
+### Performance Issues
+
+**Problem:** Migration taking too long.
+
+**Solutions:**
+- Migrations use batching and are optimized for large datasets
+- For very large datasets (>100K sessions), consider increasing batch sizes in scripts
+- Monitor CloudWatch for throttling issues
+- OpenSearch script uses `update_by_query` with `scroll_size: 1000` - this can be adjusted if needed
+
+### Missing User Data
+
+**Problem:** Some users don't have `userType` after migration.
+
+**Solution:**
+- **Missing userType**: User doesn't exist in `chat-user` table (defaults to `external-user`)
+
+---
+
+## What's New in 0.11.0
+
+In addition to these data migrations, version 0.11.0 includes:
+
+- **Enhanced Session Analytics Dashboard** - Filter by invocation mode, user type, and source with aggregated charts
+- **Widget Metadata System** - Dynamic UI chrome for widgets (title, actions, icons, loading states)
+- **Action Callback Context** - Widget actions now receive full context including element reference and widget instance
+- **Canvas and Dialog Metadata** - Metadata support extended beyond spotlight to all rendering contexts
+- **Dynamic Widget Registration** - Auto-generation of tag definitions for canvas and dialog widgets
+- **Type Improvements** - Moved widget-related types to `webcomp-types.ts` for better organization
+- **Automatic User Profile Sync** - Framework now detects and updates firstName/lastName when auth provider returns updated values
+
+For complete release notes, see the [Changelog](/platform/releases/changelog).
+
+---
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check the [Troubleshooting](#troubleshooting) section above
+2. Review CloudWatch logs for detailed error messages
+3. Consult the [Platform Documentation](/platform/)
+4. Open an issue on [GitHub](https://github.com/rithum/pika/issues)
+
+---
+
+**Migration Complete?** Return to the [Releases](/platform/releases/) page to learn about the new features in 0.11.0.
+
