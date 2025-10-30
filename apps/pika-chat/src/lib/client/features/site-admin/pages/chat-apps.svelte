@@ -262,8 +262,7 @@
 
     $effect(() => {
         setTimeout(() => {
-            //TODO: fix any
-            siteAdmin.setPageHeaderRight(pageHeaderRightSnippet as any);
+            siteAdmin.setPageHeaderRight(pageHeaderRightSnippet);
         }, 1);
     });
 </script>

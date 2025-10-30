@@ -22,9 +22,6 @@
 
     let { pageHeaderRight = $bindable() }: Props = $props();
 
-    //TODO: fix any
-    pageHeaderRight = pageHeaderRightSnippet as any;
-
     const features = $derived(siteAdmin.siteFeatures);
 
     function formatUserTypes(userTypes?: string[]): string {

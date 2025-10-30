@@ -5,6 +5,15 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2025-10-30
+
+### Fixed
+
+- **Site Admin Type Safety** - Improved TypeScript type handling in site admin pages
+    - Removed unnecessary `as any` type casts for page header snippets
+    - Fixed type safety in chat apps, general settings, instruction augmentation, memory, session analytics, and session insights pages
+    - Cleaned up TODO comments about type fixes
+
 ## [0.11.0] - 2025-10-30
 
 ### Breaking Changes
