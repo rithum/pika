@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.11.1",
-  "currentDevelopment": "0.11.1",
+  "latestVersion": "0.11.2",
+  "currentDevelopment": "0.11.2",
   "releases": [
+    {
+      "version": "0.11.2",
+      "date": "2025-10-30",
+      "status": "released",
+      "breaking": false,
+      "summary": "CI/CD pipeline lockfile sync fix",
+      "highlights": [
+        "Fixed pnpm lockfile synchronization issue causing ERR_PNPM_OUTDATED_LOCKFILE in GitHub Actions",
+        "Regenerated lockfile to sync dependency ordering with package.json files",
+        "Ensures successful frozen-lockfile installation in CI environments"
+      ]
+    },
     {
       "version": "0.11.1",
       "date": "2025-10-30",

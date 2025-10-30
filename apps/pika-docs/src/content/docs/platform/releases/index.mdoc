@@ -7,13 +7,20 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.11.1` (October 30, 2025)
+**Latest Stable:** `0.11.2` (October 30, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+### What's New in 0.11.2
+
+- **CI/CD Pipeline Fix** - Fixed pnpm lockfile synchronization issue
+  - Resolved `ERR_PNPM_OUTDATED_LOCKFILE` error in GitHub Actions workflows
+  - Regenerated lockfile to sync dependency ordering with package.json files
+  - Ensures successful frozen-lockfile installation in CI environments
 
 ### What's New in 0.11.1
 
@@ -177,6 +184,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.11.2  | Oct 30 2025 | Patch    | CI/CD pipeline lockfile sync fix              |
 | 0.11.1  | Oct 30 2025 | Patch    | Type safety improvements in site admin pages  |
 | 0.11.0  | Oct 30 2025 | Breaking | Session analytics and widget metadata system  |
 | 0.10.0  | Oct 28 2025 | Feature  | Context-aware widgets and dynamic spotlight   |
