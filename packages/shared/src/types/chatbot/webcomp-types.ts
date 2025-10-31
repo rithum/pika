@@ -61,6 +61,7 @@ export interface IAppState {
      * @param markdown - The markdown content to convert to HTML
      * @param config - Optional configuration for the markdown renderer
      * @returns The HTML content
+     * @since 0.13.0
      */
     convertMarkdownToHtml(markdown: string, config?: MarkdownRendererConfig): string;
 }

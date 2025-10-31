@@ -1,7 +1,26 @@
 {
-  "latestVersion": "0.12.0",
-  "currentDevelopment": "0.12.0",
+  "latestVersion": "0.13.0",
+  "currentDevelopment": "0.13.0",
   "releases": [
+    {
+      "version": "0.13.0",
+      "date": "2025-10-31",
+      "status": "released",
+      "breaking": false,
+      "summary": "Inference profile cost tracking, AWS resource tagging, and markdown rendering utilities",
+      "highlights": [
+        "Automatic creation of named inference profiles for granular AI model cost tracking in AWS Cost Explorer",
+        "Inference profiles enable per-model cost analysis (Claude 4 Sonnet, Claude 4.5 Haiku, Claude 4.5 Sonnet)",
+        "Comprehensive AWS resource tagging system with dynamic placeholders ({stage}, {accountId}, {region}, etc.)",
+        "New stackTags configuration in pika-config.ts with common, pikaServiceTags, and pikaChatTags categories",
+        "Tags applied to all AWS resources including Lambda, DynamoDB, S3, CloudFront, and inference profiles",
+        "Markdown renderer factory with caching for efficient HTML conversion in web components",
+        "New appState.convertMarkdownToHtml() method for markdown rendering in custom components",
+        "Lambda custom resource utilities for improved maintainability across CloudFormation custom resources",
+        "New documentation: Track AI Model Costs guide, AWS Resource Tags guide, Inference Profile Names reference",
+        "New TypeScript interfaces with @since 0.13.0: PikaConfig.stackTags, MarkdownRendererConfig, IAppState.convertMarkdownToHtml()"
+      ]
+    },
     {
       "version": "0.12.0",
       "date": "2025-10-31",

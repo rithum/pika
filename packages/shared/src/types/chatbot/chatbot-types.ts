@@ -3564,6 +3564,7 @@ export interface PikaConfig {
     /**
      * Optional tags to apply to all AWS resources in your CDK stacks.
      * Supports dynamic placeholders that are replaced at CDK synth time:
+     * @since 0.13.0
      * - {stage}: The deployment stage (e.g., 'dev', 'prod')
      * - {timestamp}: Current timestamp in ISO 8601 format
      * - {accountId}: AWS account ID where the stack is being deployed
@@ -5642,6 +5643,7 @@ export interface SessionAnalyticsCostByMode {
 
 /**
  * Configuration options for markdown-it renderer
+ * @since 0.13.0
  */
 export interface MarkdownRendererConfig {
     /**

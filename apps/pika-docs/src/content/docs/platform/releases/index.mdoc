@@ -7,13 +7,35 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.12.0` (October 31, 2025)
+**Latest Stable:** `0.13.0` (October 31, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+### What's New in 0.13.0
+
+- **Inference Profile Cost Tracking** - Automatic creation of named inference profiles for granular AI model cost analysis
+  - Pika automatically creates named inference profiles for Claude 4 Sonnet, Claude 4.5 Haiku, and Claude 4.5 Sonnet
+  - Enables per-model cost tracking in AWS Cost Explorer
+  - Inference profiles follow naming pattern: `{stackName}-{profileName}` (e.g., `pika-test-claude-sonnet-4-5`)
+  - All profiles tagged with your configured `stackTags` for flexible cost allocation
+  - See [Track AI Model Costs](/guides/admin/track-costs/) guide
+- **AWS Resource Tagging System** - Comprehensive tagging for cost tracking, organization, and compliance
+  - New `stackTags` configuration in `pika-config.ts` with `common`, `pikaServiceTags`, and `pikaChatTags` categories
+  - Dynamic placeholder support: `{stage}`, `{timestamp}`, `{accountId}`, `{region}`, `{pika.projNameKebabCase}`, etc.
+  - Tags applied to all AWS resources including Lambda, DynamoDB, S3, CloudFront, and inference profiles
+  - See [Configure AWS Resource Tags](/guides/deployment/aws-resource-tags/) guide
+- **Type Additions** - New interfaces with `@since 0.13.0` annotations:
+  - `PikaConfig.stackTags` - AWS resource tagging configuration
+  - `MarkdownRendererConfig` - Markdown renderer options
+  - `IAppState.convertMarkdownToHtml()` - Markdown conversion method
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.13.0) for @since 0.13.0 to find all type definitions that were added, updated, or removed in this release.
 
 ### What's New in 0.12.0
 
@@ -209,6 +231,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.13.0  | Oct 31 2025 | Feature  | Inference profile cost tracking and AWS resource tagging |
 | 0.12.0  | Oct 31 2025 | Feature  | Entity method addition and analytics UI improvements |
 | 0.11.3  | Oct 30 2025 | Patch    | pika-cli sync improvements and minor fixes    |
 | 0.11.2  | Oct 30 2025 | Patch    | CI/CD pipeline lockfile sync fix              |
