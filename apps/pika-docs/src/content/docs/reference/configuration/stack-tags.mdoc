@@ -1,0 +1,410 @@
+---
+title: Stack Tags Configuration
+description: Reference documentation for configuring AWS resource tags in pika-config.ts
+---
+
+Complete reference for configuring AWS resource tags using the `stackTags` property in `pika-config.ts`.
+
+## Overview
+
+The `stackTags` property allows you to tag all AWS resources in your Pika deployment for cost tracking, organization, and compliance.
+
+## Configuration Schema
+
+```typescript
+interface PikaConfig {
+    stackTags?: {
+        common?: Record<string, string>;
+        pikaServiceTags?: Record<string, string>;
+        pikaChatTags?: Record<string, string>;
+    };
+}
+```
+
+## Properties
+
+### stackTags
+
+Top-level configuration for AWS resource tags.
+
+- **Type:** `object` (optional)
+- **Default:** `undefined` (no tags applied)
+
+### stackTags.common
+
+Tags applied to **all resources** in both Pika service and Pika Chat stacks.
+
+- **Type:** `Record<string, string>` (optional)
+- **Default:** `undefined`
+
+**Example:**
+
+```typescript
+stackTags: {
+    common: {
+        'ManagedBy': 'Pika',
+        'Environment': '{stage}',
+        'Project': 'MyApp'
+    }
+}
+```
+
+### stackTags.pikaServiceTags
+
+Tags applied **only to Pika service stack** resources (Lambda, DynamoDB, etc.). Merged with common tags; overwrites on key conflicts.
+
+- **Type:** `Record<string, string>` (optional)
+- **Default:** `undefined`
+
+**Example:**
+
+```typescript
+stackTags: {
+    pikaServiceTags: {
+        'Component': '{pika.projNameKebabCase}',
+        'Type': 'backend'
+    }
+}
+```
+
+### stackTags.pikaChatTags
+
+Tags applied **only to Pika Chat stack** resources (CloudFront, S3, etc.). Merged with common tags; overwrites on key conflicts.
+
+- **Type:** `Record<string, string>` (optional)
+- **Default:** `undefined`
+
+**Example:**
+
+```typescript
+stackTags: {
+    pikaChatTags: {
+        'Component': '{pikaChat.projNameKebabCase}',
+        'Type': 'frontend'
+    }
+}
+```
+
+## Dynamic Placeholders
+
+Tag values support dynamic placeholders that are interpolated at CDK synth time.
+
+### Deployment Context Placeholders
+
+| Placeholder | Description | Example Value |
+|------------|-------------|---------------|
+| `{stage}` | Deployment stage | `'dev'`, `'prod'` |
+| `{timestamp}` | Current timestamp (ISO 8601) | `'2025-01-15T10:30:00Z'` |
+| `{accountId}` | AWS account ID | `'123456789012'` |
+| `{region}` | AWS region | `'us-east-1'` |
+
+**Example:**
+
+```typescript
+stackTags: {
+    common: {
+        'Environment': '{stage}',
+        'DeployedAt': '{timestamp}',
+        'AWSAccount': '{accountId}',
+        'AWSRegion': '{region}'
+    }
+}
+```
+
+### Pika Service Project Placeholders
+
+Based on `pika.projNameL` configuration:
+
+| Placeholder | Description | Example (projNameL: 'my-api') |
+|------------|-------------|-------------------------------|
+| `{pika.projNameL}` | Lowercase | `'my-api'` |
+| `{pika.projNameKebabCase}` | Kebab case | `'my-api'` |
+| `{pika.projNameTitleCase}` | Title case | `'MyApi'` |
+| `{pika.projNameCamel}` | Camel case | `'myApi'` |
+| `{pika.projNameHuman}` | Human-readable | `'My API'` |
+
+**Example:**
+
+```typescript
+stackTags: {
+    pikaServiceTags: {
+        'ServiceName': '{pika.projNameHuman}',
+        'ServiceId': '{pika.projNameKebabCase}'
+    }
+}
+```
+
+### Pika Chat Project Placeholders
+
+Based on `pikaChat.projNameL` configuration:
+
+| Placeholder | Description | Example (projNameL: 'customer-portal') |
+|------------|-------------|----------------------------------------|
+| `{pikaChat.projNameL}` | Lowercase | `'customer-portal'` |
+| `{pikaChat.projNameKebabCase}` | Kebab case | `'customer-portal'` |
+| `{pikaChat.projNameTitleCase}` | Title case | `'CustomerPortal'` |
+| `{pikaChat.projNameCamel}` | Camel case | `'customerPortal'` |
+| `{pikaChat.projNameHuman}` | Human-readable | `'Customer Portal'` |
+
+**Example:**
+
+```typescript
+stackTags: {
+    pikaChatTags: {
+        'Application': '{pikaChat.projNameHuman}',
+        'AppId': '{pikaChat.projNameKebabCase}'
+    }
+}
+```
+
+## Tag Merging Rules
+
+Tags are merged according to these rules:
+
+1. **Pika Service Stack:**
+   - Starts with `common` tags
+   - Merges `pikaServiceTags`
+   - Service tags overwrite common tags on key conflicts
+
+2. **Pika Chat Stack:**
+   - Starts with `common` tags
+   - Merges `pikaChatTags`
+   - Chat tags overwrite common tags on key conflicts
+
+**Example:**
+
+```typescript
+stackTags: {
+    common: {
+        'app': 'pika',
+        'component': 'shared' // Will be overwritten
+    },
+    pikaServiceTags: {
+        'component': 'backend' // Overwrites common
+    },
+    pikaChatTags: {
+        'component': 'frontend' // Overwrites common
+    }
+}
+```
+
+**Result:**
+- Pika service resources: `{ 'app': 'pika', 'component': 'backend' }`
+- Pika Chat resources: `{ 'app': 'pika', 'component': 'frontend' }`
+
+## AWS Tag Constraints
+
+Tags must comply with AWS requirements:
+
+### Key Requirements
+
+- **Length:** 1-128 characters
+- **Characters:** `a-z`, `A-Z`, `0-9`, `+`, `-`, `=`, `.`, `_`, `:`, `/`, `@`
+- **No leading/trailing whitespace**
+- **Case-sensitive**
+
+### Value Requirements
+
+- **Length:** 0-256 characters
+- **Characters:** Same as keys
+- **No leading/trailing whitespace**
+
+### Resource Limits
+
+- **Maximum tags per resource:** 50
+- **Note:** Some services may have lower limits
+
+{% aside type="caution" title="Validation" %}
+Pika validates tags during deployment and logs warnings for invalid tags, but AWS may reject resources if constraints are violated.
+{% /aside %}
+
+## Complete Examples
+
+### Minimal Configuration
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: { /* ... */ },
+    pikaChat: { /* ... */ },
+    
+    stackTags: {
+        common: {
+            'app': 'pika',
+            'env': '{stage}'
+        }
+    }
+};
+```
+
+### Production Configuration
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'customer-api',
+        // ... rest of config
+    },
+    pikaChat: {
+        projNameL: 'customer-portal',
+        // ... rest of config
+    },
+    
+    stackTags: {
+        // Applied to all resources
+        common: {
+            'Application': 'CustomerPortal',
+            'ManagedBy': 'Pika',
+            'Environment': '{stage}',
+            'CostCenter': 'engineering',
+            'Owner': 'platform-team@example.com',
+            'DeployedAt': '{timestamp}',
+            'AccountId': '{accountId}',
+            'Region': '{region}'
+        },
+        
+        // Backend-specific
+        pikaServiceTags: {
+            'Component': '{pika.projNameKebabCase}',
+            'Type': 'api',
+            'ServiceName': '{pika.projNameHuman}',
+            'MonitoringLevel': 'critical'
+        },
+        
+        // Frontend-specific
+        pikaChatTags: {
+            'Component': '{pikaChat.projNameKebabCase}',
+            'Type': 'webapp',
+            'ServiceName': '{pikaChat.projNameHuman}',
+            'CDN': 'CloudFront'
+        }
+    }
+};
+```
+
+### Environment-Specific Tags
+
+```typescript
+const isProd = process.env.STAGE === 'prod';
+
+export const pikaConfig: PikaConfig = {
+    pika: { /* ... */ },
+    pikaChat: { /* ... */ },
+    
+    stackTags: {
+        common: {
+            'Environment': '{stage}',
+            'Backup': isProd ? 'daily' : 'weekly',
+            'MonitoringLevel': isProd ? 'critical' : 'standard',
+            'AutoShutdown': isProd ? 'false' : 'true'
+        }
+    }
+};
+```
+
+## Programmatic Customization
+
+For advanced scenarios beyond configuration, use CDK hooks.
+
+### Pika Service Stack Hook
+
+Location: `services/pika/lib/stacks/custom-stack-defs.ts`
+
+```typescript
+export class CustomStackDefs {
+    /**
+     * Modify tags after interpolation, before application
+     * @param tags - Tags from pika-config after placeholder replacement
+     * @param stage - Deployment stage
+     * @returns Modified tags object
+     */
+    modifyStackTags(tags: Record<string, string>, stage: string): Record<string, string> {
+        // Example: Add computed tags
+        return {
+            ...tags,
+            'DeploymentType': stage === 'prod' ? 'production' : 'non-production',
+            'Timestamp': new Date().toISOString()
+        };
+    }
+}
+```
+
+### Pika Chat Stack Modification
+
+Location: `apps/pika-chat/infra/bin/pika-chat.ts`
+
+Modify the `applyStackTags` function to add custom logic before tags are applied.
+
+## Type Definitions
+
+```typescript
+/**
+ * Configuration for AWS resource tags applied to CDK stacks
+ */
+interface StackTagsConfig {
+    /**
+     * Tags applied to both Pika service and Pika Chat stacks
+     */
+    common?: Record<string, string>;
+    
+    /**
+     * Additional tags applied only to Pika service stack.
+     * Merged with common tags; overwrites on conflict.
+     */
+    pikaServiceTags?: Record<string, string>;
+    
+    /**
+     * Additional tags applied only to Pika Chat stack.
+     * Merged with common tags; overwrites on conflict.
+     */
+    pikaChatTags?: Record<string, string>;
+}
+
+/**
+ * Context for placeholder interpolation
+ */
+interface InterpolationContext {
+    stage: string;
+    accountId: string;
+    region: string;
+    timestamp?: string;
+    pikaConfig: PikaConfig;
+}
+```
+
+## Related Configuration
+
+### Project Names
+
+The project name placeholders are based on these configurations:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'my-service',  // Lowercase name
+        // Generates: kebabCase, TitleCase, camelCase, Human variants
+    },
+    pikaChat: {
+        projNameL: 'my-app',      // Lowercase name
+        // Generates: kebabCase, TitleCase, camelCase, Human variants
+    }
+};
+```
+
+### Deployment Stage
+
+The `{stage}` placeholder comes from the CDK deployment command:
+
+```bash
+# Deploy to dev
+STAGE=dev pnpm run cdk:deploy
+
+# Deploy to prod
+STAGE=prod pnpm run cdk:deploy
+```
+
+## See Also
+
+- [Configure AWS Resource Tags](/guides/deployment/aws-resource-tags/) - Complete tagging guide
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - CDK deployment guide
+- [Platform Settings](/reference/configuration/platform-settings/) - Other platform configuration options
+

@@ -2,6 +2,7 @@
     import { invalidate } from '$app/navigation';
     import { page } from '$app/state';
     import { AppState } from '$client/app/app.state.svelte';
+    import { MarkdownRendererFactory } from '$client/app/markdown-renderer-factory';
     import AppSettings from '$client/app/settings/app-settings.svelte';
     import { hasUserDataChanged } from '$lib/utils/user-data-version';
     import type {
@@ -38,6 +39,9 @@
     let user = $derived(data.user);
     let userDataVersion = $derived(data.userDataVersion);
 
+    // Create factory for markdown rendering - reused across the entire app
+    const markdownRendererFactory = new MarkdownRendererFactory();
+
     // Create AppState once and reuse it - this preserves cached state across user data updates
     let appState = $state<AppState>() as AppState;
 
@@ -61,7 +65,8 @@
                 data.homePageSiteFeature,
                 data.logoutSiteFeature,
                 data.chatApps,
-                showToast
+                showToast,
+                markdownRendererFactory
             );
             appState.page = page;
             setContext('appState', appState);

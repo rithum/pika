@@ -22,6 +22,31 @@ export class CustomStackDefs {
     }
 
     /**
+     * Modify or augment stack tags before they are applied to the Pika service stack.
+     * This is called after interpolation of dynamic placeholders but before tags are applied.
+     *
+     * @param tags The tags from pika-config.ts after placeholder interpolation
+     * @param stage The deployment stage
+     * @returns Modified tags object
+     *
+     * @example
+     * ```typescript
+     * modifyStackTags(tags: Record<string, string>, stage: string): Record<string, string> {
+     *     return {
+     *         ...tags,
+     *         'CustomTag': 'CustomValue',
+     *         'Stage': stage.toUpperCase()
+     *     };
+     * }
+     * ```
+     */
+    modifyStackTags(tags: Record<string, string>, stage: string): Record<string, string> {
+        // Default implementation returns tags unchanged
+        // Override this method to customize tags for the Pika service stack
+        return tags;
+    }
+
+    /**
      * Add resources to the stack before we create the PikaConstruct if you want to.
      */
     addStackResoucesBeforeWeCreateThePikaConstruct(): void {

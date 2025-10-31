@@ -1,7 +1,7 @@
 import { ensureDomainExists } from '../../lib/opensearch/index-initializer';
 import { DomainIndices, isDomainIndex } from '../../lib/opensearch/types';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
-import { sendCustomResourceResponse } from '../agent-custom-resource/util';
+import { sendCustomResourceResponse } from '../../lib/lambda-custom-resource-util';
 
 /**
  * This is a lambda function that will be registered as a custom resource in the CloudFormation template.

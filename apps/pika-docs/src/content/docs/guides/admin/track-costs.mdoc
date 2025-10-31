@@ -1,0 +1,417 @@
+---
+title: Track AI Model Costs
+description: Learn how to track and analyze AWS Bedrock AI model costs using inference profiles in AWS Cost Explorer
+---
+
+Learn how to track and analyze costs for specific AI models in your Pika deployment using AWS Cost Explorer and inference profiles.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand how Pika enables model-level cost tracking
+- Find inference profile costs in AWS Cost Explorer
+- Filter and analyze costs by model, environment, and tags
+- Create cost allocation reports for budgeting and forecasting
+
+## Prerequisites
+
+- Pika backend stack deployed to AWS
+- Access to AWS Cost Explorer in your account
+- Basic understanding of AWS cost management
+
+{% aside type="note" title="Cost Explorer Activation" %}
+If you've never used AWS Cost Explorer, you may need to activate it in the AWS Billing console. There's a small fee for using Cost Explorer.
+{% /aside %}
+
+## How Pika Enables Model Cost Tracking
+
+Pika automatically creates **named inference profiles** by copying AWS's built-in Bedrock inference profiles. This allows you to:
+
+- Track costs for specific models (e.g., Claude 4.5 Sonnet vs Claude 4.5 Haiku)
+- Differentiate costs between environments (dev vs prod)
+- Allocate AI costs to projects, teams, or cost centers
+
+### What Are Inference Profiles?
+
+Inference profiles are named wrappers around base Bedrock models. They:
+- Function identically to the base models
+- Enable granular cost tracking in AWS Cost Explorer
+- Are automatically created during deployment
+- Are tagged with your configured stack tags
+
+## Step 1: Understand Your Inference Profile Names
+
+Before searching for costs, you need to know your inference profile names.
+
+### Naming Pattern
+
+Inference profiles follow this pattern:
+
+```
+{stackName}-{profileName}
+```
+
+Where:
+- **stackName** = Your `pika.projNameKebabCase` + stage (e.g., `pika-test`, `customer-api-prod`)
+- **profileName** = Model identifier (e.g., `claude-sonnet-4-5`, `claude-haiku-4-5`)
+
+### Find Your Stack Name
+
+Check your `pika-config.ts`:
+
+```typescript title="pika-config.ts"
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameKebabCase: 'pika',  // This is your base name
+        // ...
+    }
+};
+```
+
+Add your deployment stage:
+- If deployed with `STAGE=test`: stack name is `pika-test`
+- If deployed with `STAGE=prod`: stack name is `pika-prod`
+
+### Current Profile Names
+
+Pika creates three inference profiles per deployment:
+
+| Model | Profile Name Suffix |
+|-------|-------------------|
+| Claude 4 Sonnet | `claude-sonnet-4` |
+| Claude 4.5 Haiku | `claude-haiku-4-5` |
+| Claude 4.5 Sonnet | `claude-sonnet-4-5` |
+
+**Example for `STAGE=test`:**
+- `pika-test-claude-sonnet-4`
+- `pika-test-claude-haiku-4-5`
+- `pika-test-claude-sonnet-4-5`
+
+{% aside type="tip" title="Complete Reference" %}
+See [Inference Profile Names](/reference/configuration/inference-profiles/) for complete naming details and examples.
+{% /aside %}
+
+## Step 2: Access AWS Cost Explorer
+
+1. **Navigate to AWS Cost Explorer:**
+   - Sign in to the AWS Management Console
+   - Go to **Billing and Cost Management**
+   - Click **Cost Explorer** in the left navigation
+
+2. **Select Date Range:**
+   - Choose a date range that includes your deployment
+   - Recommendation: Start with "Last 30 days" to see recent costs
+
+## Step 3: Filter by Inference Profile Name
+
+### Option A: Filter by Service (Recommended)
+
+1. **Filter by AWS Bedrock:**
+   - Click **Filters** → **Service**
+   - Search for and select **"Amazon Bedrock"**
+
+2. **Group by Usage Type:**
+   - Click **Group by** → **Usage Type**
+   - Look for entries containing your inference profile names
+   - Example: `USE2-Inference:pika-test-claude-sonnet-4-5`
+
+3. **Identify Your Costs:**
+   - Usage types will include your inference profile names
+   - Costs are displayed per profile
+
+### Option B: Filter by Tags
+
+If you've configured stack tags, use them for more flexible filtering:
+
+1. **Filter by Project Tag:**
+   - Click **Filters** → **Tag**
+   - Select your project tag key (e.g., `Project`)
+   - Choose the value (e.g., `CustomerPortal`)
+
+2. **Add Service Filter:**
+   - Add **Service** filter → **Amazon Bedrock**
+
+3. **Group by Component:**
+   - Click **Group by** → **Tag**
+   - Select `component` tag
+   - This shows costs per inference profile
+
+{% aside type="note" title="Tag Activation Required" %}
+Cost allocation tags must be activated in AWS Billing preferences before they appear in Cost Explorer. This can take up to 24 hours after activation.
+{% /aside %}
+
+## Step 4: Analyze Costs by Model
+
+### View Costs Per Model
+
+Create a custom view to compare model costs:
+
+1. **Group by Usage Type:**
+   - Set **Group by** → **Usage Type**
+   - Filter to show only Bedrock costs
+
+2. **Filter by Inference Profile Pattern:**
+   - Look for usage types containing your stack name
+   - Each model will appear as a separate line
+
+3. **Compare Costs:**
+   - Identify which models are most expensive
+   - Analyze usage patterns over time
+
+### Example Analysis
+
+For a project with stack name `customer-api-prod`:
+
+| Usage Type | Monthly Cost | Percentage |
+|-----------|-------------|-----------|
+| `Inference:customer-api-prod-claude-sonnet-4-5` | $450.23 | 65% |
+| `Inference:customer-api-prod-claude-haiku-4-5` | $180.15 | 26% |
+| `Inference:customer-api-prod-claude-sonnet-4` | $62.08 | 9% |
+
+**Insights:**
+- Claude 4.5 Sonnet accounts for 65% of AI costs
+- Consider using Claude 4.5 Haiku for simpler queries
+- Claude 4 Sonnet has minimal usage
+
+## Step 5: Compare Costs Across Environments
+
+Use tags to compare dev vs production costs:
+
+1. **Filter by Environment Tag:**
+   - Click **Filters** → **Tag** → **Environment**
+   - Select multiple values (e.g., `dev`, `prod`)
+
+2. **Group by Environment:**
+   - Click **Group by** → **Tag: Environment**
+
+3. **Add Model Grouping:**
+   - Enable secondary grouping: **Usage Type**
+
+4. **Analyze Differences:**
+   - Compare dev vs prod spending
+   - Identify opportunities to reduce dev costs
+   - Ensure prod has appropriate budget allocation
+
+### Cost Optimization Patterns
+
+**Development Environment:**
+- Higher percentage of Haiku usage (lower cost)
+- Burst patterns (testing phases)
+- Candidate for auto-scaling down during off-hours
+
+**Production Environment:**
+- More Sonnet usage (higher quality responses)
+- Consistent usage patterns
+- Requires stable performance and availability
+
+## Step 6: Create Cost Allocation Reports
+
+Build custom reports for stakeholders:
+
+### Monthly AI Cost Report
+
+1. **Configure Report:**
+   - Date range: Last 3 months
+   - Service: Amazon Bedrock
+   - Group by: Tag (Project), then Usage Type
+
+2. **Save Report:**
+   - Click **Save as...** → **New report**
+   - Name: "AI Model Costs - Monthly"
+   - Set frequency: Monthly
+
+3. **Share:**
+   - Export to CSV for stakeholders
+   - Create budget alerts based on trends
+
+### Model Efficiency Report
+
+Track cost per model over time:
+
+1. **Configure View:**
+   - Date range: Last 90 days
+   - Chart type: Line chart
+   - Group by: Usage Type (inference profiles)
+
+2. **Identify Trends:**
+   - Seasonal usage patterns
+   - Cost increases after feature launches
+   - Optimization opportunities
+
+## Step 7: Set Up Cost Alerts
+
+Create budgets and alerts for AI spending:
+
+1. **Navigate to AWS Budgets:**
+   - Go to **Billing** → **Budgets**
+   - Click **Create budget**
+
+2. **Configure Budget:**
+   - Budget type: Cost budget
+   - Scope: Amazon Bedrock service
+   - Filter by tags (optional): Project, Environment
+
+3. **Set Thresholds:**
+   - Example: $1,000/month for production AI costs
+   - Alert at 80% and 100% of budget
+   - Send notifications to team email
+
+4. **Add Forecasting:**
+   - Enable forecasted alerts
+   - Get warnings before exceeding budget
+
+## Common Cost Analysis Patterns
+
+### By Project
+
+Track AI costs per project:
+
+```
+Filter: Tag:Project = "CustomerPortal"
+Service: Amazon Bedrock
+Group by: Tag:component (inference profile)
+Date range: Last 30 days
+```
+
+### By Team
+
+Allocate costs to teams:
+
+```
+Filter: Tag:Team = "platform"
+Service: Amazon Bedrock
+Group by: Usage Type
+Date range: Month to date
+```
+
+### By Environment
+
+Compare environments:
+
+```
+Filter: Service = Amazon Bedrock
+Group by: Tag:Environment, then Usage Type
+Date range: Last 7 days
+```
+
+### Model Comparison
+
+Compare specific models:
+
+```
+Filter: Service = Amazon Bedrock
+Filter: Usage Type contains "claude-sonnet"
+Group by: Usage Type
+Date range: Last 90 days
+Chart: Line chart
+```
+
+## Cost Optimization Tips
+
+### Use Appropriate Models
+
+- **High-stakes queries:** Claude 4.5 Sonnet (higher quality, higher cost)
+- **Simple queries:** Claude 4.5 Haiku (good quality, lower cost)
+- **Bulk processing:** Claude 4 Sonnet or Haiku (older, less expensive)
+
+### Monitor Usage Patterns
+
+- Identify peak usage times
+- Consider batch processing for non-urgent tasks
+- Review agent configurations for unnecessary model calls
+
+### Environment-Specific Strategies
+
+**Development:**
+- Default to less expensive models
+- Use cheaper models for testing
+- Implement auto-shutdown for after-hours
+
+**Production:**
+- Balance quality and cost
+- Set up cost anomaly detection
+- Review usage weekly
+
+### Tag Consistently
+
+Proper tagging enables better cost analysis:
+- Always use consistent tag keys
+- Include Environment, Project, and Team tags
+- Document your tagging strategy
+
+## Troubleshooting
+
+### Inference Profiles Not Appearing in Cost Explorer
+
+**Problem:** Can't find inference profile costs in Cost Explorer
+
+**Solutions:**
+1. **Verify profiles were created:**
+   - Check AWS Bedrock console → Inference profiles
+   - Look for profiles matching your naming pattern
+
+2. **Wait for cost data:**
+   - Cost data can take 24-48 hours to appear
+   - Recent deployments may not show costs yet
+
+3. **Check date range:**
+   - Ensure Cost Explorer date range includes deployment date
+   - Costs only appear after actual model usage
+
+### Tags Not Showing in Cost Explorer
+
+**Problem:** Configured tags aren't available for filtering
+
+**Solutions:**
+1. **Activate cost allocation tags:**
+   - Go to Billing → Cost allocation tags
+   - Find and activate your tags
+   - Wait up to 24 hours for activation
+
+2. **Verify tag application:**
+   - Check inference profile in Bedrock console
+   - Confirm tags are present on resources
+
+3. **Check tag format:**
+   - Ensure tags don't start with `aws:` or `cloudformation:`
+   - These system tags are automatically filtered out
+
+### Unexpected High Costs
+
+**Problem:** AI costs are higher than expected
+
+**Investigation Steps:**
+1. **Identify high-cost profiles:**
+   - Group by Usage Type in Cost Explorer
+   - Find which model is most expensive
+
+2. **Check usage volume:**
+   - Review application logs
+   - Identify high-volume agents or queries
+
+3. **Analyze usage patterns:**
+   - Look for unexpected spikes
+   - Check for inefficient agent configurations
+
+## Best Practices
+
+1. **Review costs weekly** - Catch anomalies early
+2. **Tag consistently** - Enable flexible cost analysis
+3. **Set up alerts** - Get notified of budget overruns
+4. **Document naming** - Maintain a record of inference profile names
+5. **Share reports** - Keep stakeholders informed of AI costs
+6. **Optimize continuously** - Review and adjust model usage based on cost data
+
+## Next Steps
+
+- [Configure AWS Resource Tags](/guides/deployment/aws-resource-tags/) - Enhance cost tracking with tags
+- [Inference Profile Names](/reference/configuration/inference-profiles/) - Complete naming reference
+- [Stack Tags Configuration](/reference/configuration/stack-tags/) - Configure stack tags for better cost allocation
+
+## See Also
+
+- [AWS Cost Explorer Documentation](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-what-is.html) - AWS official guide
+- [Cost Allocation Tags](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/cost-alloc-tags.html) - Tag activation guide
+- [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) - Set up cost alerts
+

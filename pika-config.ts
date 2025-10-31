@@ -126,5 +126,27 @@ export const pikaConfig: PikaConfig = {
             maxMemoryRecordsPerPrompt: 25,
             maxKMatchesPerStrategy: 5
         }
+    },
+    // Tags applied to all AWS resources in your CDK stacks.  Feel free to completely customize this to your needs.
+    stackTags: {
+        // Common tags applied to both Pika service and Pika Chat stacks
+        common: {
+            app: 'pika',
+            env: '{stage}' // Dynamic: replaced with deployment stage
+        },
+        // Tags specific to the Pika service stack (backend)
+        pikaServiceTags: {
+            component: '{pika.projNameKebabCase}' // Dynamic: replaced with Pika project name
+        },
+        // Tags specific to the Pika Chat stack (frontend)
+        pikaChatTags: {
+            component: '{pikaChat.projNameKebabCase}' // Dynamic: replaced with Pika Chat project name
+        }
+        // Additional examples of dynamic placeholders:
+        // 'DeployedAt': '{timestamp}',                   // Current timestamp in ISO 8601 format
+        // 'AccountId': '{accountId}',                    // AWS account ID
+        // 'Region': '{region}',                          // AWS region
+        // 'ServiceName': '{pika.projNameHuman}',         // Human-readable Pika project name
+        // 'Application': '{pikaChat.projNameHuman}'      // Human-readable Pika Chat project name
     }
 };

@@ -3560,6 +3560,49 @@ export interface PikaConfig {
 
     /** Features that are turned on/configured site-wide. */
     siteFeatures?: SiteFeatures;
+
+    /**
+     * Optional tags to apply to all AWS resources in your CDK stacks.
+     * Supports dynamic placeholders that are replaced at CDK synth time:
+     * - {stage}: The deployment stage (e.g., 'dev', 'prod')
+     * - {timestamp}: Current timestamp in ISO 8601 format
+     * - {accountId}: AWS account ID where the stack is being deployed
+     * - {region}: AWS region where the stack is being deployed
+     * - {pika.projNameL}: Pika project name (lowercase)
+     * - {pika.projNameKebabCase}: Pika project name (kebab-case)
+     * - {pika.projNameTitleCase}: Pika project name (TitleCase)
+     * - {pika.projNameCamel}: Pika project name (camelCase)
+     * - {pika.projNameHuman}: Pika project name (human-readable)
+     * - {pikaChat.projNameL}: Pika Chat project name (lowercase)
+     * - {pikaChat.projNameKebabCase}: Pika Chat project name (kebab-case)
+     * - {pikaChat.projNameTitleCase}: Pika Chat project name (TitleCase)
+     * - {pikaChat.projNameCamel}: Pika Chat project name (camelCase)
+     * - {pikaChat.projNameHuman}: Pika Chat project name (human-readable)
+     *
+     * Example:
+     * ```typescript
+     * stackTags: {
+     *   common: {
+     *     'ManagedBy': 'Pika',
+     *     'env': '{stage}'
+     *   },
+     *   pikaServiceTags: {
+     *     'app': '{pika.projNameKebabCase}'
+     *   },
+     *   pikaChatTags: {
+     *     'app': '{pikaChat.projNameKebabCase}'
+     *   }
+     * }
+     * ```
+     */
+    stackTags?: {
+        /** Tags applied to both Pika service and Pika Chat stacks */
+        common?: Record<string, string>;
+        /** Additional tags applied only to the Pika service stack (merged with common, overwrites on conflict) */
+        pikaServiceTags?: Record<string, string>;
+        /** Additional tags applied only to the Pika Chat stack (merged with common, overwrites on conflict) */
+        pikaChatTags?: Record<string, string>;
+    };
 }
 
 /**
@@ -5595,4 +5638,43 @@ export interface SessionAnalyticsCostByMode {
     outputTokens: number;
     /** Human-readable description of the mode */
     description: string;
+}
+
+/**
+ * Configuration options for markdown-it renderer
+ */
+export interface MarkdownRendererConfig {
+    /**
+     * Enable HTML tags in source
+     * @default true
+     */
+    html?: boolean;
+    /**
+     * Autoconvert URL-like text to links
+     * @default true
+     */
+    linkify?: boolean;
+    /**
+     * Enable some language-neutral replacement + quotes beautification
+     * @default true
+     */
+    typographer?: boolean;
+    /**
+     * Convert '\n' in paragraphs into <br>
+     * @default true
+     */
+    breaks?: boolean;
+    /**
+     * Custom syntax highlighting function for code blocks
+     * @param str - The code string to highlight
+     * @param lang - The language identifier
+     * @returns HTML string with highlighted code
+     */
+    highlight?: (str: string, lang: string) => string;
+    /**
+     * Cache key identifier for the highlight function (required if highlight is provided).
+     * This allows the factory to cache renderers with different highlight functions.
+     * Use a unique string to identify your highlight function (e.g., 'hljs-default', 'prism-custom', etc.)
+     */
+    highlightCacheKey?: string;
 }

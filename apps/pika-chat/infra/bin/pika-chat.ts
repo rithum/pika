@@ -23,6 +23,7 @@ import { TagDefinitionsJsonFile } from 'pika-shared/types/chatbot/chatbot-types.
 import 'source-map-support/register';
 import { PikaChatStack } from '../lib/stacks/pika-chat-stack.js';
 import { getLoggedInAccountIdFromSts } from './sts.js';
+import { interpolateStackTags, validateAndWarnTags } from '../lib/utils/stack-tags.js';
 
 // We are copying the root pika-config.ts file to a local build directory so that it can be imported by the pika-chat stack cleanly.
 import { pikaConfig } from '../build/pika-config.js';
@@ -63,7 +64,7 @@ async function main() {
     const pikaServiceProjNameKebabCase = pikaConfig.pika.projNameKebabCase;
 
     // Create the Pika Chat stack
-    new PikaChatStack(app, `${projNameKebabCase}-${stage}`, {
+    const pikaChatStack = new PikaChatStack(app, `${projNameKebabCase}-${stage}`, {
         env,
         stage,
         description: `${projNameHuman} - ${stage} stage`,
@@ -75,6 +76,50 @@ async function main() {
         pikaServiceProjNameKebabCase,
         tagDefinitions: tagDefinitionsData as TagDefinitionsJsonFile
     });
+
+    // Apply stack tags if configured
+    applyStackTags(pikaChatStack, stage, env.account, env.region);
+}
+
+/**
+ * Applies stack tags from pika-config.ts to the Pika Chat stack
+ */
+function applyStackTags(stack: PikaChatStack, stage: string, accountId: string, region: string): void {
+    const stackTagsConfig = pikaConfig.stackTags;
+
+    if (!stackTagsConfig) {
+        // No tags configured, skip
+        return;
+    }
+
+    // Merge common tags with chat-specific tags (chat tags overwrite on conflict)
+    const mergedTags = {
+        ...(stackTagsConfig.common || {}),
+        ...(stackTagsConfig.pikaChatTags || {})
+    };
+
+    if (Object.keys(mergedTags).length === 0) {
+        // No tags to apply, skip
+        return;
+    }
+
+    // Interpolate dynamic placeholders
+    const tags = interpolateStackTags(mergedTags, {
+        stage,
+        accountId,
+        region,
+        pikaConfig
+    });
+
+    // Validate and warn about invalid tags
+    validateAndWarnTags(tags, stack.stackName);
+
+    // Apply tags to all resources in the stack
+    for (const [key, value] of Object.entries(tags)) {
+        cdk.Tags.of(stack).add(key, value);
+    }
+
+    console.log(`Applied ${Object.keys(tags).length} tag(s) to stack ${stack.stackName}`);
 }
 
 main()

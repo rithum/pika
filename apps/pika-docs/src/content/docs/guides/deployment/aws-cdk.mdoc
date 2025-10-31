@@ -138,7 +138,107 @@ PIKA_SERVICE_NAME=pika
 }
 ```
 
-## Step 4: Bootstrap CDK
+## Step 4: Configure Stack Tags (Optional)
+
+Add AWS tags to all resources in your CDK stacks for better organization and cost tracking.
+
+### Add Tags in pika-config.ts
+
+**Location:** `pika-config.ts`
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... existing config
+    stackTags: {
+        // Common tags applied to BOTH Pika service and Pika Chat stacks
+        common: {
+            'ManagedBy': 'Pika',
+            'Project': 'MyCompany',
+            'env': '{stage}',              // Replaced with deployment stage
+            'CostCenter': '12345'
+        },
+        
+        // Tags specific to the Pika service stack (backend)
+        pikaServiceTags: {
+            'app': '{pika.projNameKebabCase}',      // Pika service name
+            'Tier': 'Backend'
+        },
+        
+        // Tags specific to the Pika Chat stack (frontend)
+        pikaChatTags: {
+            'app': '{pikaChat.projNameKebabCase}',  // Pika Chat app name
+            'Tier': 'Frontend'
+        }
+    }
+};
+```
+
+### Tag Structure
+
+The `stackTags` configuration has three sections:
+
+- **`common`**: Tags applied to both Pika service and Pika Chat stacks
+- **`pikaServiceTags`**: Additional tags only for the backend service stack (merged with `common`, overwrites on conflict)
+- **`pikaChatTags`**: Additional tags only for the frontend chat stack (merged with `common`, overwrites on conflict)
+
+### Supported Placeholders
+
+Tags are interpolated at CDK synth time:
+
+**Basic Placeholders:**
+- `{stage}` - Deployment stage (e.g., 'dev', 'prod')
+- `{timestamp}` - Current timestamp in ISO 8601 format
+- `{accountId}` - AWS account ID where stack is deployed
+- `{region}` - AWS region where stack is deployed
+
+**Pika Project Name Placeholders:**
+- `{pika.projNameL}` - Pika project name (lowercase)
+- `{pika.projNameKebabCase}` - Pika project name (kebab-case)
+- `{pika.projNameTitleCase}` - Pika project name (TitleCase)
+- `{pika.projNameCamel}` - Pika project name (camelCase)
+- `{pika.projNameHuman}` - Pika project name (human-readable)
+
+**Pika Chat Project Name Placeholders:**
+- `{pikaChat.projNameL}` - Pika Chat project name (lowercase)
+- `{pikaChat.projNameKebabCase}` - Pika Chat project name (kebab-case)
+- `{pikaChat.projNameTitleCase}` - Pika Chat project name (TitleCase)
+- `{pikaChat.projNameCamel}` - Pika Chat project name (camelCase)
+- `{pikaChat.projNameHuman}` - Pika Chat project name (human-readable)
+
+### Advanced: Custom Tag Modifications
+
+For the **Pika service stack** only, you can override the `modifyStackTags` method in `custom-stack-defs.ts`:
+
+**Location:** `services/pika/lib/stacks/custom-stack-defs.ts`
+
+```typescript
+modifyStackTags(tags: Record<string, string>, stage: string): Record<string, string> {
+    return {
+        ...tags,
+        'CustomTag': 'CustomValue',
+        'Stage': stage.toUpperCase(),
+        'Owner': 'DevOps Team'
+    };
+}
+```
+
+### Tag Validation
+
+The system automatically validates tags and warns about:
+
+- Keys exceeding 128 characters
+- Values exceeding 256 characters
+- Invalid characters (only letters, numbers, spaces, `_ . : / = + - @` allowed)
+- Reserved `aws:` prefix
+
+### Notes
+
+- Tags are **optional** - if not configured, no tags are applied
+- Tags apply to **all resources** in each stack automatically
+- Use `common` for shared tags, and `pikaServiceTags`/`pikaChatTags` for stack-specific tags
+- Stack-specific tags overwrite common tags if there's a naming conflict
+
+## Step 5: Bootstrap CDK
 
 Bootstrap your AWS environment for CDK deployments (one-time setup per account/region).
 
@@ -151,7 +251,7 @@ cdk bootstrap aws://123456789012/us-east-1
 
 This creates necessary resources for CDK deployments (S3 bucket, IAM roles, etc.).
 
-## Step 5: Deploy Pika Service Stack
+## Step 6: Deploy Pika Service Stack
 
 Deploy the backend infrastructure.
 
@@ -200,7 +300,7 @@ arn:aws:cloudformation:us-east-1:123456789012:stack/pika-dev/guid
 
 Save the function URLs and API endpoints - you'll need them for configuration.
 
-## Step 6: Deploy Pika Chat Stack
+## Step 7: Deploy Pika Chat Stack
 
 Deploy the frontend application.
 
@@ -251,7 +351,7 @@ arn:aws:cloudformation:us-east-1:123456789012:stack/pika-chat-dev/guid
 
 Open the CloudFront URL in your browser to access your deployed Pika chat application.
 
-## Step 7: Configure Custom Domain (Optional)
+## Step 8: Configure Custom Domain (Optional)
 
 Set up a custom domain for your application.
 
@@ -301,7 +401,7 @@ new route53.ARecord(this, 'ChatARecord', {
 pnpm cdk:deploy
 ```
 
-## Step 8: Verify Deployment
+## Step 9: Verify Deployment
 
 Test your deployed application.
 

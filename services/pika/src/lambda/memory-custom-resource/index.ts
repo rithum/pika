@@ -2,7 +2,7 @@ import { BedrockAgentCoreControlClient, CreateMemoryCommand, GetMemoryCommand, M
 import { GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 import { getMemoryNamespaceForStrategy } from 'src/lib/utils';
-import { sendCustomResourceResponse } from '../chat-app-custom-resource/util';
+import { sendCustomResourceResponse } from '../../lib/lambda-custom-resource-util';
 import { parseMemoryCustomResourceProperties } from './util';
 
 const bedrockClient = new BedrockAgentCoreControlClient({});

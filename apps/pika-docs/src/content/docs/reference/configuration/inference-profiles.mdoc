@@ -1,0 +1,229 @@
+---
+title: Inference Profile Names
+description: Reference for predicting AWS Bedrock inference profile names created by Pika for cost tracking
+---
+
+Complete reference for understanding how Pika names AWS Bedrock inference profiles for cost tracking and allocation.
+
+## Overview
+
+Pika automatically creates named inference profiles by copying AWS's built-in inference profiles. These named profiles allow you to track costs for specific models in AWS Cost Explorer, enabling detailed cost allocation and analysis.
+
+{% aside type="note" title="Automatic Creation" %}
+Inference profiles are created automatically during Pika service stack deployment. No manual configuration is required.
+{% /aside %}
+
+## Naming Convention
+
+Inference profile names follow this pattern:
+
+```
+{stackName}-{profileName}
+```
+
+### Components
+
+**`stackName`**
+- The kebab-case project name from `pika-config.ts`
+- Corresponds to `pika.projNameKebabCase` in your configuration
+- Example: `pika-test`, `customer-portal-api`, `pika-chat-dev`
+
+**`profileName`**
+- Human-readable model identifier
+- Currently hardcoded by Pika (user configuration in future release)
+- Examples: `claude-sonnet-4`, `claude-haiku-4-5`, `claude-sonnet-4-5`
+
+### Example Names
+
+Given this configuration:
+
+```typescript title="pika-config.ts"
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'pika',
+        projNameKebabCase: 'pika',
+        // ... other config
+    }
+};
+```
+
+When deployed with `STAGE=test`, the inference profiles will be named:
+
+- `pika-test-claude-sonnet-4`
+- `pika-test-claude-haiku-4-5`
+- `pika-test-claude-sonnet-4-5`
+
+## Currently Created Profiles
+
+Pika automatically creates inference profiles for these models:
+
+| Model | Profile Name | Base Model ID |
+|-------|--------------|---------------|
+| Claude 4 Sonnet | `claude-sonnet-4` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
+| Claude 4.5 Haiku | `claude-haiku-4-5` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Claude 4.5 Sonnet | `claude-sonnet-4-5` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+
+{% aside type="tip" title="Future Configuration" %}
+In a future release, you'll be able to configure which models get inference profiles. Currently, Pika creates profiles for the models listed above.
+{% /aside %}
+
+## Resource Tags
+
+Each inference profile is tagged with:
+
+1. **Stack tags from config** - All tags from `stackTags.common` and `stackTags.pikaServiceTags` in `pika-config.ts`
+2. **Component tag** - Automatically added: `component: {ModelName}InferenceProfile`
+
+### Example Tags
+
+Given this stack configuration:
+
+```typescript title="pika-config.ts"
+export const pikaConfig: PikaConfig = {
+    stackTags: {
+        common: {
+            'Environment': 'prod',
+            'CostCenter': 'engineering',
+            'Project': 'CustomerPortal'
+        },
+        pikaServiceTags: {
+            'Team': 'platform'
+        }
+    }
+};
+```
+
+The `pika-prod-claude-sonnet-4-5` inference profile will be tagged with:
+
+```json
+{
+    "Environment": "prod",
+    "CostCenter": "engineering",
+    "Project": "CustomerPortal",
+    "Team": "platform",
+    "component": "Claude4_5SonnetInferenceProfile"
+}
+```
+
+{% aside type="note" title="AWS System Tags Filtered" %}
+AWS Bedrock does not allow system tags (those starting with `aws:` or `cloudformation:`). Pika automatically filters these out when tagging inference profiles.
+{% /aside %}
+
+## Complete Examples
+
+### Single Environment
+
+```typescript title="pika-config.ts"
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameKebabCase: 'my-chatbot'
+    },
+    stackTags: {
+        common: {
+            'app': 'chatbot',
+            'env': 'production'
+        }
+    }
+};
+```
+
+**Resulting inference profile names:**
+- `my-chatbot-production-claude-sonnet-4`
+- `my-chatbot-production-claude-haiku-4-5`
+- `my-chatbot-production-claude-sonnet-4-5`
+
+### Multi-Environment
+
+```typescript title="pika-config.ts"
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameKebabCase: 'customer-api'
+    },
+    stackTags: {
+        common: {
+            'Environment': '{stage}',
+            'Project': 'CustomerAPI',
+            'CostCenter': 'platform'
+        }
+    }
+};
+```
+
+**When deployed to different stages:**
+
+Dev (`STAGE=dev`):
+- `customer-api-dev-claude-sonnet-4`
+- `customer-api-dev-claude-haiku-4-5`
+- `customer-api-dev-claude-sonnet-4-5`
+
+Production (`STAGE=prod`):
+- `customer-api-prod-claude-sonnet-4`
+- `customer-api-prod-claude-haiku-4-5`
+- `customer-api-prod-claude-sonnet-4-5`
+
+## ARN Format
+
+Inference profile ARNs follow this format:
+
+```
+arn:aws:bedrock:{region}:{accountId}:application-inference-profile/{profileName}
+```
+
+**Example:**
+```
+arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/pika-test-claude-sonnet-4-5
+```
+
+## Determining Your Profile Names
+
+To predict your inference profile names:
+
+1. **Find your stack name:**
+   - Look at `pika.projNameKebabCase` in `pika-config.ts`
+   - Append the stage with a hyphen (e.g., `-test`, `-prod`)
+   - Example: `pika-test`, `customer-api-prod`
+
+2. **Add the profile name:**
+   - Use the hardcoded profile names: `claude-sonnet-4`, `claude-haiku-4-5`, or `claude-sonnet-4-5`
+   - Join with a hyphen: `{stackName}-{profileName}`
+
+3. **Example calculation:**
+   ```
+   pika.projNameKebabCase = "my-api"
+   STAGE = "prod"
+   profileName = "claude-sonnet-4-5"
+   
+   Result: "my-api-prod-claude-sonnet-4-5"
+   ```
+
+## Use Cases
+
+### Cost Tracking in AWS Cost Explorer
+
+Find costs for specific models:
+1. Filter by inference profile name
+2. Group costs by environment, project, or team
+3. Compare costs across different models
+
+See [Track AI Model Costs](/guides/admin/track-costs/) for detailed instructions.
+
+### Resource Organization
+
+Use tags to:
+- Group all inference profiles for a project
+- Filter by environment or cost center
+- Identify resources by team or owner
+
+### Cost Allocation Reports
+
+Create custom cost allocation reports that:
+- Break down AI costs by model
+- Compare environments (dev vs prod)
+- Track costs over time per model
+
+## See Also
+
+- [Track AI Model Costs](/guides/admin/track-costs/) - Use Cost Explorer to analyze inference profile costs
+- [Configure AWS Resource Tags](/guides/deployment/aws-resource-tags/) - Configure tags for cost tracking
+- [Stack Tags Configuration](/reference/configuration/stack-tags/) - Complete stack tags reference
+
