@@ -7,6 +7,39 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.12.0] - 2025-10-31
+
+### Added
+
+- **Entity List Value Retrieval** - New required method for entity implementations in custom-data.ts
+    - Added `getValuesForEntityList()` method to fetch entity display names by ID
+    - Complements existing `getValuesForEntityAutoComplete()` for complete entity data flow
+    - Required for displaying entity names in session analytics and admin UI
+    - Returns `SimpleOption[]` with value/label pairs for entity display
+    - New TypeScript interfaces: `GetValuesForEntityListRequest` and `GetValuesForEntityListResponse` with `@since 0.12.0` annotations
+    - **Important**: When syncing from previous versions, this method must be manually added to `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts`
+    - Can return empty array or undefined if entity feature is not being used
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.12.0) for @since 0.12.0 to find all type definitions that were added, updated, or removed in this release.
+
+### Changed
+
+- **Session Analytics UI Improvements** - Enhanced admin site analytics interface
+    - Improved visual design and layout of session analytics dashboard
+    - Better organization of filters and controls
+    - Enhanced date range selection with popup calendar
+    - Improved chart rendering and data visualization
+    - More intuitive entity filtering interface
+    - Refined toggle groups for invocation mode and user type filters
+
+### Fixed
+
+- Session analytics entity display now properly shows entity names instead of IDs
+
+---
+
 ## [0.11.3] - 2025-10-30
 
 ### Fixed

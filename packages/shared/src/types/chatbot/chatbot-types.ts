@@ -3049,6 +3049,10 @@ export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandR
     type?: 'internal-user' | 'external-user';
 }
 
+/**
+ * Request to get display values for a list of entity IDs
+ * @since 0.12.0
+ */
 export interface GetValuesForEntityListRequest extends SiteAdminCommandRequestBase {
     command: 'getValuesForEntityList';
     entityIds: string[];
@@ -3166,6 +3170,10 @@ export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommand
     data: SimpleOption[] | undefined;
 }
 
+/**
+ * Response containing display values for entity IDs
+ * @since 0.12.0
+ */
 export interface GetValuesForEntityListResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
 }

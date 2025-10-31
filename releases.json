@@ -1,7 +1,25 @@
 {
-  "latestVersion": "0.11.3",
-  "currentDevelopment": "0.11.3",
+  "latestVersion": "0.12.0",
+  "currentDevelopment": "0.12.0",
   "releases": [
+    {
+      "version": "0.12.0",
+      "date": "2025-10-31",
+      "status": "released",
+      "breaking": false,
+      "summary": "Entity method addition and session analytics UI improvements",
+      "highlights": [
+        "New required method getValuesForEntityList() for entity implementations - fetches entity display names by ID",
+        "Important: When syncing, this method must be manually added to apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts",
+        "Can return empty array or undefined if entity feature is not being used",
+        "Enhanced session analytics UI with improved visual design and layout",
+        "Better organization of filters and controls with refined toggle groups",
+        "Enhanced date range selection with popup calendar",
+        "More intuitive entity filtering interface",
+        "Fixed session analytics entity display to show names instead of IDs",
+        "New TypeScript interfaces: GetValuesForEntityListRequest and GetValuesForEntityListResponse with @since 0.12.0 annotations"
+      ]
+    },
     {
       "version": "0.11.3",
       "date": "2025-10-30",
