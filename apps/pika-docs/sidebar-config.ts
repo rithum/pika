@@ -42,7 +42,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
         label: 'Capabilities',
         link: '/capabilities/',
         id: 'capabilities',
-        icon: 'star',
+        icon: 'puzzle',
         items: [
             { label: 'Overview', slug: 'capabilities' },
             {
@@ -200,7 +200,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
         label: 'Concepts',
         link: '/concepts/',
         id: 'concepts',
-        icon: 'puzzle',
+        icon: 'document',
         items: [
             { label: 'Overview', slug: 'concepts' },
             {
@@ -254,7 +254,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
         label: 'Reference',
         link: '/reference/',
         id: 'reference',
-        icon: 'information',
+        icon: 'list-format',
         items: [
             { label: 'Overview', slug: 'reference' },
             {
@@ -330,17 +330,16 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
             { label: 'Troubleshooting', slug: 'platform/troubleshooting' },
             { label: 'Community & Support', slug: 'platform/community' }
         ]
+    },
+    {
+        label: 'AI and LLMs',
+        link: '/ai/',
+        id: 'ai',
+        icon: 'heart',
+        items: [{ label: 'Overview', slug: 'ai' }]
     }
 ];
 
 export const sidebarOptions = {
     exclude: ['/doc-instructions/**/*', '/course/**/*', '/ai/**/*']
 };
-
-// {
-//     label: 'AI and LLMs',
-//     link: '/ai/',
-//     id: 'ai',
-//     icon: 'star',
-//     items: [{ label: 'Overview', slug: 'ai' }]
-// }

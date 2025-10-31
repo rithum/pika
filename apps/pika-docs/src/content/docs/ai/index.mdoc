@@ -1,0 +1,82 @@
+---
+title: AI Tools & LLMs
+description: Access Pika documentation in AI coding assistants and LLMs
+---
+
+Pika provides structured documentation files for AI tools and large language models. Use these files to help Cursor, GitHub Copilot, Windsurf, and other AI assistants understand the Pika Platform.
+
+## Available Files
+
+We provide three routes optimized for different context window sizes:
+
+- **`/llms.txt`** - Overview with links to detailed documentation
+- **`/llms-small.txt`** - Condensed documentation for smaller context windows
+- **`/llms-full.txt`** - Complete comprehensive documentation
+
+These files follow the [llms.txt specification](https://llmstxt.org/), a standardized format for making documentation accessible to LLMs at inference time.
+
+## Using with AI Tools
+
+### Cursor
+
+Reference Pika documentation using the `@Docs` feature:
+
+1. Type `@Docs` in any chat
+2. Add the URL: `https://pika.tools/llms.txt` (or `/llms-small.txt` or `/llms-full.txt`)
+    ```
+    @Docs https://pika.tools/llms.txt
+    ```
+3. Cursor loads the documentation into context
+
+The documentation helps Cursor provide accurate code suggestions and answers about Pika development.
+
+[Learn more about @Docs in Cursor](https://docs.cursor.com/context/@-symbols/@docs)
+
+### GitHub Copilot
+
+GitHub Copilot can reference Pika documentation in chat:
+
+```
+@https://pika.tools/llms.txt
+
+How do I create a custom tool for my Pika agent?
+```
+
+Use any of these URLs:
+- `https://pika.tools/llms.txt`
+- `https://pika.tools/llms-small.txt`
+- `https://pika.tools/llms-full.txt`
+
+### Windsurf
+
+Add Pika documentation to your `.windsurfrules` file or reference it directly:
+
+```
+@ https://pika.tools/llms.txt
+```
+
+Windsurf uses these files to understand Pika architecture, patterns, and best practices.
+
+[Learn more about Windsurf Memories](https://docs.windsurf.com/windsurf-docs/memories)
+
+### Other AI Tools
+
+Any AI tool that supports the llms.txt standard can use these routes. Point your tool to any URL above.
+
+## What's Inside
+
+The llms.txt files contain:
+
+- **Core concepts** - Agent-as-Config, AWS foundation, architecture patterns
+- **Quick starts** - Getting started guides and tutorials
+- **API references** - Tool definitions, agent configuration, deployment
+- **Sample code** - Real working examples like the Weather sample
+- **Best practices** - Production patterns and security considerations
+
+Use `/llms-small.txt` for quick questions. Use `/llms-full.txt` when you need comprehensive context for complex development work.
+
+## About LLMs.txt
+
+The [llms.txt specification](https://llmstxt.org/) standardizes how documentation sites provide information to AI tools. It solves the context window problem - AI tools can't process entire websites, so llms.txt provides curated, focused content in a consistent format.
+
+Pika follows this standard to make our documentation maximally useful for AI-assisted development.

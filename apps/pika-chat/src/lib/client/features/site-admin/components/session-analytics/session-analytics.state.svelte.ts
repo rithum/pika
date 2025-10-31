@@ -135,11 +135,58 @@ export class SessionAnalyticsState {
 		checkClientResponse(response, 'fetch analytics', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION_ANALYTICS);
 		const data: SessionAnalyticsResponse = await response.json();
 		this.analyticsData = data;
+		
+		// Enrich entity names if entity feature is enabled and we have top entities
+		if (this.entityFeatureEnabled && data.topEntities && data.topEntities.length > 0) {
+			await this.enrichEntityNames();
+		}
 	} catch (err) {
 		handleClientError(err, 'fetch analytics', this.#showToast);
 		this.error = err instanceof Error ? err.message : 'Failed to fetch analytics data';
 		} finally {
 			this.#isFetching = false;
+		}
+	}
+
+	// Enrich entity names by calling the batch API
+	private async enrichEntityNames() {
+		if (!this.analyticsData?.topEntities) return;
+
+		try {
+			const entityIds = this.analyticsData.topEntities.map((e) => e.entityId);
+
+			const response = await this.fetchz('/api/site-admin', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					command: 'getValuesForEntityList',
+					entityIds
+				})
+			});
+
+			checkClientResponse(response, 'enrich entity names', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION_ANALYTICS);
+			const result: { success: boolean; data?: { value: string; label?: string }[] } = await response.json();
+
+			if (result.data) {
+				// Create a map of entity ID to entity name
+				const entityNameMap = new Map(
+					result.data.map((e) => [e.value, e.label ?? e.value])
+				);
+
+				// Enrich the entity names in topEntities
+				this.analyticsData = {
+					...this.analyticsData,
+					topEntities: this.analyticsData.topEntities!.map((entity) => ({
+						...entity,
+						entityName: entityNameMap.get(entity.entityId) ?? entity.entityId
+					}))
+				};
+			}
+		} catch (err) {
+			// If enrichment fails, log but continue with unenriched data
+			console.error('Failed to enrich entity names:', err);
 		}
 	}
 

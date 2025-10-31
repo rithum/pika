@@ -45,9 +45,9 @@ import type { Snippet } from 'svelte';
 import type { ComponentRegistry } from '../chat/message-segments/component-registry';
 import { InstructionAugmentationState } from './components/instruction-augmentation/instruction-augmentation.state.svelte';
 import { MemoryState } from './components/memory/memory.state.svelte';
+import { SessionAnalyticsState } from './components/session-analytics/session-analytics.state.svelte';
 import { SessionInsightsState } from './components/session-insights/session-insights.state.svelte';
 import { SiteAdminNavState } from './nav/site-admin-nav.state.svelte';
-import { SessionAnalyticsState } from './components/session-analytics/session-analytics.state.svelte';
 
 export class SiteAdminState {
     #appState: AppState;
@@ -60,6 +60,7 @@ export class SiteAdminState {
     #nav = $state<SiteAdminNavState>() as SiteAdminNavState;
     #pageTitle = $state<string | undefined>(undefined);
     #pageHeaderRight = $state<Snippet | undefined>(undefined);
+    #pageTitlePopupHelp = $state<string | undefined>(undefined);
     #mode: ChatAppMode = $state('standalone');
     #chatSessions = $state<ChatSession[]>([]);
     #sessionInsights = $state<SessionInsightsState>() as SessionInsightsState;
@@ -92,6 +93,7 @@ export class SiteAdminState {
         createOrUpdateChatAppOverride: false,
         deleteChatAppOverride: false,
         getValuesForEntityAutoComplete: false,
+        getValuesForEntityList: false,
         getValuesForUserAutoComplete: false,
         clearConverseLambdaCache: false,
         clearSvelteKitCaches: false,
@@ -227,12 +229,20 @@ export class SiteAdminState {
         return this.#pageHeaderRight;
     }
 
+    get pageTitlePopupHelp() {
+        return this.#pageTitlePopupHelp;
+    }
+
     setPageTitle(title: string) {
         this.#pageTitle = title;
     }
 
     setPageHeaderRight(rightHeaderArea: Snippet | undefined) {
         this.#pageHeaderRight = rightHeaderArea;
+    }
+
+    setPageTitlePopupHelp(popupHelp: string | undefined) {
+        this.#pageTitlePopupHelp = popupHelp;
     }
 
     setPageHeader(title: string, rightHeaderArea?: Snippet) {

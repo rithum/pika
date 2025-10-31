@@ -1218,7 +1218,7 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
         // Build top entities
         const topEntities = (aggregations.top_entities?.buckets ?? []).map((bucket: any) => ({
             entityId: bucket.key,
-            entityName: bucket.key, // Will be enriched by caller if needed
+            entityName: bucket.key, // Will be enriched by caller
             sessionCount: bucket.doc_count,
             uniqueUserCount: bucket.unique_users?.value ?? 0,
             messageCount: 0,

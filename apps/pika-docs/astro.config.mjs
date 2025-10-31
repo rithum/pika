@@ -8,9 +8,11 @@ import { defineConfig } from 'astro/config';
 import { badgePreprocessorIntegration } from './integrations/badge-preprocessor.mjs';
 import starlightSidebarTopics from 'starlight-sidebar-topics';
 import { sidebarOptions, sidebarTopics } from './sidebar-config.ts';
+import starlightLlmsTxt from 'starlight-llms-txt';
 
 // https://astro.build/config
 export default defineConfig({
+    site: 'https://pika.tools',
     integrations: [
         badgePreprocessorIntegration(), // Must come before markdoc
         mermaid({
@@ -52,7 +54,7 @@ export default defineConfig({
             expressiveCode: {
                 // Expressive Code is configured in ec.config.mjs
             },
-            plugins: [starlightSidebarTopics(sidebarTopics, sidebarOptions)],
+            plugins: [starlightSidebarTopics(sidebarTopics, sidebarOptions), starlightLlmsTxt({ projectName: 'Pika Platform', rawContent: true })],
             customCss: ['./src/styles/global.css'],
             head: [
                 {

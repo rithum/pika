@@ -65,6 +65,32 @@ export async function getValuesForEntityAutoComplete(
         .slice(0, 20);
 }
 
+/**
+ * Get the values for a list of entities by ID in the admin UI.  This is used if you have turned on
+ * the entity feature and siteAdmin feature and within it the sessionInsights feature.
+ *
+ * This would let you do a query using the `entityIds` to get the values for the list.
+ *
+ * You should completely replace this file with your own implementation.  This is just a placeholder to get you started.
+ *
+ * @param entityIds The list of entity IDs to get the values for
+ * @param user The logged in user
+ * @param chatAppId The chat app whose entity access control is being configured (won't be there in some cases)
+ * @returns
+ */
+export async function getValuesForEntityList(
+    entityIds: string[],
+    _user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    _chatAppId?: string
+): Promise<SimpleOption[] | undefined> {
+    return mockAccounts
+        .filter((account) => entityIds.includes(account.accountId))
+        .map((account) => ({
+            value: account.accountId,
+            label: account.details.accountName
+        }));
+}
+
 interface Account {
     accountId: string;
     details: {

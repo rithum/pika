@@ -2917,6 +2917,7 @@ export type SiteAdminRequest =
     | CreateOrUpdateChatAppOverrideRequest
     | DeleteChatAppOverrideRequest
     | GetValuesForEntityAutoCompleteRequest
+    | GetValuesForEntityListRequest
     | GetValuesForUserAutoCompleteRequest
     | ClearConverseLambdaCacheRequest
     | ClearSvelteKitCachesRequest
@@ -2945,6 +2946,7 @@ export const SiteAdminCommand = [
     'createOrUpdateChatAppOverride',
     'deleteChatAppOverride',
     'getValuesForEntityAutoComplete',
+    'getValuesForEntityList',
     'getValuesForUserAutoComplete',
     'clearConverseLambdaCache',
     'clearSvelteKitCaches',
@@ -3047,6 +3049,12 @@ export interface GetValuesForEntityAutoCompleteRequest extends SiteAdminCommandR
     type?: 'internal-user' | 'external-user';
 }
 
+export interface GetValuesForEntityListRequest extends SiteAdminCommandRequestBase {
+    command: 'getValuesForEntityList';
+    entityIds: string[];
+    chatAppId?: string;
+}
+
 export interface GetValuesForUserAutoCompleteRequest extends SiteAdminCommandRequestBase {
     command: 'getValuesForUserAutoComplete';
     valueProvidedByUser: string;
@@ -3123,6 +3131,7 @@ export type SiteAdminResponse =
     | CreateOrUpdateChatAppOverrideResponse
     | DeleteChatAppOverrideResponse
     | GetValuesForEntityAutoCompleteResponse
+    | GetValuesForEntityListResponse
     | GetValuesForUserAutoCompleteResponse
     | ClearConverseLambdaCacheResponse
     | ClearSvelteKitCachesResponse
@@ -3154,6 +3163,10 @@ export interface ClearSvelteKitCachesResponse extends SiteAdminCommandResponseBa
 }
 
 export interface GetValuesForEntityAutoCompleteResponse extends SiteAdminCommandResponseBase {
+    data: SimpleOption[] | undefined;
+}
+
+export interface GetValuesForEntityListResponse extends SiteAdminCommandResponseBase {
     data: SimpleOption[] | undefined;
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
     import PanelLeft from '$icons/lucide/panel-left';
+    import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
     import { getContext } from 'svelte';
@@ -73,7 +74,12 @@
     </div> -->
     <!-- <TooltipPlus tooltip={appSideBarHotKey.desc} hotKey={appSideBarHotKey}>
     </TooltipPlus> -->
-    <div class="font-semibold">{siteAdmin.nav.currentPage?.title ?? ''}</div>
+    <div class="flex items-center gap-2">
+        <div class="font-semibold">{siteAdmin.nav.currentPage?.title ?? ''}</div>
+        {#if siteAdmin.pageTitlePopupHelp}
+            <PopupHelp useInfoIcon>{siteAdmin.pageTitlePopupHelp}</PopupHelp>
+        {/if}
+    </div>
     <div class="ml-auto">
         {#if siteAdmin.pageHeaderRight}{@render siteAdmin.pageHeaderRight()}{/if}
     </div>

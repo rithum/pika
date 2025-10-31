@@ -164,7 +164,7 @@ The admin interface provides entity-based filtering:
 The platform provides entity lookup for administrative interfaces:
 
 ```typescript
-// Implement entity data source
+// Implement entity search for autocomplete
 export async function getValuesForEntityAutoComplete(
     searchTerm: string,
     user: AuthenticatedUser
@@ -179,7 +179,51 @@ export async function getValuesForEntityAutoComplete(
 }
 ```
 
-This enables admins to easily select entities when configuring access controls.
+This enables admins to easily search and select entities when configuring access controls.
+
+### Entity List Display
+
+The platform also needs to display entity names for already-selected entities:
+
+```typescript
+// Implement entity lookup by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser
+): Promise<SimpleOption[]> {
+    // Fetch entity details for the given IDs
+    const entities = await fetchEntitiesByIds(entityIds);
+    
+    return entities.map(entity => ({
+        value: entity.id,      // Entity identifier
+        label: entity.name     // Display name
+    }));
+}
+```
+
+This enables the admin interface to show human-readable names for entities that are already configured in access control rules.
+
+### Entity List Display
+
+The platform also needs to display entity names for already-selected entities:
+
+```typescript
+// Implement entity lookup by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser
+): Promise<SimpleOption[]> {
+    // Fetch entity details for the given IDs
+    const entities = await fetchEntitiesByIds(entityIds);
+    
+    return entities.map(entity => ({
+        value: entity.id,      // Entity identifier
+        label: entity.name     // Display name
+    }));
+}
+```
+
+This enables the admin interface to show human-readable names for entities that are already configured in access control rules.
 
 ## Configuration
 
@@ -506,12 +550,14 @@ return {
 };
 ```
 
-### 3. Implement Entity Autocomplete
+### 3. Implement Entity Data Functions
 
-Create entity lookup for admin interface:
+Create entity lookup functions for the admin interface:
 
 ```typescript
 // In apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts
+
+// Function 1: Search entities for autocomplete
 export async function getValuesForEntityAutoComplete(
     searchTerm: string,
     user: AuthenticatedUser
@@ -527,7 +573,25 @@ export async function getValuesForEntityAutoComplete(
         label: `${entity.name} (${entity.id})`  // Display name
     }));
 }
+
+// Function 2: Get entity details by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser
+): Promise<SimpleOption[]> {
+    // Fetch entity details for the given IDs
+    const entities = await yourEntityDatabase.findByIds(entityIds);
+    
+    return entities.map(entity => ({
+        value: entity.id,          // Entity identifier
+        label: `${entity.name} (${entity.id})`  // Display name
+    }));
+}
 ```
+
+**Why both functions are needed:**
+- `getValuesForEntityAutoComplete`: Used when admins search for entities to add to access control
+- `getValuesForEntityList`: Used to display names for entities already configured in access control
 
 ### 4. Configure Chat Apps
 
