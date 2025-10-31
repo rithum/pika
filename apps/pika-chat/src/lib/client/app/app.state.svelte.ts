@@ -9,6 +9,7 @@ import type {
     CustomDataUiRepresentation,
     HomePageSiteFeature,
     LogoutFeature,
+    MarkdownRendererConfig,
     ShowToastFn,
     SiteFeatures,
     TagDefinition,
@@ -22,6 +23,7 @@ import { ChatAppState } from '../features/chat/chat-app.state.svelte';
 import type { ComponentRegistry } from '../features/chat/message-segments/component-registry';
 import { SiteAdminState } from '../features/site-admin/site-admin.state.svelte';
 import { IdentityState } from './identity/identity.state.svelte';
+import type { MarkdownRendererFactory } from './markdown-renderer-factory';
 import { AppSettingsState } from './settings/app-settings.state.svelte';
 import type { FetchZ, HotKey } from './types';
 
@@ -43,6 +45,7 @@ export class AppState implements IAppState {
     #isMobile: IsMobile;
     #showToast: ShowToastFn;
     #hotKeys: Record<string, HotKey> = {};
+    #markdownRendererFactory: MarkdownRendererFactory;
 
     addHotKey(hotKey: HotKey) {
         const display = getHotKeyDisplay(hotKey);
@@ -78,7 +81,8 @@ export class AppState implements IAppState {
         homePageSiteFeature: HomePageSiteFeature | undefined,
         logoutSiteFeature: LogoutFeature | undefined,
         allChatApps: ChatAppLite[],
-        showToast: ShowToastFn
+        showToast: ShowToastFn,
+        markdownRendererFactory: MarkdownRendererFactory
     ) {
         this.#isMobile = new IsMobile();
         this.#identity = new IdentityState(user, showToast, fetchz);
@@ -87,6 +91,7 @@ export class AppState implements IAppState {
         this.#logoutSiteFeature = logoutSiteFeature;
         this.#allChatApps = allChatApps;
         this.#showToast = showToast;
+        this.#markdownRendererFactory = markdownRendererFactory;
     }
 
     addChatApp(
@@ -201,6 +206,18 @@ export class AppState implements IAppState {
      */
     updateUser(newUser: ChatUser) {
         this.#identity.updateUser(newUser);
+    }
+
+    /**
+     * Convert markdown to HTML using the configured markdown renderer factory.
+     * Instances are cached based on configuration for performance.
+     * @param markdown - The markdown content to convert to HTML
+     * @param config - Optional configuration for the markdown renderer
+     * @returns The HTML content
+     */
+    convertMarkdownToHtml(markdown: string, config?: MarkdownRendererConfig): string {
+        const renderer = this.#markdownRendererFactory.getRenderer(config);
+        return renderer.render(markdown);
     }
 
     // closeAllFloatingSidebars() {

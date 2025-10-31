@@ -118,7 +118,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 items: [
                     { label: 'Deploy to AWS with CDK', slug: 'guides/deployment/aws-cdk' },
                     { label: 'Deploy Using Serverless Framework', slug: 'guides/deployment/serverless-framework' },
-                    { label: 'Set Up Local Development Environment', slug: 'guides/deployment/local-development' }
+                    { label: 'Set Up Local Development Environment', slug: 'guides/deployment/local-development' },
+                    { label: 'Configure AWS Resource Tags', slug: 'guides/deployment/aws-resource-tags' }
                 ]
             },
             {
@@ -181,7 +182,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Set Up the Admin Site', slug: 'guides/admin/admin-site' },
                     { label: 'Manage Content', slug: 'guides/admin/content-admin' },
                     { label: 'Use Stack Management', slug: 'guides/admin/stack-management' },
-                    { label: 'Monitor with Traces', slug: 'guides/admin/traces' }
+                    { label: 'Monitor with Traces', slug: 'guides/admin/traces' },
+                    { label: 'Track AI Model Costs', slug: 'guides/admin/track-costs' }
                 ]
             },
             {
@@ -266,6 +268,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Tool Configuration', slug: 'reference/configuration/tool' },
                     { label: 'Platform Settings', slug: 'reference/configuration/platform-settings' },
                     { label: 'Site Features', slug: 'reference/configuration/site-features' },
+                    { label: 'Stack Tags Configuration', slug: 'reference/configuration/stack-tags' },
+                    { label: 'Inference Profile Names', slug: 'reference/configuration/inference-profiles' },
                     { label: 'Environment Variables', slug: 'reference/configuration/environment-variables' }
                 ]
             },
@@ -274,7 +278,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 collapsed: true,
                 items: [
                     { label: 'REST API', slug: 'reference/api/rest' },
-                    { label: 'Tag Definitions API', slug: 'reference/api/tag-definitions' }
+                    { label: 'Tag Definitions API', slug: 'reference/api/tag-definitions' },
+                    { label: 'Markdown Conversion API', slug: 'reference/api/markdown-conversion' }
                 ]
             },
             {

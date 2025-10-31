@@ -1,0 +1,411 @@
+---
+title: Markdown Conversion API
+description: API reference for converting markdown to HTML in web components
+---
+
+Reference documentation for Pika's markdown-to-HTML conversion helper available to web components.
+
+## Overview
+
+The `convertMarkdownToHtml` method provides an easy way to convert markdown to HTML within your web components. It uses [markdown-it](https://github.com/markdown-it/markdown-it) under the hood with caching for performance.
+
+## API Reference
+
+### convertMarkdownToHtml
+
+Convert markdown string to HTML with optional configuration.
+
+```typescript
+convertMarkdownToHtml(markdown: string, config?: MarkdownRendererConfig): string
+```
+
+**Parameters:**
+
+- `markdown` (string): The markdown content to convert
+- `config` (MarkdownRendererConfig, optional): Configuration options for the markdown renderer
+
+**Returns:** HTML string
+
+**Example:**
+
+```typescript
+const context = await getPikaContext(this);
+const html = context.appState.convertMarkdownToHtml('# Hello **World**');
+// Returns: "<h1>Hello <strong>World</strong></h1>"
+```
+
+## MarkdownRendererConfig
+
+Configuration interface for customizing markdown rendering behavior.
+
+```typescript
+interface MarkdownRendererConfig {
+    html?: boolean;
+    linkify?: boolean;
+    typographer?: boolean;
+    breaks?: boolean;
+    highlight?: (str: string, lang: string) => string;
+    highlightCacheKey?: string;
+}
+```
+
+### Properties
+
+#### html
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Description:** Enable HTML tags in source markdown
+
+**Example:**
+
+```typescript
+// Allow HTML tags
+const html = context.appState.convertMarkdownToHtml(
+    '<div>HTML content</div>',
+    { html: true }
+);
+```
+
+#### linkify
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Description:** Autoconvert URL-like text to clickable links
+
+**Example:**
+
+```typescript
+const html = context.appState.convertMarkdownToHtml(
+    'Visit https://example.com',
+    { linkify: true }
+);
+// Result: <p>Visit <a href="https://example.com">https://example.com</a></p>
+```
+
+#### typographer
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Description:** Enable smart quotes and other typographic replacements
+
+**Example:**
+
+```typescript
+const html = context.appState.convertMarkdownToHtml(
+    '"Hello" -- world...',
+    { typographer: true }
+);
+// Result uses smart quotes and em-dash
+```
+
+#### breaks
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Description:** Convert `\n` in paragraphs into `<br>` tags
+
+**Example:**
+
+```typescript
+const html = context.appState.convertMarkdownToHtml(
+    'Line 1\nLine 2',
+    { breaks: true }
+);
+// Result: <p>Line 1<br>Line 2</p>
+```
+
+#### highlight
+
+- **Type:** `(str: string, lang: string) => string`
+- **Default:** `undefined`
+- **Description:** Custom function for syntax highlighting code blocks
+
+**Parameters:**
+- `str`: The code string to highlight
+- `lang`: The language identifier from the code fence
+
+**Returns:** HTML string with highlighted code
+
+**Example:**
+
+```typescript
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
+
+const html = context.appState.convertMarkdownToHtml(
+    '```javascript\nconst x = 42;\n```',
+    {
+        highlight: (str: string, lang: string): string => {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return (
+                        '<pre class="hljs"><code>' +
+                        hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+                        '</code></pre>'
+                    );
+                } catch (__) {}
+            }
+            return '<pre class="hljs"><code>' + str + '</code></pre>';
+        },
+        highlightCacheKey: 'hljs-github-dark'
+    }
+);
+```
+
+#### highlightCacheKey
+
+- **Type:** `string`
+- **Default:** `undefined`
+- **Description:** Cache identifier for the highlight function (required if `highlight` is provided)
+- **Purpose:** Enables caching of markdown renderers with different highlight configurations
+
+**Why it's needed:**
+
+Since functions cannot be used as cache keys, the `highlightCacheKey` identifies your specific highlight configuration. Using the same key across multiple calls ensures the same cached renderer instance is reused.
+
+**Example:**
+
+```typescript
+// First call creates and caches a renderer with key 'hljs-github-dark'
+const html1 = context.appState.convertMarkdownToHtml(markdown1, {
+    highlight: myHljsFunction,
+    highlightCacheKey: 'hljs-github-dark'
+});
+
+// Second call reuses the cached renderer (same key)
+const html2 = context.appState.convertMarkdownToHtml(markdown2, {
+    highlight: myHljsFunction,
+    highlightCacheKey: 'hljs-github-dark'
+});
+```
+
+{% aside type="tip" title="Performance Benefit" %}
+Renderer instances are expensive to create. Using consistent `highlightCacheKey` values for the same highlight configuration significantly improves performance by reusing cached instances.
+{% /aside %}
+
+## Complete Examples
+
+### Basic Conversion
+
+```typescript
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+class MyWidget extends HTMLElement {
+    async connectedCallback() {
+        const context = await getPikaContext(this);
+        
+        const markdown = `
+# Welcome
+
+This is **bold** and this is *italic*.
+
+- Item 1
+- Item 2
+- Item 3
+        `;
+        
+        const html = context.appState.convertMarkdownToHtml(markdown);
+        
+        this.innerHTML = `
+            <div class="prose prose-gray max-w-none">
+                ${html}
+            </div>
+        `;
+    }
+}
+```
+
+### With Syntax Highlighting
+
+```typescript
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css';
+import { getPikaContext } from 'pika-shared/util/wc-types';
+
+class CodeViewer extends HTMLElement {
+    async connectedCallback() {
+        const context = await getPikaContext(this);
+        
+        const markdownWithCode = `
+# Code Example
+
+Here's some JavaScript:
+
+\`\`\`javascript
+function greet(name) {
+    console.log(\`Hello, \${name}!\`);
+}
+\`\`\`
+        `;
+        
+        const html = context.appState.convertMarkdownToHtml(
+            markdownWithCode,
+            {
+                highlight: (str, lang) => {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return '<pre class="hljs"><code>' +
+                                   hljs.highlight(str, { language: lang }).value +
+                                   '</code></pre>';
+                        } catch (__) {}
+                    }
+                    return '<pre class="hljs"><code>' + str + '</code></pre>';
+                },
+                highlightCacheKey: 'hljs-atom-one-dark'
+            }
+        );
+        
+        this.innerHTML = `
+            <div class="prose prose-gray max-w-none">
+                ${html}
+            </div>
+        `;
+    }
+}
+```
+
+### Svelte Component with Live Preview
+
+```svelte
+<svelte:options customElement={{ tag: 'markdown-editor', shadow: 'none' }} />
+
+<script lang="ts">
+    import { getPikaContext } from 'pika-shared/util/wc-utils';
+    import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+    
+    let context = $state<PikaWCContext>();
+    let markdown = $state('# Hello World\n\nType **markdown** here!');
+    
+    let html = $derived(() => {
+        if (!context) return '';
+        return context.appState.convertMarkdownToHtml(markdown);
+    });
+    
+    async function init() {
+        context = await getPikaContext($host());
+    }
+    
+    $effect(() => { init(); });
+</script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.15/dist/typography.min.css">
+
+<div class="editor-container">
+    <div class="editor-pane">
+        <h3>Editor</h3>
+        <textarea bind:value={markdown}></textarea>
+    </div>
+    
+    <div class="preview-pane">
+        <h3>Preview</h3>
+        <div class="prose prose-gray max-w-none">
+            {@html html}
+        </div>
+    </div>
+</div>
+
+<style>
+    .editor-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    textarea {
+        width: 100%;
+        min-height: 400px;
+        padding: 1rem;
+        font-family: monospace;
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+    }
+    
+    .preview-pane {
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+</style>
+```
+
+## CSS Styling
+
+The converted HTML needs CSS for proper display. See the [Build Web Components](/guides/customization/build-web-components/#convert-markdown-to-html) guide for complete styling options including:
+
+- Tailwind Typography (CDN or NPM)
+- Custom CSS examples
+- Code highlighting styles
+
+## Performance Considerations
+
+### Caching
+
+Markdown renderer instances are cached based on configuration. Renderers with identical configurations (including `highlightCacheKey`) share the same cached instance.
+
+**Cache key includes:**
+- `html` setting
+- `linkify` setting
+- `typographer` setting
+- `breaks` setting
+- `highlightCacheKey` (if highlight function provided)
+
+### Best Practices
+
+1. **Reuse configurations:** Use consistent config objects across calls
+2. **Use highlightCacheKey:** Always provide this when using custom highlight functions
+3. **Avoid inline configs:** Define config objects once and reuse them
+
+**Good:**
+
+```typescript
+// Define once
+const markdownConfig = {
+    html: true,
+    breaks: true,
+    highlight: myHighlightFn,
+    highlightCacheKey: 'my-highlight'
+};
+
+// Reuse everywhere
+const html1 = context.appState.convertMarkdownToHtml(md1, markdownConfig);
+const html2 = context.appState.convertMarkdownToHtml(md2, markdownConfig);
+```
+
+**Avoid:**
+
+```typescript
+// Creates new config object each time (but still cached thanks to highlightCacheKey)
+const html1 = context.appState.convertMarkdownToHtml(md1, {
+    html: true,
+    highlight: myHighlightFn,
+    highlightCacheKey: 'my-highlight'
+});
+```
+
+## Type Definitions
+
+Full TypeScript definitions:
+
+```typescript
+interface IAppState {
+    convertMarkdownToHtml(markdown: string, config?: MarkdownRendererConfig): string;
+}
+
+interface MarkdownRendererConfig {
+    html?: boolean;
+    linkify?: boolean;
+    typographer?: boolean;
+    breaks?: boolean;
+    highlight?: (str: string, lang: string) => string;
+    highlightCacheKey?: string;
+}
+```
+
+## See Also
+
+- [Build Web Components](/guides/customization/build-web-components/) - Complete guide to building web components
+- [Web Component Context API](/reference/types/widget-context/) - Full context API reference
+- [Deploy Web Components](/guides/customization/deploy-web-components/) - Deployment guide
+

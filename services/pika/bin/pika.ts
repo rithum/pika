@@ -66,7 +66,8 @@ async function main() {
         projNameCamel,
         projNameHuman,
         sessionInsightsFeature,
-        userMemoryFeature
+        userMemoryFeature,
+        pikaConfig
     });
 }
 

@@ -1,0 +1,423 @@
+---
+title: Configure AWS Resource Tags
+description: Learn how to tag AWS resources in your Pika deployment for cost tracking, organization, and compliance
+---
+
+Learn how to configure AWS resource tags for your Pika deployment to support cost allocation, resource organization, and compliance requirements.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand Pika's resource tagging system
+- Configure tags in `pika-config.ts`
+- Use dynamic placeholders for tag values
+- Apply different tags to different stacks
+- Customize tags programmatically
+
+## Prerequisites
+
+- Pika project set up locally
+- Basic understanding of AWS resource tags
+- Familiarity with AWS CDK deployment
+
+## Understanding AWS Resource Tags
+
+AWS resource tags are key-value pairs that help you:
+
+- **Track costs:** Allocate expenses by project, team, or environment
+- **Organize resources:** Group related resources across services
+- **Implement governance:** Enforce policies and access controls
+- **Enable automation:** Target resources for scripts and operations
+
+## Pika's Tagging System
+
+Pika applies tags to **all AWS resources** in your CDK stacks using configuration from `pika-config.ts`.
+
+### Tag Categories
+
+Tags are organized into three categories:
+
+1. **Common tags** - Applied to both Pika service and Pika Chat stacks
+2. **Pika service tags** - Applied only to backend stack (Lambda, DynamoDB, etc.)
+3. **Pika Chat tags** - Applied only to frontend stack (CloudFront, S3, etc.)
+
+### Special Resources: Inference Profiles
+
+Pika automatically creates **named inference profiles** for AWS Bedrock models to enable cost tracking. These inference profiles are also tagged with your stack tags (common + pikaServiceTags), plus an automatic `component` tag identifying the model.
+
+{% aside type="tip" title="Cost Tracking" %}
+Inference profiles enable model-level cost tracking in AWS Cost Explorer. See [Track AI Model Costs](/guides/admin/track-costs/) to learn how to analyze AI spending by model.
+{% /aside %}
+
+## Step 1: Configure Basic Tags
+
+Edit your `pika-config.ts` file at the root of your project:
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    pika: {
+        // ... pika config
+    },
+    pikaChat: {
+        // ... pika chat config
+    },
+    
+    // Add resource tags
+    stackTags: {
+        common: {
+            'ManagedBy': 'Pika',
+            'Project': 'CustomerPortal',
+            'Team': 'Engineering'
+        }
+    }
+};
+```
+
+These tags will be applied to **all resources** in both stacks.
+
+## Step 2: Use Dynamic Placeholders
+
+Pika supports dynamic placeholders that are replaced at CDK synth time:
+
+### Available Placeholders
+
+**Deployment Context:**
+- `{stage}` - Deployment stage (e.g., 'dev', 'prod')
+- `{timestamp}` - Current timestamp (ISO 8601 format)
+- `{accountId}` - AWS account ID
+- `{region}` - AWS region
+
+**Pika Service Project:**
+- `{pika.projNameL}` - Project name (lowercase)
+- `{pika.projNameKebabCase}` - Project name (kebab-case)
+- `{pika.projNameTitleCase}` - Project name (TitleCase)
+- `{pika.projNameCamel}` - Project name (camelCase)
+- `{pika.projNameHuman}` - Project name (human-readable)
+
+**Pika Chat Project:**
+- `{pikaChat.projNameL}` - Project name (lowercase)
+- `{pikaChat.projNameKebabCase}` - Project name (kebab-case)
+- `{pikaChat.projNameTitleCase}` - Project name (TitleCase)
+- `{pikaChat.projNameCamel}` - Project name (camelCase)
+- `{pikaChat.projNameHuman}` - Project name (human-readable)
+
+### Example with Placeholders
+
+```typescript
+stackTags: {
+    common: {
+        'app': 'pika',
+        'env': '{stage}',
+        'DeployedAt': '{timestamp}',
+        'AccountId': '{accountId}',
+        'Region': '{region}'
+    }
+}
+```
+
+**Result when deployed to prod:**
+
+```typescript
+{
+    'app': 'pika',
+    'env': 'prod',
+    'DeployedAt': '2025-01-15T10:30:00Z',
+    'AccountId': '123456789012',
+    'Region': 'us-east-1'
+}
+```
+
+## Step 3: Stack-Specific Tags
+
+Apply different tags to backend vs frontend stacks:
+
+```typescript
+stackTags: {
+    // Applied to both stacks
+    common: {
+        'app': 'pika',
+        'env': '{stage}',
+        'Owner': 'platform-team@example.com'
+    },
+    
+    // Additional tags for Pika service stack only
+    pikaServiceTags: {
+        'component': '{pika.projNameKebabCase}',
+        'type': 'backend',
+        'monitoring': 'datadog'
+    },
+    
+    // Additional tags for Pika Chat stack only
+    pikaChatTags: {
+        'component': '{pikaChat.projNameKebabCase}',
+        'type': 'frontend',
+        'cdn': 'cloudfront'
+    }
+}
+```
+
+{% aside type="note" title="Tag Merging" %}
+Stack-specific tags are **merged** with common tags. If a stack-specific tag has the same key as a common tag, the stack-specific value takes precedence.
+{% /aside %}
+
+## Step 4: Programmatic Customization
+
+For advanced scenarios, customize tags programmatically using CDK hooks.
+
+### Pika Service Stack
+
+Edit `services/pika/lib/stacks/custom-stack-defs.ts`:
+
+```typescript
+export class CustomStackDefs {
+    /**
+     * Modify tags before they are applied to the Pika service stack
+     */
+    modifyStackTags(tags: Record<string, string>, stage: string): Record<string, string> {
+        // Add custom logic
+        const modifiedTags = {
+            ...tags,
+            'CustomTag': 'CustomValue',
+            'Stage': stage.toUpperCase(),
+        };
+        
+        // Conditional tagging
+        if (stage === 'prod') {
+            modifiedTags['Backup'] = 'daily';
+            modifiedTags['CostCenter'] = 'production-ops';
+        }
+        
+        return modifiedTags;
+    }
+}
+```
+
+### Pika Chat Stack
+
+For Pika Chat, you can modify `apps/pika-chat/infra/bin/pika-chat.ts` directly in the `applyStackTags` function.
+
+## Common Patterns
+
+### Cost Allocation Tags
+
+Track costs by project and environment:
+
+```typescript
+stackTags: {
+    common: {
+        'CostCenter': 'engineering',
+        'Project': 'CustomerPortal',
+        'Environment': '{stage}',
+        'Owner': 'team-platform@example.com'
+    }
+}
+```
+
+### Compliance Tags
+
+Meet regulatory requirements:
+
+```typescript
+stackTags: {
+    common: {
+        'Compliance': 'HIPAA',
+        'DataClassification': 'Confidential',
+        'BackupRequired': 'true',
+        'EncryptionRequired': 'true'
+    }
+}
+```
+
+### Multi-Team Organization
+
+Organize resources by team:
+
+```typescript
+stackTags: {
+    common: {
+        'Team': 'platform',
+        'Product': 'CustomerPortal',
+        'Environment': '{stage}'
+    },
+    pikaServiceTags: {
+        'Subteam': 'backend',
+        'ServiceOwner': 'backend-team@example.com'
+    },
+    pikaChatTags: {
+        'Subteam': 'frontend',
+        'ServiceOwner': 'frontend-team@example.com'
+    }
+}
+```
+
+### Automation Tags
+
+Enable automated operations:
+
+```typescript
+stackTags: {
+    common: {
+        'AutoShutdown': stage === 'dev' ? 'true' : 'false',
+        'BackupSchedule': stage === 'prod' ? 'daily' : 'weekly',
+        'MonitoringLevel': stage === 'prod' ? 'critical' : 'standard'
+    }
+}
+```
+
+## Tag Validation
+
+Pika automatically validates tags and warns about:
+
+- **Empty keys or values** - Tags must have non-empty keys and values
+- **Invalid characters** - AWS tag keys and values have character restrictions
+- **Tag limits** - AWS has limits on number of tags per resource
+
+Check console output during deployment for validation warnings:
+
+```bash
+pnpm run cdk:deploy
+
+# Output:
+# Applied 5 tag(s) to stack PikaServiceStack-prod
+# Applied 6 tag(s) to stack PikaChatStack-prod
+```
+
+## Verify Tags in AWS Console
+
+After deployment, verify tags are applied:
+
+### Using AWS Console
+
+1. Navigate to any resource (Lambda function, S3 bucket, etc.)
+2. Go to the **Tags** tab
+3. Verify your configured tags are present
+
+### Using AWS CLI
+
+```bash
+# List tags for a Lambda function
+aws lambda list-tags --resource arn:aws:lambda:REGION:ACCOUNT:function:FUNCTION_NAME
+
+# List tags for an S3 bucket
+aws s3api get-bucket-tagging --bucket BUCKET_NAME
+
+# List tags for a DynamoDB table
+aws dynamodb list-tags-of-resource --resource-arn TABLE_ARN
+```
+
+## AWS Tag Best Practices
+
+Follow AWS tagging best practices:
+
+1. **Use consistent naming:** Establish a naming convention
+2. **Document your strategy:** Maintain a tagging strategy document
+3. **Automate tagging:** Use Pika's placeholders and hooks
+4. **Review regularly:** Audit tags periodically
+5. **Enable cost allocation:** Activate cost allocation tags in AWS Billing
+
+### Recommended Tag Keys
+
+Common tag keys used across AWS:
+
+- `Environment` / `env` - Deployment environment
+- `Project` - Project name
+- `Owner` - Team or individual responsible
+- `CostCenter` - For financial tracking
+- `Name` - Resource name (often auto-generated)
+- `Application` / `app` - Application identifier
+- `ManagedBy` - Management tool (e.g., "Pika", "Terraform")
+
+## Troubleshooting
+
+### Tags Not Appearing
+
+**Problem:** Tags configured but not showing on resources
+
+**Solutions:**
+1. Verify `stackTags` section exists in `pika-config.ts`
+2. Check console output for tag application messages
+3. Ensure CDK deployment completed successfully
+4. Some resources may not support tags (check AWS docs)
+
+### Placeholder Not Replaced
+
+**Problem:** Placeholder like `{stage}` appears literally in tag value
+
+**Solutions:**
+1. Verify placeholder syntax is correct
+2. Check that deployment includes required context (stage, etc.)
+3. Review console output for interpolation errors
+
+### Tag Limit Exceeded
+
+**Problem:** AWS rejects resources due to too many tags
+
+**Solutions:**
+1. AWS allows up to 50 tags per resource
+2. Reduce number of tags in configuration
+3. Prioritize most important tags
+
+## Complete Example
+
+Here's a production-ready tagging configuration:
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    pika: {
+        projNameL: 'customer-portal-api',
+        // ... rest of config
+    },
+    pikaChat: {
+        projNameL: 'customer-portal-web',
+        // ... rest of config
+    },
+    
+    stackTags: {
+        // Applied to all resources
+        common: {
+            'Application': 'CustomerPortal',
+            'ManagedBy': 'Pika',
+            'Environment': '{stage}',
+            'CostCenter': 'engineering',
+            'Owner': 'platform-team@example.com',
+            'Project': 'CustomerPortal',
+            'DeployedAt': '{timestamp}',
+            'Region': '{region}'
+        },
+        
+        // Backend-specific tags
+        pikaServiceTags: {
+            'Component': '{pika.projNameKebabCase}',
+            'Type': 'api',
+            'Runtime': 'nodejs22',
+            'MonitoringDashboard': 'https://monitoring.example.com/pika-service'
+        },
+        
+        // Frontend-specific tags
+        pikaChatTags: {
+            'Component': '{pikaChat.projNameKebabCase}',
+            'Type': 'webapp',
+            'CDN': 'CloudFront',
+            'MonitoringDashboard': 'https://monitoring.example.com/pika-chat'
+        }
+    }
+};
+```
+
+## Next Steps
+
+- [Deploy to AWS with CDK](/guides/deployment/aws-cdk/) - Deploy your tagged infrastructure
+- [Track AI Model Costs](/guides/admin/track-costs/) - Use tags to analyze AI model costs in Cost Explorer
+- [Platform Settings Configuration](/reference/configuration/platform-settings/) - Configure other platform settings
+- [Stack Configuration Reference](/reference/configuration/stack-tags/) - Complete stackTags reference
+
+## See Also
+
+- [Inference Profile Names](/reference/configuration/inference-profiles/) - How Pika names inference profiles for cost tracking
+- [AWS Tagging Strategies](https://docs.aws.amazon.com/whitepapers/latest/tagging-best-practices/tagging-best-practices.html) - AWS official guide
+- [Cost Allocation Tags](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/cost-alloc-tags.html) - Enable cost tracking
+- [CDK Tags](https://docs.aws.amazon.com/cdk/v2/guide/tagging.html) - AWS CDK tagging documentation
+

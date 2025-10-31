@@ -20,6 +20,7 @@ catalog:
   '@typescript-eslint/eslint-plugin': ^8.39.0
   '@typescript-eslint/parser': ^8.39.0
   dotenv: ^16.5.0
+  '@aws-sdk/client-bedrock': ^3.887.0
   '@aws-sdk/client-bedrock-runtime': ^3.887.0
   '@aws-sdk/client-dynamodb': ^3.887.0
   '@aws-sdk/util-dynamodb': ^3.887.0

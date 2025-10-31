@@ -16,6 +16,7 @@ import type {
     CustomDataUiRepresentation,
     InvokeAgentAsComponentOptions,
     IUserWidgetDataStoreState,
+    MarkdownRendererConfig,
     RecordOrUndef,
     ShareSessionState,
     ShowToastFn,
@@ -50,11 +51,19 @@ export interface IIdentityState {
     readonly isContentAdmin: boolean;
     getUserAwsCredentials(): Promise<UserAwsCredentials | undefined>;
 }
-
 export interface IAppState {
     readonly showToast: ShowToastFn;
     readonly identity: IIdentityState;
     readonly isMobile: boolean;
+
+    /**
+     * Convert markdown to HTML.  This is a helper function for convenience.
+     * @param markdown - The markdown content to convert to HTML
+     * @param config - Optional configuration for the markdown renderer
+     * @returns The HTML content
+     * @since 0.13.0
+     */
+    convertMarkdownToHtml(markdown: string, config?: MarkdownRendererConfig): string;
 }
 
 /**

@@ -33,6 +33,7 @@ export interface PikaConstructProps {
     projNameHuman: string; // Human readable e.g. Pika
     sessionInsightsFeature: SessionInsightsFeature;
     userMemoryFeature: UserMemoryFeature;
+    stackTags?: Record<string, string>;
 }
 
 export interface PikaConstructOutputs {
@@ -223,6 +224,10 @@ export class PikaConstruct extends Construct {
         this.createSemanticDirectiveCustomResource(chatAdminRestApi);
         this.createTagDefinitionCustomResource(chatAdminRestApi);
         const domainIndexCustomResourceLambda = this.createDomainIndexCustomResource();
+        const inferenceProfileCustomResourceLambda = this.createInferenceProfileCustomResource();
+
+        // Create inference profile instances for the three Claude models and capture their ARNs
+        const inferenceProfileArns = this.createInferenceProfileInstances(inferenceProfileCustomResourceLambda);
 
         // Initialize OpenSearch domain indices if OpenSearch is enabled
         if (openSearchDomain) {
@@ -258,7 +263,8 @@ export class PikaConstruct extends Construct {
             storageResources.pikaS3Bucket,
             agentPostProcessorFn,
             openSearchDomain,
-            memoryId
+            memoryId,
+            inferenceProfileArns
         );
 
         return {
@@ -1452,7 +1458,7 @@ export class PikaConstruct extends Construct {
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['bedrock:InvokeInlineAgent', 'bedrock:InvokeModelWithResponseStream', 'bedrock:InvokeModel'],
-                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
                         })
                     ]
                 })
@@ -1491,7 +1497,7 @@ export class PikaConstruct extends Construct {
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -1635,7 +1641,7 @@ export class PikaConstruct extends Construct {
                                 'bedrock:GetInferenceProfile',
                                 'bedrock:GetFoundationModel'
                             ],
-                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
                         }),
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
@@ -1977,8 +1983,18 @@ export class PikaConstruct extends Construct {
         pikaS3Bucket: s3.Bucket,
         agentPostProcessorFn: lambda.Function,
         openSearchDomain?: opensearch.Domain,
-        memoryId?: string
+        memoryId?: string,
+        inferenceProfileArns?: Record<string, string>
     ): lambda.Function {
+        // Build environment variables for inference profiles
+        // Use INFERENCE_PROFILE_ prefix so the lambda can discover them
+        const inferenceProfileEnvVars: Record<string, string> = {};
+        if (inferenceProfileArns) {
+            Object.entries(inferenceProfileArns).forEach(([key, arn]) => {
+                inferenceProfileEnvVars[`INFERENCE_PROFILE_${key}`] = arn;
+            });
+        }
+
         const converseFn = new nodejs.NodejsFunction(this, 'ConverseFunction', {
             entry: 'src/lambda/converse/index.ts',
             handler: 'handler',
@@ -2001,7 +2017,8 @@ export class PikaConstruct extends Construct {
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
                 POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn,
-                ...(memoryId ? { MEMORY_ID: memoryId } : {})
+                ...(memoryId ? { MEMORY_ID: memoryId } : {}),
+                ...inferenceProfileEnvVars
             },
             bundling: {
                 minify: true,
@@ -2385,6 +2402,163 @@ export class PikaConstruct extends Construct {
         return memoryCustomResourceLambda;
     }
 
+    private createInferenceProfileCustomResource(): lambda.Function {
+        const inferenceProfileCustomResourceRole = new iam.Role(this, 'InferenceProfileCustomResourceRole', {
+            roleName: `inference-profile-custom-resource-role-${this.props.stackName}`,
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+            inlinePolicies: {
+                InferenceProfileCustomResourcePolicy: new iam.PolicyDocument({
+                    statements: [
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents', 'logs:DescribeLogStreams'],
+                            resources: ['arn:aws:logs:*:*:*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:AssumeRole'],
+                            resources: [`arn:aws:iam::${this.props.account}:role/${this.props.stackName}-*`]
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'bedrock:InvokeModel',
+                                'bedrock:CreateInferenceProfile',
+                                'bedrock:GetInferenceProfile',
+                                'bedrock:ListInferenceProfiles',
+                                'bedrock:DeleteInferenceProfile',
+                                'bedrock:TagResource',
+                                'bedrock:UntagResource',
+                                'bedrock:ListTagsForResource'
+                            ],
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
+                        }),
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['sts:GetCallerIdentity'],
+                            resources: ['*']
+                        })
+                    ]
+                })
+            }
+        });
+
+        const inferenceProfileCustomResourceLambda = new nodejs.NodejsFunction(this, 'InferenceProfileCustomResourceLambda', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            entry: 'src/lambda/inference-profile-custom-resource/index.ts',
+            handler: 'handler',
+            timeout: cdk.Duration.minutes(15),
+            memorySize: 256,
+            role: inferenceProfileCustomResourceRole,
+            architecture: lambda.Architecture.ARM_64,
+            environment: {
+                STAGE: this.props.stage,
+                AWS_ACCOUNT_ID: this.props.account
+            },
+            bundling: {
+                minify: true,
+                sourceMap: true,
+                target: 'node22',
+                externalModules: ['@aws-sdk']
+            }
+        });
+
+        new ssm.StringParameter(this, 'InferenceProfileCustomResourceArnParam', {
+            parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/lambda/inference_profile_custom_resource_arn`,
+            stringValue: inferenceProfileCustomResourceLambda.functionArn,
+            description: 'ARN of the Inference Profile Custom Resource Lambda function'
+        });
+
+        return inferenceProfileCustomResourceLambda;
+    }
+
+    //TODO: get these from the config and let users override which models are used where
+    private createInferenceProfileInstances(inferenceProfileCustomResourceLambda: lambda.Function): Record<string, string> {
+        // Define the three Claude models we want to create inference profiles for
+        // These map to the model keys in MODELS.ANTHROPIC in model-types-utils.ts
+        const profiles = [
+            {
+                name: 'Claude4Sonnet',
+                profileName: 'claude-sonnet-4',
+                modelId: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude4Sonnet'
+            },
+            {
+                name: 'Claude4_5Haiku',
+                profileName: 'claude-haiku-4-5',
+                modelId: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude4_5Haiku'
+            },
+            {
+                name: 'Claude4_5Sonnet',
+                profileName: 'claude-sonnet-4-5',
+                modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude4_5Sonnet'
+            }
+        ];
+
+        const inferenceProfileArns: Record<string, string> = {};
+
+        // Create inference profiles for cost tracking
+        profiles.forEach((profile) => {
+            // Prepare tags for this inference profile
+            const tags: Array<{ key: string; value: string }> = [];
+
+            // Add stack tags from config if provided, filtering out AWS system tags
+            if (this.props.stackTags) {
+                Object.entries(this.props.stackTags).forEach(([key, value]) => {
+                    // AWS Bedrock does not allow system tags (aws:, cloudformation:, etc.)
+                    if (!key.toLowerCase().startsWith('aws:') && !key.toLowerCase().startsWith('cloudformation:')) {
+                        tags.push({ key, value });
+                    } else {
+                        console.log(`Skipping system tag for inference profile: ${key}`);
+                    }
+                });
+            }
+
+            // Add component-specific tag
+            tags.push({
+                key: 'component',
+                value: `${profile.name}InferenceProfile`
+            });
+
+            // Log tags being applied for debugging
+            console.log(`Creating inference profile ${profile.name} with ${tags.length} tag(s):`, JSON.stringify(tags, null, 2));
+
+            // Create the custom resource for this inference profile
+            const customResource = new cdk.CustomResource(this, `${profile.name}InferenceProfile`, {
+                resourceType: 'Custom::CreateInferenceProfile',
+                serviceToken: inferenceProfileCustomResourceLambda.functionArn,
+                properties: {
+                    inferenceProfileName: `${this.props.stackName}-${profile.profileName}`,
+                    modelSource: {
+                        copyFrom: `arn:aws:bedrock:${this.props.region}:${this.props.account}:inference-profile/${profile.modelId}`
+                    },
+                    description: `${profile.name} inference profile for ${this.props.projNameHuman}`,
+                    tags: tags
+                }
+            });
+
+            // Capture the ARN (physical resource ID) for use in Lambda environment variables
+            // Format: {PROVIDER}_{MODEL_KEY} to match applyInferenceProfilesFromEnv pattern
+            const envKey = `${profile.provider}_${profile.modelKey}`;
+            inferenceProfileArns[envKey] = customResource.ref;
+
+            // Store the ARN in SSM Parameter Store for local development
+            new ssm.StringParameter(this, `${profile.name}InferenceProfileArnParameter`, {
+                parameterName: `/stack/${this.props.projNameKebabCase}/${this.props.stage}/inference-profile/${profile.modelKey}`,
+                stringValue: customResource.ref,
+                description: `Inference profile ARN for ${profile.name} (${profile.provider}.${profile.modelKey})`,
+                tier: ssm.ParameterTier.STANDARD
+            });
+        });
+
+        return inferenceProfileArns;
+    }
+
     private createMemoryCustomResourceInstance(memoryCustomResourceLambda: lambda.Function): [string, Partial<Record<UserMemoryStrategy, string>>] {
         // Create custom resource to create/manage the memory
         const memoryCustomResource = new cdk.CustomResource(this, 'MemoryCustomResource', {
@@ -2608,7 +2782,7 @@ export class PikaConstruct extends Construct {
                                 'bedrock:GetInferenceProfile',
                                 'bedrock:GetFoundationModel'
                             ],
-                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
+                            resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
                         }),
                         // DynamoDB permissions for session and feedback operations
                         new iam.PolicyStatement({

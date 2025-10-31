@@ -1,7 +1,8 @@
 import type { ChatApp, ChatAppDataRequest, ChatAppDataResponse, CreateChatAppRequest, UpdateChatAppRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse, CloudFormationCustomResourceResponseCommon, Context, Handler } from 'aws-lambda';
-import { createMakeRequestFn, MakeRequestFn, parseChatAppCustomResourceProperties, sendCustomResourceResponse } from './util';
+import { createMakeRequestFn, MakeRequestFn, parseChatAppCustomResourceProperties } from './util';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
+import { sendCustomResourceResponse } from '../../lib/lambda-custom-resource-util';
 
 /**
  * This lambda is used to create or update a chat app in a single operation. You create a custom cloudformation resource

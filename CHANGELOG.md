@@ -5,6 +5,58 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2025-10-31
+
+### Added
+
+- **Inference Profile Cost Tracking** - Automatic creation of named inference profiles for granular AI model cost analysis
+    - Pika now automatically creates named inference profiles by copying AWS Bedrock's built-in profiles
+    - Enables tracking costs for specific models (Claude 4 Sonnet, Claude 4.5 Haiku, Claude 4.5 Sonnet) in AWS Cost Explorer
+    - Inference profiles follow naming pattern: `{stackName}-{profileName}` (e.g., `pika-test-claude-sonnet-4-5`)
+    - All inference profiles are tagged with your configured `stackTags` for flexible cost allocation
+    - Automatic component tagging for each profile (e.g., `component: Claude4_5SonnetInferenceProfile`)
+    - Created during backend stack deployment with no additional configuration required
+    - New documentation: [Track AI Model Costs](/guides/admin/track-costs/) guide and [Inference Profile Names](/reference/configuration/inference-profiles/) reference
+
+- **AWS Resource Tagging System** - Comprehensive tagging support for cost tracking, organization, and compliance
+    - New `stackTags` configuration in `pika-config.ts` with three tag categories: `common`, `pikaServiceTags`, `pikaChatTags`
+    - Dynamic placeholder support for tag values (e.g., `{stage}`, `{timestamp}`, `{accountId}`, `{region}`, `{pika.projNameKebabCase}`)
+    - Tags applied to all AWS resources in CDK stacks including Lambda, DynamoDB, S3, CloudFront, and inference profiles
+    - Automatic filtering of AWS system tags (`aws:*`, `cloudformation:*`) for inference profiles
+    - Tag merging rules: stack-specific tags overwrite common tags on key conflicts
+    - New TypeScript interface: `PikaConfig.stackTags` with `@since 0.13.0` annotation
+    - New documentation: [Configure AWS Resource Tags](/guides/deployment/aws-resource-tags/) guide and [Stack Tags Configuration](/reference/configuration/stack-tags/) reference
+
+- **Markdown Renderer Factory** - Centralized markdown-to-HTML conversion with caching
+    - New factory function for creating and caching markdown-it renderer instances
+    - Configurable options: HTML support, linkify, typographer, line breaks, syntax highlighting
+    - Cache key support for different highlight function configurations
+    - Available in web components via `appState.convertMarkdownToHtml(markdown, config?)`
+    - New TypeScript interfaces: `MarkdownRendererConfig` and `IAppState.convertMarkdownToHtml()` with `@since 0.13.0` annotations
+    - New documentation: [Markdown Conversion API](/reference/api/markdown-conversion/) reference
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.13.0) for @since 0.13.0 to find all type definitions that were added, updated, or removed in this release.
+
+### Changed
+
+- **Custom Resource Lambda Functions** - Refactored to use shared utilities
+    - Agent custom resource now uses lambda-custom-resource-util helpers
+    - Chat app custom resource now uses lambda-custom-resource-util helpers
+    - Memory custom resource now uses lambda-custom-resource-util helpers
+    - Semantic directive custom resource now uses lambda-custom-resource-util helpers
+    - Tag definition custom resource now uses lambda-custom-resource-util helpers
+    - Improved error handling and logging consistency across all custom resources
+
+- **AWS CDK Deployment Documentation** - Updated with tagging information
+    - Added references to new inference profile cost tracking feature
+    - Included information about automatic resource tagging
+
+### Fixed
+
+- Domain index Lambda now properly handles case sensitivity in domain comparisons
+
 ## [0.12.0] - 2025-10-31
 
 ### Added

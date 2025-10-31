@@ -6,7 +6,8 @@ import type {
     TagDefinitionDeleteResponse
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
-import { createMakeRequestFn, getStackNameFromStackId, MakeRequestFn, parseTagDefinitionCustomResourceProperties, sendCustomResourceResponse } from './util';
+import { createMakeRequestFn, getStackNameFromStackId, MakeRequestFn, parseTagDefinitionCustomResourceProperties } from './util';
+import { sendCustomResourceResponse } from '../../lib/lambda-custom-resource-util';
 
 /**
  * This lambda is used to create, update, or delete tag definitions in a single operation.  You create a custom cloudformation resource
@@ -182,7 +183,7 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
 
     try {
         console.log('Sending response to CloudFormation...');
-        await sendCustomResourceResponse(event, response);
+        await sendCustomResourceResponse(event, response, true); // Allow mock response for testing
         console.log('CloudFormation response sent successfully');
     } catch (e) {
         // This is a critical failure - CloudFormation will hang without a response

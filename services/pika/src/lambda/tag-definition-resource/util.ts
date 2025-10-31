@@ -1,5 +1,3 @@
-import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
-import pRetry, { AbortError } from 'p-retry';
 import {
     TAG_DEFINITION_STATUSES,
     TAG_DEFINITION_USAGE_MODES,
@@ -10,6 +8,7 @@ import {
     TagDefinitionWidgetForCreateOrUpdate
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { invokeApi } from '../../lib/invoke-api';
+import pRetry, { AbortError } from 'p-retry';
 
 export function parseTagDefinitionCustomResourceProperties(str: string): TagDefinitionForCreateOrUpdate<TagDefinitionWidgetForCreateOrUpdate> {
     let tagDefData: unknown;
@@ -151,136 +150,8 @@ export function createMakeRequestFn(apiId: string, stage: string, region: string
     };
 }
 
-export async function sendCustomResourceResponse(event: CloudFormationCustomResourceEvent, response: CloudFormationCustomResourceResponse): Promise<void> {
-    const responseUrl = event.ResponseURL;
-
-    if (!responseUrl) {
-        throw new Error('ResponseURL is missing from the event');
-    }
-
-    // Check if this is a direct invocation (not from CloudFormation)
-    if (responseUrl.includes('mock-response-url.local')) {
-        console.log('Direct invocation detected (mock ResponseURL). Skipping CloudFormation callback.');
-        console.log('Tag operation completed successfully:', {
-            status: response.Status,
-            physicalResourceId: response.PhysicalResourceId
-        });
-        return;
-    }
-
-    // Validate the response before attempting to send
-    validateResponse(response);
-
-    const responseBody = JSON.stringify(response);
-
-    // Configuration constants
-    const REQUEST_TIMEOUT_MS = 15000; // 15 seconds per attempt
-    const MAX_RETRIES = 5;
-    const MIN_RETRY_DELAY_MS = 1000;
-    const MAX_RETRY_DELAY_MS = 10000;
-
-    console.log('Sending response to CloudFormation:', {
-        url: responseUrl,
-        status: response.Status,
-        physicalResourceId: response.PhysicalResourceId,
-        responseBodyLength: responseBody.length
-    });
-
-    await pRetry(
-        async (attemptNumber) => {
-            console.log(`Attempt ${attemptNumber} to send CloudFormation response`);
-
-            // Create AbortController for timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-            }, REQUEST_TIMEOUT_MS);
-
-            try {
-                const fetchResponse = await fetch(responseUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': '', // CloudFormation expects empty content-type
-                        'Content-Length': responseBody.length.toString()
-                    },
-                    body: responseBody,
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-
-                if (!fetchResponse.ok) {
-                    const errorText = await fetchResponse.text().catch(() => 'Unable to read error response');
-
-                    // Distinguish between retryable and non-retryable HTTP errors
-                    if (fetchResponse.status >= 400 && fetchResponse.status < 500) {
-                        // 4xx errors are client errors - don't retry
-                        throw new AbortError(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}. Response: ${errorText}`);
-                    } else {
-                        // 5xx errors are server errors - can be retried
-                        throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}. Response: ${errorText}`);
-                    }
-                }
-
-                // Read response to ensure complete transfer
-                const responseText = await fetchResponse.text();
-
-                console.log('Successfully sent response to CloudFormation', {
-                    status: fetchResponse.status,
-                    statusText: fetchResponse.statusText,
-                    responseLength: responseText.length
-                });
-            } catch (error) {
-                clearTimeout(timeoutId);
-
-                if (error instanceof Error && error.name === 'AbortError') {
-                    throw new Error(`Request timeout after ${REQUEST_TIMEOUT_MS}ms`);
-                }
-
-                throw error;
-            }
-        },
-        {
-            retries: MAX_RETRIES,
-            minTimeout: MIN_RETRY_DELAY_MS,
-            maxTimeout: MAX_RETRY_DELAY_MS,
-            factor: 2,
-            onFailedAttempt: (error) => {
-                console.warn(`CloudFormation response attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left. Error: ${error.message}`);
-            }
-        }
-    );
-}
-
-function validateResponse(response: CloudFormationCustomResourceResponse): void {
-    if (!response.Status) {
-        throw new Error('Response Status is required');
-    }
-
-    if (response.Status !== 'SUCCESS' && response.Status !== 'FAILED') {
-        throw new Error(`Response Status must be SUCCESS or FAILED, got: ${(response as any).Status}`);
-    }
-
-    if (!response.PhysicalResourceId) {
-        throw new Error('Response PhysicalResourceId is required');
-    }
-
-    if (!response.StackId) {
-        throw new Error('Response StackId is required');
-    }
-
-    if (!response.RequestId) {
-        throw new Error('Response RequestId is required');
-    }
-
-    if (!response.LogicalResourceId) {
-        throw new Error('Response LogicalResourceId is required');
-    }
-
-    if (response.Status === 'FAILED' && !response.Reason) {
-        throw new Error('Response Reason is required when Status is FAILED');
-    }
-}
+// sendCustomResourceResponse is now imported from ../../lib/custom-resource-util in index.ts
+// Note: tag-definition-resource uses allowMockResponse=true to support direct invocation for testing
 
 export function getStackNameFromStackId(stackId: string): string {
     // Check if it's a valid CloudFormation stack ARN

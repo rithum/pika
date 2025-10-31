@@ -14,23 +14,103 @@ export const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
 export const DEFAULT_VERIFICATION_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'amazon.nova-micro-v1:0';
 
-export const MODELS = {
+interface AnthropicConfig {
+    maxTokens?: number;
+    temperatureExcludesTopP?: boolean;
+}
+
+const anthropicPre4_5Config: AnthropicConfig = {
+    maxTokens: 65536
+};
+
+const anthropic4_5Config: AnthropicConfig = {
+    maxTokens: 100000,
+    temperatureExcludesTopP: true
+};
+
+interface AmazonConfig {
+    maxTopK?: number;
+}
+
+const amazonConfig128TopK: AmazonConfig = {
+    maxTopK: 128
+};
+
+const amazonDefaultConfig: AmazonConfig = {};
+
+/**
+ * Applies custom inference profile ARNs from environment variables to the model definitions.
+ * This allows using account-specific inference profiles for cost tracking while maintaining
+ * the same model interface.
+ *
+ * Environment variables follow the pattern: INFERENCE_PROFILE_ANTHROPIC_ModelName
+ * Example: INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet = "arn:aws:bedrock:..."
+ */
+function applyInferenceProfilesFromEnv<T>(obj: T): T {
+    Object.entries(obj as any).forEach(([provider, models]: [string, any]) => {
+        Object.entries(models).forEach(([modelKey, model]: [string, any]) => {
+            const envVarName = `INFERENCE_PROFILE_${provider}_${modelKey}`;
+            const profileArn = process.env[envVarName];
+
+            if (profileArn && profileArn !== 'undefined') {
+                console.log(`Using custom inference profile for ${provider}.${modelKey}: ${profileArn}`);
+                model.id = profileArn;
+            } else {
+                console.log(`Using base model for ${provider}.${modelKey}: ${model.id}`);
+            }
+        });
+    });
+
+    return obj;
+}
+
+export const MODELS = applyInferenceProfilesFromEnv({
     ANTHROPIC: {
-        Claude3Haiku: { name: 'Claude3Haiku', id: 'anthropic.claude-3-haiku-20240307-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude3Sonnet: { name: 'Claude3Sonnet', id: 'anthropic.claude-3-sonnet-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude3Opus: { name: 'Claude3Opus', id: 'anthropic.claude-3-opus-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude3_5Haiku: { name: 'Claude3_5Haiku', id: 'us.anthropic.claude-3-5-haiku-20241022-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude3_5SonnetV2: { name: 'Claude3_5SonnetV2', id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude3_7Sonnet: { name: 'Claude3_7Sonnet', id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude4Sonnet: { name: 'Claude4Sonnet', id: 'us.anthropic.claude-sonnet-4-20250514-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) },
-        Claude4_1Opus: { name: 'Claude4_1Opus', id: 'us.anthropic.claude-opus-4-1-20250805-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this) }
+        Claude3Haiku: { name: 'Claude3Haiku', id: 'anthropic.claude-3-haiku-20240307-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
+        Claude3Sonnet: { name: 'Claude3Sonnet', id: 'anthropic.claude-3-sonnet-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
+        Claude3Opus: { name: 'Claude3Opus', id: 'anthropic.claude-3-opus-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
+        Claude3_5Haiku: {
+            name: 'Claude3_5Haiku',
+            id: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
+        },
+        Claude3_5SonnetV2: {
+            name: 'Claude3_5SonnetV2',
+            id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
+        },
+        Claude3_7Sonnet: {
+            name: 'Claude3_7Sonnet',
+            id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
+        },
+        Claude4Sonnet: {
+            name: 'Claude4Sonnet',
+            id: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
+        },
+        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
+        Claude4_1Opus: {
+            name: 'Claude4_1Opus',
+            id: 'us.anthropic.claude-opus-4-1-20250805-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
+        },
+        Claude4_5Haiku: {
+            name: 'Claude4_5Haiku',
+            id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        Claude4_5Sonnet: {
+            name: 'Claude4_5Sonnet',
+            id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        }
     },
     AMAZON: {
-        NovaLite: { name: 'NovaLite', id: 'amazon.nova-lite-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, { maxTopK: 128 }) },
-        NovaPremier: { name: 'NovaPremier', id: 'amazon.nova-premier-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, {}) },
-        NovaPro: { name: 'NovaPro', id: 'amazon.nova-pro-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, {}) },
-        NovaMicro: { name: 'NovaMicro', id: 'amazon.nova-micro-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, { maxTopK: 128 }) }
+        NovaLite: { name: 'NovaLite', id: 'amazon.nova-lite-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, amazonConfig128TopK) },
+        NovaPremier: { name: 'NovaPremier', id: 'amazon.nova-premier-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, amazonDefaultConfig) },
+        NovaPro: { name: 'NovaPro', id: 'amazon.nova-pro-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, amazonDefaultConfig) },
+        NovaMicro: { name: 'NovaMicro', id: 'amazon.nova-micro-v1:0', argsConstructor: buildModelInvokeBodyAmazon.bind(this, amazonConfig128TopK) }
     },
     META: {
         Llama3_2_1B_Instruct: {
@@ -58,7 +138,7 @@ export const MODELS = {
             getModelResponse: parseModelResponseMeta.bind(this)
         }
     }
-};
+});
 
 export interface ReturnControlContext {
     sessionId: string;
@@ -142,8 +222,8 @@ export function buildModelInvokeBody(modelId: string, args: ModelBody) {
 }
 
 // Build the model invocation body for Anthropic
-function buildModelInvokeBodyAnthropic(args: ModelBody) {
-    return {
+function buildModelInvokeBodyAnthropic(config: AnthropicConfig, args: ModelBody) {
+    const body: any = {
         anthropic_version: DEFAULT_ANTHROPIC_VERSION,
         top_k: args.topK,
         temperature: args.temperature,
@@ -151,6 +231,13 @@ function buildModelInvokeBodyAnthropic(args: ModelBody) {
         max_tokens: args.maxTokens,
         messages: args.messages
     };
+
+    // For Claude 4.5+ models, temperature and topP are mutually exclusive
+    if (config.temperatureExcludesTopP && body.temperature != null) {
+        delete body.top_p;
+    }
+
+    return body;
 }
 
 // Build the model invocation body for Meta

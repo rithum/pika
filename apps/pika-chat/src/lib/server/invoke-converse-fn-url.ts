@@ -89,11 +89,12 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             process.env.TAG_DEFINITIONS_TABLE = `pika-tag-def-${name}-${stage}`;
 
             // Try to get MEMORY_ID from SSM parameter store
+            const ssmClient = new SSMClient({
+                region: process.env.AWS_REGION,
+                credentials: defaultProvider()
+            });
+
             try {
-                const ssmClient = new SSMClient({
-                    region: process.env.AWS_REGION,
-                    credentials: defaultProvider()
-                });
                 const memoryIdSsmPath = `/stack/${name}/${stage}/memory/memory_id`;
                 const getParameterCommand = new GetParameterCommand({
                     Name: memoryIdSsmPath
@@ -105,6 +106,28 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             } catch (error) {
                 // Don't error out if the parameter doesn't exist or can't be retrieved
                 console.log('Could not retrieve MEMORY_ID from SSM parameter store:', error instanceof Error ? error.message : String(error));
+            }
+
+            // Try to get Inference Profile ARNs from SSM parameter store
+            try {
+                const profileKeys = ['Claude4Sonnet', 'Claude4_5Haiku', 'Claude4_5Sonnet'];
+                for (const key of profileKeys) {
+                    try {
+                        const ssmPath = `/stack/${name}/${stage}/inference-profile/${key}`;
+                        const cmd = new GetParameterCommand({ Name: ssmPath });
+                        const resp = await ssmClient.send(cmd);
+                        if (resp.Parameter?.Value) {
+                            process.env[`INFERENCE_PROFILE_ANTHROPIC_${key}`] = resp.Parameter.Value;
+                            console.log(`Loaded inference profile for ANTHROPIC.${key} from SSM`);
+                        }
+                    } catch (profileError) {
+                        // Continue even if one profile fails to load
+                        console.log(`Could not retrieve inference profile ${key} from SSM:`, profileError instanceof Error ? profileError.message : String(profileError));
+                    }
+                }
+            } catch (error) {
+                // Don't error out if inference profiles can't be retrieved
+                console.log('Could not retrieve inference profiles from SSM parameter store:', error instanceof Error ? error.message : String(error));
             }
 
             let r1: any, r2: any;
