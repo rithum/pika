@@ -1,10 +1,10 @@
-import { deleteIndex, getDocumentsByIds } from '../../src/lib/opensearch/opensearch';
-import { ensureDomainExists } from '../../src/lib/opensearch/index-initializer';
-import { type DomainIndex, DomainIndices, SessionIndex, getIndexMeta } from '../../src/lib/opensearch/types';
-import OsClient from '../../src/lib/opensearch/opensearch-client';
+import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
-import dotenv from 'dotenv';
+import { ensureDomainExists } from '../../src/lib/opensearch/index-initializer';
+import { deleteIndex, getDocumentsByIds } from '../../src/lib/opensearch/opensearch';
+import OsClient from '../../src/lib/opensearch/opensearch-client';
+import { type DomainIndex, DomainIndices, SessionIndex, getIndexMeta } from '../../src/lib/opensearch/types';
 
 // Env is now loaded conditionally inside main() from a local .env.local file if present
 
@@ -45,6 +45,31 @@ async function getDocuments(indexName: string, ids: string[]) {
     console.log(`Fetching ${ids.length} document(s) from index '${idx}'...`);
     const result = await getDocumentsByIds(idx, ids);
     console.log(JSON.stringify(result, null, 2));
+}
+
+async function getDocumentsRaw(indexName: string, ids: string[]) {
+    const idx = toDomainIndex(indexName);
+    if (!ids || ids.length === 0) {
+        throw new Error('Please provide one or more IDs after the index name. Example: get-raw session id1 id2');
+    }
+    console.log(`Fetching RAW ${ids.length} document(s) from index '${idx}'...`);
+
+    const client = await OsClient.getClient();
+    const indexMeta = getIndexMeta(idx);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resp = await client.mget({ index: indexMeta.name, body: { ids }, _source: true } as any);
+
+    const docs = (resp as any)?.body?.docs ?? (resp as any)?.docs ?? [];
+    const results: Record<string, any> = {};
+
+    for (const doc of docs) {
+        if (doc && (doc.found === true || doc.found === 'true')) {
+            results[String(doc._id)] = doc._source;
+        }
+    }
+
+    console.log(JSON.stringify(results, null, 2));
 }
 
 async function countDocumentsForIndex(index: DomainIndex): Promise<number> {
@@ -112,6 +137,397 @@ async function getStoreSizeAll(): Promise<{ totalBytes: number; totalMB: number;
     return { totalBytes, totalMB: Number(totalMB.toFixed(3)), byIndex };
 }
 
+interface DiagnoseOptions {
+    dateStart?: string;
+    dateEnd?: string;
+    userType?: string;
+    invocationMode?: string;
+    chatAppId?: string;
+    entityAttribute?: string;
+    entityValue?: string;
+}
+
+async function diagnoseSessionData(options: DiagnoseOptions = {}) {
+    const client = await OsClient.getClient();
+    const indexName = getIndexMeta(SessionIndex).name;
+
+    console.log('\n=== OpenSearch Session Index Diagnostics ===\n');
+
+    // 1. Check if index exists
+    try {
+        const exists = await client.indices.exists({ index: indexName } as any);
+        console.log(`Index '${indexName}' exists: ${exists.body ?? exists}`);
+    } catch (err) {
+        console.error(`Error checking if index exists:`, err);
+        return;
+    }
+
+    // 2. Total document count
+    try {
+        const countResp = await client.count({ index: indexName, body: { query: { match_all: {} } } } as any);
+        const totalCount = (countResp as any)?.body?.count ?? (countResp as any)?.count;
+        console.log(`Total documents in index: ${totalCount}\n`);
+    } catch (err) {
+        console.error('Error counting documents:', err);
+    }
+
+    // 3. Get sample documents (first 5)
+    try {
+        console.log('=== Sample Documents (first 5) ===');
+        const sampleResp = await client.search({
+            index: indexName,
+            body: {
+                query: { match_all: {} },
+                size: 5,
+                sort: [{ create_date: { order: 'desc' } }]
+            }
+        } as any);
+        const hits = (sampleResp as any)?.body?.hits?.hits ?? (sampleResp as any)?.hits?.hits ?? [];
+        hits.forEach((hit: any, idx: number) => {
+            console.log(`\nSample ${idx + 1}:`);
+            console.log(JSON.stringify(hit._source, null, 2));
+        });
+    } catch (err) {
+        console.error('Error fetching sample documents:', err);
+    }
+
+    // 4. Aggregate field values to understand the data
+    console.log('\n=== Field Value Analysis ===');
+
+    try {
+        const aggsResp = await client.search({
+            index: indexName,
+            body: {
+                size: 0,
+                aggs: {
+                    user_types: {
+                        terms: { field: 'user_type_keyword', size: 20, missing: '_missing' }
+                    },
+                    invocation_modes: {
+                        terms: { field: 'invocation_mode_keyword', size: 20, missing: '_missing' }
+                    },
+                    chat_apps: {
+                        terms: { field: 'chat_app_id', size: 20 }
+                    },
+                    date_range: {
+                        stats: { field: 'create_date' }
+                    }
+                }
+            }
+        } as any);
+
+        const aggs = (aggsResp as any)?.body?.aggregations ?? (aggsResp as any)?.aggregations;
+
+        console.log('\nUser Types:');
+        aggs?.user_types?.buckets?.forEach((b: any) => {
+            console.log(`  ${b.key}: ${b.doc_count}`);
+        });
+
+        console.log('\nInvocation Modes:');
+        aggs?.invocation_modes?.buckets?.forEach((b: any) => {
+            console.log(`  ${b.key}: ${b.doc_count}`);
+        });
+
+        console.log('\nChat App IDs:');
+        aggs?.chat_apps?.buckets?.forEach((b: any) => {
+            console.log(`  ${b.key}: ${b.doc_count}`);
+        });
+
+        console.log('\nDate Range:');
+        if (aggs?.date_range) {
+            console.log(`  Min: ${new Date(aggs.date_range.min).toISOString()}`);
+            console.log(`  Max: ${new Date(aggs.date_range.max).toISOString()}`);
+            console.log(`  Count: ${aggs.date_range.count}`);
+        }
+    } catch (err) {
+        console.error('Error analyzing field values:', err);
+    }
+
+    // 5. Test filtered query with the provided options
+    if (options.dateStart || options.userType || options.invocationMode) {
+        console.log('\n=== Testing Filtered Query ===');
+        console.log('Filters:', JSON.stringify(options, null, 2));
+
+        const filters: any[] = [];
+
+        if (options.dateStart && options.dateEnd) {
+            filters.push({
+                range: {
+                    create_date: {
+                        gte: options.dateStart,
+                        lte: options.dateEnd
+                    }
+                }
+            });
+        }
+
+        if (options.userType) {
+            filters.push({
+                term: { user_type_keyword: options.userType }
+            });
+        }
+
+        if (options.invocationMode) {
+            if (options.invocationMode === 'undefined' || options.invocationMode === '_missing') {
+                filters.push({
+                    bool: {
+                        must_not: { exists: { field: 'invocation_mode_keyword' } }
+                    }
+                });
+            } else {
+                filters.push({
+                    term: { invocation_mode_keyword: options.invocationMode }
+                });
+            }
+        }
+
+        if (options.chatAppId) {
+            filters.push({
+                term: { chat_app_id: options.chatAppId }
+            });
+        }
+
+        if (options.entityAttribute && options.entityValue) {
+            const entityField = `session_attributes.${options.entityAttribute}`;
+            filters.push({
+                term: { [entityField]: options.entityValue }
+            });
+        }
+
+        try {
+            const filteredResp = await client.search({
+                index: indexName,
+                body: {
+                    query: {
+                        bool: {
+                            filter: filters
+                        }
+                    },
+                    size: 5,
+                    sort: [{ create_date: { order: 'desc' } }]
+                }
+            } as any);
+
+            const totalHits = (filteredResp as any)?.body?.hits?.total?.value ?? (filteredResp as any)?.hits?.total?.value ?? 0;
+            console.log(`\nFiltered query matched ${totalHits} documents`);
+
+            const hits = (filteredResp as any)?.body?.hits?.hits ?? (filteredResp as any)?.hits?.hits ?? [];
+            if (hits.length > 0) {
+                console.log('\nFirst matching document:');
+                console.log(JSON.stringify(hits[0]._source, null, 2));
+            }
+        } catch (err) {
+            console.error('Error running filtered query:', err);
+        }
+    }
+
+    console.log('\n=== Diagnostics Complete ===\n');
+}
+
+async function fixKeywordFields() {
+    const client = await OsClient.getClient();
+    const indexName = getIndexMeta(SessionIndex).name;
+
+    console.log('\n=== Fixing Missing Keyword Fields ===\n');
+    console.log('This will update all sessions to ensure user_type_keyword, invocation_mode_keyword, and source_keyword are set.\n');
+
+    // Update by query to set keyword fields from their base fields
+    const updateScript = `
+        if (ctx._source.user_type != null && ctx._source.user_type_keyword == null) {
+            ctx._source.user_type_keyword = ctx._source.user_type;
+        }
+        if (ctx._source.invocation_mode != null && ctx._source.invocation_mode_keyword == null) {
+            ctx._source.invocation_mode_keyword = ctx._source.invocation_mode;
+        }
+        if (ctx._source.source != null && ctx._source.source_keyword == null) {
+            ctx._source.source_keyword = ctx._source.source;
+        }
+        ctx._source.last_index_date = params.now;
+    `;
+
+    try {
+        console.log('Running update_by_query to fix keyword fields...');
+
+        const response = await client.updateByQuery({
+            index: indexName,
+            body: {
+                script: {
+                    source: updateScript,
+                    lang: 'painless',
+                    params: {
+                        now: new Date().toISOString()
+                    }
+                },
+                query: {
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [{ exists: { field: 'user_type' } }, { bool: { must_not: { exists: { field: 'user_type_keyword' } } } }]
+                                }
+                            },
+                            {
+                                bool: {
+                                    must: [{ exists: { field: 'invocation_mode' } }, { bool: { must_not: { exists: { field: 'invocation_mode_keyword' } } } }]
+                                }
+                            },
+                            {
+                                bool: {
+                                    must: [{ exists: { field: 'source' } }, { bool: { must_not: { exists: { field: 'source_keyword' } } } }]
+                                }
+                            }
+                        ],
+                        minimum_should_match: 1
+                    }
+                }
+            },
+            refresh: true,
+            wait_for_completion: true
+        } as any);
+
+        const updated = (response as any)?.body?.updated ?? (response as any)?.updated ?? 0;
+        const total = (response as any)?.body?.total ?? (response as any)?.total ?? 0;
+
+        console.log(`\n✅ Successfully updated ${updated} out of ${total} sessions`);
+        console.log('\nKeyword fields have been fixed!');
+    } catch (error) {
+        console.error('Error fixing keyword fields:', error);
+        throw error;
+    }
+}
+
+async function analyzeExternalSessions(dateStart: string, dateEnd: string) {
+    const client = await OsClient.getClient();
+    const indexName = getIndexMeta(SessionIndex).name;
+
+    console.log('\n=== Analyzing External User Sessions ===\n');
+    console.log(`Date Range: ${dateStart} to ${dateEnd}`);
+    console.log('User Type: external-user\n');
+
+    const filters: any[] = [];
+
+    // Date range filter
+    filters.push({
+        range: {
+            create_date: {
+                gte: dateStart,
+                lte: dateEnd
+            }
+        }
+    });
+
+    // User type filter
+    filters.push({
+        term: { user_type_keyword: 'external-user' }
+    });
+
+    // Fetch all matching documents
+    const allDocs: any[] = [];
+    let scrollId: string | undefined;
+
+    try {
+        // Initial search
+        let response = await client.search({
+            index: indexName,
+            scroll: '1m',
+            size: 1000,
+            body: {
+                query: {
+                    bool: {
+                        filter: filters
+                    }
+                },
+                _source: [
+                    'session_id',
+                    'user_id',
+                    'create_date',
+                    'invocation_mode',
+                    'invocation_mode_keyword',
+                    'chat_app_id',
+                    'total_cost',
+                    'input_tokens',
+                    'output_tokens',
+                    'session_attributes.accountId'
+                ]
+            }
+        } as any);
+
+        scrollId = (response as any)?.body?._scroll_id ?? (response as any)?._scroll_id;
+        let hits = (response as any)?.body?.hits?.hits ?? (response as any)?.hits?.hits ?? [];
+
+        while (hits.length > 0) {
+            hits.forEach((hit: any) => allDocs.push(hit._source));
+
+            if (hits.length < 1000) break; // Last batch
+
+            // Continue scrolling
+            response = await client.scroll({
+                scroll_id: scrollId,
+                scroll: '1m'
+            } as any);
+
+            scrollId = (response as any)?.body?._scroll_id ?? (response as any)?._scroll_id;
+            hits = (response as any)?.body?.hits?.hits ?? (response as any)?.hits?.hits ?? [];
+        }
+
+        // Clear scroll
+        if (scrollId) {
+            await client.clearScroll({ scroll_id: scrollId } as any).catch(() => {});
+        }
+
+        console.log(`\nTotal documents retrieved: ${allDocs.length}\n`);
+
+        // Analyze by invocation mode
+        const byInvocationMode: Record<string, number> = {};
+        const uniqueUsers = new Set<string>();
+        const uniqueAccounts = new Set<string>();
+        let totalCost = 0;
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+
+        allDocs.forEach((doc) => {
+            // Count by invocation mode
+            const mode = doc.invocation_mode_keyword ?? doc.invocation_mode ?? '_missing';
+            byInvocationMode[mode] = (byInvocationMode[mode] ?? 0) + 1;
+
+            // Track unique users and accounts
+            if (doc.user_id) uniqueUsers.add(doc.user_id);
+            if (doc.session_attributes?.accountId) uniqueAccounts.add(doc.session_attributes.accountId);
+
+            // Sum costs and tokens
+            totalCost += doc.total_cost ?? 0;
+            totalInputTokens += doc.input_tokens ?? 0;
+            totalOutputTokens += doc.output_tokens ?? 0;
+        });
+
+        console.log('=== Breakdown by Invocation Mode ===');
+        Object.entries(byInvocationMode)
+            .sort((a, b) => b[1] - a[1])
+            .forEach(([mode, count]) => {
+                console.log(`  ${mode}: ${count}`);
+            });
+
+        console.log('\n=== Summary ===');
+        console.log(`Total Sessions: ${allDocs.length}`);
+        console.log(`Unique Users: ${uniqueUsers.size}`);
+        console.log(`Unique Accounts: ${uniqueAccounts.size}`);
+        console.log(`Total Cost: $${totalCost.toFixed(2)}`);
+        console.log(`Total Input Tokens: ${totalInputTokens.toLocaleString()}`);
+        console.log(`Total Output Tokens: ${totalOutputTokens.toLocaleString()}`);
+        console.log(`Avg Cost/Session: $${(totalCost / allDocs.length).toFixed(2)}`);
+        console.log(`Avg Tokens/Session: ${Math.round((totalInputTokens + totalOutputTokens) / allDocs.length).toLocaleString()}`);
+
+        // Show a few sample session IDs for verification
+        console.log('\n=== Sample Session IDs (first 5) ===');
+        allDocs.slice(0, 5).forEach((doc) => {
+            console.log(`  ${doc.session_id} - ${doc.invocation_mode_keyword ?? doc.invocation_mode ?? '_missing'} - ${new Date(doc.create_date).toISOString()}`);
+        });
+    } catch (error) {
+        console.error('Error analyzing external sessions:', error);
+        throw error;
+    }
+}
+
 async function main(): Promise<void> {
     // Load .env.local if present (located at services/pika/.env.local)
     const envPath = path.join(__dirname, '..', '..', '.env.local');
@@ -164,6 +580,18 @@ async function main(): Promise<void> {
             await getDocuments(effectiveIndex, effectiveIds);
             break;
         }
+        case 'get-raw':
+        case 'mget-raw': {
+            // Make index optional: if the provided index isn't a known domain index, default to 'session' and treat it as an ID
+            let effectiveIndex = indexName;
+            let effectiveIds = idArgs;
+            if (!DomainIndices.includes(indexName as DomainIndex)) {
+                effectiveIndex = SessionIndex;
+                effectiveIds = [indexName, ...idArgs].filter(Boolean);
+            }
+            await getDocumentsRaw(effectiveIndex, effectiveIds);
+            break;
+        }
         case 'count': {
             const target = indexRaw?.toLowerCase();
             if (!target || target === 'all') {
@@ -193,6 +621,51 @@ async function main(): Promise<void> {
             }
             break;
         }
+        case 'diagnose': {
+            // Parse command line args for diagnose
+            // Format: diagnose [--date-start YYYY-MM-DD] [--date-end YYYY-MM-DD] [--user-type TYPE] [--invocation-mode MODE] [--chat-app-id ID] [--entity-attr NAME] [--entity-value VALUE]
+            const options: DiagnoseOptions = {};
+            for (let i = 0; i < rest.length; i++) {
+                const arg = rest[i];
+                if (arg === '--date-start' && rest[i + 1]) {
+                    options.dateStart = rest[++i];
+                } else if (arg === '--date-end' && rest[i + 1]) {
+                    options.dateEnd = rest[++i];
+                } else if (arg === '--user-type' && rest[i + 1]) {
+                    options.userType = rest[++i];
+                } else if (arg === '--invocation-mode' && rest[i + 1]) {
+                    options.invocationMode = rest[++i];
+                } else if (arg === '--chat-app-id' && rest[i + 1]) {
+                    options.chatAppId = rest[++i];
+                } else if (arg === '--entity-attr' && rest[i + 1]) {
+                    options.entityAttribute = rest[++i];
+                } else if (arg === '--entity-value' && rest[i + 1]) {
+                    options.entityValue = rest[++i];
+                }
+            }
+            await diagnoseSessionData(options);
+            break;
+        }
+        case 'fix-keywords':
+            await fixKeywordFields();
+            break;
+        case 'analyze-external': {
+            // Parse date arguments
+            let dateStart = '2025-10-01';
+            let dateEnd = '2025-10-31';
+
+            for (let i = 0; i < rest.length; i++) {
+                const arg = rest[i];
+                if (arg === '--date-start' && rest[i + 1]) {
+                    dateStart = rest[++i];
+                } else if (arg === '--date-end' && rest[i + 1]) {
+                    dateEnd = rest[++i];
+                }
+            }
+
+            await analyzeExternalSessions(dateStart, dateEnd);
+            break;
+        }
         case 'help':
         default:
             console.log(
@@ -207,9 +680,31 @@ async function main(): Promise<void> {
                     '  create            Create index if missing (legacy alias of ensure without dry-run)',
                     '  delete            Delete index',
                     '  recreate          Delete then create index',
-                    '  get|mget          Retrieve documents by IDs and print as JSON (usage: get [index] <id1> <id2> ...)',
+                    '  get|mget          Retrieve documents by IDs (converted to camelCase)',
+                    '  get-raw|mget-raw  Retrieve RAW documents by IDs (snake_case as stored in OpenSearch)',
                     '  count             Count documents (usage: count [index|all], default: all)',
                     '  size              Report storage size in bytes and MB (usage: size [index|all], default: all)',
+                    '  diagnose          Analyze session index data and test filters',
+                    '  fix-keywords      Fix missing keyword fields (user_type_keyword, invocation_mode_keyword, source_keyword)',
+                    '  analyze-external  Retrieve all external-user sessions and analyze by invocation mode',
+                    '',
+                    'Analyze External Options:',
+                    '  --date-start YYYY-MM-DD    Start date (default: 2025-10-01)',
+                    '  --date-end YYYY-MM-DD      End date (default: 2025-10-31)',
+                    '',
+                    'Diagnose Options:',
+                    '  --date-start YYYY-MM-DD    Start date for date range filter',
+                    '  --date-end YYYY-MM-DD      End date for date range filter',
+                    '  --user-type TYPE           Filter by user type (e.g., external-user, internal-user)',
+                    '  --invocation-mode MODE     Filter by invocation mode (e.g., chat-app, undefined, direct-agent-invoke)',
+                    '  --chat-app-id ID           Filter by chat app ID',
+                    '  --entity-attr NAME         Entity attribute name (e.g., accountId)',
+                    '  --entity-value VALUE       Entity attribute value to filter by',
+                    '',
+                    'Diagnose Examples:',
+                    '  pnpm tsx tools/os/os-tools.ts diagnose',
+                    '  pnpm tsx tools/os/os-tools.ts diagnose --date-start 2025-10-01 --date-end 2025-10-31',
+                    '  pnpm tsx tools/os/os-tools.ts diagnose --user-type external-user --invocation-mode chat-app',
                     '',
                     `Defaults: index='${SessionIndex}'`
                 ].join('\n')

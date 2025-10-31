@@ -27,7 +27,7 @@ import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { handleApiGatewayError, isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ConverseRequestWithCommand, GetChatMessagesAsAdminResponse, SimpleAuthenticatedUser, SiteAdminRequest } from 'pika-shared/types/chatbot/chatbot-types';
-import { getValuesForEntityAutoComplete } from './custom-data';
+import { getValuesForEntityAutoComplete, getValuesForEntityList } from './custom-data';
 
 export const POST: RequestHandler = async (event) => {
     const { locals, request } = event;
@@ -66,6 +66,21 @@ export const POST: RequestHandler = async (event) => {
             return json({
                 success: true,
                 data: valuesForAutoComplete
+            });
+        } else if (siteAdminReq.command === 'getValuesForEntityList') {
+            if (!isUserAllowedToUseEntityAccessControl(user)) {
+                throw error(403, 'You do not have permission to perform this action');
+            }
+
+            if (!('entityIds' in siteAdminReq)) {
+                throw error(400, 'entityIds is required');
+            }
+
+            const valuesForEntityList = await getValuesForEntityList(siteAdminReq.entityIds, user, siteAdminReq.chatAppId);
+
+            return json({
+                success: true,
+                data: valuesForEntityList
             });
         } else if (siteAdminReq.command === 'getValuesForUserAutoComplete') {
             if (!isUserAllowedToUseSpecificUserAccessControl(user)) {

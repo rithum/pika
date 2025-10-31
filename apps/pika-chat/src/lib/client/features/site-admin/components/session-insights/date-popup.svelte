@@ -2,12 +2,12 @@
     import ChevronsUpDown from '$icons/lucide/chevrons-up-down';
     import X from '$icons/lucide/x';
     import DateTimePicker from 'pika-ux/pika/date-time-picker/date-time-picker.svelte';
+    import * as PikaToggleGroup from 'pika-ux/pika/pika-toggle-group';
     import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
     import { Button } from 'pika-ux/shadcn/button';
     import { Label } from 'pika-ux/shadcn/label';
     import * as Popover from 'pika-ux/shadcn/popover';
     import { Separator } from 'pika-ux/shadcn/separator';
-    import * as ToggleGroup from 'pika-ux/shadcn/toggle-group';
 
     import type {
         NameValuePair,
@@ -109,14 +109,13 @@
                         </div>
                         <Separator />
                         {#if dateFilter}
+                            <!-- class="w-[370px]" -->
                             <div class="p-4 flex flex-col gap-4">
                                 <div class="flex flex-col gap-2">
                                     <Label class="text-sm font-medium text-muted-foreground">Filter By</Label>
-                                    <ToggleGroup.Root
+                                    <PikaToggleGroup.Root
                                         variant="outline"
                                         type="single"
-                                        size="default"
-                                        class="w-[370px]"
                                         bind:value={
                                             () => dateFilter!.dateType,
                                             (value: string) => {
@@ -127,9 +126,9 @@
                                         }
                                     >
                                         {#each SESSION_SEARCH_DATE_TYPES_VALUES as type}
-                                            <ToggleGroup.Item value={type.value}>{type.name}</ToggleGroup.Item>
+                                            <PikaToggleGroup.Item value={type.value}>{type.name}</PikaToggleGroup.Item>
                                         {/each}
-                                    </ToggleGroup.Root>
+                                    </PikaToggleGroup.Root>
                                 </div>
 
                                 <div class="flex flex-row gap-2">

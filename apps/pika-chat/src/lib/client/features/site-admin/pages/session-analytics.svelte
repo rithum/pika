@@ -1,30 +1,30 @@
 <script lang="ts">
+    import CircleAlert from '$icons/lucide/circle-alert';
     import Loader from '$icons/lucide/loader';
     import RefreshCw from '$icons/lucide/refresh-cw';
-    import CircleAlert from '$icons/lucide/circle-alert';
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { getContext, onMount, type Snippet } from 'svelte';
-    import { Button } from 'pika-ux/shadcn/button';
     import { Alert, AlertDescription, AlertTitle } from 'pika-ux/shadcn/alert';
+    import { Button } from 'pika-ux/shadcn/button';
     import { Separator } from 'pika-ux/shadcn/separator';
-
+    import { getContext, onMount, type Snippet } from 'svelte';
     // Import analytics components
+    import CostByModeChart from '../components/session-analytics/cost-by-mode-chart.svelte';
+    import CostTimeSeriesChart from '../components/session-analytics/cost-time-series-chart.svelte';
     import FiltersBar from '../components/session-analytics/filters-bar.svelte';
     import KpiGrid from '../components/session-analytics/kpi-grid.svelte';
-    import UsageTimeSeriesChart from '../components/session-analytics/usage-time-series-chart.svelte';
-    import CostTimeSeriesChart from '../components/session-analytics/cost-time-series-chart.svelte';
-    import TopEntitiesChart from '../components/session-analytics/top-entities-chart.svelte';
     import TopChatappsChart from '../components/session-analytics/top-chatapps-chart.svelte';
-    import CostByModeChart from '../components/session-analytics/cost-by-mode-chart.svelte';
+    import TopEntitiesChart from '../components/session-analytics/top-entities-chart.svelte';
+    import UsageTimeSeriesChart from '../components/session-analytics/usage-time-series-chart.svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
 
     interface Props {
         pageHeaderRight: Snippet<[]> | undefined;
+        pageTitlePopupHelp: string | undefined;
     }
 
-    let { pageHeaderRight = $bindable() }: Props = $props();
+    let { pageHeaderRight = $bindable(), pageTitlePopupHelp = $bindable() }: Props = $props();
 
     // This causes the state to be created if it doesn't exist.
     const sessionAnalytics = siteAdmin.sessionAnalytics;
@@ -43,19 +43,12 @@
     $effect(() => {
         setTimeout(() => {
             pageHeaderRight = pageHeaderRightSnippet;
+            pageTitlePopupHelp = 'Track platform usage, costs, and performance metrics across your chat sessions';
         }, 1);
     });
 </script>
 
-<div class="flex flex-col gap-6 pb-8">
-    <!-- Page Header -->
-    <div class="flex flex-col gap-2">
-        <h1 class="text-3xl font-bold tracking-tight">Session Analytics</h1>
-        <p class="text-muted-foreground">
-            Track platform usage, costs, and performance metrics across your chat sessions
-        </p>
-    </div>
-
+<div class="flex flex-col gap-6 p-8">
     <!-- Filters Bar (Sticky) -->
     <div class="sticky top-0 z-10 bg-background pb-4">
         <FiltersBar />

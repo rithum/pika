@@ -22,7 +22,6 @@
     "@expressive-code/plugin-line-numbers": "catalog:",
     "@fujocoded/expressive-code-caption": "catalog:",
     "@fujocoded/expressive-code-output": "catalog:",
-    "tailwindcss": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "astro": "catalog:",
     "astro-expressive-code": "catalog:",
@@ -30,8 +29,10 @@
     "expressive-code-color-chips": "catalog:",
     "mermaid": "catalog:",
     "sharp": "catalog:",
+    "starlight-llms-txt": "catalog:",
     "starlight-sidebar-topics": "catalog:",
     "svelte": "catalog:",
+    "tailwindcss": "catalog:",
     "unist-util-visit": "catalog:"
   }
 }

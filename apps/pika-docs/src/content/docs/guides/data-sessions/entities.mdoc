@@ -106,15 +106,16 @@ export default class YourAuthProvider extends AuthProvider<YourAuthData, YourCus
 The field name in `customData` must exactly match the `attributeName` configured in your entity feature settings.
 {% /aside %}
 
-## Step 3: Implement Entity Autocomplete
+## Step 3: Implement Entity Data Functions
 
-Create the entity lookup function for the admin interface.
+Create the entity lookup functions for the admin interface.
 
 **Location:** `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts`
 
 ```typescript
 import type { AuthenticatedUser, SimpleOption } from 'pika-shared/types/chatbot/chatbot-types';
 
+// Function 1: Search entities for autocomplete
 export async function getValuesForEntityAutoComplete(
     valueProvidedByUser: string,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
@@ -132,13 +133,36 @@ export async function getValuesForEntityAutoComplete(
         label: entity.displayName // This is displayed to admins
     }));
 }
+
+// Function 2: Get entity details by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId?: string
+): Promise<SimpleOption[] | undefined> {
+    // Fetch entity details for the given IDs
+    // Return formatted options
+    
+    // Example implementation:
+    const entities = await fetchEntitiesByIds(entityIds);
+    
+    return entities.map(entity => ({
+        value: entity.id,        // Entity identifier
+        label: entity.displayName // Display name for admin UI
+    }));
+}
 ```
+
+{% aside type="note" %}
+Both functions are required: `getValuesForEntityAutoComplete` for searching entities when adding them to access control, and `getValuesForEntityList` for displaying names of already-configured entities.
+{% /aside %}
 
 ### Example Implementations
 
 **Database Query:**
 
 ```typescript
+// Autocomplete: Search for entities
 export async function getValuesForEntityAutoComplete(
     valueProvidedByUser: string,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
@@ -157,11 +181,31 @@ export async function getValuesForEntityAutoComplete(
         label: row.account_name
     }));
 }
+
+// List: Get entities by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<SimpleOption[]> {
+    const query = `
+        SELECT account_id, account_name 
+        FROM accounts 
+        WHERE account_id = ANY($1)
+    `;
+    
+    const results = await db.query(query, [entityIds]);
+    
+    return results.rows.map(row => ({
+        value: row.account_id,
+        label: row.account_name
+    }));
+}
 ```
 
 **External API:**
 
 ```typescript
+// Autocomplete: Search for entities
 export async function getValuesForEntityAutoComplete(
     valueProvidedByUser: string,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
@@ -172,6 +216,31 @@ export async function getValuesForEntityAutoComplete(
             headers: {
                 'Authorization': `Bearer ${process.env.API_TOKEN}`
             }
+        }
+    );
+    
+    const data = await response.json();
+    
+    return data.accounts.map(account => ({
+        value: account.id,
+        label: `${account.name} (${account.id})`
+    }));
+}
+
+// List: Get entities by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<SimpleOption[]> {
+    const response = await fetch(
+        `https://your-api.com/accounts/batch`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.API_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ids: entityIds })
         }
     );
     
@@ -349,8 +418,10 @@ Verify entity configuration works correctly:
 - [ ] Entity feature is enabled in `pika-config.ts`
 - [ ] `attributeName` matches field in user `customData`
 - [ ] Users have entity field populated by auth provider
-- [ ] Entity autocomplete function is implemented
+- [ ] `getValuesForEntityAutoComplete()` function is implemented
+- [ ] `getValuesForEntityList()` function is implemented
 - [ ] Autocomplete returns correctly formatted options
+- [ ] Entity list display shows correct names for configured entities
 - [ ] Entity-based access control restricts access properly
 - [ ] Internal and external entity rules work independently
 - [ ] Entity filtering works in admin interface
@@ -368,10 +439,11 @@ Verify entity configuration works correctly:
 
 ### Entity Autocomplete Issues
 
-- **Implement Data Source**: Ensure `getValuesForEntityAutoComplete()` is implemented
+- **Implement Both Functions**: Ensure both `getValuesForEntityAutoComplete()` and `getValuesForEntityList()` are implemented
 - **Check API Permissions**: Verify web app can access entity data source
-- **Validate Response Format**: Confirm function returns `SimpleOption[]` with `value` and `label`
+- **Validate Response Format**: Confirm both functions return `SimpleOption[]` with `value` and `label`
 - **Test Search**: Try autocomplete with various search terms
+- **Test Display**: Verify entity names display correctly for already-configured entities
 
 ### Access Control Not Working
 

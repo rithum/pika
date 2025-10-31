@@ -165,11 +165,12 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
-### Implement Entity Autocomplete
+### Implement Entity Data Functions
 
 **Location:** `apps/pika-chat/src/routes/(auth)/api/site-admin/custom-data.ts`
 
 ```typescript
+// Function 1: Search entities for autocomplete
 export async function getValuesForEntityAutoComplete(
     valueProvidedByUser: string,
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
@@ -183,7 +184,26 @@ export async function getValuesForEntityAutoComplete(
         label: entity.displayName // Displayed to admin
     }));
 }
+
+// Function 2: Get entity details by IDs
+export async function getValuesForEntityList(
+    entityIds: string[],
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId?: string
+): Promise<SimpleOption[] | undefined> {
+    // Fetch entity details for the given IDs
+    const entities = await fetchEntitiesByIds(entityIds);
+    
+    return entities.map(entity => ({
+        value: entity.id,        // Entity identifier
+        label: entity.displayName // Display name
+    }));
+}
 ```
+
+{% aside type="note" %}
+Both functions are required: `getValuesForEntityAutoComplete` for searching entities when configuring access, and `getValuesForEntityList` for displaying names of already-configured entities.
+{% /aside %}
 
 For complete implementation details, see [Work with Entities](/guides/data-sessions/entities/).
 
@@ -339,7 +359,8 @@ Verify the admin interface works correctly:
 - Check `entity.attributeName` matches field in user `customData`
 - Confirm users have entity field populated
 - Ensure entity values in override match user data exactly
-- Verify `getValuesForEntityAutoComplete()` is implemented
+- Verify both `getValuesForEntityAutoComplete()` and `getValuesForEntityList()` are implemented
+- Test that entity names display correctly in the admin interface
 
 ### Overrides Not Taking Effect
 
