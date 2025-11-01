@@ -7,6 +7,37 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.14.0] - 2025-11-01
+
+### Added
+
+- **Component Tags for Granular Cost Tracking** - Enhanced stack tagging system with component-level identification
+    - New `componentTagNames` array in `stackTags` configuration enables tagging each infrastructure resource with its specific component name
+    - Component tags applied to all AWS resources: Lambda functions, DynamoDB tables, S3 buckets, ECS clusters, Fargate services, KMS keys, OpenSearch domains, and Bedrock inference profiles
+    - Enables granular cost analysis in AWS Cost Explorer - see costs for specific Lambda functions, DynamoDB tables, or inference profiles within each service
+    - Example: Filter by AWS Lambda service, then group by `component` tag to see costs for `ConverseLambda`, `ChatbotApiLambda`, `KeyRotationLambda` separately
+    - Particularly valuable for Bedrock costs - track which AI models (Claude 4 Sonnet, Claude 4.5 Haiku, etc.) consume the most
+    - Helper method `applyComponentTags()` in custom-stack-defs.ts for easy tagging of custom infrastructure
+    - Tag environment variable support for CloudFormation custom resources enables tagging of custom-created resources
+    - New TypeScript property: `PikaConfig.stackTags.componentTagNames` with `@since 0.14.0` annotation
+    - New documentation: Component Tags for Cost Tracking section in AWS CDK deployment guide
+    - 500-byte limit enforced on combined tags overall size when CDK synth (docs include more details)
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.14.0) for @since 0.14.0 to find all type definitions that were added, updated, or removed in this release.
+
+### Fixed
+
+- **Inference Profile Tag Deduplication** - Fixed duplicate component tags causing Bedrock profile creation failures
+    - Custom resource Lambda now properly deduplicates tags before creating inference profiles
+    - Properties tags take precedence over environment variable tags when key conflicts occur
+    - Prevents Bedrock API rejections due to duplicate tag keys
+
+- **Custom Resource Re-invocation** - Fixed custom resources not updating on subsequent deployments
+    - Added timestamp property to custom resources to force CloudFormation re-invocation on each deployment
+    - Ensures tag updates and other changes are applied even when resource properties haven't changed
+
 ## [0.13.0] - 2025-10-31
 
 ### Added

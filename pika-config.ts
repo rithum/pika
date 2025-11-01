@@ -132,16 +132,21 @@ export const pikaConfig: PikaConfig = {
         // Common tags applied to both Pika service and Pika Chat stacks
         common: {
             app: 'pika',
-            env: '{stage}' // Dynamic: replaced with deployment stage
+            env: '{stage}'
         },
         // Tags specific to the Pika service stack (backend)
         pikaServiceTags: {
-            component: '{pika.projNameKebabCase}' // Dynamic: replaced with Pika project name
+            service: '{pika.projNameKebabCase}',
+            tier: 'backend'
         },
         // Tags specific to the Pika Chat stack (frontend)
         pikaChatTags: {
-            component: '{pikaChat.projNameKebabCase}' // Dynamic: replaced with Pika Chat project name
-        }
+            service: '{pikaChat.projNameKebabCase}',
+            tier: 'frontend'
+        },
+        // Component tag names for granular cost tracking - creates 'component' tag on each resource
+        // with resource-specific values like 'Claude4SonnetInferenceProfile', 'ConverseLambda', etc.
+        componentTagNames: ['component']
         // Additional examples of dynamic placeholders:
         // 'DeployedAt': '{timestamp}',                   // Current timestamp in ISO 8601 format
         // 'AccountId': '{accountId}',                    // AWS account ID

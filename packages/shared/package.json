@@ -1,6 +1,6 @@
 {
     "name": "pika-shared",
-    "version": "1.4.9",
+    "version": "1.4.11",
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.ts",

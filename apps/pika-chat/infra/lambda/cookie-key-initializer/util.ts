@@ -1,5 +1,50 @@
 import { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 
+/**
+ * Parse component tag names from environment variables.
+ * Component tag names are passed as a JSON array in the COMPONENT_TAG_NAMES environment variable.
+ *
+ * @returns Array of component tag names, or undefined if not configured
+ */
+export function getComponentTagNamesFromEnv(): string[] | undefined {
+    const componentTagNamesJson = process.env.COMPONENT_TAG_NAMES;
+    if (!componentTagNamesJson) {
+        return undefined;
+    }
+
+    try {
+        const tagNames = JSON.parse(componentTagNamesJson);
+        if (!Array.isArray(tagNames)) {
+            console.warn('COMPONENT_TAG_NAMES is not a valid array, ignoring');
+            return undefined;
+        }
+        return tagNames;
+    } catch (e) {
+        console.warn('Failed to parse COMPONENT_TAG_NAMES environment variable:', e);
+        return undefined;
+    }
+}
+
+/**
+ * Create component tags based on component tag names from environment variables.
+ * Returns tags in KMS format (array of {TagKey, TagValue} objects).
+ * If no component tag names are configured, returns an empty array.
+ *
+ * @param componentValue - The value to use for all component tag keys (e.g., 'CookieEncryptionKey')
+ * @returns Array of KMS tag objects
+ */
+export function createComponentTagsForKMS(componentValue: string): Array<{ TagKey: string; TagValue: string }> {
+    const componentTagNames = getComponentTagNamesFromEnv();
+    if (!componentTagNames || componentTagNames.length === 0) {
+        return [];
+    }
+
+    return componentTagNames.map((tagName) => ({
+        TagKey: tagName,
+        TagValue: componentValue
+    }));
+}
+
 export async function sendCustomResourceResponse(event: CloudFormationCustomResourceEvent, response: CloudFormationCustomResourceResponse): Promise<void> {
     const responseUrl = event.ResponseURL;
 

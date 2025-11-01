@@ -7,13 +7,38 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.13.0` (October 31, 2025)
+**Latest Stable:** `0.14.0` (November 1, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+### What's New in 0.14.0
+
+- **Component Tags for Granular Cost Tracking** - Enhanced stack tagging with component-level identification
+  - New `componentTagNames` array in `stackTags` configuration tags each infrastructure resource with its component name
+  - Component tags applied to all AWS resources: Lambda, DynamoDB, S3, ECS, Fargate, KMS, OpenSearch, Bedrock inference profiles
+  - Enables granular cost analysis in AWS Cost Explorer - see costs for specific Lambda functions, DynamoDB tables, or AI models
+  - Example: Filter by AWS Lambda, then group by `component` tag to see costs for each function separately
+  - Particularly valuable for Bedrock costs - track which AI models consume the most
+  - Helper method `applyComponentTags()` in `custom-stack-defs.ts` for easy tagging of custom infrastructure
+  - See [AWS CDK deployment guide](/guides/deployment/aws-cdk/) Component Tags section
+- **Tag Environment Variable Support** - CloudFormation custom resources can now access and apply tags
+  - Tags passed to custom resource Lambdas via `STACK_TAGS` and `COMPONENT_TAG_NAMES` environment variables
+  - New utility functions: `getStackTagsFromEnv()`, `getComponentTagNamesFromEnv()`, `createComponentTags()`, etc.
+  - Bedrock inference profiles and KMS keys now properly tagged with component identifiers
+- **Tag Size Validation** - Prevents deployment failures due to AWS Lambda limits
+  - 500-byte limit enforced on combined tag environment variables
+  - CDK synthesis fails early with clear error if limit exceeded
+- **Bug Fixes** - Fixed inference profile tag deduplication and custom resource re-invocation
+- **Type Additions** - New property with `@since 0.14.0` annotation:
+  - `PikaConfig.stackTags.componentTagNames` - Component tag names array
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.14.0) for @since 0.14.0 to find all type definitions that were added, updated, or removed in this release.
 
 ### What's New in 0.13.0
 
@@ -231,6 +256,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.14.0  | Nov 1 2025  | Feature  | Component-level tagging for granular cost tracking |
 | 0.13.0  | Oct 31 2025 | Feature  | Inference profile cost tracking and AWS resource tagging |
 | 0.12.0  | Oct 31 2025 | Feature  | Entity method addition and analytics UI improvements |
 | 0.11.3  | Oct 30 2025 | Patch    | pika-cli sync improvements and minor fixes    |

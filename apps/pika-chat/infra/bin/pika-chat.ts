@@ -63,6 +63,9 @@ async function main() {
     // some pika service stack parameters in this the pika chat stack.
     const pikaServiceProjNameKebabCase = pikaConfig.pika.projNameKebabCase;
 
+    // Calculate stack tags for passing to construct (for environment variables)
+    const stackTags = calculateStackTags(stage, env.account, env.region);
+
     // Create the Pika Chat stack
     const pikaChatStack = new PikaChatStack(app, `${projNameKebabCase}-${stage}`, {
         env,
@@ -74,22 +77,24 @@ async function main() {
         projNameKebabCase,
         projNameHuman,
         pikaServiceProjNameKebabCase,
-        tagDefinitions: tagDefinitionsData as TagDefinitionsJsonFile
+        tagDefinitions: tagDefinitionsData as TagDefinitionsJsonFile,
+        stackTags,
+        componentTagNames: pikaConfig.stackTags?.componentTagNames
     });
 
     // Apply stack tags if configured
-    applyStackTags(pikaChatStack, stage, env.account, env.region);
+    applyStackTags(pikaChatStack, stackTags);
 }
 
 /**
- * Applies stack tags from pika-config.ts to the Pika Chat stack
+ * Calculates stack tags from pika-config.ts (merges common + chat-specific, interpolates placeholders)
+ * @returns Interpolated stack tags, or undefined if none configured
  */
-function applyStackTags(stack: PikaChatStack, stage: string, accountId: string, region: string): void {
+function calculateStackTags(stage: string, accountId: string, region: string): Record<string, string> | undefined {
     const stackTagsConfig = pikaConfig.stackTags;
 
     if (!stackTagsConfig) {
-        // No tags configured, skip
-        return;
+        return undefined;
     }
 
     // Merge common tags with chat-specific tags (chat tags overwrite on conflict)
@@ -99,8 +104,7 @@ function applyStackTags(stack: PikaChatStack, stage: string, accountId: string, 
     };
 
     if (Object.keys(mergedTags).length === 0) {
-        // No tags to apply, skip
-        return;
+        return undefined;
     }
 
     // Interpolate dynamic placeholders
@@ -110,6 +114,17 @@ function applyStackTags(stack: PikaChatStack, stage: string, accountId: string, 
         region,
         pikaConfig
     });
+
+    return tags;
+}
+
+/**
+ * Applies pre-calculated stack tags to the Pika Chat stack
+ */
+function applyStackTags(stack: PikaChatStack, tags?: Record<string, string>): void {
+    if (!tags || Object.keys(tags).length === 0) {
+        return;
+    }
 
     // Validate and warn about invalid tags
     validateAndWarnTags(tags, stack.stackName);

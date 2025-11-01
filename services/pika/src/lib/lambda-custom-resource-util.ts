@@ -203,3 +203,121 @@ export async function sendCustomResourceResponse(
 
     console.log('CloudFormation response sent successfully after retries');
 }
+
+/**
+ * Parse stack tags from environment variables.
+ * Stack tags are passed as a JSON string in the STACK_TAGS environment variable.
+ *
+ * @returns Stack tags object, or undefined if not configured
+ */
+export function getStackTagsFromEnv(): Record<string, string> | undefined {
+    const stackTagsJson = process.env.STACK_TAGS;
+    if (!stackTagsJson) {
+        return undefined;
+    }
+
+    try {
+        const tags = JSON.parse(stackTagsJson);
+        if (typeof tags !== 'object' || tags === null || Array.isArray(tags)) {
+            console.warn('STACK_TAGS is not a valid object, ignoring');
+            return undefined;
+        }
+        return tags;
+    } catch (e) {
+        console.warn('Failed to parse STACK_TAGS environment variable:', e);
+        return undefined;
+    }
+}
+
+/**
+ * Parse component tag names from environment variables.
+ * Component tag names are passed as a JSON array in the COMPONENT_TAG_NAMES environment variable.
+ *
+ * @returns Array of component tag names, or undefined if not configured
+ */
+export function getComponentTagNamesFromEnv(): string[] | undefined {
+    const componentTagNamesJson = process.env.COMPONENT_TAG_NAMES;
+    if (!componentTagNamesJson) {
+        return undefined;
+    }
+
+    try {
+        const tagNames = JSON.parse(componentTagNamesJson);
+        if (!Array.isArray(tagNames)) {
+            console.warn('COMPONENT_TAG_NAMES is not a valid array, ignoring');
+            return undefined;
+        }
+        return tagNames;
+    } catch (e) {
+        console.warn('Failed to parse COMPONENT_TAG_NAMES environment variable:', e);
+        return undefined;
+    }
+}
+
+/**
+ * Create component tags based on component tag names from environment variables.
+ * If no component tag names are configured, returns an empty object.
+ *
+ * @param componentValue - The value to use for all component tag keys (e.g., 'MyInferenceProfile')
+ * @returns Object with component tags, or empty object if not configured
+ */
+export function createComponentTags(componentValue: string): Record<string, string> {
+    const componentTagNames = getComponentTagNamesFromEnv();
+    if (!componentTagNames || componentTagNames.length === 0) {
+        return {};
+    }
+
+    const tags: Record<string, string> = {};
+    for (const tagName of componentTagNames) {
+        tags[tagName] = componentValue;
+    }
+    return tags;
+}
+
+/**
+ * Merge stack tags with component tags.
+ * Component tags take precedence if there's a naming conflict.
+ *
+ * @param stackTags - General stack tags (from STACK_TAGS env var)
+ * @param componentTags - Component-specific tags (from createComponentTags)
+ * @returns Merged tags object
+ */
+export function mergeTagsWithComponentTags(stackTags?: Record<string, string>, componentTags?: Record<string, string>): Record<string, string> {
+    return {
+        ...(stackTags || {}),
+        ...(componentTags || {})
+    };
+}
+
+/**
+ * Get all tags (stack + component) for a resource.
+ * Convenience method that combines getStackTagsFromEnv() and createComponentTags().
+ *
+ * @param componentValue - The component identifier (e.g., 'MyInferenceProfile')
+ * @returns Merged tags ready to apply to a resource
+ *
+ * @example
+ * const tags = getAllTagsForResource('MyInferenceProfile');
+ * // Returns: { env: 'dev', component: 'MyInferenceProfile', ... }
+ */
+export function getAllTagsForResource(componentValue: string): Record<string, string> {
+    const stackTags = getStackTagsFromEnv();
+    const componentTags = createComponentTags(componentValue);
+    return mergeTagsWithComponentTags(stackTags, componentTags);
+}
+
+/**
+ * Convert tags object to AWS Bedrock tag format.
+ * Bedrock uses an array of {key, value} objects instead of a flat object.
+ *
+ * @param tags - Tags object with key-value pairs
+ * @returns Array of tag objects in Bedrock format
+ *
+ * @example
+ * const tags = { env: 'dev', component: 'MyProfile' };
+ * const bedrockTags = convertTagsToBedrockFormat(tags);
+ * // Returns: [{ key: 'env', value: 'dev' }, { key: 'component', value: 'MyProfile' }]
+ */
+export function convertTagsToBedrockFormat(tags: Record<string, string>): Array<{ key: string; value: string }> {
+    return Object.entries(tags).map(([key, value]) => ({ key, value }));
+}

@@ -168,18 +168,22 @@ export const pikaConfig: PikaConfig = {
         pikaChatTags: {
             'app': '{pikaChat.projNameKebabCase}',  // Pika Chat app name
             'Tier': 'Frontend'
-        }
+        },
+        
+        // Component tag names for cost tracking (optional but recommended)
+        componentTagNames: ['component']
     }
 };
 ```
 
 ### Tag Structure
 
-The `stackTags` configuration has three sections:
+The `stackTags` configuration has four sections:
 
 - **`common`**: Tags applied to both Pika service and Pika Chat stacks
 - **`pikaServiceTags`**: Additional tags only for the backend service stack (merged with `common`, overwrites on conflict)
 - **`pikaChatTags`**: Additional tags only for the frontend chat stack (merged with `common`, overwrites on conflict)
+- **`componentTagNames`**: Array of tag names to use for component identification (for cost tracking and analysis)
 
 ### Supported Placeholders
 
@@ -231,12 +235,186 @@ The system automatically validates tags and warns about:
 - Invalid characters (only letters, numbers, spaces, `_ . : / = + - @` allowed)
 - Reserved `aws:` prefix
 
+### Component Tags for Cost Tracking
+
+Component tags help you understand cost breakdowns within each AWS service. While AWS Cost Explorer lets you filter by service (e.g., "show me all Lambda costs"), component tags let you see **which specific Lambda functions** or resources are driving those costs.
+
+**Why Component Tags Matter:**
+
+When you look at AWS Cost Explorer, you can filter by service (S3, Lambda, DynamoDB, etc.), but you can't easily see:
+- Which Lambda function is consuming the most cost
+- Which DynamoDB table has the highest throughput charges
+- Which inference profile is being used most heavily for Bedrock costs
+
+Component tags solve this by tagging every infrastructure resource with a descriptive component name.
+
+**Configure Component Tag Names:**
+
+Add a `componentTagNames` array to your stack tags configuration:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... existing config
+    stackTags: {
+        common: {
+            'ManagedBy': 'Pika',
+            'env': '{stage}'
+        },
+        // Tag names to use for component identification
+        componentTagNames: ['component']
+    }
+};
+```
+
+**How It Works:**
+
+With `componentTagNames: ['component']`, every infrastructure resource gets tagged with a component identifier:
+
+```typescript
+// Examples of how resources are tagged:
+component: ConverseLambda          // The main conversation handler Lambda
+component: ChatMessagesTable       // DynamoDB table for messages
+component: PikaFilesBucket         // S3 bucket for file storage
+component: OpenSearchDomain        // OpenSearch domain for session insights
+component: Claude4SonnetInferenceProfile  // Bedrock inference profile
+component: ECSCluster              // ECS cluster for chat webapp
+component: FargateService          // Fargate service running the webapp
+```
+
+**Cost Explorer Analysis:**
+
+Once deployed, you can use AWS Cost Explorer to:
+
+1. **Filter by service**: e.g., "AWS Lambda"
+2. **Group by tag**: Select your component tag name (e.g., `component`)
+3. **See breakdown**: View costs for each Lambda function separately:
+   - ConverseLambda: $X
+   - ChatbotApiLambda: $Y
+   - KeyRotationLambda: $Z
+
+This is particularly valuable for:
+- **Bedrock costs**: See which inference profiles (models) are most expensive
+- **Lambda costs**: Identify which functions need optimization
+- **DynamoDB costs**: Find which tables have high read/write costs
+- **S3 costs**: Determine which buckets consume the most storage
+
+**Using Multiple Tag Names:**
+
+You can specify multiple component tag names to support different organizational structures:
+
+```typescript
+componentTagNames: ['component', 'resource-type', 'cost-center']
+```
+
+This creates three tags on each resource:
+
+```typescript
+// All three tags get the same component value
+component: ConverseLambda
+resource-type: ConverseLambda
+cost-center: ConverseLambda
+```
+
+**Tagging Custom Infrastructure:**
+
+If you add custom infrastructure in `custom-stack-defs.ts`, use the `applyComponentTags` helper to ensure consistent tagging:
+
+```typescript
+// In services/pika/lib/stacks/custom-stack-defs.ts
+addStackResoucesAfterWeCreateThePikaConstruct(): void {
+    const myCustomLambda = new lambda.Function(this.stack, 'MyCustomFunction', {
+        // ... lambda configuration
+    });
+    
+    // Apply component tags automatically
+    this.applyComponentTags(myCustomLambda, 'MyCustomLambda');
+}
+```
+
+```typescript
+// In apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts
+addStackResoucesAfterWeCreateThePikaChatConstruct(): void {
+    const myBucket = new s3.Bucket(this.stack, 'MyCustomBucket', {
+        // ... bucket configuration
+    });
+    
+    // Apply component tags automatically
+    this.applyComponentTags(myBucket, 'MyCustomS3Bucket');
+}
+```
+
+{% aside type="tip" %}
+**Best Practice**: Use descriptive component names that clearly identify the resource's purpose. This makes cost analysis reports more meaningful.
+{% /aside %}
+
+### Tag Size Limits
+
+AWS Lambda has a 4KB total limit for all environment variables. To ensure your tags don't consume too much space, Pika enforces a **500 byte limit** for tag environment variables (`STACK_TAGS` + `COMPONENT_TAG_NAMES` combined).
+
+**Why 500 bytes?**
+
+This conservative limit leaves 3.5KB for all other environment variables your application needs (API endpoints, configuration values, secrets, etc.).
+
+**Check Your Tag Size:**
+
+You can verify your tag configuration size before deployment:
+
+```typescript
+// In pika-config.ts or a Node.js REPL
+const stackTags = {
+    common: { /* your tags */ },
+    pikaServiceTags: { /* your tags */ },
+    pikaChatTags: { /* your tags */ },
+    componentTagNames: ['component']
+};
+
+// Calculate size for Pika service stack
+const serviceStackTags = { ...stackTags.common, ...stackTags.pikaServiceTags };
+const serviceSize = JSON.stringify(serviceStackTags).length + 
+                    JSON.stringify(stackTags.componentTagNames || []).length;
+console.log('Pika service stack tag size:', serviceSize, 'bytes');
+
+// Calculate size for Pika Chat stack
+const chatStackTags = { ...stackTags.common, ...stackTags.pikaChatTags };
+const chatSize = JSON.stringify(chatStackTags).length + 
+                 JSON.stringify(stackTags.componentTagNames || []).length;
+console.log('Pika Chat stack tag size:', chatSize, 'bytes');
+
+// Both should be under 500 bytes
+if (serviceSize > 500 || chatSize > 500) {
+    console.error('Tags exceed 500 byte limit!');
+} else {
+    console.log('Tags are within size limits');
+}
+```
+
+**What Happens if You Exceed the Limit?**
+
+If your tags exceed 500 bytes, CDK synthesis will fail with a clear error message before any resources are deployed:
+
+```
+Error: Tag environment variables exceed size limit.
+Total size: 623 bytes, maximum: 500 bytes.
+STACK_TAGS size: 589 bytes, COMPONENT_TAG_NAMES size: 34 bytes.
+Please reduce the number or length of tags in your pika-config.ts stackTags configuration.
+```
+
+**Tips to Reduce Tag Size:**
+
+1. Use shorter tag keys: `env` instead of `Environment`
+2. Use shorter tag values: `dev` instead of `development`
+3. Remove unnecessary tags
+4. Reduce the number of `componentTagNames` entries
+5. Use placeholder interpolation for repeated values
+
 ### Notes
 
 - Tags are **optional** - if not configured, no tags are applied
 - Tags apply to **all resources** in each stack automatically
 - Use `common` for shared tags, and `pikaServiceTags`/`pikaChatTags` for stack-specific tags
 - Stack-specific tags overwrite common tags if there's a naming conflict
+- Component tags help you analyze costs by specific infrastructure component within each AWS service
+- Tag environment variables are limited to 500 bytes to leave room for other configuration
 
 ## Step 5: Bootstrap CDK
 
@@ -430,6 +608,19 @@ aws logs tail /aws/lambda/pika-dev-converse --follow
 
 # View API Gateway logs
 aws logs tail /aws/apigateway/pika-dev --follow
+```
+
+### Verify Bedrock Inference Profiles
+
+If you're using Bedrock models, you can verify your inference profiles were created:
+
+```bash
+# List all application inference profiles
+aws bedrock list-inference-profiles --type-equals APPLICATION
+
+# Filter for your stack's profiles
+aws bedrock list-inference-profiles --type-equals APPLICATION \
+  --query 'inferenceProfileSummaries[?contains(inferenceProfileName, `pika-dev`)]'
 ```
 
 ## Common Tasks
