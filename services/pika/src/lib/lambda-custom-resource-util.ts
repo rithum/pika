@@ -309,6 +309,7 @@ export function getAllTagsForResource(componentValue: string): Record<string, st
 /**
  * Convert tags object to AWS Bedrock tag format.
  * Bedrock uses an array of {key, value} objects instead of a flat object.
+ * All values are converted to strings since Bedrock requires string tag values.
  *
  * @param tags - Tags object with key-value pairs
  * @returns Array of tag objects in Bedrock format
@@ -319,5 +320,5 @@ export function getAllTagsForResource(componentValue: string): Record<string, st
  * // Returns: [{ key: 'env', value: 'dev' }, { key: 'component', value: 'MyProfile' }]
  */
 export function convertTagsToBedrockFormat(tags: Record<string, string>): Array<{ key: string; value: string }> {
-    return Object.entries(tags).map(([key, value]) => ({ key, value }));
+    return Object.entries(tags).map(([key, value]) => ({ key, value: String(value) }));
 }
