@@ -34,6 +34,10 @@ export class AppConfigProxy implements AppConfig {
     private _maxKeyVersions: number | undefined;
     private _cookieMaxAgeHours: number | undefined;
 
+    // Tagging configuration
+    private _stackTags: Record<string, string> | undefined;
+    private _componentTagNames: string[] | undefined;
+
     // This is used to encrypt and decrypt user data when shared from the front end to the back end of the chatbot service
     // and not for authentication of the front end itself.
     private _jwtSecret: string | undefined;
@@ -224,6 +228,42 @@ export class AppConfigProxy implements AppConfig {
                 setValue: async () => {
                     this._cookieMaxAgeHours = parseInt((env.COOKIE_MAX_AGE_HOURS ?? process.env.COOKIE_MAX_AGE_HOURS) || '12');
                 }
+            },
+            {
+                name: 'stackTags',
+                setValue: async () => {
+                    const stackTagsJson = env.STACK_TAGS ?? process.env.STACK_TAGS;
+                    if (stackTagsJson) {
+                        try {
+                            const tags = JSON.parse(stackTagsJson);
+                            if (typeof tags === 'object' && tags !== null && !Array.isArray(tags)) {
+                                this._stackTags = tags;
+                            } else {
+                                console.warn('STACK_TAGS is not a valid object, ignoring');
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse STACK_TAGS environment variable:', e);
+                        }
+                    }
+                }
+            },
+            {
+                name: 'componentTagNames',
+                setValue: async () => {
+                    const componentTagNamesJson = env.COMPONENT_TAG_NAMES ?? process.env.COMPONENT_TAG_NAMES;
+                    if (componentTagNamesJson) {
+                        try {
+                            const tagNames = JSON.parse(componentTagNamesJson);
+                            if (Array.isArray(tagNames)) {
+                                this._componentTagNames = tagNames;
+                            } else {
+                                console.warn('COMPONENT_TAG_NAMES is not a valid array, ignoring');
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse COMPONENT_TAG_NAMES environment variable:', e);
+                        }
+                    }
+                }
             }
         ];
     }
@@ -341,6 +381,14 @@ export class AppConfigProxy implements AppConfig {
     public get cookieMaxAgeHours(): number {
         if (this._cookieMaxAgeHours === undefined) throw new Error('App config not initialized');
         return this._cookieMaxAgeHours;
+    }
+
+    public get stackTags(): Record<string, string> | undefined {
+        return this._stackTags;
+    }
+
+    public get componentTagNames(): string[] | undefined {
+        return this._componentTagNames;
     }
 }
 

@@ -142,6 +142,22 @@ export interface AppConfig {
     cookieMaxAgeHours: number;
 
     /**
+     * Stack tags for AWS resources (if configured in pika-config.ts).
+     * Passed as JSON string in STACK_TAGS environment variable.
+     * 
+     * @returns Stack tags object, or undefined if not configured
+     */
+    stackTags?: Record<string, string>;
+
+    /**
+     * Component tag names for cost tracking (if configured in pika-config.ts).
+     * Passed as JSON array in COMPONENT_TAG_NAMES environment variable.
+     * 
+     * @returns Array of component tag names, or undefined if not configured
+     */
+    componentTagNames?: string[];
+
+    /**
      * Get an arbitrary config value from the environment or process.env
      * @param key - The key to get the value for
      * @returns The value of the key

@@ -6,6 +6,11 @@ export interface InfrastructureConfig {
     ssmParameterPrefix: string;
     kmsKeyAlias: string;
     maxKeyVersions: number;
+    /**
+     * Optional component tags to apply to the KMS key.
+     * These tags help track costs for specific components in AWS Cost Explorer.
+     */
+    componentTags?: Array<{ TagKey: string; TagValue: string }>;
 }
 
 export interface InfrastructureStatus {

@@ -1,4 +1,5 @@
 import { BedrockClient, CreateInferenceProfileCommand, GetInferenceProfileCommand, TagResourceCommand } from '@aws-sdk/client-bedrock';
+import { getAllTagsForResource, convertTagsToBedrockFormat } from '../../lib/lambda-custom-resource-util';
 
 export interface InferenceProfileProperties {
     modelSource: {
@@ -46,6 +47,37 @@ export function parseInferenceProfileCustomResourceProperties(obj: Record<string
 export async function createInferenceProfile(client: BedrockClient, properties: InferenceProfileProperties): Promise<string> {
     console.log('Creating inference profile with properties:', JSON.stringify(properties, null, 2));
 
+    // Merge tags from environment variables with tags from properties
+    // Use the inference profile name as the component identifier for component tags
+    const envTags = getAllTagsForResource(properties.inferenceProfileName);
+    const envBedrockTags = convertTagsToBedrockFormat(envTags);
+
+    // Merge with any existing tags from properties (properties take precedence)
+    // Deduplicate by key to avoid Bedrock rejecting the request
+    const existingTags = properties.tags || [];
+    const tagMap = new Map<string, string>();
+
+    // Add environment tags first
+    for (const tag of envBedrockTags) {
+        tagMap.set(tag.key, tag.value);
+    }
+
+    // Properties tags override environment tags (take precedence)
+    for (const tag of existingTags) {
+        tagMap.set(tag.key, tag.value);
+    }
+
+    // Convert back to array
+    const mergedTags = Array.from(tagMap.entries()).map(([key, value]) => ({ key, value }));
+
+    // Update properties with merged tags
+    const propertiesWithTags = {
+        ...properties,
+        tags: mergedTags.length > 0 ? mergedTags : undefined
+    };
+
+    console.log('Merged tags for inference profile:', JSON.stringify(mergedTags, null, 2));
+
     // First, check if the profile already exists (idempotency)
     try {
         console.log(`Checking if inference profile already exists: ${properties.inferenceProfileName}`);
@@ -59,13 +91,13 @@ export async function createInferenceProfile(client: BedrockClient, properties: 
             console.log(`Inference profile already exists: ${getResponse.inferenceProfileArn}`);
 
             // Try to update tags if provided
-            if (properties.tags && properties.tags.length > 0) {
+            if (mergedTags.length > 0) {
                 console.log(`Attempting to update tags on existing profile...`);
                 try {
                     await client.send(
                         new TagResourceCommand({
                             resourceARN: getResponse.inferenceProfileArn,
-                            tags: properties.tags
+                            tags: mergedTags
                         })
                     );
                     console.log(`Successfully updated tags on existing profile`);
@@ -96,7 +128,7 @@ export async function createInferenceProfile(client: BedrockClient, properties: 
     // Profile doesn't exist, create it
     try {
         console.log('Creating new inference profile...');
-        const createResponse = await client.send(new CreateInferenceProfileCommand(properties));
+        const createResponse = await client.send(new CreateInferenceProfileCommand(propertiesWithTags));
         console.log('CreateInferenceProfile response:', JSON.stringify(createResponse, null, 2));
 
         if (!createResponse.inferenceProfileArn) {

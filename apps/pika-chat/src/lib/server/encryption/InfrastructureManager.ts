@@ -156,61 +156,56 @@ export class InfrastructureManager {
 
         // Get current AWS account ID for policy
 
-        // Create the KMS key
-        const keyResult = await this.kmsProvider.getKMSClient().send(
-            new CreateKeyCommand({
-                Description: `Cookie encryption key for ${this.config.projNameKebabCase} ${this.config.stage}`,
-                KeyUsage: KeyUsageType.ENCRYPT_DECRYPT,
-                KeySpec: KeySpec.SYMMETRIC_DEFAULT,
-                Policy: JSON.stringify({
-                    Version: '2012-10-17',
-                    Statement: [
-                        {
-                            Sid: 'Enable Root Access',
-                            Effect: 'Allow',
-                            Principal: {
-                                AWS: `arn:aws:iam::${this.config.awsAccountId}:root`
-                            },
-                            Action: 'kms:*',
-                            Resource: '*'
+        // Only use component tags from environment variables - don't invent our own tag names
+        // If no component tags are configured, create the key with no tags
+        const commandParams: any = {
+            Description: `Cookie encryption key for ${this.config.projNameKebabCase} ${this.config.stage}`,
+            KeyUsage: KeyUsageType.ENCRYPT_DECRYPT,
+            KeySpec: KeySpec.SYMMETRIC_DEFAULT,
+            Policy: JSON.stringify({
+                Version: '2012-10-17',
+                Statement: [
+                    {
+                        Sid: 'Enable Root Access',
+                        Effect: 'Allow',
+                        Principal: {
+                            AWS: `arn:aws:iam::${this.config.awsAccountId}:root`
                         },
-                        {
-                            Sid: 'Allow Pika Services',
-                            Effect: 'Allow',
-                            Principal: {
-                                AWS: '*'
-                            },
-                            Action: ['kms:GenerateDataKey', 'kms:Decrypt'],
-                            Resource: '*',
-                            Condition: {
-                                StringEquals: {
-                                    'aws:PrincipalTag/Project': this.config.projNameKebabCase,
-                                    'aws:PrincipalTag/Stage': this.config.stage
-                                }
+                        Action: 'kms:*',
+                        Resource: '*'
+                    },
+                    {
+                        Sid: 'Allow Pika Services',
+                        Effect: 'Allow',
+                        Principal: {
+                            AWS: '*'
+                        },
+                        Action: ['kms:GenerateDataKey', 'kms:Decrypt'],
+                        Resource: '*',
+                        Condition: {
+                            StringEquals: {
+                                'aws:PrincipalTag/Project': this.config.projNameKebabCase,
+                                'aws:PrincipalTag/Stage': this.config.stage
                             }
                         }
-                    ]
-                }),
-                Tags: [
-                    {
-                        TagKey: 'Project',
-                        TagValue: this.config.projNameKebabCase
-                    },
-                    {
-                        TagKey: 'Stage',
-                        TagValue: this.config.stage
-                    },
-                    {
-                        TagKey: 'Purpose',
-                        TagValue: 'CookieEncryption'
-                    },
-                    {
-                        TagKey: 'ManagedBy',
-                        TagValue: 'PikaInfrastructureManager'
                     }
                 ]
             })
-        );
+        };
+
+        // Only add tags if component tags are configured
+        if (this.config.componentTags && this.config.componentTags.length > 0) {
+            commandParams.Tags = this.config.componentTags;
+            console.log('[InfrastructureManager] Adding component tags to KMS key:', this.config.componentTags);
+        } else {
+            console.log('[InfrastructureManager] No component tags configured, creating KMS key without tags');
+        }
+
+        // Create the KMS key
+        // Note: Tag errors during KMS key creation will fail the entire operation.
+        // This is acceptable because it happens at CDK deployment time, not runtime,
+        // and the user will get immediate feedback to fix their tag configuration.
+        const keyResult = await this.kmsProvider.getKMSClient().send(new CreateKeyCommand(commandParams));
 
         if (!keyResult.KeyMetadata?.KeyId) {
             throw new Error('Failed to create KMS key');

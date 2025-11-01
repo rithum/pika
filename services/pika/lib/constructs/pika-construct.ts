@@ -34,6 +34,7 @@ export interface PikaConstructProps {
     sessionInsightsFeature: SessionInsightsFeature;
     userMemoryFeature: UserMemoryFeature;
     stackTags?: Record<string, string>;
+    componentTagNames?: string[];
 }
 
 export interface PikaConstructOutputs {
@@ -442,7 +443,7 @@ export class PikaConstruct extends Construct {
     // Storage creation methods
     private createPikaS3Bucket(): s3.Bucket {
         console.log(`Creating pika S3 bucket ${this.props.stackName}`);
-        return new s3.Bucket(this, 'PikaS3Bucket', {
+        const bucket = new s3.Bucket(this, 'PikaS3Bucket', {
             bucketName: `pika-files-${this.props.stackName}`,
             removalPolicy: cdk.RemovalPolicy.RETAIN,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
@@ -459,11 +460,13 @@ export class PikaConstruct extends Construct {
             //     }
             // ]
         });
+        this.applyComponentTags(bucket, 'PikaFilesBucket');
+        return bucket;
     }
 
     private createFileArchiveBucket(): s3.Bucket {
         console.log(`Creating archive S3 bucket file-archive-${this.props.stackName}`);
-        return new s3.Bucket(this, 'FileArchiveBucket', {
+        const bucket = new s3.Bucket(this, 'FileArchiveBucket', {
             bucketName: `file-archive-${this.props.stackName}`,
             removalPolicy: cdk.RemovalPolicy.RETAIN,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -489,6 +492,8 @@ export class PikaConstruct extends Construct {
                 }
             ]
         });
+        this.applyComponentTags(bucket, 'FileArchiveBucket');
+        return bucket;
     }
 
     private createArchiveStagingTable(): dynamodb.Table {
@@ -532,6 +537,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Archive Staging'
         });
 
+        this.applyComponentTags(archiveStagingTable, 'ArchiveStagingTable');
         return archiveStagingTable;
     }
 
@@ -631,6 +637,8 @@ export class PikaConstruct extends Construct {
             })
         );
 
+        this.applyComponentTags(chatMessagesTable, 'ChatMessagesTable');
+        this.applyComponentTags(messageChangedLambda, 'MessageChangedLambda');
         return chatMessagesTable;
     }
 
@@ -797,6 +805,8 @@ export class PikaConstruct extends Construct {
             })
         );
 
+        this.applyComponentTags(chatSessionTable, 'ChatSessionTable');
+        this.applyComponentTags(sessionChangedLambda, 'SessionChangedLambda');
         return chatSessionTable;
     }
 
@@ -917,6 +927,8 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Chat Session Feedback'
         });
 
+        this.applyComponentTags(chatSessionFeedbackTable, 'ChatSessionFeedbackTable');
+        this.applyComponentTags(sessionFeedbackChangedLambda, 'SessionFeedbackChangedLambda');
         return chatSessionFeedbackTable;
     }
 
@@ -959,6 +971,7 @@ export class PikaConstruct extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         });
 
+        this.applyComponentTags(chatUserTable, 'ChatUserTable');
         return chatUserTable;
     }
 
@@ -1007,6 +1020,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Chat App'
         });
 
+        this.applyComponentTags(chatAppTable, 'ChatAppTable');
         return chatAppTable;
     }
 
@@ -1068,6 +1082,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table Name for Agent Definitions'
         });
 
+        this.applyComponentTags(agentDefinitionsTable, 'AgentDefinitionsTable');
         return agentDefinitionsTable;
     }
 
@@ -1142,6 +1157,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table Name for Tool Definitions'
         });
 
+        this.applyComponentTags(toolDefinitionsTable, 'ToolDefinitionsTable');
         return toolDefinitionsTable;
     }
 
@@ -1192,6 +1208,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Tag Definitions'
         });
 
+        this.applyComponentTags(tagDefinitionsTable, 'TagDefinitionsTable');
         return tagDefinitionsTable;
     }
 
@@ -1264,6 +1281,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Semantic Directive'
         });
 
+        this.applyComponentTags(semanticDirectiveTable, 'SemanticDirectiveTable');
         return semanticDirectiveTable;
     }
 
@@ -1298,6 +1316,7 @@ export class PikaConstruct extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         });
 
+        this.applyComponentTags(sharedSessionVisitHistoryTable, 'SharedSessionVisitHistoryTable');
         return sharedSessionVisitHistoryTable;
     }
 
@@ -1331,6 +1350,7 @@ export class PikaConstruct extends Construct {
             projectionType: dynamodb.ProjectionType.ALL
         });
 
+        this.applyComponentTags(pinnedSessionTable, 'PinnedSessionTable');
         return pinnedSessionTable;
     }
 
@@ -1358,6 +1378,7 @@ export class PikaConstruct extends Construct {
             description: 'DynamoDB Table ARN for Session Runner Mutex'
         });
 
+        this.applyComponentTags(sessionRunnerMutexTable, 'SessionRunnerMutexTable');
         return sessionRunnerMutexTable;
     }
 
@@ -1445,6 +1466,8 @@ export class PikaConstruct extends Construct {
             stringValue: archiveProcessor.functionName,
             description: 'Name of the Archive Processor Lambda'
         });
+
+        this.applyComponentTags(archiveProcessor, 'ArchiveProcessorLambda');
     }
 
     // IAM role creation methods
@@ -1762,7 +1785,7 @@ export class PikaConstruct extends Construct {
         sharedSessionVisitHistoryTable?: dynamodb.Table,
         pinnedSessionTable?: dynamodb.Table
     ): lambda.Function {
-        return new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
+        const fn = new nodejs.NodejsFunction(this, 'ChatbotApiFunction', {
             entry: 'src/api/chatbot/index.ts',
             handler: 'handler',
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -1790,6 +1813,8 @@ export class PikaConstruct extends Construct {
                 externalModules: ['@aws-sdk']
             }
         });
+        this.applyComponentTags(fn, 'ChatbotApiLambda');
+        return fn;
     }
 
     private createChatAdminApiFunction(
@@ -1967,6 +1992,8 @@ export class PikaConstruct extends Construct {
             description: 'API Gateway ID for the Chat Admin API'
         });
 
+        this.applyComponentTags(chatAdminApiFn, 'ChatAdminApiLambda');
+        this.applyComponentTags(api, 'ChatAdminApiGateway');
         return [chatAdminApiFn, api];
     }
 
@@ -2028,6 +2055,7 @@ export class PikaConstruct extends Construct {
             }
         });
 
+        this.applyComponentTags(converseFn, 'ConverseLambda');
         return converseFn;
     }
     private createAgentPostProcessorFunction(role: iam.Role): lambda.Function {
@@ -2055,6 +2083,7 @@ export class PikaConstruct extends Construct {
         });
 
         cdk.Tags.of(postProcessorFn).add('agent-tool', 'true');
+        this.applyComponentTags(postProcessorFn, 'AgentPostProcessorLambda');
 
         return postProcessorFn;
     }
@@ -2111,6 +2140,8 @@ export class PikaConstruct extends Construct {
             stringValue: agentCustomResourceLambda.functionArn,
             description: 'ARN of the Agent Custom Resource Lambda function'
         });
+
+        this.applyComponentTags(agentCustomResourceLambda, 'AgentCustomResourceLambda');
     }
 
     private createChatAppCustomResource(chatAdminRestApi: apigateway.RestApi): void {
@@ -2165,6 +2196,8 @@ export class PikaConstruct extends Construct {
             stringValue: chatAppCustomResourceLambda.functionArn,
             description: 'ARN of the Chat App Custom Resource Lambda function'
         });
+
+        this.applyComponentTags(chatAppCustomResourceLambda, 'ChatAppCustomResourceLambda');
     }
 
     private createSemanticDirectiveCustomResource(chatAdminRestApi: apigateway.RestApi): void {
@@ -2219,6 +2252,8 @@ export class PikaConstruct extends Construct {
             stringValue: semanticDirectiveCustomResourceLambda.functionArn,
             description: 'ARN of the Semantic Directive Custom Resource Lambda function'
         });
+
+        this.applyComponentTags(semanticDirectiveCustomResourceLambda, 'SemanticDirectiveCustomResourceLambda');
     }
 
     private createTagDefinitionCustomResource(chatAdminRestApi: apigateway.RestApi): void {
@@ -2273,6 +2308,8 @@ export class PikaConstruct extends Construct {
             stringValue: tagDefinitionCustomResourceLambda.functionArn,
             description: 'ARN of the Tag Definition Custom Resource Lambda function'
         });
+
+        this.applyComponentTags(tagDefinitionCustomResourceLambda, 'TagDefinitionCustomResourceLambda');
     }
 
     private createDomainIndexCustomResource(): lambda.Function {
@@ -2311,7 +2348,8 @@ export class PikaConstruct extends Construct {
             role: domainIndexCustomResourceRole,
             architecture: lambda.Architecture.ARM_64,
             environment: {
-                STAGE: this.props.stage
+                STAGE: this.props.stage,
+                ...this.getTagEnvironmentVariables()
             },
             bundling: {
                 minify: true,
@@ -2327,6 +2365,7 @@ export class PikaConstruct extends Construct {
             description: 'ARN of the Domain Index Custom Resource Lambda function'
         });
 
+        this.applyComponentTags(domainIndexCustomResourceLambda, 'DomainIndexCustomResourceLambda');
         return domainIndexCustomResourceLambda;
     }
 
@@ -2383,7 +2422,8 @@ export class PikaConstruct extends Construct {
             role: memoryCustomResourceRole,
             architecture: lambda.Architecture.ARM_64,
             environment: {
-                STAGE: this.props.stage
+                STAGE: this.props.stage,
+                ...this.getTagEnvironmentVariables()
             },
             bundling: {
                 minify: true,
@@ -2399,6 +2439,7 @@ export class PikaConstruct extends Construct {
             description: 'ARN of the Memory Custom Resource Lambda function'
         });
 
+        this.applyComponentTags(memoryCustomResourceLambda, 'MemoryCustomResourceLambda');
         return memoryCustomResourceLambda;
     }
 
@@ -2453,7 +2494,8 @@ export class PikaConstruct extends Construct {
             architecture: lambda.Architecture.ARM_64,
             environment: {
                 STAGE: this.props.stage,
-                AWS_ACCOUNT_ID: this.props.account
+                AWS_ACCOUNT_ID: this.props.account,
+                ...this.getTagEnvironmentVariables()
             },
             bundling: {
                 minify: true,
@@ -2469,6 +2511,7 @@ export class PikaConstruct extends Construct {
             description: 'ARN of the Inference Profile Custom Resource Lambda function'
         });
 
+        this.applyComponentTags(inferenceProfileCustomResourceLambda, 'InferenceProfileCustomResourceLambda');
         return inferenceProfileCustomResourceLambda;
     }
 
@@ -2538,7 +2581,9 @@ export class PikaConstruct extends Construct {
                         copyFrom: `arn:aws:bedrock:${this.props.region}:${this.props.account}:inference-profile/${profile.modelId}`
                     },
                     description: `${profile.name} inference profile for ${this.props.projNameHuman}`,
-                    tags: tags
+                    tags: tags,
+                    // Force CloudFormation to re-invoke the custom resource on each deployment
+                    timestamp: new Date().toISOString()
                 }
             });
 
@@ -2615,6 +2660,7 @@ export class PikaConstruct extends Construct {
         proxyResource.addMethod('ANY', integration);
         chat.addMethod('ANY', integration);
 
+        this.applyComponentTags(api, 'ChatbotApiGateway');
         return api;
     }
 
@@ -2698,6 +2744,7 @@ export class PikaConstruct extends Construct {
             description: 'ID of the Pika OpenSearch Domain'
         });
 
+        this.applyComponentTags(domain, 'OpenSearchDomain');
         return domain;
     }
 
@@ -2910,6 +2957,9 @@ export class PikaConstruct extends Construct {
         chatSessionTable.grantReadWriteData(sessionInsightsRunnerLambda);
         chatSessionFeedbackTable.grantReadWriteData(sessionInsightsRunnerLambda);
         pikaS3Bucket.grantReadWrite(sessionInsightsRunnerLambda, 'session-insights/*');
+
+        this.applyComponentTags(sessionChangedInsightsLambda, 'SessionChangedInsightsLambda');
+        this.applyComponentTags(sessionInsightsRunnerLambda, 'SessionInsightsRunnerLambda');
     }
 
     /**
@@ -2933,5 +2983,116 @@ export class PikaConstruct extends Construct {
         }
 
         return sanitized;
+    }
+
+    /**
+     * Creates component tags based on the configured component tag names.
+     * Returns an object with tag key-value pairs for all configured component tag names.
+     * If no component tag names are configured, returns an empty object.
+     *
+     * @param componentValue The value to use for the component tag (e.g., 'ConverseLambda', 'ChatMessagesTable')
+     * @returns Object with component tags, or empty object if no tag names configured
+     *
+     * @example
+     * // If componentTagNames = ['component', 'resource-type']
+     * // Returns: { component: 'ConverseLambda', 'resource-type': 'ConverseLambda' }
+     * const tags = this.createComponentTags('ConverseLambda');
+     */
+    private createComponentTags(componentValue: string): Record<string, string> {
+        if (!this.props.componentTagNames || this.props.componentTagNames.length === 0) {
+            return {};
+        }
+
+        const tags: Record<string, string> = {};
+        for (const tagName of this.props.componentTagNames) {
+            tags[tagName] = componentValue;
+        }
+        return tags;
+    }
+
+    /**
+     * Applies component tags to a CDK construct.
+     * This is a convenience method to apply component tags to any CDK resource.
+     * This method is public so it can be used by CustomStackDefs to tag custom resources.
+     *
+     * @param construct The CDK construct to tag
+     * @param componentValue The value to use for the component tag
+     *
+     * @example
+     * const lambda = new lambda.Function(this, 'MyLambda', { ... });
+     * this.applyComponentTags(lambda, 'MyLambda');
+     */
+    public applyComponentTags(construct: Construct, componentValue: string): void {
+        const tags = this.createComponentTags(componentValue);
+        for (const [key, value] of Object.entries(tags)) {
+            cdk.Tags.of(construct).add(key, value);
+        }
+    }
+
+    /**
+     * Validates that tag environment variables don't exceed size limits.
+     * AWS Lambda has a 4KB total limit for environment variables.
+     * We conservatively limit tags to 500 bytes to leave room for other env vars.
+     *
+     * @param envVars - The environment variables to validate
+     * @throws Error if tag environment variables exceed the size limit
+     */
+    private validateTagEnvironmentVariableSize(envVars: Record<string, string>): void {
+        const MAX_TAG_ENV_SIZE = 500; // Conservative limit to leave room for other env vars
+
+        let totalSize = 0;
+        if (envVars.STACK_TAGS) {
+            totalSize += envVars.STACK_TAGS.length;
+        }
+        if (envVars.COMPONENT_TAG_NAMES) {
+            totalSize += envVars.COMPONENT_TAG_NAMES.length;
+        }
+
+        if (totalSize > MAX_TAG_ENV_SIZE) {
+            throw new Error(
+                `Tag environment variables exceed size limit. ` +
+                    `Total size: ${totalSize} bytes, maximum: ${MAX_TAG_ENV_SIZE} bytes. ` +
+                    `STACK_TAGS size: ${envVars.STACK_TAGS?.length || 0} bytes, ` +
+                    `COMPONENT_TAG_NAMES size: ${envVars.COMPONENT_TAG_NAMES?.length || 0} bytes. ` +
+                    `Please reduce the number or length of tags in your pika-config.ts stackTags configuration.`
+            );
+        }
+    }
+
+    /**
+     * Get environment variables for passing tags to Lambda custom resource functions.
+     * Returns STACK_TAGS and COMPONENT_TAG_NAMES as JSON strings that can be parsed by the lambda.
+     *
+     * Use this to pass tagging configuration to custom resource lambdas so they can tag
+     * the AWS resources they create (e.g., Bedrock inference profiles, OpenSearch indices, etc.).
+     *
+     * @returns Environment variables object to spread into Lambda environment config
+     * @throws Error if tag environment variables exceed size limits
+     *
+     * @example
+     * const lambda = new nodejs.NodejsFunction(this, 'MyCustomResource', {
+     *     environment: {
+     *         ...this.getTagEnvironmentVariables(),
+     *         OTHER_VAR: 'value'
+     *     }
+     * });
+     */
+    private getTagEnvironmentVariables(): Record<string, string> {
+        const envVars: Record<string, string> = {};
+
+        // Add stack tags if configured
+        if (this.props.stackTags && Object.keys(this.props.stackTags).length > 0) {
+            envVars.STACK_TAGS = JSON.stringify(this.props.stackTags);
+        }
+
+        // Add component tag names if configured
+        if (this.props.componentTagNames && this.props.componentTagNames.length > 0) {
+            envVars.COMPONENT_TAG_NAMES = JSON.stringify(this.props.componentTagNames);
+        }
+
+        // Validate size limits
+        this.validateTagEnvironmentVariableSize(envVars);
+
+        return envVars;
     }
 }

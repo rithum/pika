@@ -20,6 +20,8 @@ export interface PikaChatStackProps extends cdk.StackProps {
     projNameHuman: string; // Human readable e.g. Pika Chat
     pikaServiceProjNameKebabCase: string; // Kebab case for the pika service stack e.g. pika
     tagDefinitions: TagDefinitionsJsonFile;
+    stackTags?: Record<string, string>; // Merged and interpolated stack tags from pika-config.ts
+    componentTagNames?: string[];
 }
 
 /**
@@ -85,7 +87,9 @@ export class PikaChatStack extends cdk.Stack {
             projNameKebabCase: props.projNameKebabCase,
             projNameHuman: props.projNameHuman,
             pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
-            tagDefinitions: props.tagDefinitions
+            tagDefinitions: props.tagDefinitions,
+            stackTags: props.stackTags,
+            componentTagNames: props.componentTagNames
         };
 
         const pikaChatConstructProps: PikaChatConstructProps = customStackDefs.getPikaChatConstructProps(partialProps);

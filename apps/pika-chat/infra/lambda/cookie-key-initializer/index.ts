@@ -6,7 +6,7 @@ import { KMSProvider } from '../../../src/lib/server/encryption/KMSProvider';
 import { SSMKeyProvider } from '../../../src/lib/server/encryption/SSMKeyProvider';
 import type { InfrastructureConfig } from '../../../src/lib/server/encryption/types';
 import { pikaConfig } from '../../build/pika-config.js';
-import { sendCustomResourceResponse } from './util';
+import { sendCustomResourceResponse, createComponentTagsForKMS } from './util';
 
 let awsAccountId: string;
 
@@ -42,6 +42,9 @@ async function getConfigFromEnvironment(): Promise<InfrastructureConfig> {
         awsAccountId = response.Account;
     }
 
+    // Get component tags from environment variables (if configured)
+    const componentTags = createComponentTagsForKMS('CookieEncryptionKey');
+
     return {
         region,
         stage,
@@ -49,7 +52,8 @@ async function getConfigFromEnvironment(): Promise<InfrastructureConfig> {
         projNameKebabCase,
         ssmParameterPrefix,
         kmsKeyAlias,
-        maxKeyVersions: maxKeyVersions
+        maxKeyVersions: maxKeyVersions,
+        componentTags: componentTags.length > 0 ? componentTags : undefined
     };
 }
 

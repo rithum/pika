@@ -3603,6 +3603,22 @@ export interface PikaConfig {
         pikaServiceTags?: Record<string, string>;
         /** Additional tags applied only to the Pika Chat stack (merged with common, overwrites on conflict) */
         pikaChatTags?: Record<string, string>;
+        /**
+         * The platform will tag each component of infrastructure with a name.  This is the tag names to use for the component tags.
+         * If not populated, then you will  not get any component tags.  Here are examples of a component tag assuming this array
+         * contains `['component']`:
+         *
+         * ```
+         * // Useful so in cost explorer you can break down the costs by inference profile
+         * component: ${profileName}InferenceProfile
+         *
+         * // Useful so in cost explorer you can break down the costs by component
+         * component: ${componentName}
+         * ```
+         *
+         * @since 0.14.0
+         */
+        componentTagNames?: string[];
     };
 }
 

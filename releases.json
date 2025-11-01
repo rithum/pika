@@ -1,7 +1,26 @@
 {
-  "latestVersion": "0.13.0",
-  "currentDevelopment": "0.13.0",
+  "latestVersion": "0.14.0",
+  "currentDevelopment": "0.14.0",
   "releases": [
+    {
+      "version": "0.14.0",
+      "date": "2025-11-01",
+      "status": "released",
+      "breaking": false,
+      "summary": "Component-level tagging for granular AWS cost tracking and infrastructure organization",
+      "highlights": [
+        "New componentTagNames array in stackTags configuration enables component-level resource identification",
+        "Component tags applied to all AWS infrastructure: Lambda, DynamoDB, S3, ECS, Fargate, KMS, OpenSearch, Bedrock inference profiles",
+        "Granular cost analysis in AWS Cost Explorer - see costs for specific Lambda functions, DynamoDB tables, or AI models within each service",
+        "Helper method applyComponentTags() in custom-stack-defs.ts for easy tagging of custom infrastructure",
+        "Tag environment variable support for CloudFormation custom resources with new utility functions",
+        "500-byte validation limit for tag environment variables prevents deployment failures",
+        "Fixed inference profile tag deduplication bug that caused Bedrock profile creation failures",
+        "Added timestamp forcing to custom resources ensuring updates apply on every deployment",
+        "New TypeScript property: PikaConfig.stackTags.componentTagNames with @since 0.14.0 annotation",
+        "Enhanced AWS CDK deployment documentation with Component Tags for Cost Tracking section"
+      ]
+    },
     {
       "version": "0.13.0",
       "date": "2025-10-31",

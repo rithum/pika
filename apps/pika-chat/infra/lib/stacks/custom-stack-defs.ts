@@ -1,6 +1,7 @@
 import { PartialPikaChatConstructProps, PikaChatConstructProps } from './pika-chat-construct.js';
 import { PikaChatStack } from './pika-chat-stack.js';
 import * as cdk from 'aws-cdk-lib';
+import { Construct } from 'constructs';
 
 /**
  * You must make changes to this class to add your own customizations to the pika stack.
@@ -39,5 +40,35 @@ export class CustomStackDefs {
      */
     addStackResoucesAfterWeCreateThePikaChatConstruct(): void {
         //TODO: implement if needed
+    }
+
+    /**
+     * Helper method to apply component tags to custom infrastructure you add.
+     * Uses the component tag names from pika-config.ts to tag your resources consistently.
+     * 
+     * **Important**: This method is only available AFTER the PikaChatConstruct has been created.
+     * Use it in `addStackResoucesAfterWeCreateThePikaChatConstruct()`, not in `addStackResoucesBeforeWeCreateThePikaChatConstruct()`.
+     *
+     * @param construct The CDK construct (Lambda, DynamoDB table, S3 bucket, EC2 instance, etc.) to tag
+     * @param componentValue The component name/value (e.g., 'MyCustomLambda', 'MyS3Bucket', 'MyEC2Instance')
+     *
+     * @example
+     * ```typescript
+     * addStackResoucesAfterWeCreateThePikaChatConstruct(): void {
+     *     const myLambda = new lambda.Function(this.stack, 'MyCustomFunction', {
+     *         // ... lambda config
+     *     });
+     *     this.applyComponentTags(myLambda, 'MyCustomLambda');
+     *
+     *     const myBucket = new s3.Bucket(this.stack, 'MyCustomBucket', {
+     *         // ... bucket config
+     *     });
+     *     this.applyComponentTags(myBucket, 'MyCustomS3Bucket');
+     * }
+     * ```
+     */
+    protected applyComponentTags(construct: Construct, componentValue: string): void {
+        // Delegate to the PikaChatConstruct's component tagging method
+        this.stack.webapp.applyComponentTags(construct, componentValue);
     }
 }
