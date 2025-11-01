@@ -59,16 +59,16 @@ export async function createInferenceProfile(client: BedrockClient, properties: 
 
     // Add environment tags first
     for (const tag of envBedrockTags) {
-        tagMap.set(tag.key, tag.value);
+        tagMap.set(tag.key, String(tag.value));
     }
 
     // Properties tags override environment tags (take precedence)
     for (const tag of existingTags) {
-        tagMap.set(tag.key, tag.value);
+        tagMap.set(tag.key, String(tag.value));
     }
 
-    // Convert back to array
-    const mergedTags = Array.from(tagMap.entries()).map(([key, value]) => ({ key, value }));
+    // Convert back to array - ensure all values are strings for Bedrock API
+    const mergedTags = Array.from(tagMap.entries()).map(([key, value]) => ({ key, value: String(value) }));
 
     // Update properties with merged tags
     const propertiesWithTags = {

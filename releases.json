@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.14.0",
-  "currentDevelopment": "0.14.0",
+  "latestVersion": "0.14.1",
+  "currentDevelopment": "0.14.1",
   "releases": [
+    {
+      "version": "0.14.1",
+      "date": "2025-11-01",
+      "status": "released",
+      "breaking": false,
+      "summary": "Bug fix for Bedrock inference profile stack tag type conversion",
+      "highlights": [
+        "Fixed stack tags to ensure they are converted to required string type before being applied to Bedrock inference profiles"
+      ]
+    },
     {
       "version": "0.14.0",
       "date": "2025-11-01",
