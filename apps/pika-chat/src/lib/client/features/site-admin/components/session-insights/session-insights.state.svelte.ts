@@ -24,7 +24,8 @@ import type {
     SessionSearchRequest,
     SessionSearchResponse,
     ShowToastFn,
-    SimpleOption
+    SimpleOption,
+    SiteFeatures
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { SvelteMap } from 'svelte/reactivity';
 import type { ImageForLightbox, SavedSearch } from './types';
@@ -33,9 +34,12 @@ import { createDefaultSearchQuery } from './utils';
 const DEFAULT_SEARCH_ERROR = 'Unknown error occurred while searching sessions.  Please try again later.';
 const SAVED_SEARCHES_KEY = 'pika:admin:session-insights:saved-searches';
 
+export const DEFAULT_PAGE_SIZE = 500;
+
 export class SessionInsightsState {
     #userPrefs: UserPrefsState;
     #identity: IdentityState;
+    #siteFeatures: SiteFeatures | undefined;
     #sessions = $state<ChatSession<RecordOrUndef>[]>([]);
     #selectedSessions = $state<string[]>([]);
     #isSearching = $state(false);
@@ -75,6 +79,8 @@ export class SessionInsightsState {
     #entitiesRetrieved = $derived.by(() => {
         return Array.from(this.#entitiesRetrievedMap.values());
     });
+    #entityNamesMap = $state<SvelteMap<string, string>>(new SvelteMap());
+    #userNamesMap = $state<SvelteMap<string, ChatUserLite>>(new SvelteMap());
     #loading = $derived.by(() => {
         const savingSavedSearch = this.#savingSavedSearch ? 'Saving search...' : undefined;
         const deletingSavedSearch = this.#deletingSavedSearch ? 'Deleting...' : undefined;
@@ -105,7 +111,8 @@ export class SessionInsightsState {
         userPrefs: UserPrefsState,
         componentRegistry: ComponentRegistry,
         identity: IdentityState,
-        showToast: ShowToastFn
+        showToast: ShowToastFn,
+        siteFeatures: SiteFeatures | undefined
     ) {
         this.#userPrefs = userPrefs;
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
@@ -114,6 +121,11 @@ export class SessionInsightsState {
         this.#componentRegistry = componentRegistry;
         this.#identity = identity;
         this.#showToast = showToast;
+        this.#siteFeatures = siteFeatures;
+
+        // Pre-populate chat-app-global entity with a dash as the display name
+        this.#entitiesRetrievedMap.set('chat-app-global', { value: 'chat-app-global', label: '-' });
+        this.#entityNamesMap.set('chat-app-global', '-');
 
         $effect(() => {
             const query = this.searchQuery;
@@ -180,6 +192,14 @@ export class SessionInsightsState {
         return this.#entitiesRetrieved;
     }
 
+    get entityNamesMap() {
+        return this.#entityNamesMap;
+    }
+
+    get userNamesMap() {
+        return this.#userNamesMap;
+    }
+
     get valuesForEntityAutoComplete() {
         return this.#valuesForEntityAutoComplete;
     }
@@ -242,6 +262,10 @@ export class SessionInsightsState {
 
     get showFeedbackPanel() {
         return this.#showFeedbackPanel;
+    }
+
+    get pageSize() {
+        return DEFAULT_PAGE_SIZE;
     }
 
     /**
@@ -582,11 +606,149 @@ export class SessionInsightsState {
             this.#hasMore = !!responseBody.scrollId;
             this.#totalResults = responseBody.total || 0;
             this.#lastSearchTimestamp = new Date();
+
+            // Enrich entity names if entity feature is enabled
+            await this.enrichEntityNames();
+            
+            // Enrich user names
+            await this.enrichUserNames();
         } catch (error) {
             this.#searchError = DEFAULT_SEARCH_ERROR;
             handleClientError(error, 'searching sessions', this.#showToast);
         } finally {
             this.#isSearching = false;
+        }
+    }
+
+    /**
+     * Enrich entity IDs with their display names by fetching in batch.
+     * Based on session-analytics enrichEntityNames implementation.
+     */
+    private async enrichEntityNames() {
+        // Only enrich if entity feature is enabled
+        if (!this.#siteFeatures?.entity?.enabled) {
+            return;
+        }
+
+        try {
+            // Extract unique entity IDs from loaded sessions using top-level entityId
+            const entityIds = new Set<string>();
+            for (const session of this.#sessions) {
+                const entityId = (session as any).entityId;
+                if (entityId && typeof entityId === 'string') {
+                    entityIds.add(entityId);
+                }
+            }
+
+            if (entityIds.size === 0) {
+                return;
+            }
+
+            // Filter out IDs we already have names for
+            // This automatically excludes 'chat-app-global' which is pre-populated in constructor
+            const entityIdsToFetch = Array.from(entityIds).filter(id => !this.#entityNamesMap.has(id));
+            
+            if (entityIdsToFetch.length === 0) {
+                return;
+            }
+
+            const response = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: 'getValuesForEntityList',
+                    entityIds: entityIdsToFetch
+                })
+            });
+
+            checkClientResponse(response, 'enrich entity names', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+            const result: { success: boolean; data?: { value: string; label?: string }[] } = await response.json();
+
+            if (result.data) {
+                // Update the entity names map
+                for (const entity of result.data) {
+                    this.#entityNamesMap.set(entity.value, entity.label ?? entity.value);
+                    
+                    // Also add to entitiesRetrievedMap for use in filter
+                    this.#entitiesRetrievedMap.set(entity.value, {
+                        value: entity.value,
+                        label: entity.label ?? entity.value
+                    });
+                }
+            }
+        } catch (err) {
+            // If enrichment fails, log but continue with unenriched data
+            console.error('Failed to enrich entity names:', err);
+        }
+    }
+
+    /**
+     * Get the display name for an entity ID
+     */
+    getEntityName(entityId: string | undefined): string | undefined {
+        if (!entityId) return undefined;
+        return this.#entityNamesMap.get(entityId) ?? entityId;
+    }
+
+    /**
+     * Get the user display info for a user ID (firstName, lastName if available)
+     */
+    getUserDisplayInfo(userId: string | undefined): ChatUserLite | undefined {
+        if (!userId) return undefined;
+        return this.#userNamesMap.get(userId);
+    }
+
+    /**
+     * Enrich user IDs with their display names by fetching in batch.
+     * Similar to enrichEntityNames implementation.
+     */
+    private async enrichUserNames() {
+        try {
+            // Extract unique user IDs from loaded sessions
+            const userIds = new Set<string>();
+            for (const session of this.#sessions) {
+                const userId = session.userId;
+                if (userId && typeof userId === 'string') {
+                    userIds.add(userId);
+                }
+            }
+
+            if (userIds.size === 0) {
+                return;
+            }
+
+            // Filter out IDs we already have names for
+            const userIdsToFetch = Array.from(userIds).filter(id => !this.#userNamesMap.has(id));
+            
+            if (userIdsToFetch.length === 0) {
+                return;
+            }
+
+            const response = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: 'getUsersForUserList',
+                    userIds: userIdsToFetch
+                })
+            });
+
+            checkClientResponse(response, 'enrich user names', this.#showToast, CLIENT_RESOURCE_NAMES.USER);
+            const result: { success: boolean; data?: ChatUserLite[] } = await response.json();
+
+            if (result.data) {
+                // Update the user names map
+                for (const user of result.data) {
+                    this.#userNamesMap.set(user.userId, user);
+                }
+            }
+        } catch (err) {
+            // If enrichment fails, log but continue with unenriched data
+            console.error('Failed to enrich user names:', err);
         }
     }
 
@@ -743,6 +905,17 @@ export class SessionInsightsState {
 //             start = new Date();
 //             start.setMonth(start.getMonth() - 3);
 //             break;
+//     }
+
+//     updateSimpleSearch({
+//         dateRange: {
+//             start,
+//             end: null,
+//             preset
+//         }
+//     });
+// }
+
 //     }
 
 //     updateSimpleSearch({

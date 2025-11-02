@@ -76,17 +76,16 @@
     ];
 
     // Invocation modes
-    const invocationModeOptions: { value: ConverseInvocationMode | 'undefined'; label: string; description: string }[] =
-        [
-            {
-                value: 'undefined',
-                label: 'User-Initiated (undefined)',
-                description: 'Sessions without invocation mode',
-            },
-            { value: 'chat-app', label: 'User-Initiated (chat-app)', description: 'Sessions from chat UI' },
-            { value: 'direct-agent-invoke', label: 'Direct Agent API', description: 'Direct API invocations' },
-            { value: 'chat-app-component', label: 'Widget Invocations', description: 'Embedded widget sessions' },
-        ];
+    const invocationModeOptions: { value: ConverseInvocationMode; label: string; description: string }[] = [
+        { value: 'chat-app', label: 'User-Initiated (chat-app)', description: 'Sessions from chat UI' },
+        { value: 'direct-agent-invoke', label: 'Direct Agent API', description: 'Direct API invocations' },
+        { value: 'chat-app-component', label: 'Widget Invocations', description: 'Embedded widget sessions' },
+    ];
+
+    // Visible selected modes (excludes 'undefined' which is managed automatically with 'chat-app')
+    const visibleSelectedModes = $derived.by(() =>
+        sessionAnalytics.selectedInvocationModes.filter((mode) => mode !== 'undefined')
+    );
 
     // Date range display
     const dateRangeDisplay = $derived.by(() => {
@@ -322,12 +321,12 @@
                             class="flex items-center justify-between min-w-[200px]"
                         >
                             <span>
-                                {#if sessionAnalytics.selectedInvocationModes.length === 0}
+                                {#if visibleSelectedModes.length === 0}
                                     All Types
-                                {:else if sessionAnalytics.selectedInvocationModes.length === invocationModeOptions.length}
+                                {:else if visibleSelectedModes.length === invocationModeOptions.length}
                                     All Types
                                 {:else}
-                                    {sessionAnalytics.selectedInvocationModes.length} selected
+                                    {visibleSelectedModes.length} selected
                                 {/if}
                             </span>
                             <ChevronsUpDown class="shrink-0 opacity-50 ml-2" />
@@ -417,8 +416,8 @@
             {/each}
         {/if}
 
-        {#if sessionAnalytics.selectedInvocationModes.length > 0 && sessionAnalytics.selectedInvocationModes.length < invocationModeOptions.length}
-            {#each sessionAnalytics.selectedInvocationModes as mode}
+        {#if visibleSelectedModes.length > 0 && visibleSelectedModes.length < invocationModeOptions.length}
+            {#each visibleSelectedModes as mode}
                 <Badge variant="secondary" class="gap-1">
                     {invocationModeOptions.find((opt) => opt.value === mode)?.label}
                     <X class="h-3 w-3 cursor-pointer" onclick={() => sessionAnalytics.toggleInvocationMode(mode)} />

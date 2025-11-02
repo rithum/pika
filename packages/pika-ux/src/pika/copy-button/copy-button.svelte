@@ -21,9 +21,11 @@
 
         /** When provided, this is the title of the button */
         title?: string;
+
+        size?: 'small' | 'medium';
     }
 
-    const { children, value: propValue, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn, title }: Props = $props();
+    const { children, value: propValue, embedded = false, truncateAfter = 0, showTextAsLink = false, linkCallbackFn, title, size = 'medium' }: Props = $props();
 
     let hiddenRef = $state<HTMLElement>() as HTMLElement;
     let value: string | undefined = $state(undefined);
@@ -118,16 +120,16 @@
 
 <span class="inline-flex w-fit items-center {embedded ? '' : 'border border-gray-200 rounded-sm'}">
     {#if showTextAsLink}
-        <Button class="p-0" variant="link" onclick={() => linkCallbackFn?.()}>{buttonTitle}</Button>
+        <Button class="p-0 {size === 'small' ? 'text-xs' : ''}" variant="link" onclick={() => linkCallbackFn?.()}>{buttonTitle}</Button>
     {:else}
-        <span class={embedded ? '' : 'border-r border-gray-200 px-2'}>{buttonTitle}</span>
+        <span class="{embedded ? '' : 'border-r border-gray-200 px-2'} {size === 'small' ? 'text-xs' : ''}">{buttonTitle}</span>
     {/if}
-    <span class="w-6 h-6 flex items-center justify-center">
+    <span class="{size === 'small' ? 'w-4 h-4 ml-1' : 'w-6 h-6'} flex items-center justify-center">
         {#if showCheckmark}
-            <Check class="w-3.5 h-3.5 text-green-500" />
+            <Check class="{size === 'small' ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} text-green-500" />
         {:else}
             <Button variant="ghost" class="h-full w-full min-h-0 p-0 ml-1 rounded-none hover:border-blue-100 hover:border hover:rounded-sm" onclick={copy} disabled={!value}>
-                <Copy class="w-3.5 h-3.5 text-gray-400" />
+                <Copy class="{size === 'small' ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} text-gray-400" />
             </Button>
         {/if}
     </span>

@@ -2919,6 +2919,7 @@ export type SiteAdminRequest =
     | GetValuesForEntityAutoCompleteRequest
     | GetValuesForEntityListRequest
     | GetValuesForUserAutoCompleteRequest
+    | GetUsersForUserListRequest
     | ClearConverseLambdaCacheRequest
     | ClearSvelteKitCachesRequest
     | AddChatSessionFeedbackAdminRequest
@@ -2948,6 +2949,7 @@ export const SiteAdminCommand = [
     'getValuesForEntityAutoComplete',
     'getValuesForEntityList',
     'getValuesForUserAutoComplete',
+    'getUsersForUserList',
     'clearConverseLambdaCache',
     'clearSvelteKitCaches',
     'addChatSessionFeedback',
@@ -3064,6 +3066,15 @@ export interface GetValuesForUserAutoCompleteRequest extends SiteAdminCommandReq
     valueProvidedByUser: string;
 }
 
+/**
+ * Request to batch fetch user display information for a list of user IDs
+ * @since 0.14.2
+ */
+export interface GetUsersForUserListRequest extends SiteAdminCommandRequestBase {
+    command: 'getUsersForUserList';
+    userIds: string[];
+}
+
 export interface GetInitialDataRequest extends SiteAdminCommandRequestBase {
     command: 'getInitialData';
 }
@@ -3137,6 +3148,7 @@ export type SiteAdminResponse =
     | GetValuesForEntityAutoCompleteResponse
     | GetValuesForEntityListResponse
     | GetValuesForUserAutoCompleteResponse
+    | GetUsersForUserListResponse
     | ClearConverseLambdaCacheResponse
     | ClearSvelteKitCachesResponse
     | AddChatSessionFeedbackResponse
@@ -3179,6 +3191,14 @@ export interface GetValuesForEntityListResponse extends SiteAdminCommandResponse
 }
 
 export interface GetValuesForUserAutoCompleteResponse extends SiteAdminCommandResponseBase {
+    data: ChatUserLite[] | undefined;
+}
+
+/**
+ * Response containing user display information for a list of user IDs
+ * @since 0.14.2
+ */
+export interface GetUsersForUserListResponse extends SiteAdminCommandResponseBase {
     data: ChatUserLite[] | undefined;
 }
 

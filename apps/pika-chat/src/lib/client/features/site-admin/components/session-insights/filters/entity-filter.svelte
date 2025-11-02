@@ -16,6 +16,29 @@
     let selectedEntity = $state<SimpleOption | undefined>(undefined);
 
     const featureEnabled = $derived(siteAdmin.siteFeatures?.entity?.enabled ?? false);
+
+    // Initialize selectedEntity from sessionAttributes when available
+    $effect(() => {
+        const sessionAttributeName = siteAdmin.siteFeatures?.entity?.attributeName ?? 'entity';
+        const currentValue = sessionAttributes?.[sessionAttributeName];
+
+        if (currentValue && !selectedEntity) {
+            // Find the entity in the retrieved entities to get the full SimpleOption
+            const foundEntity = sessionInsights.entitiesRetrieved.find((e) => e.value === currentValue);
+            if (foundEntity) {
+                selectedEntity = foundEntity;
+            } else {
+                // If not found in retrieved list, create a SimpleOption from the value
+                selectedEntity = {
+                    value: currentValue,
+                    label: currentValue,
+                };
+            }
+        } else if (!currentValue && selectedEntity) {
+            // Clear selection if sessionAttributes is cleared externally
+            selectedEntity = undefined;
+        }
+    });
     const entitySingularUpper = $derived.by(() => {
         const result = siteAdmin.siteFeatures?.entity?.displayNameSingular ?? 'Entity';
         return result.charAt(0).toUpperCase() + result.slice(1);
@@ -42,12 +65,21 @@
                     (val) => {
                         selectedEntity = val;
                         const sessionAttributeName = siteAdmin.siteFeatures?.entity?.attributeName ?? 'entity';
-                        if (sessionAttributes) {
-                            sessionAttributes[sessionAttributeName] = val?.value;
+
+                        if (val?.value) {
+                            // Set the value
+                            if (sessionAttributes) {
+                                sessionAttributes[sessionAttributeName] = val.value;
+                            } else {
+                                sessionAttributes = {
+                                    [sessionAttributeName]: val.value,
+                                };
+                            }
                         } else {
-                            sessionAttributes = {
-                                [sessionAttributeName]: val?.value,
-                            };
+                            // Clear the value by deleting the key
+                            if (sessionAttributes) {
+                                delete sessionAttributes[sessionAttributeName];
+                            }
                         }
                     }
                 }

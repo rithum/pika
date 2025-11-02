@@ -66,6 +66,8 @@ import {
     GetInstructionsAddedForUserMemoryRequest,
     GetInstructionsAddedForUserMemoryResponse,
     GetMockSessionByUserIdAndSessionIdResponse,
+    GetUsersForUserListRequest,
+    GetUsersForUserListResponse,
     RecordOrUndef,
     SearchAllMemoryRecordsRequest,
     SearchAllMemoryRecordsResponse,
@@ -120,6 +122,7 @@ import {
     getSessionAnalytics,
     getTool,
     getTools,
+    getUsersForUserList,
     searchForSessions,
     searchSemanticDirectivesApi,
     searchTagDefsApi,
@@ -313,6 +316,9 @@ const routes: Record<string, { handler: userIdFnTypeHandler<any, any> }> = {
     },
     'POST:/api/chat-admin/memory/instructions': {
         handler: handleGetInstructionsAddedForUserMemory
+    },
+    'POST:/api/chat-admin/users/batch': {
+        handler: handleGetUsersForUserList
     },
     // Mock data APIs for testing
     'POST:/api/chat-admin/session/mock': {
@@ -1246,6 +1252,36 @@ async function handleGetInstructionsAddedForUserMemory(
     response.instructions = await getMemoryInstructions(user, userMemoryFeature, requestBody.prompt, requestBody.maxKMatchesPerStrategy);
 
     return response;
+}
+
+/**
+ * POST:/api/chat-admin/users/batch
+ *
+ * Batch fetch user display information for a list of user IDs
+ */
+async function handleGetUsersForUserList(event: APIGatewayProxyEventPika<GetUsersForUserListRequest>): Promise<GetUsersForUserListResponse> {
+    const requestBody = event.body;
+    if (!requestBody) {
+        throw new BadRequestError('Request body is required');
+    }
+
+    if (!requestBody.userIds || !Array.isArray(requestBody.userIds)) {
+        throw new BadRequestError('userIds array is required');
+    }
+
+    if (requestBody.userIds.length === 0) {
+        return {
+            success: true,
+            data: []
+        };
+    }
+
+    const users = await getUsersForUserList(requestBody.userIds);
+
+    return {
+        success: true,
+        data: users
+    };
 }
 
 // ===== MOCK DATA APIS FOR TESTING =====

@@ -5,6 +5,7 @@
     import ListRestart from '$icons/lucide/list-restart';
     import SlidersVertical from '$icons/lucide/sliders-vertical';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { Badge } from 'pika-ux/shadcn/badge';
     import { Button } from 'pika-ux/shadcn/button';
     import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
     import * as Popover from 'pika-ux/shadcn/popover';
@@ -39,13 +40,63 @@
     let showSavedSearches = $state(false);
     let showSaveCurrentSearch = $state(false);
     let advancedOpen = $state(false);
+
+    // Count active filters
+    let activeFilterCount = $derived.by(() => {
+        const query = sessionInsights.searchQuery;
+        let count = 0;
+
+        // Check each filter property
+        if (query.dateFilter?.startDate) count++;
+        if (query.userId) count++;
+        if (query.chatAppId) count++;
+        // Check if customUserData has any defined (non-undefined) values
+        if (query.customUserData && Object.values(query.customUserData).some((val) => val !== undefined)) count++;
+        if (query.userType) count++;
+        if (query.flagged !== undefined) count++;
+
+        // Insights filters
+        if (query.insights?.hasInsights !== undefined) count++;
+        // Count all score filters
+        if (query.insights?.goalAchievementScore !== undefined) count++;
+        if (query.insights?.userSatisfactionScore !== undefined) count++;
+        if (query.insights?.aiPerformanceOverallScore !== undefined) count++;
+        if (query.insights?.aiPerformanceAccuracyScore !== undefined) count++;
+        if (query.insights?.aiPerformanceEfficiencyScore !== undefined) count++;
+        if (query.insights?.interactionQualityScore !== undefined) count++;
+        if (query.insights?.userSentiment) count++;
+        if (query.insights?.satisfactionLevel) count++;
+        if (query.insights?.goalCompletionStatus) count++;
+        if (query.insights?.aiConfidenceLevel) count++;
+        if (query.insights?.userEffortRequired) count++;
+        if (query.insights?.complexityLevel) count++;
+
+        // Feedback filters
+        if (query.feedbackInStatus && query.feedbackInStatus.length > 0) count++;
+        if (query.feedbackSeverity && query.feedbackSeverity.length > 0) count++;
+        if (query.feedbackType && query.feedbackType.length > 0) count++;
+        if (query.feedbackInternalCommentType && query.feedbackInternalCommentType.length > 0) count++;
+        if (query.feedbackInternalCommentStatus && query.feedbackInternalCommentStatus.length > 0) count++;
+        if (query.feedbackUserId) count++;
+        if (query.feedbackInternalCommentUserId) count++;
+
+        return count;
+    });
 </script>
 
 <Popover.Root>
     <Popover.Trigger>
         {#snippet child({ props })}
-            <Button {...props} variant="outline" size="sm" class="h-8">
+            <Button {...props} variant="outline" size="sm" class="h-8 relative">
                 <ListFilter class="w-4 h-4" />
+                {#if activeFilterCount > 0}
+                    <Badge
+                        variant="default"
+                        class="absolute -top-2 -right-2 h-5 min-w-5 px-1 flex items-center justify-center text-xs font-semibold"
+                    >
+                        {activeFilterCount}
+                    </Badge>
+                {/if}
             </Button>
         {/snippet}
     </Popover.Trigger>

@@ -172,7 +172,9 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
             return !!serverSideConfig;
         },
         get manualFiltering() {
-            return !!serverSideConfig;
+            // CRITICAL: If using client-side global filter, we must disable manualFiltering
+            // Otherwise TanStack skips ALL filtering logic before checking manualGlobalFilter
+            return serverSideConfig ? !serverSideConfig.clientSideGlobalFilter : false;
         },
         get manualPagination() {
             return !!serverSideConfig;
@@ -183,13 +185,19 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
 
             const tableState = serverSideConfig?.tableState;
 
+            // For server-side pagination, use the pageSize from tableState if available
+            const effectivePageSize = tableState?.pageSize ?? pageSize;
+
             // Calculate pageCount if totalRecords is available, regardless of pagination mode
-            if (tableState?.totalRecords !== undefined && pageSize > 0) {
-                return Math.ceil(tableState.totalRecords / pageSize);
+            if (tableState?.totalRecords !== undefined && effectivePageSize > 0) {
+                return Math.ceil(tableState.totalRecords / effectivePageSize);
             }
             // For cursor-based pagination without totalRecords, we don't know the total
             if (serverState.paginationMode === 'cursor') {
-                return -1; // Unknown page count for cursor pagination without totalRecords
+                // For cursor pagination, determine page count based on hasNextPage
+                // If we're on page 0 and hasNextPage is false, we have 1 page
+                // If hasNextPage is true, we have at least 2 pages
+                return tableState?.hasNextPage ? pageIndex + 2 : pageIndex + 1;
             }
             return undefined; // Unknown page count
         },
@@ -251,17 +259,21 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
             if (globalFilterProps?.showGlobalFilter) {
                 globalFilterProps.globalFilterValue = value;
 
-                // Trigger server request for server-side tables
-                if (serverSideConfig) {
+                // Only trigger server request if global filter is server-side (not client-side)
+                if (serverSideConfig && !serverSideConfig.clientSideGlobalFilter) {
                     triggerServerRequest();
                 }
+                // Otherwise, global filter will work client-side automatically via getFilteredRowModel
             }
         },
 
         // === ROW MODELS ===
         getCoreRowModel: getCoreRowModel(),
         ...(serverSideConfig
-            ? {}
+            ? {
+                  // Include filtered row model ONLY if using client-side global filter
+                  ...(serverSideConfig.clientSideGlobalFilter ? { getFilteredRowModel: getFilteredRowModel() } : {})
+              }
             : {
                   getFilteredRowModel: getFilteredRowModel(),
                   getPaginationRowModel: getPaginationRowModel(),
@@ -278,7 +290,12 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
     </div>
     {#if paginationPlacement === 'top' || paginationPlacement === 'both'}
         <div class="mt-2 pb-1">
-            <TablePagination {table} serverSide={serverSideConfig} {showRowsPerPage} />
+            <TablePagination
+                {table}
+                serverSide={serverSideConfig}
+                {showRowsPerPage}
+                globalFilterActive={!!(serverSideConfig?.clientSideGlobalFilter && globalFilterProps?.globalFilterValue)}
+            />
         </div>
     {/if}
     <div class="rounded-md border h-full flex flex-col overflow-y-auto">
@@ -315,7 +332,12 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
     </div>
     {#if paginationPlacement === 'bottom' || paginationPlacement === 'both'}
         <div class="mt-2">
-            <TablePagination {table} serverSide={serverSideConfig} {showRowsPerPage} />
+            <TablePagination
+                {table}
+                serverSide={serverSideConfig}
+                {showRowsPerPage}
+                globalFilterActive={!!(serverSideConfig?.clientSideGlobalFilter && globalFilterProps?.globalFilterValue)}
+            />
         </div>
     {/if}
 </div>

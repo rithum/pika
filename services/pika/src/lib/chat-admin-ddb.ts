@@ -7,6 +7,8 @@ import type {
     ChatSessionFeedback,
     ChatSessionFeedbackForUpdate,
     ChatSessionLiteForUpdate,
+    ChatUser,
+    ChatUserLite,
     RecordOrUndef,
     SearchSemanticDirectivesRequest,
     SemanticDirective,
@@ -39,10 +41,12 @@ import https from 'https';
 import pRetry, { AbortError } from 'p-retry';
 import {
     convertChatSessionToCamelFromSnakeCase,
+    convertChatUserToCamelFromSnakeCase,
     convertTagDefinitionToCamelFromSnakeCase,
     convertTagDefinitionToSnakeFromCamelCase,
     getChatSessionFeedbackTable,
-    getChatSessionTable
+    getChatSessionTable,
+    getChatUserTable
 } from './utils';
 
 const region = process.env.AWS_REGION ?? 'us-east-1';
@@ -2482,4 +2486,76 @@ export async function deleteAllMockTestChatApps(): Promise<number> {
 
     console.log(`Deleted ${deletedCount} mock test chat apps`);
     return deletedCount;
+}
+
+/**
+ * Batch get users by their user IDs with retry logic.
+ * Uses BatchGetItem for efficiency, processing in batches of 50.
+ * Returns ChatUserLite objects containing only userId, firstName, and lastName.
+ */
+export async function batchGetUsersByUserIds(userIds: string[]): Promise<ChatUserLite[]> {
+    if (userIds.length === 0) {
+        return [];
+    }
+
+    // BatchGetItem limit is 100, but we'll use smaller batches as requested
+    const BATCH_SIZE = 100;
+    const allUsers: ChatUserLite[] = [];
+
+    // Process in chunks
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+        const chunk = userIds.slice(i, i + BATCH_SIZE);
+
+        const users = await pRetry(
+            async () => {
+                const keys = chunk.map((userId) => ({
+                    user_id: userId
+                }));
+
+                const result = await ddbDocClient.batchGet({
+                    RequestItems: {
+                        [getChatUserTable()]: {
+                            Keys: keys,
+                            ProjectionExpression: 'user_id, first_name, last_name'
+                        }
+                    }
+                });
+
+                const users = (result.Responses?.[getChatUserTable()] || []).map((item) => {
+                    const camelItem = convertChatUserToCamelFromSnakeCase(item as SnakeCase<ChatUser>);
+                    return {
+                        userId: camelItem.userId,
+                        firstName: camelItem.firstName,
+                        lastName: camelItem.lastName
+                    } as ChatUserLite;
+                });
+
+                // Handle unprocessed keys if any
+                if (result.UnprocessedKeys && Object.keys(result.UnprocessedKeys).length > 0) {
+                    console.warn('Some keys were unprocessed in batch get users operation, will retry');
+                    throw new HttpStatusError('Unprocessed keys detected', 500);
+                }
+
+                return users;
+            },
+            {
+                retries: 3,
+                factor: 2,
+                minTimeout: 100,
+                maxTimeout: 2000,
+                onFailedAttempt: (error) => {
+                    if (isRetryableError(error)) {
+                        console.warn(`Batch get users attempt ${error.attemptNumber} failed, retrying:`, error.message);
+                    } else {
+                        console.warn('Non-retryable error in batch get users:', error.message);
+                        throw new AbortError(error.message);
+                    }
+                }
+            }
+        );
+
+        allUsers.push(...users);
+    }
+
+    return allUsers;
 }

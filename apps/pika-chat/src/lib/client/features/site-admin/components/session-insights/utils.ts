@@ -8,6 +8,7 @@ import {
     type SessionSearchDatePreset,
     type SessionSearchRequest
 } from 'pika-shared/types/chatbot/chatbot-types';
+import { DEFAULT_PAGE_SIZE } from './session-insights.state.svelte';
 
 export function createDefaultDateFilter(): SessionSearchDateFilter {
     const now = new Date();
@@ -21,13 +22,13 @@ export function createDefaultDateFilter(): SessionSearchDateFilter {
 
 export function createDefaultSearchQuery(): SessionSearchRequest<RecordOrUndef> {
     const result: SessionSearchRequest<RecordOrUndef> = {
-        dateFilter: createDefaultDateFilter(),
         sortBy: [
             {
                 field: 'createDate',
                 order: 'desc'
             }
-        ]
+        ],
+        size: DEFAULT_PAGE_SIZE
     };
 
     return result;

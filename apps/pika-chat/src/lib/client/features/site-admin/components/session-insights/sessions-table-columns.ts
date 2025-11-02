@@ -4,18 +4,26 @@ import MessageSquare from '$icons/lucide/message-square';
 import Trash2 from '$icons/lucide/trash-2';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
-import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ChatSession, RecordOrUndef, SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
 import { PikaTableCheckbox, PikaTableColumnHeader, PikaTableRowActions } from 'pika-ux/pika/pika-table';
 import type { RowActionsProps } from 'pika-ux/pika/pika-table/types';
 import { renderComponent } from 'pika-ux/shadcn/data-table';
+import EntityIdCell from './cells/entity-id-cell.svelte';
 import SessionIdCell from './cells/session-id-cell.svelte';
 import UserIdCell from './cells/user-id-cell.svelte';
+import type { SessionInsightsState } from './session-insights.state.svelte';
 
 const TableColumnHeader = PikaTableColumnHeader<ChatSession<RecordOrUndef>, unknown>;
 const TableRowActions = PikaTableRowActions<ChatSession<RecordOrUndef>>;
 
-// Column definitions using PikaTable approach
-export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
+/**
+ * Build columns array dynamically based on site features
+ */
+export function buildColumns(
+    siteFeatures: SiteFeatures | undefined,
+    sessionInsights: SessionInsightsState
+): ColumnDef<ChatSession<RecordOrUndef>>[] {
+    const cols: ColumnDef<ChatSession<RecordOrUndef>>[] = [
     // Selection checkbox column
     {
         id: 'select',
@@ -49,14 +57,38 @@ export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
         size: 120
     },
 
-    // User ID
+    // User ID with enriched display name
     {
-        accessorKey: 'userId',
+        id: 'userId',
+        accessorFn: (row) => {
+            const userId = row.userId;
+            if (!userId) return '';
+            
+            // Get enriched user info for filtering
+            const userInfo = sessionInsights.getUserDisplayInfo(userId);
+            
+            // Return searchable string containing userId, firstName, and lastName
+            const searchParts = [
+                userId,
+                userInfo?.firstName,
+                userInfo?.lastName
+            ].filter(Boolean);
+            
+            return searchParts.join(' ');
+        },
         header: ({ column }) => renderComponent(TableColumnHeader, { column, title: 'User' }),
-        cell: ({ getValue }) => {
-            const userId = getValue() as string | undefined;
+        cell: ({ row }) => {
+            const userId = row.original.userId;
             if (!userId) return '-';
-            return renderComponent(UserIdCell, { userId });
+            
+            // Get enriched user info for display
+            const userInfo = sessionInsights.getUserDisplayInfo(userId);
+            
+            return renderComponent(UserIdCell, { 
+                userId,
+                firstName: userInfo?.firstName,
+                lastName: userInfo?.lastName
+            });
         },
         enableGlobalFilter: true,
         size: 120
@@ -136,6 +168,50 @@ export const columns: ColumnDef<ChatSession<RecordOrUndef>>[] = [
         size: 50
     }
 ];
+
+    // Add entity column if entity feature is enabled
+    if (siteFeatures?.entity?.enabled) {
+        const entityDisplayName = siteFeatures.entity.displayNameSingular || 'Entity';
+        
+        // Insert entity column after Agent (index 3) and before Title
+        cols.splice(4, 0, {
+            id: 'entityColumn',
+            accessorFn: (row) => {
+                const entityId = (row as any).entityId as string | undefined;
+                if (!entityId) return '';
+                
+                // Get enriched entity name for filtering (includes chat-app-global -> '-')
+                const entityName = sessionInsights.getEntityName(entityId);
+                return entityName || entityId;
+            },
+            header: ({ column }) => renderComponent(TableColumnHeader, { 
+                column, 
+                title: entityDisplayName.charAt(0).toUpperCase() + entityDisplayName.slice(1)
+            }),
+            cell: ({ row }) => {
+                const entityId = (row.original as any).entityId as string | undefined;
+                if (!entityId) return '';
+                
+                // Special case: chat-app-global just shows '-' without copy functionality
+                if (entityId === 'chat-app-global') {
+                    return '-';
+                }
+                
+                // Get the enriched entity name for display
+                const entityName = sessionInsights.getEntityName(entityId);
+                
+                return renderComponent(EntityIdCell, {
+                    entityId,
+                    entityName
+                });
+            },
+            enableGlobalFilter: true,
+            size: 150
+        });
+    }
+
+    return cols;
+}
 
 // Row action menu configuration
 const actionProps: RowActionsProps<ChatSession<RecordOrUndef>> = {

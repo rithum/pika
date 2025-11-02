@@ -20,22 +20,48 @@ PikaTablePagination - Pagination controls for PikaTable
         table: Table<TData>;
         serverSide: ServerSideConfig;
         showRowsPerPage?: boolean;
+        globalFilterActive?: boolean;
     }
 
-    let { table, serverSide, showRowsPerPage = true }: Props = $props();
+    let { table, serverSide, showRowsPerPage = true, globalFilterActive = false }: Props = $props();
 
     // For cursor-based pagination, we can't jump to arbitrary pages
     const isCursorBased = $derived(serverSide?.paginationMode === 'cursor');
+
+    // Calculate counts for display
+    const totalLoadedRows = $derived(table.getCoreRowModel().rows.length);
+    const visibleRows = $derived(table.getRowModel().rows.length);
+    const selectedRows = $derived(table.getFilteredSelectedRowModel().rows.length);
 </script>
 
 <div class="flex items-center justify-between px-2">
-    <div class="text-muted-foreground flex-1 text-sm">
-        {#if serverSide?.tableState?.totalRecords !== undefined}
-            {table.getFilteredSelectedRowModel().rows.length} of
-            {serverSide.tableState.totalRecords} total row(s) selected.
+    <div class="flex-1 text-sm">
+        {#if globalFilterActive && visibleRows < totalLoadedRows}
+            <!-- Client-side filtering active -->
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-blue-700">
+                    Showing {visibleRows} of {totalLoadedRows} loaded results
+                </span>
+                {#if selectedRows > 0}
+                    <span class="text-muted-foreground text-xs">
+                        ({selectedRows} selected)
+                    </span>
+                {/if}
+            </div>
+        {:else if selectedRows > 0}
+            <!-- No filtering, just show selection -->
+            <span class="text-muted-foreground">
+                {#if serverSide?.tableState?.totalRecords !== undefined}
+                    {selectedRows} of {serverSide.tableState.totalRecords} total row(s) selected.
+                {:else}
+                    {selectedRows} of {visibleRows} row(s) selected.
+                {/if}
+            </span>
         {:else}
-            {table.getFilteredSelectedRowModel().rows.length} of
-            {table.getFilteredRowModel().rows.length} row(s) selected.
+            <!-- No filtering, no selection -->
+            <span class="text-muted-foreground">
+                {totalLoadedRows} row(s) loaded
+            </span>
         {/if}
     </div>
     <div class="flex items-center space-x-8">

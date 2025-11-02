@@ -111,6 +111,14 @@ export interface ServerSideConfig {
     // === ERROR HANDLING ===
     onError?: (error: string) => void;
 
+    // === CLIENT-SIDE FILTERING ===
+    /**
+     * When true, enables client-side global filter even in server-side mode.
+     * This allows users to quickly filter already-loaded results without triggering server requests.
+     * Column filters still work server-side, but the global filter searches loaded data only.
+     */
+    clientSideGlobalFilter?: boolean;
+
     // === DYNAMIC TABLE STATE ===
     tableState: ServerSideTableState;
 }

@@ -16,6 +16,7 @@ import type {
     DeleteChatAppOverrideResponse,
     GetAgentResponse,
     GetInstructionAssistanceConfigFromSsmResponse,
+    GetUsersForUserListResponse,
     GetValuesForEntityAutoCompleteResponse,
     GetValuesForUserAutoCompleteResponse,
     InstructionAssistanceConfig,
@@ -95,6 +96,7 @@ export class SiteAdminState {
         getValuesForEntityAutoComplete: false,
         getValuesForEntityList: false,
         getValuesForUserAutoComplete: false,
+        getUsersForUserList: false,
         clearConverseLambdaCache: false,
         clearSvelteKitCaches: false,
         addChatSessionFeedback: false,
@@ -150,8 +152,19 @@ export class SiteAdminState {
     }
 
     get sessionInsights() {
+        if (!this.#siteFeatures) {
+            throw new Error('Site features are not set');
+        }
+        
         if (!this.#sessionInsights) {
-            this.#sessionInsights = new SessionInsightsState(this.fetchz, this.#userPrefs, this.#componentRegistry, this.#identity, this.#showToast);
+            this.#sessionInsights = new SessionInsightsState(
+                this.fetchz, 
+                this.#userPrefs, 
+                this.#componentRegistry, 
+                this.#identity, 
+                this.#showToast,
+                this.#siteFeatures
+            );
         }
         return this.#sessionInsights;
     }
@@ -512,6 +525,52 @@ export class SiteAdminState {
             throw e;
         } finally {
             this.siteAdminOperationInProgress[request.command] = false;
+        }
+    }
+
+    /**
+     * Batch fetch user display information for a list of user IDs.
+     * Returns a map of userId to ChatUserLite for easy lookups.
+     * Automatically handles pagination by processing in batches of 50.
+     */
+    async getUsersForUserList(userIds: string[]): Promise<Map<string, ChatUserLite>> {
+        if (userIds.length === 0) {
+            return new Map();
+        }
+
+        try {
+            this.siteAdminOperationInProgress['getUsersForUserList'] = true;
+            const response = await this.fetchz('/api/site-admin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: 'getUsersForUserList',
+                    userIds
+                })
+            });
+
+            const json = await checkClientResponseAndBody<GetUsersForUserListResponse>(
+                response,
+                'fetching users for user list',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.USER
+            );
+
+            const userMap = new Map<string, ChatUserLite>();
+            if (json.data) {
+                for (const user of json.data) {
+                    userMap.set(user.userId, user);
+                }
+            }
+
+            return userMap;
+        } catch (e) {
+            handleClientError(e, 'fetching users for user list', this.#showToast);
+            throw e;
+        } finally {
+            this.siteAdminOperationInProgress['getUsersForUserList'] = false;
         }
     }
 }
