@@ -101,6 +101,7 @@ interface Account {
 
 // Feel free to remove this, it's just here to demonstrate the feature and allow us to test it in the default case.
 const mockAccounts: Account[] = [
+    { accountId: '123', details: { accountName: 'Acme Corp', accountType: 'standard' } },
     { accountId: 'acct-001', details: { accountName: 'Acme Corp', accountType: 'standard' } },
     { accountId: 'acct-002', details: { accountName: 'Beta Industries', accountType: 'premium' } },
     { accountId: 'acct-003', details: { accountName: 'Gamma Solutions', accountType: 'standard' } },

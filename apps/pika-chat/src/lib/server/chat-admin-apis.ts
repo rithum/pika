@@ -11,6 +11,7 @@ import {
     type ChatSessionFeedback,
     type ChatSessionFeedbackForCreate,
     type ChatSessionFeedbackForUpdate,
+    type ChatUserLite,
     type ClearSvelteKitCacheType,
     type CreateOrUpdateChatAppOverrideResponse,
     type DeleteChatAppOverrideResponse,
@@ -18,6 +19,7 @@ import {
     type GetChatAppsByRulesResponse,
     type GetInstructionsAddedForUserMemoryRequest,
     type GetInstructionsAddedForUserMemoryResponse,
+    type GetUsersForUserListResponse,
     type InstructionAssistanceConfig,
     type RecordOrUndef,
     type SearchAllMemoryRecordsRequest,
@@ -651,4 +653,40 @@ export async function getInstructionsAddedForUserMemory(request: GetInstructions
     });
 
     return response.body;
+}
+
+/**
+ * Batch fetch user display information for a list of user IDs.
+ * Handles pagination by processing in batches of 50.
+ */
+export async function getUsersForUserList(userId: string, userIds: string[]): Promise<ChatUserLite[]> {
+    const BATCH_SIZE = 100;
+    const allUsers: ChatUserLite[] = [];
+
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+        const batch = userIds.slice(i, i + BATCH_SIZE);
+
+
+        const response = await invokeApi<GetUsersForUserListResponse>({
+            apiId: appConfig.chatAdminApiId,
+            path: `${appConfig.stage}/api/chat-admin/users/batch`,
+            method: 'POST',
+            body: { userIds: batch },
+            headers: {
+                'Accept-Encoding': 'gzip',
+                'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+            },
+            errorInfo: {
+                operation: 'getUsersForUserList',
+                resourceName: 'user batch',
+                userId
+            }
+        });
+
+        if (response.body.data) {
+            allUsers.push(...response.body.data);
+        }
+    }
+
+    return allUsers;
 }

@@ -16,6 +16,7 @@ import {
     getInstructionsAddedForUserMemory,
     getSessionAnalytics,
     getUserMemoriesForStrategy,
+    getUsersForUserList,
     searchForSessions,
     searchSemanticDirectives,
     searchTagDefinitions,
@@ -88,6 +89,20 @@ export const POST: RequestHandler = async (event) => {
             }
 
             const users = await searchForUser(user.userId, siteAdminReq.valueProvidedByUser);
+            return json({
+                success: true,
+                data: users
+            });
+        } else if (siteAdminReq.command === 'getUsersForUserList') {
+            if (!('userIds' in siteAdminReq)) {
+                throw error(400, 'userIds is required');
+            }
+
+            if (!Array.isArray(siteAdminReq.userIds)) {
+                throw error(400, 'userIds must be an array');
+            }
+
+            const users = await getUsersForUserList(user.userId, siteAdminReq.userIds);
             return json({
                 success: true,
                 data: users

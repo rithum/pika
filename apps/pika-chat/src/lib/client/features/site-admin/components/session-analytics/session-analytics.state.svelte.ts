@@ -25,6 +25,9 @@ export class SessionAnalyticsState {
 	selectedEntityId = $state<string | undefined>(undefined);
 	selectedChatAppIds = $state<string[]>([]);
 	selectedUserTypes = $state<UserType[]>(['external-user']);
+
+	// chat-app and undefined are the same thing.  For old records that don't have an invocation mode, we will include both
+	// so they will be included in the counts for chat-app.
 	selectedInvocationModes = $state<(ConverseInvocationMode | 'undefined')[]>([
 		'chat-app',
 		'undefined'
@@ -264,9 +267,22 @@ export class SessionAnalyticsState {
 	toggleInvocationMode(mode: ConverseInvocationMode | 'undefined') {
 		const index = this.selectedInvocationModes.indexOf(mode);
 		if (index > -1) {
+			// Removing the mode
 			this.selectedInvocationModes.splice(index, 1);
+			// If removing 'chat-app', also remove 'undefined'
+			if (mode === 'chat-app') {
+				const undefinedIndex = this.selectedInvocationModes.indexOf('undefined');
+				if (undefinedIndex > -1) {
+					this.selectedInvocationModes.splice(undefinedIndex, 1);
+				}
+			}
 		} else {
+			// Adding the mode
 			this.selectedInvocationModes.push(mode);
+			// If adding 'chat-app', also add 'undefined' if not already present
+			if (mode === 'chat-app' && !this.selectedInvocationModes.includes('undefined')) {
+				this.selectedInvocationModes.push('undefined');
+			}
 		}
 		this.fetchAnalytics();
 	}

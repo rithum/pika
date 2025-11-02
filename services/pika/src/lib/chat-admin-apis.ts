@@ -24,6 +24,7 @@ import type {
     ChatSessionFeedback,
     ChatSessionFeedbackForCreate,
     ChatSessionFeedbackForUpdate,
+    ChatUserLite,
     CreateAgentRequest,
     CreateChatAppRequest,
     CreateOrUpdateChatAppOverrideRequest,
@@ -90,6 +91,7 @@ import {
     updateFeedback,
     updateTool
 } from './chat-admin-ddb';
+import { batchGetUsersByUserIds } from './chat-admin-ddb';
 import {
     agentsAreSame,
     arraysAreSame,
@@ -1545,4 +1547,16 @@ export async function searchSemanticDirectivesApi(request: SearchSemanticDirecti
         semanticDirectives,
         paginationToken
     };
+}
+
+/**
+ * Batch fetch user display information for a list of user IDs
+ * Returns ChatUserLite objects containing userId, firstName, and lastName
+ * Automatically handles pagination by processing in batches of 100
+ */
+export async function getUsersForUserList(userIds: string[]): Promise<ChatUserLite[]> {
+    if (userIds.length === 0) {
+        return [];
+    }
+    return await batchGetUsersByUserIds(userIds);
 }
