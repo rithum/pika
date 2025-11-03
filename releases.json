@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.1",
-  "currentDevelopment": "0.15.1",
+  "latestVersion": "0.15.2",
+  "currentDevelopment": "0.15.2",
   "releases": [
+    {
+      "version": "0.15.2",
+      "date": "2025-11-03",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed analtyics tool flushing issue",
+      "highlights": [
+        "Fixed issue where analytics tool was not flushing messages to OpenSearch"
+      ]
+    },
     {
       "version": "0.15.1",
       "date": "2025-11-03",

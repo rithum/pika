@@ -584,11 +584,15 @@ async function flushMessageBatch(stats: BackfillStats): Promise<void> {
         return;
     }
 
+    // Capture batch locally to avoid race conditions with concurrent flushes
+    const batchToFlush = [...messageBatch];
+    messageBatch = []; // Clear global immediately
+
     try {
         const osClient = await opensearchClient.getClient();
         const body: any[] = [];
 
-        for (const { message, llmInstructions } of messageBatch) {
+        for (const { message, llmInstructions } of batchToFlush) {
             // Add llmInstructions temporarily for OpenSearch indexing (already in snake_case from DDB)
             const messageOs = llmInstructions ? { ...message, llm_instructions: llmInstructions } : message;
 
@@ -604,8 +608,7 @@ async function flushMessageBatch(stats: BackfillStats): Promise<void> {
             let batchErrorCount = 0;
             bulkResponse.body.items.forEach((item: any, index: number) => {
                 if (item.index?.error) {
-                    // Safety check: ensure the batch item exists at this index
-                    const batchItem = messageBatch[index];
+                    const batchItem = batchToFlush[index];
                     if (batchItem && batchItem.message) {
                         stats.messageIndexErrors.push({
                             messageId: batchItem.message.message_id,
@@ -623,17 +626,15 @@ async function flushMessageBatch(stats: BackfillStats): Promise<void> {
                     batchErrorCount++;
                 }
             });
-            const successCount = messageBatch.length - batchErrorCount;
-            console.error(`Bulk message indexing had ${batchErrorCount} errors out of ${messageBatch.length} messages`);
+            const successCount = batchToFlush.length - batchErrorCount;
+            console.error(`Bulk message indexing had ${batchErrorCount} errors out of ${batchToFlush.length} messages`);
             stats.messagesIndexed += successCount;
         } else {
-            stats.messagesIndexed += messageBatch.length;
+            stats.messagesIndexed += batchToFlush.length;
         }
-
-        messageBatch = []; // Clear the batch
     } catch (error) {
-        console.error(`Failed to flush message batch of ${messageBatch.length} messages:`, error);
-        messageBatch = []; // Clear the batch even on error to prevent retry loops
+        console.error(`Failed to flush message batch of ${batchToFlush.length} messages:`, error);
+        // Batch already cleared above, no need to clear again
     }
 }
 
@@ -645,11 +646,15 @@ async function flushSessionBatch(stats: BackfillStats): Promise<void> {
         return;
     }
 
+    // Capture batch locally to avoid race conditions with concurrent flushes
+    const batchToFlush = [...sessionUpdateBatch];
+    sessionUpdateBatch = []; // Clear global immediately
+
     try {
         const osClient = await opensearchClient.getClient();
         const body: any[] = [];
 
-        for (const { sessionId, messagesSummary, messagesAnalysis } of sessionUpdateBatch) {
+        for (const { sessionId, messagesSummary, messagesAnalysis } of batchToFlush) {
             // Add bulk operation (update action + doc)
             body.push({ update: { _index: 'session', _id: sessionId } });
             body.push({
@@ -667,8 +672,7 @@ async function flushSessionBatch(stats: BackfillStats): Promise<void> {
             let batchErrorCount = 0;
             bulkResponse.body.items.forEach((item: any, index: number) => {
                 if (item.update?.error) {
-                    // Safety check: ensure the batch item exists at this index
-                    const sessionData = sessionUpdateBatch[index];
+                    const sessionData = batchToFlush[index];
                     if (sessionData && sessionData.sessionId) {
                         stats.sessionUpdateErrors.push({
                             sessionId: sessionData.sessionId,
@@ -684,17 +688,15 @@ async function flushSessionBatch(stats: BackfillStats): Promise<void> {
                     batchErrorCount++;
                 }
             });
-            const successCount = sessionUpdateBatch.length - batchErrorCount;
-            console.error(`Bulk session update had ${batchErrorCount} errors out of ${sessionUpdateBatch.length} sessions`);
+            const successCount = batchToFlush.length - batchErrorCount;
+            console.error(`Bulk session update had ${batchErrorCount} errors out of ${batchToFlush.length} sessions`);
             stats.sessionsUpdated += successCount;
         } else {
-            stats.sessionsUpdated += sessionUpdateBatch.length;
+            stats.sessionsUpdated += batchToFlush.length;
         }
-
-        sessionUpdateBatch = []; // Clear the batch
     } catch (error) {
-        console.error(`Failed to flush session batch of ${sessionUpdateBatch.length} sessions:`, error);
-        sessionUpdateBatch = []; // Clear the batch even on error to prevent retry loops
+        console.error(`Failed to flush session batch of ${batchToFlush.length} sessions:`, error);
+        // Batch already cleared above, no need to clear again
     }
 }
 
