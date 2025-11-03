@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.0",
-  "currentDevelopment": "0.15.0",
+  "latestVersion": "0.15.1",
+  "currentDevelopment": "0.15.1",
   "releases": [
+    {
+      "version": "0.15.1",
+      "date": "2025-11-03",
+      "status": "released",
+      "breaking": false,
+      "summary": "Minor fix to migration tool",
+      "highlights": [
+        "Minor fix for robustness and performance of backfill tool"
+      ]
+    },
     {
       "version": "0.15.0",
       "date": "2025-11-03",

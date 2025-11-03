@@ -510,7 +510,6 @@ async function processSession(session: ChatSession, stats: BackfillStats) {
         // Filter messages by invocationMode
         const invocationMode = session.invocation_mode || 'chat-app';
         if (invocationMode === 'direct-agent-invoke' || invocationMode === 'chat-app-component') {
-            console.log(`Skipping session ${session.session_id} (mode: ${invocationMode})`);
             stats.sessionsSkipped++;
             return;
         }
@@ -519,7 +518,6 @@ async function processSession(session: ChatSession, stats: BackfillStats) {
         if (!DRY_RUN && !SKIP_SESSION_UPDATE) {
             const alreadyProcessed = await checkIfSessionAlreadyProcessed(session.session_id);
             if (alreadyProcessed) {
-                console.log(`Session ${session.session_id} already has messages_summary, skipping`);
                 stats.sessionsSkipped++;
                 return;
             }
@@ -606,12 +604,22 @@ async function flushMessageBatch(stats: BackfillStats): Promise<void> {
             let batchErrorCount = 0;
             bulkResponse.body.items.forEach((item: any, index: number) => {
                 if (item.index?.error) {
-                    const message = messageBatch[index].message;
-                    stats.messageIndexErrors.push({
-                        messageId: message.message_id,
-                        sessionId: message.session_id,
-                        error: item.index.error
-                    });
+                    // Safety check: ensure the batch item exists at this index
+                    const batchItem = messageBatch[index];
+                    if (batchItem && batchItem.message) {
+                        stats.messageIndexErrors.push({
+                            messageId: batchItem.message.message_id,
+                            sessionId: batchItem.message.session_id,
+                            error: item.index.error
+                        });
+                    } else {
+                        // Fallback: record error without message details
+                        stats.messageIndexErrors.push({
+                            messageId: `unknown-${index}`,
+                            sessionId: 'unknown',
+                            error: item.index.error
+                        });
+                    }
                     batchErrorCount++;
                 }
             });
@@ -659,11 +667,20 @@ async function flushSessionBatch(stats: BackfillStats): Promise<void> {
             let batchErrorCount = 0;
             bulkResponse.body.items.forEach((item: any, index: number) => {
                 if (item.update?.error) {
+                    // Safety check: ensure the batch item exists at this index
                     const sessionData = sessionUpdateBatch[index];
-                    stats.sessionUpdateErrors.push({
-                        sessionId: sessionData.sessionId,
-                        error: item.update.error
-                    });
+                    if (sessionData && sessionData.sessionId) {
+                        stats.sessionUpdateErrors.push({
+                            sessionId: sessionData.sessionId,
+                            error: item.update.error
+                        });
+                    } else {
+                        // Fallback: record error without session details
+                        stats.sessionUpdateErrors.push({
+                            sessionId: `unknown-${index}`,
+                            error: item.update.error
+                        });
+                    }
                     batchErrorCount++;
                 }
             });
