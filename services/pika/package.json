@@ -19,6 +19,7 @@
     },
     "devDependencies": {
         "@aws-crypto/sha256-js": "catalog:",
+        "@aws-sdk/client-cloudwatch-logs": "catalog:",
         "@aws-sdk/client-s3": "catalog:",
         "@aws-sdk/client-sqs": "catalog:",
         "@aws-sdk/client-sts": "catalog:",
@@ -41,6 +42,7 @@
         "aws-cdk-lib": "catalog:",
         "aws-lambda": "catalog:",
         "constructs": "catalog:",
+        "dotenv": "catalog:",
         "duckdb": "catalog:",
         "esbuild": "catalog:",
         "eslint": "catalog:",

@@ -1,7 +1,20 @@
 {
-  "latestVersion": "0.14.2",
-  "currentDevelopment": "0.14.2",
+  "latestVersion": "0.15.0",
+  "currentDevelopment": "0.15.0",
   "releases": [
+    {
+      "version": "0.15.0",
+      "date": "2025-11-03",
+      "status": "released",
+      "breaking": true,
+      "summary": "Enhanced session analytics with message-level insights and full-text message search",
+      "highlights": [
+        "Requires running `update-session-mapping-for-messages.ts` tool BEFORE deployment",
+        "Adds `messages_summary` and `messages_analysis` fields to session index",
+        "If not run before deployment, OpenSearch will auto-index fields incorrectly",
+        "See [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-15-0/)"
+      ]
+    },
     {
       "version": "0.14.2",
       "date": "2025-11-02",

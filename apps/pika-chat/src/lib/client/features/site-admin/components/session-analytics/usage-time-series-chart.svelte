@@ -126,7 +126,7 @@
             <PikaToggleGroup.Root variant="outline" type="single" bind:value={selectedView}>
                 <PikaToggleGroup.Item value="sessions">Sessions</PikaToggleGroup.Item>
                 <PikaToggleGroup.Item value="users">Users</PikaToggleGroup.Item>
-                <!-- <PikaToggleGroup.Item value="messages">Messages</PikaToggleGroup.Item> -->
+                <PikaToggleGroup.Item value="messages">Messages</PikaToggleGroup.Item>
                 <PikaToggleGroup.Item value="cost">Cost</PikaToggleGroup.Item>
                 <PikaToggleGroup.Item value="tokens">Tokens</PikaToggleGroup.Item>
             </PikaToggleGroup.Root>

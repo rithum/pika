@@ -12,6 +12,8 @@
     import CostTimeSeriesChart from '../components/session-analytics/cost-time-series-chart.svelte';
     import FiltersBar from '../components/session-analytics/filters-bar.svelte';
     import KpiGrid from '../components/session-analytics/kpi-grid.svelte';
+    import MessagesTimeSeriesChart from '../components/session-analytics/messages-time-series-chart.svelte';
+    import TimingAnalyticsCard from '../components/session-analytics/timing-analytics-card.svelte';
     import TopChatappsChart from '../components/session-analytics/top-chatapps-chart.svelte';
     import TopEntitiesChart from '../components/session-analytics/top-entities-chart.svelte';
     import UsageTimeSeriesChart from '../components/session-analytics/usage-time-series-chart.svelte';
@@ -88,7 +90,14 @@
         <!-- Usage Trends -->
         <section>
             <h2 class="text-xl font-semibold mb-4">Usage Trends</h2>
-            <UsageTimeSeriesChart />
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="lg:col-span-2">
+                    <UsageTimeSeriesChart />
+                </div>
+                <div class="lg:col-span-2">
+                    <MessagesTimeSeriesChart />
+                </div>
+            </div>
         </section>
 
         <Separator />
@@ -104,6 +113,14 @@
                     <CostByModeChart />
                 </div>
             </div>
+        </section>
+
+        <Separator />
+
+        <!-- Timing Analytics -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Timing Analytics</h2>
+            <TimingAnalyticsCard />
         </section>
 
         <Separator />

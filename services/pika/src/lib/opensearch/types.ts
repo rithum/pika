@@ -1,28 +1,33 @@
-import { type ChatSession, type ChatSessionFeedback, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { type ChatSession, type ChatSessionFeedback, type ChatMessage, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { Types, API } from '@opensearch-project/opensearch';
 import { convertChatSessionToCamelFromSnakeCase, convertChatSessionToSnakeFromCamelCase } from '../utils';
+import { gzipSync } from 'zlib';
 
-export type OpenSearchIndexable = ChatSession<RecordOrUndef>;
-export type OpenSearchIngestType = ChatSessionOs<RecordOrUndef>;
+export type OpenSearchIndexable = ChatSession<RecordOrUndef> | ChatMessage;
+export type OpenSearchIngestType = ChatSessionOs<RecordOrUndef> | ChatMessageOs;
 
 export const SessionIndex = 'session';
+export const MessageIndex = 'message';
 
 /** A list of all the opensearch indices of the app */
-export const DomainIndices = [SessionIndex] as const;
+export const DomainIndices = [SessionIndex, MessageIndex] as const;
 
 /** The OpenSearch domain index type of the app */
 export type DomainIndex = (typeof DomainIndices)[number];
 
 export interface OpenSearchIndexableMap {
     session: ChatSession<RecordOrUndef>;
+    message: ChatMessage;
 }
 export interface OpenSearchIngestMap {
     session: ChatSessionOs<RecordOrUndef>;
+    message: ChatMessageOs;
 }
 export interface OpenSearchIndexableIdMap {
     session: 'sessionId';
+    message: 'messageId';
 }
 export type OpenSearchIndexableKey = keyof OpenSearchIndexableMap;
 
@@ -270,10 +275,199 @@ export const chatSessionOpenSearchMappings = {
                     // Note: OpenSearch will automatically create mappings for each sourceId key
                     // We define the structure that each nested object should have
                 }
+            },
+
+            // Message replication fields
+            messages_summary: {
+                type: 'nested',
+                properties: {
+                    message_id: { type: 'keyword' },
+                    timestamp: { type: 'date' },
+                    source: { type: 'keyword' },
+                    model: { type: 'keyword' },
+                    input_tokens: { type: 'long' },
+                    output_tokens: { type: 'long' },
+                    input_cost: { type: 'double' },
+                    output_cost: { type: 'double' },
+                    total_cost: { type: 'double' },
+                    execution_duration: { type: 'long' }
+                }
+            },
+
+            messages_analysis: {
+                properties: {
+                    timing_stats: {
+                        properties: {
+                            total_messages: { type: 'long' },
+                            total_user_messages: { type: 'long' },
+                            total_assistant_messages: { type: 'long' },
+                            conversation_duration_ms: { type: 'long' },
+                            first_message_timestamp: { type: 'date' },
+                            last_message_timestamp: { type: 'date' },
+                            avg_gap_ms: { type: 'double' },
+                            total_gap_time_ms: { type: 'long' },
+                            total_gap_count: { type: 'long' },
+                            avg_response_time_ms: { type: 'double' },
+                            response_time_total_ms: { type: 'long' },
+                            response_time_count: { type: 'long' },
+                            avg_think_time_ms: { type: 'double' },
+                            think_time_total_ms: { type: 'long' },
+                            think_time_count: { type: 'long' },
+                            gaps_over_1h: { type: 'long' },
+                            gaps_over_1d: { type: 'long' },
+                            gaps_over_1w: { type: 'long' }
+                        }
+                    },
+                    last_message: {
+                        properties: {
+                            timestamp: { type: 'date' },
+                            source: { type: 'keyword' },
+                            message_id: { type: 'keyword' }
+                        }
+                    },
+                    last_updated: { type: 'date' }
+                }
             }
         }
     }
 };
+
+/**
+ * ChatMessage document for OpenSearch message index.
+ * Snake case version of ChatMessage with OS-specific fields.
+ */
+export interface ChatMessageOs {
+    message_id: string;
+    session_id: string;
+    user_id: string;
+    source: 'user' | 'assistant';
+    timestamp: string;
+    message: string;
+    llm_instructions?: string;
+    model?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    input_cost?: number;
+    output_cost?: number;
+    total_cost?: number;
+    execution_duration?: number;
+    invocation_mode?: string;
+    user_type?: string; // For filtering by internal vs external users
+    traces_str_gzipped?: string; // Stored but NOT indexed
+    last_index_date: string; // When indexed to OS
+}
+
+/**
+ * Message index mappings
+ */
+export const chatMessageOpenSearchMappings = {
+    mappings: {
+        properties: {
+            message_id: { type: 'keyword' },
+            session_id: { type: 'keyword' },
+            user_id: { type: 'keyword' },
+            source: { type: 'keyword' },
+            timestamp: { type: 'date' },
+
+            // Searchable text fields
+            message: {
+                type: 'text',
+                fields: {
+                    keyword: { type: 'keyword', ignore_above: 512 }
+                }
+            },
+            llm_instructions: { type: 'text' },
+
+            // Model: dual purpose (search + aggregation)
+            model: {
+                type: 'text',
+                fields: {
+                    keyword: { type: 'keyword' }
+                }
+            },
+
+            // Usage metrics
+            input_tokens: { type: 'long' },
+            output_tokens: { type: 'long' },
+            input_cost: { type: 'double' },
+            output_cost: { type: 'double' },
+            total_cost: { type: 'double' },
+            execution_duration: { type: 'long' },
+
+            // Filtering
+            invocation_mode: { type: 'keyword' },
+            user_type: { type: 'keyword' },
+
+            // CRITICAL: Stored but NOT indexed (saves space, not searchable)
+            traces_str_gzipped: { type: 'object', enabled: false },
+
+            // Tracking
+            last_index_date: { type: 'date' }
+        }
+    }
+};
+
+/**
+ * Minimal message metadata for messages_summary nested array
+ */
+export interface MessageSummaryEntry {
+    message_id: string;
+    timestamp: string;
+    source: 'user' | 'assistant';
+    // Only populated for assistant messages
+    model?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    input_cost?: number;
+    output_cost?: number;
+    total_cost?: number;
+    execution_duration?: number;
+}
+
+/**
+ * Pre-computed timing statistics for messages_analysis
+ */
+export interface MessagesAnalysis {
+    timing_stats: {
+        // Counts
+        total_messages: number;
+        total_user_messages: number;
+        total_assistant_messages: number;
+
+        // Duration
+        conversation_duration_ms: number;
+        first_message_timestamp: string;
+        last_message_timestamp: string;
+
+        // Gaps (averages + totals)
+        avg_gap_ms: number;
+        total_gap_time_ms: number;
+        total_gap_count: number;
+
+        // Response times
+        avg_response_time_ms: number;
+        response_time_total_ms: number;
+        response_time_count: number;
+
+        // Think times
+        avg_think_time_ms: number;
+        think_time_total_ms: number;
+        think_time_count: number;
+
+        // Long gap counters
+        gaps_over_1h: number;
+        gaps_over_1d: number;
+        gaps_over_1w: number;
+    };
+
+    last_message: {
+        timestamp: string;
+        source: 'user' | 'assistant';
+        message_id: string;
+    } | null;
+
+    last_updated: string;
+}
 
 /**
  * Note that we carefully preserve the original case of the custom data fields which have been spread
@@ -282,6 +476,84 @@ export const chatSessionOpenSearchMappings = {
  */
 export interface ChatSessionOs<T extends RecordOrUndef = undefined> extends SnakeCase<ChatSession<T>> {
     last_index_date: string;
+    // NEW: Message replication fields
+    messages_summary?: MessageSummaryEntry[];
+    messages_analysis?: MessagesAnalysis;
+}
+
+/**
+ * Convert ChatMessage to snake_case for OpenSearch
+ */
+export function convertChatMessageToSnakeFromCamelCase(message: ChatMessage): ChatMessageOs {
+    // Convert traces to gzipped/hex-encoded string if present
+    let tracesStrGzipped: string | undefined;
+    if (message.traces && message.traces.length > 0) {
+        const tracesStr = JSON.stringify(message.traces);
+        // 1. gzip the string
+        // 2. convert to hex
+        // 3. convert hex to base64
+        const gzipped = gzipSync(Buffer.from(tracesStr));
+        const hex = gzipped.toString('hex');
+        tracesStrGzipped = Buffer.from(hex, 'utf-8').toString('base64');
+    }
+
+    return {
+        message_id: message.messageId,
+        session_id: message.sessionId,
+        user_id: message.userId,
+        source: message.source,
+        timestamp: message.timestamp,
+        message: message.message,
+        llm_instructions: message.llmInstructions,
+        model: message.model,
+        input_tokens: message.usage?.inputTokens,
+        output_tokens: message.usage?.outputTokens,
+        input_cost: message.usage?.inputCost,
+        output_cost: message.usage?.outputCost,
+        total_cost: message.usage?.totalCost,
+        execution_duration: message.executionDuration,
+        invocation_mode: message.invocationMode,
+        user_type: message.userType,
+        traces_str_gzipped: tracesStrGzipped,
+        last_index_date: new Date().toISOString()
+    };
+}
+
+/**
+ * Convert ChatMessageOs from snake_case back to camelCase
+ */
+export function convertChatMessageToCamelFromSnakeCase(messageOs: ChatMessageOs): ChatMessage {
+    const hasUsage =
+        messageOs.input_tokens !== undefined ||
+        messageOs.output_tokens !== undefined ||
+        messageOs.input_cost !== undefined ||
+        messageOs.output_cost !== undefined ||
+        messageOs.total_cost !== undefined;
+
+    return {
+        messageId: messageOs.message_id,
+        sessionId: messageOs.session_id,
+        userId: messageOs.user_id,
+        source: messageOs.source,
+        timestamp: messageOs.timestamp,
+        message: messageOs.message,
+        llmInstructions: messageOs.llm_instructions,
+        model: messageOs.model,
+        usage: hasUsage
+            ? {
+                  inputTokens: messageOs.input_tokens!,
+                  outputTokens: messageOs.output_tokens!,
+                  inputCost: messageOs.input_cost!,
+                  outputCost: messageOs.output_cost!,
+                  totalCost: messageOs.total_cost!
+              }
+            : undefined,
+        executionDuration: messageOs.execution_duration,
+        invocationMode: messageOs.invocation_mode as ChatMessage['invocationMode'],
+        userType: messageOs.user_type as ChatMessage['userType'],
+        tracesStrGzipped: messageOs.traces_str_gzipped
+        // Note: traces array is NOT reconstructed (would be expensive)
+    };
 }
 
 // Main metadata object following the original pattern
@@ -306,6 +578,13 @@ export const osIndexMeta: { [K in DomainIndex]: OpenSearchIndexMetadata<K> } = {
             const { invocation_mode_keyword, user_type_keyword, source_keyword, ...osDataWithoutKeywordFields } = obj as any;
             return convertChatSessionToCamelFromSnakeCase(osDataWithoutKeywordFields);
         }
+    },
+    message: {
+        name: MessageIndex,
+        indexCreateBody: chatMessageOpenSearchMappings,
+        idAttr: 'messageId' as const,
+        convertToOsType: (obj: ChatMessage) => convertChatMessageToSnakeFromCamelCase(obj),
+        convertFromOsToBaseType: (obj: ChatMessageOs) => convertChatMessageToCamelFromSnakeCase(obj)
     }
 };
 
@@ -360,7 +639,9 @@ export function isDomainIndex(val: unknown): val is DomainIndex {
 }
 
 export function getDomainIndex(obj: OpenSearchIngestType | OpenSearchIndexable): DomainIndex {
-    if ('sessionId' in obj) {
+    if ('sessionId' in obj && 'messageId' in obj) {
+        return 'message'; // Has both sessionId and messageId = message
+    } else if ('sessionId' in obj) {
         return 'session';
     } else {
         throw new BadRequestError(`Unknown ingest type: ${JSON.stringify(obj)}`);

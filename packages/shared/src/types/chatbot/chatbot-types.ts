@@ -605,6 +605,18 @@ export interface ChatMessage {
         main: VerifyResponseClassification;
         correction?: VerifyResponseClassification;
     };
+
+    /** Not populated in dynamodb, only present when interacting with opensearch.  We extract the llm-instructions trace and put it here for opensearch indexing. */
+    llmInstructions?: string;
+
+    /** Not populated in dynamodb, only present when interacting with opensearch.  We serialize the traces array to a string for opensearch indexing. */
+    tracesStrGzipped?: string;
+
+    /** The invocation mode, denormalized from the session for filtering and aggregation. Populated in DynamoDB at message creation time. Defaults to 'chat-app' if not provided. */
+    invocationMode?: ConverseInvocationMode;
+
+    /** The user type, denormalized from the session for filtering by internal vs external users. Populated in DynamoDB at message creation time. Defaults to 'internal-user' if not provided. */
+    userType?: UserType;
 }
 
 export interface ChatMessageForRendering extends ChatMessage {
@@ -1374,6 +1386,9 @@ export interface SessionSearchRequest<T extends RecordOrUndef = undefined> {
 
     /** Filter by user type (internal-user or external-user). */
     userType?: UserType[];
+
+    /** If provided, we will only return sessions with one of the given invocation modes. */
+    invocationMode?: ConverseInvocationMode[];
 
     /** If true, then we will only return sessions that are flagged for human review and if false the converse. */
     flagged?: boolean;
@@ -5597,6 +5612,50 @@ export interface SessionAnalyticsSummary {
     avgCostPerSession: number;
     /** Average tokens per session */
     avgTokensPerSession: number;
+
+    // NEW: User Engagement Metrics
+    /** Total user messages across all sessions */
+    totalUserMessages: number;
+    /** Total assistant responses across all sessions */
+    totalAssistantMessages: number;
+    /** Average user messages per session */
+    avgUserMessagesPerSession: number;
+    /** Average assistant messages per session */
+    avgAssistantMessagesPerSession: number;
+
+    // NEW: Cost/Token Per Response Metrics (assistant messages only)
+    /** Average output tokens per assistant response */
+    avgTokensPerResponse: number;
+    /** Average input tokens per assistant response */
+    avgInputTokensPerResponse: number;
+    /** Average output tokens per assistant response */
+    avgOutputTokensPerResponse: number;
+    /** Average cost per assistant response in USD */
+    avgCostPerResponse: number;
+    /** Average execution duration per assistant response in milliseconds */
+    avgExecutionDurationPerResponse: number;
+
+    // NEW: Timing Analytics
+    /** Timing analytics metrics */
+    timingAnalytics?: {
+        /** Average session duration in milliseconds */
+        avgSessionDurationMs: number;
+        /** Average time between message turns in milliseconds */
+        avgTimeBetweenTurnsMs: number;
+        /** Average response time (user to assistant) in milliseconds */
+        avgResponseTimeMs: number;
+        /** Average user think time (assistant to user) in milliseconds */
+        avgUserThinkTimeMs: number;
+        /** Sessions with long gaps */
+        sessionsWithLongGaps: {
+            /** Number of sessions with gaps over 1 hour */
+            over1Hour: number;
+            /** Number of sessions with gaps over 1 day */
+            over1Day: number;
+            /** Number of sessions with gaps over 1 week */
+            over1Week: number;
+        };
+    };
 }
 
 export interface SessionAnalyticsTimeSeriesPoint {
@@ -5618,6 +5677,12 @@ export interface SessionAnalyticsTimeSeriesPoint {
     outputCost: number;
     /** Total cost in USD for this time period */
     totalCost: number;
+
+    // NEW: Message breakdown
+    /** Number of user messages in this time period */
+    userMessageCount: number;
+    /** Number of assistant messages in this time period */
+    assistantMessageCount: number;
 }
 
 export interface SessionAnalyticsEntityUsage {

@@ -311,7 +311,10 @@ export async function addChatMessage(
     const chatMessage: ChatMessage = {
         ...chatMessageForCreate,
         messageId: getNextMessageId(chatSession.sessionId, chatSession.lastMessageId),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // Denormalize invocationMode and userType from session for filtering and aggregation
+        invocationMode: chatSession.invocationMode || 'chat-app',
+        userType: chatSession.userType || 'internal-user'
     };
 
     console.log('Created chat message:', {

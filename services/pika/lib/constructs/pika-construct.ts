@@ -133,7 +133,7 @@ export class PikaConstruct extends Construct {
 
         // DynamoDB Tables
         const archiveStagingTable = this.createArchiveStagingTable();
-        const chatMessagesTable = this.createChatMessagesTable(pikaS3Bucket, fileArchiveBucket, archiveStagingTable);
+        const chatMessagesTable = this.createChatMessagesTable(pikaS3Bucket, fileArchiveBucket, archiveStagingTable, openSearchDomain);
         const chatSessionTable = this.createChatSessionTable(pikaS3Bucket, fileArchiveBucket, archiveStagingTable, openSearchDomain);
 
         // If they didn't turn on insights, they don't get the feedback feature
@@ -541,7 +541,12 @@ export class PikaConstruct extends Construct {
         return archiveStagingTable;
     }
 
-    private createChatMessagesTable(pikaS3Bucket: s3.Bucket, fileArchiveBucket: s3.Bucket, archiveStagingTable: dynamodb.Table): dynamodb.Table {
+    private createChatMessagesTable(
+        pikaS3Bucket: s3.Bucket,
+        fileArchiveBucket: s3.Bucket,
+        archiveStagingTable: dynamodb.Table,
+        openSearchDomain?: opensearch.Domain
+    ): dynamodb.Table {
         const chatMessagesTable = new dynamodb.Table(this, 'ChatMessagesTable', {
             partitionKey: {
                 name: 'user_id',
@@ -598,7 +603,16 @@ export class PikaConstruct extends Construct {
                             effect: iam.Effect.ALLOW,
                             actions: ['s3:PutObject', 's3:PutObjectTagging', 's3:GetObject', 's3:GetObjectTagging', 's3:ListBucket'],
                             resources: [fileArchiveBucket.bucketArn, `${fileArchiveBucket.bucketArn}/*`]
-                        })
+                        }),
+                        ...(openSearchDomain
+                            ? [
+                                  new iam.PolicyStatement({
+                                      effect: iam.Effect.ALLOW,
+                                      actions: ['es:*'],
+                                      resources: [openSearchDomain.domainArn, `${openSearchDomain.domainArn}/*`]
+                                  })
+                              ]
+                            : [])
                     ]
                 })
             }
@@ -618,7 +632,8 @@ export class PikaConstruct extends Construct {
                 STAGE: this.props.stage,
                 PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGING_TABLE_NAME: archiveStagingTable.tableName,
-                REGION: this.props.region
+                REGION: this.props.region,
+                ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {})
             },
             bundling: {
                 minify: true,
@@ -2762,6 +2777,20 @@ export class PikaConstruct extends Construct {
 
         // Ensure this custom resource runs after the domain is ready
         sessionIndexCustomResource.node.addDependency(openSearchDomain);
+
+        // Create custom resource to initialize message index
+        const messageIndexCustomResource = new cdk.CustomResource(this, 'MessageIndexCustomResource', {
+            serviceToken: domainIndexCustomResourceLambda.functionArn,
+            properties: {
+                DomainEndpoint: openSearchDomain.domainEndpoint,
+                DomainIndexName: 'message',
+                Stage: this.props.stage,
+                Timestamp: Date.now() // Forces update on every deploy
+            }
+        });
+
+        // Ensure this custom resource runs after the domain is ready
+        messageIndexCustomResource.node.addDependency(openSearchDomain);
     }
 
     private createGenerateSessionInsightsInfra(

@@ -396,6 +396,239 @@ async function fixKeywordFields() {
     }
 }
 
+async function resetSessionForTesting(sessionId: string, dryRun = false) {
+    const client = await OsClient.getClient();
+    const messageIndexName = getIndexMeta('message').name;
+    const sessionIndexName = getIndexMeta('session').name;
+
+    console.log('\n=== Resetting Session for Testing ===\n');
+    console.log(`Session ID: ${sessionId}`);
+    if (dryRun) {
+        console.log('⚠️  DRY RUN MODE - No changes will be made\n');
+    }
+
+    // Step 1: Get all messages for this session from message index
+    console.log('\n--- Finding Messages ---');
+    try {
+        const searchResp = await client.search({
+            index: messageIndexName,
+            body: {
+                query: {
+                    term: { session_id: sessionId }
+                },
+                size: 1000,
+                _source: false
+            }
+        } as any);
+
+        const hits = (searchResp as any)?.body?.hits?.hits ?? (searchResp as any)?.hits?.hits ?? [];
+        const messageIds = hits.map((hit: any) => hit._id);
+
+        console.log(`Found ${messageIds.length} messages in message index`);
+
+        // Step 2: Delete all messages from message index
+        if (messageIds.length > 0 && !dryRun) {
+            console.log('\n--- Deleting Messages from Message Index ---');
+            for (const messageId of messageIds) {
+                try {
+                    await client.delete({
+                        index: messageIndexName,
+                        id: messageId
+                    } as any);
+                    console.log(`  Deleted message: ${messageId}`);
+                } catch (error: any) {
+                    if (error?.meta?.statusCode === 404 || error?.statusCode === 404) {
+                        console.log(`  Message ${messageId} already deleted`);
+                    } else {
+                        console.error(`  Error deleting message ${messageId}:`, error);
+                    }
+                }
+            }
+        } else if (dryRun && messageIds.length > 0) {
+            console.log(`\n[DRY RUN] Would delete ${messageIds.length} messages from message index:`);
+            messageIds.forEach((id: string) => console.log(`  - ${id}`));
+        }
+    } catch (error: any) {
+        if (error?.meta?.body?.error?.type === 'index_not_found_exception') {
+            console.log('Message index does not exist yet');
+        } else {
+            console.error('Error searching for messages:', error);
+            throw error;
+        }
+    }
+
+    // Step 3: Remove messages_summary and messages_analysis from session
+    console.log('\n--- Updating Session Document ---');
+    try {
+        const sessionResp = await client.get({
+            index: sessionIndexName,
+            id: sessionId
+        } as any);
+
+        const sessionDoc = (sessionResp as any)?.body?._source ?? (sessionResp as any)?._source;
+
+        if (sessionDoc?.messages_summary || sessionDoc?.messages_analysis) {
+            if (!dryRun) {
+                await client.update({
+                    index: sessionIndexName,
+                    id: sessionId,
+                    body: {
+                        script: {
+                            source: `
+                                ctx._source.remove('messages_summary');
+                                ctx._source.remove('messages_analysis');
+                            `
+                        }
+                    }
+                } as any);
+                console.log('✅ Removed messages_summary and messages_analysis from session');
+            } else {
+                console.log('[DRY RUN] Would remove messages_summary and messages_analysis from session');
+                if (sessionDoc.messages_summary) {
+                    console.log(`  - messages_summary has ${sessionDoc.messages_summary.length} entries`);
+                }
+                if (sessionDoc.messages_analysis) {
+                    console.log(`  - messages_analysis exists`);
+                }
+            }
+        } else {
+            console.log('Session already clean (no messages_summary or messages_analysis)');
+        }
+    } catch (error: any) {
+        if (error?.meta?.statusCode === 404 || error?.statusCode === 404) {
+            console.log('Session not found in OpenSearch');
+        } else {
+            console.error('Error updating session:', error);
+            throw error;
+        }
+    }
+
+    console.log('\n=== Reset Complete ===\n');
+    if (!dryRun) {
+        console.log('✅ Session is ready for fresh testing');
+        console.log('You can now modify messages in DynamoDB to trigger replication');
+    }
+}
+
+async function verifyMessageReplication(messageId: string, sessionId?: string) {
+    const client = await OsClient.getClient();
+    const messageIndexName = getIndexMeta('message').name;
+    const sessionIndexName = getIndexMeta('session').name;
+
+    console.log('\n=== Verifying Message Replication ===\n');
+    console.log(`Message ID: ${messageId}`);
+
+    // 1. Check if message exists in message index
+    console.log('\n--- Message Index ---');
+    try {
+        const messageResp = await client.get({
+            index: messageIndexName,
+            id: messageId
+        } as any);
+
+        const messageDoc = (messageResp as any)?.body?._source ?? (messageResp as any)?._source;
+        if (messageDoc) {
+            console.log('✅ Message found in message index');
+            console.log(JSON.stringify(messageDoc, null, 2));
+
+            // Extract session ID from message if not provided
+            if (!sessionId) {
+                sessionId = messageDoc.session_id;
+                console.log(`\nExtracted session ID: ${sessionId}`);
+            }
+        } else {
+            console.log('❌ Message not found in message index');
+            return;
+        }
+    } catch (error: any) {
+        if (error?.meta?.body?.found === false || error?.body?.found === false) {
+            console.log('❌ Message not found in message index');
+            return;
+        }
+        console.error('Error fetching message:', error);
+        throw error;
+    }
+
+    // 2. Check session document for messages_summary and messages_analysis
+    if (sessionId) {
+        console.log('\n--- Session Index ---');
+        try {
+            const sessionResp = await client.get({
+                index: sessionIndexName,
+                id: sessionId
+            } as any);
+
+            const sessionDoc = (sessionResp as any)?.body?._source ?? (sessionResp as any)?._source;
+            if (sessionDoc) {
+                console.log('✅ Session found in session index');
+                console.log(`Session ID: ${sessionDoc.session_id}`);
+                console.log(`User ID: ${sessionDoc.user_id}`);
+
+                // Check messages_summary
+                console.log('\n--- Messages Summary ---');
+                if (sessionDoc.messages_summary && Array.isArray(sessionDoc.messages_summary)) {
+                    console.log(`✅ messages_summary exists with ${sessionDoc.messages_summary.length} entries`);
+                    console.log(JSON.stringify(sessionDoc.messages_summary, null, 2));
+
+                    // Check if our message is in the summary
+                    const ourMessage = sessionDoc.messages_summary.find((m: any) => m.message_id === messageId);
+                    if (ourMessage) {
+                        console.log(`\n✅ Message ${messageId} found in messages_summary`);
+                    } else {
+                        console.log(`\n⚠️  Message ${messageId} NOT found in messages_summary`);
+                    }
+                } else {
+                    console.log('⚠️  messages_summary is missing or not an array');
+                }
+
+                // Check messages_analysis
+                console.log('\n--- Messages Analysis ---');
+                if (sessionDoc.messages_analysis) {
+                    console.log('✅ messages_analysis exists');
+                    console.log(JSON.stringify(sessionDoc.messages_analysis, null, 2));
+
+                    // Validate the structure
+                    const analysis = sessionDoc.messages_analysis;
+                    if (analysis.timing_stats) {
+                        console.log('\n--- Timing Stats Summary ---');
+                        console.log(`Total Messages: ${analysis.timing_stats.total_messages}`);
+                        console.log(`User Messages: ${analysis.timing_stats.total_user_messages}`);
+                        console.log(`Assistant Messages: ${analysis.timing_stats.total_assistant_messages}`);
+                        console.log(`Conversation Duration: ${analysis.timing_stats.conversation_duration_ms}ms`);
+                        console.log(`Avg Gap: ${analysis.timing_stats.avg_gap_ms}ms`);
+                        console.log(`Avg Response Time: ${analysis.timing_stats.avg_response_time_ms}ms`);
+                        console.log(`Avg Think Time: ${analysis.timing_stats.avg_think_time_ms}ms`);
+                    }
+                    if (analysis.last_message) {
+                        console.log('\n--- Last Message ---');
+                        console.log(`Message ID: ${analysis.last_message.message_id}`);
+                        console.log(`Source: ${analysis.last_message.source}`);
+                        console.log(`Timestamp: ${analysis.last_message.timestamp}`);
+                    }
+                    console.log(`\nLast Updated: ${analysis.last_updated}`);
+                } else {
+                    console.log('⚠️  messages_analysis is missing');
+                }
+
+                // Show full session doc for reference
+                console.log('\n--- Full Session Document ---');
+                console.log(JSON.stringify(sessionDoc, null, 2));
+            } else {
+                console.log('❌ Session not found in session index');
+            }
+        } catch (error: any) {
+            if (error?.meta?.body?.found === false || error?.body?.found === false) {
+                console.log('❌ Session not found in session index');
+            } else {
+                console.error('Error fetching session:', error);
+                throw error;
+            }
+        }
+    }
+
+    console.log('\n=== Verification Complete ===\n');
+}
+
 async function analyzeExternalSessions(dateStart: string, dateEnd: string) {
     const client = await OsClient.getClient();
     const indexName = getIndexMeta(SessionIndex).name;
@@ -649,6 +882,30 @@ async function main(): Promise<void> {
         case 'fix-keywords':
             await fixKeywordFields();
             break;
+        case 'verify':
+        case 'verify-replication': {
+            // Format: verify <messageId> [sessionId]
+            const messageId = indexName; // First arg after command
+            const sessionId = idArgs[0]; // Optional second arg
+
+            if (!messageId) {
+                throw new Error('Please provide a message ID. Usage: verify <messageId> [sessionId]');
+            }
+
+            await verifyMessageReplication(messageId, sessionId);
+            break;
+        }
+        case 'reset-session': {
+            // Format: reset-session <sessionId> [--dry-run]
+            const sessionId = indexName; // First arg after command
+
+            if (!sessionId) {
+                throw new Error('Please provide a session ID. Usage: reset-session <sessionId> [--dry-run]');
+            }
+
+            await resetSessionForTesting(sessionId, dryRunFlag);
+            break;
+        }
         case 'analyze-external': {
             // Parse date arguments
             let dateStart = '2025-10-01';
@@ -686,6 +943,8 @@ async function main(): Promise<void> {
                     '  size              Report storage size in bytes and MB (usage: size [index|all], default: all)',
                     '  diagnose          Analyze session index data and test filters',
                     '  fix-keywords      Fix missing keyword fields (user_type_keyword, invocation_mode_keyword, source_keyword)',
+                    '  verify            Verify message replication (usage: verify <messageId> [sessionId])',
+                    '  reset-session     Reset session for testing - removes messages from index and clears session metrics',
                     '  analyze-external  Retrieve all external-user sessions and analyze by invocation mode',
                     '',
                     'Analyze External Options:',
@@ -705,6 +964,10 @@ async function main(): Promise<void> {
                     '  pnpm tsx tools/os/os-tools.ts diagnose',
                     '  pnpm tsx tools/os/os-tools.ts diagnose --date-start 2025-10-01 --date-end 2025-10-31',
                     '  pnpm tsx tools/os/os-tools.ts diagnose --user-type external-user --invocation-mode chat-app',
+                    '',
+                    'Reset Session Examples:',
+                    '  pnpm tsx tools/os/os-tools.ts reset-session <sessionId> --dry-run   # Preview what will be deleted',
+                    '  pnpm tsx tools/os/os-tools.ts reset-session <sessionId>              # Actually reset the session',
                     '',
                     `Defaults: index='${SessionIndex}'`
                 ].join('\n')
