@@ -7,13 +7,40 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
-**Latest Stable:** `0.14.2` (November 2, 2025)
+**Latest Stable:** `0.15.0` (November 3, 2025)
 
 Check your project version:
 
 ```bash
 cat .pika-sync.json | grep pikaVersion
 ```
+
+### What's New in 0.15.0
+
+{% aside type="caution" %}
+**Breaking Changes in 0.15.0:** This release requires running `update-session-mapping-for-messages.ts` BEFORE deployment. See the [Migration Guide](/platform/releases/migration-guides/upgrading-to-0-15-0/) for detailed instructions.
+{% /aside %}
+
+- **Message-Level Analytics** - Enhanced session analytics with comprehensive message insights
+  - Message counts: user messages, assistant responses, averages per session
+  - Per-response metrics: cost, tokens, execution duration
+  - Timing analytics: response time, user think time, session duration, long gap detection
+  - New time series chart showing user vs assistant message counts
+  - Pre-computed statistics for 10-100x faster queries
+- **Message Content Search** - Session Insights search now includes full-text message search
+  - Search across message text, extracted LLM instructions, and model names
+  - Seamless integration with existing session field search
+- **Message Index** - New dedicated OpenSearch index for message documents
+  - Full-text search on message content and LLM instructions
+  - Automatic replication from DynamoDB via Lambda stream handler
+- **Migration Tools** - Three migration scripts for safe deployment
+  - `update-session-mapping-for-messages.ts` - Update session index (run BEFORE deployment)
+  - `backfill-invocation-mode-to-messages/` - Backfill message metadata
+  - `backfill-messages-to-opensearch/` - Populate message index and analytics
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.15.0) for @since 0.15.0 to find all type definitions that were added, updated, or removed in this release.
 
 ### What's New in 0.14.2
 
@@ -268,6 +295,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.15.0  | Nov 3 2025  | Breaking | Message-level analytics and content search    |
 | 0.14.2  | Nov 2 2025  | Patch    | Admin site session insights improvements      |
 | 0.14.1  | Nov 1 2025  | Patch    | Bedrock inference profile stack tag type fix  |
 | 0.14.0  | Nov 1 2025  | Feature  | Component-level tagging for granular cost tracking |

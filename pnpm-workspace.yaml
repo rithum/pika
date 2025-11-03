@@ -22,6 +22,7 @@ catalog:
   dotenv: ^16.5.0
   '@aws-sdk/client-bedrock': ^3.887.0
   '@aws-sdk/client-bedrock-runtime': ^3.887.0
+  '@aws-sdk/client-cloudwatch-logs': ^3.887.0
   '@aws-sdk/client-dynamodb': ^3.887.0
   '@aws-sdk/util-dynamodb': ^3.887.0
   '@aws-sdk/client-lambda': ^3.887.0

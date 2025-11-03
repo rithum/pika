@@ -5,6 +5,41 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-11-03
+
+### Breaking Changes
+
+- **Message Analytics & Search** - Enhanced session analytics with message-level insights and full-text message search
+    - Requires running `update-session-mapping-for-messages.ts` tool BEFORE deployment
+    - Adds `messages_summary` and `messages_analysis` fields to session index
+    - If not run before deployment, OpenSearch will auto-index fields incorrectly
+    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-15-0)
+
+### Added
+
+- **Enhanced Session Analytics** - Dramatically improved user message analytics
+    - Message-level metrics: total user messages, total assistant messages, average messages per session
+    - Per-response cost and token metrics: average cost per response, tokens per response, execution duration
+    - Timing analytics: response time, user think time, session duration, long gap detection
+    - New time series chart showing user vs assistant message counts over time
+    - Pre-computed statistics for 10-100x faster analytics queries
+- **Message Content Search** - Session Insights search now includes message content
+    - Search across message text, extracted LLM instructions, and model names
+    - Returns sessions containing messages with matching terms
+    - Seamless integration with existing session field search
+- **Message Index** - New dedicated OpenSearch index for message documents
+    - Full-text search on message content and LLM instructions
+    - Searchable model field for filtering by AI model
+    - Automatic replication from DynamoDB via Lambda stream handler
+- **Migration Tools**
+    - `update-session-mapping-for-messages.ts` - Update session index mapping (run BEFORE deployment)
+    - `backfill-message-metadata/` - Backfill invocationMode and userType fields to existing messages
+    - `backfill-messages-to-opensearch/` - Populate message index and session analytics fields
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.15.0) for @since 0.15.0 to find all type definitions that were added, updated, or removed in this release.
+
 ## [0.14.2] - 2025-11-02
 
 ### Improved
@@ -174,7 +209,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
 
 - **User Type Migration Required** - Chat sessions now include user type classification
-    - Requires running `add-user-type-to-chat-sessions.ts` to add `user_type` field to existing sessions
+    - Requires running `backfill-session-metadata/` tool to add `user_type` field to existing sessions
     - Enables filtering sessions by internal vs external users in analytics
     - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
 
@@ -228,7 +263,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Migration Tooling** - Scripts for data migration
     - `update-session-mapping.ts` - Add keyword fields to OpenSearch session index
     - `copy-to-keyword-fields.ts` - Copy data to keyword fields for existing sessions
-    - `add-user-type-to-chat-sessions.ts` - Add user type to existing chat sessions
+    - `backfill-session-metadata/` - Add user type to existing chat sessions
 
 **Find All Type Changes for This Release:**
 

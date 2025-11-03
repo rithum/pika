@@ -361,6 +361,74 @@ function getTotalValue(total: any): number {
 }
 
 /**
+ * Search message index for messages matching query, return matching sessionIds
+ */
+async function searchMessagesForSessionIds(query: string, searchRequest: SessionSearchRequest<any>): Promise<string[]> {
+    const messageQuery: any = {
+        query: {
+            bool: {
+                must: [
+                    // Text search across message fields
+                    {
+                        multi_match: {
+                            query: query,
+                            fields: ['message', 'llm_instructions', 'model'],
+                            type: 'best_fields',
+                            fuzziness: 'AUTO'
+                        }
+                    }
+                ],
+                filter: [] as any[]
+            }
+        },
+        size: 0, // We don't need message documents, just sessionIds
+        aggs: {
+            unique_sessions: {
+                terms: {
+                    field: 'session_id',
+                    size: 1000 // Limit to 1000 unique sessions
+                }
+            }
+        }
+    };
+
+    // Apply same filters as session search (if applicable)
+    // Date filter (if provided)
+    if (searchRequest.dateFilter?.dateType === 'created' && searchRequest.dateFilter.startDate) {
+        messageQuery.query.bool.filter.push({
+            range: {
+                timestamp: {
+                    gte: searchRequest.dateFilter.startDate,
+                    lte: searchRequest.dateFilter.endDate
+                }
+            }
+        });
+    }
+
+    // User type filter (if provided)
+    if (searchRequest.userType && searchRequest.userType.length > 0) {
+        messageQuery.query.bool.filter.push({
+            terms: { user_type: searchRequest.userType }
+        });
+    }
+
+    // Invocation mode filter (if provided)
+    if (searchRequest.invocationMode && searchRequest.invocationMode.length > 0) {
+        messageQuery.query.bool.filter.push({
+            terms: { invocation_mode: searchRequest.invocationMode }
+        });
+    }
+
+    const resp = await execOpenSearchCmd('searchMessagesForSessionIds', 'Failed to search messages', async (client: Client) => {
+        return await client.search({ index: 'message', body: messageQuery } as any);
+    });
+
+    // Extract sessionIds from aggregation
+    const buckets = ((resp.body.aggregations as any)?.unique_sessions?.buckets ?? []) as any[];
+    return buckets.map((bucket: any) => bucket.key);
+}
+
+/**
  * Query for chat sessions with comprehensive filtering and pagination support
  */
 export async function queryForSessions<T extends RecordOrUndef = undefined>(searchRequest: SessionSearchRequest<T>): Promise<SessionSearchResponse<T>> {
@@ -493,52 +561,84 @@ export async function queryForSessions<T extends RecordOrUndef = undefined>(sear
                 });
             }
 
-            // Multi-field query search (searches title, sessionId, userId, or user name)
+            // Multi-field query search (searches title, sessionId, userId, user name, OR message content)
             if (searchRequest.query && searchRequest.query.trim().length > 0) {
                 if (!body.query.bool.must) {
                     body.query.bool.must = [];
                 }
+
+                // NEW: Also search message index for matching messages (if query is long enough)
+                let messageMatchedSessionIds: Set<string> = new Set();
+                const queryStr = searchRequest.query.trim();
+                const hasTextSearch = queryStr.length >= 3;
+
+                if (hasTextSearch) {
+                    try {
+                        const messageSearchResult = await searchMessagesForSessionIds(queryStr, searchRequest);
+                        messageMatchedSessionIds = new Set(messageSearchResult);
+
+                        if (messageMatchedSessionIds.size > 0) {
+                            console.log(`Message search found ${messageMatchedSessionIds.size} sessions matching "${queryStr}"`);
+                        }
+                    } catch (error) {
+                        console.error('Message search failed, continuing with session-only search:', error);
+                        // Continue with session search even if message search fails
+                    }
+                }
+
+                // Build should clauses for session fields + message-matched sessions
+                const shouldClauses: any[] = [
+                    {
+                        // Partial match on title (case-insensitive)
+                        wildcard: {
+                            title: `*${searchRequest.query.toLowerCase()}*`
+                        }
+                    },
+                    {
+                        // Exact match on sessionId
+                        term: {
+                            session_id: searchRequest.query
+                        }
+                    },
+                    {
+                        // Exact match on userId
+                        term: {
+                            user_id: searchRequest.query
+                        }
+                    },
+                    {
+                        // Partial match on first name (case-insensitive)
+                        wildcard: {
+                            'session_attributes.first_name': {
+                                value: `*${searchRequest.query}*`,
+                                case_insensitive: true
+                            }
+                        }
+                    },
+                    {
+                        // Partial match on last name (case-insensitive)
+                        wildcard: {
+                            'session_attributes.last_name': {
+                                value: `*${searchRequest.query}*`,
+                                case_insensitive: true
+                            }
+                        }
+                    }
+                ];
+
+                // NEW: Add message-matched sessionIds as a should clause
+                if (messageMatchedSessionIds.size > 0) {
+                    shouldClauses.push({
+                        terms: {
+                            session_id: Array.from(messageMatchedSessionIds).slice(0, 1000) // Limit to 1000
+                        }
+                    });
+                }
+
                 // Use a bool query with should clauses so any of these can match
                 (body.query.bool.must as any[]).push({
                     bool: {
-                        should: [
-                            {
-                                // Partial match on title (case-insensitive)
-                                wildcard: {
-                                    title: `*${searchRequest.query.toLowerCase()}*`
-                                }
-                            },
-                            {
-                                // Exact match on sessionId
-                                term: {
-                                    session_id: searchRequest.query
-                                }
-                            },
-                            {
-                                // Exact match on userId
-                                term: {
-                                    user_id: searchRequest.query
-                                }
-                            },
-                            {
-                                // Partial match on first name (case-insensitive)
-                                wildcard: {
-                                    'session_attributes.first_name': {
-                                        value: `*${searchRequest.query}*`,
-                                        case_insensitive: true
-                                    }
-                                }
-                            },
-                            {
-                                // Partial match on last name (case-insensitive)
-                                wildcard: {
-                                    'session_attributes.last_name': {
-                                        value: `*${searchRequest.query}*`,
-                                        case_insensitive: true
-                                    }
-                                }
-                            }
-                        ],
+                        should: shouldClauses,
                         minimum_should_match: 1
                     }
                 });
@@ -1043,6 +1143,59 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
                 sum: { field: 'total_cost' }
             },
 
+            // NEW: User message aggregation
+            user_messages: {
+                nested: { path: 'messages_summary' },
+                aggs: {
+                    filtered: {
+                        filter: { term: { 'messages_summary.source': 'user' } },
+                        aggs: {
+                            count: { value_count: { field: 'messages_summary.message_id' } }
+                        }
+                    }
+                }
+            },
+
+            // NEW: Assistant message aggregation (with usage metrics)
+            assistant_messages: {
+                nested: { path: 'messages_summary' },
+                aggs: {
+                    filtered: {
+                        filter: { term: { 'messages_summary.source': 'assistant' } },
+                        aggs: {
+                            count: { value_count: { field: 'messages_summary.message_id' } },
+                            total_output_tokens: { sum: { field: 'messages_summary.output_tokens' } },
+                            total_input_tokens: { sum: { field: 'messages_summary.input_tokens' } },
+                            total_cost: { sum: { field: 'messages_summary.total_cost' } },
+                            avg_duration: { avg: { field: 'messages_summary.execution_duration' } }
+                        }
+                    }
+                }
+            },
+
+            // NEW: Timing analytics aggregations (pre-computed stats from messages_analysis)
+            avg_session_duration: {
+                avg: { field: 'messages_analysis.timing_stats.conversation_duration_ms' }
+            },
+            avg_time_between_turns: {
+                avg: { field: 'messages_analysis.timing_stats.avg_gap_ms' }
+            },
+            avg_response_time: {
+                avg: { field: 'messages_analysis.timing_stats.avg_response_time_ms' }
+            },
+            avg_think_time: {
+                avg: { field: 'messages_analysis.timing_stats.avg_think_time_ms' }
+            },
+            sessions_with_long_gaps_1h: {
+                sum: { field: 'messages_analysis.timing_stats.gaps_over_1h' }
+            },
+            sessions_with_long_gaps_1d: {
+                sum: { field: 'messages_analysis.timing_stats.gaps_over_1d' }
+            },
+            sessions_with_long_gaps_1w: {
+                sum: { field: 'messages_analysis.timing_stats.gaps_over_1w' }
+            },
+
             // Time series aggregation
             time_series: {
                 date_histogram: {
@@ -1073,6 +1226,30 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
                     },
                     total_cost: {
                         sum: { field: 'total_cost' }
+                    },
+                    // NEW: User messages per bucket
+                    user_msg_count: {
+                        nested: { path: 'messages_summary' },
+                        aggs: {
+                            filtered: {
+                                filter: { term: { 'messages_summary.source': 'user' } },
+                                aggs: {
+                                    count: { value_count: { field: 'messages_summary.message_id' } }
+                                }
+                            }
+                        }
+                    },
+                    // NEW: Assistant messages per bucket
+                    assistant_msg_count: {
+                        nested: { path: 'messages_summary' },
+                        aggs: {
+                            filtered: {
+                                filter: { term: { 'messages_summary.source': 'assistant' } },
+                                aggs: {
+                                    count: { value_count: { field: 'messages_summary.message_id' } }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1188,32 +1365,77 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
         const totalOutputTokens = aggregations.total_output_tokens?.value ?? 0;
         const totalTokens = totalInputTokens + totalOutputTokens;
 
+        // Extract message counts
+        const userMessageCount = aggregations.user_messages?.filtered?.count?.value ?? 0;
+        const assistantMessageCount = aggregations.assistant_messages?.filtered?.count?.value ?? 0;
+        const totalMessages = userMessageCount + assistantMessageCount;
+
+        // Extract assistant message metrics
+        const assistantTotalOutputTokens = aggregations.assistant_messages?.filtered?.total_output_tokens?.value ?? 0;
+        const assistantTotalInputTokens = aggregations.assistant_messages?.filtered?.total_input_tokens?.value ?? 0;
+        const assistantTotalCost = aggregations.assistant_messages?.filtered?.total_cost?.value ?? 0;
+        const assistantAvgDuration = aggregations.assistant_messages?.filtered?.avg_duration?.value ?? 0;
+
         const summary = {
             totalSessions,
             uniqueUsers: aggregations.unique_users?.value ?? 0,
             uniqueEntities: aggregations.unique_entities?.value,
-            totalMessages: 0, // Note: We don't track message count per session in current schema
+            totalMessages,
             totalInputTokens,
             totalOutputTokens,
             totalInputCost: aggregations.total_input_cost?.value ?? 0,
             totalOutputCost: aggregations.total_output_cost?.value ?? 0,
             totalCost: aggregations.total_cost?.value ?? 0,
             avgCostPerSession: totalSessions > 0 ? (aggregations.total_cost?.value ?? 0) / totalSessions : 0,
-            avgTokensPerSession: totalSessions > 0 ? totalTokens / totalSessions : 0
+            avgTokensPerSession: totalSessions > 0 ? totalTokens / totalSessions : 0,
+
+            // NEW: User engagement metrics
+            totalUserMessages: userMessageCount,
+            totalAssistantMessages: assistantMessageCount,
+            avgUserMessagesPerSession: totalSessions > 0 ? userMessageCount / totalSessions : 0,
+            avgAssistantMessagesPerSession: totalSessions > 0 ? assistantMessageCount / totalSessions : 0,
+
+            // NEW: Per-response metrics (assistant messages only)
+            avgTokensPerResponse: assistantMessageCount > 0 ? assistantTotalOutputTokens / assistantMessageCount : 0,
+            avgInputTokensPerResponse: assistantMessageCount > 0 ? assistantTotalInputTokens / assistantMessageCount : 0,
+            avgOutputTokensPerResponse: assistantMessageCount > 0 ? assistantTotalOutputTokens / assistantMessageCount : 0,
+            avgCostPerResponse: assistantMessageCount > 0 ? assistantTotalCost / assistantMessageCount : 0,
+            avgExecutionDurationPerResponse: assistantAvgDuration,
+
+            // NEW: Timing analytics (from messages_analysis pre-computed stats)
+            timingAnalytics: {
+                avgSessionDurationMs: aggregations.avg_session_duration?.value ?? 0,
+                avgTimeBetweenTurnsMs: aggregations.avg_time_between_turns?.value ?? 0,
+                avgResponseTimeMs: aggregations.avg_response_time?.value ?? 0,
+                avgUserThinkTimeMs: aggregations.avg_think_time?.value ?? 0,
+                sessionsWithLongGaps: {
+                    over1Hour: aggregations.sessions_with_long_gaps_1h?.value ?? 0,
+                    over1Day: aggregations.sessions_with_long_gaps_1d?.value ?? 0,
+                    over1Week: aggregations.sessions_with_long_gaps_1w?.value ?? 0
+                }
+            }
         };
 
         // Build time series
-        const timeSeries = (aggregations.time_series?.buckets ?? []).map((bucket: any) => ({
-            date: bucket.key_as_string,
-            sessionCount: bucket.doc_count,
-            uniqueUserCount: bucket.unique_users?.value ?? 0,
-            messageCount: 0, // Note: We don't track message count per session
-            inputTokens: bucket.input_tokens?.value ?? 0,
-            outputTokens: bucket.output_tokens?.value ?? 0,
-            inputCost: bucket.input_cost?.value ?? 0,
-            outputCost: bucket.output_cost?.value ?? 0,
-            totalCost: bucket.total_cost?.value ?? 0
-        }));
+        const timeSeries = (aggregations.time_series?.buckets ?? []).map((bucket: any) => {
+            const userMsgCount = bucket.user_msg_count?.filtered?.count?.value ?? 0;
+            const assistantMsgCount = bucket.assistant_msg_count?.filtered?.count?.value ?? 0;
+
+            return {
+                date: bucket.key_as_string,
+                sessionCount: bucket.doc_count,
+                uniqueUserCount: bucket.unique_users?.value ?? 0,
+                messageCount: userMsgCount + assistantMsgCount,
+                inputTokens: bucket.input_tokens?.value ?? 0,
+                outputTokens: bucket.output_tokens?.value ?? 0,
+                inputCost: bucket.input_cost?.value ?? 0,
+                outputCost: bucket.output_cost?.value ?? 0,
+                totalCost: bucket.total_cost?.value ?? 0,
+                // NEW: Message breakdown
+                userMessageCount: userMsgCount,
+                assistantMessageCount: assistantMsgCount
+            };
+        });
 
         // Build top entities
         const topEntities = (aggregations.top_entities?.buckets ?? []).map((bucket: any) => ({
@@ -1290,7 +1512,27 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
                 totalOutputCost: 0,
                 totalCost: 0,
                 avgCostPerSession: 0,
-                avgTokensPerSession: 0
+                avgTokensPerSession: 0,
+                totalUserMessages: 0,
+                totalAssistantMessages: 0,
+                avgUserMessagesPerSession: 0,
+                avgAssistantMessagesPerSession: 0,
+                avgTokensPerResponse: 0,
+                avgInputTokensPerResponse: 0,
+                avgOutputTokensPerResponse: 0,
+                avgCostPerResponse: 0,
+                avgExecutionDurationPerResponse: 0,
+                timingAnalytics: {
+                    avgSessionDurationMs: 0,
+                    avgTimeBetweenTurnsMs: 0,
+                    avgResponseTimeMs: 0,
+                    avgUserThinkTimeMs: 0,
+                    sessionsWithLongGaps: {
+                        over1Hour: 0,
+                        over1Day: 0,
+                        over1Week: 0
+                    }
+                }
             },
             timeSeries: [],
             topEntities: [],

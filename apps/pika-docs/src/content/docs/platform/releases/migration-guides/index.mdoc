@@ -9,10 +9,42 @@ Step-by-step instructions for upgrading through breaking changes.
 
 ## Available Guides
 
+### [Upgrading to 0.15.0](/platform/releases/migration-guides/upgrading-to-0-15-0/)
+
+**Version:** 0.14.x → 0.15.0  
+**Status:** Current
+
+Breaking change in this release:
+
+**OpenSearch Index Update Required**
+
+- Must run `update-session-mapping-for-messages.ts` BEFORE deployment
+- Adds new fields to session index for message analytics
+- If not run first, OpenSearch will auto-index incorrectly
+
+**What's New:**
+
+- Message-level analytics (user/assistant counts, timing metrics)
+- Message content search in Session Insights
+- Dedicated message index for fast full-text search
+- Pre-computed statistics for 10-100x faster analytics
+
+**Who's Affected:**
+
+- All deployments (OpenSearch mapping update required before deployment)
+- Projects using session analytics
+- Projects using session insights search
+
+**Estimated Time:** 30-45 minutes (varies with data volume)
+
+[View Complete Guide →](/platform/releases/migration-guides/upgrading-to-0-15-0/)
+
+---
+
 ### [Upgrading to 0.11.0](/platform/releases/migration-guides/upgrading-to-0-11-0/)
 
 **Version:** 0.10.x → 0.11.0  
-**Status:** Current
+**Status:** Previous
 
 Breaking changes in this release:
 

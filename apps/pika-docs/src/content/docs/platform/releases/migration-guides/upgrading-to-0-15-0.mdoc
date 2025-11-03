@@ -1,0 +1,384 @@
+---
+title: Upgrading to 0.15.0
+description: Migration guide for upgrading from Pika 0.14.x to 0.15.0 with breaking changes
+---
+
+**Version:** 0.14.x → 0.15.0  
+**Status:** Current Breaking Change
+
+This guide covers **breaking changes** in version 0.15.0 that require OpenSearch index updates before deployment.
+
+---
+
+## Overview
+
+Version 0.15.0 introduces dramatically improved message-level analytics and message content search capabilities. This is a **breaking change** that requires running an OpenSearch index update script before deployment.
+
+**Breaking Change:**
+
+- Session index must be updated with new fields before code deployment
+- If not done, OpenSearch will auto-index fields incorrectly, requiring expensive reindexing
+
+**What's New:**
+
+- Message-level analytics (user/assistant counts, timing metrics)
+- Message content search in Session Insights
+- Dedicated message index for fast full-text search
+- Pre-computed statistics for 10-100x faster analytics
+
+**Estimated Time:** 30-45 minutes (varies with data volume)
+
+---
+
+## Prerequisites
+
+Before starting the migration, ensure you have:
+
+1. **Environment Configuration**:
+   - `services/pika/.env.local` with:
+     - `stage` - Your deployment stage
+     - `PIKA_DOMAIN_ENDPOINT` - OpenSearch endpoint
+     - `AWS_REGION` - AWS region
+     - `PIKA_SERVICE_PROJ_NAME_KEBAB_CASE` - Your project name
+
+2. **AWS Credentials**:
+   - Ensure AWS CLI is configured with credentials that have access to:
+     - OpenSearch domain
+     - DynamoDB tables (chat-session, chat-message)
+
+3. **Backup Your Data**:
+   - Consider taking snapshots of your DynamoDB tables and OpenSearch indices before proceeding
+
+---
+
+## Migration Steps
+
+### Step 1: Update Session Index Mapping (CRITICAL - Do First)
+
+{% aside type="danger" %}
+**DO NOT SKIP THIS STEP**
+
+If you deploy code before running this script, OpenSearch will auto-index these fields with incorrect types. This is extremely difficult to fix and may require a full cluster reindex.
+{% /aside %}
+
+**Before deploying any code**, update the OpenSearch session index:
+
+```bash
+cd services/pika
+pnpm dlx tsx tools/os/update-session-mapping-for-messages.ts
+```
+
+**What it does:**
+
+- Adds `messages_summary` field (nested array for message metadata)
+- Adds `messages_analysis` field (object for pre-computed timing statistics)
+- Operation is idempotent (safe to run multiple times)
+
+**Expected output:**
+
+```
+Starting session index mapping update for message replication...
+Checking if session index exists...
+✓ Session index exists
+Updating mapping for session index...
+✓ Successfully updated mapping for session
+Verifying mapping...
+✓ Confirmed: messages_summary field is now in the mapping
+✓ Confirmed: messages_analysis field is now in the mapping
+
+✅ Mapping update complete!
+```
+
+**Verify success:**
+
+```bash
+# Check that new fields exist in mapping
+curl -X GET "https://your-os-domain/session/_mapping" | jq '.session.mappings.properties | keys'
+# Should include messages_summary and messages_analysis
+```
+
+---
+
+### Step 2: Sync Pika Framework
+
+Run `pika sync` to get the latest code:
+
+```bash
+pika sync
+```
+
+This will:
+
+- Update type definitions (ChatMessage, SessionAnalytics)
+- Add message replication Lambda logic
+- Update frontend analytics dashboard
+- Add migration tools
+
+---
+
+### Step 3: Deploy Backend Stack
+
+Deploy the updated backend infrastructure:
+
+```bash
+cd services/pika
+pnpm run cdk:deploy
+```
+
+**What gets deployed:**
+
+- New message index created automatically (via CloudFormation)
+- Lambda function updated with message replication logic
+- Session index mapping already updated (from Step 1)
+- API updated with new analytics endpoints
+
+**Verify deployment:**
+
+```bash
+# Check message index was created
+curl -X GET "https://your-os-domain/message"
+# Should return 200 with index details
+```
+
+---
+
+### Step 4: Backfill invocationMode and userType to Messages
+
+Messages need `invocationMode` and `userType` fields for filtering:
+
+```bash
+cd services/pika
+pnpm dlx tsx tools/backfill-message-metadata/index.ts
+```
+
+**What it does:**
+
+- Scans all chat messages
+- Fetches corresponding session for each message
+- Copies `invocationMode` and `userType` from session to message
+- Defaults to 'chat-app' and 'internal-user' if session has no values
+
+**Time estimate:** ~5-10 minutes for 100k messages
+
+**Expected output:**
+
+```
+Starting backfill of invocationMode and userType to messages...
+Scanning messages table...
+Processed: 100 messages, Updated: 95
+Processed: 200 messages, Updated: 195
+...
+✅ Backfill complete!
+Total messages processed: 10,234
+Messages updated: 9,876
+Messages skipped (already had fields): 358
+```
+
+---
+
+### Step 5: Backfill Messages to OpenSearch
+
+Populate the message index and session analytics fields with historical data:
+
+```bash
+cd services/pika
+# Test with a small date range first
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --dry-run --start-date 2024-12-01 --end-date 2024-12-31
+
+# Run full backfill (can be done in phases by date range)
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-01-01 --end-date 2024-12-31
+```
+
+**What it does:**
+
+- Indexes all messages to message index (with llmInstructions extraction)
+- Builds messages_summary arrays for sessions
+- Calculates messages_analysis statistics (timing, gaps, counts)
+- Updates session documents in OpenSearch
+
+**Time estimate:** ~2-5 minutes per 1,000 messages
+
+**Expected output:**
+
+```
+Starting backfill of messages to OpenSearch...
+Date range: 2024-01-01 to 2024-12-31
+Processing sessions...
+  Processed 50 sessions, 250 messages (3 skipped)
+  Processed 100 sessions, 520 messages (5 skipped)
+  ...
+✅ Backfill complete!
+Sessions processed: 2,456
+Messages indexed: 12,340
+Sessions updated: 2,451
+Sessions skipped (filtered by invocationMode): 5
+Errors: 0
+Time elapsed: 4m 32s
+```
+
+{% aside type="tip" %}
+**For Large Datasets:** If you have millions of messages, process in smaller date ranges:
+
+```bash
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-01-01 --end-date 2024-03-31
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-04-01 --end-date 2024-06-30
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-07-01 --end-date 2024-09-30
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-10-01 --end-date 2024-12-31
+```
+{% /aside %}
+
+---
+
+### Step 6: Deploy Frontend
+
+Deploy the updated frontend:
+
+```bash
+cd apps/pika-chat
+pnpm run deploy
+```
+
+---
+
+### Step 7: Verify in Production
+
+1. **Check CloudWatch logs** for successful replications:
+
+```bash
+aws logs tail /aws/lambda/message-changed-lambda --follow
+# Look for SUCCESS_REPLICATION entries
+```
+
+2. **Query message index** directly to verify messages indexed:
+
+```bash
+curl -X GET "https://your-os-domain/message/_count"
+# Should show count of indexed messages
+```
+
+3. **View analytics dashboard** - verify new metrics display:
+   - Navigate to Session Analytics in admin site
+   - Check for new KPIs (user messages, assistant messages, timing)
+   - Verify new charts render (messages time series, timing analytics)
+
+4. **Test Session Insights search** with message content:
+   - Navigate to Session Insights in admin site
+   - Search for a term that only appears in message content
+   - Verify sessions containing that term are returned
+
+---
+
+## Post-Migration
+
+### Monitoring
+
+Set up CloudWatch alarms for:
+
+- Lambda errors (> 10 in 5 minutes)
+- OpenSearch cluster health (not green)
+- Write latency (> 1 second)
+
+Monitor these metrics for the first 24 hours:
+
+- Lambda duration and error rate
+- OpenSearch CPU and memory usage
+- Storage growth rate
+
+### Rollback (If Needed)
+
+If issues arise:
+
+1. **Lambda replication causing problems**:
+   - Disable Lambda trigger (remove DynamoDB stream mapping)
+   - Messages will queue in stream (24 hour retention)
+   - Fix issue, re-enable trigger
+
+2. **Backend API issues**:
+   - Revert to previous API version
+   - Frontend gracefully handles missing fields (uses optional chaining)
+
+3. **Frontend issues**:
+   - Revert frontend deployment
+   - Backend changes are backwards compatible
+
+4. **OpenSearch mapping issues**:
+   - Mappings are additive (new fields added)
+   - Old queries still work
+   - If needed, can re-create index (requires full reindex)
+
+---
+
+## Troubleshooting
+
+### Issue: Message index not created
+
+**Check:**
+
+```bash
+curl -X GET "https://your-os-domain/_cat/indices?v"
+# Should show 'message' index
+```
+
+**Solution:** Redeploy backend stack - CloudFormation custom resource should create it automatically.
+
+### Issue: Messages not replicating
+
+**Check CloudWatch logs:**
+
+```bash
+aws logs tail /aws/lambda/message-changed-lambda --filter-pattern "FAILED_REPLICATION"
+```
+
+**Common causes:**
+
+- OpenSearch cluster at capacity (scale up)
+- Network issues (check VPC configuration)
+- Malformed message data (check specific message)
+
+### Issue: Backfill taking too long
+
+**Solution:** Process in smaller date ranges:
+
+```bash
+cd services/pika
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-01-01 --end-date 2024-03-31
+pnpm dlx tsx tools/backfill-messages-to-opensearch/index.ts --start-date 2024-04-01 --end-date 2024-06-30
+```
+
+### Issue: Analytics showing zero messages
+
+**Verify:**
+
+1. Backfill completed successfully
+2. Message index has documents: `curl -X GET "https://your-os-domain/message/_count"`
+3. Session documents have messages_summary: `curl -X GET "https://your-os-domain/session/_search?size=1"`
+
+---
+
+## Need Help?
+
+- **Questions?** Check [Troubleshooting docs](/platform/troubleshooting/)
+- **Found a bug?** [Report it on GitHub](https://github.com/rithum/pika/issues)
+- **Rollback issues?** See Rollback section above
+
+---
+
+## Changes Summary
+
+### What's New
+
+- Message-level analytics (user/assistant counts, timing metrics)
+- Message content search in Session Insights
+- Dedicated message index for fast full-text search
+- Pre-computed statistics for 10-100x faster analytics
+
+### What Changed
+
+- Session index now includes message metadata arrays
+- ChatMessage type includes invocationMode, userType, and llmInstructions fields
+- Lambda replicates to three locations (message index + 2 session fields)
+
+### What's Removed
+
+- Nothing removed, all changes are additive
+

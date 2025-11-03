@@ -150,7 +150,7 @@ Scan all chat sessions and add the `user_type` field by looking up each user in 
 
 ```bash
 cd services/pika
-pnpm tsx tools/add-user-type-to-chat-user/add-user-type-to-chat-sessions.ts
+pnpm dlx tsx tools/backfill-session-metadata/index.ts
 ```
 
 **What this does:**

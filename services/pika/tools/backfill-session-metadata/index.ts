@@ -61,13 +61,7 @@ async function loadEnvironment(): Promise<{ stage: string; projectName: string }
     return { stage, projectName };
 }
 
-async function getUserType(
-    docClient: DynamoDBDocumentClient,
-    userTableName: string,
-    userId: string,
-    userCache: Map<string, string>,
-    stats: MigrationStats
-): Promise<string> {
+async function getUserType(docClient: DynamoDBDocumentClient, userTableName: string, userId: string, userCache: Map<string, string>, stats: MigrationStats): Promise<string> {
     // Check cache first
     const cachedUserType = userCache.get(userId);
     if (cachedUserType) {
@@ -147,11 +141,7 @@ async function migrateSession(
     }
 }
 
-async function scanAndMigrate(
-    docClient: DynamoDBDocumentClient,
-    sessionTableName: string,
-    userTableName: string
-): Promise<MigrationStats> {
+async function scanAndMigrate(docClient: DynamoDBDocumentClient, sessionTableName: string, userTableName: string): Promise<MigrationStats> {
     const stats: MigrationStats = {
         scanned: 0,
         updated: 0,
@@ -272,4 +262,3 @@ async function main() {
 
 // Run the backfill
 main();
-

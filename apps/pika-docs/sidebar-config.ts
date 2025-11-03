@@ -325,6 +325,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                         collapsed: true,
                         items: [
                             { label: 'Overview', slug: 'platform/releases/migration-guides' },
+                            { label: 'Upgrading to 0.15.0', slug: 'platform/releases/migration-guides/upgrading-to-0-15-0' },
                             { label: 'Upgrading to 0.11.0', slug: 'platform/releases/migration-guides/upgrading-to-0-11-0' },
                             { label: 'Upgrading to 0.5.0', slug: 'platform/releases/migration-guides/upgrading-to-0-5-0' }
                         ]
