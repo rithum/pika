@@ -3,6 +3,7 @@ import { Client, Types } from '@opensearch-project/opensearch';
 import type {
     ChatSession,
     ChatSessionFeedback,
+    CostDistributionBucket,
     RecordOrUndef,
     ScoreSearchParams,
     SessionAnalyticsRequest,
@@ -358,6 +359,147 @@ function getTotalValue(total: any): number {
     } else {
         return total.value || 0;
     }
+}
+
+/**
+ * Group histogram buckets into percentile-based ranges for dynamic cost distribution
+ * Performance: O(n × m) where n=histogram buckets (~100-200), m=percentile ranges (8)
+ * Expected time: < 5ms
+ * @param includeTokenStats If true, aggregates token and model statistics (Phase 11.3)
+ */
+function groupHistogramIntoPercentileBuckets(
+    histogramBuckets: any[],
+    percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number; p95: number; p99: number },
+    includeTokenStats = false
+): CostDistributionBucket[] {
+    // Define percentile ranges (self-adjusting based on actual data)
+    const ranges = [
+        {
+            key: 'p0-p10',
+            from: 0,
+            to: percentiles.p10,
+            count: 0,
+            percentileLabel: 'Bottom 10%',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p10-p25',
+            from: percentiles.p10,
+            to: percentiles.p25,
+            count: 0,
+            percentileLabel: 'P10–P25',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p25-p50',
+            from: percentiles.p25,
+            to: percentiles.p50,
+            count: 0,
+            percentileLabel: 'P25–P50',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p50-p75',
+            from: percentiles.p50,
+            to: percentiles.p75,
+            count: 0,
+            percentileLabel: 'P50–P75',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p75-p90',
+            from: percentiles.p75,
+            to: percentiles.p90,
+            count: 0,
+            percentileLabel: 'P75–P90',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p90-p95',
+            from: percentiles.p90,
+            to: percentiles.p95,
+            count: 0,
+            percentileLabel: 'P90–P95',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p95-p99',
+            from: percentiles.p95,
+            to: percentiles.p99,
+            count: 0,
+            percentileLabel: 'P95–P99',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        },
+        {
+            key: 'p99+',
+            from: percentiles.p99,
+            to: Infinity,
+            count: 0,
+            percentileLabel: 'Top 1%',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            models: new Map<string, number>()
+        }
+    ];
+
+    // Group histogram buckets into percentile ranges and aggregate stats (< 5ms)
+    for (const bucket of histogramBuckets) {
+        for (const range of ranges) {
+            if (bucket.key >= range.from && bucket.key < range.to) {
+                range.count += bucket.doc_count;
+
+                // Phase 11.3: Aggregate token and model statistics
+                if (includeTokenStats && bucket.doc_count > 0) {
+                    // Weighted token averages (avg * count)
+                    range.totalInputTokens += (bucket.avg_input_tokens?.value ?? 0) * bucket.doc_count;
+                    range.totalOutputTokens += (bucket.avg_output_tokens?.value ?? 0) * bucket.doc_count;
+
+                    // Aggregate model breakdown
+                    for (const modelBucket of bucket.models?.buckets ?? []) {
+                        const currentCount = range.models.get(modelBucket.key) ?? 0;
+                        range.models.set(modelBucket.key, currentCount + modelBucket.doc_count);
+                    }
+                }
+                break; // Move to next bucket
+            }
+        }
+    }
+
+    // Return with formatted labels and calculated averages
+    return ranges.map((range) => ({
+        key: range.key,
+        costRangeStart: range.from,
+        costRangeEnd: range.to === Infinity ? null : range.to,
+        count: range.count,
+        label: `$${range.from.toFixed(2)}${range.to === Infinity ? '+' : '–$' + range.to.toFixed(2)}`,
+        percentileLabel: range.percentileLabel,
+
+        // Phase 11.3: Add token averages and model breakdown if requested
+        ...(includeTokenStats && range.count > 0
+            ? {
+                  avgInputTokens: range.totalInputTokens / range.count,
+                  avgOutputTokens: range.totalOutputTokens / range.count,
+                  modelBreakdown: Array.from(range.models.entries())
+                      .map(([model, count]) => ({ model, count }))
+                      .sort((a, b) => b.count - a.count)
+                      .slice(0, 5) // Top 5 models per bucket
+              }
+            : {})
+    }));
 }
 
 /**
@@ -1304,6 +1446,76 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
                         sum: { field: 'total_cost' }
                     }
                 }
+            },
+
+            // NEW: Session cost percentiles (for 8-bucket distribution)
+            session_cost_percentiles: {
+                percentiles: {
+                    field: 'total_cost',
+                    percents: [10, 25, 50, 75, 90, 95, 99]
+                }
+            },
+
+            // NEW: Session cost histogram (for post-processing into percentile buckets)
+            session_cost_histogram: {
+                histogram: {
+                    field: 'total_cost',
+                    interval: 0.01, // Fine-grained buckets
+                    min_doc_count: 0
+                }
+            },
+
+            // NEW: Turn cost percentiles (nested on messages_summary)
+            turn_cost_percentiles: {
+                nested: { path: 'messages_summary' },
+                aggs: {
+                    assistant_only: {
+                        filter: { term: { 'messages_summary.source': 'assistant' } },
+                        aggs: {
+                            percentiles: {
+                                percentiles: {
+                                    field: 'messages_summary.total_cost',
+                                    percents: [10, 25, 50, 75, 90, 95, 99]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+
+            // NEW: Turn cost histogram (for post-processing with token/model stats)
+            turn_cost_histogram: {
+                nested: { path: 'messages_summary' },
+                aggs: {
+                    assistant_only: {
+                        filter: { term: { 'messages_summary.source': 'assistant' } },
+                        aggs: {
+                            cost_buckets: {
+                                histogram: {
+                                    field: 'messages_summary.total_cost',
+                                    interval: 0.01, // Finer buckets for per-message costs
+                                    min_doc_count: 0
+                                },
+                                aggs: {
+                                    // Phase 11.3: Token statistics per bucket
+                                    avg_input_tokens: {
+                                        avg: { field: 'messages_summary.input_tokens' }
+                                    },
+                                    avg_output_tokens: {
+                                        avg: { field: 'messages_summary.output_tokens' }
+                                    },
+                                    // Phase 11.3: Model breakdown per bucket
+                                    models: {
+                                        terms: {
+                                            field: 'messages_summary.model',
+                                            size: 10
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         };
 
@@ -1413,8 +1625,53 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
                     over1Day: aggregations.sessions_with_long_gaps_1d?.value ?? 0,
                     over1Week: aggregations.sessions_with_long_gaps_1w?.value ?? 0
                 }
-            }
+            },
+
+            // NEW: Cost percentiles (for distribution analysis)
+            sessionCostPercentiles: aggregations.session_cost_percentiles?.values
+                ? {
+                      p10: aggregations.session_cost_percentiles.values['10.0'] ?? 0,
+                      p25: aggregations.session_cost_percentiles.values['25.0'] ?? 0,
+                      p50: aggregations.session_cost_percentiles.values['50.0'] ?? 0,
+                      p75: aggregations.session_cost_percentiles.values['75.0'] ?? 0,
+                      p90: aggregations.session_cost_percentiles.values['90.0'] ?? 0,
+                      p95: aggregations.session_cost_percentiles.values['95.0'] ?? 0,
+                      p99: aggregations.session_cost_percentiles.values['99.0'] ?? 0
+                  }
+                : undefined,
+
+            turnCostPercentiles: aggregations.turn_cost_percentiles?.assistant_only?.percentiles?.values
+                ? {
+                      p10: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['10.0'] ?? 0,
+                      p25: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['25.0'] ?? 0,
+                      p50: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['50.0'] ?? 0,
+                      p75: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['75.0'] ?? 0,
+                      p90: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['90.0'] ?? 0,
+                      p95: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['95.0'] ?? 0,
+                      p99: aggregations.turn_cost_percentiles.assistant_only.percentiles.values['99.0'] ?? 0
+                  }
+                : undefined,
+
+            medianCostPerSession: aggregations.session_cost_percentiles?.values?.['50.0'] ?? undefined,
+            medianCostPerTurn: aggregations.turn_cost_percentiles?.assistant_only?.percentiles?.values?.['50.0'] ?? undefined
         };
+
+        // Post-process histograms into percentile-based buckets (< 5ms)
+        let sessionCostDistribution: CostDistributionBucket[] | undefined;
+        let turnCostDistribution: CostDistributionBucket[] | undefined;
+
+        if (summary.sessionCostPercentiles && aggregations.session_cost_histogram?.buckets) {
+            sessionCostDistribution = groupHistogramIntoPercentileBuckets(aggregations.session_cost_histogram.buckets, summary.sessionCostPercentiles);
+        }
+
+        if (summary.turnCostPercentiles && aggregations.turn_cost_histogram?.assistant_only?.cost_buckets?.buckets) {
+            // Phase 11.3: Enable token/model stats for turn distribution
+            turnCostDistribution = groupHistogramIntoPercentileBuckets(
+                aggregations.turn_cost_histogram.assistant_only.cost_buckets.buckets,
+                summary.turnCostPercentiles,
+                true // includeTokenStats - adds avgInputTokens, avgOutputTokens, modelBreakdown
+            );
+        }
 
         // Build time series
         const timeSeries = (aggregations.time_series?.buckets ?? []).map((bucket: any) => {
@@ -1495,7 +1752,9 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
             timeSeries,
             topEntities,
             topChatApps,
-            costByInvocationMode
+            costByInvocationMode,
+            sessionCostDistribution,
+            turnCostDistribution
         };
     } catch (error) {
         console.error('queryForSessionAnalytics error:', error);
@@ -1537,7 +1796,9 @@ export async function queryForSessionAnalytics(request: SessionAnalyticsRequest)
             timeSeries: [],
             topEntities: [],
             topChatApps: [],
-            costByInvocationMode: []
+            costByInvocationMode: [],
+            sessionCostDistribution: undefined,
+            turnCostDistribution: undefined
         };
     }
 }

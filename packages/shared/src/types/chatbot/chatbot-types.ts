@@ -5572,6 +5572,34 @@ export interface SessionAnalyticsRequest {
     limit?: number;
 }
 
+/**
+ * Cost distribution bucket with dynamic percentile-based boundaries
+ * @since 0.16.0
+ */
+export interface CostDistributionBucket {
+    /** Bucket key (e.g., 'p25-p50', 'p99+') */
+    key: string;
+    /** Bucket start value in USD */
+    costRangeStart: number;
+    /** Bucket end value in USD (null for p99+) */
+    costRangeEnd: number | null;
+    /** Number of sessions/turns in this bucket */
+    count: number;
+    /** Human-readable dollar label (e.g., '$0.18–$0.35') */
+    label: string;
+    /** Human-readable percentile label (e.g., 'P25–P50', 'Top 1%') */
+    percentileLabel: string;
+    /** Average input tokens within this bucket (turn distribution only) */
+    avgInputTokens?: number;
+    /** Average output tokens within this bucket (turn distribution only) */
+    avgOutputTokens?: number;
+    /** Model breakdown within this bucket (Phase 11.3) */
+    modelBreakdown?: Array<{
+        model: string;
+        count: number;
+    }>;
+}
+
 export interface SessionAnalyticsResponse {
     /** Whether the request was successful */
     success: boolean;
@@ -5587,6 +5615,10 @@ export interface SessionAnalyticsResponse {
     topChatApps: SessionAnalyticsChatAppUsage[];
     /** Cost breakdown by invocation mode */
     costByInvocationMode: SessionAnalyticsCostByMode[];
+    /** Session-level cost distribution (dynamic percentile buckets) @since 0.16.0 */
+    sessionCostDistribution?: CostDistributionBucket[];
+    /** Turn-level cost distribution (dynamic percentile buckets) @since 0.16.0 */
+    turnCostDistribution?: CostDistributionBucket[];
 }
 
 export interface SessionAnalyticsSummary {
@@ -5656,6 +5688,48 @@ export interface SessionAnalyticsSummary {
             over1Week: number;
         };
     };
+
+    // NEW: Cost Percentiles (for distribution analysis)
+    /** Session cost percentiles (8-bucket distribution) */
+    sessionCostPercentiles?: {
+        /** 10th percentile of session costs */
+        p10: number;
+        /** 25th percentile of session costs */
+        p25: number;
+        /** 50th percentile (median) of session costs */
+        p50: number;
+        /** 75th percentile of session costs */
+        p75: number;
+        /** 90th percentile of session costs */
+        p90: number;
+        /** 95th percentile of session costs */
+        p95: number;
+        /** 99th percentile of session costs */
+        p99: number;
+    };
+
+    /** Turn (assistant message) cost percentiles */
+    turnCostPercentiles?: {
+        /** 10th percentile of turn costs */
+        p10: number;
+        /** 25th percentile of turn costs */
+        p25: number;
+        /** 50th percentile (median) of turn costs */
+        p50: number;
+        /** 75th percentile of turn costs */
+        p75: number;
+        /** 90th percentile of turn costs */
+        p90: number;
+        /** 95th percentile of turn costs */
+        p95: number;
+        /** 99th percentile of turn costs */
+        p99: number;
+    };
+
+    /** Median cost per session (convenience field, same as sessionCostPercentiles.p50) */
+    medianCostPerSession?: number;
+    /** Median cost per turn (convenience field, same as turnCostPercentiles.p50) */
+    medianCostPerTurn?: number;
 }
 
 export interface SessionAnalyticsTimeSeriesPoint {

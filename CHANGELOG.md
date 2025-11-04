@@ -5,6 +5,18 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.3] - 2025-11-04
+
+### Added
+
+- **Cost Distribution Charts** - Added cost distribution charts to session analytics
+    - Added cost distribution charts to session analytics
+
+### Fixed
+
+- **Auto Insights Runaway Issue** - Fixed auto insights runaway issue
+    - Fixed data corruption issue allowing auto insights to run indefinitely (made self healing)
+
 ## [0.15.2] - 2025-11-03
 
 ### Fixed

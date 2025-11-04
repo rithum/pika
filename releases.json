@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.15.2",
-  "currentDevelopment": "0.15.2",
+  "latestVersion": "0.15.3",
+  "currentDevelopment": "0.15.3",
   "releases": [
+    {
+      "version": "0.15.3",
+      "date": "2025-11-04",
+      "status": "released",
+      "breaking": false,
+      "summary": "Added cost distribution charts to session analytics and fixed auto insights runaway issue",
+      "highlights": [
+        "Added cost distribution charts to session analytics",
+        "Fixed data corruption issue allowing auto insights to run indefinitely (made self healing)"
+      ]
+    },
     {
       "version": "0.15.2",
       "date": "2025-11-03",
