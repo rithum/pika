@@ -9,6 +9,7 @@
     import { getContext, onMount, type Snippet } from 'svelte';
     // Import analytics components
     import CostByModeChart from '../components/session-analytics/cost-by-mode-chart.svelte';
+    import CostDistributionChart from '../components/session-analytics/cost-distribution-chart.svelte';
     import CostTimeSeriesChart from '../components/session-analytics/cost-time-series-chart.svelte';
     import FiltersBar from '../components/session-analytics/filters-bar.svelte';
     import KpiGrid from '../components/session-analytics/kpi-grid.svelte';
@@ -112,6 +113,27 @@
                 <div class="lg:col-span-2">
                     <CostByModeChart />
                 </div>
+            </div>
+        </section>
+
+        <Separator />
+
+        <!-- Cost Distribution (NEW) -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Cost Distribution</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <CostDistributionChart
+                    title="Session Cost Distribution"
+                    description="Distribution of session costs across percentile buckets"
+                    distributionData={analyticsData?.sessionCostDistribution}
+                    isSessionLevel={true}
+                />
+                <CostDistributionChart
+                    title="Turn Cost Distribution"
+                    description="Distribution of turn costs (assistant responses) across percentile buckets"
+                    distributionData={analyticsData?.turnCostDistribution}
+                    isSessionLevel={false}
+                />
             </div>
         </section>
 

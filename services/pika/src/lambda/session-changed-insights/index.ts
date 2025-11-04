@@ -1,9 +1,13 @@
 import { ChatSession, INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { Context, DynamoDBStreamEvent } from 'aws-lambda';
+import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { setSessionsInsightsAnalysisInBatch } from '../../lib/chat-admin-ddb';
 import { SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { convertChatSessionToCamelFromSnakeCase } from 'src/lib/utils';
+
+const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 /**
  * This lambda function is used to handle the changes to the chat session table.
@@ -91,6 +95,34 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 }
 
 /**
+ * Helper function to update a session's lastMessageId when data corruption is detected.
+ * This syncs the session record with the reality of what messages exist.
+ *
+ * Note: We do NOT update updated_on because this is a data correction, not actual user activity.
+ * Updating updated_on could interfere with session timeout/expiration logic.
+ */
+async function updateSessionLastMessageId(userId: string, sessionId: string, newLastMessageId: string): Promise<void> {
+    const chatSessionTable = process.env.CHAT_SESSION_TABLE;
+    if (!chatSessionTable) {
+        throw new Error('CHAT_SESSION_TABLE is not set');
+    }
+
+    await ddbDocClient.send(
+        new UpdateCommand({
+            TableName: chatSessionTable,
+            Key: {
+                user_id: userId,
+                session_id: sessionId
+            },
+            UpdateExpression: 'SET last_message_id = :lastMessageId',
+            ExpressionAttributeValues: {
+                ':lastMessageId': newLastMessageId
+            }
+        })
+    );
+}
+
+/**
  * Determines if a session needs insights analysis updates based on the design requirements.
  * Returns the update object if an update is needed, null otherwise.
  */
@@ -125,16 +157,47 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
         };
     }
 
-    // Rule 2: Session has both but they're different → clear lastAnalyzedMessageId and set insightStatus to NEEDS_INSIGHTS_ANALYSIS
+    // Rule 2: Session has both but they're different → need to determine if this is legitimate or data corruption
     if (hasLastMessageId && hasLastAnalyzedMessageId && session.lastMessageId !== session.lastAnalyzedMessageId) {
-        console.log('Rule 2 applied: Session has both lastMessageId and lastAnalyzedMessageId but they differ');
-        return {
-            userId: session.userId,
-            sessionId: session.sessionId,
-            lastAnalyzedMessageId: null, // Set it to null so it will be removed from the session in dynamodb
-            insightStatus: INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
-            insightsS3Url: undefined // Leave it alone so the daemon lambda can see that there was an old s3 file and remove it once it recomputes insights
-        };
+        // Compare as strings (UUIDv7 is lexically sortable)
+        const lastMsg = session.lastMessageId || '';
+        const lastAnalyzed = session.lastAnalyzedMessageId || '';
+
+        if (lastMsg > lastAnalyzed) {
+            // LEGITIMATE: New messages exist that haven't been analyzed yet
+            console.log(`Rule 2 applied: New messages detected (${lastMsg} > ${lastAnalyzed})`);
+            return {
+                userId: session.userId,
+                sessionId: session.sessionId,
+                lastAnalyzedMessageId: null, // Set it to null so it will be removed from the session in dynamodb
+                insightStatus: INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
+                insightsS3Url: undefined // Leave it alone so the daemon lambda can see that there was an old s3 file and remove it once it recomputes insights
+            };
+        } else if (lastMsg < lastAnalyzed) {
+            // DATA CORRUPTION: Insights runner found messages the session doesn't know about
+            // This indicates the session's lastMessageId was never updated properly
+            // DO NOT re-trigger analysis - it will create an infinite loop
+            console.error(`[DATA CORRUPTION] Session ${session.sessionId} has stale lastMessageId`);
+            console.error(`  Current lastMessageId: ${lastMsg}`);
+            console.error(`  lastAnalyzedMessageId: ${lastAnalyzed}`);
+            console.error(`  Auto-fixing by syncing lastMessageId to match lastAnalyzedMessageId`);
+
+            // AUTO-FIX: Update session's lastMessageId to match reality
+            // This makes the session record reflect what messages actually exist
+            try {
+                updateSessionLastMessageId(session.userId, session.sessionId, lastAnalyzed);
+                console.log(`[AUTO-FIX] Successfully updated session ${session.sessionId} lastMessageId to ${lastAnalyzed}`);
+
+                // TODO: Send CloudWatch metric/alert for monitoring
+                // await sendCloudWatchMetric('SessionDataCorruptionAutoFixed', 1);
+            } catch (error) {
+                console.error(`[AUTO-FIX FAILED] Could not update session ${session.sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+                // Even if fix fails, don't re-trigger analysis (prevents infinite loop)
+            }
+
+            // Return undefined to prevent re-triggering analysis
+            return undefined;
+        }
     }
 
     // Rule 3: Session has both and they're the same → do nothing

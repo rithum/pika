@@ -14,12 +14,65 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { getChatMessagesInSession } from 'src/lib/chat-ddb';
 import { v7 as uuidv7 } from 'uuid';
+import { v5 as uuidv5 } from 'uuid';
 import { getRegion } from '../../lib/utils';
 import { instructions } from './instructions/insights-instructions-v2';
+import OsClient from '../../lib/opensearch/opensearch-client';
+import { SessionIndex } from '../../lib/opensearch/types';
 
-interface AnalyzeEvent {}
+// Namespace for deterministic AI feedback IDs (using uuidv5)
+const FEEDBACK_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
-const sessionSettleDurationMS = 1000 * 60 * 1; // 1 minute
+/**
+ * Generate a deterministic feedback ID for AI-generated feedback.
+ * Same inputs always produce the same ID, making AI feedback creation idempotent.
+ * This prevents duplicate feedback entries when sessions are re-analyzed.
+ */
+function generateAIFeedbackId(sessionId: string, messageId: string, feedbackType: string): string {
+    return uuidv5(`${sessionId}:${messageId}:${feedbackType}`, FEEDBACK_NAMESPACE);
+}
+
+/**
+ * Safety check: Detect if a session has excessive AI-generated feedback.
+ * This is a circuit breaker to prevent runaway feedback creation bugs.
+ */
+async function detectExcessiveAIFeedback(sessionId: string): Promise<boolean> {
+    const THRESHOLD = 10; // >20 AI feedback per message = problem
+
+    try {
+        const osClient = await OsClient.getClient();
+        const response = await osClient.get({
+            index: SessionIndex,
+            id: sessionId,
+            _source: ['feedback']
+        });
+
+        if (!response.body._source?.feedback) {
+            return false;
+        }
+
+        const feedback = response.body._source.feedback;
+        const countsByMessage: Record<string, number> = {};
+
+        for (const fb of feedback) {
+            if (fb.user_id === 'ai-feedback-user') {
+                countsByMessage[fb.message_id] = (countsByMessage[fb.message_id] || 0) + 1;
+            }
+        }
+
+        for (const [messageId, count] of Object.entries(countsByMessage)) {
+            if (count > THRESHOLD) {
+                console.error(`[SAFETY] Message ${messageId} has ${count} AI feedback (threshold: ${THRESHOLD})`);
+                return true;
+            }
+        }
+
+        return false;
+    } catch (error) {
+        console.warn(`[SAFETY] Failed to check feedback count: ${error instanceof Error ? error.message : String(error)}`);
+        return false;
+    }
+}
 
 // Instructions are loaded via TypeScript import for reliable bundling
 console.log('[INSIGHTS-ANALYZER] Instructions loaded via TypeScript import, length:', instructions.length);
@@ -88,6 +141,26 @@ interface ModelResponse<T = unknown, A extends Array<unknown> = T[]> {
 export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[]) {
     const sessionKey = `${session.chatAppId}:${session.userId}:${session.sessionId}`;
     console.log(`[INSIGHTS-ANALYZER] Starting analysis for session: ${sessionKey}`);
+
+    // SAFETY CHECK #1: Only analyze chat-app sessions (user-facing)
+    // Skip direct-agent-invoke and chat-app-component sessions
+    // This check is first because it's fast (no I/O) and filters out many sessions
+    const invocationMode = session.invocationMode || 'chat-app'; // undefined = chat-app (legacy)
+    if (invocationMode !== 'chat-app') {
+        console.log(`[SKIP] Session ${session.sessionId} is ${invocationMode} - not analyzing (chat-app only)`);
+        return;
+    }
+
+    // SAFETY CHECK #2: Detect excessive AI feedback (circuit breaker)
+    // Only check chat-app sessions since we already filtered out others
+    const isCorrupted = await detectExcessiveAIFeedback(session.sessionId);
+    if (isCorrupted) {
+        console.error(`[SAFETY] Session ${session.sessionId} has excessive AI feedback - skipping analysis`);
+        // TODO: Send CloudWatch metric/alert here for monitoring
+        return;
+    }
+
+    console.log(`[SESSION] Analyzing chat-app session: ${session.sessionId}`);
 
     // If you change the insights instructions, you need to increment this version.
     // The instructions file are versioned according to this version: instructions/insights-instructions-v{version}.md
@@ -322,7 +395,7 @@ export function addFeedback(
             urgent.push('EMPLOYEE FOLLOWUP REQUIRED');
             feedbackBatch.push({
                 sessionId: session.sessionId,
-                feedbackId: uuidv7(),
+                feedbackId: generateAIFeedbackId(session.sessionId, lastAnalyzedMessageId, 'critical_issues_present'),
                 userId: feedbackUserId,
                 messageId: lastAnalyzedMessageId,
                 reportedByHuman: false,
@@ -341,7 +414,7 @@ export function addFeedback(
             urgent.push('LOW AI CONFIDENCE LEVEL');
             feedbackBatch.push({
                 sessionId: session.sessionId,
-                feedbackId: uuidv7(),
+                feedbackId: generateAIFeedbackId(session.sessionId, lastAnalyzedMessageId, 'low_ai_confidence_level'),
                 userId: feedbackUserId,
                 messageId: lastAnalyzedMessageId,
                 reportedByHuman: false,
@@ -360,7 +433,7 @@ export function addFeedback(
             notes.push('HIGH COMPLEXITY LEVEL');
             feedbackBatch.push({
                 sessionId: session.sessionId,
-                feedbackId: uuidv7(),
+                feedbackId: generateAIFeedbackId(session.sessionId, lastAnalyzedMessageId, 'high_complexity_session'),
                 userId: feedbackUserId,
                 messageId: lastAnalyzedMessageId,
                 reportedByHuman: false,
@@ -379,7 +452,7 @@ export function addFeedback(
             urgent.push('USER SATISFACTION ISSUE');
             feedbackBatch.push({
                 sessionId: session.sessionId,
-                feedbackId: uuidv7(),
+                feedbackId: generateAIFeedbackId(session.sessionId, lastAnalyzedMessageId, 'user_dissatisfied'),
                 userId: feedbackUserId,
                 messageId: lastAnalyzedMessageId,
                 reportedByHuman: false,
@@ -398,7 +471,7 @@ export function addFeedback(
             urgent.push('USER UNABLE TO COMPLETE GOALS');
             feedbackBatch.push({
                 sessionId: session.sessionId,
-                feedbackId: uuidv7(),
+                feedbackId: generateAIFeedbackId(session.sessionId, lastAnalyzedMessageId, 'goal_misalignment'),
                 userId: feedbackUserId,
                 messageId: lastAnalyzedMessageId,
                 reportedByHuman: false,

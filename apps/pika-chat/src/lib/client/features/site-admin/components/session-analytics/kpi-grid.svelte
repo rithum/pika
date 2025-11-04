@@ -114,6 +114,28 @@
         helpText="Average cost per session (Total Cost ÷ Total Sessions)"
     />
 
+    <!-- NEW: Median Cost/Session -->
+    <KpiCard
+        title="Median Cost/Session"
+        value={analyticsData?.summary?.medianCostPerSession ?? 0}
+        subtitle="P90: ${(analyticsData?.summary?.sessionCostPercentiles?.p90 ?? 0).toFixed(4)}"
+        format="currency"
+        {loading}
+        helpText="Median (50th percentile) cost per session - less affected by outliers than average"
+    />
+
+    <!-- NEW: Median Cost/Turn -->
+    <KpiCard
+        title="Median Cost/Turn"
+        value={analyticsData?.summary?.medianCostPerTurn ?? 0}
+        subtitle="P90: ${(analyticsData?.summary?.turnCostPercentiles?.p90 ?? 0).toFixed(4)} | P95: ${(
+            analyticsData?.summary?.turnCostPercentiles?.p95 ?? 0
+        ).toFixed(4)}"
+        format="currency"
+        {loading}
+        helpText="Median cost per turn (user question + AI response) - useful for pricing analysis"
+    />
+
     <KpiCard
         title="Total Input Tokens"
         value={analyticsData?.summary?.totalInputTokens ?? 0}
