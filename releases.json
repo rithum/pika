@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.3",
-  "currentDevelopment": "0.15.3",
+  "latestVersion": "0.15.4",
+  "currentDevelopment": "0.15.4",
   "releases": [
+    {
+      "version": "0.15.4",
+      "date": "2025-11-04",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed minor opensearch type issue",
+      "highlights": [
+        "Fixed issue wehre metrics were not corectly being transformed on way in/out of opensearch"
+      ]
+    },
     {
       "version": "0.15.3",
       "date": "2025-11-04",

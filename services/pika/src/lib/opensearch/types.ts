@@ -523,12 +523,26 @@ export function convertChatMessageToSnakeFromCamelCase(message: ChatMessage): Ch
  * Convert ChatMessageOs from snake_case back to camelCase
  */
 export function convertChatMessageToCamelFromSnakeCase(messageOs: ChatMessageOs): ChatMessage {
+    // Handle both flat structure (OpenSearch) and nested usage object (DynamoDB)
+    // DynamoDB stores: { usage: { input_tokens: 123 } }
+    // OpenSearch stores: { input_tokens: 123 } (flat)
+    const usageFromNested = (messageOs as any).usage; // DynamoDB format
+
+    // Check for usage data in either format
     const hasUsage =
         messageOs.input_tokens !== undefined ||
         messageOs.output_tokens !== undefined ||
         messageOs.input_cost !== undefined ||
         messageOs.output_cost !== undefined ||
-        messageOs.total_cost !== undefined;
+        messageOs.total_cost !== undefined ||
+        (usageFromNested && (usageFromNested.input_tokens !== undefined || usageFromNested.output_tokens !== undefined));
+
+    // Extract usage fields from whichever format is present
+    const inputTokens = messageOs.input_tokens ?? usageFromNested?.input_tokens;
+    const outputTokens = messageOs.output_tokens ?? usageFromNested?.output_tokens;
+    const inputCost = messageOs.input_cost ?? usageFromNested?.input_cost;
+    const outputCost = messageOs.output_cost ?? usageFromNested?.output_cost;
+    const totalCost = messageOs.total_cost ?? usageFromNested?.total_cost;
 
     return {
         messageId: messageOs.message_id,
@@ -541,11 +555,11 @@ export function convertChatMessageToCamelFromSnakeCase(messageOs: ChatMessageOs)
         model: messageOs.model,
         usage: hasUsage
             ? {
-                  inputTokens: messageOs.input_tokens!,
-                  outputTokens: messageOs.output_tokens!,
-                  inputCost: messageOs.input_cost!,
-                  outputCost: messageOs.output_cost!,
-                  totalCost: messageOs.total_cost!
+                  inputTokens: inputTokens!,
+                  outputTokens: outputTokens!,
+                  inputCost: inputCost!,
+                  outputCost: outputCost!,
+                  totalCost: totalCost!
               }
             : undefined,
         executionDuration: messageOs.execution_duration,
