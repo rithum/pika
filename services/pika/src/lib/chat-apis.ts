@@ -341,12 +341,14 @@ export async function addChatMessage(
     if (userQuestionAsked && answerToQuestionFromAgent && chatSession.title == null) {
         console.log('Updating session title with Bedrock');
         // Use bedrock to generate a title for the session and update the session title in the database
-        await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
+        const sessionResponse = await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
             userId: chatMessageForCreate.userId,
             userQuestionAsked: userQuestionAsked,
             answerToQuestionFromAgent: answerToQuestionFromAgent
         });
-        console.log('Session title updated');
+        // Update the local chatSession object with the generated title
+        chatSession.title = sessionResponse.session.title;
+        console.log('Session title updated:', chatSession.title);
     }
 
     console.log('Returning chat message:', {

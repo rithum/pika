@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.4",
-  "currentDevelopment": "0.15.4",
+  "latestVersion": "0.15.5",
+  "currentDevelopment": "0.15.5",
   "releases": [
+    {
+      "version": "0.15.5",
+      "date": "2025-11-12",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed needing to refresh chat app state to see new messages",
+      "highlights": [
+        "No longer need to refresh chat app state to see new messages"
+      ]
+    },
     {
       "version": "0.15.4",
       "date": "2025-11-04",

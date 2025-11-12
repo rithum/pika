@@ -1939,20 +1939,9 @@ export class ChatAppState implements IChatAppState {
                     this.#messageProcessor.doneStreaming(interimMsg.segments);
                     interimMsg.isStreaming = false;
                 }
+                // Clear interim message ID reference (metadata handler will update the actual message ID)
+                this.#interimMessageId = undefined;
             }
-
-            // Refresh sessions and its messages
-            await this.refreshChatSessions();
-
-            // After refreshing sessions, make sure currentSession points to the fresh object from the server
-            if (wasInterimSession) {
-                const freshSession = this.#chatSessions.find((s) => s.sessionId === newSessionId);
-                if (freshSession) {
-                    this.#currentSession = freshSession;
-                }
-            }
-
-            this.refreshMessagesForCurrentSession();
 
             // Files already cleared above for interim sessions, but clear for non-interim sessions too
             if (!wasInterimSession) {

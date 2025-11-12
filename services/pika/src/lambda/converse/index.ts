@@ -561,6 +561,12 @@ async function converse(
     chatAppComponentConfig?: ChatAppComponentConfig,
     llmContextItems?: LLMContextItem[]
 ) {
+    // console.log('[STREAM-TIMING] === CONVERSE START ===', {
+    //     timestamp: new Date().toISOString(),
+    //     sessionId: chatSession.sessionId,
+    //     isNewSession
+    // });
+
     console.log('=== CONVERSE FUNCTION START ===');
     console.log('converse called with:', {
         sessionId: chatSession.sessionId,
@@ -643,12 +649,15 @@ async function converse(
 
     // Prepare sentContexts update first so we can include the actual messageId
     // Note: We'll prepare it now but pass it when we know the messageId after creating the message
-    console.log('Adding user message to chat');
+    // console.log('[STREAM-TIMING] Saving user message to DB', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
     const userMessage = await addChatMessage(userMessageForCreate, chatSession);
-    console.log('User message added:', {
-        messageId: userMessage.messageId,
-        timestamp: userMessage.timestamp
-    });
+    // console.log('[STREAM-TIMING] User message saved', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
 
     //TODO: deal with how to know about the file use cases `useCase?: ChatMessageFileUseCase`: chat, pass-through, analytics
     // Right now assuming pass-through for all files.
@@ -823,6 +832,10 @@ ${contextBlocks}
         }
     };
 
+    // console.log('[STREAM-TIMING] Invoking agent (streaming will start)', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
     console.log('Invoking agent for answer');
     const assistantMessageForCreate = await invokeAgentToGetAnswer(
         chatSession,
@@ -837,14 +850,49 @@ ${contextBlocks}
         conversationHistory,
         additionalUserPromptInstructions.appliedDirectives
     );
+    // console.log('[STREAM-TIMING] Agent streaming complete (invokeAgent returned)', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
     console.log('Agent response received:', {
         hasMessage: !!assistantMessageForCreate.message,
         messageLength: assistantMessageForCreate.message?.length
     });
 
+    // console.log('[STREAM-TIMING] Saving assistant message to DB', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
     console.log('Adding assistant message to chat');
-    await addChatMessage(assistantMessageForCreate, chatSession, questionFromUser, assistantMessageForCreate.message);
+    const assistantMessage = await addChatMessage(assistantMessageForCreate, chatSession, questionFromUser, assistantMessageForCreate.message);
+    // console.log('[STREAM-TIMING] Assistant message saved', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
 
+    // Stream metadata to client so it can update local state without expensive refresh calls
+    // console.log('[STREAM-TIMING] Streaming metadata tag to client', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
+    const metadata = {
+        userMessageId: userMessage.messageId,
+        assistantMessageId: assistantMessage.messageId,
+        sessionLastUpdate: chatSession.lastUpdate,
+        sessionLastMessageId: chatSession.lastMessageId,
+        ...(chatSession.title && { sessionTitle: chatSession.title })
+    };
+    responseStream.write(`<pika-metadata>${JSON.stringify(metadata)}</pika-metadata>`);
+    console.log('[METADATA-TRACKING] Metadata streamed to client:', metadata);
+    // console.log('[STREAM-TIMING] Metadata tag streamed', {
+    //     elapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
+
+    // console.log('[STREAM-TIMING] === CONVERSE END ===', {
+    //     totalElapsed: Date.now() - startTime,
+    //     timestamp: new Date().toISOString()
+    // });
     console.log('=== CONVERSE FUNCTION END ===');
 }
 

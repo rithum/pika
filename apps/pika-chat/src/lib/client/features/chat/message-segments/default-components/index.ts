@@ -14,6 +14,7 @@ import promptDefChart from './tag-definition-prompt';
 import type { MetadataTagHandler } from '../segment-types';
 import TextRenderer from './text-renderer.svelte';
 import { traceMetadataHandler } from './trace-metadata-handler';
+import { pikaMetadataHandler } from './pika-metadata-handler';
 
 /**
  * Default renderers for XML tags found in chat messages that are rendered inline.
@@ -36,5 +37,6 @@ export const defaultRenderers: Record<string, Component<any>> = {
  * have a function that is called to effect whatever side effect is needed.
  */
 export const defaultMetadataHandlers: Record<string, MetadataTagHandler> = {
-    trace: traceMetadataHandler
+    trace: traceMetadataHandler,
+    'pika-metadata': pikaMetadataHandler
 };
