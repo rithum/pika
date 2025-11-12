@@ -1056,6 +1056,10 @@ export async function invokeAgentToGetAnswer(
 
     let error: unknown;
     let startingTime = Date.now();
+    // console.log('[STREAM-TIMING] invokeAgentToGetAnswer START', {
+    //     timestamp: new Date().toISOString(),
+    //     sessionId: chatSession.sessionId
+    // });
 
     let responseMsg = '';
     let usage: ChatMessageUsage = {
@@ -1066,6 +1070,7 @@ export async function invokeAgentToGetAnswer(
         totalCost: 0
     };
     let traces: Trace[] = [];
+    // let firstChunkReceived = false;
 
     function addUsage(newUsage: ChatMessageUsage) {
         console.log('Adding usage costs...');
@@ -1084,6 +1089,10 @@ export async function invokeAgentToGetAnswer(
         }, {}),
 
         onStart: function (): void {
+            // console.log('[STREAM-TIMING] onStart - Response stream starting', {
+            //     elapsed: Date.now() - startingTime,
+            //     timestamp: new Date().toISOString()
+            // });
             console.log('Setting up HTTP response stream...');
             awslambda.HttpResponseStream.from(responseStream, {
                 statusCode: 200,
@@ -1092,6 +1101,14 @@ export async function invokeAgentToGetAnswer(
             console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
         },
         onChunk: function (chunk: string, chunkCount: number, attribution?: Attribution): void {
+            // if (!firstChunkReceived) {
+            //     firstChunkReceived = true;
+            //     console.log('[STREAM-TIMING] First chunk received from LLM', {
+            //         elapsed: Date.now() - startingTime,
+            //         timestamp: new Date().toISOString(),
+            //         chunkLength: chunk.length
+            //     });
+            // }
             responseMsg += chunk;
             responseStream.write(chunk);
             console.log(`Chunk ${chunkCount} written to response stream`);
@@ -1122,7 +1139,16 @@ export async function invokeAgentToGetAnswer(
         console.log(`Initializing tool contexts (${toolContexts.length})...`);
         await Promise.all(toolContexts.map((context) => context.initialize?.(chatSession.sessionId)));
 
+        // console.log('[STREAM-TIMING] About to call invokeAgent (Bedrock)', {
+        //     elapsed: Date.now() - startingTime,
+        //     timestamp: new Date().toISOString()
+        // });
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:', appliedDirectives);
+        // console.log('[STREAM-TIMING] invokeAgent returned (streaming complete)', {
+        //     elapsed: Date.now() - startingTime,
+        //     timestamp: new Date().toISOString(),
+        //     responseLength: responseMsg.length
+        // });
         addUsage(mainResponse.usage);
         if (mainResponse.error) {
             throw mainResponse.error;
@@ -1245,6 +1271,10 @@ export async function invokeAgentToGetAnswer(
         hasError: !!error,
         tracesCount: traces.length
     });
+    // console.log('[STREAM-TIMING] invokeAgentToGetAnswer END (returning to converse)', {
+    //     totalElapsed: Date.now() - startingTime,
+    //     timestamp: new Date().toISOString()
+    // });
     console.log('=== INVOKE AGENT END ===');
 
     return assistantMessage;
