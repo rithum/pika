@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.15.6",
+  "latestVersion": "0.15.7",
   "currentDevelopment": "0.15.7",
   "releases": [
     {
       "version": "0.15.7",
-      "date": "TBD",
-      "status": "unreleased",
+      "date": "2026-01-14",
+      "status": "released",
       "breaking": false,
       "summary": "Fixed KMS key tagging for ECS container deployments",
       "highlights": [
