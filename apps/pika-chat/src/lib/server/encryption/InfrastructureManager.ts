@@ -156,12 +156,26 @@ export class InfrastructureManager {
 
         // Get current AWS account ID for policy
 
-        // Only use component tags from environment variables - don't invent our own tag names
-        // If no component tags are configured, create the key with no tags
+        // Required tags for IAM policy tag-based conditions to work
+        // These tags MUST be present on the KMS key for the Task Role to access it
+        const requiredTags = [
+            { TagKey: 'Project', TagValue: this.config.projNameKebabCase },
+            { TagKey: 'Stage', TagValue: this.config.stage },
+            { TagKey: 'Purpose', TagValue: 'CookieEncryption' }
+        ];
+
+        // Merge with any additional component tags from environment
+        const allTags = [...requiredTags];
+        if (this.config.componentTags && this.config.componentTags.length > 0) {
+            allTags.push(...this.config.componentTags);
+            console.log('[InfrastructureManager] Adding component tags to KMS key:', this.config.componentTags);
+        }
+
         const commandParams: any = {
             Description: `Cookie encryption key for ${this.config.projNameKebabCase} ${this.config.stage}`,
             KeyUsage: KeyUsageType.ENCRYPT_DECRYPT,
             KeySpec: KeySpec.SYMMETRIC_DEFAULT,
+            Tags: allTags,
             Policy: JSON.stringify({
                 Version: '2012-10-17',
                 Statement: [
@@ -193,13 +207,7 @@ export class InfrastructureManager {
             })
         };
 
-        // Only add tags if component tags are configured
-        if (this.config.componentTags && this.config.componentTags.length > 0) {
-            commandParams.Tags = this.config.componentTags;
-            console.log('[InfrastructureManager] Adding component tags to KMS key:', this.config.componentTags);
-        } else {
-            console.log('[InfrastructureManager] No component tags configured, creating KMS key without tags');
-        }
+        console.log('[InfrastructureManager] Creating KMS key with tags:', allTags);
 
         // Create the KMS key
         // Note: Tag errors during KMS key creation will fail the entire operation.

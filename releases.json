@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.6",
-  "currentDevelopment": "0.15.6",
+  "latestVersion": "0.15.7",
+  "currentDevelopment": "0.15.7",
   "releases": [
+    {
+      "version": "0.15.7",
+      "date": "2026-01-14",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed KMS key tagging for ECS container deployments",
+      "highlights": [
+        "Fixed IAM permission failures in ECS/container deployments by ensuring KMS keys always include required tags"
+      ]
+    },
     {
       "version": "0.15.6",
       "date": "2026-01-14",

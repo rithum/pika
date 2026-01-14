@@ -5,6 +5,16 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.7] - 2026-01-14
+
+### Fixed
+
+- **KMS Key Tagging** - Fixed KMS key creation to always include required tags for IAM policy conditions
+    - KMS keys now always include Project, Stage, and Purpose tags required for tag-based IAM policy conditions
+    - Previously, keys created without component tags would fail IAM permission checks in ECS/container deployments
+    - Added kms:GenerateDataKey permission to webapp IAM policy for cookie encryption operations
+    - Changed KMS resource specification from wildcard to specific ARN pattern for better security
+
 ## [0.15.6] - 2026-01-14
 
 ### Fixed
