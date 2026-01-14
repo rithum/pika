@@ -317,6 +317,20 @@ export class PikaChatConstruct extends Construct {
                                 }
                             }
                         }),
+                        // KMS permissions for initial key setup (before tag-based conditions can apply)
+                        // This is needed because we perform various KMS operations during key creation,
+                        // before keys have any tags that the tag-based conditions can match
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: [
+                                'kms:TagResource',
+                                'kms:CreateAlias',
+                                'kms:GenerateDataKey',
+                                'kms:Decrypt',
+                                'kms:DescribeKey'
+                            ],
+                            resources: [`arn:aws:kms:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:key/*`]
+                        }),
                         // KMS key policy management (unrestricted for key creation)
                         new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,

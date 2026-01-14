@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.15.5",
-  "currentDevelopment": "0.15.5",
+  "latestVersion": "0.15.6",
+  "currentDevelopment": "0.15.6",
   "releases": [
+    {
+      "version": "0.15.6",
+      "date": "2026-01-14",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed missing KMS permissions during initial key setup",
+      "highlights": [
+        "Fixed CDK deployment permission errors during KMS key creation"
+      ]
+    },
     {
       "version": "0.15.5",
       "date": "2025-11-12",

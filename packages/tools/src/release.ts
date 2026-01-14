@@ -1111,6 +1111,24 @@ async function updateNotes(options: { since?: string; ignoreUncommitted?: boolea
         workingVersion = await ensureUnreleasedVersion();
     }
 
+    // If finalizing, update releases.json with today's date
+    if (finalizeVersion) {
+        const releases = loadReleasesJson();
+        const releaseIndex = releases.releases.findIndex((r) => r.version === finalizeVersion);
+
+        if (releaseIndex !== -1) {
+            const release = releases.releases[releaseIndex];
+            const today = new Date().toISOString().split('T')[0];
+
+            // Only update if date is TBD or different from today
+            if (release.date === 'TBD' || release.date !== today) {
+                release.date = today;
+                saveReleasesJson(releases);
+                console.log(chalk.green(`✓ Updated releases.json: ${finalizeVersion} date set to ${today}\n`));
+            }
+        }
+    }
+
     const includeUncommitted = !options.ignoreUncommitted;
 
     // Get current branch
