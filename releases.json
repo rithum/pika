@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.16.2",
+  "latestVersion": "0.16.3",
   "currentDevelopment": "0.16.3",
   "releases": [
     {
       "version": "0.16.3",
       "date": "2026-01-19",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Theme file organization and CLI fixes",
       "highlights": [
