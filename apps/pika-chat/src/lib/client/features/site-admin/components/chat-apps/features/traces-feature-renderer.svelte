@@ -107,7 +107,7 @@
 <div class="space-y-4">
     <div>
         {#if validErrors.length > 0}
-            <div class="p-3 border border-red-200 bg-red-50 rounded text-sm text-red-800 mb-4">
+            <div class="p-3 border border-destructive/20 bg-danger-bg rounded text-sm text-destructive mb-4">
                 {#each validErrors as error}
                     <div>{error.desc}</div>
                 {/each}
@@ -192,7 +192,7 @@
     </div>
 
     {#if isOverridden && originalFeature}
-        <div class="p-3 border border-blue-200 bg-blue-50 rounded text-sm text-blue-800">
+        <div class="p-3 border border-info/20 bg-info-bg rounded text-sm text-info">
             <div class="font-medium mb-1">Original Settings:</div>
             <div class="space-y-1">
                 <div>Basic traces enabled: {originalFeature.enabled ? 'Yes' : 'No'}</div>

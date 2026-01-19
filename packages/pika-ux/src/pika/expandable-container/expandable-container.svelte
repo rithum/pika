@@ -80,18 +80,18 @@ Props:
             const firstStepNotDone = stepsInProcess.steps.find((step) => !step.done);
             if (currentStep?.done) {
                 // This step is done
-                return { iconColor: 'text-green-600', textColor: 'text-gray-600', icon: Check, titleIcon: undefined };
+                return { iconColor: 'text-success', textColor: 'text-muted-foreground', icon: Check, titleIcon: undefined };
             } else if (firstStepNotDone?.stepId === currentStep?.stepId) {
                 // This is the first step that hasn't been done
                 return {
-                    iconColor: 'text-purple-600',
-                    textColor: 'text-gray-600',
+                    iconColor: 'text-ai',
+                    textColor: 'text-muted-foreground',
                     icon: Circle,
                     titleIcon: ArrowBigRight
                 };
             } else {
                 // You can't do this step yet since it's after the current step
-                return { iconColor: 'text-yellow-600', textColor: 'text-gray-400', icon: Minus, titleIcon: undefined };
+                return { iconColor: 'text-warning', textColor: 'text-muted-foreground/60', icon: Minus, titleIcon: undefined };
             }
         }
 

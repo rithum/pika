@@ -58,7 +58,7 @@
             <DropdownMenu.Root bind:open={dropdownOpen}>
                 <DropdownMenu.Trigger>
                     {#snippet child({ props })}
-                        <Button {...props} variant="ghost" size="icon" class="data-[state=open]:bg-blue-200 h-8 w-8 p-0 hover:bg-blue-200 {dropdownOpen ? 'bg-blue-200' : ''} ">
+                        <Button {...props} variant="ghost" size="icon" class="data-[state=open]:bg-accent h-8 w-8 p-0 hover:bg-accent {dropdownOpen ? 'bg-accent' : ''} ">
                             <EllipsisVertical class="text-muted-foreground/70 size-3.5" />
                         </Button>
                     {/snippet}

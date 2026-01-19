@@ -866,6 +866,9 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
                 console.log();
                 console.log(chalk.green.bold(`Sync complete from ${targetBranch}!`));
+
+                // Check for theme schema updates
+                await checkThemeSchemaUpdate(projectRoot);
             } catch (error) {
                 logger.stopSpinner(false, 'Sync failed');
                 throw error;
@@ -2047,4 +2050,45 @@ function showSyncHelp(): void {
     console.log(chalk.gray('  • Framework documentation: https://github.com/rithum/pika'));
     console.log(chalk.gray('  • Customization guide: ./docs/help/customization.md'));
     console.log(chalk.gray('  • Run "pika sync --help" for command-line options'));
+}
+
+/**
+ * Check if the user's theme schema is outdated and notify them
+ */
+async function checkThemeSchemaUpdate(projectRoot: string): Promise<void> {
+    const CURRENT_THEME_SCHEMA_VERSION = 1; // Keep in sync with theme-schema.ts
+    
+    const themeConfigPath = path.join(projectRoot, 'apps/pika-chat/src/lib/custom/theme-config.ts');
+    const pikaConfigPath = path.join(projectRoot, 'pika-config.ts');
+
+    // Check if custom theme is enabled
+    if (!existsSync(pikaConfigPath)) return;
+    
+    const pikaConfig = readFileSync(pikaConfigPath, 'utf-8');
+    const themeEnabledMatch = pikaConfig.match(/customTheme:\s*\{[^}]*enabled:\s*(true|false)/s);
+    const themeEnabled = themeEnabledMatch?.[1] === 'true';
+    
+    if (!themeEnabled) return;
+    
+    // Check if theme-config exists
+    if (!existsSync(themeConfigPath)) return;
+    
+    // Parse schema version
+    const themeConfig = readFileSync(themeConfigPath, 'utf-8');
+    const versionMatch = themeConfig.match(/schemaVersion:\s*(\d+)/);
+    const userVersion = versionMatch ? parseInt(versionMatch[1], 10) : 1;
+    
+    if (userVersion < CURRENT_THEME_SCHEMA_VERSION) {
+        console.log();
+        console.log(chalk.yellow('━'.repeat(60)));
+        console.log(chalk.yellow.bold('  ⚠️  Theme Schema Update Available'));
+        console.log(chalk.yellow('━'.repeat(60)));
+        console.log();
+        console.log(chalk.gray(`  Your theme: v${userVersion}  →  Latest: v${CURRENT_THEME_SCHEMA_VERSION}`));
+        console.log(chalk.gray('  New theme variables are available for customization.'));
+        console.log();
+        console.log(chalk.gray('  Run ') + chalk.cyan('pika theme check') + chalk.gray(' to see what\'s new'));
+        console.log(chalk.gray('  Run ') + chalk.cyan('pika theme update') + chalk.gray(' to add new variables'));
+        console.log(chalk.yellow('━'.repeat(60)));
+    }
 }

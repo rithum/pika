@@ -102,7 +102,13 @@ export const pikaConfig: PikaConfig = {
         uiCustomization: {
             enabled: true,
             showUserRegionInLeftNav: false,
-            showChatHistoryInStandaloneMode: true
+            showChatHistoryInStandaloneMode: true,
+            customTheme: {
+                // Set to true to enable custom theming. A sample theme is ready at the path below - try it!
+                enabled: false,
+                // Path relative to apps/pika-chat/
+                themeConfigPath: 'src/lib/custom/theme-config'
+            }
         },
         sessionInsights: {
             enabled: true

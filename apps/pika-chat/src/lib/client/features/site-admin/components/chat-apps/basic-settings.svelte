@@ -35,7 +35,7 @@
                 <div class="flex flex-col mr-6">
                     <div>
                         <span class="text-sm font-medium">Chat App Status:</span>
-                        <span class="font-medium {app.enabled ? 'text-blue-600' : 'text-red-600'}">
+                        <span class="font-medium {app.enabled ? 'text-success' : 'text-destructive'}">
                             {app.enabled ? 'Enabled' : 'Disabled'}
                         </span>
                     </div>

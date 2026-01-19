@@ -108,7 +108,7 @@
     </div>
 
     {#if isOverridden && originalFeature}
-        <div class="p-3 border border-blue-200 bg-blue-50 rounded text-sm text-blue-800">
+        <div class="p-3 border border-info/20 bg-info-bg rounded text-sm text-info">
             <div class="font-medium mb-1">Original Settings:</div>
             <div class="space-y-1">
                 <div>

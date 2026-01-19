@@ -14,22 +14,22 @@
     const typeConfig = {
         info: {
             icon: Info,
-            bgColor: 'bg-blue-50',
-            iconColor: 'text-blue-500',
-            borderColor: 'border-blue-100',
+            bgColor: 'bg-info-bg',
+            iconColor: 'text-info',
+            borderColor: 'border-info/20'
         },
         warning: {
             icon: TriangleAlert,
-            bgColor: 'bg-yellow-50',
-            iconColor: 'text-yellow-500',
-            borderColor: 'border-yellow-100',
+            bgColor: 'bg-warning-bg',
+            iconColor: 'text-warning',
+            borderColor: 'border-warning/20'
         },
         error: {
             icon: CircleAlert,
-            bgColor: 'bg-red-50',
-            iconColor: 'text-red-500',
-            borderColor: 'border-red-100',
-        },
+            bgColor: 'bg-danger-bg',
+            iconColor: 'text-destructive',
+            borderColor: 'border-destructive/20'
+        }
     } as const;
 
     const config = typeConfig[type];
@@ -40,7 +40,7 @@
         {#if config.icon}
             <config.icon class="w-5 h-5 {config.iconColor}" />
         {/if}
-        <div class="text-sm text-gray-700">
+        <div class="text-sm text-foreground">
             {@render children?.()}
         </div>
     </div>

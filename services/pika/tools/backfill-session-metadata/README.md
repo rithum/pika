@@ -14,7 +14,7 @@ For each session that's missing `user_type`:
 
 This tool is part of the **0.11.0 migration**. Run it after upgrading to 0.11.0 to backfill existing session data.
 
-See the [Upgrading to 0.11.0 Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0/) for complete migration instructions.
+See the [Upgrading to 0.11.0 Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-11-0) for complete migration instructions.
 
 ## Prerequisites
 

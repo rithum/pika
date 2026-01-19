@@ -302,7 +302,7 @@ PikaTable - A reusable table component with server-side pagination, sorting, and
         <Table.Root class="h-full">
             <Table.Header>
                 {#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
-                    <Table.Row class="sticky top-0 bg-gray-50 shadow-[inset_0_-1px_0_#ededed]">
+                    <Table.Row class="sticky top-0 bg-muted shadow-[inset_0_-1px_0_var(--border)]">
                         {#each headerGroup.headers as header (header.id)}
                             <Table.Head colspan={header.colSpan}>
                                 {#if !header.isPlaceholder}

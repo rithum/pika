@@ -1,0 +1,716 @@
+---
+title: UI Theming
+description: Complete guide to customizing colors, typography, and visual styling in your Pika application
+---
+
+Transform your Pika application's appearance with a powerful theming system based on CSS custom properties and OKLCH colors. Your theme changes are protected from framework updates and take effect immediately with hot reload.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Enable custom theming in your project
+- Understand the theme variable system and color format
+- Customize your brand colors and semantic colors
+- Use CLI commands to manage theme updates
+- Apply themes to embedded web components
+
+## Prerequisites
+
+- A running Pika installation
+- Basic understanding of CSS custom properties (variables)
+- Familiarity with color theory (helpful but not required)
+
+## Quick Start
+
+### Step 1: Enable Theming
+
+In `pika-config.ts`, enable the custom theme. A sample theme is already included for you to try:
+
+```typescript
+siteFeatures: {
+    uiCustomization: {
+        featureId: 'uiCustomization',
+        enabled: true,
+        customTheme: {
+            // Set to true to enable - a sample theme is ready to try!
+            enabled: true,
+            // Path relative to apps/pika-chat/
+            themeConfigPath: 'src/lib/custom/theme-config'
+        }
+    }
+}
+```
+
+### Step 2: Customize Your Theme
+
+Edit `apps/pika-chat/src/lib/custom/theme-config.ts`:
+
+```typescript
+import type { ThemeConfig } from 'pika-shared/types/chatbot/theme-types';
+
+export const themeConfig: ThemeConfig = {
+    schemaVersion: 1,
+    name: 'My Brand Theme',
+    
+    cssVariables: {
+        light: {
+            // Your brand's primary color
+            primary: 'oklch(0.55 0.2 250)',        // Blue
+            'primary-foreground': 'oklch(1 0 0)',  // White text
+        },
+        dark: {
+            primary: 'oklch(0.65 0.18 250)',
+        }
+    }
+};
+```
+
+### Step 3: See Changes
+
+The dev server automatically reloads when you save theme changes. No restart required.
+
+---
+
+## Understanding Theme Variables
+
+Pika uses semantic CSS variables that describe **purpose**, not raw colors. This makes theming intuitive and maintainable.
+
+### Variable Categories
+
+{% tabs %}
+{% tab label="Core Brand" %}
+
+The foundation of your brand identity.
+
+| Variable | Description | What It Affects |
+|----------|-------------|-----------------|
+| `primary` | Your main brand color | Primary buttons, links, active states, focus rings |
+| `primary-foreground` | Text/icons on primary | Button text, icons on primary backgrounds |
+| `secondary` | Secondary actions | Secondary buttons, badges, tags |
+| `secondary-foreground` | Text on secondary | Secondary button text |
+| `destructive` | Danger actions | Delete buttons, error states |
+| `destructive-foreground` | Text on destructive | Destructive button text |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        primary: 'oklch(0.47 0.2 290)',           // Purple brand
+        'primary-foreground': 'oklch(1 0 0)',     // White text
+        secondary: 'oklch(0.97 0.01 290)',        // Light purple
+        'secondary-foreground': 'oklch(0.47 0.2 290)',
+        destructive: 'oklch(0.55 0.2 25)',        // Red
+    }
+}
+```
+
+{% /tab %}
+
+{% tab label="Surface & Text" %}
+
+Backgrounds and text colors across the application.
+
+| Variable | Description | What It Affects |
+|----------|-------------|-----------------|
+| `background` | Main page background | App background |
+| `foreground` | Default text color | Body text, headings |
+| `card` | Card backgrounds | Cards, dialogs, elevated surfaces |
+| `card-foreground` | Text on cards | Card content text |
+| `popover` | Popover backgrounds | Tooltips, dropdowns, menus |
+| `popover-foreground` | Text in popovers | Popover content |
+| `muted` | Subtle backgrounds | Tab backgrounds, code blocks, disabled states |
+| `muted-foreground` | Secondary text | Placeholders, help text, labels |
+| `accent` | Highlight backgrounds | Hover states, selected rows |
+| `accent-foreground` | Text on highlights | Highlighted item text |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        background: 'oklch(1 0 0)',               // Pure white
+        foreground: 'oklch(0.22 0.02 260)',       // Near black
+        card: 'oklch(0.99 0.002 260)',            // Slight off-white
+        muted: 'oklch(0.97 0.005 260)',           // Light gray
+        'muted-foreground': 'oklch(0.45 0.03 260)', // Medium gray
+    }
+}
+```
+
+{% /tab %}
+
+{% tab label="Borders & Focus" %}
+
+UI element boundaries and focus indicators.
+
+| Variable | Description | What It Affects |
+|----------|-------------|-----------------|
+| `border` | Default borders | Card borders, dividers, table borders |
+| `input` | Input field borders | Text inputs, selects, textareas |
+| `ring` | Focus ring color | Keyboard focus indicators |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        border: 'oklch(0.88 0.01 260)',    // Light gray border
+        input: 'oklch(0.88 0.01 260)',     // Same as border
+        ring: 'oklch(0.55 0.15 250)',      // Blue focus ring
+    }
+}
+```
+
+{% /tab %}
+
+{% tab label="Status Colors" %}
+
+Semantic colors for feedback and states (Pika extensions).
+
+| Variable | Description | What It Affects |
+|----------|-------------|-----------------|
+| `success` | Success state | Success messages, checkmarks |
+| `success-bg` | Success background | Success badges, alerts |
+| `warning` | Warning state | Warning messages, caution icons |
+| `warning-bg` | Warning background | Warning badges, alerts |
+| `info` | Info state | Information messages |
+| `info-bg` | Info background | Info badges, alerts |
+| `ai` | AI/Assistant | AI status indicators, processing |
+| `ai-bg` | AI background | AI badges, assistant messages |
+| `danger-bg` | Danger background | Error alerts |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        success: 'oklch(0.55 0.16 142)',          // Green
+        'success-bg': 'oklch(0.95 0.05 142)',     // Light green
+        warning: 'oklch(0.75 0.15 75)',           // Orange/amber
+        'warning-bg': 'oklch(0.96 0.05 75)',      // Light amber
+        info: 'oklch(0.55 0.15 250)',             // Blue
+        'info-bg': 'oklch(0.93 0.05 250)',        // Light blue
+        ai: 'oklch(0.55 0.2 280)',                // Purple
+        'ai-bg': 'oklch(0.93 0.05 280)',          // Light purple
+    }
+}
+```
+
+{% /tab %}
+
+{% tab label="Sidebar" %}
+
+Navigation sidebar specific colors.
+
+| Variable | Description | What It Affects |
+|----------|-------------|-----------------|
+| `sidebar-background` | Sidebar background | Navigation area |
+| `sidebar-foreground` | Sidebar text | Navigation links |
+| `sidebar-primary` | Selected item | Active navigation item |
+| `sidebar-primary-foreground` | Selected text | Active item text |
+| `sidebar-accent` | Hover state | Item hover background |
+| `sidebar-accent-foreground` | Hover text | Hovered item text |
+| `sidebar-border` | Sidebar borders | Dividers, edges |
+| `sidebar-ring` | Sidebar focus | Focus indicators |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        'sidebar-background': 'oklch(0.98 0.005 260)',
+        'sidebar-foreground': 'oklch(0.35 0.02 260)',
+        'sidebar-primary': 'oklch(0.47 0.2 290)',
+        'sidebar-primary-foreground': 'oklch(1 0 0)',
+        'sidebar-accent': 'oklch(0.95 0.01 290)',
+    }
+}
+```
+
+{% /tab %}
+
+{% tab label="Charts" %}
+
+Data visualization colors.
+
+| Variable | Description |
+|----------|-------------|
+| `chart-1` | First series color |
+| `chart-2` | Second series color |
+| `chart-3` | Third series color |
+| `chart-4` | Fourth series color |
+| `chart-5` | Fifth series color |
+
+**Example:**
+
+```typescript
+cssVariables: {
+    light: {
+        'chart-1': 'oklch(0.55 0.2 250)',   // Blue
+        'chart-2': 'oklch(0.55 0.16 142)',  // Green
+        'chart-3': 'oklch(0.75 0.15 75)',   // Amber
+        'chart-4': 'oklch(0.55 0.2 25)',    // Red
+        'chart-5': 'oklch(0.55 0.2 290)',   // Purple
+    }
+}
+```
+
+{% /tab %}
+{% /tabs %}
+
+---
+
+## Understanding OKLCH Colors
+
+Pika uses the OKLCH color format for themes. OKLCH provides perceptually uniform colors, making it easier to create harmonious palettes.
+
+### OKLCH Format
+
+```
+oklch(lightness chroma hue)
+```
+
+| Component | Range | Description |
+|-----------|-------|-------------|
+| **Lightness** | 0 to 1 | 0 = black, 1 = white |
+| **Chroma** | 0 to ~0.4 | 0 = gray, higher = more saturated |
+| **Hue** | 0 to 360 | Color wheel angle |
+
+### Common Hue Values
+
+| Hue | Color |
+|-----|-------|
+| 0-30 | Red/Orange |
+| 30-90 | Orange/Yellow |
+| 90-150 | Yellow/Green |
+| 150-210 | Green/Cyan |
+| 210-270 | Cyan/Blue |
+| 270-330 | Blue/Purple |
+| 330-360 | Purple/Red |
+
+### Example Colors
+
+```typescript
+// Brand colors
+'oklch(0.55 0.2 250)'   // Vibrant blue
+'oklch(0.47 0.2 290)'   // Rich purple
+'oklch(0.55 0.16 142)'  // Fresh green
+'oklch(0.55 0.2 25)'    // Alert red
+'oklch(0.75 0.15 75)'   // Warm amber
+
+// Neutral variations
+'oklch(0.97 0.005 260)' // Very light gray (almost white)
+'oklch(0.88 0.01 260)'  // Light gray (borders)
+'oklch(0.45 0.03 260)'  // Medium gray (secondary text)
+'oklch(0.22 0.02 260)'  // Dark gray (primary text)
+```
+
+### Creating a Color Palette
+
+For a cohesive theme, vary lightness and chroma while keeping the same hue:
+
+```typescript
+customPalettes: {
+    brand: {
+        '50':  'oklch(0.97 0.01 290)',   // Lightest
+        '100': 'oklch(0.94 0.02 290)',
+        '200': 'oklch(0.88 0.05 290)',
+        '300': 'oklch(0.78 0.10 290)',
+        '400': 'oklch(0.62 0.15 290)',
+        '500': 'oklch(0.47 0.20 290)',   // Primary
+        '600': 'oklch(0.40 0.18 290)',
+        '700': 'oklch(0.33 0.15 290)',
+        '800': 'oklch(0.26 0.12 290)',
+        '900': 'oklch(0.20 0.08 290)',   // Darkest
+    }
+}
+```
+
+---
+
+## Visual Reference
+
+Here's what each variable affects in the UI:
+
+### Buttons
+
+| Button Type | Variables Used |
+|-------------|----------------|
+| Primary | `primary` background, `primary-foreground` text |
+| Secondary | `secondary` background, `secondary-foreground` text |
+| Destructive | `destructive` background, `destructive-foreground` text |
+| Ghost | Transparent, `foreground` text, `accent` hover |
+| Outline | `border` border, `foreground` text, `accent` hover |
+
+### Cards & Containers
+
+```
+┌─────────────────────────────────────┐  ← border
+│  Card Title                         │  ← card-foreground
+│  ─────────────────────────────────  │  ← border (divider)
+│  Card content goes here.            │  ← card-foreground
+│  Secondary info here.               │  ← muted-foreground
+│                                     │
+│  [Primary Button] [Secondary]       │
+└─────────────────────────────────────┘
+       ↑ card background
+```
+
+### Status Badges
+
+| Badge | Background | Text |
+|-------|------------|------|
+| Success | `success-bg` | `success` |
+| Warning | `warning-bg` | `warning` |
+| Info | `info-bg` | `info` |
+| Error | `danger-bg` | `destructive` |
+| AI | `ai-bg` | `ai` |
+
+### Form Elements
+
+```
+Label text                            ← foreground
+┌─────────────────────────────┐       ← input (border)
+│ Placeholder text            │       ← muted-foreground
+└─────────────────────────────┘
+Help text below                       ← muted-foreground
+
+[Focused state]
+┌─────────────────────────────┐       ← ring (focus outline)
+│ User input text             │       ← foreground
+└─────────────────────────────┘
+```
+
+### Navigation Sidebar
+
+```
+┌──────────────────┐
+│ Logo             │  ← sidebar-foreground
+├──────────────────┤  ← sidebar-border
+│ ▸ Active Item    │  ← sidebar-primary (bg), sidebar-primary-foreground
+│   Nav Item       │  ← sidebar-foreground
+│   Nav Item       │  ← sidebar-accent (hover bg)
+│   ───────────    │  ← sidebar-border
+│   Nav Item       │
+└──────────────────┘
+  ↑ sidebar-background
+```
+
+---
+
+## Theme Management with CLI
+
+Pika includes CLI commands to help manage your theme as the framework evolves.
+
+### Check Theme Status
+
+```bash
+pika theme check
+```
+
+Shows if your theme is up to date with the latest schema:
+
+```
+📦 Theme Schema Check
+
+Current schema version: v1
+Your theme version:     v1
+
+✓ Your theme is up to date!
+```
+
+### Update Theme
+
+```bash
+pika theme update
+```
+
+Adds new variables as comments to your theme file when new variables are added to the framework.
+
+### List All Variables
+
+```bash
+pika theme list
+```
+
+Shows all available theme variables with descriptions and default values.
+
+### Show Documentation
+
+```bash
+pika theme docs
+```
+
+Displays quick-start guide and usage information.
+
+---
+
+## Dark Mode Support
+
+Your theme automatically supports light and dark modes. Define both:
+
+```typescript
+cssVariables: {
+    light: {
+        background: 'oklch(1 0 0)',              // White
+        foreground: 'oklch(0.22 0.02 260)',      // Dark text
+        primary: 'oklch(0.47 0.2 290)',
+        card: 'oklch(1 0 0)',
+    },
+    dark: {
+        background: 'oklch(0.15 0.02 260)',      // Dark
+        foreground: 'oklch(0.95 0.005 260)',     // Light text
+        primary: 'oklch(0.70 0.18 290)',         // Brighter for dark bg
+        card: 'oklch(0.18 0.02 260)',
+    }
+}
+```
+
+{% aside type="tip" title="Dark Mode Tips" %}
+- Increase lightness for primary colors in dark mode (they need to stand out against dark backgrounds)
+- Reduce chroma slightly in dark mode to prevent eye strain
+- Ensure sufficient contrast for accessibility (WCAG recommends 4.5:1 for normal text)
+{% /aside %}
+
+---
+
+## Theming Web Components
+
+If you're embedding Pika components as web components in other applications (like Angular or React apps), those components can inherit your theme.
+
+### How It Works
+
+Web components read CSS variables from the document root. Your host application should define these variables:
+
+```css
+/* In your host application's global CSS */
+:root {
+    --primary: oklch(0.47 0.2 290);
+    --primary-foreground: oklch(1 0 0);
+    --background: oklch(1 0 0);
+    /* ... other variables */
+}
+
+.dark {
+    --primary: oklch(0.70 0.18 290);
+    --background: oklch(0.15 0.02 260);
+    /* ... dark mode overrides */
+}
+```
+
+### Reading Theme Values Programmatically
+
+Use the helper functions from `pika-shared`:
+
+```typescript
+import { getThemeVariable, getPikaThemeTokens } from 'pika-shared/util/wc-utils';
+
+// Get a single variable
+const primaryColor = getThemeVariable('primary');
+// Returns: "oklch(0.47 0.2 290)"
+
+// Get all theme tokens
+const tokens = getPikaThemeTokens();
+// Returns: { primary: "oklch(...)", background: "oklch(...)", ... }
+```
+
+### Integration with Design Systems
+
+To map Pika variables to another design system (e.g., Angular Material):
+
+```scss
+// In your Angular application
+:root {
+    // Set Pika variables that web components will use
+    --primary: #{$your-brand-color};
+    --primary-foreground: white;
+    
+    // Also map to Material theme if needed
+    --mat-primary: var(--primary);
+}
+```
+
+---
+
+## Complete Theme Example
+
+Here's a full theme configuration for a corporate brand:
+
+```typescript
+import type { ThemeConfig } from 'pika-shared/types/chatbot/theme-types';
+
+export const themeConfig: ThemeConfig = {
+    schemaVersion: 1,
+    name: 'Acme Corp Theme',
+    fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
+
+    cssVariables: {
+        light: {
+            // Brand Colors (Teal)
+            primary: 'oklch(0.55 0.14 195)',
+            'primary-foreground': 'oklch(1 0 0)',
+            secondary: 'oklch(0.97 0.01 195)',
+            'secondary-foreground': 'oklch(0.40 0.10 195)',
+
+            // Surfaces
+            background: 'oklch(0.995 0.002 260)',
+            foreground: 'oklch(0.20 0.02 260)',
+            card: 'oklch(1 0 0)',
+            'card-foreground': 'oklch(0.20 0.02 260)',
+            popover: 'oklch(1 0 0)',
+            'popover-foreground': 'oklch(0.20 0.02 260)',
+            muted: 'oklch(0.97 0.003 260)',
+            'muted-foreground': 'oklch(0.50 0.02 260)',
+            accent: 'oklch(0.96 0.01 195)',
+            'accent-foreground': 'oklch(0.40 0.10 195)',
+
+            // Borders
+            border: 'oklch(0.90 0.008 260)',
+            input: 'oklch(0.90 0.008 260)',
+            ring: 'oklch(0.55 0.14 195)',
+
+            // Destructive
+            destructive: 'oklch(0.55 0.2 25)',
+            'destructive-foreground': 'oklch(1 0 0)',
+
+            // Status (harmonized with brand)
+            success: 'oklch(0.55 0.15 155)',
+            'success-foreground': 'oklch(1 0 0)',
+            'success-bg': 'oklch(0.95 0.04 155)',
+            warning: 'oklch(0.72 0.14 65)',
+            'warning-foreground': 'oklch(0.20 0.02 65)',
+            'warning-bg': 'oklch(0.96 0.04 65)',
+            info: 'oklch(0.55 0.14 240)',
+            'info-foreground': 'oklch(1 0 0)',
+            'info-bg': 'oklch(0.94 0.04 240)',
+            ai: 'oklch(0.55 0.14 195)',
+            'ai-foreground': 'oklch(1 0 0)',
+            'ai-bg': 'oklch(0.94 0.04 195)',
+            'danger-bg': 'oklch(0.95 0.06 25)',
+
+            // Sidebar (subtle brand tint)
+            'sidebar-background': 'oklch(0.98 0.004 195)',
+            'sidebar-foreground': 'oklch(0.35 0.02 260)',
+            'sidebar-primary': 'oklch(0.55 0.14 195)',
+            'sidebar-primary-foreground': 'oklch(1 0 0)',
+            'sidebar-accent': 'oklch(0.95 0.01 195)',
+            'sidebar-accent-foreground': 'oklch(0.30 0.02 260)',
+            'sidebar-border': 'oklch(0.90 0.01 195)',
+            'sidebar-ring': 'oklch(0.55 0.14 195)',
+
+            // Charts (brand-coordinated palette)
+            'chart-1': 'oklch(0.55 0.14 195)',
+            'chart-2': 'oklch(0.55 0.15 155)',
+            'chart-3': 'oklch(0.72 0.14 65)',
+            'chart-4': 'oklch(0.55 0.14 240)',
+            'chart-5': 'oklch(0.55 0.15 320)',
+        },
+        dark: {
+            primary: 'oklch(0.70 0.12 195)',
+            'primary-foreground': 'oklch(0.15 0.02 195)',
+            secondary: 'oklch(0.25 0.03 195)',
+            'secondary-foreground': 'oklch(0.85 0.06 195)',
+
+            background: 'oklch(0.13 0.015 260)',
+            foreground: 'oklch(0.95 0.005 260)',
+            card: 'oklch(0.16 0.015 260)',
+            'card-foreground': 'oklch(0.95 0.005 260)',
+            popover: 'oklch(0.16 0.015 260)',
+            'popover-foreground': 'oklch(0.95 0.005 260)',
+            muted: 'oklch(0.22 0.015 260)',
+            'muted-foreground': 'oklch(0.68 0.02 260)',
+            accent: 'oklch(0.25 0.03 195)',
+            'accent-foreground': 'oklch(0.85 0.06 195)',
+
+            border: 'oklch(0.28 0.015 260)',
+            input: 'oklch(0.28 0.015 260)',
+            ring: 'oklch(0.65 0.10 195)',
+
+            destructive: 'oklch(0.50 0.18 25)',
+            'destructive-foreground': 'oklch(0.95 0.01 25)',
+
+            success: 'oklch(0.62 0.14 155)',
+            'success-bg': 'oklch(0.22 0.06 155)',
+            warning: 'oklch(0.68 0.12 65)',
+            'warning-bg': 'oklch(0.24 0.06 65)',
+            info: 'oklch(0.60 0.12 240)',
+            'info-bg': 'oklch(0.22 0.06 240)',
+            ai: 'oklch(0.60 0.12 195)',
+            'ai-bg': 'oklch(0.22 0.06 195)',
+            'danger-bg': 'oklch(0.24 0.08 25)',
+
+            'sidebar-background': 'oklch(0.15 0.01 195)',
+            'sidebar-foreground': 'oklch(0.85 0.02 260)',
+            'sidebar-primary': 'oklch(0.65 0.12 195)',
+            'sidebar-primary-foreground': 'oklch(0.13 0.01 195)',
+            'sidebar-accent': 'oklch(0.22 0.02 195)',
+            'sidebar-accent-foreground': 'oklch(0.85 0.02 260)',
+            'sidebar-border': 'oklch(0.28 0.02 195)',
+            'sidebar-ring': 'oklch(0.60 0.10 195)',
+
+            'chart-1': 'oklch(0.65 0.12 195)',
+            'chart-2': 'oklch(0.62 0.14 155)',
+            'chart-3': 'oklch(0.68 0.12 65)',
+            'chart-4': 'oklch(0.60 0.12 240)',
+            'chart-5': 'oklch(0.60 0.12 320)',
+        }
+    },
+
+    customPalettes: {
+        brand: {
+            '50': 'oklch(0.97 0.01 195)',
+            '100': 'oklch(0.94 0.02 195)',
+            '200': 'oklch(0.88 0.04 195)',
+            '300': 'oklch(0.78 0.08 195)',
+            '400': 'oklch(0.65 0.11 195)',
+            '500': 'oklch(0.55 0.14 195)',
+            '600': 'oklch(0.47 0.12 195)',
+            '700': 'oklch(0.38 0.10 195)',
+            '800': 'oklch(0.30 0.08 195)',
+            '900': 'oklch(0.22 0.06 195)',
+        }
+    }
+};
+```
+
+---
+
+## Best Practices
+
+### 1. Start with Primary Color
+
+Begin by setting your brand's primary color. Derive other colors from it for visual harmony.
+
+### 2. Test Both Modes
+
+Always preview your theme in both light and dark modes. Colors that look great in light mode may need adjustment for dark mode.
+
+### 3. Maintain Contrast
+
+Ensure text remains readable:
+- `foreground` on `background`: at least 4.5:1 contrast
+- `primary-foreground` on `primary`: at least 4.5:1 contrast
+
+### 4. Use Semantic Variables
+
+Override semantic variables rather than individual component styles. This ensures consistency across all components.
+
+### 5. Keep Schema Updated
+
+When you run `pika sync` and see a theme update notification, run `pika theme check` to see new variables you might want to customize.
+
+---
+
+## Next Steps
+
+- [Override Features](/guides/customization/override-features/) - Customize behavior per chat app
+- [Build Web Components](/guides/customization/build-web-components/) - Create custom interactive widgets
+- [Deploy Web Components](/guides/customization/deploy-web-components/) - Embed in other applications
+
+---
+
+{% aside type="success" title="Protected Customization" %}
+Your theme configuration in `apps/pika-chat/src/lib/custom/` is protected from framework updates. Customize with confidence!
+{% /aside %}

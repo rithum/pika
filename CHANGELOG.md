@@ -5,6 +5,59 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-01-19
+
+### Added
+
+- **UI Theming System** - Complete theming system for customizing colors, typography, and visual styling
+    - New `customTheme` configuration in `siteFeatures.uiCustomization` to enable custom themes
+    - Theme configuration via `apps/pika-chat/src/lib/custom/theme-config.ts` - protected from framework updates
+    - Semantic CSS variables for brand colors (`primary`, `secondary`, `destructive`), surfaces (`background`, `card`, `muted`), borders, status colors (`success`, `warning`, `info`, `ai`), sidebar, and charts
+    - OKLCH color format for perceptually uniform, accessible color palettes
+    - Full dark mode support with separate light/dark variable definitions
+    - Custom color palettes for brand-specific shade variations
+    - Hot Module Replacement (HMR) - theme changes take effect immediately without restart
+    - Custom directory at `apps/pika-chat/src/lib/custom/` for theme files, protected from `pika sync`
+    - Comprehensive theming documentation with visual references and examples
+
+- **Theme CLI Commands** - New `pika theme` command for theme management
+    - `pika theme check` - Verify theme schema version and see available updates
+    - `pika theme update` - Add new theme variables when framework updates introduce them
+    - `pika theme list` - Display all available CSS variables with descriptions and defaults
+    - `pika theme docs` - Quick reference for theming system and OKLCH color format
+
+- **Theme Schema Versioning** - Future-proof theme configuration with version tracking
+    - Schema version in `theme-config.ts` enables notification of new theme variables
+    - CLI commands help upgrade themes when new variables are added
+    - Backward compatible - themes continue working without changes
+
+- **Web Component Theme Access** - Programmatic access to theme values for custom components
+    - `getThemeVariable(name)` - Read individual CSS variable values from the document
+    - `getPikaThemeTokens()` - Get all semantic theme tokens as an object for use in web components
+    - Enables consistent theming across embedded Pika components in host applications
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.16.0) for @since 0.16.0 to find all type definitions that were added, updated, or removed in this release.
+
+### Changed
+
+- **UI Consistency Improvements** - Standardized styling across admin components
+    - Config section components updated for consistent visual treatment
+    - Feature renderer components refined for better visual hierarchy
+    - Session insights and analytics components polished for improved readability
+
+### New TypeScript Interfaces
+
+- `ThemeConfig` - Main theme configuration interface (`@since 0.16.0`)
+- `CustomThemeConfig` - Configuration for enabling custom themes (`@since 0.16.0`)
+- `SemanticColorVariable` - Type-safe semantic color variable names (`@since 0.16.0`)
+- `ThemeSchemaChange` - Schema change tracking interface (`@since 0.16.0`)
+- `ThemeVariableDoc` - Theme variable documentation interface (`@since 0.16.0`)
+- `UiCustomizationFeature.customTheme` - New property for theme configuration (`@since 0.16.0`)
+- `getThemeVariable()` - Function to read CSS variables (`@since 0.16.0`)
+- `getPikaThemeTokens()` - Function to get all theme tokens (`@since 0.16.0`)
+
 ## [0.15.7] - 2026-01-14
 
 ### Fixed
@@ -72,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Requires running `update-session-mapping-for-messages.ts` tool BEFORE deployment
     - Adds `messages_summary` and `messages_analysis` fields to session index
     - If not run before deployment, OpenSearch will auto-index fields incorrectly
-    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-15-0)
+    - See [Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-15-0)
 
 ### Added
 
@@ -265,19 +318,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Requires running `copy-to-keyword-fields.ts` to populate keyword fields for existing sessions
     - New fields: `invocation_mode_keyword`, `user_type_keyword`, `source_keyword`
     - Original text fields remain unchanged (additive-only migration)
-    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
+    - See [Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-11-0)
 
 - **User Type Migration Required** - Chat sessions now include user type classification
     - Requires running `backfill-session-metadata/` tool to add `user_type` field to existing sessions
     - Enables filtering sessions by internal vs external users in analytics
-    - See [Migration Guide](https://pika.tools/docs/platform/releases/migration-guides/upgrading-to-0-11-0)
+    - See [Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-11-0)
 
 - **WidgetAction Callback Signature Changed** - Widget action callbacks now receive context object
     - Old: `callback: () => void | Promise<void>`
     - New: `callback: (context: WidgetCallbackContext) => void | Promise<void>`
     - Provides access to widget element, instanceId, and full PikaWCContext
     - Update all custom widget action callbacks to accept the context parameter
-    - See [`WidgetCallbackContext` documentation](https://pika.tools/docs/reference/ui-components/custom-components#WidgetCallbackContext)
+    - See [`WidgetCallbackContext` documentation](https://pika.tools/reference/ui-components/custom-components#WidgetCallbackContext)
 
 ### Added
 
@@ -424,7 +477,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Enables cross-widget communication, debugging, and programmatic widget manipulation
     - Memory leak prevention with automatic unregistration via Svelte `onDestroy` for inline widgets
     - Enhanced `injectChatAppWebComponent()` to return both `instanceId` and `element` reference
-    - Comprehensive documentation in [Building Web Components](https://pika.tools/docs/developer/building-web-components#Accessing-All-Widget-Instances) guide
+    - Comprehensive documentation in [Building Web Components](https://pika.tools/guides/customization/build-web-components#Accessing-All-Widget-Instances) guide
 
 ## [0.7.0] - 2025-10-24
 
@@ -437,7 +490,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `onReady` - Callback invoked when component is created and ready, before it's added to the DOM
     - Provides element reference, instance ID, and full Pika context in the callback
     - Perfect for passing configuration, initial data, or complex objects to web components
-    - Comprehensive documentation with examples in [Building Web Components](https://pika.tools/docs/developer/building-web-components#Initializing-Components-with-Data) guide
+    - Comprehensive documentation with examples in [Building Web Components](https://pika.tools/guides/customization/build-web-components#Initializing-Components-with-Data) guide
 
 ## [0.6.2] - 2025-10-22
 
@@ -486,12 +539,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tag System Refactor** - Moved from `chatAppId` to `usageMode` model
     - Requires manual DynamoDB migration (GSI replacement)
-    - See [Migration Guide](https://pika.tools/docs/releases/migration-guides/upgrading-to-0-5-0)
+    - See [Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-5-0)
 - **Chat Session GSI Update** - Fixed session sorting and added source filtering
     - Updated `user-chat-app-index` to use composite sort key (`chat_app_sk` with format `chatAppId#source#lastUpdate`)
     - Added `source` field to distinguish user vs component-initiated sessions
     - Requires manual DynamoDB GSI replacement and data migration
-    - See [Migration Guide](https://pika.tools/docs/releases/migration-guides/upgrading-to-0-5-0)
+    - See [Migration Guide](https://pika.tools/platform/releases/migration-guides/upgrading-to-0-5-0)
 - **Site Tag Configuration** - `tagsProhibited` renamed to `tagsDisabled`
     - Update site configuration to use new field name
     - Semantic change: disables global tags rather than prohibiting all tags

@@ -151,19 +151,19 @@
                                 External
                             </span>
                             <span
-                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info-bg text-info"
                             >
                                 Internal
                             </span>
                         {:else if appType === 'internal'}
                             <span
-                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info-bg text-info"
                             >
                                 Internal
                             </span>
                         {:else if appType === 'external'}
                             <span
-                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success"
                             >
                                 External
                             </span>
@@ -182,7 +182,7 @@
         <div class="px-6 pb-6 mt-auto">
             <Button
                 href="/chat/{app.chatAppId}"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200"
+                class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 px-4 rounded-lg transition-colors duration-200"
             >
                 Launch Chat
             </Button>

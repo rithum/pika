@@ -84,18 +84,18 @@
         </div>
     {/if}
     {#if enabledAtSiteLevel}
-        <div class="text-sm text-muted-foreground bg-blue-50 border border-blue-200 rounded p-3">
-            <p class="font-medium text-blue-800">About Entity Feature</p>
-            <p class="text-blue-700">
+        <div class="text-sm text-muted-foreground bg-info-bg border border-info/20 rounded p-3">
+            <p class="font-medium text-info">About Entity Feature</p>
+            <p class="text-info/80">
                 The entity feature provides organization-based access control and session sharing. When enabled:
             </p>
-            <ul class="list-disc list-inside ml-2 text-blue-700 mt-1">
+            <ul class="list-disc list-inside ml-2 text-info/80 mt-1">
                 <li>Users are associated with their organizational entity (e.g., account, company)</li>
                 <li>Shared sessions are scoped to the user's entity for security</li>
                 <li>Admin interfaces can filter data by entity</li>
                 <li>Internal users can access any shared content regardless of entity</li>
             </ul>
-            <p class="text-blue-700 mt-2">
+            <p class="text-info/80 mt-2">
                 <strong>Note:</strong> Chat apps can only disable this feature, not modify the site-level entity configuration.
             </p>
         </div>

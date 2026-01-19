@@ -15,11 +15,11 @@
     const aiPerformanceScore = insights?.scoring?.scores?.aiPerformance?.overall?.score;
 
     function getScoreColor(score: number | undefined): string {
-        if (score === undefined) return 'bg-gray-200';
-        if (score >= 8) return 'bg-green-500';
-        if (score >= 6) return 'bg-yellow-500';
-        if (score >= 4) return 'bg-orange-500';
-        return 'bg-red-500';
+        if (score === undefined) return 'bg-muted';
+        if (score >= 8) return 'bg-success';
+        if (score >= 6) return 'bg-warning';
+        if (score >= 4) return 'bg-warning/80';
+        return 'bg-destructive';
     }
 
     function formatScore(score: number | undefined): string {
