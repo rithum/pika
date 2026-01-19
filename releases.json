@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.16.5",
-  "currentDevelopment": "0.16.5",
+  "latestVersion": "0.16.6",
+  "currentDevelopment": "0.16.6",
   "releases": [
+    {
+      "version": "0.16.6",
+      "date": "2026-01-19",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed sync protected areas glob bug",
+      "highlights": [
+        "Fixed glob patterns not protecting parent directories during sync",
+        "Pattern path/to/custom/** now correctly protects the custom directory itself"
+      ]
+    },
     {
       "version": "0.16.5",
       "date": "2026-01-19",
