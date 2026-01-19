@@ -4,7 +4,7 @@
   "releases": [
     {
       "version": "0.16.3",
-      "date": "TBD",
+      "date": "2026-01-19",
       "status": "unreleased",
       "breaking": false,
       "summary": "Theme file organization and CLI fixes",
