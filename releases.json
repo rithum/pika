@@ -1,7 +1,21 @@
 {
   "latestVersion": "0.16.2",
-  "currentDevelopment": "0.16.2",
+  "currentDevelopment": "0.16.3",
   "releases": [
+    {
+      "version": "0.16.3",
+      "date": "TBD",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Theme file organization and CLI fixes",
+      "highlights": [
+        "Renamed theme-config.ts to sample-purple-theme.ts for clearer workflow",
+        "Removed redundant examples folder",
+        "Fixed theme vite plugin to use jiti instead of regex for config loading",
+        "Fixed theme CLI commands to read themeConfigPath from config",
+        "Fixed release tool to use origin/main for accurate version detection"
+      ]
+    },
     {
       "version": "0.16.2",
       "date": "2026-01-19",

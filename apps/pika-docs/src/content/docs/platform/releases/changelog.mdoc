@@ -7,6 +7,28 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.16.3] - TBD
+
+### Changed
+
+- **Theme File Organization** - Simplified theme file structure for clearer workflow
+    - Renamed `theme-config.ts` to `sample-purple-theme.ts` to clarify it's a sample to copy
+    - Removed redundant `examples/` folder (sample theme serves as the example)
+    - Updated documentation with new "copy and customize" workflow
+
+### Fixed
+
+- **Theme Vite Plugin** - Fixed config loading to use proper TypeScript module resolution
+    - Now uses jiti to load pika-config.ts and theme config instead of regex parsing
+    - Properly reads `themeConfigPath` from pika-config.ts dynamically
+- **Theme CLI Commands** - Fixed hardcoded theme path references
+    - `pika theme check/update/list` now read the actual `themeConfigPath` from config
+    - `pika sync` theme schema check now uses configured path
+- **Release Tool** - Fixed version detection using stale local main branch
+    - Now reads from `origin/main` instead of local `main` for accurate latest version
+
+---
+
 ## [0.16.2] - 2026-01-19
 
 ### Fixed
