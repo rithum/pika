@@ -354,7 +354,7 @@ async function promptForVersion(autoDetect: boolean = true): Promise<string> {
             {
                 type: 'confirm',
                 name: 'useExisting',
-                message: `Continue working on version ${unreleasedVersion}?`,
+                message: `Use version ${unreleasedVersion}? (No = pick a different version)`,
                 default: true
             }
         ]);
