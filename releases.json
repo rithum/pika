@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.16.4",
-  "currentDevelopment": "0.16.4",
+  "latestVersion": "0.16.5",
+  "currentDevelopment": "0.16.5",
   "releases": [
+    {
+      "version": "0.16.5",
+      "date": "2026-01-19",
+      "status": "released",
+      "breaking": false,
+      "summary": "Added destructive-bg theme variable for error state backgrounds",
+      "highlights": [
+        "Added destructive-bg semantic theme variable for error/destructive states",
+        "Completes the semantic background color pattern: success-bg, warning-bg, info-bg, ai-bg, destructive-bg",
+        "Updated documentation to use destructive-bg instead of legacy danger-bg name"
+      ]
+    },
     {
       "version": "0.16.4",
       "date": "2026-01-19",

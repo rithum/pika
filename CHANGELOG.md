@@ -5,6 +5,20 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.5] - 2026-01-19
+
+### Added
+
+- **`destructive-bg` Theme Variable** - Added missing semantic background color for destructive/error states
+    - Completes the semantic color pattern: `success-bg`, `warning-bg`, `info-bg`, `ai-bg`, `destructive-bg`
+    - Light mode default: `oklch(0.95 0.08 25)` (light red)
+    - Dark mode default: `oklch(0.25 0.10 25)` (dark red)
+    - Use for error alerts, validation messages, and destructive action backgrounds
+
+### Changed
+
+- **Documentation** - Updated theming guide to use `destructive-bg` instead of legacy `danger-bg` name
+
 ## [0.16.4] - 2026-01-19
 
 ### Added

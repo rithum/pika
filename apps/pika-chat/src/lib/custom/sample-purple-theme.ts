@@ -47,6 +47,7 @@ export const themeConfig: ThemeConfig = {
 
             // Semantic colors
             destructive: 'oklch(0.55 0.2 25)',
+            'destructive-bg': 'oklch(0.95 0.06 25)',
             success: 'oklch(0.50 0.15 145)',
             'success-bg': 'oklch(0.92 0.08 145)',
             warning: 'oklch(0.60 0.15 75)',
@@ -74,6 +75,8 @@ export const themeConfig: ThemeConfig = {
             input: 'oklch(0.30 0.02 260)',
 
             // Dark mode semantic colors
+            destructive: 'oklch(0.55 0.2 25)',
+            'destructive-bg': 'oklch(0.25 0.08 25)',
             success: 'oklch(0.65 0.18 145)',
             'success-bg': 'oklch(0.25 0.08 145)',
             warning: 'oklch(0.70 0.15 75)',
