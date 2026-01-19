@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.15.7",
+  "latestVersion": "0.16.0",
   "currentDevelopment": "0.16.0",
   "releases": [
     {
       "version": "0.16.0",
       "date": "2026-01-19",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "UI Theming System - Complete customization of colors, typography, and styling",
       "highlights": [
