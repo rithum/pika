@@ -438,24 +438,7 @@ function checkUncommittedChanges(): boolean {
 function checkUncommittedChangesDetailed(): { hasChanges: boolean; onlyReleaseFiles: boolean; files: string[] } {
     try {
         const status = execSync('git status --porcelain', { encoding: 'utf8' });
-
-        console.log(chalk.dim('\n[DEBUG] Raw git status output:'));
-        console.log(chalk.dim(JSON.stringify(status)));
-        console.log(chalk.dim('End raw output\n'));
-
-        const lines = status.split('\n').filter((line) => line.trim()); // Filter empty lines but don't trim yet
-
-        console.log(chalk.dim('[DEBUG] Parsed lines:'));
-        lines.forEach((line, idx) => {
-            console.log(chalk.dim(`  Line ${idx}: "${line}" (length: ${line.length})`));
-            console.log(
-                chalk.dim(
-                    `    Chars: [${Array.from(line)
-                        .map((c) => `${c}(${c.charCodeAt(0)})`)
-                        .join(', ')}]`
-                )
-            );
-        });
+        const lines = status.split('\n').filter((line) => line.trim());
 
         if (lines.length === 0) {
             return { hasChanges: false, onlyReleaseFiles: true, files: [] };
@@ -465,23 +448,17 @@ function checkUncommittedChangesDetailed(): { hasChanges: boolean; onlyReleaseFi
         // We need to skip the first 3 characters (XY and space) to get the filename
         const files = lines.map((line) => line.substring(3));
 
-        console.log(chalk.dim('\n[DEBUG] Extracted files (after substring(3)):'));
-        files.forEach((file, idx) => {
-            console.log(chalk.dim(`  File ${idx}: "${file}"`));
-        });
-
         // Release-related files that are expected to change during release process
+        // This includes documentation, changelogs, and release tooling
         const releaseFilePatterns = [
             'releases.json',
             'CHANGELOG.md',
-            'apps/pika-docs/src/content/docs/platform/releases/',
-            'packages/tools/src/release-prompt.md', // Release prompt templates
-            'packages/tools/src/release.ts' // Release tooling improvements
+            'apps/pika-docs/', // All documentation changes
+            'packages/tools/src/release-prompt.md',
+            'packages/tools/src/release.ts'
         ];
 
         const allAreReleaseFiles = files.every((file) => releaseFilePatterns.some((pattern) => file.includes(pattern)));
-
-        console.log(chalk.dim(`\n[DEBUG] allAreReleaseFiles: ${allAreReleaseFiles}\n`));
 
         return {
             hasChanges: true,
@@ -489,7 +466,6 @@ function checkUncommittedChangesDetailed(): { hasChanges: boolean; onlyReleaseFi
             files
         };
     } catch (error) {
-        console.log(chalk.red('\n[DEBUG] Error in checkUncommittedChangesDetailed:'), error);
         return { hasChanges: false, onlyReleaseFiles: true, files: [] };
     }
 }
@@ -657,13 +633,13 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
                 {
                     type: 'confirm',
                     name: 'continueAnyway',
-                    message: 'Continue with publish anyway?',
-                    default: false
+                    message: 'Continue with publish?',
+                    default: true
                 }
             ]);
 
             if (!continueAnyway) {
-                console.log(chalk.yellow('\nPublish cancelled. Fix deployment issues and try again.'));
+                console.log(chalk.yellow('\nPublish cancelled.'));
                 process.exit(0);
             }
         }
@@ -707,13 +683,13 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
                         {
                             type: 'confirm',
                             name: 'continueAnyway',
-                            message: 'Continue with publish anyway?',
-                            default: false
+                            message: 'These files will be included in your release commit. Continue?',
+                            default: true
                         }
                     ]);
 
                     if (!continueAnyway) {
-                        console.log(chalk.yellow('\nPublish cancelled. Commit your changes and try again.'));
+                        console.log(chalk.yellow('\nPublish cancelled.'));
                         process.exit(0);
                     }
                 }
@@ -777,7 +753,7 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
     }
 
     // Step 3: Generate Cursor AI Prompt
-    generateCursorPrompt(version, commits);
+    await generateCursorPrompt(version, commits);
 
     // Step 4: Create git tag
     const tagSpinner = ora('Creating git tag').start();
@@ -797,16 +773,12 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
     showNextSteps(version);
 }
 
-function generateCursorPrompt(version: string, commits: string): void {
+async function generateCursorPrompt(version: string, commits: string): Promise<void> {
     console.log(chalk.bold('\n╔════════════════════════════════════════════════════════════╗'));
     console.log(chalk.bold('║         🤖 CURSOR AI INTEGRATION - NEXT STEP              ║'));
     console.log(chalk.bold('╚════════════════════════════════════════════════════════════╝\n'));
 
-    console.log(chalk.cyan('Copy the following prompt and paste into Cursor Composer:\n'));
-    console.log(chalk.dim('─'.repeat(60)));
-
-    const prompt = `
-Review the git commits above and verify release notes for version ${version}.
+    const prompt = `Review the git commits above and verify release notes for version ${version}.
 
 Please verify/update these files:
 
@@ -830,15 +802,21 @@ Please verify/update these files:
 Focus on changes that matter to users. Ignore internal refactors unless they impact user experience.
 Be concise but clear. Each entry should explain WHAT changed and WHY it matters.
 
-NOTE: The changelog should already be finalized via "pnpm release notes --finalize". This is a final verification step.
-`;
+NOTE: The changelog should already be finalized via "pnpm release notes --finalize". This is a final verification step.`;
 
-    console.log(chalk.white(prompt));
-    console.log(chalk.dim('─'.repeat(60)));
-    console.log(chalk.yellow('\nTIP: You can refine this prompt by adding:'));
-    console.log(chalk.dim('   - Specific areas to focus on'));
-    console.log(chalk.dim('   - Breaking changes you know about'));
-    console.log(chalk.dim('   - Migration guide links to include\n'));
+    // Copy to clipboard
+    try {
+        await clipboardy.write(prompt);
+        console.log(chalk.green('✓ Verification prompt copied to clipboard!\n'));
+        console.log(chalk.cyan('Paste into Cursor Composer (Cmd+Shift+I) to verify release notes.\n'));
+    } catch (error) {
+        console.log(chalk.yellow('Could not copy to clipboard. Prompt displayed below:\n'));
+        console.log(chalk.dim('─'.repeat(60)));
+        console.log(chalk.white(prompt));
+        console.log(chalk.dim('─'.repeat(60)));
+    }
+
+    console.log(chalk.dim('TIP: This is a verification step - release notes should already be complete.\n'));
 }
 
 function showNextSteps(version: string): void {

@@ -147,6 +147,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 collapsed: true,
                 items: [
                     { label: 'Customize the UI', slug: 'guides/customization/ui' },
+                    { label: 'UI Theming', slug: 'guides/customization/theming' },
                     { label: 'Build Custom Web Components', slug: 'guides/customization/build-web-components' },
                     { label: 'Provide Context from Widgets', slug: 'guides/customization/widget-context' },
                     { label: 'Deploy Custom Web Components', slug: 'guides/customization/deploy-web-components' },

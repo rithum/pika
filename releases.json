@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.16.0",
-  "currentDevelopment": "0.16.0",
+  "latestVersion": "0.16.1",
+  "currentDevelopment": "0.16.1",
   "releases": [
+    {
+      "version": "0.16.1",
+      "date": "2026-01-19",
+      "status": "released",
+      "breaking": false,
+      "summary": "Documentation fixes for theming guide",
+      "highlights": [
+        "Fixed markdoc syntax in theming documentation causing build failures",
+        "Added UI Theming guide to sidebar navigation"
+      ]
+    },
     {
       "version": "0.16.0",
       "date": "2026-01-19",
