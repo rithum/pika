@@ -70,7 +70,7 @@
                         </TooltipPlus>
                         {#if appState.homePageSiteFeature && appState.homePageSiteFeature.linksToChatApps && appState.allChatApps.length > 0}
                             <Button onclick={() => goto('/')} variant="ghost" size="sm" class="flex-1 text-center"
-                                >Home Page</Button
+                                >{appState.homePageSiteFeature.navigationButtonText ?? 'AI Assistants'}</Button
                             >
                         {/if}
                     {/if}

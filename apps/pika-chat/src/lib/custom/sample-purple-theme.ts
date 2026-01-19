@@ -28,6 +28,10 @@ export const themeConfig: ThemeConfig = {
             primary: 'oklch(0.47 0.2 290)',
             'primary-foreground': 'oklch(1 0 0)',
 
+            // Custom header icon sizing
+            'chat-app-header-icon-height': '28px',
+            'chat-app-header-icon-gap': '8px',
+
             // Backgrounds
             background: 'oklch(1 0 0)',
             foreground: 'oklch(0.22 0.02 260)',
@@ -55,6 +59,11 @@ export const themeConfig: ThemeConfig = {
         dark: {
             primary: 'oklch(0.70 0.18 290)',
             'primary-foreground': 'oklch(0.15 0.02 290)',
+
+            // Custom header icon sizing
+            'chat-app-header-icon-height': '28px',
+            'chat-app-header-icon-gap': '8px',
+
             background: 'oklch(0.15 0.02 260)',
             foreground: 'oklch(0.95 0.005 260)',
             card: 'oklch(0.18 0.02 260)',
@@ -75,6 +84,12 @@ export const themeConfig: ThemeConfig = {
             'ai-bg': 'oklch(0.25 0.08 280)'
         }
     },
+
+    // Custom header icon - separate icons for light/dark modes
+    // chatAppHeaderIcon: {
+    //     light: '/custom/assets/ai-light-mode-theme-sample.png',  // Icon shown in light mode
+    //     dark: '/custom/assets/ai-dark-mode-theme-sample.png'     // Icon shown in dark mode
+    // },
 
     customPalettes: {
         brand: {

@@ -270,6 +270,81 @@ cssVariables: {
 
 ---
 
+## Custom Header Icon
+
+You can customize or replace the AI sparkle icon that appears next to the chat app title.
+
+### Option 1: Change Icon Color
+
+Add the `chat-app-icon` CSS variable to change the default icon's color. Define values for both light and dark modes:
+
+```typescript
+cssVariables: {
+    light: {
+        'chat-app-icon': 'oklch(0.55 0.16 195)',  // Teal - visible on light backgrounds
+    },
+    dark: {
+        'chat-app-icon': 'oklch(0.70 0.14 195)',  // Lighter teal - visible on dark backgrounds
+    }
+}
+```
+
+### Option 2: Replace with Custom Icon
+
+To use your own logo or icon:
+
+1. **Place your icon(s) in the assets folder:**
+   ```
+   apps/pika-chat/static/custom/assets/
+   ```
+   
+   This folder is protected from `pika sync` and files are served at `/custom/assets/`.
+
+2. **Reference it in your theme config:**
+
+   **Single icon (same for both modes):**
+   ```typescript
+   export const themeConfig: ThemeConfig = {
+       chatAppHeaderIcon: '/custom/assets/my-logo.svg',
+   };
+   ```
+
+   **Separate icons for light/dark modes:**
+   ```typescript
+   export const themeConfig: ThemeConfig = {
+       chatAppHeaderIcon: {
+           light: '/custom/assets/logo-dark.svg',   // Dark logo on light background
+           dark: '/custom/assets/logo-light.svg'    // Light logo on dark background
+       },
+   };
+   ```
+
+### Option 3: Control Icon Size and Spacing
+
+Fine-tune the icon dimensions with these CSS variables:
+
+```typescript
+cssVariables: {
+    light: {
+        'chat-app-header-icon-height': '28px',  // Height (width scales automatically)
+        'chat-app-header-icon-gap': '8px',      // Space between icon and title
+    }
+}
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `chat-app-header-icon-height` | `32px` | Height of the custom icon (width scales to maintain aspect ratio) |
+| `chat-app-header-icon-gap` | `4px` | Space between the icon and the chat app title |
+
+{% aside type="tip" title="Icon Design Tips" %}
+- **SVG recommended** for best quality at all screen sizes
+- For raster images (PNG, JPG), use at least 88x88 pixels for retina displays
+- If using a single icon for both modes, choose a design with good contrast on both light and dark backgrounds, or use a colored icon that stands out in both contexts
+{% /aside %}
+
+---
+
 ## Understanding OKLCH Colors
 
 Pika uses the OKLCH color format for themes. OKLCH provides perceptually uniform colors, making it easier to create harmonious palettes.

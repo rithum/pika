@@ -2374,6 +2374,20 @@ export interface ChatAppLite {
      * The user types that are allowed to access this chat app.  If not provided, then all user types are allowed.
      */
     userTypes?: UserType[];
+
+    /**
+     * Custom icon URL for this assistant, displayed on the home page card.
+     * If not provided, a default sparkle icon is shown.
+     *
+     * **Recommended size:** 40x40 pixels (or 80x80 for retina displays)
+     * **Supported formats:** SVG (recommended), PNG, JPG, WebP
+     *
+     * Place icons in `apps/pika-chat/static/custom/assets/` and reference as `/custom/assets/icon.svg`.
+     *
+     * @example "/custom/assets/order-icon.svg"
+     * @since 0.16.4
+     */
+    icon?: string;
 }
 
 export interface KnowledgeBase {
@@ -4416,18 +4430,100 @@ export type UserDataOverrideSettings = Omit<UserDataOverridesSiteFeature, 'userT
 
 export interface HomePageSiteFeature {
     /**
-     * The title of the home page.  If not provided, the default title will be used.  This is used
-     * to describe the home page to the user and in navigation.
+     * The title of the home page. If not provided, defaults to "AI Assistants".
+     * This is displayed prominently in the header next to the logo.
      */
     homePageTitle?: string;
 
     /**
-     * The welcome message to display on the home page.  If not provided, the default welcome message will be used.
+     * Subtitle text displayed below the main title.
+     * Provides context about what users can do on this page.
+     *
+     * @default "Select an assistant to get started"
+     * @example "Intelligent tools to help you work smarter"
+     * @since 0.16.4
+     */
+    subtitle?: string;
+
+    /**
+     * The welcome message to display on the home page. If not provided, the default welcome message will be used.
      * This is used to describe the home page to the user and in navigation.
+     * @deprecated Use `subtitle` instead. This will be removed in a future version.
      */
     welcomeMessage?: string;
 
-    //TODO: add icon support
+    /**
+     * The text shown on the navigation button that takes users to the home page.
+     * Appears in the sidebar/header area. Defaults to "AI Assistants" if not specified.
+     *
+     * @default "AI Assistants"
+     * @example "Dashboard"
+     * @example "All Assistants"
+     * @since 0.16.4
+     */
+    navigationButtonText?: string;
+
+    /**
+     * Logo displayed in the home page header next to the title.
+     * Can be a single URL string (same for both modes) or an object with separate light/dark URLs.
+     *
+     * Place custom logos in `apps/pika-chat/static/custom/assets/` and reference as `/custom/assets/filename.png`.
+     * If not provided, defaults to the Pika logo. Set to `null` to hide the logo entirely.
+     *
+     * @default "/pika-logo-default.png"
+     * @example "/custom/assets/my-company-logo.svg"
+     * @example { light: "/custom/assets/logo-dark.svg", dark: "/custom/assets/logo-light.svg" }
+     * @since 0.16.4
+     */
+    logo?: string | { light: string; dark?: string } | null;
+
+    /**
+     * Height of the logo in pixels. Width scales automatically to maintain aspect ratio.
+     *
+     * @default 48
+     * @since 0.16.4
+     */
+    logoHeight?: number;
+
+    /**
+     * Gap between the logo and the title in pixels.
+     *
+     * @default 16
+     * @since 0.16.4
+     */
+    logoGap?: number;
+
+    /**
+     * Whether to show the search bar on the home page.
+     * When set to 'auto', search bar appears when there are 6 or more assistants.
+     *
+     * @default 'auto'
+     * @since 0.16.4
+     */
+    searchEnabled?: boolean | 'auto';
+
+    /**
+     * Default icon for assistant cards on the home page when an assistant doesn't have its own icon.
+     * If not set, a sparkle icon is displayed.
+     *
+     * **Recommended size:** 40×40 pixels (80×80 for retina displays)
+     * **Supported formats:** SVG (recommended), PNG, JPG, WebP
+     *
+     * Place icons in `apps/pika-chat/static/custom/assets/` and reference as `/custom/assets/icon.svg`.
+     *
+     * @example "/custom/assets/default-assistant-icon.svg"
+     * @since 0.16.4
+     */
+    defaultAssistantIcon?: string;
+
+    /**
+     * Size of the icon inside assistant cards in pixels. This controls the width and height
+     * of the icon within the card's icon container.
+     *
+     * @default 24
+     * @since 0.16.4
+     */
+    assistantIconSize?: number;
 
     /**
      * Whether to have the chat app home page show links to registered chat apps. If none of the

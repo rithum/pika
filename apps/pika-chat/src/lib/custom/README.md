@@ -52,6 +52,32 @@ pnpm run dev
 
 - `sample-purple-theme.ts` - Sample theme to copy and customize
 
+## Custom Assets (Icons, Images)
+
+Place custom icons and images in:
+```
+apps/pika-chat/static/custom/assets/
+```
+
+This folder is protected from sync and files are served at `/custom/assets/`.
+
+**Example - Custom header icon (single for both modes):**
+```typescript
+export const themeConfig: ThemeConfig = {
+    chatAppHeaderIcon: '/custom/assets/my-logo.svg',
+};
+```
+
+**Example - Separate icons for light/dark modes:**
+```typescript
+export const themeConfig: ThemeConfig = {
+    chatAppHeaderIcon: {
+        light: '/custom/assets/logo-dark.svg',   // Dark logo on light bg
+        dark: '/custom/assets/logo-light.svg'    // Light logo on dark bg
+    },
+};
+```
+
 ## Available Variables
 
 ### Core Semantic Colors
@@ -73,6 +99,7 @@ pnpm run dev
 - `card`, `card-foreground` - Card elements
 - `popover`, `popover-foreground` - Popovers/dropdowns
 - `border`, `input`, `ring` - Borders and focus states
+- `chat-app-icon` - Color of the AI icon in chat app header
 
 ### Sidebar
 - `sidebar-background`, `sidebar-foreground`

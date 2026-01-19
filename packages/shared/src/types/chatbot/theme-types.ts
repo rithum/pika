@@ -98,6 +98,39 @@ export interface ThemeConfig {
      * ```
      */
     customPalettes?: Record<string, Record<string, string>>;
+
+    /**
+     * Custom header icon for chat apps. Replaces the default AI sparkle icon.
+     * The icon will be constrained to roughly 44x44px.
+     *
+     * Can be specified as:
+     * - A single string URL (used for both light and dark modes)
+     * - An object with separate light/dark URLs for mode-specific icons
+     *
+     * For sync-safe storage, place your icons in:
+     * `apps/pika-chat/static/custom/assets/`
+     *
+     * @example Single icon for both modes:
+     * ```typescript
+     * chatAppHeaderIcon: '/custom/assets/my-logo.svg'
+     * ```
+     *
+     * @example Separate icons for light/dark modes:
+     * ```typescript
+     * chatAppHeaderIcon: {
+     *     light: '/custom/assets/logo-dark.svg',   // Dark logo on light background
+     *     dark: '/custom/assets/logo-light.svg'    // Light logo on dark background
+     * }
+     * ```
+     *
+     * @since 0.16.4
+     */
+    chatAppHeaderIcon?: string | {
+        /** Icon URL for light mode */
+        light: string;
+        /** Icon URL for dark mode (falls back to light if not provided) */
+        dark?: string;
+    };
 }
 
 /**
@@ -177,7 +210,11 @@ export type SemanticColorVariable =
     | 'ai'
     | 'ai-foreground'
     | 'ai-bg'
-    | 'danger-bg';
+    | 'danger-bg'
+    // Header/branding
+    | 'chat-app-icon'
+    | 'chat-app-header-icon-height'
+    | 'chat-app-header-icon-gap';
 
 /**
  * All semantic variables as a readonly array for iteration
@@ -233,5 +270,9 @@ export const SEMANTIC_COLOR_VARIABLES: readonly SemanticColorVariable[] = [
     'ai',
     'ai-foreground',
     'ai-bg',
-    'danger-bg'
+    'danger-bg',
+    // Header/branding
+    'chat-app-icon',
+    'chat-app-header-icon-height',
+    'chat-app-header-icon-gap'
 ] as const;
