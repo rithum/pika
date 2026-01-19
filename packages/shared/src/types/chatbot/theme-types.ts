@@ -179,6 +179,7 @@ export type SemanticColorVariable =
     | 'accent-foreground'
     | 'destructive'
     | 'destructive-foreground'
+    | 'destructive-bg'
     | 'border'
     | 'input'
     | 'ring'
@@ -239,6 +240,7 @@ export const SEMANTIC_COLOR_VARIABLES: readonly SemanticColorVariable[] = [
     'accent-foreground',
     'destructive',
     'destructive-foreground',
+    'destructive-bg',
     'border',
     'input',
     'ring',

@@ -460,6 +460,16 @@ export const THEME_SCHEMA_CHANGELOG: ThemeSchemaChange[] = [
                 affectedElements: ['Chart series 5']
             },
 
+            // Destructive background (for consistency with success-bg, warning-bg, etc.)
+            {
+                name: 'destructive-bg',
+                category: 'status',
+                description: 'Light background color for destructive/error states',
+                defaultLight: 'oklch(0.95 0.08 25)',
+                defaultDark: 'oklch(0.25 0.10 25)',
+                affectedElements: ['Error alerts', 'Destructive action backgrounds', 'Validation error containers']
+            },
+
             // Header/branding
             {
                 name: 'chat-app-icon',

@@ -187,7 +187,7 @@ Semantic colors for feedback and states (Pika extensions).
 | `info-bg` | Info background | Info badges, alerts |
 | `ai` | AI/Assistant | AI status indicators, processing |
 | `ai-bg` | AI background | AI badges, assistant messages |
-| `danger-bg` | Danger background | Error alerts |
+| `destructive-bg` | Destructive/error background | Error alerts, validation errors |
 
 **Example:**
 
@@ -448,7 +448,7 @@ Here's what each variable affects in the UI:
 | Success | `success-bg` | `success` |
 | Warning | `warning-bg` | `warning` |
 | Info | `info-bg` | `info` |
-| Error | `danger-bg` | `destructive` |
+| Error | `destructive-bg` | `destructive` |
 | AI | `ai-bg` | `ai` |
 
 ### Form Elements
@@ -671,7 +671,7 @@ export const themeConfig: ThemeConfig = {
             ai: 'oklch(0.55 0.14 195)',
             'ai-foreground': 'oklch(1 0 0)',
             'ai-bg': 'oklch(0.94 0.04 195)',
-            'danger-bg': 'oklch(0.95 0.06 25)',
+            'destructive-bg': 'oklch(0.95 0.06 25)',
 
             // Sidebar (subtle brand tint)
             'sidebar-background': 'oklch(0.98 0.004 195)',
@@ -722,7 +722,7 @@ export const themeConfig: ThemeConfig = {
             'info-bg': 'oklch(0.22 0.06 240)',
             ai: 'oklch(0.60 0.12 195)',
             'ai-bg': 'oklch(0.22 0.06 195)',
-            'danger-bg': 'oklch(0.24 0.08 25)',
+            'destructive-bg': 'oklch(0.24 0.08 25)',
 
             'sidebar-background': 'oklch(0.15 0.01 195)',
             'sidebar-foreground': 'oklch(0.85 0.02 260)',
