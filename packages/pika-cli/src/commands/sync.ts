@@ -1206,7 +1206,22 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
         if (pattern.endsWith('/')) {
             pattern = pattern + '**';
         }
-        return minimatch(normalizedFilePath, pattern, matchOptions);
+        
+        // Direct glob match
+        if (minimatch(normalizedFilePath, pattern, matchOptions)) {
+            return true;
+        }
+        
+        // Also protect parent directories of glob patterns
+        // e.g., pattern "apps/pika-chat/static/custom/**" should also protect "apps/pika-chat/static/custom"
+        if (pattern.endsWith('/**')) {
+            const parentPath = pattern.slice(0, -3); // Remove "/**"
+            if (normalizedFilePath === parentPath || normalizedFilePath.startsWith(parentPath + '/')) {
+                return true;
+            }
+        }
+        
+        return false;
     });
 
     if (matchingArea) {
