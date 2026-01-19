@@ -24,8 +24,16 @@ export const pikaConfig: PikaConfig = {
     },
     siteFeatures: {
         homePage: {
-            homePageTitle: 'Pika Chat Apps',
-            welcomeMessage: 'Welcome to the Pika Chat Apps home page!',
+            homePageTitle: 'Pika AI Assistants',
+            subtitle: 'Intelligent tools to help you work smarter',
+            navigationButtonText: 'AI Assistants',
+            // Logo defaults to Pika logo. Set your own or set to null to hide.
+            // Single logo: logo: '/custom/assets/my-company-logo.svg',
+            // Light/dark logos: logo: { light: '/custom/assets/logo-dark.svg', dark: '/custom/assets/logo-light.svg' },
+            // logoHeight: 48,
+            // logoGap: 16,
+            // Default icon for assistant cards (40x40px recommended): defaultAssistantIcon: '/custom/assets/ai-icon.svg',
+            // Icon size inside cards (default 24): assistantIconSize: 28,
             linksToChatApps: {
                 // By default, only internal users are able to see links on the home page to chat apps
                 userChatAppRules: [

@@ -68,30 +68,98 @@ export const pikaConfig: PikaConfig = {
 
 ## Step 2: Customize Home Page
 
-Configure the home page title, welcome message, and chat app link visibility.
+Configure the home page appearance, branding, and assistant visibility.
 
 **Location:** `pika-config.ts` (root directory)
+
+### Home Page Layout
+
+The home page has several customizable areas:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [logo]  homePageTitle                              [⚙️]    │  ← Header
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│              Choose an AI Assistant                         │  ← Hero heading
+│                    subtitle                                 │  ← Subtitle
+│                                                             │
+│         ┌─────────────────────────────────┐                 │
+│         │ 🔍 Search assistants...         │                 │  ← Search (auto at 6+)
+│         └─────────────────────────────────┘                 │
+│                                                             │
+│    ┌─────────────────┐    ┌─────────────────┐               │
+│    │ [icon]          │    │ [icon]          │               │  ← Assistant cards
+│    │ Assistant Name  │    │ Assistant Name  │               │     with icons
+│    │ Description...  │    │ Description...  │               │
+│    └─────────────────┘    └─────────────────┘               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Complete Configuration Example
 
 ```typescript
 export const pikaConfig: PikaConfig = {
     // ... project names configuration
     siteFeatures: {
         homePage: {
-            // Custom title
-            homePageTitle: 'Welcome to My Company Chat',
+            // ═══════════════════════════════════════════════════════
+            // HEADER BRANDING
+            // ═══════════════════════════════════════════════════════
             
-            // Custom welcome message
-            welcomeMessage: 'Get started by selecting a chat app below or asking me anything!',
+            // Title shown in header next to logo
+            homePageTitle: 'Acme AI Assistants',
             
-            // Configure which users see links to which chat apps
+            // Logo configuration (defaults to Pika logo)
+            logo: '/custom/assets/acme-logo.svg',
+            // Or for light/dark mode support:
+            // logo: { light: '/custom/assets/logo-dark.svg', dark: '/custom/assets/logo-light.svg' },
+            // Or to hide: logo: null,
+            
+            logoHeight: 48,    // Logo height in pixels (width scales automatically)
+            logoGap: 16,       // Space between logo and title in pixels
+            
+            // ═══════════════════════════════════════════════════════
+            // HERO SECTION
+            // ═══════════════════════════════════════════════════════
+            
+            // Subtitle below "Choose an AI Assistant"
+            subtitle: 'Intelligent tools to help you work smarter',
+            
+            // Search bar visibility: true, false, or 'auto' (shows when 6+ assistants)
+            searchEnabled: 'auto',
+            
+            // ═══════════════════════════════════════════════════════
+            // ASSISTANT CARD ICONS
+            // ═══════════════════════════════════════════════════════
+            
+            // Default icon for all assistant cards (individual assistants can override)
+            defaultAssistantIcon: '/custom/assets/ai-assistant-icon.svg',
+            
+            // Icon size inside the card's icon container (default: 24px)
+            assistantIconSize: 28,
+            
+            // ═══════════════════════════════════════════════════════
+            // NAVIGATION
+            // ═══════════════════════════════════════════════════════
+            
+            // Text on sidebar button when inside a chat (returns to home)
+            navigationButtonText: 'AI Assistants',
+            
+            // ═══════════════════════════════════════════════════════
+            // ACCESS CONTROL
+            // ═══════════════════════════════════════════════════════
+            
+            // Rules for which users see which assistants
             linksToChatApps: {
                 userChatAppRules: [
-                    // External users see only external chat apps
+                    // External users see only external-facing assistants
                     {
                         userTypes: ['external-user'],
                         chatAppUserTypes: ['external-user']
                     },
-                    // Internal users see all chat apps
+                    // Internal users see all assistants
                     {
                         userTypes: ['internal-user'],
                         chatAppUserTypes: ['internal-user', 'external-user']
@@ -103,22 +171,148 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
-**Configuration Options:**
+### Configuration Options Reference
 
-| Option | Description | Required |
-|--------|-------------|----------|
-| `homePageTitle` | Custom title for home page | No |
-| `welcomeMessage` | Custom welcome message | No |
-| `linksToChatApps` | Rules for showing chat app links | No |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `homePageTitle` | Title displayed in the header next to logo | "AI Assistants" |
+| `subtitle` | Descriptive text below "Choose an AI Assistant" | "Select an assistant to get started" |
+| `logo` | Logo URL, `{ light, dark }` object, or `null` to hide | Pika logo |
+| `logoHeight` | Logo height in pixels (width auto-scales) | 48 |
+| `logoGap` | Space between logo and title in pixels | 16 |
+| `navigationButtonText` | Sidebar button text to return to home | "AI Assistants" |
+| `searchEnabled` | Search bar: `true`, `false`, or `'auto'` | `'auto'` |
+| `defaultAssistantIcon` | Default icon URL for assistant cards | Sparkle icon |
+| `assistantIconSize` | Icon size in pixels inside card container | 24 |
+| `linksToChatApps` | Rules for which users see which assistants | — |
 
-### Chat App Link Rules
+---
 
-Control which users see which chat apps on the home page:
+### Custom Logo
 
-1. System checks user's user type
+By default, the Pika logo appears in the header. Replace it with your own branding.
+
+**Option 1: Single logo (same for light/dark modes)**
+```typescript
+homePage: {
+    logo: '/custom/assets/my-company-logo.svg',
+    logoHeight: 48,  // Adjust to fit your logo
+    logoGap: 16,     // Space between logo and title
+}
+```
+
+**Option 2: Separate logos for light/dark modes**
+```typescript
+homePage: {
+    logo: {
+        light: '/custom/assets/logo-dark.svg',   // Dark logo on light background
+        dark: '/custom/assets/logo-light.svg'    // Light logo on dark background
+    },
+    logoHeight: 48,
+}
+```
+
+**Option 3: No logo (title only)**
+```typescript
+homePage: {
+    logo: null,
+}
+```
+
+{% aside type="tip" title="Logo Placement" %}
+Place your logo files in `apps/pika-chat/static/custom/assets/` and reference them as `/custom/assets/filename.svg`. This folder is protected from `pika sync` updates.
+{% /aside %}
+
+---
+
+### Custom Assistant Icons
+
+Each assistant card displays an icon. You can customize at two levels:
+
+```
+┌─────────────────────────────────────┐
+│  ┌──────┐                           │
+│  │ icon │  Assistant Title          │  ← Icon shown here
+│  └──────┘                           │
+│  Description text goes here...      │
+│                                     │
+│                    Start Chat →     │
+└─────────────────────────────────────┘
+```
+
+**Icon specifications:**
+- **Recommended size:** 40×40 pixels (80×80 for retina displays)
+- **Display size:** Controlled by `assistantIconSize` (default 24px inside 40px container)
+- **Format:** SVG recommended (scales perfectly), PNG/JPG/WebP supported
+- **Style:** Simple, single-color icons work best (inherits theme colors)
+
+#### Level 1: Global Default Icon
+
+Set a default icon for all assistants that don't have their own:
+
+```typescript
+// In pika-config.ts
+homePage: {
+    defaultAssistantIcon: '/custom/assets/ai-assistant-icon.svg',
+    assistantIconSize: 28,  // Make icons slightly larger (default: 24)
+}
+```
+
+#### Level 2: Per-Assistant Icon
+
+Override the default for specific assistants in your chat app definition:
+
+```typescript
+// In your chat app configuration
+{
+    chatAppId: 'order-assistant',
+    title: 'Order Assistant',
+    description: 'Track orders and analyze order data',
+    agentId: 'order-agent',
+    icon: '/custom/assets/order-icon.svg',  // Overrides global default
+}
+```
+
+**Icon priority:** Per-assistant icon → Global default → Built-in sparkle icon
+
+{% aside type="tip" title="Icon Design Tips" %}
+- Use simple, single-color SVG icons that work well at small sizes
+- SVG icons with `fill="currentColor"` will inherit the theme's primary color
+- The icon container changes color on hover, so avoid icons with fixed colors
+- Place all icon files in `apps/pika-chat/static/custom/assets/`
+{% /aside %}
+
+---
+
+### Assistant Access Control
+
+Control which users see which AI assistants:
+
+1. System checks the user's type (`internal-user` or `external-user`)
 2. Finds matching rules in `userChatAppRules`
-3. Shows chat apps whose user types match `chatAppUserTypes`
-4. If no rules match, no chat app links appear
+3. Shows assistants whose `userTypes` match the rule's `chatAppUserTypes`
+4. If no rules match, no assistants appear
+
+```typescript
+linksToChatApps: {
+    userChatAppRules: [
+        // Example: External users only see customer-facing assistants
+        {
+            userTypes: ['external-user'],
+            chatAppUserTypes: ['external-user']
+        },
+        // Example: Internal users see everything
+        {
+            userTypes: ['internal-user'],
+            chatAppUserTypes: ['internal-user', 'external-user']
+        }
+    ]
+}
+```
+
+{% aside type="note" title="User Experience" %}
+External users never see "Internal" badges or any indication that some assistants are internal-only. They simply see the assistants available to them. Internal users see a subtle "Internal" badge on internal-only assistants to help distinguish them.
+{% /aside %}
 
 ## Step 3: Configure Site Features
 

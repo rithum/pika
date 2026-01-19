@@ -7,6 +7,59 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.16.4] - 2026-01-19
+
+### Added
+
+- **Home Page Redesign** - Complete redesign of the AI Assistants landing page with modern, marketing-focused layout
+    - Clean header with customizable logo, title, and settings menu
+    - Hero section with configurable subtitle text
+    - Card-based assistant grid with hover effects and "Launch Assistant" CTA
+    - Search bar that auto-appears when 6+ assistants are available
+    - Configurable logo with light/dark mode support (`logo`, `logoHeight`, `logoGap`)
+    - New `subtitle` property replaces deprecated `welcomeMessage`
+    - `navigationButtonText` to customize sidebar return button (default: "AI Assistants")
+    - `searchEnabled` option: `true`, `false`, or `'auto'` (shows at 6+ assistants)
+
+- **Custom Assistant Icons** - Per-assistant icon customization on home page cards
+    - `icon` property on `ChatAppLite` interface for assistant-specific icons
+    - `defaultAssistantIcon` in `HomePageSiteFeature` for global default icon
+    - `assistantIconSize` to control icon size inside card containers (default: 24px)
+    - New default AI sparkles SVG icon at `/default-ai-sparkles.svg`
+
+- **Custom Header Icon** - Customize or replace the AI sparkle icon in chat app headers
+    - `chatAppHeaderIcon` in theme config - single URL or `{ light, dark }` object
+    - CSS variables for fine control: `chat-app-icon`, `chat-app-header-icon-height`, `chat-app-header-icon-gap`
+    - Automatic dark mode switching via MutationObserver
+
+- **Protected Assets Directory** - New `apps/pika-chat/static/custom/assets/` directory
+    - Protected from `pika sync` updates for safe storage of custom logos and icons
+    - Files served at `/custom/assets/` URL path
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.16.4) for @since 0.16.4 to find all type definitions that were added, updated, or removed in this release.
+
+### Changed
+
+- **"Chat Apps" renamed to "AI Assistants"** - Updated terminology throughout the application
+    - Home page title defaults to "AI Assistants"
+    - Navigation button defaults to "AI Assistants" instead of "Home Page"
+    - Card CTA changed from "Start Chat" to "Launch Assistant"
+- **Settings Dropdown Menus** - Improved visual design using proper shadcn `DropdownMenu.Label` components
+    - Removed awkward background box around user info
+    - Cleaner integration with dropdown menu styling
+- **Documentation** - Comprehensive updates to UI customization guide
+    - Added visual layout diagram showing all configuration options
+    - Complete examples with grouped settings by purpose
+    - New sections for logo, icon, and access control customization
+
+### Deprecated
+
+- `welcomeMessage` in `HomePageSiteFeature` - Use `subtitle` instead
+
+---
+
 ## [0.16.3] - 2026-01-19
 
 ### Changed

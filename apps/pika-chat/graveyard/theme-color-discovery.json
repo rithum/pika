@@ -1,0 +1,853 @@
+{
+  "status": "complete",
+  "lastUpdated": "2025-01-18T00:00:00Z",
+  "scanProgress": {
+    "pikaChatSvelte": {
+      "total": 152,
+      "scanned": 152,
+      "status": "complete"
+    },
+    "pikaChatTs": {
+      "total": 111,
+      "scanned": 111,
+      "status": "complete"
+    },
+    "pikaUxPikaSvelte": {
+      "total": 47,
+      "scanned": 47,
+      "status": "complete"
+    },
+    "pikaUxPikaTs": {
+      "total": 31,
+      "scanned": 31,
+      "status": "complete"
+    }
+  },
+  "summary": {
+    "hardcodedHexColors": 19,
+    "rgbaColors": 2,
+    "arbitraryTailwindColors": 1,
+    "tailwindNamedColors": "~330 instances across 25+ files",
+    "gradientColors": 3,
+    "scssHardcodedColors": 8,
+    "whiteBlackUsage": 38,
+    "opacityModifiers": 12,
+    "darkModeSpecificColors": 13,
+    "activeHoverGroupColors": 10,
+    "customPalettesNeedingWork": 0,
+    "servicesSamplesColors": "~12 (sample widgets - lower priority)",
+    "totalEstimatedChanges": "~400 color instances in pika-chat/pika-ux core",
+    "note": "pika-docs is OUT OF SCOPE - separate Starlight/Astro site with its own theming"
+  },
+  "findings": {
+    "hardcodedHexColors": [
+      {
+        "file": "apps/pika-chat/src/lib/client/features/chat/chat-app-main/trace.svelte",
+        "lines": [
+          935,
+          940,
+          951,
+          952
+        ],
+        "colors": [
+          "#e0e0e0",
+          "#333",
+          "#007bff",
+          "#f8f9ff"
+        ],
+        "context": "CSS border and text colors in trace component",
+        "intent": "Border, text, focus state, background highlighting",
+        "suggestedMapping": {
+          "#e0e0e0": "--border",
+          "#333": "--foreground",
+          "#007bff": "--ring or --primary",
+          "#f8f9ff": "--accent or new --focus-bg"
+        }
+      },
+      {
+        "file": "apps/pika-chat/src/lib/client/features/chat/chat-input/chat-input.svelte",
+        "lines": [
+          135
+        ],
+        "colors": [
+          "#303030"
+        ],
+        "context": "Dark mode background for chat input (arbitrary Tailwind)",
+        "intent": "Dark mode card/input background",
+        "suggestedMapping": {
+          "#303030": "--card or --input"
+        }
+      },
+      {
+        "file": "apps/pika-chat/src/lib/client/features/chat/chat-input/chat-file-attachment.svelte",
+        "lines": [
+          28,
+          36
+        ],
+        "colors": [
+          "#e2e8f0",
+          "#3b82f6"
+        ],
+        "context": "SVG stroke colors for file upload progress ring",
+        "intent": "Progress ring track and fill",
+        "suggestedMapping": {
+          "#e2e8f0": "--muted or --border",
+          "#3b82f6": "--primary or --info"
+        }
+      },
+      {
+        "file": "apps/pika-chat/src/lib/client/features/chat/message-segments/message-renderer.svelte",
+        "lines": [
+          207,
+          217,
+          227
+        ],
+        "colors": [
+          "#e5e7eb",
+          "#f9fafb",
+          "#6b7280"
+        ],
+        "context": "Table styling in rendered markdown messages",
+        "intent": "Table header border, background, text",
+        "suggestedMapping": {
+          "#e5e7eb": "--border",
+          "#f9fafb": "--muted",
+          "#6b7280": "--muted-foreground"
+        }
+      },
+      {
+        "file": "packages/pika-ux/src/pika/pika-table/pika-table.svelte",
+        "lines": [
+          305
+        ],
+        "colors": [
+          "#ededed"
+        ],
+        "context": "Shadow color for sticky table header",
+        "intent": "Subtle divider shadow",
+        "suggestedMapping": {
+          "#ededed": "--border"
+        }
+      },
+      {
+        "file": "apps/pika-chat/src/lib/client/features/chat/chat-app-main/trace.svelte",
+        "lines": [
+          946,
+          954
+        ],
+        "colors": [
+          "rgba(0, 0, 0, 0.05)",
+          "rgba(0, 123, 255, 0.15)"
+        ],
+        "context": "Box shadow colors",
+        "intent": "Shadow for depth, focus glow effect",
+        "suggestedMapping": {
+          "rgba(0, 0, 0, 0.05)": "Keep as-is or use shadow utility",
+          "rgba(0, 123, 255, 0.15)": "Use var(--ring) with opacity"
+        }
+      },
+      {
+        "file": "packages/pika-ux/src/pika/markdown-editor/github.scss",
+        "lines": [
+          3,
+          4,
+          5,
+          6,
+          14,
+          20,
+          27,
+          43
+        ],
+        "colors": [
+          "#ffffff",
+          "#f6f8fa",
+          "#d0d7de",
+          "#0969da",
+          "#cde4fe",
+          "#24292f",
+          "#eaeef2"
+        ],
+        "context": "GitHub-style markdown editor theme",
+        "intent": "Editor chrome styling (background, borders, text, accent)",
+        "suggestedMapping": {
+          "#ffffff": "var(--background)",
+          "#f6f8fa": "var(--muted)",
+          "#d0d7de": "var(--border)",
+          "#0969da": "var(--primary)",
+          "#cde4fe": "var(--ring) or var(--accent)",
+          "#24292f": "var(--foreground)",
+          "#eaeef2": "var(--muted)"
+        },
+        "note": "SCSS file - may need special handling for variable interpolation"
+      }
+    ],
+    "gradientColors": [
+      {
+        "file": "apps/pika-chat/src/routes/(noauth)/login/+page.svelte",
+        "line": 1,
+        "pattern": "bg-gradient-to-br from-blue-50 to-indigo-100",
+        "intent": "Login page background gradient",
+        "suggestedMapping": "from-muted to-accent or custom gradient variables"
+      },
+      {
+        "file": "apps/pika-chat/src/lib/client/features/site-admin/components/session-insights/sessions-table.svelte",
+        "line": 245,
+        "pattern": "bg-gradient-to-r from-blue-50 to-indigo-50/30",
+        "intent": "Quick filter section highlight",
+        "suggestedMapping": "from-info-bg to-accent or similar"
+      }
+    ],
+    "loginPageColors": {
+      "file": "apps/pika-chat/src/routes/(noauth)/login/+page.svelte",
+      "colors": [
+        "from-blue-50",
+        "to-indigo-100",
+        "text-gray-900",
+        "text-gray-600",
+        "bg-indigo-600",
+        "hover:bg-indigo-700",
+        "ring-indigo-500"
+      ],
+      "note": "Entire login page needs theming overhaul"
+    },
+    "ringAndFocusColors": [
+      {
+        "file": "sessions-table.svelte",
+        "pattern": "focus-visible:ring-blue-500",
+        "suggestedMapping": "focus-visible:ring-ring"
+      },
+      {
+        "file": "scope.svelte & directive-id.svelte",
+        "pattern": "ring-slate-300",
+        "suggestedMapping": "ring-ring or ring-border"
+      },
+      {
+        "file": "login/+page.svelte",
+        "pattern": "ring-indigo-500",
+        "suggestedMapping": "ring-ring"
+      }
+    ],
+    "whiteBlackUsage": {
+      "summary": "38 instances of text-white, text-black, bg-white, bg-black across 21 files",
+      "analysis": "Some intentional (white text on colored buttons), some should map to semantic",
+      "suggestedMapping": {
+        "bg-white": "--card or --background in most cases",
+        "text-white": "--primary-foreground or keep for contrast on colored backgrounds",
+        "text-black": "--foreground",
+        "bg-black": "Rare - evaluate case by case"
+      },
+      "majorFiles": [
+        "spotlight/index.svelte (3)",
+        "trace.svelte (1)",
+        "chat-feedback.svelte (2)",
+        "session-feedback.svelte (4)",
+        "+page.svelte (3)",
+        "login/+page.svelte (2)"
+      ]
+    },
+    "tailwindNamedColorsByCategory": {
+      "statusColors": {
+        "success_green": {
+          "count": 30,
+          "currentPatterns": [
+            "green-100",
+            "green-500",
+            "green-600",
+            "green-700",
+            "green-800",
+            "bg-green-50",
+            "text-green-600",
+            "border-green-200"
+          ],
+          "usageIntent": "Success states, positive indicators, completion badges",
+          "suggestedReplacement": "NEW: --success, --success-bg, --success-foreground"
+        },
+        "warning_yellow": {
+          "count": 25,
+          "currentPatterns": [
+            "yellow-50",
+            "yellow-100",
+            "yellow-200",
+            "yellow-500",
+            "yellow-600",
+            "yellow-700",
+            "yellow-800"
+          ],
+          "usageIntent": "Warning states, caution indicators, in-progress states",
+          "suggestedReplacement": "NEW: --warning, --warning-bg, --warning-foreground"
+        },
+        "error_red": {
+          "count": 25,
+          "currentPatterns": [
+            "red-50",
+            "red-100",
+            "red-200",
+            "red-500",
+            "red-600",
+            "red-700",
+            "red-800",
+            "red-900",
+            "rose-100",
+            "rose-800"
+          ],
+          "usageIntent": "Error states, destructive actions, negative indicators",
+          "suggestedReplacement": "EXISTING: --destructive + NEW: --danger-bg"
+        },
+        "info_blue": {
+          "count": 50,
+          "currentPatterns": [
+            "blue-50",
+            "blue-100",
+            "blue-200",
+            "blue-500",
+            "blue-600",
+            "blue-700",
+            "blue-800",
+            "blue-900"
+          ],
+          "usageIntent": "Informational states, links, interactive elements, focus states",
+          "suggestedReplacement": "--primary (interactive), NEW: --info, --info-bg (informational)"
+        }
+      },
+      "neutralColors": {
+        "gray_neutral": {
+          "count": 135,
+          "currentPatterns": [
+            "gray-50",
+            "gray-100",
+            "gray-200",
+            "gray-300",
+            "gray-400",
+            "gray-500",
+            "gray-600",
+            "gray-700",
+            "gray-800",
+            "gray-900"
+          ],
+          "usageIntent": "Backgrounds, borders, muted text, dividers, disabled states",
+          "suggestedReplacement": {
+            "gray-50/100": "--muted or --background",
+            "gray-200/300": "--border or --input",
+            "gray-400/500": "--muted-foreground",
+            "gray-600/700": "--foreground (lighter variant)",
+            "gray-800/900": "--foreground"
+          }
+        },
+        "slate_neutral": {
+          "count": 35,
+          "currentPatterns": [
+            "slate-50",
+            "slate-100",
+            "slate-200",
+            "slate-300",
+            "slate-500",
+            "slate-600",
+            "slate-700",
+            "slate-800",
+            "slate-900"
+          ],
+          "usageIntent": "Same as gray - appears to be stylistic inconsistency",
+          "suggestedReplacement": "Same as gray mappings - consider standardizing on one neutral palette"
+        }
+      },
+      "otherColors": {
+        "purple": {
+          "count": 3,
+          "currentPatterns": [
+            "purple-100",
+            "purple-600",
+            "purple-800"
+          ],
+          "usageIntent": "Custom tag badges, AI-related indicators",
+          "suggestedReplacement": "NEW: --ai, --ai-bg (for AI indicators)"
+        },
+        "orange": {
+          "count": 5,
+          "currentPatterns": [
+            "orange-100",
+            "orange-500",
+            "orange-800"
+          ],
+          "usageIntent": "Grade C indicator, override states",
+          "suggestedReplacement": "Could map to --warning or create --grade-c"
+        },
+        "indigo": {
+          "count": 8,
+          "currentPatterns": [
+            "indigo-50",
+            "indigo-100",
+            "indigo-500",
+            "indigo-600",
+            "indigo-700",
+            "from-indigo-*",
+            "to-indigo-*",
+            "ring-indigo-*"
+          ],
+          "usageIntent": "Login page buttons, gradients, focus rings",
+          "suggestedReplacement": "--primary for buttons, gradients need custom solution"
+        },
+        "rose": {
+          "count": 2,
+          "currentPatterns": [
+            "rose-100",
+            "rose-800"
+          ],
+          "usageIntent": "External access badge",
+          "suggestedReplacement": "--destructive or --warning variant"
+        }
+      }
+    },
+    "customPaletteAnalysis": {
+      "conclusion": "Custom palettes (gold, blueish, bluebright, prominent, etc.) are correctly architected",
+      "details": [
+        "Palettes are defined in app.css with full shade ranges (50-900)",
+        "They are NOT used directly via Tailwind classes in components",
+        "They ARE used indirectly through semantic variables (--sidebar-border uses goldhighlight, --ring uses bluebright)",
+        "This is the CORRECT pattern - clone projects override semantic variables, not palette definitions",
+        "No refactoring needed for custom palettes themselves"
+      ],
+      "semanticVariableUsage": {
+        "--ring": "var(--bluebright-100) in light mode",
+        "--sidebar-border": "oklch(0.873 0.115 95.71) = goldhighlight-500 in light mode"
+      }
+    }
+  },
+  "refactoringPlan": {
+    "phase1_addSemanticVariables": {
+      "priority": "HIGH",
+      "effort": "Small",
+      "description": "Add new semantic variables for status colors to app.css",
+      "changes": [
+        "Add --success, --success-foreground, --success-bg (green palette)",
+        "Add --warning, --warning-foreground, --warning-bg (yellow palette)",
+        "Add --info, --info-foreground, --info-bg (blue palette)",
+        "Add --ai, --ai-foreground, --ai-bg (purple palette for AI indicators)",
+        "Add --danger-bg (light red background for error states)",
+        "Add corresponding @theme inline mappings for Tailwind"
+      ],
+      "files": [
+        "apps/pika-chat/src/app.css",
+        "packages/pika-ux/src/app.css"
+      ]
+    },
+    "phase2_hardcodedHexColors": {
+      "priority": "HIGH",
+      "effort": "Small",
+      "description": "Replace hardcoded hex/rgba colors with CSS variables",
+      "changes": [
+        {
+          "file": "trace.svelte",
+          "changes": 6,
+          "notes": "Convert inline styles including rgba shadows to use var(--border), var(--foreground), var(--ring)"
+        },
+        {
+          "file": "chat-input.svelte",
+          "changes": 1,
+          "notes": "Replace dark:bg-[#303030] with dark:bg-card"
+        },
+        {
+          "file": "chat-file-attachment.svelte",
+          "changes": 2,
+          "notes": "Replace SVG stroke colors with CSS variables"
+        },
+        {
+          "file": "message-renderer.svelte",
+          "changes": 3,
+          "notes": "Convert table styles to use var(--border), var(--muted)"
+        },
+        {
+          "file": "pika-table.svelte",
+          "changes": 1,
+          "notes": "Replace shadow color with var(--border)"
+        },
+        {
+          "file": "github.scss (markdown-editor)",
+          "changes": 8,
+          "notes": "Convert SCSS variables to use CSS custom properties - may need special handling"
+        }
+      ],
+      "totalChanges": 21
+    },
+    "phase2b_loginPage": {
+      "priority": "MEDIUM",
+      "effort": "Small",
+      "description": "Theme the login page",
+      "file": "apps/pika-chat/src/routes/(noauth)/login/+page.svelte",
+      "changes": 7,
+      "notes": "Replace indigo/blue/gray colors with semantic variables"
+    },
+    "phase3_tailwindStatusColors": {
+      "priority": "MEDIUM",
+      "effort": "Medium",
+      "description": "Replace Tailwind status color classes (green/yellow/red/blue) with semantic classes",
+      "approach": "After Phase 1 adds new semantic variables, replace patterns like bg-green-100 with bg-success-bg",
+      "estimatedChanges": 130,
+      "majorFiles": [
+        "trace.svelte (~35 changes)",
+        "tags-feature-renderer.svelte (~15 changes)",
+        "agent-instruction-assistance-feature-renderer.svelte (~18 changes)",
+        "sessions-table.svelte (~12 changes)",
+        "+page.svelte home page (~18 changes)",
+        "validation-error-banner.svelte (~5 changes)",
+        "insights-score-card.svelte (~12 changes)",
+        "pika-ux components (~25 changes)"
+      ]
+    },
+    "phase4_tailwindNeutralColors": {
+      "priority": "LOW",
+      "effort": "Large",
+      "description": "Replace Tailwind gray/slate classes with semantic variables",
+      "approach": "Map gray-* to muted, muted-foreground, border, etc.",
+      "estimatedChanges": 170,
+      "notes": [
+        "This is the largest effort",
+        "Consider doing incrementally by component",
+        "Some gray usages may be intentional design decisions",
+        "May want to keep some gray classes for fine-grained control"
+      ]
+    }
+  },
+  "recommendations": [
+    "Start with Phase 1 (add semantic variables) - enables all other phases",
+    "Phase 2 (hex colors) is quick wins with high impact - now includes SCSS file",
+    "Phase 2b (login page) is a self-contained themeable component",
+    "Phase 3 (status colors) provides consistent theming for important UI states",
+    "Phase 4 (neutrals) can be done incrementally over time",
+    "Consider text-white/bg-white usage - some is intentional for contrast",
+    "Consider creating a CSS utility class mapping file for the refactoring",
+    "Document the semantic variable -> intent mapping for future development",
+    "Gradients may need custom --gradient-* variables or component-specific overrides"
+  ],
+  "additionalNotes": [
+    "The SCSS file (github.scss) may require special handling since SCSS variables work differently than CSS custom properties",
+    "Hover variants (hover:bg-blue-600, etc.) exist in 14+ files - these follow same pattern as base colors",
+    "Some text-white usage is intentional (white text on primary buttons) and should remain",
+    "The gray vs slate inconsistency should be addressed - recommend standardizing on gray for semantic neutrals"
+  ],
+  "additionalAreasDiscovered": {
+    "pikaDocsColors": {
+      "priority": "LOW - documentation site, not customer-facing app",
+      "summary": "~150+ hardcoded colors in pika-docs",
+      "files": [
+        {
+          "file": "apps/pika-docs/src/styles/global.css",
+          "colors": [
+            "#eef2ff",
+            "#e0e7ff",
+            "#c7d2fe",
+            "#a5b4fc",
+            "#818cf8",
+            "#5b7ff5",
+            "#4a6eeb",
+            "#3f5cd8",
+            "#364bb5",
+            "#2e3f8f",
+            "#1e2761"
+          ],
+          "context": "Accent color palette for Starlight theme",
+          "note": "This is the docs theme, separate from chat app"
+        },
+        {
+          "file": "apps/pika-docs/src/components/Badge.astro",
+          "colors": [
+            "#6b7280",
+            "#ffffff",
+            "#3b82f6",
+            "#8b5cf6",
+            "#10b981",
+            "#f59e0b",
+            "#ef4444",
+            "#2563eb",
+            "#7c3aed",
+            "#059669",
+            "#d97706",
+            "#dc2626"
+          ],
+          "context": "Badge variants for documentation",
+          "count": 18
+        },
+        {
+          "file": "apps/pika-docs/src/components/counter.svelte",
+          "colors": [
+            "#f0f4f8",
+            "#e2e8f0",
+            "#4f46e5"
+          ],
+          "context": "Demo counter component"
+        },
+        {
+          "file": "apps/pika-docs/src/components/zoom.svelte",
+          "colors": [
+            "#d1d5db",
+            "#1a1a1a",
+            "#e5e7eb",
+            "#374151"
+          ],
+          "context": "Image zoom component with fallback colors",
+          "note": "Uses var() with fallbacks"
+        },
+        {
+          "file": "mdoc content files",
+          "pattern": "fancyCard bgColor='#...'",
+          "count": "~20 instances",
+          "colors": [
+            "#065f46",
+            "#1e40af",
+            "#7c2d12",
+            "#1e293b",
+            "#f5f4f4"
+          ],
+          "context": "Documentation card backgrounds"
+        },
+        {
+          "file": "mdoc code examples",
+          "note": "Many hex colors in code examples/snippets - these are intentional for documentation",
+          "examples": [
+            "#e2e8f0",
+            "#0066cc",
+            "#ddd",
+            "#f3f4f6",
+            "#d1d5db",
+            "#3b82f6"
+          ]
+        }
+      ],
+      "recommendation": "Lower priority - docs site is separate from chat app. Consider theming later or accept as documentation-specific styling."
+    },
+    "servicesSamplesColors": {
+      "priority": "LOW - example/sample code",
+      "summary": "Sample weather widgets with hardcoded iconColor values",
+      "files": [
+        {
+          "file": "services/samples/weather/src/webcomponent/lib/widgets/*.svelte",
+          "pattern": "iconColor: '#...'",
+          "colors": [
+            "#6366f1",
+            "#3b82f6",
+            "#dc2626",
+            "#10b981",
+            "#ef4444",
+            "#a855f7",
+            "#f59e0b",
+            "#0ea5e9",
+            "#8b5cf6"
+          ],
+          "count": 9,
+          "context": "Widget accent icon colors"
+        },
+        {
+          "file": "services/samples/weather/index-prod.html",
+          "colors": [
+            "#f5f5f5",
+            "#333"
+          ],
+          "context": "Demo page styling"
+        }
+      ],
+      "recommendation": "These are samples/examples - lower priority. Could be updated to demonstrate theme token usage."
+    },
+    "enterpriseSiteSample": {
+      "priority": "LOW - sample code",
+      "file": "apps/samples/enterprise-site/tailwind.config.ts",
+      "colors": [
+        "#1a56db",
+        "#374151"
+      ],
+      "context": "Custom Tailwind colors for enterprise sample",
+      "note": "This is a sample demonstrating how to add custom colors - intentional"
+    },
+    "opacityModifierPatterns": {
+      "summary": "~12 instances of color/opacity patterns",
+      "examples": [
+        "text-blue-600/70",
+        "bg-gray-50/75",
+        "bg-gray-50/95",
+        "bg-slate-300/50",
+        "bg-slate-500/70",
+        "bg-slate-400/60",
+        "bg-red-900/20",
+        "to-indigo-50/30"
+      ],
+      "files": [
+        "sessions-table.svelte",
+        "spotlight/index.svelte",
+        "scope.svelte",
+        "directive-id.svelte",
+        "chat-file-attachment.svelte"
+      ],
+      "note": "These follow same pattern as base colors - replace color, keep opacity"
+    },
+    "darkModeSpecificColors": {
+      "summary": "~13 instances of dark: prefixed named colors",
+      "examples": [
+        "dark:bg-gray-800",
+        "dark:border-gray-700",
+        "dark:text-gray-300",
+        "dark:text-gray-400",
+        "dark:hover:bg-gray-700",
+        "dark:bg-blue-500",
+        "dark:bg-red-900/20"
+      ],
+      "files": [
+        "context-chip.svelte",
+        "chat-input.svelte",
+        "auto-context-dropdown.svelte",
+        "add-context-menu.svelte",
+        "chat-file-display.svelte",
+        "chat-file-attachment.svelte"
+      ],
+      "note": "These should map to semantic dark mode variables when available"
+    },
+    "stateVariantColors": {
+      "summary": "Colors with hover/active/group-hover prefixes",
+      "hover": "~28 instances in 14 files (already counted in main tally)",
+      "active": "~8 instances (scope.svelte, directive-id.svelte)",
+      "groupHover": "~2 instances (directive-id.svelte)",
+      "note": "These follow same color patterns, need same replacements"
+    }
+  },
+  "scopeDecisions": {
+    "inScope": [
+      "apps/pika-chat/src - ALL hardcoded colors",
+      "packages/pika-ux/src/pika - ALL hardcoded colors",
+      "packages/pika-ux/src/shadcn - verify no hardcoded colors (confirmed clean)",
+      "packages/pika-cli/src/commands/component.ts - generated component template (MEDIUM priority)"
+    ],
+    "lowerPriority": [
+      "services/samples - example/demo code (clone projects typically replace these)",
+      "apps/samples - sample applications"
+    ],
+    "outOfScope": [
+      "apps/pika-docs - COMPLETELY OUT OF SCOPE - separate Starlight/Astro site with its own theming system",
+      "Code examples in documentation (intentionally showing color values)",
+      "SVG diagram content in mdoc files",
+      "Third-party library code",
+      "docs/ folder - internal documentation, not user-facing app"
+    ]
+  },
+  "additionalFindingsFromFullRepoScan": {
+    "packagesShared": {
+      "file": "packages/shared/src/types/chatbot/webcomp-types.ts",
+      "line": 659,
+      "issue": "JSDoc example with hardcoded iconColor: '#001F3F'",
+      "priority": "LOW - documentation example in type definition",
+      "action": "Update JSDoc to recommend using CSS variables"
+    },
+    "packagesPikaCli": {
+      "file": "packages/pika-cli/src/commands/component.ts",
+      "lines": [
+        273,
+        277,
+        287,
+        293
+      ],
+      "colors": [
+        "#e2e8f0",
+        "#ffffff",
+        "#2d3748",
+        "#4a5568"
+      ],
+      "context": "Generated component template styles",
+      "priority": "MEDIUM - affects generated web components",
+      "action": "Update template to use CSS variables or semantic classes"
+    },
+    "packagesPikaCliReadme": {
+      "file": "packages/pika-cli/README.md",
+      "lines": [
+        270,
+        276,
+        277,
+        278
+      ],
+      "colors": [
+        "#e2e8f0",
+        "#f59e0b",
+        "#10b981",
+        "#ef4444"
+      ],
+      "context": "Documentation example code",
+      "priority": "LOW - documentation"
+    },
+    "servicesChartData": {
+      "file": "services/pika/tools/test-message-insertion/index.ts",
+      "context": "Test data with chart colors in JSON",
+      "colors": [
+        "rgba(255, 99, 132, 0.5)",
+        "rgba(54, 162, 235, 0.5)",
+        "rgba(75, 192, 192, 1)"
+      ],
+      "priority": "LOW - test data",
+      "note": "Chart colors in test data - may want to use theme tokens in real charts"
+    },
+    "appsPikaDocsConfig": {
+      "file": "apps/pika-docs/ec.config.mjs",
+      "lines": [
+        72,
+        75,
+        84,
+        85
+      ],
+      "colors": [
+        "#e5e7eb",
+        "#f9fafb",
+        "#6b7280",
+        "#374151"
+      ],
+      "context": "Expressive code (syntax highlighting) configuration",
+      "priority": "OUT OF SCOPE - pika-docs has its own theming system (Starlight/Astro)",
+      "action": "NO ACTION - separate site"
+    },
+    "knowledgeBaseFiles": {
+      "files": [
+        "apps/pika-chat/knowledge-base/3-implementation/3.2-ai-impl-strategies.md",
+        "apps/pika-chat/knowledge-base/3-implementation/3.1-feature-dev-workflow.md",
+        "apps/pika-chat/knowledge-base/ui.md"
+      ],
+      "colors": [
+        "#f0f0f0",
+        "#cccccc",
+        "#4F6272",
+        "#B19A66"
+      ],
+      "priority": "LOW - internal documentation/knowledge base",
+      "note": "ui.md appears to document Pika's color palette - this should be updated with theming docs"
+    },
+    "traceSvelteAdditional": {
+      "file": "apps/pika-chat/src/lib/client/features/chat/chat-app-main/trace.svelte",
+      "line": 934,
+      "issue": "CSS `background: white` - named color",
+      "action": "Replace with var(--background) or var(--card)"
+    },
+    "chatInputBrokenClasses": {
+      "file": "apps/pika-chat/src/lib/client/features/chat/chat-input/chat-input.svelte",
+      "lines": [
+        135,
+        188
+      ],
+      "issue": "BROKEN CSS CLASSES - token-* classes that don't exist",
+      "patterns": [
+        "border-token-border-default",
+        "bg-token-bg-primary",
+        "text-token-text-primary",
+        "text-token-text-tertiary"
+      ],
+      "priority": "HIGH - these classes are NOT defined anywhere and likely do nothing",
+      "action": "Replace with actual semantic classes (border-border, bg-card, text-foreground, text-muted-foreground)",
+      "note": "These appear to have been copied from OpenAI ChatGPT interface styling"
+    },
+    "diagramsAndSvgs": {
+      "summary": "~1000+ hex colors in drawio.svg diagram files across docs/public/img/diagrams/",
+      "priority": "OUT OF SCOPE - generated diagram files",
+      "note": "These are visual diagram exports, not themeable code"
+    },
+    "mermaidDiagrams": {
+      "summary": "~50 style definitions with hex colors in Markdown mermaid diagrams",
+      "locations": [
+        "docs/concepts/*.md",
+        "docs/architecture/*.md",
+        "services/pika/docs/*.md"
+      ],
+      "priority": "OUT OF SCOPE - diagram styling in documentation"
+    }
+  }
+}

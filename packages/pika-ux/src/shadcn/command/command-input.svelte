@@ -11,7 +11,8 @@
     <CommandPrimitive.Input
         data-slot="command-input"
         class={cn(
-            'placeholder:text-muted-foreground outline-hidden flex h-10 w-full rounded-md bg-transparent py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50',
+            // PIKA CUSTOMIZATION: Added px-2 for padding inside focus ring (not in upstream shadcn-svelte)
+            'placeholder:text-muted-foreground outline-hidden flex h-10 w-full rounded-md bg-transparent px-2 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50',
             className
         )}
         bind:ref

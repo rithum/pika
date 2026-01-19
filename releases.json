@@ -1,7 +1,26 @@
 {
-  "latestVersion": "0.16.3",
-  "currentDevelopment": "0.16.3",
+  "latestVersion": "0.16.4",
+  "currentDevelopment": "0.16.4",
   "releases": [
+    {
+      "version": "0.16.4",
+      "date": "2026-01-19",
+      "status": "released",
+      "breaking": false,
+      "summary": "Home page redesign with customizable branding, assistant icons, and header icons",
+      "highlights": [
+        "Complete home page redesign with modern card-based AI Assistants layout",
+        "Customizable logo with light/dark mode support (logo, logoHeight, logoGap)",
+        "Search bar auto-appears at 6+ assistants with searchEnabled option",
+        "Per-assistant icons via icon property on ChatAppLite",
+        "Global default icon via defaultAssistantIcon and assistantIconSize",
+        "Custom header icon via chatAppHeaderIcon in theme config",
+        "New CSS variables: chat-app-icon, chat-app-header-icon-height, chat-app-header-icon-gap",
+        "Protected assets directory at apps/pika-chat/static/custom/assets/",
+        "Renamed 'Chat Apps' to 'AI Assistants' throughout",
+        "Improved settings dropdown using proper shadcn DropdownMenu.Label components"
+      ]
+    },
     {
       "version": "0.16.3",
       "date": "2026-01-19",

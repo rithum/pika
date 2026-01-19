@@ -12,8 +12,41 @@
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
     import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
-    import { getContext } from 'svelte';
+    import { getContext, onMount } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
+
+    // Check for custom header icon URL from theme (reactive to light/dark mode changes)
+    let customHeaderIconUrl: string | null = $state(null);
+
+    function updateCustomHeaderIcon() {
+        const cssValue = getComputedStyle(document.documentElement)
+            .getPropertyValue('--chat-app-header-icon-url')
+            .trim();
+        // Extract URL from css url() syntax: url('/path/to/icon.svg') -> /path/to/icon.svg
+        const match = cssValue.match(/url\(['"]?([^'"]+)['"]?\)/);
+        customHeaderIconUrl = match?.[1] ?? null;
+    }
+
+    onMount(() => {
+        // Initial check
+        updateCustomHeaderIcon();
+
+        // Watch for dark mode class changes on document element
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    updateCustomHeaderIcon();
+                }
+            }
+        });
+
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+
+        return () => observer.disconnect();
+    });
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -107,23 +140,29 @@
         {/if}
     {/if}
     <div class="flex items-center text-lg">
-        <svg class="w-11 h-11 text-gray-500" version="1.1" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-            <path
-                stroke="currentColor"
-                fill="currentColor"
-                d="m32.7072 19.0664 0.89264-1.63188c0.0142188-0.0235938 0.0331248-0.0425 0.05672-0.05672l1.63188-0.89264c0.229064-0.125152 0.229064-0.45248 0-0.577632l-1.63188-0.89264c-0.0235938-0.0142188-0.0425-0.0331248-0.05672-0.05672l-0.89264-1.63188c-0.125152-0.229064-0.45248-0.229064-0.577632 0l-0.89264 1.63188c-0.0142188 0.0235938-0.0331248 0.0425-0.05672 0.05672l-1.63188 0.89264c-0.229064 0.125152-0.229064 0.45248 0 0.577632l1.63188 0.89264c0.0235938 0.0142188 0.0425 0.0331248 0.05672 0.05672l0.89264 1.63188c0.125152 0.229064 0.45248 0.229064 0.577632 0z"
-            />
-            <path
-                stroke="currentColor"
-                fill="currentColor"
-                d="m32.7072 34.7336 0.89264-1.63188c0.0142188-0.0235938 0.0331248-0.0425 0.05672-0.05672l1.63188-0.89264c0.229064-0.125152 0.229064-0.45248 0-0.577632l-1.63188-0.89264c-0.0235938-0.0142188-0.0425-0.0331248-0.05672-0.05672l-0.89264-1.63188c-0.125152-0.229064-0.45248-0.229064-0.577632 0l-0.89264 1.63188c-0.0142188 0.0235938-0.0331248 0.0425-0.05672 0.05672l-1.63188 0.89264c-0.229064 0.125152-0.229064 0.45248 0 0.577632l1.63188 0.89264c0.0235938 0.0078752 0.0425 0.0331248 0.05672 0.05672l0.89264 1.63188c0.125152 0.229064 0.45248 0.229064 0.577632 0z"
-            />
-            <path
-                stroke="currentColor"
-                fill="currentColor"
-                d="m20.944 19.0808-0.0259376 0.063752c-0.86908 2.20092-2.62844 3.96264-4.82936 4.83172l-0.063752 0.0259376 0.063752 0.0259376c2.20092 0.86908 3.96264 2.62844 4.83172 4.82936l0.0259376 0.063752 0.0259376-0.063752c0.86908-2.20092 2.62844-3.96264 4.82936-4.83172l0.063752-0.0259376-0.063752-0.0259376c-2.20092-0.86908-3.96264-2.62844-4.83172-4.82936l-0.0259376-0.063752m0-5.5852c0.188908 0 0.377816 0.103908 0.45812 0.31172l1.76172 4.468c0.63048 1.60124 1.89876 2.86952 3.5 3.5l4.468 1.76172c0.41564 0.165312 0.41564 0.75328 0 0.918592l-4.468 1.76172c-1.60124 0.63048-2.86952 1.89876-3.5 3.5l-1.76172 4.468c-0.082656 0.207812-0.269212 0.31172-0.45812 0.31172-0.188908 0-0.377816-0.103908-0.45812-0.31172l-1.76172-4.468c-0.63048-1.60124-1.89876-2.86952-3.5-3.5l-4.468-1.76172c-0.41564-0.165312-0.41564-0.75328 0-0.918592l4.468-1.76172c1.60124-0.63048 2.86952-1.89876 3.5-3.5l1.76172-4.468c0.082656-0.207812 0.269212-0.31172 0.45812-0.31172z"
-            />
-        </svg>
+        {#if customHeaderIconUrl}
+            <!-- Custom header icon from theme config - height controlled by --chat-app-header-icon-height -->
+            <img src={customHeaderIconUrl} alt="" class="chat-app-header-icon" />
+        {:else}
+            <!-- Default AI sparkle icon - color controlled by --chat-app-icon CSS variable -->
+            <svg class="w-11 h-11 chat-app-icon" version="1.1" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path
+                    stroke="currentColor"
+                    fill="currentColor"
+                    d="m32.7072 19.0664 0.89264-1.63188c0.0142188-0.0235938 0.0331248-0.0425 0.05672-0.05672l1.63188-0.89264c0.229064-0.125152 0.229064-0.45248 0-0.577632l-1.63188-0.89264c-0.0235938-0.0142188-0.0425-0.0331248-0.05672-0.05672l-0.89264-1.63188c-0.125152-0.229064-0.45248-0.229064-0.577632 0l-0.89264 1.63188c-0.0142188 0.0235938-0.0331248 0.0425-0.05672 0.05672l-1.63188 0.89264c-0.229064 0.125152-0.229064 0.45248 0 0.577632l1.63188 0.89264c0.0235938 0.0142188 0.0425 0.0331248 0.05672 0.05672l0.89264 1.63188c0.125152 0.229064 0.45248 0.229064 0.577632 0z"
+                />
+                <path
+                    stroke="currentColor"
+                    fill="currentColor"
+                    d="m32.7072 34.7336 0.89264-1.63188c0.0142188-0.0235938 0.0331248-0.0425 0.05672-0.05672l1.63188-0.89264c0.229064-0.125152 0.229064-0.45248 0-0.577632l-1.63188-0.89264c-0.0235938-0.0142188-0.0425-0.0331248-0.05672-0.05672l-0.89264-1.63188c-0.125152-0.229064-0.45248-0.229064-0.577632 0l-0.89264 1.63188c-0.0142188 0.0235938-0.0331248 0.0425-0.05672 0.05672l-1.63188 0.89264c-0.229064 0.125152-0.229064 0.45248 0 0.577632l1.63188 0.89264c0.0235938 0.0078752 0.0425 0.0331248 0.05672 0.05672l0.89264 1.63188c0.125152 0.229064 0.45248 0.229064 0.577632 0z"
+                />
+                <path
+                    stroke="currentColor"
+                    fill="currentColor"
+                    d="m20.944 19.0808-0.0259376 0.063752c-0.86908 2.20092-2.62844 3.96264-4.82936 4.83172l-0.063752 0.0259376 0.063752 0.0259376c2.20092 0.86908 3.96264 2.62844 4.83172 4.82936l0.0259376 0.063752 0.0259376-0.063752c0.86908-2.20092 2.62844-3.96264 4.82936-4.83172l0.063752-0.0259376-0.063752-0.0259376c-2.20092-0.86908-3.96264-2.62844-4.83172-4.82936l-0.0259376-0.063752m0-5.5852c0.188908 0 0.377816 0.103908 0.45812 0.31172l1.76172 4.468c0.63048 1.60124 1.89876 2.86952 3.5 3.5l4.468 1.76172c0.41564 0.165312 0.41564 0.75328 0 0.918592l-4.468 1.76172c-1.60124 0.63048-2.86952 1.89876-3.5 3.5l-1.76172 4.468c-0.082656 0.207812-0.269212 0.31172-0.45812 0.31172-0.188908 0-0.377816-0.103908-0.45812-0.31172l-1.76172-4.468c-0.63048-1.60124-1.89876-2.86952-3.5-3.5l-4.468-1.76172c-0.41564-0.165312-0.41564-0.75328 0-0.918592l4.468-1.76172c1.60124-0.63048 2.86952-1.89876 3.5-3.5l1.76172-4.468c0.082656-0.207812 0.269212-0.31172 0.45812-0.31172z"
+                />
+            </svg>
+        {/if}
 
         <span class="font-semibold relative left-[-4px]">{chat.chatApp.title ?? 'Chat Bot'}</span>
     </div>
@@ -297,16 +336,14 @@
         </DropdownMenu.Trigger>
         <DropdownMenu.Content>
             {#if userInfo}
-                <div class="flex flex-col p-2 bg-gray-100 rounded-md">
-                    {#each userInfo as info}
-                        <div class="mb-2">
-                            <div class="text-sm text-gray-500">{info.title}</div>
-                            <div class="font-semibold">
-                                <CopyButton embedded={true}>{info.value}</CopyButton>
-                            </div>
+                {#each userInfo as info}
+                    <DropdownMenu.Label class="font-normal py-1">
+                        <div class="text-xs text-muted-foreground">{info.title}</div>
+                        <div class="font-medium">
+                            <CopyButton embedded={true}>{info.value}</CopyButton>
                         </div>
-                    {/each}
-                </div>
+                    </DropdownMenu.Label>
+                {/each}
                 <DropdownMenu.Separator />
             {/if}
             <DropdownMenu.Group>
@@ -380,3 +417,17 @@
         >
     </TooltipPlus>
 {/snippet}
+
+<style>
+    /* Chat app header icon color - uses --chat-app-icon CSS variable with fallback */
+    :global(.chat-app-icon) {
+        color: var(--chat-app-icon, var(--muted-foreground, #6b7280));
+    }
+
+    /* Custom header icon sizing - height and spacing controlled by CSS variables */
+    :global(.chat-app-header-icon) {
+        height: var(--chat-app-header-icon-height, 32px);
+        width: auto;
+        margin-right: var(--chat-app-header-icon-gap, 4px);
+    }
+</style>

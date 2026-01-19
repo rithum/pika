@@ -458,6 +458,32 @@ export const THEME_SCHEMA_CHANGELOG: ThemeSchemaChange[] = [
                 defaultLight: 'oklch(0.769 0.188 70.08)',
                 defaultDark: 'oklch(0.645 0.246 16.439)',
                 affectedElements: ['Chart series 5']
+            },
+
+            // Header/branding
+            {
+                name: 'chat-app-icon',
+                category: 'brand',
+                description: 'Color of the AI icon in the chat app header',
+                defaultLight: 'oklch(0.555 0.041 257.452)',
+                defaultDark: 'oklch(0.711 0.035 256.803)',
+                affectedElements: ['Chat app header icon', 'AI sparkle icon']
+            },
+            {
+                name: 'chat-app-header-icon-height',
+                category: 'brand',
+                description: 'Height of custom header icon (width scales automatically)',
+                defaultLight: '32px',
+                defaultDark: '32px',
+                affectedElements: ['Custom header icon in chat app title bar']
+            },
+            {
+                name: 'chat-app-header-icon-gap',
+                category: 'brand',
+                description: 'Space between custom header icon and chat app title',
+                defaultLight: '4px',
+                defaultDark: '4px',
+                affectedElements: ['Gap between header icon and title']
             }
         ]
     }

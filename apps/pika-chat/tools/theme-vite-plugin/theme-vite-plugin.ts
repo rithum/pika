@@ -237,6 +237,35 @@ function generateCssFromThemeConfig(config: ThemeConfig): string {
 `;
     }
 
+    // Custom header icon
+    if (config.chatAppHeaderIcon) {
+        const iconConfig = config.chatAppHeaderIcon;
+        if (typeof iconConfig === 'string') {
+            // Single icon for both modes
+            css += `/* Custom Header Icon */
+:root {
+    --chat-app-header-icon-url: url('${iconConfig}');
+}
+
+`;
+        } else {
+            // Separate icons for light/dark modes
+            const lightIcon = iconConfig.light;
+            const darkIcon = iconConfig.dark || iconConfig.light;
+            css += `/* Custom Header Icon - Light Mode */
+:root {
+    --chat-app-header-icon-url: url('${lightIcon}');
+}
+
+/* Custom Header Icon - Dark Mode */
+.dark {
+    --chat-app-header-icon-url: url('${darkIcon}');
+}
+
+`;
+        }
+    }
+
     // Custom palettes
     if (config.customPalettes && Object.keys(config.customPalettes).length > 0) {
         css += `/* Custom Palettes */

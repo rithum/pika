@@ -1,0 +1,20 @@
+# Custom Assets Directory
+#
+# Place your custom icons, images, and other static assets here.
+# This directory is protected from pika sync.
+#
+# Files here are served at /custom/assets/
+#
+# CUSTOM HEADER ICON EXAMPLES:
+#
+# Single icon for both light/dark modes:
+#   chatAppHeaderIcon: '/custom/assets/my-logo.svg'
+#
+# Separate icons for light/dark modes:
+#   chatAppHeaderIcon: {
+#       light: '/custom/assets/logo-dark.svg',   // Dark logo on light background
+#       dark: '/custom/assets/logo-light.svg'    // Light logo on dark background
+#   }
+#
+# TIP: For single icons, use a design with good contrast on both backgrounds,
+# or use the chat-app-icon CSS variable to control the default icon's color instead.
