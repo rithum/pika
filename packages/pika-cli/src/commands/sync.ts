@@ -2058,7 +2058,6 @@ function showSyncHelp(): void {
 async function checkThemeSchemaUpdate(projectRoot: string): Promise<void> {
     const CURRENT_THEME_SCHEMA_VERSION = 1; // Keep in sync with theme-schema.ts
     
-    const themeConfigPath = path.join(projectRoot, 'apps/pika-chat/src/lib/custom/theme-config.ts');
     const pikaConfigPath = path.join(projectRoot, 'pika-config.ts');
 
     // Check if custom theme is enabled
@@ -2070,7 +2069,12 @@ async function checkThemeSchemaUpdate(projectRoot: string): Promise<void> {
     
     if (!themeEnabled) return;
     
-    // Check if theme-config exists
+    // Get theme config path from pika-config.ts (or use default)
+    const themePathMatch = pikaConfig.match(/themeConfigPath:\s*['"]([^'"]+)['"]/);
+    const relativePath = themePathMatch?.[1] || 'src/lib/custom/sample-purple-theme';
+    const themeConfigPath = path.join(projectRoot, 'apps/pika-chat', relativePath + '.ts');
+    
+    // Check if theme config exists
     if (!existsSync(themeConfigPath)) return;
     
     // Parse schema version

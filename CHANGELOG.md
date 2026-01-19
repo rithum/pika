@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **UI Theming System** - Complete theming system for customizing colors, typography, and visual styling
     - New `customTheme` configuration in `siteFeatures.uiCustomization` to enable custom themes
-    - Theme configuration via `apps/pika-chat/src/lib/custom/theme-config.ts` - protected from framework updates
+    - Sample theme at `apps/pika-chat/src/lib/custom/sample-purple-theme.ts` - copy and customize for your brand
     - Semantic CSS variables for brand colors (`primary`, `secondary`, `destructive`), surfaces (`background`, `card`, `muted`), borders, status colors (`success`, `warning`, `info`, `ai`), sidebar, and charts
     - OKLCH color format for perceptually uniform, accessible color palettes
     - Full dark mode support with separate light/dark variable definitions
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `pika theme docs` - Quick reference for theming system and OKLCH color format
 
 - **Theme Schema Versioning** - Future-proof theme configuration with version tracking
-    - Schema version in `theme-config.ts` enables notification of new theme variables
+    - Schema version in theme config enables notification of new theme variables
     - CLI commands help upgrade themes when new variables are added
     - Backward compatible - themes continue working without changes
 

@@ -23,9 +23,18 @@ By the end of this guide, you will:
 
 ## Quick Start
 
-### Step 1: Enable Theming
+### Step 1: Copy the Sample Theme
 
-In `pika-config.ts`, enable the custom theme. A sample theme is already included for you to try:
+A sample theme is provided as a starting point. Copy it and customize:
+
+```bash
+cd apps/pika-chat/src/lib/custom
+cp sample-purple-theme.ts my-theme.ts
+```
+
+### Step 2: Enable Theming
+
+In `pika-config.ts`, enable custom theming and point to your theme file:
 
 ```typescript
 siteFeatures: {
@@ -33,18 +42,17 @@ siteFeatures: {
         featureId: 'uiCustomization',
         enabled: true,
         customTheme: {
-            // Set to true to enable - a sample theme is ready to try!
             enabled: true,
-            // Path relative to apps/pika-chat/
-            themeConfigPath: 'src/lib/custom/theme-config'
+            // Path to your theme file (without .ts extension)
+            themeConfigPath: 'src/lib/custom/my-theme'
         }
     }
 }
 ```
 
-### Step 2: Customize Your Theme
+### Step 3: Customize Your Theme
 
-Edit `apps/pika-chat/src/lib/custom/theme-config.ts`:
+Edit your theme file (e.g., `apps/pika-chat/src/lib/custom/my-theme.ts`):
 
 ```typescript
 import type { ThemeConfig } from 'pika-shared/types/chatbot/theme-types';
@@ -66,7 +74,7 @@ export const themeConfig: ThemeConfig = {
 };
 ```
 
-### Step 3: See Changes
+### Step 4: See Changes
 
 The dev server automatically reloads when you save theme changes. No restart required.
 

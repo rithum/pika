@@ -32,7 +32,7 @@
       "summary": "UI Theming System - Complete customization of colors, typography, and styling",
       "highlights": [
         "New customTheme configuration for enabling custom themes in pika-config.ts",
-        "Theme configuration file at apps/pika-chat/src/lib/custom/theme-config.ts protected from pika sync",
+        "Sample theme at apps/pika-chat/src/lib/custom/sample-purple-theme.ts - copy and customize",
         "Semantic CSS variables for brand colors, surfaces, borders, status colors, sidebar, and charts",
         "OKLCH color format for perceptually uniform, accessible color palettes",
         "Full dark mode support with separate light/dark variable definitions",

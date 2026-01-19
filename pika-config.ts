@@ -104,10 +104,11 @@ export const pikaConfig: PikaConfig = {
             showUserRegionInLeftNav: false,
             showChatHistoryInStandaloneMode: true,
             customTheme: {
-                // Set to true to enable custom theming. A sample theme is ready at the path below - try it!
-                enabled: false,
-                // Path relative to apps/pika-chat/
-                themeConfigPath: 'src/lib/custom/theme-config'
+                // Set to true to enable custom theming
+                // Copy sample-purple-theme.ts, customize it, and update the path below
+                enabled: true,
+                // Path relative to apps/pika-chat/ (without .ts extension)
+                themeConfigPath: 'src/lib/custom/sample-purple-theme'
             }
         },
         sessionInsights: {

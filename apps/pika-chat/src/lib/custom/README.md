@@ -4,23 +4,13 @@ This directory contains your project's custom theme configuration. Files in this
 
 ## Quick Start
 
-1. **Enable custom theming** in `pika-config.ts`:
+1. **Copy the sample theme** and customize it:
 
-```typescript
-siteFeatures: {
-    uiCustomization: {
-        // ... other settings ...
-        customTheme: {
-            // Set to true to enable custom theming. A sample theme is ready at the path below - try it!
-            enabled: true,
-            // Path relative to apps/pika-chat/
-            themeConfigPath: 'src/lib/custom/theme-config'
-        }
-    }
-}
+```bash
+cp sample-purple-theme.ts my-theme.ts
 ```
 
-2. **Edit `theme-config.ts`** to customize your theme:
+2. **Edit your theme file** with your brand colors:
 
 ```typescript
 export const themeConfig: ThemeConfig = {
@@ -28,17 +18,31 @@ export const themeConfig: ThemeConfig = {
     fontFamily: '"Inter", sans-serif',
     cssVariables: {
         light: {
-            'primary': 'oklch(0.47 0.2 290)',
+            'primary': 'oklch(0.55 0.16 195)',  // Your brand color
             'primary-foreground': 'oklch(1 0 0)',
         },
         dark: {
-            'primary': 'oklch(0.70 0.18 290)',
+            'primary': 'oklch(0.70 0.14 195)',
         }
     }
 };
 ```
 
-3. **Run dev server** - changes auto-reload via HMR:
+3. **Enable theming** in `pika-config.ts` and point to your theme:
+
+```typescript
+siteFeatures: {
+    uiCustomization: {
+        customTheme: {
+            enabled: true,
+            // Path to your theme (without .ts extension)
+            themeConfigPath: 'src/lib/custom/my-theme'
+        }
+    }
+}
+```
+
+4. **Run dev server** - changes auto-reload via HMR:
 
 ```bash
 pnpm run dev
@@ -46,8 +50,7 @@ pnpm run dev
 
 ## Files
 
-- `theme-config.ts` - Your main theme configuration (edit this)
-- `examples/` - Example themes for reference
+- `sample-purple-theme.ts` - Sample theme to copy and customize
 
 ## Available Variables
 
@@ -107,4 +110,4 @@ const tokens = getPikaThemeTokens();
 
 ## Need Help?
 
-See the example theme in `examples/purple-brand-theme.ts` for a complete reference.
+See `sample-purple-theme.ts` for a complete reference, or visit the documentation at https://pika.tools/guides/customization/theming
