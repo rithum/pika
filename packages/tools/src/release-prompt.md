@@ -302,11 +302,11 @@ If you added new features but haven't documented them yet, use the documentation
 
 2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Same changes
 
-3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - Update version sections:
-    - Update "What's New in {{finalizeVersion}}" section with final details
-    - Update "Current Version" to show {{finalizeVersion}} with date
-    - Update version history table with actual date
-    - Ensure release highlights are accurate
+3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - REQUIRED, update ALL of these:
+    - Add "What's New in {{finalizeVersion}}" section at top of "Current Version" (if not already there)
+    - Update "Latest Stable:" line to show \`{{finalizeVersion}}\` with date {{currentDate}}
+    - Add row to version history table at the bottom with version, date, type, and summary
+    - Ensure release highlights match the changelog
 
 4. **releases.json** - Update the {{finalizeVersion}} entry:
     - Update \`date: "TBD"\` → \`date: "{{currentDate}}"\`
@@ -403,7 +403,7 @@ If type changes are missing @since annotations, add them before continuing with 
 **Documentation for New Features:**
 If you added new features but haven't documented them yet, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference).
 
-**Step 2: Update both files with new release notes:**
+**Step 2: Update ALL release documentation files:**
 
 1. **CHANGELOG.md** - Add entries to [{{workingVersion}}] section:
 
@@ -417,6 +417,11 @@ If you added new features but haven't documented them yet, use the documentation
     Focus: USER impact (why it matters), not technical details
 
 2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Keep in sync with CHANGELOG.md
+
+3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - REQUIRED for ALL releases:
+    - Add "What's New in {{workingVersion}}" section at the top of "Current Version"
+    - Update "Latest Stable" line with new version and date
+    - Add row to version history table at the bottom
 
 **CRITICAL Documentation Rules:**
 

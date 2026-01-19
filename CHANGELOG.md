@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2] - 2026-01-19
+
+### Fixed
+
+- **Release Tooling** - Improved release prompt templates to ensure complete documentation updates
+    - Release prompts now require updating `index.mdoc` for ALL releases (not just breaking changes)
+    - Added missing 0.16.0 and 0.16.1 content to releases overview page
+
 ## [0.16.1] - 2026-01-19
 
 ### Fixed

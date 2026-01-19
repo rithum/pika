@@ -7,12 +7,46 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.16.2
+
+- **Release Tooling** - Improved release prompt templates to ensure complete documentation updates
+  - Release prompts now require updating `index.mdoc` for ALL releases (not just breaking changes)
+  - Added missing 0.16.0 and 0.16.1 content to releases overview page
+
+**Latest Stable:** `0.16.2` (January 19, 2026)
+
+### What's New in 0.16.1
+
+- **Documentation Build Fix** - Fixed theming guide causing Astro build failures
+  - Corrected markdoc syntax from `{% tab %}` to `{% tabitem %}` in theming documentation
+  - Added UI Theming guide to sidebar navigation under Guides → Customization
+
+### What's New in 0.16.0
+
+- **UI Theming System** - Complete theming system for customizing colors, typography, and visual styling
+  - New `customTheme` configuration in `siteFeatures.uiCustomization` to enable custom themes
+  - Theme configuration via `apps/pika-chat/src/lib/custom/theme-config.ts` - protected from framework updates
+  - Semantic CSS variables for brand colors, surfaces, borders, status colors, sidebar, and charts
+  - OKLCH color format for perceptually uniform, accessible color palettes
+  - Full dark mode support with separate light/dark variable definitions
+  - Hot Module Replacement (HMR) - theme changes take effect immediately without restart
+- **Theme CLI Commands** - New `pika theme` command for theme management
+  - `pika theme check` - Verify theme schema version and see available updates
+  - `pika theme update` - Add new theme variables when framework updates introduce them
+  - `pika theme list` - Display all available CSS variables with descriptions and defaults
+  - `pika theme docs` - Quick reference for theming system and OKLCH color format
+- **Web Component Theme Access** - Programmatic access to theme values for custom components
+  - `getThemeVariable(name)` - Read individual CSS variable values
+  - `getPikaThemeTokens()` - Get all semantic theme tokens as an object
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.16.0) for @since 0.16.0 to find all type definitions that were added, updated, or removed in this release.
+
 ### What's New in 0.15.5
 
 - **Chat session issue** - Fixed needing to refresh chat app state to see new messages
   - No longer need to refresh chat app state to see new messages
-
-**Latest Stable:** `0.15.5` (November 12, 2025)
 
 ### What's New in 0.15.4
 
@@ -317,6 +351,9 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.16.2  | Jan 19 2026 | Patch    | Release tooling improvements                  |
+| 0.16.1  | Jan 19 2026 | Patch    | Documentation build fix for theming guide     |
+| 0.16.0  | Jan 19 2026 | Feature  | UI Theming System with CLI commands           |
 | 0.15.5  | Nov 12 2025 | Patch    | Chat session issue fix                        |
 | 0.15.4  | Nov 4 2025  | Patch    | Opensearch type issue fix                     |
 | 0.15.3  | Nov 4 2025  | Patch    | Cost distribution charts and auto insights fix |
