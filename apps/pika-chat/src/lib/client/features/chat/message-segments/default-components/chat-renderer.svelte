@@ -24,11 +24,11 @@
 {#if showPlaceholder}
     <div class="animate-pulse bg-gray-100 rounded-lg p-3 text-gray-500 text-sm">Loading chat component...</div>
 {:else}
-    <div class="my-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div class="my-4 p-4 bg-info-bg border border-info/20 rounded-lg">
         <div class="flex items-start space-x-3">
             <div class="flex-shrink-0">
                 <svg
-                    class="w-6 h-6 text-blue-600"
+                    class="w-6 h-6 text-info"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -43,7 +43,7 @@
                 </svg>
             </div>
             <div class="flex-1">
-                <p class="text-sm text-blue-900">{rawTagContent}</p>
+                <p class="text-sm text-foreground">{rawTagContent}</p>
             </div>
         </div>
     </div>

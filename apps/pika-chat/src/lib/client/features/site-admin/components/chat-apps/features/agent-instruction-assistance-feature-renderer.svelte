@@ -387,38 +387,38 @@
             </div>
 
             <!-- Information Section -->
-            <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="mt-6 p-4 bg-info-bg rounded-lg border border-info/20">
                 <div class="space-y-2">
-                    <h4 class="text-sm font-medium text-blue-900">How Agent Instruction Assistance Works</h4>
-                    <div class="space-y-1 text-xs text-blue-800">
+                    <h4 class="text-sm font-medium text-foreground">How Agent Instruction Assistance Works</h4>
+                    <div class="space-y-1 text-xs text-info">
                         <p><strong>Placeholder Options:</strong></p>
                         <p>
                             • <strong>Single placeholder:</strong> Use
-                            <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >prompt-assistance</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> to inject all enabled instruction content
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> to inject all enabled instruction content
                             in one location
                         </p>
                         <p><strong>Individual placeholders for fine-grained control:</strong></p>
                         <p class="ml-4">
-                            • <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            • <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >output-formatting-requirements</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> - Basic formatting requirements
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> - Basic formatting requirements
                         </p>
                         <p class="ml-4">
-                            • <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            • <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >tag-instructions</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> - Tag-specific instructions
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> - Tag-specific instructions
                         </p>
                         <p class="ml-4">
-                            • <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            • <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >complete-example-instruction-line</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> - Complete example
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> - Complete example
                         </p>
                         <p class="ml-4">
-                            • <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            • <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >json-only-imperative-instruction-line</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> - JSON validation instructions
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> - JSON validation instructions
                         </p>
                         <p class="mt-2"><strong>Automatic Injection:</strong></p>
                         <p>
@@ -428,9 +428,9 @@
                         <p>
                             • If <strong>no</strong> placeholders are found and this feature is enabled, all instruction
                             content will be automatically appended to the end of your prompt (as if
-                            <code class="bg-blue-100 px-1 rounded">{'{{'}</code><code class="bg-blue-100 rounded"
+                            <code class="bg-info/10 px-1 rounded">{'{{'}</code><code class="bg-info/10 rounded"
                                 >prompt-assistance</code
-                            ><code class="bg-blue-100 px-1 rounded">{'}}'}</code> was placed at the very last line)
+                            ><code class="bg-info/10 px-1 rounded">{'}}'}</code> was placed at the very last line)
                         </p>
                     </div>
                 </div>

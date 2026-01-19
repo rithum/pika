@@ -125,7 +125,7 @@
                             onclick={() => (advancedOpen = !advancedOpen)}
                         >
                             {#if advancedOpen}
-                                <ChevronLeft class="w-3 h-4 text-blue-500" />
+                                <ChevronLeft class="w-3 h-4 text-primary" />
                             {:else}
                                 <ChevronRight class="w-3 h-4" />
                             {/if}
@@ -148,7 +148,7 @@
                     <ChatAppsFilter bind:chatAppId={sessionInsights.searchQuery.chatAppId} />
                     {#if siteAdmin.siteFeatures?.entity?.enabled}
                         {#if !siteAdmin.siteFeatures?.entity?.attributeName}
-                            <div class="text-sm font-medium text-red-500">
+                            <div class="text-sm font-medium text-destructive">
                                 <span class="font-mono">entity.entityAttributeName</span>
                                 is not set in pika-config.ts. Please correct this or turn off this feature.
                             </div>

@@ -133,9 +133,9 @@ pika sync
 
 ### Release Information
 
-- **[Release Overview](https://pika.tools/docs/releases/overview)** - Current version and release notes
-- **[Changelog](https://pika.tools/docs/releases/changelog)** - Complete version history
-- **[Migration Guides](https://pika.tools/docs/releases/migration-guides)** - Upgrade instructions for breaking changes
+- **[Release Overview](https://pika.tools/platform/releases)** - Current version and release notes
+- **[Changelog](https://pika.tools/platform/releases/changelog)** - Complete version history
+- **[Migration Guides](https://pika.tools/platform/releases/migration-guides)** - Upgrade instructions for breaking changes
 
 ### Version Tracking
 

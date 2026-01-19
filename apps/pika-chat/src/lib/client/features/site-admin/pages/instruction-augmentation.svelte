@@ -85,7 +85,7 @@
     }
 
     function showHelp() {
-        const externalUrl = 'https://pika.tools/docs/features/instruction-augmentation';
+        const externalUrl = 'https://pika.tools/guides/intelligence/instruction-augmentation';
         window.open(externalUrl, '_blank');
     }
 </script>

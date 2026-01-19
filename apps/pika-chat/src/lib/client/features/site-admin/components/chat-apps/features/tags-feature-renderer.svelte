@@ -166,8 +166,8 @@
         {#if siteAdminState.siteAdminOperationInProgress.searchTagDefinitions}
             <p class="text-sm text-muted-foreground">Loading available tag definitions...</p>
         {:else if availableTagDefinitions.length === 0}
-            <div class="p-4 border rounded bg-yellow-50">
-                <p class="text-sm text-yellow-800">
+            <div class="p-4 border rounded bg-warning-bg">
+                <p class="text-sm text-warning">
                     No tag definitions are currently available. Tag definitions should be loaded into the database
                     during deployment.
                 </p>
@@ -408,7 +408,7 @@
                                     {selectedTag.scope === 'pika' ? '⭐ ' : ''}{selectedTag.scope}.{selectedTag.tag}
                                 </p>
                                 {#if selectedTag.scope === 'pika'}
-                                    <p class="text-xs text-blue-600">Built-in Pika tag</p>
+                                    <p class="text-xs text-info">Built-in Pika tag</p>
                                 {/if}
                             </div>
 
@@ -418,8 +418,8 @@
                                 <div class="flex items-center gap-2">
                                     <span
                                         class="text-sm px-2 py-1 rounded-md {selectedTag.usageMode === 'global'
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-purple-100 text-purple-800'}"
+                                            ? 'bg-info-bg text-info'
+                                            : 'bg-ai-bg text-ai'}"
                                     >
                                         {selectedTag.usageMode === 'global' ? 'Global' : 'Chat-App'}
                                     </span>
@@ -479,7 +479,7 @@
                                     </PopupHelp>
                                     <span
                                         class="text-sm px-2 py-1 rounded-md {selectedTag.canBeGeneratedByLlm
-                                            ? 'bg-green-100 text-green-800'
+                                            ? 'bg-success-bg text-success'
                                             : 'bg-gray-100 text-gray-600'}"
                                     >
                                         {selectedTag.canBeGeneratedByLlm ? 'Yes' : 'No'}
@@ -498,7 +498,7 @@
                                     </PopupHelp>
                                     <span
                                         class="text-sm px-2 py-1 rounded-md {selectedTag.canBeGeneratedByTool
-                                            ? 'bg-green-100 text-green-800'
+                                            ? 'bg-success-bg text-success'
                                             : 'bg-gray-100 text-gray-600'}"
                                     >
                                         {selectedTag.canBeGeneratedByTool ? 'Yes' : 'No'}
@@ -509,8 +509,8 @@
                                     <Label class="text-sm font-medium">Disabled</Label>
                                     <span
                                         class="text-sm px-2 py-1 rounded-md {selectedTag.status !== 'enabled'
-                                            ? 'bg-red-100 text-red-800'
-                                            : 'bg-green-100 text-green-800'}"
+                                            ? 'bg-danger-bg text-destructive'
+                                            : 'bg-success-bg text-success'}"
                                     >
                                         {selectedTag.status !== 'enabled' ? 'Yes' : 'No'}
                                     </span>
@@ -542,7 +542,7 @@
     {#if validErrors.length > 0}
         <div class="space-y-2">
             {#each validErrors as error}
-                <p class="text-sm text-red-500">{error}</p>
+                <p class="text-sm text-destructive">{error}</p>
             {/each}
         </div>
     {/if}

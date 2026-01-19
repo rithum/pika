@@ -18,14 +18,16 @@
         const circumference = 2 * Math.PI * r;
         const dashOffset = circumference * (1 - progress / 100);
 
+        // Use CSS variables via currentColor and class-based styling
+        // The track uses var(--progress-track) and fill uses var(--progress-fill)
         return `
-            <svg width="20" height="20" viewBox="0 0 20 20">
+            <svg width="20" height="20" viewBox="0 0 20 20" class="progress-ring">
                 <circle 
                     cx="${c}" 
                     cy="${c}" 
                     r="${r}" 
                     fill="none" 
-                    stroke="#e2e8f0" 
+                    class="progress-track"
                     stroke-width="2"
                 />
                 <circle 
@@ -33,7 +35,7 @@
                     cy="${c}" 
                     r="${r}" 
                     fill="none" 
-                    stroke="#3b82f6" 
+                    class="progress-fill"
                     stroke-width="2"
                     stroke-dasharray="${circumference}"
                     stroke-dashoffset="${dashOffset}"
@@ -47,11 +49,11 @@
 <div
     class="flex items-center rounded-md overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm max-w-fit {fileInstance
         .status.status === 'error'
-        ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+        ? 'border-destructive bg-danger-bg dark:bg-destructive/20'
         : ''}"
 >
     <!-- File icon or loading circle -->
-    <div class="flex items-center justify-center w-9 h-full bg-blue-400 dark:bg-blue-500 text-white">
+    <div class="flex items-center justify-center w-9 h-full bg-primary text-primary-foreground">
         {#if fileInstance.status.status === 'uploading'}
             <!-- Progress circle -->
             <div class="w-5 h-5 relative">
@@ -81,3 +83,13 @@
         </button>
     </div>
 </div>
+
+<style>
+    /* Progress ring colors using CSS variables */
+    :global(.progress-track) {
+        stroke: var(--muted);
+    }
+    :global(.progress-fill) {
+        stroke: var(--primary);
+    }
+</style>

@@ -270,11 +270,11 @@ ${propsDeclarations}
 
 <style>
   .${componentName}-component {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 16px;
     margin: 8px 0;
-    background: #ffffff;
+    background: var(--background);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
   
@@ -284,13 +284,13 @@ ${propsDeclarations}
   
   .component-header h3 {
     margin: 0;
-    color: #2d3748;
+    color: var(--foreground);
     font-size: 1.1em;
     font-weight: 600;
   }
   
   .component-content {
-    color: #4a5568;
+    color: var(--muted-foreground);
   }
   
   /* Add your custom styles here */

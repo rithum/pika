@@ -152,7 +152,7 @@
                         class="truncate text-ellipsis overflow-hidden text-primary text-sm font-medium flex items-center gap-1 leading-[36px]"
                     >
                         {#if chat.getSessionShareStatus(session.sessionId)}
-                            <Share class="w-3 h-3 text-blue-500" />
+                            <Share class="w-3 h-3 text-primary" />
                         {/if}
                         {session.title}
                     </div>

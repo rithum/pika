@@ -157,11 +157,11 @@
                     })} -->
                     <!-- Fallback for unknown tag types -->
                     <div
-                        class="unknown-tag-warning bg-yellow-50 border border-yellow-200 rounded p-2 text-sm text-yellow-800"
+                        class="unknown-tag-warning bg-warning-bg border border-warning/20 rounded p-2 text-sm text-warning"
                     >
                         <strong>Unknown tag:</strong> &lt;{tagSegment.tag}&gt;
                         <br />
-                        <span class="text-xs text-yellow-600">{tagSegment.rawContent}</span>
+                        <span class="text-xs text-warning/80">{tagSegment.rawContent}</span>
                     </div>
                 {/if}
             {:else if segment.segmentType === 'tag' && 'isMetadata' in segment}
@@ -204,7 +204,7 @@
     }
 
     .message-files {
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border);
         padding-top: 8px;
         margin-top: 8px;
     }
@@ -214,7 +214,7 @@
         align-items: center;
         gap: 8px;
         padding: 4px 8px;
-        background-color: #f9fafb;
+        background-color: var(--muted);
         border-radius: 4px;
         font-size: 0.875rem;
     }
@@ -224,7 +224,7 @@
     }
 
     .file-size {
-        color: #6b7280;
+        color: var(--muted-foreground);
         font-size: 0.75rem;
     }
 

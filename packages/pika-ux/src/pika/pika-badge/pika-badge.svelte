@@ -7,7 +7,7 @@
                 default: 'bg-primary text-primary-foreground hover:bg-primary/80 border-transparent shadow',
                 secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 border-transparent',
                 destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/80 border-transparent shadow',
-                success: 'bg-green-700 text-white hover:bg-green-700 border-transparent shadow',
+                success: 'bg-success text-success-foreground hover:bg-success/90 border-transparent shadow',
                 outline: 'text-foreground'
             }
         },

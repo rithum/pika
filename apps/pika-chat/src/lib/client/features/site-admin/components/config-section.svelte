@@ -25,7 +25,7 @@
             <h2 class="text-lg font-semibold">{title}</h2>
         </div>
         {#if hasErrors}
-            <div class="flex items-center gap-1 text-red-600">
+            <div class="flex items-center gap-1 text-destructive">
                 <TriangleAlert class="w-4 h-4" />
                 <span class="text-sm font-medium">Errors</span>
             </div>

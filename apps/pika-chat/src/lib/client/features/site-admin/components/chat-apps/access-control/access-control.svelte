@@ -256,9 +256,9 @@
 
         <!-- Validation Errors -->
         {#if validationErrors.length > 0}
-            <div class="p-3 bg-red-50 border border-red-200 rounded">
+            <div class="p-3 bg-danger-bg border border-destructive/20 rounded">
                 {#each validationErrors as error}
-                    <p class="text-sm text-red-800">{error}</p>
+                    <p class="text-sm text-destructive">{error}</p>
                 {/each}
             </div>
         {/if}

@@ -6,6 +6,7 @@ import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'vite';
 import { pikaConfig } from '../../pika-config';
 import { siteFeaturesVitePlugin } from './tools/site-features-vite-plugin/site-featuers-vite-plugin';
+import { themeVitePlugin } from './tools/theme-vite-plugin/theme-vite-plugin';
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => {
@@ -15,6 +16,7 @@ export default defineConfig(async () => {
         plugins: [
             tailwindcss(),
             siteFeaturesVitePlugin(),
+            themeVitePlugin(),
             sveltekit(),
             Icons({
                 compiler: 'svelte'

@@ -77,7 +77,7 @@
             <div class="mt-4">
                 <Button
                     variant="link"
-                    class="text-blue-500"
+                    class="text-primary"
                     onclick={() => {
                         goto('/admin/session-insights');
                     }}

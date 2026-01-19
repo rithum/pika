@@ -1,7 +1,25 @@
 {
   "latestVersion": "0.15.7",
-  "currentDevelopment": "0.15.7",
+  "currentDevelopment": "0.16.0",
   "releases": [
+    {
+      "version": "0.16.0",
+      "date": "2026-01-19",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "UI Theming System - Complete customization of colors, typography, and styling",
+      "highlights": [
+        "New customTheme configuration for enabling custom themes in pika-config.ts",
+        "Theme configuration file at apps/pika-chat/src/lib/custom/theme-config.ts protected from pika sync",
+        "Semantic CSS variables for brand colors, surfaces, borders, status colors, sidebar, and charts",
+        "OKLCH color format for perceptually uniform, accessible color palettes",
+        "Full dark mode support with separate light/dark variable definitions",
+        "Hot Module Replacement (HMR) for instant theme preview during development",
+        "New pika theme CLI commands: check, update, list, docs",
+        "Theme schema versioning for future-proof configuration",
+        "getThemeVariable() and getPikaThemeTokens() for web component theme access"
+      ]
+    },
     {
       "version": "0.15.7",
       "date": "2026-01-14",

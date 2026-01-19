@@ -107,8 +107,8 @@
 <div class="space-y-6">
     <div class="flex gap-10">
         {#if !siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled}
-            <div class="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <p class="text-sm text-yellow-800">
+            <div class="p-3 bg-warning-bg border border-warning/20 rounded">
+                <p class="text-sm text-warning">
                     Support for entity access control is not enabled. Please enable it in the pika-config.ts file and
                     redeploy the site, making sure to follow the instructions on how to setup the feature to work.
                 </p>
@@ -277,13 +277,13 @@
 {/snippet}
 
 {#snippet exclusiveEntityAccessWhoCanAccess()}
-    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 class="text-sm font-medium text-blue-900 mb-2">Who Can Access</h3>
-        <div class="text-sm text-blue-800">
+    <div class="p-3 bg-info-bg border border-info/20 rounded-lg">
+        <h3 class="text-sm font-medium text-foreground mb-2">Who Can Access</h3>
+        <div class="text-sm text-info">
             {#if !app.enabled}
-                <p class="text-red-600 font-medium">Chat app is disabled</p>
+                <p class="text-destructive font-medium">Chat app is disabled</p>
             {:else if !exclusiveEntityOn.includes('internal-user') && !exclusiveEntityOn.includes('external-user')}
-                <p class="text-red-600 font-medium">
+                <p class="text-destructive font-medium">
                     No access - No user types enabled for exclusive {entityDisplaySingularLower} access
                 </p>
             {:else}
@@ -297,7 +297,7 @@
                                 >
                             </li>
                         {:else}
-                            <li class="text-red-600">
+                            <li class="text-destructive">
                                 <span class="font-medium">Internal users</span> (no {entityDisplayPluralLower} specified
                                 - incomplete configuration)
                             </li>
@@ -314,7 +314,7 @@
                                 >
                             </li>
                         {:else}
-                            <li class="text-red-600">
+                            <li class="text-destructive">
                                 <span class="font-medium">External users</span> (no {entityDisplayPluralLower} specified
                                 - incomplete configuration)
                             </li>

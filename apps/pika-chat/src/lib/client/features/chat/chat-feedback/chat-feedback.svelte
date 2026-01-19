@@ -113,7 +113,7 @@
                         <Button
                             variant="outline"
                             class={type === 'user_thumbs_up'
-                                ? 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white'
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                                 : ''}
                             onclick={() => {
                                 if (type === 'user_thumbs_up') {
@@ -128,7 +128,7 @@
                         <Button
                             variant="outline"
                             class={type === 'user_thumbs_down'
-                                ? 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white'
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                                 : ''}
                             onclick={() => {
                                 if (type === 'user_thumbs_down') {
@@ -143,11 +143,11 @@
             {/if}
             <Textarea bind:value={userComment} placeholder="Enter your feedback" class="mt-4 w-full h-50"></Textarea>
             <div class="text-sm mt-1 flex flex-col gap-1">
-                <span class="text-gray-500 {charsUsed >= maxChars ? 'text-red-500' : ''}"
+                <span class="text-muted-foreground {charsUsed >= maxChars ? 'text-destructive' : ''}"
                     >Chars used: {charsUsed} / {maxChars}</span
                 >
                 {#if charsUsed >= maxChars}
-                    <span class="text-red-500">Max allowed is {maxChars} characters</span>
+                    <span class="text-destructive">Max allowed is {maxChars} characters</span>
                 {/if}
             </div>
         </div>

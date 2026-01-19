@@ -130,7 +130,7 @@
             <h4 class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Flags</h4>
             <div class="flex flex-wrap gap-2">
                 {#if assessments.requiresFollowup}
-                    <Badge variant="outline" class="text-yellow-600 border-yellow-200">
+                    <Badge variant="outline" class="text-warning border-warning/20">
                         <Clock class="w-3 h-3 mr-1" />
                         Requires Follow-up
                     </Badge>

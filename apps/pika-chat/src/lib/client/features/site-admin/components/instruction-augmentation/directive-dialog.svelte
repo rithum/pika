@@ -347,12 +347,12 @@
         {:else if weWillBeVerifyingPrimaryKey}
             <div class="text-sm text-muted-foreground italic">
                 {#if lastVerifiedPrimaryKey?.valid === false}
-                    <p class="text-red-500">
+                    <p class="text-destructive">
                         Semantic directive with this primary key (Scope Type + Scope Value + ID) already exists. Please
                         change Scope Type, Scope Value, or ID or delete the existing semantic directive.
                     </p>
                 {:else if lastVerifiedPrimaryKey?.valid === true}
-                    <p class="text-green-500">
+                    <p class="text-success">
                         Verified that this primary key (Scope Type + Scope Value + ID) is unique.
                     </p>
                 {:else}

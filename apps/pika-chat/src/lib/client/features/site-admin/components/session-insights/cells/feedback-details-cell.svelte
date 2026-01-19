@@ -28,11 +28,11 @@
     function getSeverityColor(severity: string): string {
         switch (severity?.toLowerCase()) {
             case 'high':
-                return 'text-red-600 bg-red-50 border-red-200';
+                return 'text-destructive bg-danger-bg border-destructive/20';
             case 'medium':
-                return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                return 'text-warning bg-warning-bg border-warning/20';
             case 'low':
-                return 'text-green-600 bg-green-50 border-green-200';
+                return 'text-success bg-success-bg border-success/20';
             default:
                 return 'text-gray-600 bg-gray-50 border-gray-200';
         }
@@ -112,11 +112,11 @@
 
         <!-- Additional Info -->
         {#if feedback.some((f) => f.reportedByHuman)}
-            <div class="text-xs text-blue-600">Contains human reports</div>
+            <div class="text-xs text-info">Contains human reports</div>
         {/if}
 
         {#if feedback.some((f) => f.createdByCustomer)}
-            <div class="text-xs text-purple-600">Contains customer feedback</div>
+            <div class="text-xs text-ai">Contains customer feedback</div>
         {/if}
     </div>
 {/if}

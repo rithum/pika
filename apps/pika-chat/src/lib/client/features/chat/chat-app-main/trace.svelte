@@ -673,14 +673,14 @@
                 <div
                     class={`px-2 py-1 rounded text-sm font-medium ${
                         trace.grade === 'A'
-                            ? 'bg-green-100 text-green-800'
+                            ? 'bg-success-bg text-success'
                             : trace.grade === 'B'
-                              ? 'bg-yellow-100 text-yellow-800'
+                              ? 'bg-warning-bg text-warning'
                               : trace.grade === 'C'
-                                ? 'bg-orange-100 text-orange-800'
+                                ? 'bg-warning-bg text-warning'
                                 : trace.grade === 'F'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-danger-bg text-destructive'
+                                  : 'bg-muted text-muted-foreground'
                     }`}
                 >
                     Grade {trace.grade}
@@ -722,23 +722,23 @@
                 <div class="font-medium mb-2">Verification Scale:</div>
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">A</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-success-bg text-success">A</span>
                         <span>Factually accurate</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">B</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-warning-bg text-warning">B</span>
                         <span>Accurate with stated assumptions</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">C</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-warning-bg text-warning">C</span>
                         <span>Accurate with unstated assumptions</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">F</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-danger-bg text-destructive">F</span>
                         <span>Inaccurate or contains made up information</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">U</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-muted text-muted-foreground">U</span>
                         <span>Response was not verified</span>
                     </div>
                 </div>
@@ -931,13 +931,13 @@
 
 <style>
     .thinking-step-btn {
-        background: white;
-        border: 2px solid #e0e0e0;
+        background: var(--background);
+        border: 2px solid var(--border);
         border-radius: 25px;
         padding: 5px 24px;
         font-size: 14px;
         font-weight: 500;
-        color: #333;
+        color: var(--foreground);
         cursor: pointer;
         transition: all 0.2s ease;
         display: inline-flex;
@@ -948,9 +948,9 @@
     }
 
     .thinking-step-btn:hover {
-        border-color: #007bff;
-        background: #f8f9ff;
+        border-color: var(--ring);
+        background: var(--accent);
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 </style>

@@ -28,6 +28,8 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    /* Custom brand color for this sample app */
+    --color-acme-blue: #1a56db;
 }
 
 @layer base {

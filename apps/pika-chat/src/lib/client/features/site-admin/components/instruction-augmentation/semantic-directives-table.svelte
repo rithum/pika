@@ -135,7 +135,7 @@
 <div class="flex flex-col h-full pb-4">
     <!-- Bulk Actions Toolbar -->
     {#if iaState.selectedSemanticDirectives.length > 0}
-        <Card class="p-3 bg-blue-50 border-blue-200">
+        <Card class="p-3 bg-info-bg border-info/20">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
                     <span class="font-medium"

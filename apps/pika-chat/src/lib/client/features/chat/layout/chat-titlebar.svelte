@@ -288,7 +288,7 @@
                 >
                 {#if userNeedsToProvideDataOverrides}
                     <div
-                        class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                        class="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
                     >
                         !
                     </div>
@@ -318,7 +318,7 @@
                     >
                         {#if userNeedsToProvideDataOverrides}
                             <span
-                                class="bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
+                                class="bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-xs font-bold leading-none"
                             >
                                 !
                             </span>

@@ -132,7 +132,7 @@
 </script>
 
 <div
-    class="flex w-full cursor-text flex-col items-center justify-center rounded-[14px] bg-clip-padding contain-inline-size overflow-clip border-token-border-default border shadow-sm sm:shadow-lg dark:shadow-none! bg-token-bg-primary dark:bg-[#303030]"
+    class="flex w-full cursor-text flex-col items-center justify-center rounded-[14px] bg-clip-padding contain-inline-size overflow-clip border-border border shadow-sm sm:shadow-lg dark:shadow-none! bg-card dark:bg-card"
     onclick={focusTextarea}
     onkeydown={handleContainerKeyDown}
     tabindex="0"
@@ -185,7 +185,7 @@
                         oninput={handleInput}
                         onkeydown={handleKeyDown}
                         disabled={isReadOnly || chat.isStreamingResponseNow}
-                        class="text-token-text-primary placeholder:text-token-text-tertiary block w-full min-h-[48px] resize-none border-0 bg-transparent px-0 py-2 ring-0 placeholder:ps-px focus:outline-none {isReadOnly
+                        class="text-foreground placeholder:text-muted-foreground block w-full min-h-[48px] resize-none border-0 bg-transparent px-0 py-2 ring-0 placeholder:ps-px focus:outline-none {isReadOnly
                             ? 'bg-gray-100 cursor-not-allowed'
                             : ''}"
                         placeholder={isReadOnly

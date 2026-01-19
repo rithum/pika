@@ -13,17 +13,17 @@
     let { title, score, description, icon, compact = false }: Props = $props();
 
     // Score color logic
-    const scoreColor = $derived(score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-yellow-500' : 'bg-red-500');
+    const scoreColor = $derived(score >= 8 ? 'bg-success' : score >= 6 ? 'bg-warning' : 'bg-destructive');
 
     const scoreBgColor = $derived(
         score >= 8
-            ? 'bg-green-50 border-green-200'
+            ? 'bg-success-bg border-success/20'
             : score >= 6
-              ? 'bg-yellow-50 border-yellow-200'
-              : 'bg-red-50 border-red-200'
+              ? 'bg-warning-bg border-warning/20'
+              : 'bg-danger-bg border-destructive/20'
     );
 
-    const scoreTextColor = $derived(score >= 8 ? 'text-green-700' : score >= 6 ? 'text-yellow-700' : 'text-red-700');
+    const scoreTextColor = $derived(score >= 8 ? 'text-success' : score >= 6 ? 'text-warning' : 'text-destructive');
 </script>
 
 <div class="border rounded-lg p-3 {scoreBgColor}">

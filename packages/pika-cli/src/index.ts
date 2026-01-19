@@ -3,6 +3,7 @@ import { createApp } from './commands/create-app.js';
 import { syncCommand } from './commands/sync.js';
 import { componentCommand } from './commands/component.js';
 import { authCommand } from './commands/auth.js';
+import { themeCommand } from './commands/theme.js';
 import { logger } from './utils/logger.js';
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
@@ -82,6 +83,41 @@ program
     )
     .action(async () => {
         await authCommand();
+    });
+
+program
+    .command('theme')
+    .description('Manage UI theme configuration')
+    .addCommand(
+        new Command('check')
+            .description('Check if your theme is up to date with the latest schema')
+            .action(async () => {
+                await themeCommand({ check: true });
+            })
+    )
+    .addCommand(
+        new Command('update')
+            .description('Update theme config with new variables (adds comments with defaults)')
+            .action(async () => {
+                await themeCommand({ update: true });
+            })
+    )
+    .addCommand(
+        new Command('list')
+            .description('List all available theme variables with descriptions')
+            .action(async () => {
+                await themeCommand({ list: true });
+            })
+    )
+    .addCommand(
+        new Command('docs')
+            .description('Show theme documentation and quick start guide')
+            .action(async () => {
+                await themeCommand({ docs: true });
+            })
+    )
+    .action(async () => {
+        await themeCommand({ check: true });
     });
 
 // Global error handler
