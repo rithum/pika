@@ -1,8 +1,8 @@
 /**
  * Theme Vite Plugin
  *
- * Generates CSS from theme-config.ts at build time with HMR support.
- * When pika-config.ts or theme-config.ts changes, regenerates the theme CSS
+ * Generates CSS from the theme config at build time with HMR support.
+ * When pika-config.ts or the theme config changes, regenerates the theme CSS
  * and triggers a full page reload.
  */
 
@@ -33,24 +33,34 @@ export async function themeVitePlugin(): Promise<Plugin> {
             await generateThemeCss();
         },
 
-        configureServer: (_server) => {
+        configureServer(_server) {
             server = _server;
             pikaConfigAbsolutePath = findPathToPikaConfig();
 
-            if (pikaConfigAbsolutePath) {
-                _server.watcher.add(pikaConfigAbsolutePath);
-
-                // Also watch the theme config file if it exists
-                const projectRoot = path.dirname(pikaConfigAbsolutePath);
-                const themeConfigPath = getThemeConfigAbsolutePath(projectRoot);
-                if (themeConfigPath && existsSync(themeConfigPath)) {
-                    themeConfigAbsolutePath = themeConfigPath;
-                    _server.watcher.add(themeConfigAbsolutePath);
-                    console.log('[theme-vite-plugin] Watching theme config:', themeConfigAbsolutePath);
-                }
-            } else {
+            if (!pikaConfigAbsolutePath) {
                 console.warn('[theme-vite-plugin] Could not find pika-config.ts to watch');
+                return;
             }
+
+            _server.watcher.add(pikaConfigAbsolutePath);
+
+            // Return post hook to set up theme config watcher after server is ready
+            return async () => {
+                const projectRoot = path.dirname(pikaConfigAbsolutePath!);
+                const pikaConfig = await loadPikaConfig(pikaConfigAbsolutePath!);
+                
+                if (pikaConfig?.siteFeatures?.uiCustomization?.customTheme?.themeConfigPath) {
+                    const themeConfigPath = getThemeConfigAbsolutePath(
+                        projectRoot, 
+                        pikaConfig.siteFeatures.uiCustomization.customTheme.themeConfigPath
+                    );
+                    if (themeConfigPath && existsSync(themeConfigPath)) {
+                        themeConfigAbsolutePath = themeConfigPath;
+                        _server.watcher.add(themeConfigAbsolutePath);
+                        console.log('[theme-vite-plugin] Watching theme config:', themeConfigAbsolutePath);
+                    }
+                }
+            };
         },
 
         async handleHotUpdate(ctx: HmrContext) {
@@ -59,7 +69,7 @@ export async function themeVitePlugin(): Promise<Plugin> {
             // Check if pika-config.ts changed
             const isPikaConfigChange = pikaConfigAbsolutePath && changedFile === path.resolve(pikaConfigAbsolutePath);
 
-            // Check if theme-config.ts changed
+            // Check if theme config changed
             const isThemeConfigChange = themeConfigAbsolutePath && changedFile === path.resolve(themeConfigAbsolutePath);
 
             if (isPikaConfigChange || isThemeConfigChange) {
@@ -93,10 +103,40 @@ function findPathToPikaConfig(): string | undefined {
     return undefined;
 }
 
-function getThemeConfigAbsolutePath(projectRoot: string, configPath?: string): string {
+/**
+ * Load pika-config.ts using jiti for proper TypeScript module loading
+ */
+async function loadPikaConfig(pikaConfigPath: string): Promise<PikaConfig | undefined> {
+    try {
+        const jiti = createJiti(import.meta.url, { cache: false, requireCache: false });
+        const pikaConfigModule = (await jiti.import(pikaConfigPath)) as { pikaConfig: PikaConfig };
+        return pikaConfigModule.pikaConfig;
+    } catch (error) {
+        console.error('[theme-vite-plugin] Failed to load pika-config.ts:', error);
+        return undefined;
+    }
+}
+
+/**
+ * Load theme config using jiti for proper TypeScript module loading
+ */
+async function loadThemeConfig(themeConfigPath: string): Promise<ThemeConfig | undefined> {
+    try {
+        const jiti = createJiti(import.meta.url, { cache: false, requireCache: false });
+        const themeModule = (await jiti.import(themeConfigPath)) as { themeConfig: ThemeConfig };
+        return themeModule.themeConfig;
+    } catch (error) {
+        console.error('[theme-vite-plugin] Failed to load theme config:', error);
+        return undefined;
+    }
+}
+
+function getThemeConfigAbsolutePath(projectRoot: string, configPath?: string): string | undefined {
+    if (!configPath) {
+        return undefined;
+    }
     // Path is relative to apps/pika-chat/
-    const relativePath = configPath || 'src/lib/custom/theme-config';
-    return path.join(projectRoot, 'apps/pika-chat', relativePath + '.ts');
+    return path.join(projectRoot, 'apps/pika-chat', configPath + '.ts');
 }
 
 async function generateThemeCss(): Promise<void> {
@@ -107,16 +147,9 @@ async function generateThemeCss(): Promise<void> {
     }
 
     const projectRoot = path.dirname(pikaConfigPath);
-
-    // Load pika-config.ts
-    const jiti = createJiti(import.meta.url, { cache: false, requireCache: false });
-    let pikaConfig: PikaConfig;
-
-    try {
-        const pikaConfigModule = (await jiti.import(pikaConfigPath)) as { pikaConfig: PikaConfig };
-        pikaConfig = pikaConfigModule.pikaConfig;
-    } catch (error) {
-        console.error('[theme-vite-plugin] Failed to load pika-config.ts:', error);
+    const pikaConfig = await loadPikaConfig(pikaConfigPath);
+    
+    if (!pikaConfig) {
         await writeThemeCss('/* Failed to load pika-config.ts */\n', projectRoot);
         return;
     }
@@ -132,6 +165,11 @@ async function generateThemeCss(): Promise<void> {
 
     // Load theme config
     const themeConfigPath = getThemeConfigAbsolutePath(projectRoot, customTheme.themeConfigPath);
+    if (!themeConfigPath) {
+        console.warn('[theme-vite-plugin] No themeConfigPath specified in customTheme config');
+        await writeThemeCss('/* No themeConfigPath specified in pika-config.ts */\n', projectRoot);
+        return;
+    }
     if (!existsSync(themeConfigPath)) {
         console.warn('[theme-vite-plugin] Theme config file not found:', themeConfigPath);
         console.warn('[theme-vite-plugin] Create this file to customize your theme.');
@@ -139,19 +177,9 @@ async function generateThemeCss(): Promise<void> {
         return;
     }
 
-    let themeConfig: ThemeConfig;
-    try {
-        const themeModule = (await jiti.import(themeConfigPath)) as { themeConfig: ThemeConfig };
-        themeConfig = themeModule.themeConfig;
-    } catch (error) {
-        console.error('[theme-vite-plugin] Failed to load theme config:', error);
-        await writeThemeCss('/* Failed to load theme config */\n', projectRoot);
-        return;
-    }
-
+    const themeConfig = await loadThemeConfig(themeConfigPath);
     if (!themeConfig) {
-        console.warn('[theme-vite-plugin] No themeConfig export found in theme config file');
-        await writeThemeCss('/* No themeConfig exported from theme config file */\n', projectRoot);
+        await writeThemeCss('/* Failed to load or no themeConfig exported from theme config file */\n', projectRoot);
         return;
     }
 

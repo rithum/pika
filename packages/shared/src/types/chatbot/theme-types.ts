@@ -10,8 +10,8 @@
 /**
  * Theme configuration for Pika Chat
  *
- * Clone projects create their own theme-config.ts file in apps/pika-chat/src/lib/custom/
- * and export a ThemeConfig object to customize the UI.
+ * Clone projects copy sample-purple-theme.ts, customize it, and update themeConfigPath
+ * in pika-config.ts to point to their theme file.
  *
  * @example
  * ```typescript
@@ -108,7 +108,7 @@ export interface ThemeConfig {
 export interface CustomThemeConfig {
     /**
      * Whether custom theming is enabled.
-     * If false, the default Pika theme is used and theme-config.ts is not loaded.
+     * If false, the default Pika theme is used and the theme config is not loaded.
      */
     enabled: boolean;
 
@@ -116,8 +116,8 @@ export interface CustomThemeConfig {
      * Path to theme config file relative to apps/pika-chat/
      * The file must export a `themeConfig` object of type ThemeConfig.
      *
-     * @default 'src/lib/custom/theme-config'
-     * @example 'src/lib/custom/theme-config' imports from 'apps/pika-chat/src/lib/custom/theme-config.ts'
+     * @default 'src/lib/custom/sample-purple-theme'
+     * @example 'src/lib/custom/my-theme' imports from 'apps/pika-chat/src/lib/custom/my-theme.ts'
      */
     themeConfigPath?: string;
 }

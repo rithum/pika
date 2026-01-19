@@ -139,11 +139,12 @@ function getPrompt(options: { baseBranch: string; workingVersion?: string; exist
  */
 function loadReleasesJsonFromMain(): ReleaseMetadata {
     try {
-        // Try to read from main branch
-        const mainContent = execSync('git show main:releases.json 2>/dev/null', { encoding: 'utf8' });
+        // Try to read from origin/main (remote source of truth)
+        // This ensures we get the latest even if local main is behind
+        const mainContent = execSync('git show origin/main:releases.json 2>/dev/null', { encoding: 'utf8' });
         return JSON.parse(mainContent);
     } catch (error) {
-        // Main doesn't have releases.json, use baseline
+        // origin/main doesn't have releases.json, use baseline
         return {
             latestVersion: '0.4.0',
             currentDevelopment: '0.5.0',
@@ -302,7 +303,7 @@ async function ensureUnreleasedVersion(): Promise<string> {
 
     // No unreleased version, create one based on main's latest
     console.log(chalk.yellow('No unreleased version found, creating one...\n'));
-    console.log(chalk.dim(`Latest in main: ${mainReleases.latestVersion}\n`));
+    console.log(chalk.dim(`Latest in origin/main: ${mainReleases.latestVersion}\n`));
 
     const newVersion = await promptForVersion();
 
@@ -353,7 +354,7 @@ async function promptForVersion(autoDetect: boolean = true): Promise<string> {
             {
                 type: 'confirm',
                 name: 'useExisting',
-                message: `Continue working on version ${unreleasedVersion}?`,
+                message: `Use version ${unreleasedVersion}? (No = pick a different version)`,
                 default: true
             }
         ]);
@@ -876,7 +877,7 @@ async function showInfo(): Promise<void> {
     const mainReleases = loadReleasesJsonFromMain();
     const lastTag = getLastTag();
 
-    console.log(chalk.bold('Latest in Main (Published):'), chalk.green(mainReleases.latestVersion));
+    console.log(chalk.bold('Latest in origin/main (Published):'), chalk.green(mainReleases.latestVersion));
     console.log(
         chalk.bold('Latest in Working Copy:'),
         releases.latestVersion === mainReleases.latestVersion ? chalk.dim(releases.latestVersion + ' (same)') : chalk.yellow(releases.latestVersion + ' (differs!)')

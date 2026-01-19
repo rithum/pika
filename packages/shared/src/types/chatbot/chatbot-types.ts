@@ -2679,7 +2679,7 @@ export interface UiCustomizationFeature {
 
     /**
      * Custom theme configuration. When enabled, allows clone projects to customize
-     * colors, typography, and styling via a theme-config.ts file.
+     * colors, typography, and styling via a custom theme file.
      *
      * @see ThemeConfig in theme-types.ts
      * @since 0.16.0
@@ -2687,7 +2687,7 @@ export interface UiCustomizationFeature {
     customTheme?: {
         /**
          * Whether custom theming is enabled.
-         * If false, the default Pika theme is used and theme-config.ts is not loaded.
+         * If false, the default Pika theme is used and the theme config is not loaded.
          */
         enabled: boolean;
 
@@ -2695,7 +2695,7 @@ export interface UiCustomizationFeature {
          * Path to theme config file relative to apps/pika-chat/
          * The file must export a `themeConfig` object of type ThemeConfig.
          *
-         * @default 'src/lib/custom/theme-config'
+         * @default 'src/lib/custom/sample-purple-theme'
          */
         themeConfigPath?: string;
     };

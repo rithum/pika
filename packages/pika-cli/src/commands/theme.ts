@@ -65,8 +65,13 @@ interface ThemeCommandOptions {
 export async function themeCommand(options: ThemeCommandOptions = {}): Promise<void> {
     const cwd = process.cwd();
     
-    // Find theme config file
-    const themeConfigPath = path.join(cwd, 'apps/pika-chat/src/lib/custom/theme-config.ts');
+    // Find theme config file - get path from pika-config.ts or use default
+    const pikaConfigContent = existsSync(path.join(cwd, 'pika-config.ts')) 
+        ? readFileSync(path.join(cwd, 'pika-config.ts'), 'utf-8') 
+        : '';
+    const themePathMatch = pikaConfigContent.match(/themeConfigPath:\s*['"]([^'"]+)['"]/);
+    const relativePath = themePathMatch?.[1] || 'src/lib/custom/sample-purple-theme';
+    const themeConfigPath = path.join(cwd, 'apps/pika-chat', relativePath + '.ts');
     const pikaConfigPath = path.join(cwd, 'pika-config.ts');
 
     if (options.check) {
@@ -106,7 +111,7 @@ async function checkTheme(themeConfigPath: string, pikaConfigPath: string): Prom
         return;
     }
 
-    // Check if theme-config.ts exists
+    // Check if theme config exists
     if (!existsSync(themeConfigPath)) {
         console.log(chalk.yellow('  Theme config file not found at:'));
         console.log(chalk.gray(`   ${themeConfigPath}`));
@@ -115,7 +120,7 @@ async function checkTheme(themeConfigPath: string, pikaConfigPath: string): Prom
         return;
     }
 
-    // Try to parse the schema version from theme-config.ts
+    // Try to parse the schema version from theme config
     const themeConfig = readFileSync(themeConfigPath, 'utf-8');
     const versionMatch = themeConfig.match(/schemaVersion:\s*(\d+)/);
     const userVersion = versionMatch ? parseInt(versionMatch[1], 10) : 1;
@@ -270,9 +275,10 @@ function showDocs(): void {
     
     console.log(chalk.white.bold('Quick Start:'));
     console.log(chalk.gray('1. Enable theming in pika-config.ts:'));
-    console.log(chalk.cyan('   customTheme: { enabled: true }'));
+    console.log(chalk.cyan('   customTheme: { enabled: true, themeConfigPath: "src/lib/custom/my-theme" }'));
     console.log();
-    console.log(chalk.gray('2. Edit apps/pika-chat/src/lib/custom/theme-config.ts'));
+    console.log(chalk.gray('2. Copy sample-purple-theme.ts and customize:'));
+    console.log(chalk.gray('   cp apps/pika-chat/src/lib/custom/sample-purple-theme.ts apps/pika-chat/src/lib/custom/my-theme.ts'));
     console.log();
     console.log(chalk.gray('3. Run dev server - changes auto-reload via HMR'));
     console.log();

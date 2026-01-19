@@ -7,13 +7,24 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.16.3
+
+- **Theme File Organization** - Simplified theme file structure for clearer workflow
+  - Renamed `theme-config.ts` to `sample-purple-theme.ts` to clarify it's a sample to copy
+  - Removed redundant `examples/` folder (sample theme serves as the example)
+- **Theme Vite Plugin Fix** - Fixed config loading to use proper TypeScript module resolution
+  - Now uses jiti to load configs instead of regex parsing
+  - Properly reads `themeConfigPath` from pika-config.ts dynamically
+- **Theme CLI Fixes** - Fixed hardcoded theme path references in CLI commands
+- **Release Tool Fix** - Now reads from `origin/main` for accurate version detection
+
+**Latest Stable:** `0.16.3` (January 19, 2026)
+
 ### What's New in 0.16.2
 
 - **Release Tooling** - Improved release prompt templates to ensure complete documentation updates
   - Release prompts now require updating `index.mdoc` for ALL releases (not just breaking changes)
   - Added missing 0.16.0 and 0.16.1 content to releases overview page
-
-**Latest Stable:** `0.16.2` (January 19, 2026)
 
 ### What's New in 0.16.1
 
@@ -25,7 +36,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 - **UI Theming System** - Complete theming system for customizing colors, typography, and visual styling
   - New `customTheme` configuration in `siteFeatures.uiCustomization` to enable custom themes
-  - Theme configuration via `apps/pika-chat/src/lib/custom/theme-config.ts` - protected from framework updates
+  - Sample theme at `apps/pika-chat/src/lib/custom/sample-purple-theme.ts` - copy and customize for your brand
   - Semantic CSS variables for brand colors, surfaces, borders, status colors, sidebar, and charts
   - OKLCH color format for perceptually uniform, accessible color palettes
   - Full dark mode support with separate light/dark variable definitions
@@ -351,6 +362,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.16.3  | Jan 19 2026 | Patch    | Theme file organization and CLI fixes         |
 | 0.16.2  | Jan 19 2026 | Patch    | Release tooling improvements                  |
 | 0.16.1  | Jan 19 2026 | Patch    | Documentation build fix for theming guide     |
 | 0.16.0  | Jan 19 2026 | Feature  | UI Theming System with CLI commands           |

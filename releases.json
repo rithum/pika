@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.16.2",
-  "currentDevelopment": "0.16.2",
+  "latestVersion": "0.16.3",
+  "currentDevelopment": "0.16.3",
   "releases": [
+    {
+      "version": "0.16.3",
+      "date": "2026-01-19",
+      "status": "released",
+      "breaking": false,
+      "summary": "Theme file organization and CLI fixes",
+      "highlights": [
+        "Renamed theme-config.ts to sample-purple-theme.ts for clearer workflow",
+        "Removed redundant examples folder",
+        "Fixed theme vite plugin to use jiti instead of regex for config loading",
+        "Fixed theme CLI commands to read themeConfigPath from config",
+        "Fixed release tool to use origin/main for accurate version detection"
+      ]
+    },
     {
       "version": "0.16.2",
       "date": "2026-01-19",
@@ -32,7 +46,7 @@
       "summary": "UI Theming System - Complete customization of colors, typography, and styling",
       "highlights": [
         "New customTheme configuration for enabling custom themes in pika-config.ts",
-        "Theme configuration file at apps/pika-chat/src/lib/custom/theme-config.ts protected from pika sync",
+        "Sample theme at apps/pika-chat/src/lib/custom/sample-purple-theme.ts - copy and customize",
         "Semantic CSS variables for brand colors, surfaces, borders, status colors, sidebar, and charts",
         "OKLCH color format for perceptually uniform, accessible color palettes",
         "Full dark mode support with separate light/dark variable definitions",

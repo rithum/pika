@@ -5,6 +5,26 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3] - 2026-01-19
+
+### Changed
+
+- **Theme File Organization** - Simplified theme file structure for clearer workflow
+    - Renamed `theme-config.ts` to `sample-purple-theme.ts` to clarify it's a sample to copy
+    - Removed redundant `examples/` folder (sample theme serves as the example)
+    - Updated documentation with new "copy and customize" workflow
+
+### Fixed
+
+- **Theme Vite Plugin** - Fixed config loading to use proper TypeScript module resolution
+    - Now uses jiti to load pika-config.ts and theme config instead of regex parsing
+    - Properly reads `themeConfigPath` from pika-config.ts dynamically
+- **Theme CLI Commands** - Fixed hardcoded theme path references
+    - `pika theme check/update/list` now read the actual `themeConfigPath` from config
+    - `pika sync` theme schema check now uses configured path
+- **Release Tool** - Fixed version detection using stale local main branch
+    - Now reads from `origin/main` instead of local `main` for accurate latest version
+
 ## [0.16.2] - 2026-01-19
 
 ### Fixed
@@ -27,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **UI Theming System** - Complete theming system for customizing colors, typography, and visual styling
     - New `customTheme` configuration in `siteFeatures.uiCustomization` to enable custom themes
-    - Theme configuration via `apps/pika-chat/src/lib/custom/theme-config.ts` - protected from framework updates
+    - Sample theme at `apps/pika-chat/src/lib/custom/sample-purple-theme.ts` - copy and customize for your brand
     - Semantic CSS variables for brand colors (`primary`, `secondary`, `destructive`), surfaces (`background`, `card`, `muted`), borders, status colors (`success`, `warning`, `info`, `ai`), sidebar, and charts
     - OKLCH color format for perceptually uniform, accessible color palettes
     - Full dark mode support with separate light/dark variable definitions
@@ -43,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `pika theme docs` - Quick reference for theming system and OKLCH color format
 
 - **Theme Schema Versioning** - Future-proof theme configuration with version tracking
-    - Schema version in `theme-config.ts` enables notification of new theme variables
+    - Schema version in theme config enables notification of new theme variables
     - CLI commands help upgrade themes when new variables are added
     - Backward compatible - themes continue working without changes
 
