@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.16.6",
-  "currentDevelopment": "0.16.6",
+  "latestVersion": "0.16.7",
+  "currentDevelopment": "0.16.7",
   "releases": [
+    {
+      "version": "0.16.7",
+      "date": "2026-01-20",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fixed __dirname error in sync command preventing protected areas config from loading",
+      "highlights": [
+        "Fixed __dirname error in ES modules causing protected areas config to fail to load",
+        "Added ES module compatible __dirname using fileURLToPath(import.meta.url)",
+        "Added missing custom directories to fallback protected areas list"
+      ]
+    },
     {
       "version": "0.16.6",
       "date": "2026-01-19",

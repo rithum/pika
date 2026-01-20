@@ -5,6 +5,16 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.7] - 2026-01-20
+
+### Fixed
+
+- **Sync Protected Areas Config Loading** - Fixed `__dirname` error preventing protected areas config from loading
+    - The CLI uses ES modules where `__dirname` is not available, causing the protected areas config file to fail to load
+    - Added ES module compatible `__dirname` using `fileURLToPath(import.meta.url)`
+    - Added `apps/pika-chat/src/lib/custom/**` and `apps/pika-chat/static/custom/**` to fallback protected areas list
+    - Ensures custom directories are always protected even if config file cannot be loaded
+
 ## [0.16.6] - 2026-01-19
 
 ### Fixed

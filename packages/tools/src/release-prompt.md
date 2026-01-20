@@ -305,7 +305,10 @@ If you added new features but haven't documented them yet, use the documentation
 3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - REQUIRED, update ALL of these:
     - Add "What's New in {{finalizeVersion}}" section at top of "Current Version" (if not already there)
     - Update "Latest Stable:" line to show \`{{finalizeVersion}}\` with date {{currentDate}}
-    - Add row to version history table at the bottom with version, date, type, and summary
+    - **IMPORTANT: Add row to "Version History" table** at the bottom of the file (scroll down to find it):
+      ```
+      | {{finalizeVersion}} | [Date] | Patch/Feature/Breaking | [Brief summary] |
+      ```
     - Ensure release highlights match the changelog
 
 4. **releases.json** - Update the {{finalizeVersion}} entry:
@@ -421,7 +424,10 @@ If you added new features but haven't documented them yet, use the documentation
 3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - REQUIRED for ALL releases:
     - Add "What's New in {{workingVersion}}" section at the top of "Current Version"
     - Update "Latest Stable" line with new version and date
-    - Add row to version history table at the bottom
+    - **IMPORTANT: Add row to "Version History" table** at the bottom of the file (scroll down to find it):
+      ```
+      | {{workingVersion}} | [Date] | Patch/Feature | [Brief summary] |
+      ```
 
 **CRITICAL Documentation Rules:**
 
