@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.16.7",
-  "currentDevelopment": "0.16.7",
+  "latestVersion": "0.16.8",
+  "currentDevelopment": "0.16.8",
   "releases": [
+    {
+      "version": "0.16.8",
+      "date": "2026-01-20",
+      "status": "released",
+      "breaking": false,
+      "summary": "Published pika-app CLI version 1.3.1 with sync fixes",
+      "highlights": [
+        "Published pika-app CLI 1.3.1 to npm with sync fixes from 0.16.6 and 0.16.7",
+        "Run npm install -g pika-app@latest to get the updated CLI"
+      ]
+    },
     {
       "version": "0.16.7",
       "date": "2026-01-20",

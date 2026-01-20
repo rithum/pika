@@ -7,14 +7,20 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.16.8
+
+- **CLI Package Published** - Published pika-app CLI version 1.3.1 to npm with sync fixes
+  - Run `npm install -g pika-app@latest` to get the updated CLI
+  - Includes fixes from 0.16.6 (glob pattern protection) and 0.16.7 (`__dirname` error fix)
+
+**Latest Stable:** `0.16.8` (January 20, 2026)
+
 ### What's New in 0.16.7
 
 - **Sync Protected Areas Config Loading Fix** - Fixed `__dirname` error preventing protected areas config from loading
   - The CLI uses ES modules where `__dirname` is not available
   - Added ES module compatible `__dirname` using `fileURLToPath(import.meta.url)`
   - Ensures custom directories are always protected even if config file cannot be loaded
-
-**Latest Stable:** `0.16.7` (January 20, 2026)
 
 ### What's New in 0.16.6
 
@@ -401,6 +407,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.16.8  | Jan 20 2026 | Patch    | Published CLI 1.3.1 with sync fixes           |
 | 0.16.7  | Jan 20 2026 | Patch    | Fixed sync config loading `__dirname` error   |
 | 0.16.6  | Jan 19 2026 | Patch    | Fixed sync protected areas glob bug           |
 | 0.16.5  | Jan 19 2026 | Patch    | Added `destructive-bg` theme variable         |
