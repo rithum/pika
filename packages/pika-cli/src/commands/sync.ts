@@ -7,9 +7,14 @@ import inquirer from 'inquirer';
 import { minimatch } from 'minimatch';
 import { tmpdir } from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { fileManager } from '../utils/file-manager.js';
 import { logger } from '../utils/logger.js';
+
+// ES module compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const execAsync = promisify(exec);
 
@@ -1532,6 +1537,8 @@ function getDefaultProtectedAreas(): string[] {
 
     // Fallback to hardcoded list if config file is not available
     return [
+        'apps/pika-chat/src/lib/custom/**',
+        'apps/pika-chat/static/custom/**',
         'apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/**',
         'apps/pika-chat/src/lib/server/auth-provider/**',
         'services/custom/**',
@@ -1541,36 +1548,36 @@ function getDefaultProtectedAreas(): string[] {
         '.env*',
         'pika-config.ts',
         '.pika-sync.json',
-        '.gitignore', // Always protect .gitignore
-        'pnpm-lock.yaml', // Always protect pnpm-lock.yaml
-        'cdk.context.json', // Always protect CDK-generated context file
+        '.gitignore',
+        'pnpm-lock.yaml',
+        'cdk.context.json',
         // CI/CD configuration directories
-        '.github/**', // GitHub Actions workflows
-        '.gitlab/**', // GitLab CI/CD configurations
-        '.circleci/**', // CircleCI configurations
-        '.bitbucket/**', // Bitbucket Pipelines configs
-        '.azure-pipelines/**', // Azure Pipelines setup
-        '.azure/**', // Azure Pipelines setup (alternative)
-        '.ci/**', // Generic or custom-named CI configuration folders
+        '.github/**',
+        '.gitlab/**',
+        '.circleci/**',
+        '.bitbucket/**',
+        '.azure-pipelines/**',
+        '.azure/**',
+        '.ci/**',
         // CI/CD configuration files
-        '.gitlab-ci.yml', // GitLab CI
-        '.circleci/config.yml', // CircleCI
-        'bitbucket-pipelines.yml', // Bitbucket
-        'azure-pipelines.yml', // Azure Pipelines
-        'Makefile', // Used to script build/test steps
-        'Jenkinsfile', // Jenkins CI
-        '.travis.yml', // Legacy Travis CI
-        'buildspec.yml', // AWS CodeBuild
-        'taskfile.yml', // Used with go-task
-        '.drone.yml', // Drone CI
-        'README.md', // README file
-        'readme.md', // README file
-        'README-pika.md', // The original README file from the framework
-        'CODEOWNERS', // CODEOWNERS file
-        'CONTRIBUTING.md', // CONTRIBUTING file
-        'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts', // Client auth page that they may customize to implement client side auth
-        'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte', // Client auth page that they may customize to implement client side auth
-        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte' // Allows for client-side logout
+        '.gitlab-ci.yml',
+        '.circleci/config.yml',
+        'bitbucket-pipelines.yml',
+        'azure-pipelines.yml',
+        'Makefile',
+        'Jenkinsfile',
+        '.travis.yml',
+        'buildspec.yml',
+        'taskfile.yml',
+        '.drone.yml',
+        'README.md',
+        'readme.md',
+        'README-pika.md',
+        'CODEOWNERS',
+        'CONTRIBUTING.md',
+        'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts',
+        'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte',
+        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte'
     ];
 }
 

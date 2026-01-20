@@ -7,13 +7,20 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.16.7
+
+- **Sync Protected Areas Config Loading Fix** - Fixed `__dirname` error preventing protected areas config from loading
+  - The CLI uses ES modules where `__dirname` is not available
+  - Added ES module compatible `__dirname` using `fileURLToPath(import.meta.url)`
+  - Ensures custom directories are always protected even if config file cannot be loaded
+
+**Latest Stable:** `0.16.7` (January 20, 2026)
+
 ### What's New in 0.16.6
 
 - **Sync Protected Areas Bug Fix** - Fixed glob patterns not protecting parent directories
   - Pattern `path/to/custom/**` now correctly protects the `custom` directory itself
   - Previously, directories matching the parent of a `/**` glob would be deleted during sync
-
-**Latest Stable:** `0.16.6` (January 19, 2026)
 
 ### What's New in 0.16.5
 
@@ -394,6 +401,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.16.7  | Jan 20 2026 | Patch    | Fixed sync config loading `__dirname` error   |
 | 0.16.6  | Jan 19 2026 | Patch    | Fixed sync protected areas glob bug           |
 | 0.16.5  | Jan 19 2026 | Patch    | Added `destructive-bg` theme variable         |
 | 0.16.4  | Jan 19 2026 | Feature  | Home page redesign with customizable branding |
