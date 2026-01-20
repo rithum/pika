@@ -5,6 +5,13 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.8] - 2026-01-20
+
+### Changed
+
+- **CLI Package Published** - Published pika-app CLI version 1.3.1 to npm with sync fixes from 0.16.6 and 0.16.7
+    - Run `npm install -g pika-app@latest` to get the updated CLI
+
 ## [0.16.7] - 2026-01-20
 
 ### Fixed
