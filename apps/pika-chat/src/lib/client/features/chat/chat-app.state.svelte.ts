@@ -70,7 +70,7 @@ import {
     DEFAULT_MEMORY_STRATEGIES,
     UserOverrideDataCommand,
 } from 'pika-shared/types/chatbot/chatbot-types';
-import type { IChatAppState, IWidgetMetadataAPI, PikaWCContext, SpotlightWidgetDefinition, WidgetAction, WidgetMetadata, WidgetMetadataState } from 'pika-shared/types/chatbot/webcomp-types';
+import type { ChatAppEventHandler, ChatAppEvents, IChatAppState, IWidgetMetadataAPI, PikaWCContext, SpotlightWidgetDefinition, WidgetAction, WidgetMetadata, WidgetMetadataState } from 'pika-shared/types/chatbot/webcomp-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import type { Component, Snippet } from 'svelte';
@@ -311,7 +311,17 @@ export class ChatAppState implements IChatAppState {
     #canvasOpen = $state(false);
     #dialogWidget = $state<DialogWidgetState | undefined>(undefined);
     #widgetDialogOpen = $state(false);
+    #heroWidget = $state<HeroWidgetState | undefined>(undefined);
+    #heroVisible = $state(false);
+    #companionMode = $state(false);
+    #chatPaneMinimized = $state(false);
+    #pendingCanvasCloseResolver = $state<((confirmed: boolean) => void) | undefined>(undefined);
     #webComponentRenderer = $state<Component<any>>() as Component<any>;
+    
+    // Event system - stores handlers for each event type
+    #eventHandlers = new Map<keyof ChatAppEvents, Set<ChatAppEventHandler<keyof ChatAppEvents>>>();
+    // Track which widget instance registered which handlers for auto-cleanup
+    #widgetEventHandlers = new Map<string, Array<{ event: keyof ChatAppEvents; handler: ChatAppEventHandler<keyof ChatAppEvents> }>>();
     #webComponentUrls = $state<Record<string, string> | undefined>(undefined);
 
     // #userActionsInProgress: Record<string, boolean> = $state({
@@ -404,6 +414,138 @@ export class ChatAppState implements IChatAppState {
         this.#widgetDialogOpen = value;
     }
 
+    // Hero getters
+    get heroWidget() {
+        return this.#heroWidget;
+    }
+
+    get heroVisible() {
+        return this.#heroVisible;
+    }
+
+    // Companion mode getter
+    get isCompanionMode() {
+        return this.#companionMode;
+    }
+
+    /**
+     * Whether the chat pane is currently minimized to a strip.
+     * @since 0.17.0
+     */
+    get isChatPaneMinimized() {
+        return this.#chatPaneMinimized;
+    }
+    
+    /**
+     * Whether there's a pending canvas close confirmation.
+     * Used by the canvas renderer to show confirmation dialog.
+     * @internal
+     */
+    get hasPendingCanvasCloseConfirmation() {
+        return this.#pendingCanvasCloseResolver !== undefined;
+    }
+
+    /**
+     * Minimize or expand the chat pane.
+     * Only has effect when companion mode is active.
+     * @since 0.17.0
+     */
+    setChatPaneMinimized(minimized: boolean) {
+        // Only allow minimize when in companion mode
+        if (minimized && !this.#companionMode) {
+            console.warn('[ChatAppState] Cannot minimize chat pane outside of companion mode');
+            return;
+        }
+        const wasMinimized = this.#chatPaneMinimized;
+        this.#chatPaneMinimized = minimized;
+        
+        // Emit event if state changed
+        if (wasMinimized !== minimized) {
+            if (minimized) {
+                this.#emitEvent('chatPaneMinimized', {});
+            } else {
+                this.#emitEvent('chatPaneExpanded', {});
+            }
+        }
+    }
+
+    // === EVENT SYSTEM ===
+    
+    /**
+     * Subscribe to chat app events.
+     * @param event - The event type to subscribe to
+     * @param handler - The callback function to invoke when the event fires
+     * @param instanceId - Optional widget instance ID for automatic cleanup when widget is destroyed
+     * @returns A function to unsubscribe
+     * @since 0.17.0
+     */
+    addEventListener<K extends keyof ChatAppEvents>(event: K, handler: ChatAppEventHandler<K>, instanceId?: string): () => void {
+        if (!this.#eventHandlers.has(event)) {
+            this.#eventHandlers.set(event, new Set());
+        }
+        const typedHandler = handler as ChatAppEventHandler<keyof ChatAppEvents>;
+        this.#eventHandlers.get(event)!.add(typedHandler);
+        
+        // Track handler by widget instance for auto-cleanup
+        if (instanceId) {
+            if (!this.#widgetEventHandlers.has(instanceId)) {
+                this.#widgetEventHandlers.set(instanceId, []);
+            }
+            this.#widgetEventHandlers.get(instanceId)!.push({ event, handler: typedHandler });
+        }
+        
+        // Return unsubscribe function
+        return () => this.removeEventListener(event, handler);
+    }
+    
+    /**
+     * Unsubscribe from chat app events.
+     * @param event - The event type to unsubscribe from
+     * @param handler - The callback function to remove
+     * @since 0.17.0
+     */
+    removeEventListener<K extends keyof ChatAppEvents>(event: K, handler: ChatAppEventHandler<K>): void {
+        const handlers = this.#eventHandlers.get(event);
+        if (handlers) {
+            handlers.delete(handler as ChatAppEventHandler<keyof ChatAppEvents>);
+        }
+    }
+    
+    /**
+     * Remove all event handlers registered by a specific widget instance.
+     * Called automatically when widget is unregistered.
+     * @internal
+     */
+    #cleanupWidgetEventHandlers(instanceId: string): void {
+        const handlers = this.#widgetEventHandlers.get(instanceId);
+        if (handlers) {
+            for (const { event, handler } of handlers) {
+                const eventHandlers = this.#eventHandlers.get(event);
+                if (eventHandlers) {
+                    eventHandlers.delete(handler);
+                }
+            }
+            this.#widgetEventHandlers.delete(instanceId);
+        }
+    }
+    
+    /**
+     * Emit an event to all subscribed handlers.
+     * @internal
+     */
+    #emitEvent<K extends keyof ChatAppEvents>(event: K, data: ChatAppEvents[K]): void {
+        const handlers = this.#eventHandlers.get(event);
+        if (handlers) {
+            for (const handler of handlers) {
+                try {
+                    handler(data);
+                } catch (error) {
+                    console.error(`[ChatAppState] Error in ${event} event handler:`, error);
+                }
+            }
+        }
+    }
+
     get pinningSession() {
         return this.#pinningSession;
     }
@@ -493,6 +635,13 @@ export class ChatAppState implements IChatAppState {
 
         // Discover and potentially auto-add context from this widget
         this.discoverWidgetContext(instance.instanceId);
+        
+        // Emit widgetOpen event
+        this.#emitEvent('widgetOpen', {
+            tagId: instance.tagId,
+            renderingContext: instance.renderingContext,
+            instanceId: instance.instanceId
+        });
     }
 
     /**
@@ -500,10 +649,24 @@ export class ChatAppState implements IChatAppState {
      * Called when a widget is removed/destroyed.
      */
     unregisterWidgetInstance(instanceId: string): void {
+        const instance = this.#widgetInstances.get(instanceId);
+        
         this.#widgetInstances.delete(instanceId);
 
         // Remove all contexts from this widget
         this.removeAllContextsForWidget(instanceId);
+        
+        // Clean up any event handlers registered by this widget
+        this.#cleanupWidgetEventHandlers(instanceId);
+        
+        // Emit widgetClose event if we had instance info
+        if (instance) {
+            this.#emitEvent('widgetClose', {
+                tagId: instance.tagId,
+                renderingContext: instance.renderingContext,
+                instanceId
+            });
+        }
     }
 
     /**
@@ -3305,8 +3468,8 @@ export class ChatAppState implements IChatAppState {
             tagDef = this.#manuallyRegisteredTagDefs.find((t) => t.scope === scope && t.tag === tag);
         }
 
-        // 3. Auto-generate tag definition for canvas/dialog contexts if needed
-        if (renderingContext === 'canvas' || renderingContext === 'dialog') {
+        // 3. Auto-generate tag definition for canvas/dialog/hero contexts if needed
+        if (renderingContext === 'canvas' || renderingContext === 'dialog' || renderingContext === 'hero') {
             if (!tagDef) {
                 // Create a new tag definition
                 console.log(`Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.`);
@@ -3384,6 +3547,22 @@ export class ChatAppState implements IChatAppState {
                     metadata
                 };
                 this.#canvasOpen = true;
+                
+                // Emit canvasOpen event
+                this.#emitEvent('canvasOpen', { tagId });
+                
+                // Enter companion mode if requested via metadata options
+                const canvasOptions = metadata as { companionMode?: boolean; chatPaneMinimized?: boolean } | undefined;
+                if (canvasOptions?.companionMode) {
+                    this.#companionMode = true;
+                    this.#emitEvent('companionModeEnter', {});
+                    
+                    // Also minimize chat pane if requested (only works in companion mode)
+                    if (canvasOptions.chatPaneMinimized) {
+                        this.#chatPaneMinimized = true;
+                        this.#emitEvent('chatPaneMinimized', {});
+                    }
+                }
                 break;
 
             case 'dialog':
@@ -3397,6 +3576,21 @@ export class ChatAppState implements IChatAppState {
                 this.#widgetDialogOpen = true;
                 break;
 
+            case 'hero':
+                // Hero is singleton - close any existing hero first
+                if (this.#heroWidget?.instanceId) {
+                    this.unregisterWidgetInstance(this.#heroWidget.instanceId);
+                }
+                // Store metadata in widget state temporarily (will be copied to widgetMetadata map during injection)
+                this.#heroWidget = {
+                    tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
+                    contextConfig: tagDef.renderingContexts.hero!,
+                    data,
+                    metadata
+                };
+                this.#heroVisible = true;
+                break;
+
             case 'inline':
                 // We don't render inline tags like with this method.
                 throw new Error('Inline rendering from web components not supported via the renderTag method');
@@ -3407,13 +3601,77 @@ export class ChatAppState implements IChatAppState {
      * Close the canvas view.
      */
     closeCanvas() {
+        const tagId = this.#canvasWidget 
+            ? `${this.#canvasWidget.tagDefinition.scope}.${this.#canvasWidget.tagDefinition.tag}` 
+            : undefined;
+        const instanceId = this.#canvasWidget?.instanceId;
+        
         // Unregister widget instance if it exists
-        if (this.#canvasWidget?.instanceId) {
-            this.unregisterWidgetInstance(this.#canvasWidget.instanceId);
+        if (instanceId) {
+            this.unregisterWidgetInstance(instanceId);
         }
 
         this.#canvasOpen = false;
         this.#canvasWidget = undefined;
+        
+        // Emit canvasClose event
+        if (tagId) {
+            this.#emitEvent('canvasClose', { tagId, instanceId });
+        }
+        
+        // Auto-exit companion mode and reset minimized state when canvas closes
+        if (this.#companionMode) {
+            const wasMinimized = this.#chatPaneMinimized;
+            this.#companionMode = false;
+            this.#chatPaneMinimized = false;
+            
+            this.#emitEvent('companionModeExit', {});
+            if (wasMinimized) {
+                this.#emitEvent('chatPaneExpanded', {});
+            }
+        }
+    }
+    
+    /**
+     * Request to close the canvas widget.
+     * Unlike closeCanvas(), this method respects the closeConfig settings.
+     * If confirmOnClose is true, shows confirmation dialog first.
+     * Useful for fullControl widgets that provide their own close button.
+     * 
+     * @returns Promise that resolves to true if closed, false if user cancelled
+     * @since 0.17.0
+     */
+    async requestCanvasClose(): Promise<boolean> {
+        const canvasOptions = this.#canvasWidget?.metadata as { closeConfig?: { confirmOnClose?: boolean } } | undefined;
+        
+        // If no confirmation needed, just close
+        if (!canvasOptions?.closeConfig?.confirmOnClose) {
+            this.closeCanvas();
+            return true;
+        }
+        
+        // Request confirmation - component will show dialog
+        return new Promise((resolve) => {
+            this.#pendingCanvasCloseResolver = resolve;
+        });
+    }
+    
+    /**
+     * Resolve the pending canvas close confirmation.
+     * Called by the canvas renderer when user confirms or cancels.
+     * @internal
+     */
+    resolvePendingCanvasClose(confirmed: boolean) {
+        if (this.#pendingCanvasCloseResolver) {
+            const resolver = this.#pendingCanvasCloseResolver;
+            this.#pendingCanvasCloseResolver = undefined;
+            
+            if (confirmed) {
+                this.closeCanvas();
+            }
+            
+            resolver(confirmed);
+        }
     }
 
     /**
@@ -3427,6 +3685,50 @@ export class ChatAppState implements IChatAppState {
 
         this.#widgetDialogOpen = false;
         this.#dialogWidget = undefined;
+    }
+
+    /**
+     * Show the hero widget.
+     * Hero must have been previously rendered via renderTag() to be shown.
+     */
+    showHero() {
+        if (this.#heroWidget && !this.#heroVisible) {
+            this.#heroVisible = true;
+            this.#emitEvent('heroShow', {});
+        }
+    }
+
+    /**
+     * Hide the hero widget.
+     * Unlike closeCanvas/closeDialog, this does not destroy the widget - it just hides it.
+     * The widget remains in memory and can be shown again via showHero().
+     */
+    hideHero() {
+        if (this.#heroVisible) {
+            this.#heroVisible = false;
+            this.#emitEvent('heroHide', {});
+        }
+    }
+
+    /**
+     * Close and destroy the hero widget.
+     * Use this when you want to completely remove the hero, not just hide it.
+     */
+    closeHero() {
+        const wasVisible = this.#heroVisible;
+        
+        // Unregister widget instance if it exists
+        if (this.#heroWidget?.instanceId) {
+            this.unregisterWidgetInstance(this.#heroWidget.instanceId);
+        }
+
+        this.#heroVisible = false;
+        this.#heroWidget = undefined;
+        
+        // Emit hide event if it was visible
+        if (wasVisible) {
+            this.#emitEvent('heroHide', {});
+        }
     }
 }
 
@@ -3484,6 +3786,23 @@ export interface CanvasWidgetState {
  * Dialog widget state
  */
 export interface DialogWidgetState {
+    tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
+    contextConfig: any;
+    data?: Record<string, any>;
+    /** Optional metadata (title, actions, icon) - applied after injection */
+    metadata?: WidgetMetadata;
+    /** Instance ID of the injected widget */
+    instanceId?: string;
+    /** DOM element reference of the injected widget */
+    element?: HTMLElement;
+}
+
+/**
+ * Hero widget state.
+ * Hero is a singleton widget that displays dominantly above the chat input area.
+ * Unlike spotlight, only one hero widget can exist and it can be shown/hidden via API.
+ */
+export interface HeroWidgetState {
     tagDefinition: TagDefinition<TagDefinitionWidgetWebComponent>;
     contextConfig: any;
     data?: Record<string, any>;

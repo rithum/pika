@@ -181,6 +181,36 @@ export interface IWidgetMetadataAPI {
     setLoadingStatus(loading: boolean, loadingMsg?: string): void;
 }
 
+/**
+ * Event types for ChatAppState event system.
+ * @since 0.17.0
+ */
+export interface ChatAppEvents {
+    /** Fired when any widget instance is opened/rendered */
+    widgetOpen: { tagId: string; renderingContext: WidgetRenderingContextType; instanceId: string };
+    /** Fired when any widget instance is closed/destroyed */
+    widgetClose: { tagId: string; renderingContext: WidgetRenderingContextType; instanceId: string };
+    /** Fired when a canvas widget is opened */
+    canvasOpen: { tagId: string; instanceId?: string };
+    /** Fired when a canvas widget is closed */
+    canvasClose: { tagId: string; instanceId?: string };
+    /** Fired when chat pane is minimized to strip */
+    chatPaneMinimized: Record<string, never>;
+    /** Fired when chat pane is expanded from strip */
+    chatPaneExpanded: Record<string, never>;
+    /** Fired when companion mode is entered */
+    companionModeEnter: Record<string, never>;
+    /** Fired when companion mode is exited */
+    companionModeExit: Record<string, never>;
+    /** Fired when hero widget is shown */
+    heroShow: Record<string, never>;
+    /** Fired when hero widget is hidden */
+    heroHide: Record<string, never>;
+}
+
+/** Event handler type for ChatAppEvents */
+export type ChatAppEventHandler<K extends keyof ChatAppEvents> = (data: ChatAppEvents[K]) => void;
+
 export interface IChatAppState {
     readonly entityFeatureEnabled: boolean;
     readonly shareCurrentSessionState: ShareSessionState;
@@ -240,9 +270,88 @@ export interface IChatAppState {
      * @param metadata - Optional metadata for the widget (title, actions, icon)
      * @since 0.11.0 - Added metadata parameter
      */
-    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
+    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static' | 'hero', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
+    
+    /**
+     * Request to close the canvas widget.
+     * Unlike closeCanvas(), this method respects the closeConfig settings:
+     * - If confirmOnClose is true, shows confirmation dialog first
+     * - Useful for fullControl widgets that provide their own close button
+     * 
+     * @returns Promise that resolves to true if closed, false if user cancelled
+     * @since 0.17.0
+     */
+    requestCanvasClose(): Promise<boolean>;
+    
+    /**
+     * Show the hero widget. Hero must have been previously rendered via renderTag() to be shown.
+     * @since 0.17.0
+     */
+    showHero(): void;
+    
+    /**
+     * Hide the hero widget. Does not destroy it - just hides it.
+     * The widget remains in memory and can be shown again via showHero().
+     * @since 0.17.0
+     */
+    hideHero(): void;
+    
+    /**
+     * Close and destroy the hero widget completely.
+     * @since 0.17.0
+     */
+    closeHero(): void;
+    
+    /**
+     * Whether the hero widget is currently visible.
+     * @since 0.17.0
+     */
+    readonly heroVisible: boolean;
+    
+    /**
+     * Whether companion mode is currently active.
+     * Companion mode is active when a canvas widget is open with companionMode: true.
+     * @since 0.17.0
+     */
+    readonly isCompanionMode: boolean;
+    
+    /**
+     * Whether the chat pane is currently minimized to a strip.
+     * Only relevant when companion mode is active.
+     * @since 0.17.0
+     */
+    readonly isChatPaneMinimized: boolean;
+    
+    /**
+     * Minimize or expand the chat pane to/from a thin strip.
+     * Only has effect when companion mode is active.
+     * @param minimized - true to minimize, false to expand
+     * @since 0.17.0
+     */
+    setChatPaneMinimized(minimized: boolean): void;
+    
+    /**
+     * Subscribe to chat app events.
+     * @param event - The event type to subscribe to
+     * @param handler - The callback function to invoke when the event fires
+     * @param instanceId - Optional widget instance ID. If provided, the handler will be
+     *                     automatically cleaned up when the widget is destroyed, preventing memory leaks.
+     *                     Widgets should always pass their instanceId when registering events.
+     * @returns A function to unsubscribe
+     * @since 0.17.0
+     */
+    addEventListener<K extends keyof ChatAppEvents>(event: K, handler: ChatAppEventHandler<K>, instanceId?: string): () => void;
+    
+    /**
+     * Unsubscribe from chat app events.
+     * @param event - The event type to unsubscribe from
+     * @param handler - The callback function to remove
+     * @since 0.17.0
+     */
+    removeEventListener<K extends keyof ChatAppEvents>(event: K, handler: ChatAppEventHandler<K>): void;
+    
     setOrUpdateCustomTitleBarAction(action: ChatAppActionMenu | ChatAppAction): void;
     removeCustomTitleBarAction(actionId: string): void;
     getWidgetInstance(instanceId: string): WidgetInstance | undefined;
@@ -621,7 +730,7 @@ export interface DataForWidget {
  */
 export interface PikaWCContext {
     appState: IAppState;
-    renderingContext: WidgetRenderingContextType; // e.g. 'spotlight', 'inline', 'dialog', 'canvas'
+    renderingContext: WidgetRenderingContextType; // e.g. 'spotlight', 'inline', 'dialog', 'canvas', 'static', 'hero'
     chatAppState: IChatAppState;
     chatAppId: string;
 
@@ -690,6 +799,68 @@ export interface WidgetMetadata {
         loading: boolean;
         loadingMsg?: string;
     };
+}
+
+/**
+ * Configuration for canvas close behavior.
+ * @since 0.17.0
+ */
+export interface CanvasCloseConfig {
+    /**
+     * Show a confirmation dialog before closing.
+     * User must confirm to close, or cancel to stay.
+     */
+    confirmOnClose?: boolean;
+    
+    /**
+     * Custom message for the confirmation dialog.
+     * @default "Are you sure you want to close? Any unsaved changes will be lost."
+     */
+    confirmMessage?: string;
+    
+    /**
+     * Custom title for the confirmation dialog.
+     * @default "Close Widget?"
+     */
+    confirmTitle?: string;
+}
+
+/**
+ * Extended metadata options for canvas widgets.
+ * Includes all standard WidgetMetadata plus canvas-specific options.
+ * @since 0.17.0
+ */
+export interface CanvasWidgetOptions extends WidgetMetadata {
+    /**
+     * Enter companion mode when opening this canvas.
+     * Companion mode optimizes the chat pane as a secondary assistant:
+     * - Auto-hides spotlight, hero, and chat history
+     * - Applies compact UI styles (smaller fonts/buttons)
+     * - Auto-exits when canvas closes
+     * @since 0.17.0
+     */
+    companionMode?: boolean;
+
+    /**
+     * Minimize chat pane to a thin strip (~20px).
+     * Only has effect when companionMode is true.
+     * User can click the strip to expand.
+     * @since 0.17.0
+     */
+    chatPaneMinimized?: boolean;
+
+    /**
+     * Widget takes full control of rendering (no framework chrome).
+     * Widget is responsible for its own header, close button, etc.
+     * @since 0.17.0
+     */
+    fullControl?: boolean;
+    
+    /**
+     * Configuration for close behavior (confirmation dialog, etc.)
+     * @since 0.17.0
+     */
+    closeConfig?: CanvasCloseConfig;
 }
 
 /**

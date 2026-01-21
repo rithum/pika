@@ -26,6 +26,7 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import Prompt from '../message-segments/default-components/prompt.svelte';
+    import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
     import WidgetDialog from './widget-dialog.svelte';
@@ -319,9 +320,11 @@
 
 <!-- Fullwidth outer container with drag and drop handlers -->
 <div
-    class="w-full h-full flex flex-col relative {isDraggingFile ? 'cursor-copy' : ''}"
+    class="chat-main-container w-full h-full flex flex-col relative {isDraggingFile ? 'cursor-copy' : ''}"
+    class:companion-mode={chat.isCompanionMode}
     role="region"
     aria-label="Chat message area with file drop zone"
+    data-companion-mode={chat.isCompanionMode}
     ondragenter={chat.enableFileUpload ? handleDragEnter : undefined}
     ondragover={chat.enableFileUpload ? handleDragOver : undefined}
     ondragleave={chat.enableFileUpload ? handleDragLeave : undefined}
@@ -337,19 +340,28 @@
         </div>
     {/if}
 
-    <!-- Spotlight spans full width without max-w constraint -->
-    <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} min-h-[80px]">
-        <div class="max-w-full w-full">
-            <Spotlight
-                bind:isVisible={spotlightIsVisible}
-                mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
-            />
+    <!-- Spotlight spans full width without max-w constraint (hidden in companion mode) -->
+    {#if !chat.isCompanionMode}
+        <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} min-h-[80px]">
+            <div class="max-w-full w-full">
+                <Spotlight
+                    bind:isVisible={spotlightIsVisible}
+                    mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
+                />
+            </div>
         </div>
-    </div>
+
+        <!-- Hero widget renders below spotlight when visible -->
+        <Hero />
+    {/if}
 
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
-        <!-- Scrollable area that spans full width with right-aligned scrollbar -->
-        <div class="flex-1 overflow-y-auto" bind:this={resizeHeightEl}>
+        <!-- Scrollable area that spans full width with right-aligned scrollbar (hidden in companion mode) -->
+        <div
+            class="flex-1 overflow-y-auto chat-history-area"
+            class:hidden={chat.isCompanionMode}
+            bind:this={resizeHeightEl}
+        >
             <!-- Centered content container -->
             <div class="w-full max-w-[768px] mx-auto pb-[150px]" bind:this={scrollToDiv}>
                 <div class="pb-4 px-4 pt-10">
@@ -467,27 +479,30 @@
         </div>
     {:else}
         <!-- No messages case -->
-        <div class="flex-1 flex flex-col justify-center min-h-[300px]">
+        <div class="flex-1 flex flex-col justify-center" class:min-h-[300px]={!chat.isCompanionMode}>
             <div class="w-full max-w-[768px] mx-auto">
                 <div class="flex flex-col px-4">
-                    {#if chat.features.promptInputFieldLabel.label}
-                        <div class="text-3xl text-center mb-4">{chat.features.promptInputFieldLabel.label}</div>
-                    {/if}
-                    {#if chat.suggestions.length > 0}
-                        <div class="pb-1">
-                            <ExpandableContainer title="Suggestions" useCase="button">
-                                <div class="flex flex-col gap-2 items-start">
-                                    {#each chat.suggestions as suggestion}
-                                        <Prompt
-                                            segment={{ rawContent: suggestion } as ProcessedTagSegment}
-                                            {appState}
-                                            chatAppState={chat}
-                                            disabled={chat.isViewingContentForAnotherUser}
-                                        />
-                                    {/each}
-                                </div>
-                            </ExpandableContainer>
-                        </div>
+                    <!-- Hide label and suggestions in companion mode -->
+                    {#if !chat.isCompanionMode}
+                        {#if chat.features.promptInputFieldLabel.label}
+                            <div class="text-3xl text-center mb-4">{chat.features.promptInputFieldLabel.label}</div>
+                        {/if}
+                        {#if chat.suggestions.length > 0}
+                            <div class="pb-1">
+                                <ExpandableContainer title="Suggestions" useCase="button">
+                                    <div class="flex flex-col gap-2 items-start">
+                                        {#each chat.suggestions as suggestion}
+                                            <Prompt
+                                                segment={{ rawContent: suggestion } as ProcessedTagSegment}
+                                                {appState}
+                                                chatAppState={chat}
+                                                disabled={chat.isViewingContentForAnotherUser}
+                                            />
+                                        {/each}
+                                    </div>
+                                </ExpandableContainer>
+                            </div>
+                        {/if}
                     {/if}
                     <ChatInput />
                 </div>
@@ -567,5 +582,30 @@
         font-size: 0.65rem;
         opacity: 0.7;
         text-align: left;
+    }
+
+    /* Companion Mode Styles - compact UI when canvas is the primary focus */
+    .chat-main-container.companion-mode {
+        --chat-font-size-input: 12px;
+        --chat-font-size-message: 12px;
+        --chat-font-size-timestamp: 9px;
+        --chat-button-padding: 0.375rem 0.625rem;
+        --chat-button-scale: 0.9;
+    }
+
+    .companion-mode :global(.chat-input-area) {
+        font-size: var(--chat-font-size-input, 12px);
+    }
+
+    .companion-mode :global(.chat-message) {
+        font-size: var(--chat-font-size-message, 12px);
+    }
+
+    .companion-mode :global(button) {
+        transform: scale(var(--chat-button-scale, 0.9));
+    }
+
+    .companion-mode .timestamp {
+        font-size: var(--chat-font-size-timestamp, 9px);
     }
 </style>

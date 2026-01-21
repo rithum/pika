@@ -229,40 +229,100 @@ Control where widgets can be rendered.
 
 ```typescript
 interface WidgetRenderingContexts {
-    inline?: boolean;
-    canvas?: boolean;
-    dialog?: boolean;
-    spotlight?: boolean;
+    inline?: InlineContextConfig;
+    canvas?: CanvasContextConfig;
+    dialog?: DialogContextConfig;
+    spotlight?: SpotlightContextConfig;
+    static?: StaticContextConfig;
+    hero?: HeroContextConfig;
 }
 ```
 
 **Contexts:**
 - `inline` - Within message text flow
-- `canvas` - Full-width dedicated area
+- `canvas` - Right-side panel, resizable with chat pane
 - `dialog` - Modal/popup overlay
-- `spotlight` - Featured prominent display
+- `spotlight` - Featured carousel above chat input
+- `static` - Hidden widget that runs initialization code (no visual UI)
+- `hero` - Singleton widget displayed prominently below spotlight (v0.17.0+)
 
 **Example:**
 
 ```typescript
 renderingContexts: {
-    inline: true,    // Can appear in text
-    canvas: true,    // Can appear full-width
-    dialog: false,   // Explicitly disabled for dialogs
-    spotlight: false // Explicitly disabled for spotlight
+    inline: { enabled: true },
+    canvas: { enabled: true },
+    dialog: { enabled: false },
+    spotlight: { enabled: false },
+    static: { enabled: false },
+    hero: { enabled: false }
 }
 ```
 
 {% aside type="note" title="Auto-Enabled Contexts" %}
-**Canvas and Dialog contexts are auto-enabled** when requested via `renderTag()`, even if not explicitly configured in the tag definition. This provides flexibility for programmatic rendering.
+**Canvas, Dialog, and Hero contexts are auto-enabled** when requested via `renderTag()`, even if not explicitly configured in the tag definition. This provides flexibility for programmatic rendering.
 
-When a web component calls `renderTag()` with `'canvas'` or `'dialog'` context on a tag that doesn't explicitly enable it, the system will:
-- Log a warning to the console
+When a web component calls `renderTag()` with one of these contexts on a tag that doesn't explicitly enable it, the system will:
 - Dynamically enable the context for that render
 - Allow the widget to render successfully
 
 **Inline and Spotlight contexts** still require explicit configuration in the tag definition.
 {% /aside %}
+
+### Hero Context (v0.17.0+)
+
+Hero is a new rendering context for a dominant, singleton widget that displays above the chat input area:
+
+```typescript
+interface HeroContextConfig {
+    enabled: boolean;
+    sizing?: {
+        minHeight?: number;  // default: 150
+        maxHeight?: number;  // default: 400
+        preferredHeight?: number | 'auto';  // default: 'auto'
+    };
+}
+```
+
+**Key characteristics:**
+- **Singleton** - Only one hero widget can exist at a time
+- **API controlled** - Shown/hidden via `showHero()`, `hideHero()`, `closeHero()`
+- **Can be destroyed** - Unlike spotlight, hero can be completely removed
+
+**Example:**
+```typescript
+// Render a hero widget
+await chatAppState.renderTag('acme.dashboard', 'hero', { userId: '123' }, {
+    title: 'Dashboard',
+    lucideIconName: 'layout-dashboard'
+});
+
+// Hide the hero (keeps widget in memory)
+chatAppState.hideHero();
+
+// Show it again
+chatAppState.showHero();
+
+// Destroy completely
+chatAppState.closeHero();
+```
+
+### Static Context
+
+Static widgets run initialization code but don't render visually. Useful for orchestration:
+
+```typescript
+interface StaticContextConfig {
+    enabled: boolean;
+    shutDownAfterMs?: number;  // Remove from DOM after this many ms
+}
+```
+
+**Use cases:**
+- Register title bar actions
+- Set up event listeners
+- Initialize shared state
+- Coordinate between multiple widgets
 
 ## LLM Instructions
 
@@ -936,6 +996,167 @@ This auto-generation feature allows web components to dynamically render other w
 - Third-party integrations
 - Conditional widgets based on runtime state
 {% /aside %}
+
+## Canvas Widget Options (v0.17.0+)
+
+Canvas widgets can be rendered with additional options to enable advanced UI patterns.
+
+### CanvasWidgetOptions Interface
+
+```typescript
+interface CanvasWidgetOptions {
+    /** Enter companion mode - compact chat pane while canvas is primary */
+    companionMode?: boolean;
+    
+    /** Start with chat pane minimized (requires companionMode) */
+    chatPaneMinimized?: boolean;
+    
+    /** Widget provides its own chrome (hides framework title bar) */
+    fullControl?: boolean;
+    
+    /** Configure close behavior */
+    closeConfig?: CanvasCloseConfig;
+}
+```
+
+### Companion Mode
+
+Companion mode creates an "application-first" experience where the canvas widget is the primary focus and the chat becomes a compact assistant pane:
+
+```typescript
+// Render canvas in companion mode
+await chatAppState.renderTag('acme.dashboard', 'canvas', {
+    companionMode: true,
+    chatPaneMinimized: false  // Start with chat visible
+});
+```
+
+**When companion mode is active:**
+- Chat pane becomes compact with reduced padding
+- Spotlight widgets are hidden
+- Hero widget is hidden
+- Chat history is minimized
+- User can minimize chat to a ~20px strip
+
+### Full Control Mode
+
+Full control mode lets the widget render its own chrome (title bar, close button):
+
+```typescript
+await chatAppState.renderTag('acme.ide', 'canvas', {
+    fullControl: true,
+    closeConfig: {
+        confirmOnClose: true,
+        confirmTitle: 'Unsaved Changes',
+        confirmMessage: 'You have unsaved work. Close anyway?'
+    }
+});
+```
+
+**When fullControl is enabled:**
+- Framework title bar is hidden
+- Widget is responsible for its own UI chrome
+- Use `requestCanvasClose()` to trigger close with confirmation
+
+### Close Configuration
+
+Configure how the canvas behaves when closing:
+
+```typescript
+interface CanvasCloseConfig {
+    /** Show confirmation dialog before closing */
+    confirmOnClose?: boolean;
+    
+    /** Title for confirmation dialog */
+    confirmTitle?: string;
+    
+    /** Message for confirmation dialog */
+    confirmMessage?: string;
+    
+    /** Label for confirm button */
+    confirmButtonLabel?: string;
+    
+    /** Label for cancel button */
+    cancelButtonLabel?: string;
+}
+```
+
+**Using requestCanvasClose():**
+
+For `fullControl` widgets that need to trigger the framework's close confirmation:
+
+```typescript
+// In a fullControl widget's close button handler
+async function handleClose() {
+    const shouldClose = await context.chatAppState.requestCanvasClose();
+    // If shouldClose is true, framework will handle the close
+    // If false, user cancelled
+}
+```
+
+## Event System (v0.17.0+)
+
+Widgets can subscribe to framework events to react to state changes.
+
+### Available Events
+
+```typescript
+interface ChatAppEvents {
+    widgetOpen: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    widgetClose: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    canvasOpen: { tagId: string; instanceId: string };
+    canvasClose: { tagId: string; instanceId: string };
+    chatPaneMinimized: undefined;
+    chatPaneExpanded: undefined;
+    companionModeEnter: undefined;
+    companionModeExit: undefined;
+    heroShow: { tagId: string; instanceId: string };
+    heroHide: { tagId: string; instanceId: string };
+}
+```
+
+### Subscribing to Events
+
+```typescript
+const context = await getPikaContext(this);
+const { chatAppState, instanceId } = context;
+
+// Subscribe with instance ID for automatic cleanup
+const unsubscribe = chatAppState.addEventListener('canvasOpen', (data) => {
+    console.log(`Canvas opened: ${data.tagId}`);
+}, instanceId);
+
+// Or manually unsubscribe later
+unsubscribe();
+```
+
+{% aside type="caution" title="Memory Leak Prevention" %}
+**Always pass the `instanceId`** when subscribing to events from a web component. This ensures the framework automatically cleans up event handlers when the widget is destroyed.
+
+Without the `instanceId`, you must manually call the returned unsubscribe function to prevent memory leaks.
+{% /aside %}
+
+### Event Usage Examples
+
+```typescript
+// React to companion mode changes
+chatAppState.addEventListener('companionModeEnter', () => {
+    // Adjust widget layout for full-width
+    this.classList.add('expanded');
+}, instanceId);
+
+chatAppState.addEventListener('companionModeExit', () => {
+    this.classList.remove('expanded');
+}, instanceId);
+
+// Track canvas lifecycle
+chatAppState.addEventListener('canvasClose', ({ tagId }) => {
+    if (tagId === 'acme.editor') {
+        // Save draft when editor closes
+        this.saveDraft();
+    }
+}, instanceId);
+```
 
 ## Best Practices
 

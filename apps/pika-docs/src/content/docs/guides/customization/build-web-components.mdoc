@@ -11,7 +11,7 @@ By the end of this guide, you will:
 
 - Create web components using vanilla JavaScript or Svelte
 - Access Pika context and application state
-- Build context-aware components (spotlight, canvas, dialog, inline)
+- Build context-aware components (spotlight, canvas, dialog, inline, hero, static)
 - Implement tool use and agent invocation from components
 - Use the pika-ux component library
 - Handle user interactions and state management
@@ -135,7 +135,7 @@ The context object provides access to application and chat state.
 interface PikaWCContext {
     appState: IAppState;                    // Global app state
     chatAppState: IChatAppState;            // Chat-specific state
-    renderingContext: WidgetRenderingContextType; // spotlight | inline | dialog | canvas
+    renderingContext: WidgetRenderingContextType; // spotlight | inline | dialog | canvas | static | hero
     chatAppId: string;
     instanceId: string;                     // Unique ID for this instance
     dataForWidget: Record<string, any>;     // Data passed when opening widget
