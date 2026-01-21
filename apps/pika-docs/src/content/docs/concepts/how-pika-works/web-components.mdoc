@@ -7,7 +7,7 @@ Pika's web component system allows agents to render rich, interactive widgets in
 
 ## Multi-Context Rendering
 
-Traditional chatbots provide static responses with pre-built UI components. Pika's web component system allows widgets to render in **four different contexts**:
+Traditional chatbots provide static responses with pre-built UI components. Pika's web component system allows widgets to render in **six different contexts**:
 
 ### Rendering Contexts
 
@@ -30,7 +30,19 @@ Traditional chatbots provide static responses with pre-built UI components. Pika
 **Canvas Context**:
 - Split-screen workspace for complex, rich interfaces
 - Similar to Claude Artifacts
+- Supports companion mode for application-first experiences
 - Example: Document editors, data explorers, report generators
+
+**Hero Context** (v0.17.0+):
+- Singleton dominant widget displayed below spotlight
+- API-controlled visibility (show/hide/close)
+- For primary display widgets when chat is secondary
+- Example: Main dashboard, primary data visualization
+
+**Static Context**:
+- Hidden widgets that run initialization code with no visual UI
+- Used for orchestration, setting up event listeners, registering actions
+- Example: App orchestrator, global state manager
 
 ## How Component Rendering Works
 
@@ -62,7 +74,7 @@ const tagDefinition = await loadTagDefinition('weather-dashboard');
 
 **Tag definition specifies**:
 - Component URL (where to load from)
-- Rendering contexts (inline, spotlight, dialog, canvas)
+- Rendering contexts (inline, spotlight, dialog, canvas, static, hero)
 - Usage mode (global vs. chat-app specific)
 - Status (enabled, disabled, retired)
 

@@ -4657,6 +4657,27 @@ export interface CanvasContextConfig {
 }
 
 /**
+ * Hero rendering context configuration.
+ * Hero is a singleton widget that displays dominantly above the chat input area,
+ * below spotlight (if both are shown). Unlike spotlight, hero can be shown/hidden
+ * via API and is controlled by a static widget (orchestrator).
+ */
+export interface HeroContextConfig {
+    enabled: boolean;
+    /**
+     * Sizing configuration for the hero widget.
+     */
+    sizing?: {
+        /** Minimum height in pixels. @default 150 */
+        minHeight?: number;
+        /** Maximum height in pixels. @default 400 */
+        maxHeight?: number;
+        /** Preferred height - number (pixels) or 'auto'. @default 'auto' */
+        preferredHeight?: number | 'auto';
+    };
+}
+
+/**
  * Tag definition for widgets that have static context enabled.
  * Static widgets can run initialization code (like registering title bar actions)
  * when the chat app loads. They can also have other rendering contexts for visual UI.
@@ -4668,6 +4689,7 @@ export type StaticWidgetTagDefinition = TagDefinition<TagDefinitionWidgetWebComp
         inline?: InlineContextConfig;
         dialog?: DialogContextConfig;
         canvas?: CanvasContextConfig;
+        hero?: HeroContextConfig;
     };
 };
 
@@ -4689,7 +4711,7 @@ export interface StaticContextConfig {
     shutDownAfterMs?: number;
 }
 
-export const WIDGET_RENDERING_CONTEXT_TYPES = ['spotlight', 'inline', 'dialog', 'canvas', 'static'] as const;
+export const WIDGET_RENDERING_CONTEXT_TYPES = ['spotlight', 'inline', 'dialog', 'canvas', 'static', 'hero'] as const;
 export type WidgetRenderingContextType = (typeof WIDGET_RENDERING_CONTEXT_TYPES)[number];
 
 export interface WidgetRenderingContexts {
@@ -4698,6 +4720,7 @@ export interface WidgetRenderingContexts {
     dialog?: DialogContextConfig;
     canvas?: CanvasContextConfig;
     static?: StaticContextConfig;
+    hero?: HeroContextConfig;
 }
 
 /**

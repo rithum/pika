@@ -7,6 +7,62 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.17.0] - 2026-01-21
+
+### Added
+
+- **Hero Rendering Context** - New singleton widget area for dominant display elements
+    - Renders prominently below spotlight, above chat input
+    - API-controlled visibility via `showHero()`, `hideHero()`, `closeHero()`
+    - Unlike spotlight, hero can be completely destroyed and recreated
+    - Configurable sizing with `minHeight`, `maxHeight`, `preferredHeight`
+
+- **Companion Mode** - Application-first UX where canvas widgets become primary
+    - Enable via `companionMode: true` in canvas widget options
+    - Chat pane becomes compact with reduced padding and font sizes
+    - Spotlight and hero widgets hidden during companion mode
+    - Chat history minimized to focus on canvas widget
+
+- **Chat Pane Minimize** - Users can minimize chat to a compact strip
+    - Enable via `chatPaneMinimized: true` in canvas widget options
+    - Minimized strip shows AI icon for easy expansion
+    - `setChatPaneMinimized(boolean)` API for programmatic control
+    - `isChatPaneMinimized` getter to check current state
+
+- **Event System** - Subscribe to framework state changes
+    - `widgetOpen` / `widgetClose` - Any widget lifecycle
+    - `canvasOpen` / `canvasClose` - Canvas widget lifecycle
+    - `companionModeEnter` / `companionModeExit` - Companion mode changes
+    - `chatPaneMinimized` / `chatPaneExpanded` - Chat pane visibility
+    - `heroShow` / `heroHide` - Hero widget visibility
+    - Automatic cleanup when `instanceId` passed to `addEventListener()`
+
+- **Full Control Canvas Widgets** - Widgets can render their own chrome
+    - Enable via `fullControl: true` in canvas widget options
+    - Framework hides title bar, widget provides its own UI
+    - `requestCanvasClose()` to trigger framework close with confirmation
+
+- **Close Configuration** - Configure canvas close behavior
+    - `confirmOnClose` to show confirmation dialog
+    - `confirmTitle`, `confirmMessage` for custom dialog content
+    - `confirmButtonLabel`, `cancelButtonLabel` for custom button text
+    - Works with both framework chrome and `fullControl` widgets
+
+### Changed
+
+- **renderTag Context** - Now accepts `'hero'` as valid rendering context
+- **Canvas Widget Options** - Extended with `companionMode`, `fullControl`, `closeConfig`
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.17.0) for @since 0.17.0 to find all type definitions that were added, updated, or removed in this release.
+
+### Migration
+
+See [Upgrading to 0.17.0](/platform/releases/migration-guides/upgrading-to-0-17-0/) for detailed migration instructions.
+
+---
+
 ## [0.16.8] - 2026-01-20
 
 ### Changed

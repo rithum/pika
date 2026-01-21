@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
+    import Sparkles from '$icons/lucide/sparkles';
     import CanvasWidgetRenderer from '$client/features/chat/canvas/canvas-widget-renderer.svelte';
     import ChatSidebar from '$client/features/chat/layout/chat-sidebar.svelte';
     import ChatTitlebar from '$client/features/chat/layout/chat-titlebar.svelte';
@@ -123,19 +124,51 @@
                 <!-- Always use resizable layout to keep ChatHome in stable DOM location -->
                 <Resizable.PaneGroup direction="horizontal" class="w-full h-full">
                     <Resizable.Pane
-                        defaultSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 50 : 100}
-                        minSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 30 : 100}
-                        maxSize={chatAppState.canvasOpen && chatAppState.canvasWidget ? 70 : 100}
+                        defaultSize={chatAppState.isChatPaneMinimized
+                            ? 5
+                            : chatAppState.canvasOpen && chatAppState.canvasWidget
+                              ? 50
+                              : 100}
+                        minSize={chatAppState.isChatPaneMinimized
+                            ? 3
+                            : chatAppState.canvasOpen && chatAppState.canvasWidget
+                              ? 20
+                              : 100}
+                        maxSize={chatAppState.isChatPaneMinimized
+                            ? 8
+                            : chatAppState.canvasOpen && chatAppState.canvasWidget
+                              ? 70
+                              : 100}
                     >
-                        <div class="overflow-auto w-full h-full">
-                            {@render children?.()}
-                        </div>
+                        {#if chatAppState.isChatPaneMinimized}
+                            <!-- Minimized chat pane strip -->
+                            <button
+                                class="w-full h-full flex flex-col items-center justify-center gap-2 bg-muted/50 hover:bg-muted cursor-pointer transition-colors border-r"
+                                onclick={() => chatAppState.setChatPaneMinimized(false)}
+                                aria-label="Expand chat pane"
+                            >
+                                <Sparkles class="h-5 w-5 text-primary" />
+                                <div
+                                    class="writing-mode-vertical text-xs text-muted-foreground font-medium tracking-wider rotate-180"
+                                >
+                                    AI
+                                </div>
+                            </button>
+                        {:else}
+                            <div class="overflow-auto w-full h-full">
+                                {@render children?.()}
+                            </div>
+                        {/if}
                     </Resizable.Pane>
 
                     {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
-                        <Resizable.Handle withHandle />
+                        <Resizable.Handle withHandle={!chatAppState.isChatPaneMinimized} />
 
-                        <Resizable.Pane defaultSize={50} minSize={30} maxSize={70}>
+                        <Resizable.Pane
+                            defaultSize={chatAppState.isChatPaneMinimized ? 95 : 50}
+                            minSize={30}
+                            maxSize={chatAppState.isChatPaneMinimized ? 97 : 70}
+                        >
                             <div class="w-full h-full overflow-auto">
                                 <CanvasWidgetRenderer />
                             </div>
@@ -160,3 +193,9 @@
         </Dialog.Footer>
     </Dialog.Content>
 </Dialog.Root>
+
+<style>
+    .writing-mode-vertical {
+        writing-mode: vertical-rl;
+    }
+</style>

@@ -1,0 +1,358 @@
+---
+title: Upgrading to 0.17.0
+description: Migration guide for Pika 0.17.0 - Hero Context, Companion Mode, and Event System
+---
+
+This guide covers migrating from Pika 0.16.x to 0.17.0. Version 0.17.0 introduces new rendering contexts, companion mode for application-first UX, and a comprehensive event system.
+
+## Overview
+
+Pika 0.17.0 focuses on enabling "application-first with chat assistance" experiences:
+
+- **Hero Context** - New singleton widget area for dominant UI elements
+- **Companion Mode** - Compact chat pane when canvas widgets are primary
+- **Event System** - Subscribe to framework state changes
+- **Canvas Options** - Full control mode, close configuration, companion mode
+- **Chat Pane Minimize** - User can minimize chat to a strip
+
+## Breaking Changes
+
+### None
+
+This release is fully backward compatible. All existing widgets and configurations continue to work without modification.
+
+## New Features
+
+### Hero Rendering Context
+
+A new rendering context for singleton dominant widgets displayed below the spotlight:
+
+```typescript
+// Render a widget in hero context
+await chatAppState.renderTag('acme.dashboard', 'hero', { userId: '123' });
+
+// Control hero visibility
+chatAppState.showHero();
+chatAppState.hideHero();
+chatAppState.closeHero();  // Destroys the widget
+```
+
+**Hero vs Spotlight:**
+
+| Feature | Hero | Spotlight |
+|---------|------|-----------|
+| Instances | Singleton (one at a time) | Multiple widgets |
+| Lifecycle | Can be destroyed | Persistent during session |
+| Purpose | Dominant display widget | Quick access carousel |
+| Visibility | API-controlled show/hide | Always visible |
+
+### Companion Mode
+
+Enables canvas widgets to become the primary focus while chat becomes a compact assistant:
+
+```typescript
+// Render canvas in companion mode
+await chatAppState.renderTag('acme.ide', 'canvas', {
+    companionMode: true,
+    chatPaneMinimized: false  // Optional: start minimized
+});
+
+// Check companion mode state
+if (chatAppState.isCompanionMode) {
+    // Adjust for compact chat UI
+}
+
+// Minimize/expand chat pane programmatically
+chatAppState.setChatPaneMinimized(true);
+```
+
+**Companion Mode Behavior:**
+- Chat pane becomes compact with reduced padding
+- Spotlight widgets are hidden
+- Hero widget is hidden
+- Chat history panel is minimized
+- User can minimize chat to ~20px strip
+
+### Event System
+
+Subscribe to framework state changes for reactive widgets:
+
+```typescript
+// Available events
+type ChatAppEvents = {
+    widgetOpen: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    widgetClose: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    canvasOpen: { tagId: string; instanceId: string };
+    canvasClose: { tagId: string; instanceId: string };
+    chatPaneMinimized: undefined;
+    chatPaneExpanded: undefined;
+    companionModeEnter: undefined;
+    companionModeExit: undefined;
+    heroShow: { tagId: string; instanceId: string };
+    heroHide: { tagId: string; instanceId: string };
+};
+
+// Subscribe with automatic cleanup (recommended)
+const unsubscribe = chatAppState.addEventListener('canvasOpen', (data) => {
+    console.log(`Canvas opened: ${data.tagId}`);
+}, instanceId);  // Pass instanceId for auto-cleanup
+
+// Or manage subscription manually
+const unsubscribe = chatAppState.addEventListener('companionModeEnter', () => {
+    this.classList.add('expanded');
+});
+// Later: unsubscribe();
+```
+
+{% aside type="caution" title="Memory Leak Prevention" %}
+Always pass your widget's `instanceId` when subscribing to events. This ensures automatic cleanup when the widget is destroyed. Without it, you must manually call the returned unsubscribe function.
+{% /aside %}
+
+### Full Control Canvas Widgets
+
+Widgets can now provide their own chrome (title bar, close button):
+
+```typescript
+// Render with full control
+await chatAppState.renderTag('acme.editor', 'canvas', {
+    fullControl: true,
+    closeConfig: {
+        confirmOnClose: true,
+        confirmTitle: 'Unsaved Changes',
+        confirmMessage: 'You have unsaved work. Close anyway?'
+    }
+});
+
+// In your widget's close handler
+async function handleClose() {
+    const shouldClose = await context.chatAppState.requestCanvasClose();
+    // Framework handles confirmation and closes if user confirms
+}
+```
+
+### Close Configuration
+
+Configure confirmation dialogs for canvas close:
+
+```typescript
+interface CanvasCloseConfig {
+    confirmOnClose?: boolean;
+    confirmTitle?: string;
+    confirmMessage?: string;
+    confirmButtonLabel?: string;
+    cancelButtonLabel?: string;
+}
+```
+
+## New IChatAppState Methods
+
+### Hero Control
+
+```typescript
+interface IChatAppState {
+    // Show the hero widget (if one is loaded)
+    showHero(): void;
+    
+    // Hide the hero widget (keeps in memory)
+    hideHero(): void;
+    
+    // Destroy the hero widget
+    closeHero(): void;
+}
+```
+
+### Companion Mode
+
+```typescript
+interface IChatAppState {
+    // Check if companion mode is active
+    readonly isCompanionMode: boolean;
+    
+    // Check if chat pane is minimized
+    readonly isChatPaneMinimized: boolean;
+    
+    // Minimize or expand chat pane
+    setChatPaneMinimized(minimized: boolean): void;
+}
+```
+
+### Event System
+
+```typescript
+interface IChatAppState {
+    // Subscribe to an event
+    addEventListener<K extends keyof ChatAppEvents>(
+        event: K,
+        handler: ChatAppEventHandler<K>,
+        instanceId?: string  // Pass for auto-cleanup
+    ): () => void;  // Returns unsubscribe function
+    
+    // Unsubscribe from an event
+    removeEventListener<K extends keyof ChatAppEvents>(
+        event: K,
+        handler: ChatAppEventHandler<K>
+    ): void;
+}
+```
+
+### Canvas Control
+
+```typescript
+interface IChatAppState {
+    // Request canvas close (for fullControl widgets)
+    // Returns true if close proceeded, false if cancelled
+    requestCanvasClose(): Promise<boolean>;
+}
+```
+
+## Updated renderTag Signature
+
+The `renderTag` method now accepts `'hero'` as a context:
+
+```typescript
+// Before (still works)
+renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static', data?, metadata?): Promise<void>;
+
+// After (with hero)
+renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static' | 'hero', data?, metadata?): Promise<void>;
+```
+
+## New Types
+
+### CanvasWidgetOptions
+
+```typescript
+interface CanvasWidgetOptions {
+    companionMode?: boolean;
+    chatPaneMinimized?: boolean;
+    fullControl?: boolean;
+    closeConfig?: CanvasCloseConfig;
+}
+```
+
+### HeroContextConfig
+
+```typescript
+interface HeroContextConfig {
+    enabled: boolean;
+    sizing?: {
+        minHeight?: number;
+        maxHeight?: number;
+        preferredHeight?: number | 'auto';
+    };
+}
+```
+
+### ChatAppEvents
+
+```typescript
+interface ChatAppEvents {
+    widgetOpen: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    widgetClose: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
+    canvasOpen: { tagId: string; instanceId: string };
+    canvasClose: { tagId: string; instanceId: string };
+    chatPaneMinimized: undefined;
+    chatPaneExpanded: undefined;
+    companionModeEnter: undefined;
+    companionModeExit: undefined;
+    heroShow: { tagId: string; instanceId: string };
+    heroHide: { tagId: string; instanceId: string };
+}
+```
+
+## CSS Variables for Companion Mode
+
+New CSS variables are available when companion mode is active:
+
+```css
+/* Applied when data-companion-mode="true" */
+--companion-padding: 0.5rem;
+--companion-font-size: 0.875rem;
+--companion-spacing: 0.25rem;
+```
+
+## Migration Steps
+
+### For Most Users: No Action Required
+
+If you're not using the new features, your existing code continues to work unchanged.
+
+### To Adopt Hero Context
+
+1. Identify widgets that should be dominant display elements
+2. Update your orchestrator/static widget to call `renderTag` with `'hero'` context
+3. Optionally configure hero sizing in tag definition
+
+### To Adopt Companion Mode
+
+1. Identify canvas widgets that should be "primary application" experiences
+2. Pass `companionMode: true` in your `renderTag` data
+3. Optionally implement event listeners for mode changes
+4. Test UI in both normal and companion modes
+
+### To Adopt Event System
+
+1. Identify places where widgets need to react to framework state
+2. Add event listeners with `instanceId` for automatic cleanup
+3. Remove any manual state polling
+
+## Best Practices
+
+### Event Handler Cleanup
+
+```typescript
+// GOOD: Pass instanceId for automatic cleanup
+chatAppState.addEventListener('canvasClose', handler, instanceId);
+
+// ACCEPTABLE: Manual cleanup when widget lifecycle is managed
+const unsubscribe = chatAppState.addEventListener('canvasClose', handler);
+// Later in disconnectedCallback:
+unsubscribe();
+
+// BAD: No cleanup leads to memory leaks
+chatAppState.addEventListener('canvasClose', handler);
+```
+
+### Full Control Widget Design
+
+When using `fullControl: true`:
+
+1. Provide clear visual affordances for closing
+2. Use `requestCanvasClose()` to respect `closeConfig`
+3. Handle the case where close is cancelled
+4. Consider adding a visible title/header
+
+### Companion Mode UX
+
+When designing for companion mode:
+
+1. Ensure your canvas widget works at various widths
+2. Consider the minimized chat strip state
+3. Provide ways for users to interact with chat when needed
+4. Test responsive behavior as users resize panes
+
+## Troubleshooting
+
+### Hero Not Showing
+
+1. Verify you're calling `renderTag` with `'hero'` context
+2. Check that companion mode isn't active (hero is hidden in companion mode)
+3. Ensure widget loaded successfully (check console for errors)
+
+### Events Not Firing
+
+1. Verify event name matches exactly (case-sensitive)
+2. Ensure handler isn't being removed elsewhere
+3. Check that the triggering action actually occurred
+
+### Memory Leaks
+
+1. Always pass `instanceId` when subscribing to events
+2. Call unsubscribe functions in `disconnectedCallback`
+3. Use browser DevTools to monitor event listener counts
+
+## Related Documentation
+
+- [Widget System Reference](/reference/ui-components/widget-system/) - Complete widget API reference
+- [Web Components Guide](/guides/customization/build-web-components/) - Building custom widgets
+- [Widget Context API](/reference/types/widget-context/) - Context available to widgets
