@@ -1,7 +1,22 @@
 {
-  "latestVersion": "0.16.8",
-  "currentDevelopment": "0.16.8",
+  "latestVersion": "0.17.0",
+  "currentDevelopment": "0.17.0",
   "releases": [
+    {
+      "version": "0.17.0",
+      "date": "2026-01-21",
+      "status": "released",
+      "breaking": false,
+      "summary": "Hero rendering context, companion mode, event system, and canvas widget enhancements",
+      "highlights": [
+        "Hero rendering context - new singleton widget area for dominant display elements",
+        "Companion mode - application-first UX where canvas widgets become primary",
+        "Chat pane minimize - minimize chat to a compact strip",
+        "Event system - subscribe to framework state changes with automatic cleanup",
+        "Full control canvas widgets - widgets can render their own chrome",
+        "Close configuration - configure canvas close behavior with confirmation dialogs"
+      ]
+    },
     {
       "version": "0.16.8",
       "date": "2026-01-20",
