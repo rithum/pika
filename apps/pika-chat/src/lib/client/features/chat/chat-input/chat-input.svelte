@@ -1,6 +1,7 @@
 <script lang="ts">
     import ArrowUp from '$icons/lucide/arrow-up';
     import Cpu from '$icons/lucide/cpu';
+    import Info from '$icons/lucide/info';
     import Paperclip from '$icons/lucide/paperclip';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
@@ -30,6 +31,9 @@
     let inputRegionEl: HTMLDivElement;
     let textarea: HTMLTextAreaElement;
     let fileInput: HTMLInputElement | undefined = $state();
+    
+    // Highlight animation state for suggestQuestion
+    let isHighlighted = $state(false);
 
     function autoResizeTextarea() {
         if (!textarea) return;
@@ -37,8 +41,14 @@
         // Reset height to allow proper calculation
         textarea.style.height = 'auto';
 
-        // Set new height based on scroll height (content height)
-        const newHeight = Math.min(textarea.scrollHeight, 200); // Max height of 200px
+        // If empty, use minimum height; otherwise calculate based on content
+        const isEmpty = !textarea.value || textarea.value.trim() === '';
+        const minHeight = 48; // matches min-h-[48px]
+        const maxHeight = 200;
+        
+        // Get the scroll height, but for empty inputs, use the minimum
+        const contentHeight = isEmpty ? minHeight : textarea.scrollHeight;
+        const newHeight = Math.min(Math.max(contentHeight, minHeight), maxHeight);
         textarea.style.height = `${newHeight}px`;
 
         if (inputRegionEl !== undefined) {
@@ -129,10 +139,33 @@
     function handleRemoveManualContext(sourceId: string) {
         chat.removeContextSource(sourceId);
     }
+
+    // Listen for suggestQuestion events to focus and highlight the input
+    $effect(() => {
+        const unsubscribe = chat.addEventListener('questionSuggested', () => {
+            // Focus the textarea
+            if (textarea) {
+                textarea.focus();
+                // Move cursor to end of text
+                textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+            }
+            
+            // Trigger highlight animation
+            isHighlighted = true;
+            setTimeout(() => {
+                isHighlighted = false;
+            }, 1500);
+            
+            // Resize to fit new content
+            autoResizeTextarea();
+        });
+
+        return unsubscribe;
+    });
 </script>
 
 <div
-    class="flex w-full cursor-text flex-col items-center justify-center rounded-[14px] bg-clip-padding contain-inline-size overflow-clip border-border border shadow-sm sm:shadow-lg dark:shadow-none! bg-card dark:bg-card"
+    class="flex w-full cursor-text flex-col items-center justify-center rounded-[14px] bg-clip-padding contain-inline-size overflow-clip border-border border shadow-sm sm:shadow-lg dark:shadow-none! bg-card dark:bg-card transition-all duration-300 {isHighlighted ? 'ring-2 ring-primary ring-offset-2 animate-pulse-subtle' : ''}"
     onclick={focusTextarea}
     onkeydown={handleContainerKeyDown}
     tabindex="0"
@@ -250,7 +283,42 @@
     {/if}
 </div>
 {#if chat.features.chatDisclaimerNotice}
-    <div class="text-xs pl-6 pr-6 mt-2 text-gray-400" style="font-size: 0.7rem;">
-        {chat.features.chatDisclaimerNotice}
-    </div>
+    {#if chat.isCompanionMode}
+        <!-- Compact disclaimer info button in companion mode -->
+        <div class="flex justify-center mt-0.5">
+            <TooltipPlus
+                tooltip={chat.features.chatDisclaimerNotice}
+                side="top"
+                contentClass="max-w-[300px] text-xs"
+                allowHoverOverTooltip={true}
+            >
+                <button
+                    type="button"
+                    class="text-gray-400 hover:text-gray-500 transition-colors p-0.5"
+                    aria-label="AI disclaimer"
+                >
+                    <Info style="width: 12px; height: 12px;" />
+                </button>
+            </TooltipPlus>
+        </div>
+    {:else}
+        <div class="text-xs pl-6 pr-6 mt-2 text-gray-400" style="font-size: 0.7rem;">
+            {chat.features.chatDisclaimerNotice}
+        </div>
+    {/if}
 {/if}
+
+<style>
+    @keyframes pulse-subtle {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.85;
+        }
+    }
+    
+    :global(.animate-pulse-subtle) {
+        animation: pulse-subtle 0.75s ease-in-out 2;
+    }
+</style>

@@ -88,6 +88,11 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             }
             process.env.TAG_DEFINITIONS_TABLE = `pika-tag-def-${name}-${stage}`;
 
+            // Intent Router: Commands live on tag definitions, no separate table needed
+            // Enable router for local testing (set via features on the chat app)
+            // For mock classifications, set INTENT_ROUTER_MOCK_CLASSIFICATIONS env var
+            // Example: INTENT_ROUTER_MOCK_CLASSIFICATIONS='{"show me my jobs":{"matched":true,"commandId":"view_jobs","confidence":0.95}}'
+
             // Try to get MEMORY_ID from SSM parameter store
             const ssmClient = new SSMClient({
                 region: process.env.AWS_REGION,
@@ -157,6 +162,10 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
             const readableStream = new ReadableStream({
                 start(controller) {
                     passThrough.on('data', (chunk) => {
+                        // Resolve firstBytePromise on first data write (Intent Router dispatch doesn't set headers)
+                        if (!firstBytePromise.finished) {
+                            firstBytePromise.resolve();
+                        }
                         controller.enqueue(chunk);
                     });
 

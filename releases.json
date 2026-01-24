@@ -1,7 +1,22 @@
 {
-  "latestVersion": "0.17.0",
-  "currentDevelopment": "0.17.0",
+  "latestVersion": "0.18.0",
+  "currentDevelopment": "0.18.0",
   "releases": [
+    {
+      "version": "0.18.0",
+      "date": "2026-01-24",
+      "status": "released",
+      "breaking": false,
+      "summary": "Intent Router, collapsible hero, suggestQuestion API, and widget lifecycle events",
+      "highlights": [
+        "Intent Router - fast LLM-based command classification for instant responses (~200-400ms)",
+        "Collapsible hero widget - users can collapse hero to a compact header bar",
+        "Hero sizing configuration - control hero dimensions via tag definition",
+        "Suggest question API - pre-fill chat input for AI helper buttons",
+        "Widget ready event - signal when widget has finished initializing",
+        "Hero and spotlight lifecycle events for coordinated UI interactions"
+      ]
+    },
     {
       "version": "0.17.0",
       "date": "2026-01-21",

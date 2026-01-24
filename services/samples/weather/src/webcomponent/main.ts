@@ -10,6 +10,8 @@ import './lib/widgets/temperature-trend.svelte';
 import './lib/widgets/weather-alerts.svelte';
 import './lib/widgets/weather-comparison.svelte';
 import './lib/widgets/weather-fun-fact.svelte';
+import './lib/widgets/weather-hero.svelte';
+import './lib/widgets/weather-orchestrator.svelte';
 import './lib/widgets/weather-preferences.svelte';
 import './lib/widgets/weather-summary.svelte';
 import './lib/widgets/weather-static-init.svelte';
@@ -23,6 +25,8 @@ export { default as TemperatureTrend } from './lib/widgets/temperature-trend.sve
 export { default as WeatherAlerts } from './lib/widgets/weather-alerts.svelte';
 export { default as WeatherComparison } from './lib/widgets/weather-comparison.svelte';
 export { default as WeatherFunFact } from './lib/widgets/weather-fun-fact.svelte';
+export { default as WeatherHero } from './lib/widgets/weather-hero.svelte';
+export { default as WeatherOrchestrator } from './lib/widgets/weather-orchestrator.svelte';
 export { default as WeatherPreferences } from './lib/widgets/weather-preferences.svelte';
 export { default as WeatherSummary } from './lib/widgets/weather-summary.svelte';
 export { default as WeatherStaticInit } from './lib/widgets/weather-static-init.svelte';

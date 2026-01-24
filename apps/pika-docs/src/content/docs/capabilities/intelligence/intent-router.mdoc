@@ -1,0 +1,236 @@
+---
+title: Intent Router
+description: Fast command routing to widgets without full LLM inference.
+---
+
+The Intent Router intercepts user messages before they reach the Bedrock agent, enabling instant responses for common commands. Using a lightweight classification model, it routes requests to specific widgets or executes predefined actions in milliseconds rather than seconds.
+
+## What It Does
+
+When a user sends a message, the Intent Router classifies it against a set of predefined commands. If there's a confident match, the system immediately executes the appropriate action without waiting for the full Bedrock agent pipeline.
+
+```
+User Message → Intent Router → [Match?]
+                                  ↓ Yes          ↓ No
+                            Execute Command   Continue to Agent
+                                  ↓
+                            Stream Response
+```
+
+## Why It Matters
+
+Traditional chat flows require every message to go through the full Bedrock agent, which can take 2-10+ seconds. For common commands like "show me my jobs" or "open settings", users expect instant responses.
+
+The Intent Router provides:
+
+- **5-10x faster responses** for common commands
+- **Significant cost savings** (fast classification is much cheaper than full agent inference)
+- **Predictable behavior** for well-defined actions
+- **Widget control** over their own command patterns
+
+## How It Works
+
+### Classification
+
+A fast LLM analyzes the user message against command definitions, each with:
+- **Examples**: Phrases that should match
+- **Anti-examples**: Similar phrases that should NOT match
+- **Description**: What the command does
+
+The classifier returns a confidence score (0-1). Commands only match if confidence exceeds the threshold (default 0.85).
+
+### Execution Modes
+
+**Direct Mode** - Execute a predefined action immediately:
+- Render a widget (spotlight, canvas, dialog, hero)
+- Show a toast notification
+- Navigate to a URL
+- Optionally continue to Bedrock agent for richer response
+
+**Dispatch Mode** - Send to an orchestrator widget:
+- Orchestrator receives the command event
+- Makes runtime decisions (API calls, conditional logic)
+- Executes appropriate UI actions
+- Server completes the turn (no Bedrock call)
+
+### Context-Aware Matching
+
+Commands can require specific context to be eligible:
+- A "retry job" command only matches when a job is selected
+- A "fix errors" command only appears when errors exist
+- Context is automatically collected from active widgets
+
+## Key Benefits
+
+### Instant User Experience
+
+Common commands execute immediately:
+- "Show my jobs" → Job list appears in ~200ms
+- "Open settings" → Settings dialog opens instantly
+- No waiting for full LLM inference
+
+### Cost Efficiency
+
+Fast classification is a fraction of full agent cost:
+- Classification: ~$0.00001 per check
+- Full Bedrock agent: ~$0.01-0.05 per invocation
+- Orders of magnitude savings for high-volume commands
+
+### Predictable Behavior
+
+Commands execute identically every time:
+- Same user query → same widget rendered
+- No LLM variability in command execution
+- Easier testing and QA
+
+### Widget Ownership
+
+Widgets define their own command patterns:
+- Commands stored on tag definitions
+- Each widget controls what it responds to
+- Easy to add new commands without changing agent
+
+## Use Cases
+
+### Navigation Commands
+
+Instant access to app features:
+- "Show dashboard" → Opens dashboard widget
+- "Go to settings" → Opens settings dialog
+- "View my profile" → Opens profile page
+
+### Widget Triggers
+
+Open specific widgets from chat:
+- "Compare weather" → Opens comparison widget
+- "Check alerts" → Opens alerts panel
+- "Add new item" → Opens creation form
+
+### Quick Actions
+
+Execute simple operations:
+- "Refresh data" → Triggers data reload
+- "Clear filters" → Resets filter state
+- "Toggle dark mode" → Switches theme
+
+### Context-Aware Commands
+
+Actions based on current state:
+- "Fix this error" (when error is selected) → Opens error dialog
+- "Retry job" (when job is selected) → Triggers retry
+- "Show details" (when item is selected) → Opens detail view
+
+## Configuration
+
+### Enable the Feature
+
+```typescript
+const chatAppConfig: ChatAppConfig = {
+  featureOverrides: {
+    intentRouter: {
+      enabled: true,
+      confidenceThreshold: 0.85  // Minimum confidence to match
+    }
+  }
+};
+```
+
+### Define Commands
+
+Commands are defined on tag definitions:
+
+```typescript
+const widgetTagDef: TagDefinitionForCreateOrUpdate = {
+  scope: 'myapp',
+  tag: 'orchestrator',
+  // ... other properties
+  
+  intentRouterCommands: [
+    {
+      commandId: 'view_jobs',
+      name: 'View Jobs',
+      description: 'Show the list of jobs',
+      examples: [
+        'show my jobs',
+        'view all jobs',
+        'list jobs'
+      ],
+      antiExamples: [
+        'what is a job?',
+        'create a job'
+      ],
+      priority: 100,
+      execution: {
+        mode: 'dispatch',
+        handlerTagId: 'myapp.orchestrator',
+        payload: { action: 'view_jobs' },
+        responseTemplate: 'Opening your jobs...'
+      }
+    }
+  ]
+};
+```
+
+### Override Commands Per Chat App
+
+Disable or boost specific commands:
+
+```typescript
+intentRouter: {
+  enabled: true,
+  commandOverrides: {
+    'myapp.orchestrator': {
+      'create_job': { disabled: true },
+      'view_jobs': { priorityBoost: 50 }
+    }
+  }
+}
+```
+
+## Admin UI
+
+Commands can be managed through the Admin site:
+- View all commands on a tag definition
+- Edit command properties and examples
+- Configure execution mode and parameters
+- Test classification against sample queries
+
+## Getting Started
+
+{% card title="Implementation Guide" icon="rocket" %}
+Step-by-step guide to implementing Intent Router commands.
+
+[Read Guide →](/guides/intelligence/intent-router/)
+{% /card %}
+
+{% card title="View Weather Sample" icon="star" %}
+See Intent Router in action with the weather orchestrator.
+
+[Explore Sample →](/getting-started/weather-sample/)
+{% /card %}
+
+{% card title="Widget Context" icon="puzzle" %}
+Learn how widgets provide context for command matching.
+
+[Read Guide →](/guides/customization/widget-context/)
+{% /card %}
+
+## Related Capabilities
+
+{% card title="Context-Aware Widgets" icon="information" %}
+Widgets that adapt to user context and state.
+
+[Learn More →](/capabilities/customization/context-aware-widgets/)
+{% /card %}
+
+{% card title="Custom Web Components" icon="star" %}
+Build the widgets that respond to Intent Router commands.
+
+[Learn More →](/capabilities/customization/web-components/)
+{% /card %}
+
+{% card title="Self-Correcting Responses" icon="puzzle" %}
+Quality verification for full agent responses (when Intent Router passes through).
+
+[Learn More →](/capabilities/intelligence/self-correcting/)
+{% /card %}

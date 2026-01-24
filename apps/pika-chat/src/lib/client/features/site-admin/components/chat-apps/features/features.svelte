@@ -24,6 +24,8 @@
         FileUploadFeature,
         FileUploadFeatureForChatApp,
         InstructionAugmentationFeatureForChatApp,
+        IntentRouterFeature,
+        IntentRouterFeatureForChatApp,
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
         PromptInputFieldLabelFeatureForChatApp,
@@ -48,6 +50,7 @@
     import EntityFeatureRenderer from './entity-feature-renderer.svelte';
     import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
     import InstructionAugmentationFeatureRenderer from './instruction-augmentation-feature-renderer.svelte';
+    import IntentRouterFeatureRenderer from './intent-router-feature-renderer.svelte';
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
     import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
@@ -249,6 +252,7 @@
         agentInstructionAssistance: false,
         userMemory: false,
         entity: false,
+        intentRouter: false,
     } as Record<FeatureIdType, boolean>);
 
     function setExpandedOrCollapsed(expanded: boolean) {
@@ -432,7 +436,7 @@
                                         (featureEnabled) => setFeatureEnabled(typedFeatureId, featureEnabled)
                                     }
                                     disabled={!isOverrideMode || !canBeEnabled || disabled}
-                                    class={featureOverridden ? 'border-orange-500' : ''}
+                                    class={featureOverridden ? 'border-warning' : ''}
                                     onclick={(e) => e.stopPropagation()}
                                 />
                                 <div>
@@ -956,6 +960,39 @@
                                 originalFeature={originalFeature as EntityFeatureForChatApp}
                                 {isOverrideMode}
                             />
+                        {:else if typedFeatureId === 'intentRouter'}
+                            <IntentRouterFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | IntentRouterFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as IntentRouterFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                setValid={(valid: boolean) => setFeatureValid(typedFeatureId, valid)}
+                            />
                         {/if}
                     </div>
                 </div>
@@ -1124,6 +1161,22 @@
             <p class="text-xs text-muted-foreground">
                 When disabled, all users with chat app access can view shared sessions from this app regardless of their
                 entity.
+            </p>
+        </div>
+    {:else if featureId === 'intentRouter'}
+        <div class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+                Intercepts user messages and routes them to widgets using fast classification (~150ms). Enables instant
+                responses for common commands without invoking the full Bedrock agent.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Commands</span> are defined on tag definitions via the
+                <code>intentRouterCommands</code> field. Each command specifies examples, priority, and how to execute when
+                matched.
+            </p>
+            <p class="text-xs text-muted-foreground">
+                <span class="font-bold">Execution modes:</span> Direct (execute a PikaCommand immediately) or Dispatch (send
+                to an orchestrator widget for custom logic).
             </p>
         </div>
     {:else}

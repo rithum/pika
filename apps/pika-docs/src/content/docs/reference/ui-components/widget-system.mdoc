@@ -276,17 +276,39 @@ Hero is a new rendering context for a dominant, singleton widget that displays a
 ```typescript
 interface HeroContextConfig {
     enabled: boolean;
-    sizing?: {
-        minHeight?: number;  // default: 150
-        maxHeight?: number;  // default: 400
-        preferredHeight?: number | 'auto';  // default: 'auto'
-    };
+    /** If true, hero is auto-rendered on startup. @default false */
+    autoCreateInstance?: boolean;
+    /** If true, hero starts collapsed on startup. @default false */
+    startCollapsed?: boolean;
+    /** Sizing configuration for width and height constraints */
+    sizing?: HeroSizeConfig;
+}
+
+/**
+ * Hero sizing configuration (v0.18.0+)
+ * Controls the dimensions of the hero widget container.
+ * Hero is always horizontally centered; sizing controls the max bounds.
+ */
+interface HeroSizeConfig {
+    /** Fixed width (e.g., '600px', '80%'). If not set, uses content width. */
+    width?: string;
+    /** Fixed height (e.g., '300px', 'auto'). If not set, uses content height. */
+    height?: string;
+    /** Minimum width constraint. @default '200px' */
+    minWidth?: string;
+    /** Maximum width constraint. @default '90%' */
+    maxWidth?: string;
+    /** Minimum height in pixels. @default 100 */
+    minHeight?: number;
+    /** Maximum height in pixels. @default 600 */
+    maxHeight?: number;
 }
 ```
 
 **Key characteristics:**
 - **Singleton** - Only one hero widget can exist at a time
 - **API controlled** - Shown/hidden via `showHero()`, `hideHero()`, `closeHero()`
+- **Collapsible** - Users can collapse to a compact header bar
 - **Can be destroyed** - Unlike spotlight, hero can be completely removed
 
 **Example:**
@@ -297,7 +319,16 @@ await chatAppState.renderTag('acme.dashboard', 'hero', { userId: '123' }, {
     lucideIconName: 'layout-dashboard'
 });
 
-// Hide the hero (keeps widget in memory)
+// Collapse to header bar
+chatAppState.collapseHero();
+
+// Expand from collapsed state
+chatAppState.expandHero();
+
+// Toggle collapsed/expanded
+chatAppState.toggleHeroCollapsed();
+
+// Hide the hero completely (programmatic only - no UI)
 chatAppState.hideHero();
 
 // Show it again
@@ -305,6 +336,99 @@ chatAppState.showHero();
 
 // Destroy completely
 chatAppState.closeHero();
+```
+
+**Hero state properties:**
+```typescript
+// Check if hero is visible (false = completely hidden, no UI)
+const isVisible = chatAppState.heroVisible;
+
+// Check if hero is collapsed to header bar
+const isCollapsed = chatAppState.heroCollapsed;
+```
+
+**Hero display states:**
+- **Hidden** (heroVisible=false): No UI shown - widget runs in background (programmatic only)
+- **Collapsed** (heroVisible=true, heroCollapsed=true): Shows header bar with title and expand caret
+- **Expanded** (heroVisible=true, heroCollapsed=false): Shows full widget with header and content
+
+User can only toggle between collapsed and expanded states. Widgets can programmatically show/hide/collapse/expand.
+
+**Hero Sizing (v0.18.0+):**
+
+The hero widget container is always horizontally centered. Use sizing config to control dimensions:
+
+```typescript
+// Tag definition with sizing
+renderingContexts: {
+    hero: {
+        enabled: true,
+        sizing: {
+            // Content-driven width with constraints
+            minWidth: '400px',
+            maxWidth: '900px',
+            // Height constraints  
+            minHeight: 150,
+            maxHeight: 400
+        }
+    }
+}
+```
+
+**Sizing behavior:**
+- If `width`/`height` are not set, the hero uses the content's intrinsic size (clamped to min/max)
+- If `width`/`height` are set, those exact values are used (still clamped to min/max)
+- Percentage values (e.g., `'80%'`, `'100%'`) are responsive to viewport changes
+- `maxWidth: '100%'` ensures the hero never overflows on small screens
+
+**Example sizing configurations:**
+
+```typescript
+// Compact hero (fixed width)
+sizing: { width: '500px', minHeight: 100, maxHeight: 300 }
+
+// Full-width hero with height limits
+sizing: { maxWidth: '100%', minHeight: 200, maxHeight: 500 }
+
+// Responsive hero with constraints
+sizing: { minWidth: '400px', maxWidth: '900px', minHeight: 150, maxHeight: 400 }
+```
+
+### Spotlight Context
+
+Spotlight is a carousel of widgets displayed above the chat input area:
+
+```typescript
+interface SpotlightContextConfig {
+    enabled: boolean;
+    /** If true, widget appears first in carousel. @default false */
+    isDefault?: boolean;
+    /** Display order in carousel (lower = higher). @default 0 */
+    displayOrder?: number;
+    /** If true (default), only one instance can exist. @default true */
+    singleton?: boolean;
+    /** If false, widget won't appear in unpinned menu. @default true */
+    showInUnpinnedMenu?: boolean;
+    /** If true (default), widget is auto-created on startup. @default true */
+    autoCreateInstance?: boolean;
+    /** If true, spotlight starts collapsed on startup. @default false */
+    startCollapsed?: boolean;
+}
+```
+
+**Spotlight API:**
+```typescript
+// Show the spotlight carousel
+chatAppState.showSpotlight();
+
+// Hide the spotlight to just header
+chatAppState.hideSpotlight();
+
+// Toggle spotlight visibility
+chatAppState.toggleSpotlight();
+
+// Check if spotlight is visible
+const isVisible = chatAppState.spotlightVisible;
 ```
 
 ### Static Context
@@ -1102,17 +1226,156 @@ Widgets can subscribe to framework events to react to state changes.
 
 ```typescript
 interface ChatAppEvents {
+    // Widget lifecycle events
     widgetOpen: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
     widgetClose: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType };
-    canvasOpen: { tagId: string; instanceId: string };
-    canvasClose: { tagId: string; instanceId: string };
-    chatPaneMinimized: undefined;
-    chatPaneExpanded: undefined;
-    companionModeEnter: undefined;
-    companionModeExit: undefined;
-    heroShow: { tagId: string; instanceId: string };
-    heroHide: { tagId: string; instanceId: string };
+    widgetReady: { tagId: string; instanceId: string; renderingContext: WidgetRenderingContextType }; // v0.18.0+
+    
+    // Canvas events
+    canvasOpen: { tagId: string; instanceId?: string };
+    canvasClose: { tagId: string; instanceId?: string };
+    
+    // Chat pane events
+    chatPaneMinimized: Record<string, never>;
+    chatPaneExpanded: Record<string, never>;
+    
+    // Companion mode events
+    companionModeEnter: Record<string, never>;
+    companionModeExit: Record<string, never>;
+    
+    // Hero widget events (v0.18.0+)
+    heroWillShow: Record<string, never>;  // Before hero starts showing
+    heroDidShow: Record<string, never>;   // After hero is shown
+    heroWillHide: Record<string, never>;  // Before hero starts hiding
+    heroDidHide: Record<string, never>;   // After hero is hidden
+    heroCollapse: Record<string, never>;  // When hero is collapsed to header bar
+    heroExpand: Record<string, never>;    // When hero is expanded from collapsed
+    
+    // Spotlight events (v0.18.0+)
+    spotlightShow: Record<string, never>;
+    spotlightHide: Record<string, never>;
 }
+```
+
+### Widget Ready Event (v0.18.0+)
+
+Widgets can signal when they've finished loading and are ready to receive commands. This is a best practice for widgets that load data asynchronously.
+
+```typescript
+const context = await getPikaContext(this);
+const { chatAppState, instanceId, tagId } = context;
+
+console.log(`Widget ${tagId} initializing...`);
+
+// After your widget has finished initializing
+await this.loadData();
+this.renderUI();
+
+// Signal that widget is ready
+chatAppState.signalWidgetReady(instanceId);
+```
+
+**Why use `widgetReady`?**
+
+- Agents or orchestrators can wait for a widget to be ready before issuing commands
+- Prevents race conditions where commands are sent before data is loaded
+- Enables sequential widget interactions (e.g., "show tab 3" after widget loads)
+
+**Listening for widget ready:**
+
+```typescript
+chatAppState.addEventListener('widgetReady', ({ tagId, instanceId }) => {
+    if (tagId === 'acme.dashboard') {
+        // Dashboard is ready, safe to send commands
+        chatAppState.sendCommandToWidget(instanceId, { action: 'showTab', tab: 3 });
+    }
+}, myInstanceId);
+```
+
+### Widget Tag ID (v0.18.0+)
+
+The `tagId` property is automatically provided in the Pika context when a widget is injected. This eliminates the need to hardcode your tag ID:
+
+```typescript
+const ctx = await getPikaContext(this);
+
+// ctx.tagId contains your widget's scope.tag, e.g., 'myapp.orchestrator'
+console.log(`I am: ${ctx.tagId}`);
+
+// Useful for Intent Router handler registration - no hardcoding needed
+ctx.chatAppState.registerIntentRouterHandler(
+    ctx.instanceId,
+    ctx.tagId,  // Automatically matches your tag definition
+    handleCommand
+);
+```
+
+### Suggest Question API (v0.18.0+)
+
+Widgets can pre-fill the chat input to help users ask contextual questions. This is useful for AI assist buttons that suggest follow-up queries:
+
+```typescript
+// Suggest a question - expands chat pane, fills input, and highlights it
+chatAppState.suggestQuestion(
+    'What does this weather pattern mean for outdoor activities?'
+);
+
+// With options
+chatAppState.suggestQuestion('Help me understand these errors', {
+    focus: true,          // Focus the input (default: true)
+    highlight: true,      // Briefly highlight the input (default: true)
+    expandChatPane: true  // Expand if minimized in companion mode (default: true)
+});
+```
+
+**Example: AI Assist Button**
+
+```typescript
+const aiAssistAction: WidgetAction = {
+    id: 'ai-assist',
+    title: 'Ask AI about this',
+    iconSvg: await getIconSvg('sparkles', 'lucide'),
+    callback: async () => {
+        // Build contextual question based on widget state
+        const question = `Based on the data showing ${this.summary}, what should I do next?`;
+        context.chatAppState.suggestQuestion(question);
+    }
+};
+```
+
+### Hero Lifecycle Events (v0.18.0+)
+
+The hero widget now emits detailed lifecycle events for coordinating animations and state:
+
+```typescript
+// Prepare before hero shows (e.g., pause other animations)
+chatAppState.addEventListener('heroWillShow', () => {
+    this.pauseAnimations();
+}, instanceId);
+
+// React after hero is visible
+chatAppState.addEventListener('heroDidShow', () => {
+    this.startDataSync();
+}, instanceId);
+
+// Clean up before hero hides
+chatAppState.addEventListener('heroWillHide', () => {
+    this.saveDraft();
+}, instanceId);
+
+// React after hero is hidden
+chatAppState.addEventListener('heroDidHide', () => {
+    this.stopDataSync();
+}, instanceId);
+
+// React to collapse/expand
+chatAppState.addEventListener('heroCollapse', () => {
+    this.pauseExpensiveOperations();
+}, instanceId);
+
+chatAppState.addEventListener('heroExpand', () => {
+    this.resumeOperations();
+}, instanceId);
 ```
 
 ### Subscribing to Events

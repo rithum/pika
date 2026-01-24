@@ -6,8 +6,18 @@
     import { injectChatAppWebComponent } from '$lib/client/webcomponent-utils.js';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
+    import { Button } from 'pika-ux/shadcn/button/index';
+    import ChevronDown from '$icons/lucide/chevron-down';
+    import ChevronUp from '$icons/lucide/chevron-up';
     import { getContext } from 'svelte';
 
+    interface Props {
+        /** When true, removes outer padding (for side-by-side layout) */
+        compact?: boolean;
+    }
+
+    let { compact = false }: Props = $props();
+    
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
@@ -20,14 +30,50 @@
 
     const heroWidget = $derived(chat.heroWidget);
     const heroVisible = $derived(chat.heroVisible);
+    const heroCollapsed = $derived(chat.heroCollapsed);
+
+    // Initialize hero widget (auto-create if configured) - runs once on mount
+    let heroInitialized = false;
+    $effect(() => {
+        if (!heroInitialized) {
+            heroInitialized = true;
+            chat.initializeHero();
+        }
+    });
 
     // Derived values for metadata - single source of truth: widgetMetadata map
-    const metadata = $derived(instanceId ? chat.widgetMetadata.get(instanceId) : undefined);
+    // Note: Access map.size to ensure Svelte tracks changes to the map
+    const metadata = $derived.by(() => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        chat.widgetMetadata.size; // Force reactivity tracking on map changes
+        return instanceId ? chat.widgetMetadata.get(instanceId) : undefined;
+    });
     const title = $derived(metadata?.title ?? heroWidget?.tagDefinition.tagTitle ?? 'Hero');
     const actions = $derived(metadata?.actions ?? []);
     const iconSvg = $derived(metadata?.iconSvg);
     const iconColor = $derived(metadata?.iconColor);
     const loadingStatus = $derived(metadata?.loadingStatus);
+
+    // Extract sizing config from tag definition's hero context
+    const sizingConfig = $derived(heroWidget?.tagDefinition.renderingContexts?.hero?.sizing);
+    
+    // Compute dynamic styles for the hero container (width controls)
+    const containerStyle = $derived.by(() => {
+        const styles: string[] = [];
+        styles.push(`min-width: ${sizingConfig?.minWidth ?? '200px'}`);
+        styles.push(`max-width: ${sizingConfig?.maxWidth ?? '90%'}`);
+        if (sizingConfig?.width) styles.push(`width: ${sizingConfig.width}`);
+        return styles.join('; ');
+    });
+    
+    // Compute dynamic styles for the content area (height controls)
+    const contentStyle = $derived.by(() => {
+        const minH = sizingConfig?.minHeight ?? 100;
+        const maxH = sizingConfig?.maxHeight ?? 600;
+        const styles = [`min-height: ${minH}px`, `max-height: ${maxH}px`, 'overflow-y: auto'];
+        if (sizingConfig?.height) styles.push(`height: ${sizingConfig.height}`);
+        return styles.join('; ');
+    });
 
     // Inject web component when hero widget changes
     // Note: We inject regardless of heroVisible since we use CSS to hide (not {#if})
@@ -114,12 +160,44 @@
 </script>
 
 <!-- 
-    Use CSS visibility instead of {#if} to avoid destroying/recreating the widget on hide/show.
-    This prevents orphaned widget instances in the registry and avoids re-injection overhead.
+    Hero widget display states:
+    1. Hidden (heroVisible=false): No UI shown - widget runs in background (programmatic only)
+    2. Collapsed (heroVisible=true, heroCollapsed=true): Just header bar with title and expand caret
+    3. Expanded (heroVisible=true, heroCollapsed=false): Full widget with header and content
+    
+    User can only toggle between collapsed and expanded.
+    Widgets can programmatically show/hide/collapse/expand.
 -->
 {#if heroWidget}
-    <div class="hero-container w-full mx-auto px-4 py-2" class:hidden={!heroVisible}>
-        <div class="rounded-lg border bg-card shadow-sm overflow-hidden">
+    <!-- Hero container - uses CSS-based show/hide to preserve widget state -->
+    <div class="hero-container {compact ? '' : 'mx-auto px-4 mt-1'}" class:hidden={!heroVisible} style={containerStyle}>
+        <!-- Collapsed: Simple header bar -->
+        <div class="flex items-center justify-between min-h-9" class:hidden={!heroCollapsed}>
+            <div class="flex items-center gap-1.5">
+                {#if iconSvg}
+                    <div
+                        class="icon-wrapper h-5 w-5 flex-shrink-0"
+                        class:text-muted-foreground={!iconColor}
+                        style={iconColor ? `color: ${iconColor}` : ''}
+                    >
+                        {@html iconSvg}
+                    </div>
+                {/if}
+                <span class="text-md font-semibold">{title}</span>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    class="w-6 h-6"
+                    onclick={() => chat.expandHero()}
+                    aria-label="Expand hero widget"
+                >
+                    <ChevronDown class="w-4 h-4" />
+                </Button>
+            </div>
+        </div>
+        
+        <!-- Expanded: Full widget with card styling -->
+        <div class="rounded-lg border bg-card shadow-sm overflow-hidden" class:hidden={heroCollapsed}>
             <!-- Header Section -->
             <div class="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
                 <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -142,11 +220,22 @@
                     {:else if actions.length > 1 && instanceId}
                         <WidgetActionMenu {actions} {instanceId} />
                     {/if}
+                    
+                    <!-- Collapse button -->
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="w-6 h-6"
+                        onclick={() => chat.collapseHero()}
+                        aria-label="Collapse hero widget"
+                    >
+                        <ChevronUp class="w-4 h-4" />
+                    </Button>
                 </div>
             </div>
 
             <!-- Content Section -->
-            <div class="relative" style="min-height: 150px; max-height: 400px; overflow-y: auto;">
+            <div class="relative" style={contentStyle}>
                 <div bind:this={containerEl} class="w-full h-full"></div>
 
                 <!-- Loading overlay -->

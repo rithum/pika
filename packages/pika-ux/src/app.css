@@ -114,7 +114,7 @@
         --success-foreground: oklch(0.985 0 0);
         --success-bg: oklch(0.95 0.05 142);
         --warning: oklch(0.75 0.15 75);
-        --warning-foreground: oklch(0.20 0.02 45);
+        --warning-foreground: oklch(0.2 0.02 45);
         --warning-bg: oklch(0.95 0.05 75);
         --info: oklch(0.55 0.15 250);
         --info-foreground: oklch(0.985 0 0);
@@ -136,6 +136,7 @@
         --prominent-900: oklch(0.359 0.071 95.071);
 
         /* Gray color palette */
+        --gray-25: oklch(0.9901 0.0013 90);
         --gray-50: oklch(0.985 0.002 247.858);
         --gray-100: oklch(0.97 0.005 264.542);
         --gray-200: oklch(0.929 0.013 255.585);
@@ -167,7 +168,7 @@
         --accent-foreground: oklch(0.984 0.004 248.227);
         --destructive: oklch(0.396 0.133 25.712);
         --destructive-foreground: oklch(0.984 0.004 248.227);
-        --destructive-bg: oklch(0.25 0.10 25);
+        --destructive-bg: oklch(0.25 0.1 25);
         --ring: oklch(0.625 0.05 253.665);
         --chart-1: oklch(0.488 0.243 264.376);
         --chart-2: oklch(0.696 0.17 162.48);
@@ -187,18 +188,19 @@
         --success: oklch(0.65 0.18 142);
         --success-foreground: oklch(0.15 0.02 142);
         --success-bg: oklch(0.25 0.08 142);
-        --warning: oklch(0.70 0.15 75);
+        --warning: oklch(0.7 0.15 75);
         --warning-foreground: oklch(0.15 0.02 75);
         --warning-bg: oklch(0.25 0.08 75);
-        --info: oklch(0.60 0.16 250);
+        --info: oklch(0.6 0.16 250);
         --info-foreground: oklch(0.15 0.02 250);
         --info-bg: oklch(0.25 0.08 250);
-        --ai: oklch(0.60 0.22 280);
+        --ai: oklch(0.6 0.22 280);
         --ai-foreground: oklch(0.15 0.02 280);
         --ai-bg: oklch(0.25 0.08 280);
-        --danger-bg: oklch(0.25 0.10 25);
+        --danger-bg: oklch(0.25 0.1 25);
 
         /* Dark mode gray colors */
+        --gray-25: oklch(0.16 0.025 258);
         --gray-50: oklch(0.221 0.022 256.975);
         --gray-100: oklch(0.313 0.032 256.627);
         --gray-200: oklch(0.403 0.041 257.509);
@@ -344,6 +346,7 @@
     --color-prominent-800: var(--prominent-800);
     --color-prominent-900: var(--prominent-900);
 
+    --color-gray-25: var(--gray-25);
     --color-gray-50: var(--gray-50);
     --color-gray-100: var(--gray-100);
     --color-gray-200: var(--gray-200);

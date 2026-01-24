@@ -926,7 +926,253 @@ export interface ChatAppOverridableFeatures {
     instructionAugmentation: InstructionAugmentationFeature;
 
     userMemory: UserMemoryFeature;
+
+    /**
+     * Intent Router configuration. When enabled, user messages are classified
+     * using a fast LLM before invoking the Bedrock agent, allowing fast
+     * routing to widgets for known intents.
+     *
+     * @since 0.18.0
+     */
+    intentRouter?: IntentRouterFeature;
 }
+
+/**
+ * Intent Router feature configuration for a chat app.
+ * @since 0.18.0
+ */
+export interface IntentRouterFeature {
+    /** Whether the Intent Router is enabled for this chat app */
+    enabled: boolean;
+
+    /** Default confidence threshold for command matching (default 0.85) */
+    confidenceThreshold?: number;
+
+    /**
+     * Optional command overrides per tag definition.
+     * Allows disabling or adjusting priority of specific commands.
+     * Key is "scope.tag", value is a record of commandId to override config.
+     */
+    commandOverrides?: Record<
+        string,
+        Record<
+            string,
+            {
+                /** Disable this command for this chat app */
+                disabled?: boolean;
+                /** Adjust priority (added to command's base priority) */
+                priorityBoost?: number;
+            }
+        >
+    >;
+}
+
+// ============================================================
+// Intent Router Command Types
+// ============================================================
+
+/**
+ * Commands that can be streamed back and executed by the Pika client.
+ * These map to existing ChatAppState methods for consistency.
+ * @since 0.18.0
+ */
+export type PikaCommand =
+    | PikaRenderTagCommand
+    | PikaCloseCanvasCommand
+    | PikaCloseDialogCommand
+    | PikaCloseHeroCommand
+    | PikaShowHeroCommand
+    | PikaHideHeroCommand
+    | PikaShowToastCommand
+    | PikaNavigateToCommand
+    | PikaCustomCommand;
+
+export interface PikaRenderTagCommand {
+    type: 'renderTag';
+    /** Tag ID in format "scope.tag" (e.g., "rcs.job") */
+    tagId: string;
+    /** Which rendering context to use */
+    renderingContext: Exclude<WidgetRenderingContextType, 'inline' | 'static'>;
+    /** Data to pass to the widget */
+    data?: Record<string, unknown>;
+    /** Optional metadata for the widget */
+    metadata?: {
+        title?: string;
+        companionMode?: boolean;
+        chatPaneMinimized?: boolean;
+    };
+}
+
+export interface PikaCloseCanvasCommand {
+    type: 'closeCanvas';
+}
+
+export interface PikaCloseDialogCommand {
+    type: 'closeDialog';
+}
+
+export interface PikaCloseHeroCommand {
+    type: 'closeHero';
+}
+
+export interface PikaShowHeroCommand {
+    type: 'showHero';
+}
+
+export interface PikaHideHeroCommand {
+    type: 'hideHero';
+}
+
+export interface PikaShowToastCommand {
+    type: 'showToast';
+    message: string;
+    variant: 'success' | 'error' | 'info' | 'warning';
+}
+
+export interface PikaNavigateToCommand {
+    type: 'navigateTo';
+    path: string;
+}
+
+export interface PikaCustomCommand {
+    type: 'custom';
+    /** Action identifier for the handler to dispatch on */
+    action: string;
+    /** Parameters for the action */
+    params: Record<string, unknown>;
+}
+
+/**
+ * A command definition that can be matched by the Intent Router.
+ * These are defined on tag definitions in the `intentRouterCommands` array.
+ * @since 0.18.0
+ */
+export interface IntentRouterCommand {
+    /** Unique ID within this tag definition (e.g., "view_jobs", "fix_errors") */
+    commandId: string;
+
+    /** Human-readable name for admin UI */
+    name: string;
+
+    /** Description shown to classifier for classification */
+    description: string;
+
+    /** Example user queries that should match this command */
+    examples: string[];
+
+    /** Queries that should NOT match (helps classifier distinguish similar intents) */
+    antiExamples?: string[];
+
+    /** Priority when multiple commands match across tag definitions (higher = preferred) */
+    priority: number;
+
+    /** Minimum confidence required to match (default 0.85) */
+    confidenceThreshold?: number;
+
+    /**
+     * Context requirements (command only eligible if these paths exist in context).
+     * Uses dot notation for nested paths (e.g., "currentJob.jobId").
+     */
+    requiresContext?: string[];
+
+    /** How to execute when matched */
+    execution: IntentRouterCommandExecution;
+}
+
+/**
+ * How a matched command should be executed.
+ */
+export type IntentRouterCommandExecution = IntentRouterDirectExecution | IntentRouterDispatchExecution;
+
+/**
+ * Direct execution: Router immediately executes a PikaCommand and returns a response.
+ * Use for simple cases where no custom logic is needed.
+ */
+export interface IntentRouterDirectExecution {
+    mode: 'direct';
+
+    /** The PikaCommand to execute (supports template interpolation in string values) */
+    command: PikaCommand;
+
+    /** Response template to show user (supports {{context.xxx}} interpolation) */
+    responseTemplate?: string;
+
+    /** If true, still call Bedrock after executing command (for richer response) */
+    passToAgent?: boolean;
+}
+
+/**
+ * Dispatch execution: Router sends event to a handler widget for custom logic.
+ * Use when you need runtime decision-making (API calls, conditional rendering, etc.).
+ *
+ * In dispatch mode, the server sends the dispatch event and the response template,
+ * then completes the turn (no Bedrock agent call). The orchestrator widget handles
+ * the command entirely on the client side.
+ */
+export interface IntentRouterDispatchExecution {
+    mode: 'dispatch';
+
+    /** Tag ID of the widget that will handle this command (e.g., "rcs.orchestrator") */
+    handlerTagId: string;
+
+    /** Custom payload to send to handler */
+    payload?: Record<string, unknown>;
+
+    /** Response to show user (e.g., "Opening jobs..."). Supports {{context.xxx}} interpolation. */
+    responseTemplate?: string;
+}
+
+/**
+ * Event dispatched to a handler widget when a command is matched.
+ * @since 0.18.0
+ */
+export interface IntentRouterCommandEvent {
+    /** The matched command ID */
+    commandId: string;
+
+    /** The intent that was matched (same as commandId in most cases) */
+    intent: string;
+
+    /** Classification confidence (0-1) */
+    confidence: number;
+
+    /** Tag ID of the handler widget (e.g., "rcs.orchestrator") */
+    handlerTagId?: string;
+
+    /** Custom payload from command definition's execution.payload */
+    payload?: Record<string, unknown>;
+
+    /** Context from widgets (interpolated from llmContextItems) */
+    context: Record<string, unknown>;
+
+    /** The original user message */
+    userMessage: string;
+
+    /** Session info */
+    sessionId: string;
+    userId: string;
+}
+
+/**
+ * Result returned by a command handler widget.
+ * @since 0.18.0
+ */
+export interface IntentRouterHandlerResult {
+    /** Whether this handler processed the command */
+    handled: boolean;
+
+    /** Response to stream back to user (if handled). Supports markdown. */
+    response?: string;
+
+    /** Additional commands to execute after the response (optional) */
+    commands?: PikaCommand[];
+}
+
+/**
+ * Handler function type for intent router command dispatch.
+ * @since 0.18.0
+ */
+export type IntentRouterHandler = (event: IntentRouterCommandEvent) => Promise<IntentRouterHandlerResult>;
 
 export interface AgentInstructionChatAppOverridableFeature {
     enabled: boolean;
@@ -1044,7 +1290,7 @@ export interface ConverseRequestWithCommand {
     userId: string;
 }
 
-export const ClearConverseLambdaCacheTypes = ['agent', 'tagDefinitions', 'instructionAssistanceConfig', 'all'] as const;
+export const ClearConverseLambdaCacheTypes = ['agent', 'tagDefinitions', 'instructionAssistanceConfig', 'intentRouterCommands', 'all'] as const;
 export type ClearConverseLambdaCacheType = (typeof ClearConverseLambdaCacheTypes)[number];
 
 export interface ConverseRequest extends BaseRequestData {
@@ -2483,7 +2729,8 @@ export type ChatAppFeature =
     | AgentInstructionAssistanceFeatureForChatApp
     | InstructionAugmentationFeatureForChatApp
     | UserMemoryFeatureForChatApp
-    | EntityFeatureForChatApp;
+    | EntityFeatureForChatApp
+    | IntentRouterFeatureForChatApp;
 
 export interface Feature {
     /**
@@ -2512,7 +2759,8 @@ export const FeatureIdList = [
     'agentInstructionAssistance',
     'instructionAugmentation',
     'userMemory',
-    'entity'
+    'entity',
+    'intentRouter'
 ] as const;
 export type FeatureIdType = (typeof FeatureIdList)[number];
 
@@ -2534,7 +2782,8 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     agentInstructionAssistance: 'Agent Instruction Assistance',
     instructionAugmentation: 'Instruction Augmentation',
     userMemory: 'User Memory',
-    entity: 'Entity'
+    entity: 'Entity',
+    intentRouter: 'Intent Router'
 };
 
 export interface SiteAdminFeature {
@@ -2804,6 +3053,15 @@ export interface EntityFeatureForChatApp extends Feature {
     /** Whether entity feature is enabled for this chat app. Can only be set to false to disable site-level configuration. */
     enabled: boolean;
     attributeName?: string;
+}
+
+/**
+ * Intent Router feature configuration for a chat app.
+ * Enables fast command routing to widgets without full LLM inference.
+ * @since 0.18.0
+ */
+export interface IntentRouterFeatureForChatApp extends IntentRouterFeature, Feature {
+    featureId: 'intentRouter';
 }
 
 /**
@@ -3756,6 +4014,9 @@ export interface SiteFeatures {
 
     /** Configure whether the user memory feature is enabled. */
     userMemory?: UserMemoryFeature;
+
+    /** Configure whether the Intent Router feature is enabled. @since 0.18.0 */
+    intentRouter?: IntentRouterFeature;
 }
 
 /**
@@ -4641,6 +4902,20 @@ export interface SpotlightContextConfig {
     singleton?: boolean;
     /** If false, widget won't appear in unpinned menu. Default: true. Use false for base widgets that only create instances */
     showInUnpinnedMenu?: boolean;
+    /**
+     * If true (default), widget is automatically created in spotlight on startup.
+     * If false, widget must be explicitly rendered via `renderTag('scope.tag', 'spotlight')`.
+     * @default true
+     * @since 0.18.0
+     */
+    autoCreateInstance?: boolean;
+    /**
+     * If true, spotlight starts in collapsed/hidden state on startup.
+     * User can expand it by clicking the header.
+     * @default false
+     * @since 0.18.0
+     */
+    startCollapsed?: boolean;
 }
 
 export interface InlineContextConfig {
@@ -4657,24 +4932,60 @@ export interface CanvasContextConfig {
 }
 
 /**
+ * Sizing configuration for hero widgets.
+ * Allows developers to control the dimensions of their hero widget.
+ *
+ * Behavior:
+ * - If width/height specified, use that value (clamped to min/max)
+ * - If not specified, use content's intrinsic size (clamped to min/max)
+ * - Hero container is always centered horizontally
+ * - Percentage values are responsive to viewport changes
+ *
+ * @since 0.18.0
+ */
+export interface HeroSizeConfig {
+    /** Fixed width (e.g., '600px', '80%'). If not set, uses content width. */
+    width?: string;
+    /** Fixed height (e.g., '300px', 'auto'). If not set, uses content height. */
+    height?: string;
+    /** Minimum width constraint (e.g., '400px'). @default '200px' */
+    minWidth?: string;
+    /** Maximum width constraint (e.g., '900px', '90%'). @default '90%' */
+    maxWidth?: string;
+    /** Minimum height constraint in pixels. @default 100 */
+    minHeight?: number;
+    /** Maximum height constraint in pixels. @default 600 */
+    maxHeight?: number;
+}
+
+/**
  * Hero rendering context configuration.
  * Hero is a singleton widget that displays dominantly above the chat input area,
- * below spotlight (if both are shown). Unlike spotlight, hero can be shown/hidden
- * via API and is controlled by a static widget (orchestrator).
+ * below spotlight (if both are shown). Hero can be shown/hidden via API.
  */
 export interface HeroContextConfig {
     enabled: boolean;
     /**
-     * Sizing configuration for the hero widget.
+     * If true, hero widget is automatically rendered on startup.
+     * If false (default), hero must be explicitly rendered via `renderTag('scope.tag', 'hero')`.
+     * @default false
+     * @since 0.18.0
      */
-    sizing?: {
-        /** Minimum height in pixels. @default 150 */
-        minHeight?: number;
-        /** Maximum height in pixels. @default 400 */
-        maxHeight?: number;
-        /** Preferred height - number (pixels) or 'auto'. @default 'auto' */
-        preferredHeight?: number | 'auto';
-    };
+    autoCreateInstance?: boolean;
+    /**
+     * If true, hero starts in collapsed state on startup.
+     * User can expand it by clicking the header.
+     * Only applies when autoCreateInstance is true.
+     * @default false
+     * @since 0.18.0
+     */
+    startCollapsed?: boolean;
+    /**
+     * Sizing configuration for the hero widget.
+     * Controls width and height constraints.
+     * @since 0.18.0 - Extended with width controls
+     */
+    sizing?: HeroSizeConfig;
 }
 
 /**
@@ -4949,6 +5260,39 @@ export interface TagDefinition<T extends TagDefinitionWidget> {
      *
      */
     componentAgentInstructionsMd?: Record<string, string>;
+
+    /**
+     * Commands that the Intent Router can use to match user messages and trigger this widget.
+     * When a user's message matches a command's intent, the router will execute the specified
+     * action (render widget, dispatch event to handler, etc.).
+     *
+     * @example
+     * ```typescript
+     * intentRouterCommands: [
+     *   {
+     *     commandId: 'view_job',
+     *     name: 'View Job',
+     *     description: 'Opens the job the user is working on',
+     *     examples: ['show me my job', 'open my job'],
+     *     priority: 100,
+     *     requiresContext: ['currentJob.jobId'],
+     *     execution: {
+     *       mode: 'direct',
+     *       command: {
+     *         type: 'renderTag',
+     *         tagId: 'rcs.job',
+     *         renderingContext: 'canvas',
+     *         data: { jobId: '{{context.currentJob.jobId}}' }
+     *       },
+     *       responseTemplate: 'Opening your job: {{context.currentJob.name}}'
+     *     }
+     *   }
+     * ]
+     * ```
+     *
+     * @since 0.18.0
+     */
+    intentRouterCommands?: IntentRouterCommand[];
 
     /** The user id of the user who created the tag definition */
     createdBy: string;

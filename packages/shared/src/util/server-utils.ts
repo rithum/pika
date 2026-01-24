@@ -11,6 +11,7 @@ import {
     type ChatApp,
     type ChatAppOverridableFeatures,
     type ChatUser,
+    type IntentRouterFeature,
     type RecordOrUndef,
     type SiteFeatures,
     type TagDefinitionLite
@@ -105,6 +106,9 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
             enabled: false,
             maxMemoryRecordsPerPrompt: DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
             maxKMatchesPerStrategy: DEFAULT_MAX_K_MATCHES_PER_STRATEGY
+        },
+        intentRouter: {
+            enabled: false
         }
     };
 
@@ -258,6 +262,29 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
         maxMemoryRecordsPerPrompt: feature.maxMemoryRecordsPerPrompt ?? DEFAULT_MAX_MEMORY_RECORDS_PER_PROMPT,
         maxKMatchesPerStrategy: feature.maxKMatchesPerStrategy ?? DEFAULT_MAX_K_MATCHES_PER_STRATEGY
     }));
+
+    // Handle intentRouter feature
+    // Admin override takes precedence over chat app configuration
+    // Site level must be enabled for intent router to work
+    const effectiveIntentRouterFeature = (chatApp.override?.features?.intentRouter || chatApp.features?.intentRouter) as IntentRouterFeature | undefined;
+    if (siteFeatures?.intentRouter?.enabled) {
+        // Site has intentRouter enabled, check if chat app or admin has configured it
+        if (effectiveIntentRouterFeature) {
+            // Use chat app/admin config if present
+            result.intentRouter = {
+                enabled: effectiveIntentRouterFeature.enabled ?? false,
+                confidenceThreshold: effectiveIntentRouterFeature.confidenceThreshold ?? siteFeatures.intentRouter.confidenceThreshold,
+                commandOverrides: effectiveIntentRouterFeature.commandOverrides ?? siteFeatures.intentRouter.commandOverrides
+            };
+        } else {
+            // No chat app override, use site level config
+            result.intentRouter = {
+                enabled: siteFeatures.intentRouter.enabled,
+                confidenceThreshold: siteFeatures.intentRouter.confidenceThreshold,
+                commandOverrides: siteFeatures.intentRouter.commandOverrides
+            };
+        }
+    }
 
     // Handle entity feature
     // Entity feature is special: it can only be disabled at chat app level, not enabled

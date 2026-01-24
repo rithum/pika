@@ -5,6 +5,71 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-01-24
+
+### Added
+
+- **Intent Router** - Fast LLM-based command classification for instant responses (~200-400ms)
+    - Intercepts user messages before Bedrock agent, routes to handlers for known intents
+    - Uses Claude 3 Haiku for fast classification with configurable confidence threshold
+    - Two execution modes: `direct` (execute command immediately) and `dispatch` (send to orchestrator widget)
+    - Template interpolation with `{{context.x.y}}` syntax for dynamic responses
+    - Commands defined on tag definitions via `intentRouterCommands` array
+    - Orchestrator pattern for complex command logic with `registerIntentRouterHandler()`
+    - Admin UI for managing commands at `/admin/tag-definitions`
+    - Mock classifications support for local development
+
+- **Collapsible Hero Widget** - Hero can now collapse to a compact header bar
+    - `collapseHero()`, `expandHero()`, `toggleHeroCollapsed()` API methods
+    - `heroCollapsed` property to check collapsed state
+    - User-friendly collapse/expand button in hero chrome
+
+- **Hero Sizing Configuration** - Control hero widget dimensions via tag definition
+    - `minWidth`, `maxWidth` constraints (defaults: `200px`, `90%`)
+    - `minHeight`, `maxHeight` constraints (defaults: `100`, `600` pixels)
+    - Optional `width`, `height` for fixed dimensions
+    - Hero container always horizontally centered
+
+- **Suggest Question API** - Pre-fill chat input for AI helper buttons
+    - `suggestQuestion(text, options?)` method on ChatAppState
+    - Options: `focus`, `highlight`, `expandChatPane` (all default to true)
+    - Automatically expands chat pane in companion mode
+    - `questionSuggested` event for input highlight animation
+
+- **Widget Ready Event** - Signal when widget has finished initializing
+    - `signalWidgetReady(instanceId)` method for widgets to signal readiness
+    - `widgetReady` event for coordinating sequential widget interactions
+    - Prevents race conditions when sending commands to loading widgets
+
+- **Hero Lifecycle Events** - Detailed events for hero state changes
+    - `heroWillShow`, `heroDidShow` - Before/after hero becomes visible
+    - `heroWillHide`, `heroDidHide` - Before/after hero is hidden
+    - `heroCollapse`, `heroExpand` - When hero collapses/expands
+
+- **Spotlight Events** - `spotlightShow`, `spotlightHide` events
+
+- **Widget Tag ID in Context** - `ctx.tagId` automatically provided to widgets
+    - No need to hardcode tag IDs in widget code
+    - Useful for Intent Router handler registration
+
+- **`bg-gray-25` Theme Color** - Nearly off-white background for subtle differentiation
+    - Light mode: `oklch(0.9901 0.0013 90)`
+    - Dark mode: `oklch(0.16 0.025 258)`
+    - Used in companion mode chat pane styling
+
+### Changed
+
+- **Hero Context Configuration** - Extended `HeroContextConfig` with `sizing` property
+- **Spotlight Initialization** - Now checks resolved widgets (respecting user preferences) for `startCollapsed`
+- **TooltipPlus Component** - Added `side`, `sideOffset`, `contentClass` props for positioning control
+- **Weather Sample** - Updated with hero widget demonstrating command quick actions
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.18.0) for @since 0.18.0 to find all type definitions that were added, updated, or removed in this release.
+
+---
+
 ## [0.17.0] - 2026-01-21
 
 ### Added

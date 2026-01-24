@@ -52,7 +52,7 @@
     let instructionDialogContent = $state<string>('');
 
     // TODO: Pull this from the correct user setting
-    const dontGroupTraces = $derived(features.traceDontGroup?.value);
+    const dontGroupTraces = $derived((features as any).traceDontGroup?.value);
     let expanded = $state(true);
     let isStreaming = $derived(message.isStreaming === true);
     let haveActualMessageContent = $derived.by(() => {

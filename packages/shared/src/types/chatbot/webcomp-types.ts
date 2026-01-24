@@ -30,6 +30,9 @@ import type {
     WidgetSizing
 } from './chatbot-types';
 
+// Import IntentRouterHandler for internal use (in IChatAppState interface)
+import type { IntentRouterHandler } from './chatbot-types';
+
 // Note: These are intentionally `any` to avoid coupling the shared package to Svelte
 // The actual implementation will use the correct types from the appropriate packages
 export type SidebarState = any;
@@ -190,6 +193,8 @@ export interface ChatAppEvents {
     widgetOpen: { tagId: string; renderingContext: WidgetRenderingContextType; instanceId: string };
     /** Fired when any widget instance is closed/destroyed */
     widgetClose: { tagId: string; renderingContext: WidgetRenderingContextType; instanceId: string };
+    /** Fired when a widget signals it has finished loading and is ready @since 0.18.0 */
+    widgetReady: { tagId: string; renderingContext: WidgetRenderingContextType; instanceId: string };
     /** Fired when a canvas widget is opened */
     canvasOpen: { tagId: string; instanceId?: string };
     /** Fired when a canvas widget is closed */
@@ -202,10 +207,24 @@ export interface ChatAppEvents {
     companionModeEnter: Record<string, never>;
     /** Fired when companion mode is exited */
     companionModeExit: Record<string, never>;
-    /** Fired when hero widget is shown */
-    heroShow: Record<string, never>;
-    /** Fired when hero widget is hidden */
-    heroHide: Record<string, never>;
+    /** Fired before hero widget starts showing (widget can prepare) @since 0.18.0 */
+    heroWillShow: Record<string, never>;
+    /** Fired after hero widget is shown @since 0.18.0 */
+    heroDidShow: Record<string, never>;
+    /** Fired before hero widget starts hiding (widget can cleanup) @since 0.18.0 */
+    heroWillHide: Record<string, never>;
+    /** Fired after hero widget is hidden @since 0.18.0 */
+    heroDidHide: Record<string, never>;
+    /** Fired when hero widget is collapsed to header bar @since 0.18.0 */
+    heroCollapse: Record<string, never>;
+    /** Fired when hero widget is expanded from collapsed state @since 0.18.0 */
+    heroExpand: Record<string, never>;
+    /** Fired when spotlight area is shown @since 0.18.0 */
+    spotlightShow: Record<string, never>;
+    /** Fired when spotlight area is hidden @since 0.18.0 */
+    spotlightHide: Record<string, never>;
+    /** Fired when a question is suggested via suggestQuestion() - used to trigger input highlight animation @since 0.18.0 */
+    questionSuggested: { text: string };
 }
 
 /** Event handler type for ChatAppEvents */
@@ -242,7 +261,12 @@ export interface IChatAppState {
     readonly currentSessionMessages: ChatMessageForRendering[];
     readonly inputFiles: IUploadInstance[];
     readonly newSession: boolean;
-    readonly chatInput: string;
+    /**
+     * The current chat input text. Can be set to pre-populate the chat input field.
+     * Useful for AI helper icons that want to pre-fill a contextual question.
+     * @example context.chatAppState.chatInput = 'Help me with this field';
+     */
+    chatInput: string;
     readonly chatApp: ChatApp;
     readonly retrievingMessages: boolean;
     readonly pageTitle: string | undefined;
@@ -267,10 +291,10 @@ export interface IChatAppState {
     initializeData(): Promise<void>;
     /**
      * Render a tag in a specific context
-     * @param metadata - Optional metadata for the widget (title, actions, icon)
+     * @param metadata - Optional metadata for the widget (title, actions, icon). For canvas context, can include CanvasWidgetOptions (companionMode, etc.)
      * @since 0.11.0 - Added metadata parameter
      */
-    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static' | 'hero', data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void>;
+    renderTag(tagId: string, context: 'spotlight' | 'inline' | 'dialog' | 'canvas' | 'static' | 'hero', data?: Record<string, any>, metadata?: WidgetMetadata | CanvasWidgetOptions): Promise<void>;
     closeCanvas(): void;
     closeDialog(): void;
     
@@ -309,6 +333,80 @@ export interface IChatAppState {
      * @since 0.17.0
      */
     readonly heroVisible: boolean;
+
+    /**
+     * Whether the hero widget is currently collapsed to a header bar.
+     * @since 0.18.0
+     */
+    readonly heroCollapsed: boolean;
+
+    /**
+     * Collapse the hero widget to a compact header bar.
+     * @since 0.18.0
+     */
+    collapseHero(): void;
+
+    /**
+     * Expand the hero widget from collapsed state.
+     * @since 0.18.0
+     */
+    expandHero(): void;
+
+    /**
+     * Toggle hero expanded/collapsed state.
+     * @since 0.18.0
+     */
+    toggleHeroCollapsed(): void;
+
+    /**
+     * Signal that a widget has finished loading and is ready to receive commands.
+     * Widgets should call this after initialization is complete.
+     * This is a best practice for widgets that load data asynchronously.
+     * @param instanceId - The widget instance ID
+     * @since 0.18.0
+     */
+    signalWidgetReady(instanceId: string): void;
+
+    /**
+     * Suggest a question to the user by pre-filling the chat input.
+     * Useful for AI assist buttons that want to help users ask contextual questions.
+     * 
+     * @param text - The question text to pre-fill
+     * @param options - Optional settings
+     * @param options.focus - If true (default), focus the input field
+     * @param options.highlight - If true (default), briefly highlight the input to draw attention
+     * @param options.expandChatPane - If true (default), expand the chat pane if minimized (companion mode)
+     * @example
+     * chatAppState.suggestQuestion('What does this weather pattern mean?', { highlight: true });
+     * @since 0.18.0
+     */
+    suggestQuestion(text: string, options?: { focus?: boolean; highlight?: boolean; expandChatPane?: boolean }): void;
+
+    /**
+     * Show/expand the spotlight area.
+     * @since 0.18.0
+     */
+    showSpotlight(): void;
+
+    /**
+     * Hide/collapse the spotlight area. Does not destroy widgets - just hides the carousel.
+     * Widgets remain in memory and can be shown again via showSpotlight().
+     * @since 0.18.0
+     */
+    hideSpotlight(): void;
+
+    /**
+     * Toggle spotlight visibility.
+     * If visible, hides it. If hidden, shows it.
+     * @since 0.18.0
+     */
+    toggleSpotlight(): void;
+
+    /**
+     * Whether the spotlight area is currently visible/expanded.
+     * @since 0.18.0
+     */
+    readonly spotlightVisible: boolean;
     
     /**
      * Whether companion mode is currently active.
@@ -601,6 +699,46 @@ export interface IChatAppState {
      * ```
      */
     getS3TextFileContent(s3Key: string): Promise<string>;
+
+    /**
+     * Register a handler for Intent Router command dispatch.
+     * Use this in orchestrator widgets that need to receive and handle
+     * commands matched by the Intent Router.
+     *
+     * Only one handler can be registered per widget instance.
+     * Handler is automatically cleaned up when widget unregisters.
+     *
+     * @param instanceId - Widget instance ID (for cleanup tracking)
+     * @param tagId - Widget tagId in scope.tag format (e.g., 'weather.static-init') - used for reliable handler lookup
+     * @param handler - Async function to handle dispatched commands
+     * @returns A function to unregister the handler
+     * @since 0.18.0
+     *
+     * @example
+     * ```typescript
+     * onMount(async () => {
+     *     const ctx = await getPikaContext($host());
+     *
+     *     ctx.chatAppState.registerIntentRouterHandler(
+     *         ctx.instanceId,
+     *         ctx.tagId, // e.g., 'weather.static-init'
+     *         async (event) => {
+     *             if (event.commandId === 'view_jobs') {
+     *                 const jobs = await fetchJobs();
+     *                 await ctx.chatAppState.renderTag('rcs.job-list', 'canvas', { jobs });
+     *                 return { handled: true, response: `Found ${jobs.length} jobs.` };
+     *             }
+     *             return { handled: false };
+     *         }
+     *     );
+     * });
+     * ```
+     */
+    registerIntentRouterHandler(
+        instanceId: string,
+        tagId: string,
+        handler: IntentRouterHandler
+    ): () => void;
 }
 
 // Supporting interfaces
@@ -740,11 +878,19 @@ export interface PikaWCContext {
      */
     instanceId: string;
 
+    /**
+     * The tag ID in scope.tag format (e.g., 'weather.static-init').
+     * Set by injectChatAppWebComponent() from the tag definition.
+     * Useful for registering Intent Router handlers without hardcoding.
+     * @since 0.18.0
+     */
+    tagId: string;
+
     /** Data passed to the widget, available through `context.dataForWidget`. */
     dataForWidget: DataForWidget;
 }
 
-export type PikaWCContextWithoutInstanceId = Omit<PikaWCContext, 'instanceId'>;
+export type PikaWCContextWithoutInstanceId = Omit<PikaWCContext, 'instanceId' | 'tagId'>;
 
 export type PikaWCContextRequestCallbackFn = (contextRequest: PikaWCContext) => void;
 
@@ -776,7 +922,7 @@ export interface PikaWCContextRequestEvent extends CustomEvent<PikaWCContextRequ
  */
 export interface WidgetMetadata {
     /** Widget title shown in chrome */
-    title: string;
+    title?: string;
 
     /**
      * Optional Lucide icon name (will be fetched automatically and set as iconSvg).

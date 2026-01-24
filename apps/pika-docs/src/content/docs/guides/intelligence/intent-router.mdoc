@@ -1,0 +1,573 @@
+---
+title: Intent Router
+description: Enable fast command routing to widgets without full LLM inference.
+---
+
+The Intent Router intercepts user messages before they reach the Bedrock agent, enabling instant responses for common commands. Using a lightweight classification model, it can route requests to specific widgets or execute predefined actions in milliseconds rather than seconds.
+
+## Overview
+
+Traditional chat flows require every message to go through the full Bedrock agent pipeline, which can take 2-10+ seconds. The Intent Router provides a fast path for messages that match known command patterns:
+
+```
+User Message → Intent Router → [Match?]
+                                  ↓ Yes          ↓ No
+                            Execute Command   Continue to Agent
+                                  ↓
+                            Stream Response
+```
+
+### Key Benefits
+
+- **Speed**: Fast classification is 5-10x faster than full agent inference
+- **Cost**: Lightweight classification is significantly cheaper than full agent calls
+- **Predictability**: Commands execute the same way every time
+- **Control**: Widgets define exactly which commands they handle
+
+## Enabling the Intent Router
+
+### 1. Enable the Feature
+
+Add the `intentRouter` feature to your chat app's feature overrides:
+
+```typescript
+// In your chat app configuration
+const features: ChatAppOverridableFeatures = {
+  intentRouter: {
+    enabled: true,
+    confidenceThreshold: 0.85  // Optional, defaults to 0.85
+  }
+};
+```
+
+### 2. Define Commands on Tag Definitions
+
+Commands are defined on the tag definitions that own them. This keeps command ownership clear and allows widgets to define their own behaviors:
+
+```typescript
+const myWidgetTagDef: TagDefinitionForCreateOrUpdate = {
+  scope: 'myapp',
+  tag: 'job-manager',
+  // ... other tag definition properties
+  
+  intentRouterCommands: [
+    {
+      commandId: 'view_all_jobs',
+      name: 'View All Jobs',
+      description: 'Show a list of all jobs for the current user',
+      examples: [
+        'show me my jobs',
+        'view all jobs',
+        'list my jobs',
+        'what jobs do I have'
+      ],
+      antiExamples: [
+        'what is a job?',
+        'how do jobs work?',
+        'create a new job'
+      ],
+      priority: 100,
+      execution: {
+        mode: 'direct',
+        command: {
+          type: 'renderTag',
+          tagId: 'myapp.job-list',
+          renderingContext: 'canvas'
+        },
+        responseTemplate: 'Here are your jobs:'
+      }
+    }
+  ]
+};
+```
+
+## Execution Modes
+
+### Direct Mode
+
+Direct mode executes a `PikaCommand` immediately and optionally continues to the Bedrock agent:
+
+```typescript
+execution: {
+  mode: 'direct',
+  command: {
+    type: 'renderTag',
+    tagId: 'myapp.dashboard',
+    renderingContext: 'canvas',
+    data: {
+      // Data can include template interpolation
+      userId: '{{context.currentUser.id}}'
+    }
+  },
+  responseTemplate: 'Opening your dashboard...',
+  passToAgent: false  // Don't call Bedrock after
+}
+```
+
+#### Available PikaCommands
+
+| Command | Description |
+|---------|-------------|
+| `renderTag` | Render a widget in spotlight, canvas, dialog, or hero |
+| `closeCanvas` | Close the canvas view |
+| `closeDialog` | Close the dialog |
+| `closeHero` | Close the hero widget |
+| `showHero` | Show a previously rendered hero |
+| `hideHero` | Hide (but don't destroy) the hero |
+| `showToast` | Show a toast notification |
+| `navigateTo` | Navigate to a path |
+| `custom` | Custom action for app-specific handling |
+
+### Dispatch Mode
+
+Dispatch mode sends an event to a handler widget specified by `handlerTagId`. The server streams the response template and completes the turn - no Bedrock agent call is made. The command is routed to whichever widget's tag definition registered the command.
+
+This is ideal when you need to:
+
+- Make API calls before deciding what to render
+- Conditionally render different widgets based on data
+- Execute multi-step workflows entirely on the client
+
+```typescript
+execution: {
+  mode: 'dispatch',
+  handlerTagId: 'myapp.orchestrator',  // Widget tag ID that handles this command
+  payload: {
+    action: 'view_jobs',
+    filters: { status: 'active' }
+  },
+  responseTemplate: 'Loading your jobs...'  // Shown to user immediately
+}
+```
+
+**Important:** In dispatch mode, the handler widget is fully responsible for handling the command. The Bedrock agent is not called.
+
+## Handling Dispatched Commands
+
+Any widget can register to handle dispatched commands using `registerIntentRouterHandler()`. While you can register handlers from any widget, a common best practice is to create a dedicated **orchestrator widget** - a static context widget with no visible UI that coordinates command handling for your chat app.
+
+### The Orchestrator Pattern (Recommended)
+
+Create a static context widget that registers a handler on initialization. 
+
+{% aside type="note" title="Framework Flexibility" %}
+Pika widgets are standard [Web Components](https://developer.mozilla.org/en-US/docs/Web/API/Web_components). You can build them with **any framework** that compiles to web components: Svelte, Angular, React, Vue, Lit, or vanilla JavaScript. The examples in this guide use Svelte 5, but the same patterns and APIs apply regardless of your framework choice.
+{% /aside %}
+
+**Svelte 5 Example:**
+
+```svelte
+<svelte:options customElement={{ tag: 'myapp-orchestrator', shadow: 'none' }} />
+
+<script lang="ts">
+import type { PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
+import type { 
+  IntentRouterCommandEvent, 
+  IntentRouterHandlerResult 
+} from 'pika-shared/types/chatbot/intent-router-types';
+import { getPikaContext } from 'pika-shared/util/wc-utils';
+
+let context = $state<PikaWCContext>();
+let initialized = $state(false);
+
+$effect(() => {
+  if (!initialized) {
+    init();
+  }
+});
+
+async function init() {
+  const ctx = await getPikaContext($host());
+  context = ctx;
+  initialized = true;
+  
+  // Register as the Intent Router handler
+  // ctx.tagId is provided by Pika (e.g., 'myapp.orchestrator') - no hardcoding needed
+  ctx.chatAppState.registerIntentRouterHandler(
+    ctx.instanceId,
+    ctx.tagId,  // Must match handlerTagId in command definitions
+    handleCommand
+  );
+  
+  console.log('[Orchestrator] Ready to receive commands');
+}
+
+async function handleCommand(event: IntentRouterCommandEvent): Promise<IntentRouterHandlerResult> {
+  console.log('Received command:', event);
+  
+  const { commandId, payload } = event;
+  const action = (payload?.action as string) || commandId;
+  
+  switch (action) {
+    case 'view_jobs':
+      // Render the job list widget
+      await context!.chatAppState.renderTag('myapp.job-list', 'canvas');
+      return { 
+        handled: true,
+        response: 'Opening your jobs...'
+      };
+    
+    case 'create_job':
+      // Show a form in dialog
+      await context!.chatAppState.renderTag('myapp.job-form', 'dialog');
+      return { handled: true };
+    
+    default:
+      console.warn('Unhandled action:', action);
+      return { handled: false };
+  }
+}
+</script>
+
+<!-- Orchestrator widgets are invisible static components -->
+```
+
+### Handler Result Interface
+
+The handler returns an `IntentRouterHandlerResult`:
+
+```typescript
+interface IntentRouterHandlerResult {
+  /** Whether this handler processed the command */
+  handled: boolean;
+  
+  /** Optional response text (informational, server response is authoritative) */
+  response?: string;
+  
+  /** Additional PikaCommands to execute (optional) */
+  commands?: PikaCommand[];
+}
+```
+
+Note: The `response` field in the handler result is informational. The server's `responseTemplate` from the command definition is what gets shown to the user. The handler's job is to execute the appropriate UI actions (render widgets, show toasts, etc.).
+
+### Registering as a Static Widget
+
+To ensure your orchestrator is always running, register it as a static widget in your tag definition:
+
+```typescript
+const orchestratorTagDef: TagDefinitionForCreateOrUpdate = {
+  scope: 'myapp',
+  tag: 'orchestrator',
+  tagTitle: 'App Orchestrator',
+  description: 'Handles Intent Router command dispatch',
+  renderingContexts: {
+    static: {
+      enabled: true
+      // Orchestrators should NOT have shutDownAfterMs - they stay active indefinitely
+    }
+  },
+  widget: {
+    type: 'web-component',
+    webComponent: {
+      customElementName: 'myapp-orchestrator',
+      // ... S3 configuration
+    }
+  },
+  // Define the commands this orchestrator handles
+  intentRouterCommands: [
+    {
+      commandId: 'view_jobs',
+      name: 'View Jobs',
+      description: 'Show the job list',
+      examples: ['show my jobs', 'list jobs'],
+      priority: 100,
+      execution: {
+        mode: 'dispatch',
+        handlerTagId: 'myapp.orchestrator',
+        payload: { action: 'view_jobs' },
+        responseTemplate: 'Opening your jobs...'
+      }
+    }
+  ]
+};
+```
+
+## Command Definition Reference
+
+### IntentRouterCommand
+
+```typescript
+interface IntentRouterCommand {
+  // Unique ID within this tag definition
+  commandId: string;
+  
+  // Human-readable name for admin UI
+  name: string;
+  
+  // Description for classification
+  description: string;
+  
+  // Example user queries that SHOULD match
+  examples: string[];
+  
+  // Queries that should NOT match (important for disambiguation)
+  antiExamples?: string[];
+  
+  // Priority (higher = preferred when multiple commands match)
+  priority: number;
+  
+  // Minimum confidence to match (default 0.85)
+  confidenceThreshold?: number;
+  
+  // Required context paths (command only eligible if present)
+  requiresContext?: string[];
+  
+  // How to execute
+  execution: IntentRouterDirectExecution | IntentRouterDispatchExecution;
+}
+```
+
+### Context Requirements
+
+Commands can require specific context to be available:
+
+```typescript
+{
+  commandId: 'fix_job_errors',
+  requiresContext: ['currentJob.jobId', 'currentJob.errors'],
+  // This command only matches when a job with errors is selected
+}
+```
+
+Context is automatically collected from widgets that implement `getContextForLlm()`.
+
+### Template Interpolation
+
+Response templates and command data support interpolation:
+
+```typescript
+execution: {
+  mode: 'direct',
+  command: {
+    type: 'renderTag',
+    tagId: 'myapp.job-detail',
+    renderingContext: 'canvas',
+    data: {
+      jobId: '{{context.selectedJob.id}}',
+      userId: '{{context.currentUser.id}}'
+    }
+  },
+  responseTemplate: 'Opening job {{context.selectedJob.name}}...'
+}
+```
+
+## Chat App Command Overrides
+
+Chat apps can disable or boost specific commands:
+
+```typescript
+const features: ChatAppOverridableFeatures = {
+  intentRouter: {
+    enabled: true,
+    commandOverrides: {
+      'myapp.job-manager': {
+        'create_job': { disabled: true },  // Disable this command
+        'view_jobs': { priorityBoost: 50 }  // Boost priority
+      }
+    }
+  }
+};
+```
+
+## Tracing and Debugging
+
+Intent Router decisions appear in the trace output:
+
+```json
+{
+  "type": "intent-router",
+  "matched": true,
+  "commandId": "view_jobs",
+  "tagId": "myapp.job-manager",
+  "confidence": 0.92,
+  "mode": "direct"
+}
+```
+
+### Mock Classifications for Local Testing
+
+During local development, you can mock classification results:
+
+```bash
+# Set environment variable
+INTENT_ROUTER_MOCK_CLASSIFICATIONS='{"show me my jobs":{"matched":true,"commandId":"view_jobs","confidence":0.95}}'
+```
+
+## Best Practices
+
+### Writing Good Examples
+
+- Include 4-8 varied examples per command
+- Cover different phrasings (formal, casual, abbreviated)
+- Use antiExamples to prevent false matches on similar queries
+
+```typescript
+examples: [
+  'show me my jobs',           // Casual
+  'display all jobs',          // Formal
+  'list jobs',                 // Abbreviated
+  'what jobs do I have',       // Question form
+  'jobs please',               // Minimal
+  'I want to see my jobs',     // First person
+  'pull up my job list'        // Colloquial
+],
+antiExamples: [
+  'what is a job',             // Informational
+  'how do I create a job',     // How-to question
+  'delete my jobs',            // Different action
+  'job status update'          // Different intent
+]
+```
+
+### Choosing Execution Mode
+
+| Use Direct When... | Use Dispatch When... |
+|-------------------|---------------------|
+| Action is always the same | Need to make decisions at runtime |
+| No API calls needed | Need to fetch data first |
+| Simple render/navigate | Complex multi-step workflows |
+| Response is templated | Response depends on data |
+
+### Priority Guidelines
+
+- `100+`: High-priority, specific commands
+- `50-99`: Standard commands
+- `1-49`: Fallback or generic commands
+
+Higher priority commands win when multiple could match.
+
+## Widget Context for Command Matching
+
+The Intent Router uses context provided by widgets to enable context-aware command matching. Widgets should update their context as users interact with them.
+
+### Providing Context from Widgets
+
+Widgets can provide context by implementing `setLlmContextItems`:
+
+```typescript
+// In your widget component
+async function updateContext() {
+  await context.chatAppState.setLlmContextItems({
+    selectedJob: {
+      jobId: currentJob.id,
+      jobName: currentJob.name,
+      status: currentJob.status,
+      hasErrors: currentJob.errors?.length > 0
+    }
+  });
+}
+```
+
+This context is then available for:
+- `requiresContext` filtering (command only eligible when context exists)
+- Template interpolation (`{{context.selectedJob.jobName}}`)
+- Passed to dispatch handlers for runtime decisions
+
+### Context-Aware Commands
+
+```typescript
+{
+  commandId: 'retry_job',
+  name: 'Retry Failed Job',
+  description: 'Retry the currently selected job that has errors',
+  examples: ['retry this job', 'run it again', 'try again'],
+  requiresContext: ['selectedJob.jobId', 'selectedJob.hasErrors'],
+  // Only matches when a job with errors is selected
+  execution: {
+    mode: 'direct',
+    command: {
+      type: 'renderTag',
+      tagId: 'myapp.job-retry-dialog',
+      renderingContext: 'dialog',
+      data: {
+        jobId: '{{context.selectedJob.jobId}}'
+      }
+    },
+    responseTemplate: 'Retrying job {{context.selectedJob.jobName}}...'
+  }
+}
+```
+
+## Admin UI
+
+Commands can be viewed and edited through the Admin site under **Tag Definitions**. This provides a visual editor for:
+
+- Viewing all commands defined on a tag definition
+- Editing command properties (name, description, examples)
+- Configuring execution mode and parameters
+- Reordering command priority
+
+Commands are validated on save. Invalid commands (missing required fields, malformed IDs, invalid execution configuration) will be rejected with detailed error messages.
+
+### Command Validation Rules
+
+- `commandId` must match pattern `/^[a-z][a-z0-9_]*$/` (lowercase, alphanumeric with underscores)
+- `name`, `description`, and `examples` are required
+- `priority` must be between 0-1000
+- `confidenceThreshold` must be between 0-1
+- `execution.mode` must be `direct` or `dispatch`
+- For `direct` mode: command must be a valid `PikaCommand`
+- For `dispatch` mode: `handlerTagId` must be in `scope.tag` format
+
+## Example: Weather Sample
+
+The weather sample app includes an orchestrator widget demonstrating Intent Router patterns. See `services/samples/weather/`:
+
+```typescript
+// weather-orchestrator tag definition with commands
+intentRouterCommands: [
+  {
+    commandId: 'show_forecast',
+    name: 'Show Weather Forecast',
+    description: 'User wants to see the weather forecast',
+    examples: [
+      'show me the forecast',
+      'what is the forecast',
+      '5 day forecast'
+    ],
+    priority: 100,
+    execution: {
+      mode: 'dispatch',
+      handlerTagId: 'weather.orchestrator',
+      payload: { action: 'show_forecast' },
+      responseTemplate: 'Opening the forecast...'
+    }
+  },
+  // ... more commands
+]
+```
+
+## Migration from Agent-Only Flow
+
+If you have existing agent instructions that handle commands, you can gradually migrate:
+
+1. Start with `passToAgent: true` to have both paths active
+2. Monitor traces to ensure Intent Router is catching the right messages
+3. Once confident, set `passToAgent: false` for pure Intent Router handling
+
+```typescript
+// Phase 1: Both paths active
+execution: {
+  mode: 'direct',
+  command: { type: 'renderTag', tagId: 'myapp.dashboard', renderingContext: 'canvas' },
+  passToAgent: true  // Agent still processes for rich response
+}
+
+// Phase 2: Intent Router only
+execution: {
+  mode: 'direct',
+  command: { type: 'renderTag', tagId: 'myapp.dashboard', renderingContext: 'canvas' },
+  passToAgent: false  // Skip agent entirely
+}
+```
+
+## Future Features
+
+The following features are planned but not yet implemented:
+
+- **`enrich` mode**: Inject context into the prompt without executing commands
+- **`enrich-and-action` mode**: Both inject context and execute commands
+- **Test Classification UI**: Test command matching from the admin site
+
+Commands using these modes will currently be rejected during validation.

@@ -303,13 +303,15 @@ export async function injectChatAppWebComponent(
     //     instanceId
     // });
 
-    // 3. Set up context provider with instance ID
+    // 3. Set up context provider with instance ID and tagId
     // console.log(`[Web Component Loader] Setting up context provider for ${customElementName}`);
 
-    // Create context with instance ID for proper metadata tracking
+    // Create context with instance ID and tagId for proper tracking
+    const tagId = `${tagDef.scope}.${tagDef.tag}`;
     const contextWithInstance: PikaWCContext = {
         ...contextRequestWithoutInstanceId,
-        instanceId: instanceId
+        instanceId: instanceId,
+        tagId: tagId
     };
 
     // Set any attributes from dataForWidget.attributes on the web component element

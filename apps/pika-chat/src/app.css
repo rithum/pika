@@ -139,6 +139,7 @@
         --prominent-900: oklch(0.359 0.071 95.071);
 
         /* Gray color palette */
+        --gray-25: oklch(0.9901 0.0013 90);
         --gray-50: oklch(0.985 0.002 247.858);
         --gray-100: oklch(0.97 0.005 264.542);
         --gray-200: oklch(0.929 0.013 255.585);
@@ -202,6 +203,7 @@
         --danger-bg: oklch(0.25 0.10 25);
 
         /* Dark mode gray colors */
+        --gray-25: oklch(0.16 0.025 258);
         --gray-50: oklch(0.221 0.022 256.975);
         --gray-100: oklch(0.313 0.032 256.627);
         --gray-200: oklch(0.403 0.041 257.509);
@@ -347,6 +349,7 @@
     --color-prominent-800: var(--prominent-800);
     --color-prominent-900: var(--prominent-900);
 
+    --color-gray-25: var(--gray-25);
     --color-gray-50: var(--gray-50);
     --color-gray-100: var(--gray-100);
     --color-gray-200: var(--gray-200);

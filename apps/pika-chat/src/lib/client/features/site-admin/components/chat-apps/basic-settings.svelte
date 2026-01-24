@@ -50,7 +50,7 @@
                     size="sm"
                     disabled={!isOverrideMode || disabled}
                     onclick={() => isOverrideMode && (app.enabled = !app.enabled)}
-                    class={isOverrideMode && app.enabled ? 'border-orange-500' : ''}
+                    class={isOverrideMode && app.enabled ? 'border-warning' : ''}
                 >
                     {app.enabled ? 'Disable Chat App' : 'Enable Chat App'}
                 </Button>
@@ -106,7 +106,7 @@
                 id="dontCacheThis"
                 bind:checked={() => app.dontCacheThis ?? false, (value) => (app.dontCacheThis = value)}
                 disabled={!isOverrideMode || disabled}
-                class={isOverrideMode && app.dontCacheThis ? 'border-orange-500' : ''}
+                class={isOverrideMode && app.dontCacheThis ? 'border-warning' : ''}
             />
             <Label for="dontCacheThis">Don't Cache (for development)</Label>
             {#if isOverrideMode}

@@ -15,6 +15,7 @@ import type { MetadataTagHandler } from '../segment-types';
 import TextRenderer from './text-renderer.svelte';
 import { traceMetadataHandler } from './trace-metadata-handler';
 import { pikaMetadataHandler } from './pika-metadata-handler';
+import { pikaCommandHandler, pikaCommandDispatchHandler } from './command-executor';
 
 /**
  * Default renderers for XML tags found in chat messages that are rendered inline.
@@ -38,5 +39,7 @@ export const defaultRenderers: Record<string, Component<any>> = {
  */
 export const defaultMetadataHandlers: Record<string, MetadataTagHandler> = {
     trace: traceMetadataHandler,
-    'pika-metadata': pikaMetadataHandler
+    'pika-metadata': pikaMetadataHandler,
+    'pika-command': pikaCommandHandler,
+    'pika-command-dispatch': pikaCommandDispatchHandler
 };

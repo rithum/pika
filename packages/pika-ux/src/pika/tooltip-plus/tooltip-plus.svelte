@@ -11,9 +11,24 @@
         children?: Snippet<[]>;
         delayDuration?: number;
         allowHoverOverTooltip?: boolean;
+        /** Position of the tooltip relative to the trigger */
+        side?: 'top' | 'right' | 'bottom' | 'left';
+        /** Offset from the trigger element in pixels */
+        sideOffset?: number;
+        /** Additional CSS classes to apply to the tooltip content */
+        contentClass?: string;
     }
 
-    const { tooltip, hotKey, children, delayDuration, allowHoverOverTooltip = false }: Props = $props();
+    const {
+        tooltip,
+        hotKey,
+        children,
+        delayDuration,
+        allowHoverOverTooltip = false,
+        side = 'top',
+        sideOffset,
+        contentClass
+    }: Props = $props();
 
     const appState = getContext<AppState>('appState');
     let hideTooltip = $derived(appState.settings.data.hideTooltips || !tooltip);
@@ -25,7 +40,7 @@
             <Tooltip.Trigger>
                 {@render children?.()}
             </Tooltip.Trigger>
-            <Tooltip.Content>
+            <Tooltip.Content {side} {sideOffset} class={contentClass}>
                 {#if typeof tooltip === 'string'}
                     {tooltip}
                 {:else}

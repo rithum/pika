@@ -53,7 +53,9 @@ export default defineConfig({
                 'full-forecast': resolve(__dirname, 'dev-entry/full-forecast.ts'),
                 'weather-static-init': resolve(__dirname, 'dev-entry/weather-static-init.ts'),
                 'weather-preferences': resolve(__dirname, 'dev-entry/weather-preferences.ts'),
-                'weather-summary': resolve(__dirname, 'dev-entry/weather-summary.ts')
+                'weather-summary': resolve(__dirname, 'dev-entry/weather-summary.ts'),
+                'weather-hero': resolve(__dirname, 'dev-entry/weather-hero.ts'),
+                'weather-orchestrator': resolve(__dirname, 'dev-entry/weather-orchestrator.ts')
             },
             formats: ['es'],
             fileName: (format, entryName) => `${entryName}.js`

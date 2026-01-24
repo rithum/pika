@@ -12,6 +12,18 @@ export interface EnhancedResponseStream extends ResponseStream {
     hasWritten: boolean;
 
     /**
+     * Tracks whether HTTP headers have been set via setHeaders()
+     */
+    headersSet: boolean;
+
+    /**
+     * Sets HTTP response headers. Safe to call multiple times - only the first call takes effect.
+     * Must be called before any writes to the stream.
+     * @param sessionId The session ID to include in the x-chatbot-session-id header
+     */
+    setHeaders(sessionId: string): void;
+
+    /**
      * Handles errors by sending appropriate HTTP response
      * @param error The error to send in the response
      */

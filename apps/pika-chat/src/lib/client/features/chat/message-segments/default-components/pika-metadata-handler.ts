@@ -24,7 +24,6 @@ export function pikaMetadataHandler(segment: MetadataTagSegment, message: ChatMe
 
     try {
         const metadata: PikaMetadata = JSON.parse(segment.rawContent);
-        console.log('[METADATA-TRACKING] Pika metadata handler called:', metadata);
 
         // Get current session - we need to cast to access private method
         const currentSession = chatAppState.currentSession;
@@ -57,21 +56,8 @@ export function pikaMetadataHandler(segment: MetadataTagSegment, message: ChatMe
         }
 
         // Update message IDs from interim to real server-generated IDs
-        const currentSessionMessages = (chatAppState as any).currentSessionMessages;
-        if (currentSessionMessages && currentSessionMessages.length >= 2) {
-            const userMessageIndex = currentSessionMessages.length - 2;
-            const assistantMessageIndex = currentSessionMessages.length - 1;
-
-            const userMsg = currentSessionMessages[userMessageIndex];
-            if (userMsg && userMsg.source === 'user') {
-                userMsg.messageId = metadata.userMessageId;
-            }
-
-            const assistantMsg = currentSessionMessages[assistantMessageIndex];
-            if (assistantMsg && assistantMsg.source === 'assistant') {
-                assistantMsg.messageId = metadata.assistantMessageId;
-            }
-        }
+        // Use the atomic method that updates both the message ID and the tracking ID
+        chatAppState.updateStreamingMessageIds(metadata.assistantMessageId, metadata.userMessageId);
 
     } catch (error) {
         console.error('[METADATA-TRACKING] Failed to process pika metadata:', error);

@@ -65,12 +65,19 @@ import type {
     WidgetInstance,
     WidgetRenderingContextType
 } from 'pika-shared/types/chatbot/chatbot-types';
-import {
-    ContentAdminCommand,
-    DEFAULT_MEMORY_STRATEGIES,
-    UserOverrideDataCommand,
-} from 'pika-shared/types/chatbot/chatbot-types';
-import type { ChatAppEventHandler, ChatAppEvents, IChatAppState, IWidgetMetadataAPI, PikaWCContext, SpotlightWidgetDefinition, WidgetAction, WidgetMetadata, WidgetMetadataState } from 'pika-shared/types/chatbot/webcomp-types';
+import { ContentAdminCommand, DEFAULT_MEMORY_STRATEGIES, UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    ChatAppEventHandler,
+    ChatAppEvents,
+    IChatAppState,
+    IWidgetMetadataAPI,
+    PikaWCContext,
+    SpotlightWidgetDefinition,
+    WidgetAction,
+    WidgetMetadata,
+    WidgetMetadataState
+} from 'pika-shared/types/chatbot/webcomp-types';
+import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import type { Component, Snippet } from 'svelte';
@@ -120,6 +127,9 @@ export class ChatAppState implements IChatAppState {
 
     // Widget instance tracking - maps instanceId to WidgetInstance (includes DOM element reference)
     #widgetInstances = $state<Map<string, WidgetInstance>>(new SvelteMap());
+
+    // Intent Router handlers - maps instanceId to handler info (includes tagId for reliable lookup)
+    #intentRouterHandlers = new Map<string, { handler: IntentRouterHandler; tagId: string }>();
 
     // Context sources, both those added manually by the user and those added automatically by a component.
     #contextSources = $state<Array<ContextSource>>([]);
@@ -313,11 +323,14 @@ export class ChatAppState implements IChatAppState {
     #widgetDialogOpen = $state(false);
     #heroWidget = $state<HeroWidgetState | undefined>(undefined);
     #heroVisible = $state(false);
+    #heroCollapsed = $state(false);
+    #spotlightVisible = $state(true);
+    #spotlightInitialized = false; // Track if spotlight startCollapsed has been applied
     #companionMode = $state(false);
     #chatPaneMinimized = $state(false);
     #pendingCanvasCloseResolver = $state<((confirmed: boolean) => void) | undefined>(undefined);
     #webComponentRenderer = $state<Component<any>>() as Component<any>;
-    
+
     // Event system - stores handlers for each event type
     #eventHandlers = new Map<keyof ChatAppEvents, Set<ChatAppEventHandler<keyof ChatAppEvents>>>();
     // Track which widget instance registered which handlers for auto-cleanup
@@ -423,6 +436,15 @@ export class ChatAppState implements IChatAppState {
         return this.#heroVisible;
     }
 
+    get heroCollapsed() {
+        return this.#heroCollapsed;
+    }
+
+    // Spotlight visibility getter
+    get spotlightVisible() {
+        return this.#spotlightVisible;
+    }
+
     // Companion mode getter
     get isCompanionMode() {
         return this.#companionMode;
@@ -435,7 +457,7 @@ export class ChatAppState implements IChatAppState {
     get isChatPaneMinimized() {
         return this.#chatPaneMinimized;
     }
-    
+
     /**
      * Whether there's a pending canvas close confirmation.
      * Used by the canvas renderer to show confirmation dialog.
@@ -458,7 +480,7 @@ export class ChatAppState implements IChatAppState {
         }
         const wasMinimized = this.#chatPaneMinimized;
         this.#chatPaneMinimized = minimized;
-        
+
         // Emit event if state changed
         if (wasMinimized !== minimized) {
             if (minimized) {
@@ -470,7 +492,7 @@ export class ChatAppState implements IChatAppState {
     }
 
     // === EVENT SYSTEM ===
-    
+
     /**
      * Subscribe to chat app events.
      * @param event - The event type to subscribe to
@@ -485,7 +507,7 @@ export class ChatAppState implements IChatAppState {
         }
         const typedHandler = handler as ChatAppEventHandler<keyof ChatAppEvents>;
         this.#eventHandlers.get(event)!.add(typedHandler);
-        
+
         // Track handler by widget instance for auto-cleanup
         if (instanceId) {
             if (!this.#widgetEventHandlers.has(instanceId)) {
@@ -493,11 +515,11 @@ export class ChatAppState implements IChatAppState {
             }
             this.#widgetEventHandlers.get(instanceId)!.push({ event, handler: typedHandler });
         }
-        
+
         // Return unsubscribe function
         return () => this.removeEventListener(event, handler);
     }
-    
+
     /**
      * Unsubscribe from chat app events.
      * @param event - The event type to unsubscribe from
@@ -510,7 +532,7 @@ export class ChatAppState implements IChatAppState {
             handlers.delete(handler as ChatAppEventHandler<keyof ChatAppEvents>);
         }
     }
-    
+
     /**
      * Remove all event handlers registered by a specific widget instance.
      * Called automatically when widget is unregistered.
@@ -528,7 +550,7 @@ export class ChatAppState implements IChatAppState {
             this.#widgetEventHandlers.delete(instanceId);
         }
     }
-    
+
     /**
      * Emit an event to all subscribed handlers.
      * @internal
@@ -544,6 +566,33 @@ export class ChatAppState implements IChatAppState {
                 }
             }
         }
+    }
+
+    /**
+     * Register a handler for Intent Router command dispatch events.
+     * The handler receives IntentRouterCommandEvent objects when commands are dispatched.
+     *
+     * @param instanceId - Your widget's instance ID (from getPikaContext())
+     * @param tagId - Your widget's tagId (scope.tag format, e.g., 'weather.static-init')
+     * @param handler - Async function to handle dispatched commands
+     * @returns Unsubscribe function to remove the handler
+     * @since 0.18.0
+     */
+    registerIntentRouterHandler(instanceId: string, tagId: string, handler: IntentRouterHandler): () => void {
+        this.#intentRouterHandlers.set(instanceId, { handler, tagId });
+
+        // Return unsubscribe function
+        return () => {
+            this.#intentRouterHandlers.delete(instanceId);
+        };
+    }
+
+    /**
+     * Get all registered Intent Router handlers with their tagIds.
+     * @internal Used by command-executor.ts
+     */
+    getIntentRouterHandlers(): Map<string, { handler: IntentRouterHandler; tagId: string }> {
+        return this.#intentRouterHandlers;
     }
 
     get pinningSession() {
@@ -635,7 +684,7 @@ export class ChatAppState implements IChatAppState {
 
         // Discover and potentially auto-add context from this widget
         this.discoverWidgetContext(instance.instanceId);
-        
+
         // Emit widgetOpen event
         this.#emitEvent('widgetOpen', {
             tagId: instance.tagId,
@@ -650,15 +699,18 @@ export class ChatAppState implements IChatAppState {
      */
     unregisterWidgetInstance(instanceId: string): void {
         const instance = this.#widgetInstances.get(instanceId);
-        
+
         this.#widgetInstances.delete(instanceId);
 
         // Remove all contexts from this widget
         this.removeAllContextsForWidget(instanceId);
-        
+
         // Clean up any event handlers registered by this widget
         this.#cleanupWidgetEventHandlers(instanceId);
-        
+
+        // Clean up any Intent Router handlers registered by this widget
+        this.#intentRouterHandlers.delete(instanceId);
+
         // Emit widgetClose event if we had instance info
         if (instance) {
             this.#emitEvent('widgetClose', {
@@ -679,7 +731,7 @@ export class ChatAppState implements IChatAppState {
     /**
      * Get the full PikaWCContext for a widget instance.
      * This is useful for action callbacks and other scenarios where you need the complete context.
-     * 
+     *
      * @param instanceId The widget instance ID
      * @returns The PikaWCContext for this instance, or undefined if instance not found
      */
@@ -692,11 +744,12 @@ export class ChatAppState implements IChatAppState {
         // Reconstruct the PikaWCContext (same structure as created during injection)
         return {
             instanceId,
+            tagId: instance.tagId,
             renderingContext: instance.renderingContext,
             appState: this.#appState,
             chatAppState: this,
             chatAppId: this.#chatApp.chatAppId,
-            dataForWidget: {}, // Data is already in the widget, doesn't need to be in context
+            dataForWidget: {} // Data is already in the widget, doesn't need to be in context
         };
     }
 
@@ -1894,6 +1947,11 @@ export class ChatAppState implements IChatAppState {
             return;
         }
 
+        // Collapse hero widget in standard mode to make room for the conversation
+        if (!this.#companionMode && this.#heroVisible && !this.#heroCollapsed) {
+            this.collapseHero();
+        }
+
         this.#streamingResponseNow = true;
         this.#messageChunkCount = 0;
         const messageToSendToServer = this.#chatInput;
@@ -2083,6 +2141,7 @@ export class ChatAppState implements IChatAppState {
             const decoder = new TextDecoder();
 
             // Read the stream chunk by chunk
+            let chunkCount = 0;
             while (true) {
                 const { done, value } = await reader.read();
 
@@ -2091,8 +2150,11 @@ export class ChatAppState implements IChatAppState {
                     break;
                 }
 
+                chunkCount++;
+                const decodedChunk = decoder.decode(value, { stream: true });
+
                 // Decode the chunk and append to accumulated text of the interim message
-                this.#appendToInterimMessage(decoder.decode(value, { stream: true }));
+                this.#appendToInterimMessage(decodedChunk);
             }
 
             // Streaming is complete - convert any incomplete/streaming segments to text
@@ -2102,7 +2164,6 @@ export class ChatAppState implements IChatAppState {
                     this.#messageProcessor.doneStreaming(interimMsg.segments);
                     interimMsg.isStreaming = false;
                 }
-                // Clear interim message ID reference (metadata handler will update the actual message ID)
                 this.#interimMessageId = undefined;
             }
 
@@ -2113,13 +2174,15 @@ export class ChatAppState implements IChatAppState {
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            //TODO: what should we do here?
-            // // Remove the interim message on error
-            // if (this.#curSessionMessages && this.#interimMessageId) {
-            //     this.#curSessionMessages = this.#curSessionMessages.filter(
-            //         (msg) => msg.messageId !== this.#interimMessageId!.messageId
-            //     );
-            // }
+            //TODO: what should we do here with the interim message in the array?
+            // For now, clear the ID but leave the message in the array (shows failed state)
+            if (this.#interimMessageId) {
+                const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
+                if (interimMsg) {
+                    interimMsg.isStreaming = false; // Stop showing cursor
+                }
+                this.#interimMessageId = undefined;
+            }
             // You might want to show an error message to the user here
             this.#showToast('Error sending message.  Please try again later.', { type: 'error' });
         } finally {
@@ -2409,59 +2472,16 @@ export class ChatAppState implements IChatAppState {
     }
 
     #appendToInterimMessage(message: string) {
-        // console.log('[CHAT-APP-STATE] appendToInterimMessage called:', {
-        //     chunkLength: message.length,
-        //     chunkPreview: message.substring(0, 50),
-        //     interimMessageId: this.#interimMessageId,
-        //     messageChunkCount: this.#messageChunkCount
-        // });
-
         if (this.#interimMessageId) {
             const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
             if (interimMsg) {
-                // console.log('[CHAT-APP-STATE] Found interim message:', {
-                //     messageId: interimMsg.messageId,
-                //     currentMessageLength: interimMsg.message.length,
-                //     segmentsCount: interimMsg.segments.length,
-                //     messageObjectId: Object.prototype.toString.call(interimMsg),
-                //     segmentsArrayId: Object.prototype.toString.call(interimMsg.segments)
-                // });
-
-                const oldMessage = interimMsg.message;
                 interimMsg.message += message;
 
-                // console.log('[CHAT-APP-STATE] Updated message text:', {
-                //     oldLength: oldMessage.length,
-                //     newLength: interimMsg.message.length,
-                //     chunkAdded: message.length
-                // });
-
                 // Pass only the new chunk to the processor, not the full accumulated message
-                // console.log('[CHAT-APP-STATE] Calling messageProcessor.parseMessage:', {
-                //     chunkLength: message.length,
-                //     segmentsBeforeProcessing: interimMsg.segments.length,
-                //     streaming: true
-                // });
-
                 this.#messageProcessor.parseMessage(message, interimMsg.segments, true); // streaming=true
 
-                // console.log('[CHAT-APP-STATE] After messageProcessor.parseMessage:', {
-                //     segmentsAfterProcessing: interimMsg.segments.length,
-                //     segmentStatuses: interimMsg.segments.map((seg, idx) => ({
-                //         index: idx,
-                //         segmentType: seg.segmentType,
-                //         streamingStatus: seg.streamingStatus,
-                //         rawContentPreview: seg.rawContent?.substring(0, 30) || '<no content>',
-                //         tag: seg.segmentType === 'tag' ? (seg as any).tag : undefined
-                //     }))
-                // });
-
                 this.#messageChunkCount++;
-            } else {
-                // console.warn('[CHAT-APP-STATE] Could not find interim message with ID:', this.#interimMessageId);
             }
-        } else {
-            // console.warn('[CHAT-APP-STATE] No interim message ID set');
         }
     }
     #processMessageIntoSegments(message: ChatMessageForRendering, isStreaming: boolean): ChatMessageForRendering {
@@ -2491,6 +2511,39 @@ export class ChatAppState implements IChatAppState {
         // }
 
         return foundMessage;
+    }
+
+    /**
+     * Updates the streaming message ID when the server provides the real message ID.
+     * This is called by the pika-metadata handler when it receives the server-generated message ID.
+     * It atomically updates both the message in the array and our tracking ID.
+     *
+     * @param newMessageId - The server-generated message ID
+     * @param newUserMessageId - The server-generated user message ID (optional)
+     */
+    updateStreamingMessageIds(newMessageId: string, newUserMessageId?: string) {
+        if (!this.#interimMessageId) {
+            return;
+        }
+
+        // Find and update the assistant message in the array
+        const assistantMsg = this.#curSessionMessages?.find((msg) => msg.messageId === this.#interimMessageId);
+
+        if (assistantMsg) {
+            assistantMsg.messageId = newMessageId;
+        }
+
+        // Update the user message if provided (it's the second-to-last message)
+        if (newUserMessageId && this.#curSessionMessages && this.#curSessionMessages.length >= 2) {
+            const userMsgIndex = this.#curSessionMessages.length - 2;
+            const userMsg = this.#curSessionMessages[userMsgIndex];
+            if (userMsg && userMsg.source === 'user') {
+                userMsg.messageId = newUserMessageId;
+            }
+        }
+
+        // Update our tracking ID to the new ID
+        this.#interimMessageId = newMessageId;
     }
 
     async uploadFiles(files: File[]) {
@@ -3021,6 +3074,46 @@ export class ChatAppState implements IChatAppState {
 
         // 3. Resolve which widgets to show and in what order
         this.#spotlightWidgets = this.resolveSpotlightWidgets([...spotlightTags, ...manuallyRegisteredTags], this.#spotlightUserPrefs);
+
+        // 4. Check if any resolved spotlight widget has startCollapsed - if so, start spotlight collapsed
+        // This only applies on first initialization, not subsequent calls (e.g., when adding widgets)
+        // Note: We check resolved widgets (not raw tags) so user preferences (unpinned) are respected
+        if (!this.#spotlightInitialized && this.#spotlightWidgets.length > 0) {
+            const anyStartCollapsed = this.#spotlightWidgets.some((widget) => widget.tagDefinition.renderingContexts?.spotlight?.startCollapsed === true);
+            if (anyStartCollapsed) {
+                this.#spotlightVisible = false;
+            }
+            this.#spotlightInitialized = true;
+        }
+    }
+
+    /**
+     * Initialize hero widget if one is configured with autoCreateInstance: true.
+     * Called after tag definitions are loaded and static widgets have initialized.
+     * @since 0.18.0
+     */
+    async initializeHero() {
+        // Only auto-create if no hero is already rendered
+        if (this.#heroWidget) {
+            return;
+        }
+
+        // Find a hero-enabled tag with autoCreateInstance: true
+        const heroTag = this.#tagDefs.find(
+            (tag) => tag.widget.type === 'web-component' && tag.renderingContexts?.hero?.enabled === true && tag.renderingContexts?.hero?.autoCreateInstance === true
+        );
+
+        if (heroTag) {
+            const tagId = `${heroTag.scope}.${heroTag.tag}`;
+            const startCollapsed = heroTag.renderingContexts?.hero?.startCollapsed ?? false;
+            console.log(`[Hero] Auto-creating hero widget: ${tagId}`, { startCollapsed });
+            await this.renderTag(tagId, 'hero');
+
+            // Apply startCollapsed if configured
+            if (startCollapsed) {
+                this.#heroCollapsed = true;
+            }
+        }
     }
 
     /**
@@ -3471,9 +3564,12 @@ export class ChatAppState implements IChatAppState {
         // 3. Auto-generate tag definition for canvas/dialog/hero contexts if needed
         if (renderingContext === 'canvas' || renderingContext === 'dialog' || renderingContext === 'hero') {
             if (!tagDef) {
+                // Check if we have a URL override for this tag (for local dev)
+                const overrideUrl = this.#webComponentUrls?.[tagId];
+
                 // Create a new tag definition
-                console.log(`Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.`);
-                
+                console.log(`Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.${overrideUrl ? ` Using URL override: ${overrideUrl}` : ''}`);
+
                 tagDef = {
                     tag,
                     scope,
@@ -3490,11 +3586,15 @@ export class ChatAppState implements IChatAppState {
                     widget: {
                         type: 'web-component',
                         webComponent: {
-                            customElementName: tagId,
+                            // Convert tagId (scope.tag) to valid custom element name (scope-tag)
+                            // Custom elements require at least one hyphen in the name
+                            customElementName: tagId.replace('.', '-'),
                             encoding: 'gzip',
                             encodedSizeBytes: 0,
                             encodedSha256Base64: '',
-                            mediaType: 'application/javascript'
+                            mediaType: 'application/javascript',
+                            // Apply URL override if available (for local development)
+                            ...(overrideUrl ? { url: overrideUrl } : {})
                         }
                     },
                     createdBy: this.#user.userId,
@@ -3508,7 +3608,7 @@ export class ChatAppState implements IChatAppState {
             } else if (!tagDef.renderingContexts?.[renderingContext]?.enabled) {
                 // Tag exists but doesn't have the requested rendering context - add it
                 console.log(`Tag ${tagId} exists but doesn't have ${renderingContext} context. Auto-enabling.`);
-                
+
                 if (!tagDef.renderingContexts) {
                     tagDef.renderingContexts = {};
                 }
@@ -3547,16 +3647,16 @@ export class ChatAppState implements IChatAppState {
                     metadata
                 };
                 this.#canvasOpen = true;
-                
+
                 // Emit canvasOpen event
                 this.#emitEvent('canvasOpen', { tagId });
-                
+
                 // Enter companion mode if requested via metadata options
                 const canvasOptions = metadata as { companionMode?: boolean; chatPaneMinimized?: boolean } | undefined;
                 if (canvasOptions?.companionMode) {
                     this.#companionMode = true;
                     this.#emitEvent('companionModeEnter', {});
-                    
+
                     // Also minimize chat pane if requested (only works in companion mode)
                     if (canvasOptions.chatPaneMinimized) {
                         this.#chatPaneMinimized = true;
@@ -3581,6 +3681,9 @@ export class ChatAppState implements IChatAppState {
                 if (this.#heroWidget?.instanceId) {
                     this.unregisterWidgetInstance(this.#heroWidget.instanceId);
                 }
+
+                this.#emitEvent('heroWillShow', {});
+
                 // Store metadata in widget state temporarily (will be copied to widgetMetadata map during injection)
                 this.#heroWidget = {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
@@ -3589,6 +3692,9 @@ export class ChatAppState implements IChatAppState {
                     metadata
                 };
                 this.#heroVisible = true;
+                this.#heroCollapsed = false;
+
+                this.#emitEvent('heroDidShow', {});
                 break;
 
             case 'inline':
@@ -3601,11 +3707,9 @@ export class ChatAppState implements IChatAppState {
      * Close the canvas view.
      */
     closeCanvas() {
-        const tagId = this.#canvasWidget 
-            ? `${this.#canvasWidget.tagDefinition.scope}.${this.#canvasWidget.tagDefinition.tag}` 
-            : undefined;
+        const tagId = this.#canvasWidget ? `${this.#canvasWidget.tagDefinition.scope}.${this.#canvasWidget.tagDefinition.tag}` : undefined;
         const instanceId = this.#canvasWidget?.instanceId;
-        
+
         // Unregister widget instance if it exists
         if (instanceId) {
             this.unregisterWidgetInstance(instanceId);
@@ -3613,49 +3717,49 @@ export class ChatAppState implements IChatAppState {
 
         this.#canvasOpen = false;
         this.#canvasWidget = undefined;
-        
+
         // Emit canvasClose event
         if (tagId) {
             this.#emitEvent('canvasClose', { tagId, instanceId });
         }
-        
+
         // Auto-exit companion mode and reset minimized state when canvas closes
         if (this.#companionMode) {
             const wasMinimized = this.#chatPaneMinimized;
             this.#companionMode = false;
             this.#chatPaneMinimized = false;
-            
+
             this.#emitEvent('companionModeExit', {});
             if (wasMinimized) {
                 this.#emitEvent('chatPaneExpanded', {});
             }
         }
     }
-    
+
     /**
      * Request to close the canvas widget.
      * Unlike closeCanvas(), this method respects the closeConfig settings.
      * If confirmOnClose is true, shows confirmation dialog first.
      * Useful for fullControl widgets that provide their own close button.
-     * 
+     *
      * @returns Promise that resolves to true if closed, false if user cancelled
      * @since 0.17.0
      */
     async requestCanvasClose(): Promise<boolean> {
         const canvasOptions = this.#canvasWidget?.metadata as { closeConfig?: { confirmOnClose?: boolean } } | undefined;
-        
+
         // If no confirmation needed, just close
         if (!canvasOptions?.closeConfig?.confirmOnClose) {
             this.closeCanvas();
             return true;
         }
-        
+
         // Request confirmation - component will show dialog
         return new Promise((resolve) => {
             this.#pendingCanvasCloseResolver = resolve;
         });
     }
-    
+
     /**
      * Resolve the pending canvas close confirmation.
      * Called by the canvas renderer when user confirms or cancels.
@@ -3665,11 +3769,11 @@ export class ChatAppState implements IChatAppState {
         if (this.#pendingCanvasCloseResolver) {
             const resolver = this.#pendingCanvasCloseResolver;
             this.#pendingCanvasCloseResolver = undefined;
-            
+
             if (confirmed) {
                 this.closeCanvas();
             }
-            
+
             resolver(confirmed);
         }
     }
@@ -3688,47 +3792,173 @@ export class ChatAppState implements IChatAppState {
     }
 
     /**
-     * Show the hero widget.
+     * Show the hero widget (programmatic only).
      * Hero must have been previously rendered via renderTag() to be shown.
+     * Shows in expanded state by default.
+     * @since 0.18.0
      */
     showHero() {
         if (this.#heroWidget && !this.#heroVisible) {
+            this.#emitEvent('heroWillShow', {});
             this.#heroVisible = true;
-            this.#emitEvent('heroShow', {});
+            this.#heroCollapsed = false; // Show expanded by default
+            this.#emitEvent('heroDidShow', {});
         }
     }
 
     /**
-     * Hide the hero widget.
-     * Unlike closeCanvas/closeDialog, this does not destroy the widget - it just hides it.
+     * Hide the hero widget completely (programmatic only).
+     * Unlike closeHero(), this does not destroy the widget - it just hides it.
      * The widget remains in memory and can be shown again via showHero().
+     * When hidden, there is no UI visible to the user.
+     * @since 0.18.0
      */
     hideHero() {
         if (this.#heroVisible) {
+            this.#emitEvent('heroWillHide', {});
             this.#heroVisible = false;
-            this.#emitEvent('heroHide', {});
+            this.#emitEvent('heroDidHide', {});
         }
     }
 
     /**
-     * Close and destroy the hero widget.
+     * Collapse the hero widget to a compact header bar.
+     * @since 0.18.0
+     */
+    collapseHero() {
+        if (this.#heroWidget && this.#heroVisible && !this.#heroCollapsed) {
+            this.#heroCollapsed = true;
+            this.#emitEvent('heroCollapse', {});
+        }
+    }
+
+    /**
+     * Expand the hero widget from collapsed state.
+     * @since 0.18.0
+     */
+    expandHero() {
+        if (this.#heroWidget && this.#heroCollapsed) {
+            this.#heroCollapsed = false;
+            this.#emitEvent('heroExpand', {});
+        }
+    }
+
+    /**
+     * Toggle hero expanded/collapsed state.
+     * If expanded, collapses it. If collapsed, expands it.
+     * @since 0.18.0
+     */
+    toggleHeroCollapsed() {
+        if (this.#heroCollapsed) {
+            this.expandHero();
+        } else {
+            this.collapseHero();
+        }
+    }
+
+    /**
+     * Close and destroy the hero widget (programmatic only).
      * Use this when you want to completely remove the hero, not just hide it.
+     * @since 0.18.0
      */
     closeHero() {
         const wasVisible = this.#heroVisible;
-        
+
+        // Emit willHide if visible
+        if (wasVisible) {
+            this.#emitEvent('heroWillHide', {});
+        }
+
         // Unregister widget instance if it exists
         if (this.#heroWidget?.instanceId) {
             this.unregisterWidgetInstance(this.#heroWidget.instanceId);
         }
 
         this.#heroVisible = false;
+        this.#heroCollapsed = false;
         this.#heroWidget = undefined;
-        
-        // Emit hide event if it was visible
+
+        // Emit hide events if it was visible
         if (wasVisible) {
-            this.#emitEvent('heroHide', {});
+            this.#emitEvent('heroDidHide', {});
         }
+    }
+
+    /**
+     * Signal that a widget has finished loading and is ready to receive commands.
+     * Widgets should call this after initialization is complete.
+     * @param instanceId - The widget instance ID
+     * @since 0.18.0
+     */
+    signalWidgetReady(instanceId: string) {
+        const instance = this.#widgetInstances.get(instanceId);
+        if (instance) {
+            this.#emitEvent('widgetReady', {
+                tagId: instance.tagId,
+                renderingContext: instance.renderingContext,
+                instanceId
+            });
+        }
+    }
+
+    /**
+     * Show/expand the spotlight area.
+     * @since 0.18.0
+     */
+    showSpotlight() {
+        if (!this.#spotlightVisible) {
+            this.#spotlightVisible = true;
+            this.#emitEvent('spotlightShow', {});
+        }
+    }
+
+    /**
+     * Hide/collapse the spotlight area.
+     * Does not destroy widgets - just hides the carousel.
+     * Widgets remain in memory and can be shown again via showSpotlight().
+     * @since 0.18.0
+     */
+    hideSpotlight() {
+        if (this.#spotlightVisible) {
+            this.#spotlightVisible = false;
+            this.#emitEvent('spotlightHide', {});
+        }
+    }
+
+    /**
+     * Toggle spotlight visibility.
+     * If visible, hides it. If hidden, shows it.
+     * @since 0.18.0
+     */
+    toggleSpotlight() {
+        if (this.#spotlightVisible) {
+            this.hideSpotlight();
+        } else {
+            this.showSpotlight();
+        }
+    }
+
+    /**
+     * Suggest a question to the user by pre-filling the chat input.
+     * Useful for AI assist buttons that want to help users ask contextual questions.
+     *
+     * @param text - The question text to pre-fill
+     * @param options - Optional settings
+     * @since 0.18.0
+     */
+    suggestQuestion(text: string, options?: { focus?: boolean; highlight?: boolean; expandChatPane?: boolean }): void {
+        const { focus = true, highlight = true, expandChatPane = true } = options ?? {};
+
+        // Expand chat pane if minimized (companion mode)
+        if (expandChatPane && this.#chatPaneMinimized) {
+            this.setChatPaneMinimized(false);
+        }
+
+        // Set the chat input text
+        this.chatInput = text;
+
+        // Emit event for UI to handle focus and highlight animation
+        this.#emitEvent('questionSuggested', { text });
     }
 }
 

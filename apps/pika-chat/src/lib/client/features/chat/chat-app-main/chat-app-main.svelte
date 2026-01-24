@@ -34,13 +34,27 @@
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
-    let spotlightIsVisible = $state(true);
+
+    // Spotlight and hero state for layout decisions
+    const spotlightIsVisible = $derived(chat.spotlightVisible);
+    const heroIsVisible = $derived(chat.heroVisible);
+    const heroIsCollapsed = $derived(chat.heroCollapsed);
+    const hasHeroWidget = $derived(!!chat.heroWidget);
+    
+    // Both are in "collapsed header" state - show side by side
+    const bothCollapsed = $derived(
+        !spotlightIsVisible && 
+        hasHeroWidget && 
+        heroIsVisible && 
+        heroIsCollapsed
+    );
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
     // Static widgets state - track which widgets have been injected to prevent double-injection
     let injectedStaticWidgets = $state<Set<string>>(new SvelteSet());
     let staticWidgetContainers = $state<Map<string, HTMLElement>>(new SvelteMap());
+    let staticWidgetTimeouts = new Map<string, ReturnType<typeof setTimeout>>(); // Track cleanup timeouts
 
     // File drag/drop state
     let isDraggingFile = $state(false);
@@ -157,10 +171,15 @@
         for (const tagDef of staticWidgets) {
             const tagId = `${tagDef.scope}.${tagDef.tag}`;
 
-            // Skip if already injected
+            // Skip if already injected or currently being injected
+            // IMPORTANT: Mark as injected BEFORE async to prevent race condition
+            // where effect re-runs before injection completes
             if (injectedStaticWidgets.has(tagId)) {
                 continue;
             }
+            
+            // Mark as injected SYNCHRONOUSLY to prevent duplicate injection
+            injectedStaticWidgets.add(tagId);
 
             // Create hidden container for this static widget
             const container = document.createElement('div');
@@ -199,13 +218,16 @@
                         createdAt: Date.now(),
                     });
 
-                    // Mark as injected
-                    injectedStaticWidgets.add(tagId);
-
-                    // Handle shutDownAfterMs cleanup
-                    const shutDownAfterMs = tagDef.renderingContexts.static.shutDownAfterMs;
+                    // Handle shutDownAfterMs cleanup (for widgets that should auto-destroy)
+                    const shutDownAfterMs = tagDef.renderingContexts.static?.shutDownAfterMs;
                     if (shutDownAfterMs && shutDownAfterMs > 0) {
-                        setTimeout(() => {
+                        // Cancel any existing timeout for this tag (in case of HMR/navigation)
+                        const existingTimeout = staticWidgetTimeouts.get(tagId);
+                        if (existingTimeout) {
+                            clearTimeout(existingTimeout);
+                        }
+                        
+                        const timeoutId = setTimeout(() => {
                             const containerToRemove = staticWidgetContainers.get(tagId);
                             if (containerToRemove) {
                                 // Unregister from ChatAppState
@@ -213,13 +235,19 @@
 
                                 containerToRemove.remove();
                                 staticWidgetContainers.delete(tagId);
-                                // console.log(`[Static Widget] Cleaned up ${tagId} after ${shutDownAfterMs}ms`);
+                                staticWidgetTimeouts.delete(tagId);
                             }
                         }, shutDownAfterMs);
+                        
+                        staticWidgetTimeouts.set(tagId, timeoutId);
                     }
                 })
                 .catch((error) => {
                     console.error(`[Static Widget] Failed to inject ${tagId}:`, error);
+                    // Remove from tracking so it can be retried
+                    injectedStaticWidgets.delete(tagId);
+                    staticWidgetContainers.delete(tagId);
+                    container.remove();
                 });
         }
     });
@@ -340,26 +368,39 @@
         </div>
     {/if}
 
-    <!-- Spotlight spans full width without max-w constraint (hidden in companion mode) -->
+    <!-- Spotlight and Hero layout (hidden in companion mode) -->
     {#if !chat.isCompanionMode}
-        <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} min-h-[80px]">
-            <div class="max-w-full w-full">
+        {#if bothCollapsed}
+            <!-- Both collapsed: show side by side to save vertical space -->
+            <div class="w-full flex items-center gap-6 px-4 mt-1">
                 <Spotlight
-                    bind:isVisible={spotlightIsVisible}
                     mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
+                    compact={true}
                 />
+                <Hero compact={true} />
             </div>
-        </div>
+        {:else}
+            <!-- Normal stacked layout -->
+            <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} {spotlightIsVisible ? 'min-h-[80px]' : ''}">
+                <div class="max-w-full w-full">
+                    <Spotlight
+                        mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
+                    />
+                </div>
+            </div>
 
-        <!-- Hero widget renders below spotlight when visible -->
-        <Hero />
+            <!-- Hero widget renders below spotlight - extra spacing when spotlight is collapsed but hero is expanded -->
+            <div class="{!spotlightIsVisible && heroIsVisible && !heroIsCollapsed ? 'mt-2' : ''}">
+                <Hero />
+            </div>
+        {/if}
     {/if}
 
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
-        <!-- Scrollable area that spans full width with right-aligned scrollbar (hidden in companion mode) -->
+        <!-- Scrollable area that spans full width with right-aligned scrollbar (hidden when chat pane is minimized in companion mode) -->
         <div
             class="flex-1 overflow-y-auto chat-history-area"
-            class:hidden={chat.isCompanionMode}
+            class:hidden={chat.isCompanionMode && chat.isChatPaneMinimized}
             bind:this={resizeHeightEl}
         >
             <!-- Centered content container -->
@@ -369,7 +410,7 @@
                         <div class="flex flex-col gap-8 mb-10">
                             {#if message.source === 'user'}
                                 <div class="flex flex-col items-end gap-2">
-                                    <div class="p-4 rounded-lg bg-gray-50 max-w-[66%]">{message.message}</div>
+                                    <div class="chat-message-content p-4 rounded-lg bg-gray-50 max-w-[66%]">{message.message}</div>
                                     {#if message.files && message.files.length > 0}
                                         <div class="flex flex-wrap gap-2 max-w-[66%] justify-end">
                                             {#each message.files as file}
@@ -382,7 +423,7 @@
                                     </div>
                                 </div>
                             {:else}
-                                <div class="flex flex-col gap-2">
+                                <div class="chat-message-content flex flex-col gap-2">
                                     {#if chat.waitingForFirstStreamedResponse && message.message === ''}
                                         <div class="flex items-center h-6">
                                             <div
@@ -472,7 +513,14 @@
         </div>
 
         <!-- Fixed input at bottom, also centered -->
-        <div class="absolute bottom-0 left-0 right-0 bg-background pt-2 mb-0 pb-6 mx-4" id="cam-input-region-container">
+        <div
+            class="absolute bottom-0 left-0 right-0 pt-2 mb-0 mx-4"
+            class:bg-background={!chat.isCompanionMode}
+            class:bg-gray-25={chat.isCompanionMode}
+            class:pb-6={!chat.isCompanionMode}
+            class:pb-1={chat.isCompanionMode}
+            id="cam-input-region-container"
+        >
             <div class="w-full max-w-[768px] mx-auto">
                 <ChatInput bind:inputRegionHeight />
             </div>
@@ -586,26 +634,53 @@
 
     /* Companion Mode Styles - compact UI when canvas is the primary focus */
     .chat-main-container.companion-mode {
-        --chat-font-size-input: 12px;
-        --chat-font-size-message: 12px;
-        --chat-font-size-timestamp: 9px;
-        --chat-button-padding: 0.375rem 0.625rem;
-        --chat-button-scale: 0.9;
+        font-size: 13px;
     }
 
-    .companion-mode :global(.chat-input-area) {
-        font-size: var(--chat-font-size-input, 12px);
+    /* Companion mode: smaller text for all message content */
+    .companion-mode .chat-message-content {
+        font-size: 13px;
+        line-height: 1.4;
     }
 
-    .companion-mode :global(.chat-message) {
-        font-size: var(--chat-font-size-message, 12px);
+    .companion-mode .chat-message-content :global(p) {
+        font-size: 13px;
+        margin-bottom: 0.5em;
     }
 
-    .companion-mode :global(button) {
-        transform: scale(var(--chat-button-scale, 0.9));
+    .companion-mode .chat-message-content :global(li) {
+        font-size: 13px;
     }
 
+    .companion-mode .chat-message-content :global(h1),
+    .companion-mode .chat-message-content :global(h2),
+    .companion-mode .chat-message-content :global(h3) {
+        font-size: 14px;
+        margin-top: 0.75em;
+        margin-bottom: 0.5em;
+    }
+
+    /* Companion mode: smaller input area */
+    .companion-mode :global(textarea) {
+        font-size: 13px;
+    }
+
+    /* Companion mode: smaller timestamps */
     .companion-mode .timestamp {
-        font-size: var(--chat-font-size-timestamp, 9px);
+        font-size: 0.55rem;
+    }
+
+    /* Companion mode: slightly smaller buttons */
+    .companion-mode :global(.chat-input-area button) {
+        transform: scale(0.9);
+    }
+
+    /* Companion mode: tighter spacing */
+    .companion-mode .chat-history-area {
+        padding-top: 0.5rem;
+    }
+
+    .companion-mode .chat-history-area > div {
+        padding-bottom: 100px;
     }
 </style>

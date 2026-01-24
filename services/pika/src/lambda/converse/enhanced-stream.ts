@@ -20,12 +20,32 @@ export type EnhancedStreamingHandler<TEvent = LambdaFunctionURLEvent, TResult = 
  */
 function createEnhancedStream(originalStream: ResponseStream): EnhancedResponseStream {
     let hasWritten = false;
+    let headersSet = false;
 
     const handler: ProxyHandler<ResponseStream> = {
         get(target, prop, receiver) {
             // Handle our custom properties first
             if (prop === 'hasWritten') {
                 return hasWritten;
+            }
+
+            if (prop === 'headersSet') {
+                return headersSet;
+            }
+
+            // Handle our custom setHeaders method - safe wrapper for HttpResponseStream.from()
+            if (prop === 'setHeaders') {
+                return function (sessionId: string) {
+                    if (headersSet) {
+                        console.log('[EnhancedStream] Headers already set, skipping');
+                        return;
+                    }
+                    headersSet = true;
+                    awslambda.HttpResponseStream.from(target, {
+                        statusCode: 200,
+                        headers: { 'x-chatbot-session-id': sessionId }
+                    });
+                };
             }
 
             // Handle our custom handleError method
@@ -48,19 +68,23 @@ function createEnhancedStream(originalStream: ResponseStream): EnhancedResponseS
                         errorMessage = sanitizeAndStringifyError(error);
                     }
 
-                    const metadata = {
-                        statusCode: statusCode,
-                        headers: {
-                            'Content-Type': isUnauthorizedError ? 'text/plain' : 'application/json'
-                        }
-                    };
+                    // Only set headers if not already set
+                    if (!headersSet) {
+                        const metadata = {
+                            statusCode: statusCode,
+                            headers: {
+                                'Content-Type': isUnauthorizedError ? 'text/plain' : 'application/json'
+                            }
+                        };
 
-                    // Convert this stream to an HttpResponseStream with proper status code
-                    // Use 'target' here to ensure we're using the original stream
-                    const httpResponseStream = awslambda.HttpResponseStream.from(target, metadata);
+                        // Convert this stream to an HttpResponseStream with proper status code
+                        // Use 'target' here to ensure we're using the original stream
+                        awslambda.HttpResponseStream.from(target, metadata);
+                        headersSet = true;
+                    }
 
                     // Write the error message to the stream
-                    httpResponseStream.write(errorMessage);
+                    target.write(errorMessage);
                 };
             }
 
@@ -83,7 +107,7 @@ function createEnhancedStream(originalStream: ResponseStream): EnhancedResponseS
 
         // Ensure 'in' operator works correctly
         has(target, prop) {
-            return prop in target || prop === 'hasWritten' || prop === 'handleError';
+            return prop in target || prop === 'hasWritten' || prop === 'headersSet' || prop === 'setHeaders' || prop === 'handleError';
         },
 
         // Handle property setting

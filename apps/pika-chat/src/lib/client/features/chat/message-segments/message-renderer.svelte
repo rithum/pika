@@ -149,13 +149,18 @@
                 {@const tagSegment = segment as ProcessedTagSegment}
                 {#if tagSegment.renderer}
                     <tagSegment.renderer segment={tagSegment} {appState} {chatAppState} />
+                {:else if tagSegment.streamingStatus === 'streaming' || tagSegment.streamingStatus === 'incomplete'}
+                    <!-- Neutral placeholder for streaming/loading tags -->
+                    <div class="animate-pulse bg-gray-100 rounded-lg p-3 text-gray-500 text-sm">
+                        Loading...
+                    </div>
                 {:else}
                     <!-- {console.warn('[MESSAGE-RENDERER] Tag segment missing renderer:', {
                         messageId: message.messageId,
                         segmentId: segment.id,
                         tag: segment.tag
                     })} -->
-                    <!-- Fallback for unknown tag types -->
+                    <!-- Fallback for truly unknown tag types (only after streaming completes) -->
                     <div
                         class="unknown-tag-warning bg-warning-bg border border-warning/20 rounded p-2 text-sm text-warning"
                     >

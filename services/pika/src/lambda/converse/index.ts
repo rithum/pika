@@ -42,6 +42,15 @@ import { getEntityIdForUser } from 'pika-shared/util/server-utils';
 import { UnauthorizedError } from 'pika-shared/util/unauthorized-error';
 import { invokeAgentToGetAnswer } from '../../lib/bedrock-agent';
 import { getAgentAndTools, searchTagDefsApi } from '../../lib/chat-admin-apis';
+import {
+    IntentRouter,
+    clearCommandCache,
+    getAggregatedCommandsForChatApp,
+    prepareContextForRouter,
+    streamDirectAction,
+    streamDispatchAction,
+    streamRouterTrace
+} from '../../lib/intent-router';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
 import { updateSessionSentContexts } from '../../lib/chat-ddb';
 import { filterLLMContextItems, getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
@@ -391,9 +400,13 @@ async function handleClearCacheCommand(request: ConverseRequestWithCommand, resp
     } else if (request.cacheType === 'instructionAssistanceConfig') {
         instructionAssistanceConfig = undefined;
         console.log(`Cache entry for instructionAssistanceConfig deleted`);
+    } else if (request.cacheType === 'intentRouterCommands') {
+        clearCommandCache();
+        console.log(`Cache entry for intentRouterCommands deleted`);
     } else if (request.cacheType === 'all') {
         agentAndToolCache.clear();
         tagDefinitionCache.clear();
+        clearCommandCache();
         instructionAssistanceConfig = undefined;
         console.log('All cache entries cleared');
     } else {
@@ -578,6 +591,12 @@ async function converse(
         mode
     });
 
+    // Set HTTP response headers early - MUST be done before any writes to the stream
+    // This ensures x-chatbot-session-id is sent regardless of which code path is taken
+    // (Intent Router passthrough/dispatch/direct, or normal agent flow)
+    // Using setHeaders() which is safe to call multiple times (only first call takes effect)
+    responseStream.setHeaders(chatSession.sessionId);
+
     const msSinceLastUpdate = Date.now() - (chatSession.lastUpdate ? new Date(chatSession.lastUpdate).getTime() : 0);
     console.log('Session timing:', {
         msSinceLastUpdate,
@@ -747,7 +766,182 @@ ${contextBlocks}
         questionLength: questionFromUser.length
     });
 
-    // Apply instruction assistance to the agent prompt if enabled
+    // ==========================================================================
+    // Intent Router: Check BEFORE prompt enhancement (for efficiency)
+    // Only applies to chat-app mode with intentRouter enabled
+    // ==========================================================================
+    console.log('[Intent Router] Pre-check:', {
+        mode,
+        intentRouterFeature: features.intentRouter,
+        intentRouterEnabled: features.intentRouter?.enabled,
+        willEnterBlock: features.intentRouter?.enabled && mode === 'chat-app'
+    });
+
+    if (features.intentRouter?.enabled && mode === 'chat-app') {
+        console.log('=== INTENT ROUTER START ===');
+
+        try {
+            // Get tag definitions for command aggregation (all types, not just inline)
+            const tagsConfig = {
+                tagsEnabled: features.tags?.tagsEnabled ?? [],
+                tagsDisabled: features.tags?.tagsDisabled ?? []
+            };
+            console.log('[Intent Router] tagsConfig.tagsEnabled:', tagsConfig.tagsEnabled.map(t => `${t.scope}.${t.tag}`));
+            const allTagDefs = await getTagDefinitionsForChatApp(chatSession.chatAppId, tagsConfig);
+
+            // Aggregate commands from tag definitions
+            const commands = getAggregatedCommandsForChatApp(chatSession.chatAppId, allTagDefs, features.intentRouter);
+
+            console.log('[Intent Router] Tag definitions loaded:', allTagDefs.length);
+            console.log('[Intent Router] Tag def names:', allTagDefs.map(t => `${t.scope}.${t.tag}`));
+            
+            // Debug: Find orchestrator and log its full structure
+            const orchestrator = allTagDefs.find(t => t.scope === 'weather' && t.tag === 'orchestrator');
+            if (orchestrator) {
+                console.log('[Intent Router] Orchestrator found, keys:', Object.keys(orchestrator));
+                console.log('[Intent Router] Orchestrator intentRouterCommands:', orchestrator.intentRouterCommands);
+                console.log('[Intent Router] Orchestrator raw (first 500 chars):', JSON.stringify(orchestrator).substring(0, 500));
+            } else {
+                console.log('[Intent Router] WARNING: weather.orchestrator NOT in tag defs list!');
+            }
+            
+            console.log('[Intent Router] Tag defs with commands:', allTagDefs.filter(t => t.intentRouterCommands?.length).map(t => `${t.scope}.${t.tag}: ${t.intentRouterCommands?.length} cmds`));
+            console.log('[Intent Router] Commands aggregated:', commands.length);
+            if (commands.length > 0) {
+                console.log('[Intent Router] Command IDs:', commands.map(c => c.command.commandId));
+                console.log(`Intent Router found ${commands.length} commands to evaluate`);
+
+                // Prepare context from llmContextItems
+                const routerContext = prepareContextForRouter(llmContextItems);
+
+                // Create the router and route the message
+                const router = new IntentRouter({ debug: true });
+                const routeResult = await router.route(
+                    {
+                        chatAppId: chatSession.chatAppId,
+                        userId: user.userId,
+                        sessionId: chatSession.sessionId,
+                        message: message,
+                        context: routerContext,
+                        config: features.intentRouter
+                    },
+                    commands
+                );
+
+                console.log('Intent Router result:', routeResult);
+
+                // Handle based on route type
+                if (routeResult.type === 'direct') {
+                    // Direct action: stream command and response, then decide whether to call agent
+                    streamDirectAction(responseStream, routeResult);
+
+                    if (!routeResult.passToAgent) {
+                        // Early exit - don't call Bedrock agent (skip prompt enhancement entirely)
+                        console.log('Intent Router handled request (direct mode, no agent)');
+
+                        // Save the user message and a simple assistant response
+                        const assistantMessageForCreate: ChatMessageForCreate = {
+                            sessionId: chatSession.sessionId,
+                            source: 'assistant',
+                            userId: user.userId,
+                            message: routeResult.response,
+                            executionDuration: 0, // Quick response from Intent Router
+                            traces: [],
+                            usage: {
+                                inputTokens: 0,
+                                outputTokens: 0,
+                                inputCost: 0,
+                                outputCost: 0,
+                                totalCost: 0
+                            }
+                        };
+
+                        const assistantMessage = await addChatMessage(assistantMessageForCreate, chatSession, message, routeResult.response);
+
+                        // Stream metadata
+                        const metadata = {
+                            userMessageId: userMessage.messageId,
+                            assistantMessageId: assistantMessage.messageId,
+                            sessionLastUpdate: chatSession.lastUpdate,
+                            sessionLastMessageId: chatSession.lastMessageId,
+                            ...(chatSession.title && { sessionTitle: chatSession.title }),
+                            intentRouterHandled: true
+                        };
+                        responseStream.write(`<pika-metadata>${JSON.stringify(metadata)}</pika-metadata>`);
+
+                        console.log('=== INTENT ROUTER END (early exit) ===');
+                        return;
+                    }
+
+                    // If passToAgent is true, continue to prompt enhancement and Bedrock below
+                    console.log('Intent Router executed command but passing to agent for richer response');
+                } else if (routeResult.type === 'dispatch') {
+                    // Dispatch mode: stream dispatch event for client handler, then exit
+                    // The orchestrator widget handles the command entirely on the client side
+                    // Skip prompt enhancement entirely - we're not calling Bedrock
+                    // Note: HTTP headers already set at start of converse function
+
+                    streamDispatchAction(responseStream, routeResult, {
+                        userMessage: message,
+                        sessionId: chatSession.sessionId,
+                        userId: user.userId,
+                        context: routerContext
+                    });
+
+                    console.log('Intent Router handled request (dispatch mode)');
+
+                    // Save the assistant message with the response template
+                    const dispatchResponse = routeResult.response ?? '';
+                    const assistantMessageForCreate: ChatMessageForCreate = {
+                        sessionId: chatSession.sessionId,
+                        source: 'assistant',
+                        userId: user.userId,
+                        message: dispatchResponse,
+                        executionDuration: 0,
+                        traces: [],
+                        usage: {
+                            inputTokens: 0,
+                            outputTokens: 0,
+                            inputCost: 0,
+                            outputCost: 0,
+                            totalCost: 0
+                        }
+                    };
+
+                    const assistantMessage = await addChatMessage(assistantMessageForCreate, chatSession, message, dispatchResponse);
+
+                    // Stream metadata
+                    const metadata = {
+                        userMessageId: userMessage.messageId,
+                        assistantMessageId: assistantMessage.messageId,
+                        sessionLastUpdate: chatSession.lastUpdate,
+                        sessionLastMessageId: chatSession.lastMessageId,
+                        ...(chatSession.title && { sessionTitle: chatSession.title }),
+                        intentRouterHandled: true
+                    };
+                    responseStream.write(`<pika-metadata>${JSON.stringify(metadata)}</pika-metadata>`);
+
+                    console.log('=== INTENT ROUTER END (dispatch early exit) ===');
+                    return;
+                } else if (routeResult.type === 'passthrough') {
+                    // No match - just log and continue to prompt enhancement and agent
+                    console.log('Intent Router: passthrough -', routeResult.reason);
+                    streamRouterTrace(responseStream, routeResult);
+                }
+            } else {
+                console.log('Intent Router: no commands found for chat app');
+            }
+        } catch (error) {
+            console.error('Intent Router error:', error);
+            // Continue to agent on error - don't break the flow
+        }
+
+        console.log('=== INTENT ROUTER END (continuing to agent) ===');
+    }
+
+    // ==========================================================================
+    // Apply instruction assistance to the agent prompt (only if we're calling Bedrock)
+    // ==========================================================================
     console.log('Applying instruction assistance to agent prompt...');
     const originalPrompt = agentAndTools.agent.basePrompt;
     let enhancedPrompt = originalPrompt;
@@ -832,6 +1026,9 @@ ${contextBlocks}
         }
     };
 
+    // ==========================================================================
+    // Invoke Bedrock Agent
+    // ==========================================================================
     // console.log('[STREAM-TIMING] Invoking agent (streaming will start)', {
     //     elapsed: Date.now() - startTime,
     //     timestamp: new Date().toISOString()

@@ -82,6 +82,14 @@
             icon: Construction,
             maxSize: 50,
         },
+        {
+            name: 'Intent Router Commands',
+            type: 'intentRouterCommands' as ClearConverseLambdaCacheType,
+            description: 'Caches aggregated Intent Router commands for fast classification routing',
+            ttl: '5 minutes',
+            icon: MessageSquareText,
+            maxSize: 100,
+        },
     ];
 
     async function clearSvelteKitCache(cacheType: ClearSvelteKitCacheType, execute = false) {
