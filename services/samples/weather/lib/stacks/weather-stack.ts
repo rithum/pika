@@ -268,11 +268,18 @@ export class WeatherStack extends cdk.Stack {
                             { scope: 'weather', tag: 'temperature-trend' },
                             { scope: 'weather', tag: 'full-forecast' },
                             { scope: 'weather', tag: 'city-selector' },
-                            { scope: 'weather', tag: 'inline' },
+                            { scope: 'weather', tag: 'summary' },
                             { scope: 'weather', tag: 'weather-comparison' },
                             { scope: 'weather', tag: 'weather-fun-fact' },
-                            { scope: 'weather', tag: 'quick-weather-search' }
+                            { scope: 'weather', tag: 'quick-weather-search' },
+                            { scope: 'weather', tag: 'hero' },
+                            { scope: 'weather', tag: 'orchestrator' },
+                            { scope: 'weather', tag: 'static-init' }
                         ]
+                    },
+                    intentRouter: {
+                        featureId: 'intentRouter',
+                        enabled: true
                     }
                 },
                 enabled: true

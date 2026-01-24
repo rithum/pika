@@ -481,9 +481,39 @@ getContextForLlm(): ContextSourceDef[] | undefined {
 2. Ensure `sourceId` is stable (not changing unnecessarily)
 3. Check if data is actually changing when you think it's stable
 
+## Context for Intent Router
+
+Widget context is also used by the Intent Router for:
+
+- **Context-aware command matching**: Commands can require specific context paths to be eligible
+- **Template interpolation**: Response templates and command data can reference context values
+
+```typescript
+// Intent Router command that requires context
+{
+  commandId: 'retry_job',
+  requiresContext: ['selectedJob.jobId'],  // Only matches when job is selected
+  execution: {
+    mode: 'direct',
+    command: {
+      type: 'renderTag',
+      tagId: 'myapp.retry-dialog',
+      renderingContext: 'dialog',
+      data: {
+        jobId: '{{context.selectedJob.jobId}}'  // Interpolated from context
+      }
+    },
+    responseTemplate: 'Retrying job {{context.selectedJob.name}}...'
+  }
+}
+```
+
+For more on Intent Router commands, see [Intent Router Guide →](/guides/intelligence/intent-router/).
+
 ## Next Steps
 
 - [Widget System Reference →](/reference/ui-components/widget-system/)
 - [Context Types Reference →](/reference/types/widget-context/)
+- [Intent Router Guide →](/guides/intelligence/intent-router/)
 - [Deploy Web Components →](/guides/customization/deploy-web-components/)
 

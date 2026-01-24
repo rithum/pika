@@ -3,6 +3,7 @@ import Bot from '$icons/lucide/bot';
 import ChartBar from '$icons/lucide/chart-bar';
 import Cpu from '$icons/lucide/cpu';
 import FileBox from '$icons/lucide/file-box';
+import Puzzle from '$icons/lucide/puzzle';
 import Settings from '$icons/lucide/settings';
 import Zap from '$icons/lucide/zap';
 import type { Page } from '@sveltejs/kit';
@@ -14,6 +15,7 @@ import InstructionAugmentation from '../pages/instruction-augmentation.svelte';
 import Memory from '../pages/memory.svelte';
 import SessionInsights from '../pages/session-insights.svelte';
 import SessionAnalytics from '../pages/session-analytics.svelte';
+import TagDefinitions from '../pages/tag-definitions.svelte';
 
 const ITEMS: NavItem[] = [
     {
@@ -27,6 +29,12 @@ const ITEMS: NavItem[] = [
         url: '/admin/chat-apps',
         icon: Bot,
         pageComponent: ChatApps
+    },
+    {
+        title: 'Tag Definitions',
+        url: '/admin/tag-definitions',
+        icon: Puzzle,
+        pageComponent: TagDefinitions
     },
     {
         title: 'Instruction Augmentation',

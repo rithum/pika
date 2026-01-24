@@ -140,6 +140,9 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
             maxMemoryRecordsPerPrompt: 25,
             maxKMatchesPerStrategy: 5
+        },
+        intentRouter: {
+            enabled: true
         }
     },
     // Tags applied to all AWS resources in your CDK stacks.  Feel free to completely customize this to your needs.

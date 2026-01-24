@@ -118,16 +118,20 @@
 
     function applyAlertsData(response: WeatherAlertsResponse) {
         const allAlerts: DisplayAlert[] = [];
-        for (const locAlerts of response.locations) {
-            for (const alert of locAlerts.alerts) {
-                allAlerts.push({
-                    severity: alert.severity,
-                    title: alert.type,
-                    location: locAlerts.location,
-                    description: alert.description,
-                    issuedAt: alert.issuedAt,
-                    expiresAt: alert.expiresAt
-                });
+        if (response?.locations && Array.isArray(response.locations)) {
+            for (const locAlerts of response.locations) {
+                if (locAlerts?.alerts && Array.isArray(locAlerts.alerts)) {
+                    for (const alert of locAlerts.alerts) {
+                        allAlerts.push({
+                            severity: alert.severity,
+                            title: alert.type,
+                            location: locAlerts.location,
+                            description: alert.description,
+                            issuedAt: alert.issuedAt,
+                            expiresAt: alert.expiresAt
+                        });
+                    }
+                }
             }
         }
         alerts = allAlerts;

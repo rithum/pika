@@ -1,8 +1,8 @@
 <svelte:options customElement={{ tag: 'favorite-cities', shadow: 'none' }} />
 
 <script lang="ts">
-    import type { IWidgetMetadataAPI, PikaWCContext } from 'pika-shared/types/chatbot/webcomp-types';
-    import type { InvokeAgentAsComponentOptions, WidgetAction, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
+    import type { IWidgetMetadataAPI, PikaWCContext, WidgetAction, CanvasWidgetOptions } from 'pika-shared/types/chatbot/webcomp-types';
+    import type { InvokeAgentAsComponentOptions, ContextSourceDef } from 'pika-shared/types/chatbot/chatbot-types';
     import { getPikaContext } from 'pika-shared/util/wc-utils';
     import { getIconSvg } from 'pika-shared/util/icon-utils';
     import Spinner from 'pika-ux/shadcn/spinner/spinner.svelte';
@@ -83,7 +83,9 @@
                     title: 'Open in Canvas',
                     iconSvg: await getIconSvg('maximize-2', 'lucide'),
                     callback: async () => {
-                        await context.chatAppState.renderTag('weather.favorite-cities', 'canvas');
+                        // Open in canvas with companion mode, chat pane starts minimized
+                        const canvasOptions: CanvasWidgetOptions = { companionMode: true, chatPaneMinimized: true };
+                        await context.chatAppState.renderTag('weather.favorite-cities', 'canvas', {}, canvasOptions);
                     }
                 },
                 {
@@ -95,6 +97,23 @@
                     }
                 }
             );
+        }
+
+        // Add AI assist button when in canvas mode
+        if (context.renderingContext === 'canvas') {
+            actions.push({
+                id: 'ai-assist',
+                title: 'Ask AI about this',
+                iconSvg: await getIconSvg('sparkles', 'lucide'),
+                callback: async () => {
+                    // Get the current cities for context
+                    const cityNames = cities.map(c => c.name).join(', ');
+                    const question = `Based on the weather in my favorite cities (${cityNames}), which city has the best weather right now for outdoor activities?`;
+                    
+                    // Suggest the question - this will prefill the chat input and highlight it
+                    context.chatAppState.suggestQuestion(question);
+                }
+            });
         }
 
         widgetMetadataApi.setMetadata({

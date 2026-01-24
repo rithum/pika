@@ -1094,10 +1094,9 @@ export async function invokeAgentToGetAnswer(
             //     timestamp: new Date().toISOString()
             // });
             console.log('Setting up HTTP response stream...');
-            awslambda.HttpResponseStream.from(responseStream, {
-                statusCode: 200,
-                headers: { 'x-chatbot-session-id': chatSession.sessionId }
-            });
+            // Use safe setHeaders method - if headers were already set early in converse,
+            // this will be a no-op. This handles both the normal flow and Intent Router paths.
+            responseStream.setHeaders(chatSession.sessionId);
             console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
         },
         onChunk: function (chunk: string, chunkCount: number, attribution?: Attribution): void {

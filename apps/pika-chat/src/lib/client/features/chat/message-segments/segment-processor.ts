@@ -533,14 +533,14 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         //     }))
         // });
 
-        // Convert any incomplete or streaming segments to text segments
-        // Only the last segment can be in progress, but we'll check all just to be safe
-        for (let i = segments.length - 1; i >= 0; i--) {
+        // Convert any incomplete or streaming segments to completed text segments
+        // Check all segments since streaming segments can be anywhere (e.g., text between completed tags)
+        for (let i = 0; i < segments.length; i++) {
             const segment = segments[i];
 
-            // Only process segments that are not completed or error
+            // Skip segments that are already completed or error
             if (segment.streamingStatus === 'completed' || segment.streamingStatus === 'error') {
-                break; // All previous segments should be completed, so we can stop
+                continue;
             }
 
             // Only convert truly incomplete segments, not complete tags that happen to have streaming status

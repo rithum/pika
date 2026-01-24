@@ -26,12 +26,16 @@
     interface Props {
         children?: Snippet<[]>;
         mode: 'thumbnail' | 'card';
-        isVisible: boolean;
+        /** When true, removes outer padding (for side-by-side layout) */
+        compact?: boolean;
     }
 
-    let { children, mode, isVisible = $bindable() }: Props = $props();
+    let { children, mode, compact = false }: Props = $props();
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
+    
+    // Visibility is controlled by ChatAppState
+    const isVisible = $derived(chat.spotlightVisible);
 
     let api = $state<CarouselAPI>();
     let current = $state(0);
@@ -277,7 +281,7 @@
 </script>
 
 {#if spotlightWidgets.length > 0}
-    <div class="w-full mx-auto mt-2 px-4">
+    <div class="{compact ? '' : 'w-full mx-auto mt-1 px-4'}">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 min-h-9">
                 <SpotlightIcon class="w-5 h-5" />
@@ -287,7 +291,11 @@
                     size="icon"
                     class="w-6 h-6"
                     onclick={() => {
-                        isVisible = !isVisible;
+                        if (isVisible) {
+                            chat.hideSpotlight();
+                        } else {
+                            chat.showSpotlight();
+                        }
                     }}
                     aria-label={isVisible ? 'Hide spotlight' : 'Show spotlight'}
                 >

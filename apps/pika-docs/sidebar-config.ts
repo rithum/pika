@@ -59,6 +59,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 label: 'Intelligence',
                 collapsed: true,
                 items: [
+                    { label: 'Intent Router', slug: 'capabilities/intelligence/intent-router' },
                     { label: 'Intelligent Prompt Engineering', slug: 'capabilities/customization/prompt-engineering' },
                     { label: 'Self-Correcting Responses', slug: 'capabilities/intelligence/self-correcting' },
                     { label: 'Answer Reasoning', slug: 'capabilities/intelligence/answer-reasoning' },
@@ -170,6 +171,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 label: 'Intelligence Features',
                 collapsed: true,
                 items: [
+                    { label: 'Intent Router', slug: 'guides/intelligence/intent-router' },
                     { label: 'Enable Self-Correcting Responses', slug: 'guides/intelligence/self-correcting' },
                     { label: 'Configure Answer Verification', slug: 'guides/intelligence/answer-verification' },
                     { label: 'Use Instruction Assistance', slug: 'guides/intelligence/instruction-assistance' },

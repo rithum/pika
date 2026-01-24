@@ -531,8 +531,8 @@ const weatherStaticInit: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     dontCacheThis: true,
     renderingContexts: {
         static: {
-            enabled: true,
-            shutDownAfterMs: 5000 // Clean up after 5 seconds
+            enabled: true
+            // No shutDownAfterMs - stays active to handle Intent Router commands
         }
     },
     widget: {
@@ -550,6 +550,173 @@ const weatherStaticInit: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebCo
     }
 };
 
+// Weather Hero (Hero - welcome banner)
+const weatherHero: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    tag: 'hero',
+    scope: 'weather',
+    shortTagEx: '<weather.hero></weather.hero>',
+    tagTitle: 'Weather Dashboard',
+    description: 'Hero welcome banner with quick access to weather features',
+    canBeGeneratedByLlm: false,
+    canBeGeneratedByTool: false,
+    usageMode: 'chat-app',
+    status: 'enabled',
+    isMock: false,
+    dontCacheThis: true,
+    renderingContexts: {
+        hero: {
+            enabled: true,
+            // Hero is shown via Intent Router or static widget, not auto-loaded
+            sizing: {
+                // Content-driven width with constraints
+                minWidth: '400px',
+                maxWidth: '900px',
+                // Height constraints
+                minHeight: 100,
+                maxHeight: 400
+            }
+        }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'weather-hero',
+            s3: {
+                s3Key: 'wc/weather/weather.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 0,
+            encodedSha256Base64: ''
+        }
+    }
+};
+
+// Weather Orchestrator (Static - handles Intent Router commands)
+const weatherOrchestrator: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate> = {
+    tag: 'orchestrator',
+    scope: 'weather',
+    shortTagEx: '<weather.orchestrator></weather.orchestrator>',
+    tagTitle: 'Weather Orchestrator',
+    description: 'Handles Intent Router command dispatch for fast weather-related actions',
+    canBeGeneratedByLlm: false,
+    canBeGeneratedByTool: false,
+    usageMode: 'chat-app',
+    status: 'enabled',
+    isMock: false,
+    dontCacheThis: true,
+    renderingContexts: {
+        static: {
+            enabled: true
+            // No shutDownAfterMs - stays active indefinitely to handle commands
+        }
+    },
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            customElementName: 'weather-orchestrator',
+            s3: {
+                s3Key: 'wc/weather/weather.js.gz'
+            },
+            encoding: 'gzip',
+            mediaType: 'application/javascript',
+            encodedSizeBytes: 0,
+            encodedSha256Base64: ''
+        }
+    },
+    // Intent Router Commands - fast routing without Bedrock agent
+    intentRouterCommands: [
+        {
+            commandId: 'show_forecast',
+            name: 'Show Weather Forecast',
+            description: 'User wants to see the weather forecast',
+            examples: ['show me the forecast', 'what is the forecast', "what's the weather going to be like", 'show forecast', '5 day forecast', 'weekly weather'],
+            antiExamples: ['what is a forecast?', 'how accurate are forecasts?'],
+            priority: 100,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.orchestrator',
+                payload: { action: 'show_forecast' },
+                responseTemplate: 'Opening the forecast...'
+            }
+        },
+        {
+            commandId: 'manage_cities',
+            name: 'Manage Cities',
+            description: 'User wants to add, remove, or manage their saved cities',
+            examples: ['add a city', 'manage my cities', 'add new city', 'edit my locations', 'change my cities'],
+            priority: 90,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.orchestrator',
+                payload: { action: 'manage_cities' },
+                responseTemplate: 'Opening city manager...'
+            }
+        },
+        {
+            commandId: 'compare_weather',
+            name: 'Compare Weather',
+            description: 'User wants to compare weather across different cities',
+            examples: ['compare weather', 'compare cities', 'weather around the world', 'show me weather in different cities', 'compare temperatures'],
+            priority: 85,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.orchestrator',
+                payload: { action: 'compare_weather' },
+                responseTemplate: 'Opening weather comparison...'
+            }
+        },
+        {
+            commandId: 'check_alerts',
+            name: 'Check Weather Alerts',
+            description: 'User wants to check for weather alerts or warnings',
+            examples: ['check alerts', 'any weather alerts', 'weather warnings', 'are there any alerts', 'storm warnings'],
+            priority: 95,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.orchestrator',
+                payload: { action: 'check_alerts' },
+                responseTemplate: 'Checking weather alerts...'
+            }
+        },
+        {
+            commandId: 'show_hero',
+            name: 'Show Weather Dashboard',
+            description: 'User wants to see the main weather dashboard or home screen',
+            examples: ['show dashboard', 'go home', 'main screen', 'weather home', 'show welcome screen'],
+            priority: 80,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.orchestrator',
+                payload: { action: 'show_hero' },
+                responseTemplate: 'Opening weather dashboard...'
+            }
+        },
+        {
+            commandId: 'show_favorite_cities',
+            name: 'Show Favorite Cities',
+            description: 'User wants to see weather for their favorite/saved cities',
+            examples: [
+                'show my favorite cities',
+                'show favorite cities',
+                'my cities',
+                'show my saved cities',
+                'favorite city weather',
+                'weather in my cities',
+                'show me my favorite cities'
+            ],
+            antiExamples: ['add a favorite city', 'remove a city from favorites', 'what cities have I saved'],
+            priority: 92,
+            execution: {
+                mode: 'dispatch',
+                handlerTagId: 'weather.static-init',
+                payload: { action: 'show_favorite_cities' },
+                responseTemplate: 'Opening your favorite cities...'
+            }
+        }
+    ]
+};
+
 // Export all tag definitions
 export const weatherTagDefinitions: TagDefinitionForCreateOrUpdate<TagDefinitionWidgetWebComponentForCreateOrUpdate>[] = [
     weatherSpotlight1,
@@ -561,5 +728,7 @@ export const weatherTagDefinitions: TagDefinitionForCreateOrUpdate<TagDefinition
     weatherComparison,
     weatherFunFact,
     quickWeatherSearch,
-    weatherStaticInit
+    weatherStaticInit,
+    weatherHero,
+    weatherOrchestrator
 ];

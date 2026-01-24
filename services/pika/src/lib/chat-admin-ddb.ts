@@ -1422,6 +1422,17 @@ function validateAndNormalizeTagDefinition(tagDef: TagDefinitionForCreateOrUpdat
             `Tag definition status must be one of: ${TAG_DEFINITION_STATUSES.join(', ')}. ` + `Got: ${tagDef.status}. ` + `Tag: ${tagDef.scope}.${tagDef.tag}`
         );
     }
+
+    // Validate intent router commands if provided
+    if (tagDef.intentRouterCommands && tagDef.intentRouterCommands.length > 0) {
+        const { validateCommands, formatValidationErrors } = require('pika-shared/util/intent-router-validation');
+        const validationResult = validateCommands(tagDef.intentRouterCommands);
+        if (!validationResult.valid) {
+            throw new BadRequestError(
+                `Invalid Intent Router commands for tag ${tagDef.scope}.${tagDef.tag}:\n${formatValidationErrors(validationResult)}`
+            );
+        }
+    }
 }
 
 /**
@@ -1547,6 +1558,8 @@ export async function searchTagDefinitions(
             tag: tagLite.tag
         }));
 
+        console.log('[searchTagDefinitions] BatchGetItem keys requested:', keys.map(k => `${k.scope}.${k.tag}`));
+
         const result = await ddbDocClient.send(
             new BatchGetCommand({
                 RequestItems: {
@@ -1557,7 +1570,11 @@ export async function searchTagDefinitions(
             })
         );
 
+        console.log('[searchTagDefinitions] BatchGetItem returned:', result.Responses?.[getTagDefinitionsTable()]?.length ?? 0, 'items');
+        console.log('[searchTagDefinitions] UnprocessedKeys:', result.UnprocessedKeys?.[getTagDefinitionsTable()]?.Keys?.length ?? 0);
+
         if (result.Responses?.[getTagDefinitionsTable()]) {
+            console.log('[searchTagDefinitions] Returned tag IDs:', result.Responses[getTagDefinitionsTable()].map((item: any) => `${item.scope}.${item.tag}`));
             for (const item of result.Responses[getTagDefinitionsTable()]) {
                 const tagDef = convertTagDefinitionToCamelFromSnakeCase(item) as TagDefinition<TagDefinitionWidget>;
 
@@ -1568,6 +1585,8 @@ export async function searchTagDefinitions(
                         delete tagDef.llmInstructionsMd;
                     }
                     tagDefs.push(tagDef);
+                } else {
+                    console.log(`[searchTagDefinitions] Filtered out ${tagDef.scope}.${tagDef.tag} due to status: ${tagDef.status}`);
                 }
             }
         }

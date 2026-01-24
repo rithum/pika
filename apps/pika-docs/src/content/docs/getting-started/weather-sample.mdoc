@@ -303,12 +303,14 @@ const weatherSummary: TagDefinitionForCreateOrUpdate = {
 };
 ```
 
-{% card title="Key Takeaway: Three Types of Tags" icon="star" %}
-The Weather Sample demonstrates three types of custom tags:
+{% card title="Key Takeaway: Multiple Tag Types" icon="star" %}
+The Weather Sample demonstrates several types of custom tags:
 
 1. **LLM-Generated** (`weather.summary`) - Agent creates these inline in responses
 2. **Component-Triggered** (`weather.favorite-cities`) - User clicks to invoke
 3. **Static Context** (`weather.static-init`) - Runs on app initialization
+4. **Orchestrator** (`weather.orchestrator`) - Handles Intent Router command dispatch
+5. **Hero Widget** (`weather.hero`) - Full-width welcome banner with quick actions
 
 Each type serves different UX patterns and use cases.
 {% /card %}
@@ -322,13 +324,13 @@ The Weather Sample includes sophisticated Svelte components:
 ```
 src/webcomponent/
 ├── lib/
-│   ├── components/
-│   │   ├── FavoriteCities.svelte
-│   │   ├── WeatherAlerts.svelte
-│   │   ├── FullForecast.svelte
-│   │   └── ... 7 more components
-│   └── utils/
-│       └── weather-api.ts
+│   ├── widgets/
+│   │   ├── favorite-cities.svelte
+│   │   ├── weather-alerts.svelte
+│   │   ├── full-forecast.svelte
+│   │   ├── weather-hero.svelte          # Hero welcome banner
+│   │   ├── weather-orchestrator.svelte  # Intent Router handler
+│   │   └── ... more components
 ├── main.ts              # Component registration
 └── app.css             # Shared styles
 ```
@@ -339,10 +341,67 @@ These components handle:
 - Interactive UI elements
 - Rich data visualization
 - User preferences storage
+- Intent Router command handling
 
 {% aside type="tip" title="Web Components Are Optional" %}
 You don't need custom web components to build great agents. Start with the default UI, then add custom components when you need specialized visualizations or interactions. The Weather Sample shows what's possible when you want to go beyond standard chat interfaces.
 {% /aside %}
+
+### 8. Intent Router & Orchestrator
+
+**File:** `src/webcomponent/lib/widgets/weather-orchestrator.svelte`
+
+The Weather Sample includes a static orchestrator widget that demonstrates the Intent Router pattern:
+
+```typescript
+// Commands defined on the orchestrator tag definition
+intentRouterCommands: [
+  {
+    commandId: 'show_forecast',
+    name: 'Show Weather Forecast',
+    description: 'User wants to see the weather forecast',
+    examples: [
+      'show me the forecast',
+      'what is the forecast',
+      '5 day forecast'
+    ],
+    priority: 100,
+    execution: {
+      mode: 'dispatch',
+      handlerTagId: 'weather.orchestrator',
+      payload: { action: 'show_forecast' },
+      responseTemplate: 'Opening the forecast...'
+    }
+  },
+  // More commands: manage_cities, compare_weather, check_alerts, etc.
+]
+```
+
+The orchestrator widget registers a handler to process these commands:
+
+```typescript
+ctx.chatAppState.registerIntentRouterHandler(ctx.instanceId, async (event) => {
+  switch (event.payload?.action) {
+    case 'show_forecast':
+      await ctx.chatAppState.renderTag('weather.full-forecast', 'canvas');
+      return { handled: true };
+    // ... other actions
+  }
+});
+```
+
+This enables instant responses for common commands like "show the forecast" or "compare weather" without waiting for the full Bedrock agent pipeline.
+
+{% card title="Key Takeaway: Intent Router Pattern" icon="rocket" %}
+The orchestrator demonstrates:
+
+1. **Fast command routing** - Quick classification instead of full agent call
+2. **Dispatch mode** - Server sends event, client handles the logic
+3. **Widget orchestration** - Opens other widgets based on user intent
+4. **Static context** - Always running to receive commands
+
+Learn more in the [Intent Router Guide →](/guides/intelligence/intent-router/)
+{% /card %}
 
 ## What You Can Learn
 
