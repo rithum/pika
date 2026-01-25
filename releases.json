@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.18.0",
-  "currentDevelopment": "0.18.0",
+  "latestVersion": "0.18.1",
+  "currentDevelopment": "0.18.1",
   "releases": [
+    {
+      "version": "0.18.1",
+      "date": "2026-01-25",
+      "status": "released",
+      "breaking": false,
+      "summary": "Hero minimized position fix",
+      "highlights": [
+        "Collapsed hero now moves to top-left position alongside spotlight"
+      ]
+    },
     {
       "version": "0.18.0",
       "date": "2026-01-24",
