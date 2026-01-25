@@ -141,42 +141,60 @@
             <SlideoutContent class="overflow-hidden">
                 <ChatTitlebar />
 
-                <!-- Always use resizable layout to keep ChatHome in stable DOM location -->
-                <!-- In companion mode: canvas on left, chat on right (feels like a true companion) -->
-                <!-- In normal mode: chat on left, canvas on right -->
-                <Resizable.PaneGroup direction="horizontal" class="w-full h-full">
-                    {#if chatAppState.isCompanionMode && chatAppState.canvasOpen && chatAppState.canvasWidget}
-                        <!-- COMPANION MODE: Canvas first (left), then chat (right) -->
-                        <Resizable.Pane
-                            defaultSize={chatAppState.isChatPaneMinimized ? 97 : 79}
-                            minSize={50}
-                            maxSize={chatAppState.isChatPaneMinimized ? 98 : 89}
-                        >
-                            <div class="w-full h-full overflow-auto">
-                                <CanvasWidgetRenderer />
-                            </div>
-                        </Resizable.Pane>
-
-                        <Resizable.Handle withHandle={!chatAppState.isChatPaneMinimized} />
-
-                        <Resizable.Pane
-                            defaultSize={chatAppState.isChatPaneMinimized ? 3 : 21}
-                            minSize={chatAppState.isChatPaneMinimized ? 2 : 11}
-                            maxSize={chatAppState.isChatPaneMinimized ? 4 : 50}
-                        >
-                            {#if chatAppState.isChatPaneMinimized}
-                                <!-- Minimized chat pane strip - narrow with just icon -->
-                                <button
-                                    class="w-full h-full flex items-center justify-center bg-gray-25 hover:bg-gray-50 cursor-pointer transition-colors border-l border-gray-100"
-                                    onclick={() => chatAppState.setChatPaneMinimized(false)}
-                                    aria-label="Expand chat pane"
-                                >
-                                    <Sparkles class="h-5 w-5 text-primary" />
-                                </button>
-                            {:else}
-                                <!-- Companion chat pane with subtle background and left border -->
-                                <div class="relative w-full h-full bg-gray-25 border-l border-gray-100">
-                                    <!-- Minimize button - floating at top-left -->
+                <!-- 
+                    CRITICAL: Children (chat-app-main) must be in ONE stable DOM location.
+                    Previously, children were in different {#if} branches which caused remounting
+                    when switching between companion mode and normal mode, destroying all widget state.
+                    
+                    Now we use CSS flex-direction to control layout order without remounting.
+                    - Companion mode: flex-row-reverse (canvas left, chat right)
+                    - Normal mode: flex-row (chat left, canvas right)
+                -->
+                <div
+                    class="w-full h-full flex"
+                    class:flex-row={!chatAppState.isCompanionMode || !chatAppState.canvasOpen}
+                    class:flex-row-reverse={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                >
+                    <!-- Chat Pane - ALWAYS rendered in same DOM location -->
+                    <div
+                        class="h-full overflow-hidden flex-shrink-0 transition-all duration-200"
+                        class:flex-1={!chatAppState.canvasOpen || !chatAppState.canvasWidget}
+                        style={chatAppState.canvasOpen && chatAppState.canvasWidget
+                            ? chatAppState.isChatPaneMinimized
+                                ? 'width: 48px;'
+                                : chatAppState.isCompanionMode
+                                  ? 'width: 25%;'
+                                  : 'width: 50%;'
+                            : ''}
+                    >
+                        {#if chatAppState.isChatPaneMinimized && chatAppState.canvasOpen}
+                            <!-- Minimized chat pane strip -->
+                            <button
+                                class="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors {chatAppState.isCompanionMode
+                                    ? 'bg-gray-25 hover:bg-gray-50 border-l border-gray-100'
+                                    : 'bg-muted/50 hover:bg-muted border-r'}"
+                                onclick={() => chatAppState.setChatPaneMinimized(false)}
+                                aria-label="Expand chat pane"
+                            >
+                                <Sparkles class="h-5 w-5 text-primary" />
+                                {#if !chatAppState.isCompanionMode}
+                                    <div
+                                        class="writing-mode-vertical text-xs text-muted-foreground font-medium tracking-wider rotate-180"
+                                    >
+                                        AI
+                                    </div>
+                                {/if}
+                            </button>
+                        {:else}
+                            <!-- Chat pane content -->
+                            <div
+                                class="relative w-full h-full overflow-auto"
+                                class:bg-gray-25={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                                class:border-l={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                                class:border-gray-100={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                            >
+                                {#if chatAppState.isCompanionMode && chatAppState.canvasOpen && !chatAppState.isChatPaneMinimized}
+                                    <!-- Minimize button for companion mode -->
                                     <button
                                         class="absolute top-2 left-2 z-10 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                                         onclick={() => chatAppState.setChatPaneMinimized(true)}
@@ -185,67 +203,24 @@
                                     >
                                         <ChevronsRight class="h-4 w-4" />
                                     </button>
-                                    <div class="overflow-auto w-full h-full">
-                                        {@render children?.()}
-                                    </div>
-                                </div>
-                            {/if}
-                        </Resizable.Pane>
-                    {:else}
-                        <!-- NORMAL MODE: Chat first (left), then canvas (right) -->
-                        <Resizable.Pane
-                            defaultSize={chatAppState.isChatPaneMinimized
-                                ? 5
-                                : chatAppState.canvasOpen && chatAppState.canvasWidget
-                                  ? 50
-                                  : 100}
-                            minSize={chatAppState.isChatPaneMinimized
-                                ? 3
-                                : chatAppState.canvasOpen && chatAppState.canvasWidget
-                                  ? 20
-                                  : 100}
-                            maxSize={chatAppState.isChatPaneMinimized
-                                ? 8
-                                : chatAppState.canvasOpen && chatAppState.canvasWidget
-                                  ? 70
-                                  : 100}
-                        >
-                            {#if chatAppState.isChatPaneMinimized}
-                                <!-- Minimized chat pane strip -->
-                                <button
-                                    class="w-full h-full flex flex-col items-center justify-center gap-2 bg-muted/50 hover:bg-muted cursor-pointer transition-colors border-r"
-                                    onclick={() => chatAppState.setChatPaneMinimized(false)}
-                                    aria-label="Expand chat pane"
-                                >
-                                    <Sparkles class="h-5 w-5 text-primary" />
-                                    <div
-                                        class="writing-mode-vertical text-xs text-muted-foreground font-medium tracking-wider rotate-180"
-                                    >
-                                        AI
-                                    </div>
-                                </button>
-                            {:else}
-                                <div class="overflow-auto w-full h-full">
-                                    {@render children?.()}
-                                </div>
-                            {/if}
-                        </Resizable.Pane>
-
-                        {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
-                            <Resizable.Handle withHandle={!chatAppState.isChatPaneMinimized} />
-
-                            <Resizable.Pane
-                                defaultSize={chatAppState.isChatPaneMinimized ? 95 : 50}
-                                minSize={30}
-                                maxSize={chatAppState.isChatPaneMinimized ? 97 : 70}
-                            >
-                                <div class="w-full h-full overflow-auto">
-                                    <CanvasWidgetRenderer />
-                                </div>
-                            </Resizable.Pane>
+                                {/if}
+                                {@render children?.()}
+                            </div>
                         {/if}
+                    </div>
+
+                    <!-- Canvas Pane - only shown when canvas is open -->
+                    {#if chatAppState.canvasOpen && chatAppState.canvasWidget}
+                        <div
+                            class="h-full overflow-auto flex-1"
+                            class:border-l={!chatAppState.isCompanionMode}
+                            class:border-r={chatAppState.isCompanionMode}
+                            class:border-gray-200={true}
+                        >
+                            <CanvasWidgetRenderer />
+                        </div>
                     {/if}
-                </Resizable.PaneGroup>
+                </div>
             </SlideoutContent>
         </Slideout>
     </SlideoutProvider>

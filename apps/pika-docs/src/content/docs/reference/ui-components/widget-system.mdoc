@@ -354,6 +354,21 @@ const isCollapsed = chatAppState.heroCollapsed;
 
 User can only toggle between collapsed and expanded states. Widgets can programmatically show/hide/collapse/expand.
 
+{% aside type="note" title="Hero Widget Persistence (v0.18.2+)" %}
+**Hero widgets are mounted once and persist** even when hidden via `hideHero()`. The web component stays alive in the DOM (hidden via CSS) rather than being destroyed and recreated. This preserves widget state across visibility changes.
+
+**Best practice:** Use the `heroDidShow` event to refresh data when the hero becomes visible again:
+
+```typescript
+chatAppState.addEventListener('heroDidShow', () => {
+    // Refresh data when hero becomes visible
+    this.refreshData();
+}, instanceId);
+```
+
+This approach is more efficient than re-initializing on each show, and allows widgets to maintain internal state (scroll position, form inputs, etc.) across hide/show cycles.
+{% /aside %}
+
 **Hero Sizing (v0.18.0+):**
 
 The hero widget container is always horizontally centered. Use sizing config to control dimensions:
@@ -1345,7 +1360,7 @@ const aiAssistAction: WidgetAction = {
 
 ### Hero Lifecycle Events (v0.18.0+)
 
-The hero widget now emits detailed lifecycle events for coordinating animations and state:
+The hero widget emits detailed lifecycle events for coordinating animations and state. **Since hero widgets persist when hidden** (v0.18.2+), these events are essential for managing data refresh and resource usage:
 
 ```typescript
 // Prepare before hero shows (e.g., pause other animations)
@@ -1353,8 +1368,10 @@ chatAppState.addEventListener('heroWillShow', () => {
     this.pauseAnimations();
 }, instanceId);
 
-// React after hero is visible
+// React after hero is visible - IMPORTANT: refresh data here
 chatAppState.addEventListener('heroDidShow', () => {
+    // Hero persists when hidden, so refresh data when shown again
+    this.refreshData();
     this.startDataSync();
 }, instanceId);
 
@@ -1363,9 +1380,11 @@ chatAppState.addEventListener('heroWillHide', () => {
     this.saveDraft();
 }, instanceId);
 
-// React after hero is hidden
+// React after hero is hidden - pause expensive operations
 chatAppState.addEventListener('heroDidHide', () => {
+    // Hero is still mounted but hidden - stop unnecessary work
     this.stopDataSync();
+    this.pausePolling();
 }, instanceId);
 
 // React to collapse/expand
@@ -1377,6 +1396,14 @@ chatAppState.addEventListener('heroExpand', () => {
     this.resumeOperations();
 }, instanceId);
 ```
+
+{% aside type="tip" title="Hero Event Best Practices" %}
+Since hero widgets persist when hidden:
+- **Use `heroDidShow`** to refresh data that may have changed while hidden
+- **Use `heroDidHide`** to pause polling, timers, or expensive operations
+- **Don't rely on initialization** for data loading - the widget may already be mounted
+- **Preserve user state** (scroll position, selections) since the widget stays alive
+{% /aside %}
 
 ### Subscribing to Events
 

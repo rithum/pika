@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.18.1",
-  "currentDevelopment": "0.18.1",
+  "latestVersion": "0.18.2",
+  "currentDevelopment": "0.18.2",
   "releases": [
+    {
+      "version": "0.18.2",
+      "date": "2026-01-25",
+      "status": "released",
+      "breaking": false,
+      "summary": "Hero widget persistence and widget stability fixes",
+      "highlights": [
+        "Hero widgets now persist in DOM when hidden - use heroDidShow event to refresh data",
+        "Fixed static widgets being re-injected when toggling companion mode",
+        "Fixed widget injection race conditions with synchronous guards",
+        "Fixed layout stability when toggling companion mode",
+        "Titlebar icons hidden when canvas is open in companion mode"
+      ]
+    },
     {
       "version": "0.18.1",
       "date": "2026-01-25",

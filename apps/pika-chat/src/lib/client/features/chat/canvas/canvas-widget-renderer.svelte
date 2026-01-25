@@ -14,14 +14,23 @@
 
     let containerEl = $state<HTMLElement>();
     let initialized = $state(false);
+    let injecting = $state(false); // Synchronous guard to prevent double-injection race condition
     let instanceId = $state<string | undefined>(undefined);
     let iconComponent = $state<any>(null);
 
     $effect(() => {
         const canvasWidget = chat.canvasWidget;
 
+        // SYNCHRONOUS guard to prevent double-injection race condition
+        if (injecting) {
+            return;
+        }
+
         if (containerEl && canvasWidget && (!initialized || canvasWidget?.instanceId !== instanceId)) {
             const tagDef = canvasWidget.tagDefinition;
+
+            // Set synchronous guard BEFORE async operation
+            injecting = true;
 
             // Inject component and get instance ID + element (async operation)
             injectChatAppWebComponent(
@@ -70,12 +79,13 @@
                             metadataAPI.setMetadata(chat.canvasWidget.metadata);
                         }
                     }
+                    initialized = true;
+                    injecting = false;
                 })
                 .catch((error) => {
                     console.error('Error injecting canvas widget:', error);
+                    injecting = false;
                 });
-
-            initialized = true;
         }
     });
 
