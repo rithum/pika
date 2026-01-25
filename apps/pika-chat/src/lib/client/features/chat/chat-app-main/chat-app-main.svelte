@@ -40,14 +40,16 @@
     const heroIsVisible = $derived(chat.heroVisible);
     const heroIsCollapsed = $derived(chat.heroCollapsed);
     const hasHeroWidget = $derived(!!chat.heroWidget);
-    
-    // Both are in "collapsed header" state - show side by side
-    const bothCollapsed = $derived(
-        !spotlightIsVisible && 
-        hasHeroWidget && 
-        heroIsVisible && 
-        heroIsCollapsed
-    );
+    const spotlightHasWidgets = $derived(chat.spotlightWidgets.length > 0);
+
+    // Minimized/collapsed states - these go to top-left row
+    const spotlightMinimized = $derived(spotlightHasWidgets && !spotlightIsVisible);
+    const heroMinimized = $derived(hasHeroWidget && heroIsVisible && heroIsCollapsed);
+    const hasAnyMinimized = $derived(spotlightMinimized || heroMinimized);
+
+    // Expanded states - these render in their normal positions
+    const spotlightExpanded = $derived(spotlightHasWidgets && spotlightIsVisible);
+    const heroExpanded = $derived(hasHeroWidget && heroIsVisible && !heroIsCollapsed);
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
@@ -177,7 +179,7 @@
             if (injectedStaticWidgets.has(tagId)) {
                 continue;
             }
-            
+
             // Mark as injected SYNCHRONOUSLY to prevent duplicate injection
             injectedStaticWidgets.add(tagId);
 
@@ -226,7 +228,7 @@
                         if (existingTimeout) {
                             clearTimeout(existingTimeout);
                         }
-                        
+
                         const timeoutId = setTimeout(() => {
                             const containerToRemove = staticWidgetContainers.get(tagId);
                             if (containerToRemove) {
@@ -238,7 +240,7 @@
                                 staticWidgetTimeouts.delete(tagId);
                             }
                         }, shutDownAfterMs);
-                        
+
                         staticWidgetTimeouts.set(tagId, timeoutId);
                     }
                 })
@@ -370,27 +372,39 @@
 
     <!-- Spotlight and Hero layout (hidden in companion mode) -->
     {#if !chat.isCompanionMode}
-        {#if bothCollapsed}
-            <!-- Both collapsed: show side by side to save vertical space -->
+        <!-- Minimized/collapsed headers row - top left aligned -->
+        {#if hasAnyMinimized}
             <div class="w-full flex items-center gap-6 px-4 mt-1">
-                <Spotlight
-                    mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
-                    compact={true}
-                />
-                <Hero compact={true} />
+                {#if spotlightMinimized}
+                    <Spotlight
+                        mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0
+                            ? 'thumbnail'
+                            : 'card'}
+                        compact={true}
+                    />
+                {/if}
+                {#if heroMinimized}
+                    <Hero compact={true} />
+                {/if}
             </div>
-        {:else}
-            <!-- Normal stacked layout -->
-            <div class="w-full flex {spotlightIsVisible ? 'justify-center' : ''} {spotlightIsVisible ? 'min-h-[80px]' : ''}">
+        {/if}
+
+        <!-- Expanded spotlight - full width, centered -->
+        {#if spotlightExpanded}
+            <div class="w-full flex justify-center min-h-[80px]">
                 <div class="max-w-full w-full">
                     <Spotlight
-                        mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0 ? 'thumbnail' : 'card'}
+                        mode={chat.currentSessionMessages && chat.currentSessionMessages.length > 0
+                            ? 'thumbnail'
+                            : 'card'}
                     />
                 </div>
             </div>
+        {/if}
 
-            <!-- Hero widget renders below spotlight - extra spacing when spotlight is collapsed but hero is expanded -->
-            <div class="{!spotlightIsVisible && heroIsVisible && !heroIsCollapsed ? 'mt-2' : ''}">
+        <!-- Expanded hero - renders below spotlight -->
+        {#if heroExpanded}
+            <div class={!spotlightIsVisible ? 'mt-2' : ''}>
                 <Hero />
             </div>
         {/if}
@@ -410,7 +424,9 @@
                         <div class="flex flex-col gap-8 mb-10">
                             {#if message.source === 'user'}
                                 <div class="flex flex-col items-end gap-2">
-                                    <div class="chat-message-content p-4 rounded-lg bg-gray-50 max-w-[66%]">{message.message}</div>
+                                    <div class="chat-message-content p-4 rounded-lg bg-gray-50 max-w-[66%]">
+                                        {message.message}
+                                    </div>
                                     {#if message.files && message.files.length > 0}
                                         <div class="flex flex-wrap gap-2 max-w-[66%] justify-end">
                                             {#each message.files as file}
