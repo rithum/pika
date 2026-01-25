@@ -196,7 +196,7 @@
                                 {#if chatAppState.isCompanionMode && chatAppState.canvasOpen && !chatAppState.isChatPaneMinimized}
                                     <!-- Minimize button for companion mode -->
                                     <button
-                                        class="absolute top-2 left-2 z-10 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                        class="absolute top-0.5 left-0.5 z-10 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                                         onclick={() => chatAppState.setChatPaneMinimized(true)}
                                         aria-label="Minimize chat pane"
                                         title="Minimize"
