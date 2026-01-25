@@ -17,12 +17,13 @@
     }
 
     let { compact = false }: Props = $props();
-    
+
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
 
     let containerEl = $state<HTMLElement>();
     let initialized = $state(false);
+    let injecting = $state(false); // Synchronous guard to prevent double-injection race condition
     let instanceId = $state<string | undefined>(undefined);
 
     // Track the current hero widget to detect changes
@@ -56,7 +57,7 @@
 
     // Extract sizing config from tag definition's hero context
     const sizingConfig = $derived(heroWidget?.tagDefinition.renderingContexts?.hero?.sizing);
-    
+
     // Compute dynamic styles for the hero container (width controls)
     const containerStyle = $derived.by(() => {
         const styles: string[] = [];
@@ -65,7 +66,7 @@
         if (sizingConfig?.width) styles.push(`width: ${sizingConfig.width}`);
         return styles.join('; ');
     });
-    
+
     // Compute dynamic styles for the content area (height controls)
     const contentStyle = $derived.by(() => {
         const minH = sizingConfig?.minHeight ?? 100;
@@ -75,15 +76,33 @@
         return styles.join('; ');
     });
 
-    // Inject web component when hero widget changes
-    // Note: We inject regardless of heroVisible since we use CSS to hide (not {#if})
+    // Inject web component when hero widget changes or visibility changes
+    // We need to track heroVisible to re-inject when hero becomes visible again
+    // after being hidden (which destroys the web component)
     $effect(() => {
+        // Track heroVisible to trigger re-injection when hero becomes visible
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        heroVisible;
+
         if (!containerEl || !heroWidget) {
             return;
         }
 
         const tagDef = heroWidget.tagDefinition;
         const tagId = `${tagDef.scope}.${tagDef.tag}`;
+
+        // SYNCHRONOUS guards to prevent double-injection race condition
+        // The `injecting` flag prevents a second injection while the first is in progress
+        if (injecting) {
+            return;
+        }
+
+        // Check if the web component element was destroyed (e.g., when hero was hidden)
+        // If container is empty but we think we're initialized, we need to re-inject
+        if (initialized && containerEl.children.length === 0) {
+            initialized = false;
+            instanceId = undefined;
+        }
 
         // Only inject if this is a new/different hero widget
         if (initialized && currentHeroTagId === tagId && heroWidget.instanceId === instanceId) {
@@ -96,6 +115,8 @@
             initialized = false;
         }
 
+        // Set synchronous guard BEFORE async operation
+        injecting = true;
         currentHeroTagId = tagId;
 
         injectChatAppWebComponent(
@@ -152,9 +173,11 @@
                 }
 
                 initialized = true;
+                injecting = false;
             })
             .catch((error) => {
                 console.error('[Hero] Failed to inject widget:', error);
+                injecting = false;
             });
     });
 </script>
@@ -195,7 +218,7 @@
                 </Button>
             </div>
         </div>
-        
+
         <!-- Expanded: Full widget with card styling -->
         <div class="rounded-lg border bg-card shadow-sm overflow-hidden" class:hidden={heroCollapsed}>
             <!-- Header Section -->
@@ -220,7 +243,7 @@
                     {:else if actions.length > 1 && instanceId}
                         <WidgetActionMenu {actions} {instanceId} />
                     {/if}
-                    
+
                     <!-- Collapse button -->
                     <Button
                         variant="ghost"

@@ -310,6 +310,10 @@ export class ChatAppState implements IChatAppState {
 
     #spotlightWidgets = $state<SpotlightWidget[]>([]);
     #staticWidgets = $state<StaticWidgetTagDefinition[]>([]);
+    // Track which static widgets have been injected - persists across component remounts
+    #injectedStaticWidgets = new Set<string>();
+    #staticWidgetContainers = new Map<string, HTMLElement>();
+    #staticWidgetTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
     #spotlightUserPrefs = $state<UserSpotlightPreferences | undefined>(undefined);
     // Track unpinned state for manually registered widgets (not persisted to server)
     #manuallyRegisteredUnpinned = $state<Set<string>>(new Set());
@@ -403,6 +407,73 @@ export class ChatAppState implements IChatAppState {
 
     get staticWidgets() {
         return this.#staticWidgets;
+    }
+
+    /**
+     * Check if a static widget has already been injected.
+     * This tracking persists across component remounts to prevent double-injection.
+     */
+    isStaticWidgetInjected(tagId: string): boolean {
+        return this.#injectedStaticWidgets.has(tagId);
+    }
+
+    /**
+     * Mark a static widget as injected and track its container.
+     */
+    markStaticWidgetInjected(tagId: string, container: HTMLElement): void {
+        this.#injectedStaticWidgets.add(tagId);
+        this.#staticWidgetContainers.set(tagId, container);
+    }
+
+    /**
+     * Mark a static widget as not injected (e.g., on failure).
+     */
+    markStaticWidgetNotInjected(tagId: string): void {
+        this.#injectedStaticWidgets.delete(tagId);
+        this.#staticWidgetContainers.delete(tagId);
+    }
+
+    /**
+     * Set a cleanup timeout for a static widget.
+     */
+    setStaticWidgetTimeout(tagId: string, timeoutId: ReturnType<typeof setTimeout>): void {
+        // Cancel any existing timeout
+        const existing = this.#staticWidgetTimeouts.get(tagId);
+        if (existing) {
+            clearTimeout(existing);
+        }
+        this.#staticWidgetTimeouts.set(tagId, timeoutId);
+    }
+
+    /**
+     * Clear a static widget's cleanup timeout.
+     */
+    clearStaticWidgetTimeout(tagId: string): void {
+        const timeoutId = this.#staticWidgetTimeouts.get(tagId);
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            this.#staticWidgetTimeouts.delete(tagId);
+        }
+    }
+
+    /**
+     * Get a static widget's container element.
+     */
+    getStaticWidgetContainer(tagId: string): HTMLElement | undefined {
+        return this.#staticWidgetContainers.get(tagId);
+    }
+
+    /**
+     * Remove a static widget's tracking and container.
+     */
+    removeStaticWidget(tagId: string): void {
+        this.#injectedStaticWidgets.delete(tagId);
+        const container = this.#staticWidgetContainers.get(tagId);
+        if (container) {
+            container.remove();
+        }
+        this.#staticWidgetContainers.delete(tagId);
+        this.clearStaticWidgetTimeout(tagId);
     }
 
     // Canvas getters

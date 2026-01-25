@@ -30,7 +30,6 @@
     import Spotlight from '../spotlight/index.svelte';
     import UserDataOverridesDialog from '../user-data-overrides/user-data-overrides-dialog.svelte';
     import WidgetDialog from './widget-dialog.svelte';
-    import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 
     const appState = getContext<AppState>('appState');
     const chat = getContext<ChatAppState>('chatAppState');
@@ -44,19 +43,24 @@
 
     // Minimized/collapsed states - these go to top-left row
     const spotlightMinimized = $derived(spotlightHasWidgets && !spotlightIsVisible);
+    // Hero minimized: visible + collapsed (compact header bar)
     const heroMinimized = $derived(hasHeroWidget && heroIsVisible && heroIsCollapsed);
-    const hasAnyMinimized = $derived(spotlightMinimized || heroMinimized);
+    // For layout: only spotlight can be in minimized row (hero handles its own states)
+    const hasAnyMinimized = $derived(spotlightMinimized);
 
     // Expanded states - these render in their normal positions
     const spotlightExpanded = $derived(spotlightHasWidgets && spotlightIsVisible);
+    // Hero expanded: visible + not collapsed (full widget)
     const heroExpanded = $derived(hasHeroWidget && heroIsVisible && !heroIsCollapsed);
+    
+    // Hero visibility for layout purposes (hidden in companion mode or when not visible)
+    const heroShouldShow = $derived(hasHeroWidget && !chat.isCompanionMode);
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
-    // Static widgets state - track which widgets have been injected to prevent double-injection
-    let injectedStaticWidgets = $state<Set<string>>(new SvelteSet());
-    let staticWidgetContainers = $state<Map<string, HTMLElement>>(new SvelteMap());
-    let staticWidgetTimeouts = new Map<string, ReturnType<typeof setTimeout>>(); // Track cleanup timeouts
+    // NOTE: Static widget tracking is now stored in ChatAppState to persist across component remounts.
+    // This prevents the bug where static widgets were re-injected when the layout switched between
+    // companion mode and normal mode, causing the component to remount and lose its local state.
 
     // File drag/drop state
     let isDraggingFile = $state(false);
@@ -166,6 +170,7 @@
     });
 
     // Effect to inject static context widgets
+    // NOTE: Tracking is stored in ChatAppState to persist across component remounts
     $effect(() => {
         const staticWidgets = chat.staticWidgets;
 
@@ -173,15 +178,10 @@
         for (const tagDef of staticWidgets) {
             const tagId = `${tagDef.scope}.${tagDef.tag}`;
 
-            // Skip if already injected or currently being injected
-            // IMPORTANT: Mark as injected BEFORE async to prevent race condition
-            // where effect re-runs before injection completes
-            if (injectedStaticWidgets.has(tagId)) {
+            // Skip if already injected - tracking persists in ChatAppState
+            if (chat.isStaticWidgetInjected(tagId)) {
                 continue;
             }
-
-            // Mark as injected SYNCHRONOUSLY to prevent duplicate injection
-            injectedStaticWidgets.add(tagId);
 
             // Create hidden container for this static widget
             const container = document.createElement('div');
@@ -189,8 +189,9 @@
             container.setAttribute('data-static-widget', tagId);
             document.body.appendChild(container);
 
-            // Track the container
-            staticWidgetContainers.set(tagId, container);
+            // Mark as injected SYNCHRONOUSLY to prevent duplicate injection
+            // This is stored in ChatAppState so it persists across component remounts
+            chat.markStaticWidgetInjected(tagId, container);
 
             // Inject the web component
             injectChatAppWebComponent(
@@ -223,32 +224,22 @@
                     // Handle shutDownAfterMs cleanup (for widgets that should auto-destroy)
                     const shutDownAfterMs = tagDef.renderingContexts.static?.shutDownAfterMs;
                     if (shutDownAfterMs && shutDownAfterMs > 0) {
-                        // Cancel any existing timeout for this tag (in case of HMR/navigation)
-                        const existingTimeout = staticWidgetTimeouts.get(tagId);
-                        if (existingTimeout) {
-                            clearTimeout(existingTimeout);
-                        }
-
                         const timeoutId = setTimeout(() => {
-                            const containerToRemove = staticWidgetContainers.get(tagId);
+                            const containerToRemove = chat.getStaticWidgetContainer(tagId);
                             if (containerToRemove) {
                                 // Unregister from ChatAppState
                                 chat.unregisterWidgetInstance(result.instanceId);
-
-                                containerToRemove.remove();
-                                staticWidgetContainers.delete(tagId);
-                                staticWidgetTimeouts.delete(tagId);
+                                chat.removeStaticWidget(tagId);
                             }
                         }, shutDownAfterMs);
 
-                        staticWidgetTimeouts.set(tagId, timeoutId);
+                        chat.setStaticWidgetTimeout(tagId, timeoutId);
                     }
                 })
                 .catch((error) => {
                     console.error(`[Static Widget] Failed to inject ${tagId}:`, error);
                     // Remove from tracking so it can be retried
-                    injectedStaticWidgets.delete(tagId);
-                    staticWidgetContainers.delete(tagId);
+                    chat.markStaticWidgetNotInjected(tagId);
                     container.remove();
                 });
         }
@@ -370,9 +361,10 @@
         </div>
     {/if}
 
-    <!-- Spotlight and Hero layout (hidden in companion mode) -->
+    <!-- Spotlight and Hero layout -->
+    <!-- Note: Hero is always mounted when hasHeroWidget to preserve web component state -->
     {#if !chat.isCompanionMode}
-        <!-- Minimized/collapsed headers row - top left aligned -->
+        <!-- Minimized spotlight header row - top left aligned -->
         {#if hasAnyMinimized}
             <div class="w-full flex items-center gap-6 px-4 mt-1">
                 {#if spotlightMinimized}
@@ -382,9 +374,6 @@
                             : 'card'}
                         compact={true}
                     />
-                {/if}
-                {#if heroMinimized}
-                    <Hero compact={true} />
                 {/if}
             </div>
         {/if}
@@ -401,13 +390,21 @@
                 </div>
             </div>
         {/if}
+    {/if}
 
-        <!-- Expanded hero - renders below spotlight -->
-        {#if heroExpanded}
-            <div class={!spotlightIsVisible ? 'mt-2' : ''}>
-                <Hero />
-            </div>
-        {/if}
+    <!-- 
+        Hero widget - ALWAYS mounted when hasHeroWidget to preserve web component state.
+        The Hero component handles its own visibility via CSS (heroVisible state).
+        This prevents the web component from being destroyed when hero is hidden.
+        The widget can listen to heroDidShow/heroDidHide events to refresh data.
+    -->
+    {#if hasHeroWidget}
+        <div 
+            class:hidden={!heroShouldShow}
+            class={heroExpanded && !spotlightHasWidgets ? 'pt-4' : ''}
+        >
+            <Hero compact={heroMinimized} />
+        </div>
     {/if}
 
     {#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}
@@ -543,7 +540,14 @@
         </div>
     {:else}
         <!-- No messages case -->
-        <div class="flex-1 flex flex-col justify-center" class:min-h-[300px]={!chat.isCompanionMode}>
+        <!-- In companion mode: input at top; otherwise: centered vertically -->
+        <div
+            class="flex-1 flex flex-col"
+            class:justify-center={!chat.isCompanionMode}
+            class:justify-start={chat.isCompanionMode}
+            class:pt-4={chat.isCompanionMode}
+            class:min-h-[300px]={!chat.isCompanionMode}
+        >
             <div class="w-full max-w-[768px] mx-auto">
                 <div class="flex flex-col px-4">
                     <!-- Hide label and suggestions in companion mode -->

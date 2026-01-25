@@ -125,7 +125,8 @@
 </script>
 
 <div class="flex items-center p-4 border-b border-gray-100 sticky top-0 bg-background pl-3 pb-3">
-    {#if !chat.appSidebarOpen}
+    <!-- Hide sidebar/new chat buttons when canvas widget is showing -->
+    {#if !chat.appSidebarOpen && !chat.canvasWidget}
         {#if standalone}
             <TooltipPlus tooltip={chat.appSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}>
                 <Button

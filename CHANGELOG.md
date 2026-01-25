@@ -5,6 +5,37 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.2] - 2026-01-25
+
+### Changed
+
+- **Hero Widget Persistence** - Hero widgets now persist in DOM when hidden via `hideHero()`
+    - Web component stays alive (hidden via CSS) rather than being destroyed
+    - Use `heroDidShow` event to refresh data when hero becomes visible again
+    - Preserves widget state (scroll position, form inputs) across visibility changes
+
+- **Companion Mode Titlebar** - Sidebar toggle and new chat icons now hidden when canvas widget is open in companion mode
+
+### Fixed
+
+- **Hero Widget Stability** - Fixed hero web component being destroyed when hidden
+    - Hero no longer remounts when toggling visibility
+    - Eliminates duplicate hero instances on show/hide cycles
+
+- **Static Widget Re-injection** - Fixed static widgets being re-injected when toggling companion mode
+    - Static widget tracking now persists in ChatAppState across component remounts
+    - Prevents duplicate orchestrator/initializer instances
+
+- **Widget Injection Race Conditions** - Added synchronous guards to prevent duplicate widget creation
+    - Hero, canvas, and static widget injection now protected against concurrent injection attempts
+    - Fixes edge case where effect could run twice before first injection completed
+
+- **Layout Stability** - Fixed chat component remounting when toggling companion mode
+    - Children now rendered in stable DOM location using CSS flex-direction for layout changes
+    - Prevents widget state loss during companion mode transitions
+
+---
+
 ## [0.18.1] - 2026-01-25
 
 ### Fixed
