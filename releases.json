@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.18.2",
-  "currentDevelopment": "0.18.2",
+  "latestVersion": "0.18.3",
+  "currentDevelopment": "0.18.3",
   "releases": [
+    {
+      "version": "0.18.3",
+      "date": "2026-01-25",
+      "status": "released",
+      "breaking": false,
+      "summary": "Hero restoration on companion mode exit fix",
+      "highlights": [
+        "Hero now properly restores when closing canvas in companion mode",
+        "Handles widgets that call hideHero() before opening companion mode canvas",
+        "Adjusted minimize button position to avoid overlapping with chat input"
+      ]
+    },
     {
       "version": "0.18.2",
       "date": "2026-01-25",

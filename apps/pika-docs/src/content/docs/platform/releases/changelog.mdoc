@@ -7,6 +7,17 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.18.3] - 2026-01-25
+
+### Fixed
+
+- **Hero Restoration on Companion Mode Exit** - Hero now properly restores when closing canvas in companion mode
+    - Tracks whether hero existed before companion mode started (not just visibility)
+    - Handles widgets that call `hideHero()` before opening companion mode canvas
+    - Hero automatically shows again when companion mode exits
+
+---
+
 ## [0.18.2] - 2026-01-25
 
 ### Changed

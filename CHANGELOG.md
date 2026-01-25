@@ -5,6 +5,19 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.3] - 2026-01-25
+
+### Fixed
+
+- **Hero Restoration on Companion Mode Exit** - Hero now properly restores when closing canvas in companion mode
+    - Tracks whether hero existed before companion mode started (not just visibility)
+    - Handles widgets that call `hideHero()` before opening companion mode canvas
+    - Hero automatically shows again when companion mode exits
+
+- **Companion Mode Minimize Button Position** - Adjusted minimize button (>>) position to avoid overlapping with chat input
+
+---
+
 ## [0.18.2] - 2026-01-25
 
 ### Changed

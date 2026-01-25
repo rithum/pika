@@ -328,6 +328,7 @@ export class ChatAppState implements IChatAppState {
     #heroWidget = $state<HeroWidgetState | undefined>(undefined);
     #heroVisible = $state(false);
     #heroCollapsed = $state(false);
+    #heroExistedBeforeCompanionMode = $state(false); // Track if hero existed before companion mode
     #spotlightVisible = $state(true);
     #spotlightInitialized = false; // Track if spotlight startCollapsed has been applied
     #companionMode = $state(false);
@@ -3725,6 +3726,11 @@ export class ChatAppState implements IChatAppState {
                 // Enter companion mode if requested via metadata options
                 const canvasOptions = metadata as { companionMode?: boolean; chatPaneMinimized?: boolean } | undefined;
                 if (canvasOptions?.companionMode) {
+                    // Track if hero existed before entering companion mode
+                    // We track existence (not visibility) because widgets often call hideHero() before renderTag()
+                    // and we want to restore the hero when companion mode exits regardless
+                    this.#heroExistedBeforeCompanionMode = this.#heroWidget !== undefined;
+                    
                     this.#companionMode = true;
                     this.#emitEvent('companionModeEnter', {});
 
@@ -3803,6 +3809,14 @@ export class ChatAppState implements IChatAppState {
             this.#emitEvent('companionModeExit', {});
             if (wasMinimized) {
                 this.#emitEvent('chatPaneExpanded', {});
+            }
+
+            // Restore hero if it existed before companion mode started
+            // Hero persists in DOM when hidden, so we show it again when exiting companion mode
+            // We check existence (not previous visibility) because widgets often call hideHero()
+            // before entering companion mode, but user expectation is hero returns when canvas closes
+            if (this.#heroWidget && this.#heroExistedBeforeCompanionMode) {
+                this.showHero();
             }
         }
     }

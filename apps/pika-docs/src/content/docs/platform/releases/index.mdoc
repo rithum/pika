@@ -7,6 +7,14 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.18.3
+
+- **Hero Restoration Fix** - Hero now properly restores when closing canvas in companion mode
+  - Handles widgets that call `hideHero()` before opening companion mode canvas
+  - Hero automatically shows again when companion mode exits
+
+**Latest Stable:** `0.18.3` (January 25, 2026)
+
 ### What's New in 0.18.2
 
 - **Hero Widget Persistence** - Hero widgets now persist in DOM when hidden
@@ -18,8 +26,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
   - Race conditions in widget injection prevented
 - **Companion Mode Improvements** - Cleaner UI when canvas is open
   - Sidebar toggle and new chat icons hidden in companion mode
-
-**Latest Stable:** `0.18.2` (January 25, 2026)
 
 ### What's New in 0.18.1
 
@@ -457,6 +463,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.18.3  | Jan 25 2026 | Patch    | Hero restoration on companion mode exit       |
 | 0.18.2  | Jan 25 2026 | Patch    | Hero persistence, widget stability fixes      |
 | 0.18.1  | Jan 25 2026 | Patch    | Hero minimized position fix                   |
 | 0.18.0  | Jan 24 2026 | Feature  | Intent Router, collapsible hero, suggestQuestion API |
