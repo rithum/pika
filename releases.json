@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.18.4",
-  "currentDevelopment": "0.18.4",
+  "latestVersion": "0.18.5",
+  "currentDevelopment": "0.18.5",
   "releases": [
+    {
+      "version": "0.18.5",
+      "date": "2026-01-26",
+      "status": "released",
+      "breaking": false,
+      "summary": "Stage placeholder in web component URLs",
+      "highlights": [
+        "Use {{stage}} placeholder in web component URLs for stage-specific deployments",
+        "Updated tag definition custom resource API properties"
+      ]
+    },
     {
       "version": "0.18.4",
       "date": "2026-01-26",
