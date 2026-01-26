@@ -1,7 +1,17 @@
 {
-  "latestVersion": "0.18.3",
-  "currentDevelopment": "0.18.3",
+  "latestVersion": "0.18.4",
+  "currentDevelopment": "0.18.4",
   "releases": [
+    {
+      "version": "0.18.4",
+      "date": "2026-01-26",
+      "status": "released",
+      "breaking": false,
+      "summary": "Various widget system fixes",
+      "highlights": [
+        "Various widget system fixes"
+      ]
+    },
     {
       "version": "0.18.3",
       "date": "2026-01-25",

@@ -38,7 +38,16 @@
     const spotlightIsVisible = $derived(chat.spotlightVisible);
     const heroIsVisible = $derived(chat.heroVisible);
     const heroIsCollapsed = $derived(chat.heroCollapsed);
-    const hasHeroWidget = $derived(!!chat.heroWidget);
+    const hasHeroWidget = $derived.by(() => {
+        const result = !!chat.heroWidget;
+        console.log(
+            '[chat-app-main] hasHeroWidget derived:',
+            result,
+            'heroWidget:',
+            chat.heroWidget ? 'exists' : 'undefined'
+        );
+        return result;
+    });
     const spotlightHasWidgets = $derived(chat.spotlightWidgets.length > 0);
 
     // Minimized/collapsed states - these go to top-left row
@@ -52,9 +61,16 @@
     const spotlightExpanded = $derived(spotlightHasWidgets && spotlightIsVisible);
     // Hero expanded: visible + not collapsed (full widget)
     const heroExpanded = $derived(hasHeroWidget && heroIsVisible && !heroIsCollapsed);
-    
+
     // Hero visibility for layout purposes (hidden in companion mode or when not visible)
-    const heroShouldShow = $derived(hasHeroWidget && !chat.isCompanionMode);
+    const heroShouldShow = $derived.by(() => {
+        const result = hasHeroWidget && !chat.isCompanionMode;
+        console.log('[chat-app-main] heroShouldShow derived:', result, {
+            hasHeroWidget,
+            isCompanionMode: chat.isCompanionMode,
+        });
+        return result;
+    });
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
@@ -399,10 +415,7 @@
         The widget can listen to heroDidShow/heroDidHide events to refresh data.
     -->
     {#if hasHeroWidget}
-        <div 
-            class:hidden={!heroShouldShow}
-            class={heroExpanded && !spotlightHasWidgets ? 'pt-4' : ''}
-        >
+        <div class:hidden={!heroShouldShow} class={heroExpanded && !spotlightHasWidgets ? 'pt-4' : ''}>
             <Hero compact={heroMinimized} />
         </div>
     {/if}
