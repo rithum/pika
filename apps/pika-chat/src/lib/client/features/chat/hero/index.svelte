@@ -9,7 +9,16 @@
     import { Button } from 'pika-ux/shadcn/button/index';
     import ChevronDown from '$icons/lucide/chevron-down';
     import ChevronUp from '$icons/lucide/chevron-up';
-    import { getContext } from 'svelte';
+    import { getContext, onMount, onDestroy } from 'svelte';
+
+    // DEBUG: Track component lifecycle
+    const componentId = Math.random().toString(36).substring(2, 8);
+    onMount(() => {
+        console.log(`[Hero Svelte:${componentId}] 🟢 MOUNTED`);
+    });
+    onDestroy(() => {
+        console.log(`[Hero Svelte:${componentId}] 🔴 DESTROYED`);
+    });
 
     interface Props {
         /** When true, removes outer padding (for side-by-side layout) */
@@ -28,6 +37,38 @@
 
     // Track the current hero widget to detect changes
     let currentHeroTagId = $state<string | undefined>(undefined);
+
+    // DEBUG: Watch for container children changes
+    $effect(() => {
+        if (!containerEl) return;
+
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    console.log('[Hero Svelte] 🔍 MutationObserver: childList changed', {
+                        addedNodes: mutation.addedNodes.length,
+                        removedNodes: mutation.removedNodes.length,
+                        containerChildCount: containerEl?.children?.length ?? 'N/A',
+                    });
+                    if (mutation.removedNodes.length > 0) {
+                        console.log(
+                            '[Hero Svelte] 🔍 REMOVED NODES:',
+                            [...mutation.removedNodes].map((n) => n.nodeName)
+                        );
+                        console.log('[Hero Svelte] 🔍 Stack trace for removal:', new Error().stack);
+                    }
+                }
+            }
+        });
+
+        observer.observe(containerEl, { childList: true, subtree: false });
+        console.log('[Hero Svelte] 🔍 MutationObserver attached to containerEl');
+
+        return () => {
+            observer.disconnect();
+            console.log('[Hero Svelte] 🔍 MutationObserver disconnected');
+        };
+    });
 
     const heroWidget = $derived(chat.heroWidget);
     const heroVisible = $derived(chat.heroVisible);
@@ -84,7 +125,19 @@
         // eslint-disable-next-line @typescript-eslint/no-unused-expressions
         heroVisible;
 
+        console.log('[Hero Svelte] Effect triggered', {
+            heroVisible,
+            hasContainerEl: !!containerEl,
+            hasHeroWidget: !!heroWidget,
+            initialized,
+            injecting,
+            currentHeroTagId,
+            instanceId,
+            containerChildCount: containerEl?.children?.length ?? 'N/A',
+        });
+
         if (!containerEl || !heroWidget) {
+            console.log('[Hero Svelte] Early return - no containerEl or heroWidget');
             return;
         }
 
@@ -94,28 +147,40 @@
         // SYNCHRONOUS guards to prevent double-injection race condition
         // The `injecting` flag prevents a second injection while the first is in progress
         if (injecting) {
+            console.log('[Hero Svelte] Early return - already injecting');
             return;
         }
 
         // Check if the web component element was destroyed (e.g., when hero was hidden)
         // If container is empty but we think we're initialized, we need to re-inject
         if (initialized && containerEl.children.length === 0) {
+            console.log('[Hero Svelte] ⚠️ Container empty but initialized=true!', {
+                initialized,
+                instanceId,
+                heroVisible,
+                containerChildCount: containerEl.children.length,
+                containerInnerHTML: containerEl.innerHTML.substring(0, 100),
+            });
+            console.log('[Hero Svelte] ⚠️ WHO CLEARED THE CONTAINER? Stack trace:', new Error().stack);
             initialized = false;
             instanceId = undefined;
         }
 
         // Only inject if this is a new/different hero widget
         if (initialized && currentHeroTagId === tagId && heroWidget.instanceId === instanceId) {
+            console.log('[Hero Svelte] Early return - already initialized with same widget');
             return;
         }
 
         // Clear container if switching to different widget
         if (currentHeroTagId !== tagId && containerEl.children.length > 0) {
+            console.log('[Hero Svelte] Clearing container - switching to different widget');
             containerEl.innerHTML = '';
             initialized = false;
         }
 
         // Set synchronous guard BEFORE async operation
+        console.log('[Hero Svelte] INJECTING new hero widget:', tagId);
         injecting = true;
         currentHeroTagId = tagId;
 
@@ -132,6 +197,7 @@
             true
         )
             .then(async (result) => {
+                console.log('[Hero Svelte] Injection SUCCESS, instanceId:', result.instanceId);
                 instanceId = result.instanceId;
 
                 // Register widget instance with ChatAppState
@@ -174,6 +240,7 @@
 
                 initialized = true;
                 injecting = false;
+                console.log('[Hero Svelte] Injection COMPLETE, initialized:', initialized);
             })
             .catch((error) => {
                 console.error('[Hero] Failed to inject widget:', error);

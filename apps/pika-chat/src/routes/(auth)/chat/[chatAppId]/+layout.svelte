@@ -156,8 +156,14 @@
                     class:flex-row-reverse={chatAppState.isCompanionMode && chatAppState.canvasOpen}
                 >
                     <!-- Chat Pane - ALWAYS rendered in same DOM location -->
+                    <!-- 
+                        CRITICAL: Children must ALWAYS be rendered to preserve widget state.
+                        We use CSS to hide/show the minimized strip overlay, NOT {#if} branches.
+                        Previously, children were only in the :else branch which caused them
+                        to be destroyed when chat pane was minimized.
+                    -->
                     <div
-                        class="h-full overflow-hidden flex-shrink-0 transition-all duration-200"
+                        class="h-full overflow-hidden flex-shrink-0 transition-all duration-200 relative"
                         class:flex-1={!chatAppState.canvasOpen || !chatAppState.canvasWidget}
                         style={chatAppState.canvasOpen && chatAppState.canvasWidget
                             ? chatAppState.isChatPaneMinimized
@@ -167,10 +173,10 @@
                                   : 'width: 50%;'
                             : ''}
                     >
+                        <!-- Minimized chat pane strip - overlays children when minimized -->
                         {#if chatAppState.isChatPaneMinimized && chatAppState.canvasOpen}
-                            <!-- Minimized chat pane strip -->
                             <button
-                                class="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors {chatAppState.isCompanionMode
+                                class="absolute inset-0 z-20 w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors {chatAppState.isCompanionMode
                                     ? 'bg-gray-25 hover:bg-gray-50 border-l border-gray-100'
                                     : 'bg-muted/50 hover:bg-muted border-r'}"
                                 onclick={() => chatAppState.setChatPaneMinimized(false)}
@@ -185,28 +191,29 @@
                                     </div>
                                 {/if}
                             </button>
-                        {:else}
-                            <!-- Chat pane content -->
-                            <div
-                                class="relative w-full h-full overflow-auto"
-                                class:bg-gray-25={chatAppState.isCompanionMode && chatAppState.canvasOpen}
-                                class:border-l={chatAppState.isCompanionMode && chatAppState.canvasOpen}
-                                class:border-gray-100={chatAppState.isCompanionMode && chatAppState.canvasOpen}
-                            >
-                                {#if chatAppState.isCompanionMode && chatAppState.canvasOpen && !chatAppState.isChatPaneMinimized}
-                                    <!-- Minimize button for companion mode -->
-                                    <button
-                                        class="absolute top-0.5 left-0.5 z-10 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                                        onclick={() => chatAppState.setChatPaneMinimized(true)}
-                                        aria-label="Minimize chat pane"
-                                        title="Minimize"
-                                    >
-                                        <ChevronsRight class="h-4 w-4" />
-                                    </button>
-                                {/if}
-                                {@render children?.()}
-                            </div>
                         {/if}
+
+                        <!-- Chat pane content - ALWAYS rendered, hidden when minimized -->
+                        <div
+                            class="relative w-full h-full overflow-auto"
+                            class:invisible={chatAppState.isChatPaneMinimized && chatAppState.canvasOpen}
+                            class:bg-gray-25={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                            class:border-l={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                            class:border-gray-100={chatAppState.isCompanionMode && chatAppState.canvasOpen}
+                        >
+                            {#if chatAppState.isCompanionMode && chatAppState.canvasOpen && !chatAppState.isChatPaneMinimized}
+                                <!-- Minimize button for companion mode -->
+                                <button
+                                    class="absolute top-0.5 left-0.5 z-10 p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                    onclick={() => chatAppState.setChatPaneMinimized(true)}
+                                    aria-label="Minimize chat pane"
+                                    title="Minimize"
+                                >
+                                    <ChevronsRight class="h-4 w-4" />
+                                </button>
+                            {/if}
+                            {@render children?.()}
+                        </div>
                     </div>
 
                     <!-- Canvas Pane - only shown when canvas is open -->
