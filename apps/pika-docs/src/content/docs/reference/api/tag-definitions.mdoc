@@ -260,16 +260,62 @@ Four widget types supported:
 
 ### Web Component Widget
 
+Web components can be loaded from S3 (via the Pika proxy) or from a direct URL.
+
+**S3-based loading (recommended):**
+
 ```typescript
 {
     type: 'web-component';
     webComponent: {
-        s3Bucket: string;
-        s3Key: string;
-        encoding?: 'gzip' | 'none';
+        s3: {
+            s3Bucket: string;
+            s3Key: string;
+        };
+        customElementName?: string;  // Custom element tag name (defaults to scope-tag)
+        encoding?: 'gzip' | 'gzip+base64' | 'none';
     };
 }
 ```
+
+**Direct URL loading:**
+
+```typescript
+{
+    type: 'web-component';
+    webComponent: {
+        url: string;                 // Direct URL to the JavaScript file
+        customElementName?: string;  // Custom element tag name (defaults to scope-tag)
+        encoding?: 'gzip' | 'gzip+base64' | 'none';
+    };
+}
+```
+
+#### Stage Placeholder in URLs
+
+When deploying tag definitions via CloudFormation custom resources, you can use the `{{stage}}` placeholder in URLs. This placeholder is automatically substituted with the actual stage value (e.g., `test`, `staging`, `prod`) at deploy time.
+
+This is useful when your web component bundles are stored in stage-specific paths:
+
+```typescript
+{
+    type: 'web-component',
+    webComponent: {
+        url: 'https://my-assets.s3.amazonaws.com/{{stage}}/components/my-widget.js',
+        customElementName: 'my-widget',
+        encoding: 'gzip+base64'
+    }
+}
+```
+
+When deployed to the `test` stage, the URL becomes:
+```
+https://my-assets.s3.amazonaws.com/test/components/my-widget.js
+```
+
+{% aside type="note" title="Why {{stage}} instead of CloudFormation intrinsics?" %}
+CloudFormation intrinsic functions like `Fn::Sub` only work on template structure, not inside JSON strings that are passed as custom resource properties. The `{{stage}}` placeholder is substituted by the tag definition custom resource Lambda after it decompresses the tag definition data, allowing stage-specific URLs without modifying your deployment architecture.
+{% /aside %}
 
 ### Pass-Through Widget
 

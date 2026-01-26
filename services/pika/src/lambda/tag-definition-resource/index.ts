@@ -75,6 +75,16 @@ export const handler: Handler = async (event: CloudFormationCustomResourceEvent,
             throw new Error('Failed to gunzip TagDefData: ' + zipErr);
         }
 
+        // Substitute {{stage}} placeholders with the actual stage value.
+        // This is needed because CloudFormation intrinsic functions (like Fn::Sub) don't work
+        // inside stringified JSON blobs that are passed as custom resource properties.
+        // Services can use {{stage}} as a placeholder in their tag definitions (e.g., in URLs)
+        // and it will be resolved here at deploy time.
+        if (tagDefDataStr.includes('{{stage}}')) {
+            tagDefDataStr = tagDefDataStr.replace(/\{\{stage\}\}/g, stage);
+            console.log('Substituted {{stage}} placeholders with:', stage);
+        }
+
         // Parse and validate tag definition (validation happens in the utility function)
         let tagDefData = parseTagDefinitionCustomResourceProperties(tagDefDataStr);
         console.log('Successfully parsed and validated TagDefData for tag:', tagDefData.tag, 'scope:', tagDefData.scope);

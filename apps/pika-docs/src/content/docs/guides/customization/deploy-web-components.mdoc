@@ -387,12 +387,40 @@ export class MyWidgetStack extends Stack {
         new CustomResource(this, 'MyWidgetTagDef', {
             serviceToken: tagDefLambdaArn,
             properties: {
-                Action: 'createOrUpdate',
-                TagDefinition: gzipAndBase64EncodeString(JSON.stringify(myWidgetTag))
+                Stage: stage,
+                TagDefData: gzipAndBase64EncodeString(JSON.stringify(myWidgetTag))
             }
         });
     }
 }
+```
+
+### Using Stage Placeholders in URLs
+
+When hosting web components on external URLs (not in the Pika S3 bucket), you may need stage-specific paths. Use the `{{stage}}` placeholder in your URLs:
+
+```typescript
+const myWidgetTag = {
+    tag: 'my-widget',
+    scope: 'acme',
+    widget: {
+        type: 'web-component',
+        webComponent: {
+            // {{stage}} is replaced with actual stage at deploy time
+            url: 'https://my-assets.s3.amazonaws.com/{{stage}}/components/my-widget.js',
+            customElementName: 'acme-my-widget',
+            encoding: 'gzip+base64'
+        }
+    }
+    // ... other fields
+};
+```
+
+When deployed to `test`, the URL becomes `https://my-assets.s3.amazonaws.com/test/components/my-widget.js`.
+
+{% aside type="note" title="Why {{stage}} instead of Fn::Sub?" %}
+CloudFormation intrinsic functions like `Fn::Sub` don't work inside JSON strings passed as custom resource properties. The `{{stage}}` placeholder is substituted by the tag definition Lambda after decompressing the tag data, enabling stage-specific URLs in your "build once, deploy to any stage" workflow.
+{% /aside %}
 ```
 
 **Deploy:**
