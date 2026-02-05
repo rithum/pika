@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.18.5",
-  "currentDevelopment": "0.18.5",
+  "latestVersion": "0.19.0",
+  "currentDevelopment": "0.19.0",
   "releases": [
+    {
+      "version": "0.19.0",
+      "date": "2026-02-05",
+      "status": "released",
+      "breaking": false,
+      "summary": "Custom logout dialog, client lifecycle hooks, and CLI sync improvements",
+      "highlights": [
+        "Custom Logout Dialog - registry pattern to replace the default logout dialog with a custom Svelte component",
+        "Client Lifecycle Hooks - onInit and onPoll extension points for custom client-side code during page load and polling",
+        "Redirect parameter on /logout-now endpoint with security validation for post-logout navigation",
+        "CLI sync now delivers protected area files on first sync when they don't exist locally",
+        "Published pika-app CLI 1.4.0 with improved protected area sync logic"
+      ]
+    },
     {
       "version": "0.18.5",
       "date": "2026-01-26",

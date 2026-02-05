@@ -7,12 +7,30 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.19.0
+
+- **Custom Logout Dialog** - Replace the default logout dialog with a custom Svelte component
+  - Registry pattern via `$lib/custom/logout-dialog.ts` - export your component or `null`
+  - Full control over dialog appearance, button actions, and pre-logout operations
+  - Access `AppState` for user data, custom data, and feature configuration
+  - See [Custom Logout Dialog guide](/guides/customization/custom-logout-dialog/)
+- **Client Lifecycle Hooks** - Run custom code during page initialization and periodic polling
+  - `onInit` runs once on page load, `onPoll` runs on each polling interval
+  - Fetch external data and store it in `user.customData` for use across extension points
+  - Configure in `$lib/custom/client-lifecycle.ts` - export functions or `null` to disable
+  - See [Client Lifecycle Hooks guide](/guides/customization/client-lifecycle-hooks/)
+- **Logout Redirect Parameter** - `/logout-now?redirect_to=/` controls post-logout navigation
+  - Security validation prevents open redirect attacks
+- **CLI Sync Improvement** - Protected area files now delivered on first sync when missing locally
+  - Ensures new extension points reach existing projects automatically
+- **CLI 1.4.0 Published** - Run `npm install -g pika-app@latest` to update
+
+**Latest Stable:** `0.19.0` (February 5, 2026)
+
 ### What's New in 0.18.5
 
 - **Stage Placeholder in URLs** - Use `{{stage}}` placeholder in web component URLs for stage-specific deployments
 - **Tag Definition Custom Resource API** - Updated to use `Stage` and `TagDefData` properties
-
-**Latest Stable:** `0.18.5` (January 26, 2026)
 
 ### What's New in 0.18.4
 
@@ -472,6 +490,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.19.0  | Feb 5 2026  | Feature  | Custom logout dialog, client lifecycle hooks  |
 | 0.18.5  | Jan 26 2026 | Feature  | Stage placeholder in web component URLs       |
 | 0.18.4  | Jan 26 2026 | Patch    | Various widget system fixes                   |
 | 0.18.3  | Jan 25 2026 | Patch    | Hero restoration on companion mode exit       |

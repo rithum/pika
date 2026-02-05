@@ -149,6 +149,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                 items: [
                     { label: 'Customize the UI', slug: 'guides/customization/ui' },
                     { label: 'UI Theming', slug: 'guides/customization/theming' },
+                    { label: 'Custom Logout Dialog', slug: 'guides/customization/custom-logout-dialog' },
+                    { label: 'Client Lifecycle Hooks', slug: 'guides/customization/client-lifecycle-hooks' },
                     { label: 'Build Custom Web Components', slug: 'guides/customization/build-web-components' },
                     { label: 'Provide Context from Widgets', slug: 'guides/customization/widget-context' },
                     { label: 'Deploy Custom Web Components', slug: 'guides/customization/deploy-web-components' },

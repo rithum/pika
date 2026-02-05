@@ -7,6 +7,44 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.19.0] - 2026-02-05
+
+### Added
+
+- **Custom Logout Dialog** - Registry pattern to replace the default logout dialog with a custom Svelte component
+    - Create a custom Svelte component with full control over appearance, actions, and pre-logout operations
+    - Register via `$lib/custom/logout-dialog.ts` - export your component or `null` to use the default
+    - Component receives `open`, `onOpenChange`, `logoutFeature`, and `stage` props
+    - Access `AppState` via `getContext('appState')` for user data, custom data, and feature configuration
+    - Typed props contract via exported `CustomLogoutDialogProps` interface
+    - New documentation: [Custom Logout Dialog](/guides/customization/custom-logout-dialog/)
+
+- **Client Lifecycle Hooks** - Extension points for running custom client-side code during page load and polling
+    - `onInit` hook runs once during layout initialization for one-time setup (e.g., fetching external session data)
+    - `onPoll` hook runs on each polling interval to keep client-side state current
+    - Both hooks receive `appState`, `stage`, and SvelteKit's `fetchFn` for environment-aware API calls
+    - Store fetched data in `user.customData` via `appState.updateUser()` for use across extension points
+    - Configure in `$lib/custom/client-lifecycle.ts` - export functions or `null` to disable
+    - New documentation: [Client Lifecycle Hooks](/guides/customization/client-lifecycle-hooks/)
+
+- **Logout Redirect Parameter** - `/logout-now` endpoint supports `redirect_to` query parameter for post-logout navigation
+    - `redirect_to` parameter takes highest priority, then auth provider return, then default `/login`
+    - Security validation rejects absolute URLs, protocol-relative URLs, javascript/data URLs, and path traversal
+    - Enables custom logout dialogs to control where users land after logout (e.g., home page instead of login)
+
+### Changed
+
+- **CLI Sync: Protected Area First-Time Delivery** - Protected areas are now delivered on first sync when they don't exist locally
+    - Previously, `pika sync` would skip all protected areas entirely, even on first setup
+    - Now syncs protected files that don't exist yet, preserving existing files as before
+    - Recurses into protected directories to find and deliver any missing files
+    - Ensures new extension points (e.g., `client-lifecycle.ts`, `logout-dialog.ts`) are delivered to existing projects
+
+- **CLI Package Published** - Published pika-app CLI version 1.4.0 to npm
+    - Run `npm install -g pika-app@latest` to get the updated CLI
+
+---
+
 ## [0.18.5] - 2026-01-26
 
 ### Added

@@ -16,7 +16,7 @@ import {
 } from '$lib/server/cookies';
 import { KeyManager } from '$lib/server/encryption/KeyManager';
 import { KeyManagerFactory } from '$lib/server/encryption/KeyManagerFactory';
-import { addSecurityHeaders, arraysEqual, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser } from '$lib/server/utils';
+import { addSecurityHeaders, arraysEqual, isUserAllowedToUseUserDataOverrides, isUserContentAdmin, mergeAuthenticatedUserWithExistingChatUser, validateRedirectPath } from '$lib/server/utils';
 import { redirect, type Handle, type RequestEvent, type ServerInit } from '@sveltejs/kit';
 import deepEqual from 'deep-equal';
 import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
@@ -556,13 +556,25 @@ export const handle: Handle = async ({ event, resolve }) => {
     // If this is the logout now path, then we need to call the logout method on the auth provider and clear the cookies
     if (pathName === '/logout-now') {
         clearAllCookies(event);
+
         let redirectTo = '/login';
+
+        // If auth provider provides logout URL, use that as base
         if (authProvider.logout) {
             let path: string | undefined = await authProvider.logout(event, user);
             if (path) {
                 redirectTo = path;
             }
         }
+
+        // Check for redirect_to query parameter (used by custom logout dialogs)
+        // Only relative paths within the app are allowed for security
+        const redirectParam = event.url.searchParams.get('redirect_to');
+        const validatedRedirect = validateRedirectPath(redirectParam);
+        if (validatedRedirect) {
+            redirectTo = validatedRedirect;
+        }
+
         return redirect(302, redirectTo);
     }
 

@@ -985,14 +985,27 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
 
         logger.debug(`[DEBUG] Processing: ${relativeFilePath}`);
 
-        // Skip protected areas
-        if (isProtectedArea(relativeFilePath, protectedAreas)) {
-            logger.debug(`[DEBUG] Skipping protected area: ${relativeFilePath}`);
-            continue;
-        }
-
-        // Check if this is a directory
+        // Check if this is a directory (needed before protected area check)
         const isDirectory = file.isDirectory();
+
+        // Skip protected areas — unless the target doesn't exist locally (first-time sync)
+        if (isProtectedArea(relativeFilePath, protectedAreas)) {
+            const targetExists = await fileManager.exists(targetFilePath);
+            if (targetExists) {
+                if (isDirectory) {
+                    // Protected directory exists — recurse to find any missing files inside
+                    logger.debug(`[DEBUG] Protected directory exists, recursing to check for missing files: ${relativeFilePath}`);
+                    await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+                } else {
+                    // Protected file exists — skip to preserve user customizations
+                    logger.debug(`[DEBUG] Skipping protected file (exists locally): ${relativeFilePath}`);
+                }
+                continue;
+            }
+            // Target doesn't exist locally — allow through for first-time sync
+            logger.info(`Protected area missing locally, will sync: ${relativeFilePath}`);
+            // Fall through to normal processing (directory recursion or file comparison)
+        }
 
         // Skip directories we don't want to sync
         if (isDirectory && shouldSkipDirectory(relativeFilePath)) {

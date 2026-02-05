@@ -4,6 +4,8 @@
     import { AppState } from '$client/app/app.state.svelte';
     import { MarkdownRendererFactory } from '$client/app/markdown-renderer-factory';
     import AppSettings from '$client/app/settings/app-settings.svelte';
+    import { onInit, onPoll } from '$lib/custom/client-lifecycle';
+    import { CustomLogoutDialog } from '$lib/custom/logout-dialog';
     import { hasUserDataChanged } from '$lib/utils/user-data-version';
     import type {
         ChatAppLite,
@@ -16,7 +18,7 @@
     import Button from 'pika-ux/shadcn/button/button.svelte';
     import * as Dialog from 'pika-ux/shadcn/dialog';
     import { Toaster } from 'pika-ux/shadcn/sonner';
-    import { setContext, type Snippet } from 'svelte';
+    import { setContext, untrack, type Snippet } from 'svelte';
     import { toast } from 'svelte-sonner';
 
     interface Props {
@@ -28,6 +30,7 @@
             homePageSiteFeature: HomePageSiteFeature | undefined;
             logoutSiteFeature: LogoutFeature | undefined;
             chatApps: ChatAppLite[];
+            stage: string;
         };
         children?: Snippet<[]>;
     }
@@ -116,6 +119,16 @@
     $effect(() => {
         initialize();
         setupPeriodicUserRefresh();
+        // untrack prevents the $effect from subscribing to reactive state read
+        // inside onInit (e.g., appState.identity.user), which would cause an
+        // infinite loop: onInit reads user -> updateUser mutates user -> $effect re-runs
+        untrack(() => {
+            if (onInit) {
+                onInit(appState, data.stage, svelteKitFetch).catch(() => {
+                    // Swallow errors from custom hooks - don't break the app
+                });
+            }
+        });
     });
 
     async function initialize() {
@@ -151,6 +164,11 @@
 
                     // Invalidate user data - should now trigger both parent and child layout server functions
                     await invalidate('app:user-data');
+
+                    // Run custom polling hook if configured
+                    if (onPoll) {
+                        await onPoll(appState, data.stage, svelteKitFetch);
+                    }
 
                     // console.log('[Layout.svelte] Polling: invalidate completed successfully');
                 } catch (error) {
@@ -216,32 +234,45 @@
 <Toaster position="top-center" richColors closeButton />
 
 {#if appState && appState.logoutSiteFeature && appState.logoutSiteFeature.enabled}
-    <Dialog.Root
-        bind:open={appState.showLogoutDialog}
-        onOpenChange={() => {
-            if (!appState.showLogoutDialog) {
-                appState.showLogoutDialog = false;
-            }
-        }}
-    >
-        <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
-            <Dialog.Title>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Dialog.Title>
+    {#if CustomLogoutDialog}
+        <!-- Use custom logout dialog from registry -->
+        <CustomLogoutDialog
+            open={appState.showLogoutDialog}
+            onOpenChange={(open) => {
+                appState.showLogoutDialog = open;
+            }}
+            logoutFeature={appState.logoutSiteFeature}
+            stage={data.stage}
+        />
+    {:else}
+        <!-- Default logout dialog -->
+        <Dialog.Root
+            bind:open={appState.showLogoutDialog}
+            onOpenChange={() => {
+                if (!appState.showLogoutDialog) {
+                    appState.showLogoutDialog = false;
+                }
+            }}
+        >
+            <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
+                <Dialog.Title>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Dialog.Title>
 
-            {appState.logoutSiteFeature.dialogDescription ?? 'Are you sure you want to logout?'}
-            <Dialog.Footer>
-                <Button
-                    variant="default"
-                    onclick={() => {
-                        window.location.href = '/logout-now';
-                    }}>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Button
-                >
-                <Button
-                    variant="outline"
-                    onclick={() => {
-                        appState.showLogoutDialog = false;
-                    }}>Cancel</Button
-                >
-            </Dialog.Footer>
-        </Dialog.Content>
-    </Dialog.Root>
+                {appState.logoutSiteFeature.dialogDescription ?? 'Are you sure you want to logout?'}
+                <Dialog.Footer>
+                    <Button
+                        variant="default"
+                        onclick={() => {
+                            window.location.href = '/logout-now';
+                        }}>{appState.logoutSiteFeature.dialogTitle ?? 'Logout'}</Button
+                    >
+                    <Button
+                        variant="outline"
+                        onclick={() => {
+                            appState.showLogoutDialog = false;
+                        }}>Cancel</Button
+                    >
+                </Dialog.Footer>
+            </Dialog.Content>
+        </Dialog.Root>
+    {/if}
 {/if}
