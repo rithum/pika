@@ -1,0 +1,240 @@
+---
+title: Client Lifecycle Hooks
+description: Run custom client-side code during page initialization and periodic polling
+---
+
+Learn how to use client lifecycle hooks to run custom code when the application loads and during periodic background polling, enabling features like external session tracking and custom state management.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create client lifecycle hooks (`onInit` and `onPoll`)
+- Fetch external data and store it in user `customData`
+- Make that data available to other extension points (e.g., the custom logout dialog)
+- Understand how to enable/disable the hooks
+
+## Prerequisites
+
+- A running Pika installation
+- Understanding of Svelte 5 and async/await
+- Familiarity with the Pika `AppState` and `ChatUser` types
+
+## Understanding the Extension Point
+
+Pika's core layout (`+layout.svelte`) runs two categories of client-side code:
+
+1. **Initialization** - Code that runs once when the page loads (inside `$effect`)
+2. **Polling** - Code that runs periodically to keep data fresh (inside `setInterval`)
+
+The **client lifecycle hooks** extension point lets you inject custom code into both of these phases. The hooks are defined in a registry file and called by the core layout at the right times.
+
+```
+Page Load:
+  +layout.svelte -> $effect -> initialize() + setupPeriodicUserRefresh() + onInit()
+
+Polling Interval:
+  +layout.svelte -> setInterval -> invalidate('app:user-data') + onPoll()
+```
+
+{% aside type="note" title="When to Use This" %}
+Use client lifecycle hooks when you need to:
+- Fetch session data from an external system on every page load
+- Keep custom client-side state in sync during polling intervals
+- Store data in `user.customData` for use by other extension points
+- Run initialization code that must survive Pika sync updates
+{% /aside %}
+
+## Step 1: Create the Lifecycle Hooks File
+
+Create the hooks file in the protected customization area.
+
+**Location:** `src/lib/custom/client-lifecycle.ts`
+
+```typescript
+import type { AppState } from '$client/app/app.state.svelte';
+import type { ChatUser } from 'pika-shared/types/chatbot/chatbot-types';
+
+/**
+ * Called once during layout $effect (alongside initialize and setupPeriodicUserRefresh).
+ * Use this for one-time client-side initialization that needs to run on page load.
+ */
+export async function onInit(
+    appState: AppState,
+    stage: string,
+    fetchFn: typeof fetch
+): Promise<void> {
+    await fetchSessionInfo(appState, stage, fetchFn);
+}
+
+/**
+ * Called on each polling interval after invalidate('app:user-data').
+ * Use this to keep custom client-side state current between server refreshes.
+ */
+export async function onPoll(
+    appState: AppState,
+    stage: string,
+    fetchFn: typeof fetch
+): Promise<void> {
+    await fetchSessionInfo(appState, stage, fetchFn);
+}
+
+async function fetchSessionInfo(
+    appState: AppState,
+    stage: string,
+    fetchFn: typeof fetch
+): Promise<void> {
+    try {
+        const url = `some-url.com/session-info.json`;
+        const response = await fetchFn(url, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' }
+        });
+
+        if (response.ok) {
+            const sessionInfo = await response.json();
+            const currentUser = appState.identity.user;
+            const updatedUser = {
+                ...currentUser,
+                customData: {
+                    ...(currentUser.customData || {}),
+                    someValue: sessionInfo.someValue
+                }
+            } as unknown as ChatUser;
+            appState.updateUser(updatedUser);
+        }
+    } catch {
+        // External endpoint may not be available - don't block anything
+    }
+}
+```
+
+### Hook Signatures
+
+Both hooks receive the same arguments:
+
+- `appState: AppState` - The application state instance, providing access to `identity`, `updateUser()`, etc.
+- `stage: string` - The current deployment stage (e.g., `dev`, `prod`), useful for building environment-specific URLs
+- `fetchFn: typeof fetch` - SvelteKit's `fetch` function, which handles cookies and relative URLs correctly
+
+Both hooks are `async` and return `Promise<void>`. Errors thrown inside hooks are caught by the core layout and do not break the application.
+
+## Step 2: How It Gets Called
+
+The core layout automatically imports and calls your hooks. No additional wiring is needed.
+
+**In the `$effect` (page load):**
+
+```typescript
+$effect(() => {
+    initialize();
+    setupPeriodicUserRefresh();
+    if (onInit) {
+        onInit(appState, data.stage, svelteKitFetch);
+    }
+});
+```
+
+**In the polling interval:**
+
+```typescript
+await invalidate('app:user-data');
+if (onPoll) {
+    await onPoll(appState, data.stage, svelteKitFetch);
+}
+```
+
+The `if (onInit)` / `if (onPoll)` guards ensure the hooks are only called when they are actual functions (not `null`).
+
+## Disabling the Hooks
+
+To disable custom lifecycle hooks, export `null` instead of functions:
+
+```typescript
+/**
+ * Custom lifecycle hooks disabled - no custom init/poll needed.
+ */
+export const onInit = null;
+export const onPoll = null;
+```
+
+## Reading Hook Data from Other Extension Points
+
+Data stored in `user.customData` by the hooks is available anywhere `AppState` is accessible. For example, in a [custom logout dialog](/guides/customization/custom-logout-dialog/):
+
+```svelte
+<script lang="ts">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import { getContext } from 'svelte';
+
+    const appState = getContext<AppState>('appState');
+
+    // Read data populated by client lifecycle hooks
+    const isEmployee = $derived.by(() => {
+        const customData = appState.identity.user.customData as
+            Record<string, unknown> | undefined;
+        return !!(customData?.loggedInViaTools && customData?.employeeId);
+    });
+</script>
+
+{#if isEmployee}
+    <p>You are logged in as an employee.</p>
+{/if}
+```
+
+## Best Practices
+
+### 1. Keep Hooks Fast
+
+Both `onInit` and `onPoll` run in the critical path. Avoid heavy computations or long chains of sequential API calls.
+
+### 2. Handle Failures Silently
+
+External endpoints may be unavailable. Always wrap fetches in try/catch and do not throw:
+
+```typescript
+try {
+    const response = await fetchFn(url, { credentials: 'include' });
+    // ... process response
+} catch {
+    // Expected to fail sometimes - don't block the app
+}
+```
+
+### 3. Use `fetchFn`, Not Global `fetch`
+
+SvelteKit's fetch handles cookies, relative URLs, and server-side rendering correctly. Always use the provided `fetchFn` parameter.
+
+### 4. Store Data in `customData`
+
+Use `appState.updateUser()` to persist fetched data into `user.customData`. This makes it available to any component that reads from `AppState`:
+
+```typescript
+const updatedUser = {
+    ...appState.identity.user,
+    customData: {
+        ...(appState.identity.user.customData || {}),
+        myField: fetchedValue
+    }
+} as unknown as ChatUser;
+appState.updateUser(updatedUser);
+```
+
+### 5. Don't Duplicate What Polling Already Does
+
+The core layout already calls `invalidate('app:user-data')` on each poll interval, which refreshes server-side data. Use `onPoll` only for client-side data that the server doesn't provide (e.g., external session info).
+
+## How It Works with Pika Sync
+
+The `client-lifecycle.ts` file lives in the `$lib/custom/` protected area. Pika sync will:
+
+- **Deliver the file** on first sync if it doesn't exist locally
+- **Never overwrite** the file once it exists, preserving your customizations
+
+This means you can safely modify the hooks without worrying about sync overwriting your changes.
+
+## Related Documentation
+
+- [Custom Logout Dialog](/guides/customization/custom-logout-dialog/) - Customize the logout experience
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Set custom data during authentication
+- [Override Default Features](/guides/customization/override-features/) - Feature-level customization

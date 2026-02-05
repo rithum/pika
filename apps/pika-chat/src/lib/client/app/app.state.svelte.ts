@@ -10,6 +10,7 @@ import type {
     HomePageSiteFeature,
     LogoutFeature,
     MarkdownRendererConfig,
+    RecordOrUndef,
     ShowToastFn,
     SiteFeatures,
     TagDefinition,
@@ -204,7 +205,7 @@ export class AppState implements IAppState {
     /**
      * Updates the user data across all relevant state objects when server-side changes are detected
      */
-    updateUser(newUser: ChatUser) {
+    updateUser(newUser: ChatUser<RecordOrUndef>) {
         this.#identity.updateUser(newUser);
     }
 

@@ -330,3 +330,49 @@ export function parseWebComponentUrlsFromEnvVar(envVar: string): Record<string, 
         return result;
     }
 }
+
+/**
+ * Validates that a redirect URL is safe to use.
+ * Only allows relative paths (starting with /) to prevent open redirect attacks.
+ *
+ * @param redirectPath - The redirect path to validate
+ * @returns The validated path if safe, or null if unsafe
+ */
+export function validateRedirectPath(redirectPath: string | null): string | null {
+    if (!redirectPath || redirectPath.trim() === '') {
+        return null;
+    }
+
+    // Reject absolute URLs (http://, https://)
+    if (redirectPath.match(/^https?:\/\//i)) {
+        console.warn('[Utils] Rejected absolute URL redirect:', redirectPath);
+        return null;
+    }
+
+    // Reject protocol-relative URLs (//)
+    if (redirectPath.startsWith('//')) {
+        console.warn('[Utils] Rejected protocol-relative URL redirect:', redirectPath);
+        return null;
+    }
+
+    // Reject javascript: and data: URLs
+    if (redirectPath.match(/^(javascript|data):/i)) {
+        console.warn('[Utils] Rejected dangerous protocol redirect:', redirectPath);
+        return null;
+    }
+
+    // Only allow relative paths starting with /
+    if (!redirectPath.startsWith('/')) {
+        console.warn('[Utils] Rejected non-relative path redirect:', redirectPath);
+        return null;
+    }
+
+    // Reject path traversal attempts - check if any segment is '..'
+    const pathSegments = redirectPath.split('/').filter((segment) => segment.length > 0);
+    if (pathSegments.includes('..')) {
+        console.warn('[Utils] Rejected path traversal attempt:', redirectPath);
+        return null;
+    }
+
+    return redirectPath;
+}

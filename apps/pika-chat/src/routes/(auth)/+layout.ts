@@ -20,6 +20,7 @@ export async function load({ fetch, data }: LoadEvent) {
         customDataUiRepresentation: data.customDataUiRepresentation,
         homePageSiteFeature: data.homePageSiteFeature,
         logoutSiteFeature: data.logoutSiteFeature,
-        chatApps: data.chatApps
+        chatApps: data.chatApps,
+        stage: data.stage as string
     };
 }

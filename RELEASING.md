@@ -54,7 +54,7 @@ git checkout -b feat/custom-title-actions
 git commit -m "feat: add custom title bar actions"
 
 # 3. Update release notes (auto-detects minor bump: 0.5.0 → 0.6.0)
-pnpm release:notes
+pnpm run release:notes
 # → Creates/updates unreleased version
 # → Copy prompt → Cursor Composer → Review & Accept
 
@@ -576,30 +576,25 @@ pnpm release:plan-breaking
 Every release touches these files:
 
 1. **releases.json**
-
     - Add/update version entry
     - Set status: "unreleased" → "released"
     - Update latestVersion when publishing
 
 2. **CHANGELOG.md**
-
     - Add entries to version section (e.g., `## [0.5.0]`)
     - NO MORE `[Unreleased]` section
     - Use actual version numbers immediately
 
 3. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc**
-
     - Keep in sync with CHANGELOG.md
     - Cursor AI updates both simultaneously
 
 4. **Migration Guide** (if breaking)
-
     - Create at `apps/pika-docs/src/content/docs/platform/releases/migration-guides/<name>.mdoc`
     - Follow template structure
     - Include before/after examples
 
 5. **apps/pika-docs/sidebar-config.ts** (if new migration guide)
-
     - Add to Platform Info → Releases → Migration Guides sidebar navigation in `sidebarTopics` array if needed
 
 6. **apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc**
@@ -614,20 +609,17 @@ The release tool leverages Cursor's AI to automate documentation:
 ### How It Works
 
 1. **Tool analyzes your changes**:
-
     - Git commits since last sync
     - Uncommitted changes (optional)
     - Feature doc updates
 
 2. **Generates structured prompt**:
-
     - Includes all commit history
     - Specifies version number
     - Provides formatting rules
     - Lists files to update
 
 3. **Cursor AI updates documentation**:
-
     - CHANGELOG.md
     - apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc
     - Both updated in one operation

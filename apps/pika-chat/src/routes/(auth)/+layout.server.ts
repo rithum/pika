@@ -1,4 +1,5 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
+import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { handleApiGatewayError } from '$lib/server/utils';
 import { createUserDataVersion } from '$lib/utils/user-data-version';
@@ -93,6 +94,7 @@ export const load: LayoutServerLoad = async ({ depends, locals }) => {
         customDataUiRepresentation,
         homePageSiteFeature,
         logoutSiteFeature,
-        chatApps
+        chatApps,
+        stage: appConfig.stage
     };
 };

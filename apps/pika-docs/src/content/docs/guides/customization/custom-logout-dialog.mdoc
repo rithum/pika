@@ -1,0 +1,323 @@
+---
+title: Custom Logout Dialog
+description: Replace the default logout dialog with a custom implementation for advanced logout flows
+---
+
+Learn how to customize the logout dialog in Pika Framework, enabling advanced logout scenarios such as multi-system logout, session refresh flows, or custom logout confirmations.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create a custom logout dialog component
+- Register it using the logout dialog registry
+- Handle complex logout flows (e.g., logging out of multiple systems)
+- Use the `redirect_to` parameter for post-logout navigation
+- Access application state within your custom dialog
+
+## Prerequisites
+
+- A running Pika installation
+- Understanding of Svelte 5 components and runes
+- Familiarity with the Pika authentication system
+
+## Understanding the Extension Point
+
+Pika uses a **registry pattern** for the logout dialog. A registry file (`$lib/custom/logout-dialog.ts`) controls whether a custom component is used. When your custom component is exported from the registry, it completely replaces the default logout dialog, giving you full control over:
+
+- Dialog appearance and styling
+- Button actions and labels
+- Pre-logout operations (e.g., calling external logout endpoints)
+- Post-logout redirect destination
+
+{% aside type="note" title="When to Use This" %}
+Use a custom logout dialog when you need to:
+- Log users out of multiple systems (e.g., SSO + your app)
+- Show different options based on how the user logged in
+- Implement a "refresh session" flow that logs out and re-authenticates
+- Redirect to the home page instead of the login page after logout
+- Add custom confirmation steps before logout
+{% /aside %}
+
+## Step 1: Create Your Custom Logout Dialog
+
+Create a Svelte component in the protected customization area.
+
+**Location:** `src/lib/custom/components/CustomLogoutDialog.svelte`
+
+```svelte
+<script lang="ts">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import type { LogoutFeature } from 'pika-shared/types/chatbot/chatbot-types';
+    import Button from 'pika-ux/shadcn/button/button.svelte';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { getContext } from 'svelte';
+
+    interface Props {
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+        logoutFeature: LogoutFeature | undefined;
+        stage: string;
+    }
+
+    const { open, onOpenChange, logoutFeature }: Props = $props();
+    const appState = getContext<AppState>('appState');
+
+    const dialogTitle = $derived(logoutFeature?.dialogTitle ?? 'Logout');
+    const dialogDescription = $derived(
+        logoutFeature?.dialogDescription ?? 'Are you sure you want to logout?'
+    );
+
+    function handleLogout() {
+        // Logout and redirect to home page instead of login page
+        window.location.href = '/logout-now?redirect_to=/';
+    }
+
+    function handleCancel() {
+        onOpenChange(false);
+    }
+</script>
+
+<Dialog.Root {open} {onOpenChange}>
+    <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
+        <Dialog.Title>{dialogTitle}</Dialog.Title>
+
+        <p>{dialogDescription}</p>
+
+        <Dialog.Footer>
+            <Button variant="default" onclick={handleLogout}>{dialogTitle}</Button>
+            <Button variant="outline" onclick={handleCancel}>Cancel</Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+```
+
+### Component Props
+
+Your custom dialog receives these props from the core layout:
+
+- `open` - Whether the dialog is currently visible
+- `onOpenChange` - Callback to control dialog visibility
+- `logoutFeature` - The logout feature configuration from `pika-config.ts`
+- `stage` - The current deployment stage (e.g., `dev`, `prod`)
+
+### Accessing Application State
+
+Use `getContext('appState')` to access the full `AppState`, which provides:
+
+- `appState.identity.user` - Current authenticated user
+- `appState.identity.user.customData` - Custom data (e.g., set by [client lifecycle hooks](/guides/customization/client-lifecycle-hooks/))
+- `appState.identity.user.userType` - User type (`internal-user` or `external-user`)
+- `appState.logoutSiteFeature` - Logout feature configuration
+
+{% aside type="caution" title="Don't control visibility via appState" %}
+Use the `open` prop and `onOpenChange` callback to control dialog visibility. Do not bind directly to `appState.showLogoutDialog` from within the component.
+{% /aside %}
+
+## Step 2: Register Your Custom Dialog
+
+Export your component from the logout dialog registry.
+
+**Location:** `src/lib/custom/logout-dialog.ts`
+
+```typescript
+/**
+ * Custom Logout Dialog Registry
+ *
+ * To ENABLE custom logout:
+ *   Import and export your custom dialog component.
+ *
+ * To DISABLE custom logout (use default behavior):
+ *   export const CustomLogoutDialog = null;
+ */
+import CustomLogoutDialog from './components/CustomLogoutDialog.svelte';
+
+export { CustomLogoutDialog };
+```
+
+To disable the custom dialog and revert to default behavior, change the export to `null`:
+
+```typescript
+export const CustomLogoutDialog = null;
+```
+
+{% aside type="note" title="No Configuration Setting Required" %}
+The registry pattern means no `pika-config.ts` changes are needed. The core layout checks if the registry exports a component or `null` and renders accordingly.
+{% /aside %}
+
+## Using the Redirect Parameter
+
+The `/logout-now` endpoint supports a `redirect_to` query parameter that specifies where to send the user after logout.
+
+### How It Works
+
+```
+/logout-now                         -> Redirects to /login (default)
+/logout-now?redirect_to=/           -> Redirects to / (home)
+/logout-now?redirect_to=/welcome    -> Redirects to /welcome
+```
+
+### Redirect Priority
+
+The redirect destination is determined in this order:
+
+1. **`redirect_to` Query Parameter** - If provided and validated, this takes priority
+2. **Auth Provider Return** - If your `AuthProvider.logout()` method returns a path
+3. **Default** - Falls back to `/login`
+
+### Security Validation
+
+The `redirect_to` parameter is validated to prevent open redirect attacks:
+
+- Relative paths starting with `/` are allowed
+- Absolute URLs (`https://...`) are rejected
+- Protocol-relative URLs (`//...`) are rejected
+- JavaScript/data URLs are rejected
+- Path traversal attempts (`../`) are rejected
+
+```typescript
+// Valid redirects
+'/logout-now?redirect_to=/'           // Home page
+'/logout-now?redirect_to=/dashboard'  // Dashboard
+'/logout-now?redirect_to=/app/chat'   // Nested path
+
+// Invalid redirects (will use default /login)
+'/logout-now?redirect_to=https://evil.com'  // Absolute URL
+'/logout-now?redirect_to=//evil.com'        // Protocol-relative
+'/logout-now?redirect_to=javascript:alert'  // JavaScript URL
+'/logout-now?redirect_to=/../etc/passwd'    // Path traversal
+```
+
+## Example: Employee-Aware Logout with Refresh Session
+
+When combined with [client lifecycle hooks](/guides/customization/client-lifecycle-hooks/), your custom dialog can detect employee status and offer a "Refresh Session" option:
+
+```svelte
+<script lang="ts">
+    import type { AppState } from '$client/app/app.state.svelte';
+    import type { LogoutFeature } from 'pika-shared/types/chatbot/chatbot-types';
+    import Button from 'pika-ux/shadcn/button/button.svelte';
+    import * as Dialog from 'pika-ux/shadcn/dialog';
+    import { getContext } from 'svelte';
+
+    interface Props {
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+        logoutFeature: LogoutFeature | undefined;
+        stage: string;
+    }
+
+    const { open, onOpenChange, logoutFeature }: Props = $props();
+    const appState = getContext<AppState>('appState');
+
+    const dialogTitle = $derived(logoutFeature?.dialogTitle ?? 'Logout');
+    const dialogDescription = $derived(
+        logoutFeature?.dialogDescription ?? 'Are you sure you want to logout?'
+    );
+
+    // Derive employee status from customData (populated by client lifecycle hooks)
+    const isEmployee = $derived.by(() => {
+        const customData = appState.identity.user.customData as
+            Record<string, unknown> | undefined;
+        return !!(customData?.loggedInViaTools && customData?.employeeId);
+    });
+
+    function handleLogout() {
+        window.location.href = '/logout-now?redirect_to=/';
+    }
+
+    function handleRefreshSession() {
+        // Redirect to home without clearing auth cookies - triggers re-authentication
+        window.location.href = '/';
+    }
+
+    function handleCancel() {
+        onOpenChange(false);
+    }
+</script>
+
+<Dialog.Root {open} {onOpenChange}>
+    <Dialog.Content class="w-[800px] max-w-[400px] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
+        <Dialog.Title>{dialogTitle}</Dialog.Title>
+
+        <p>{dialogDescription}</p>
+
+        <Dialog.Footer>
+            <Button variant="default" onclick={handleLogout}>{dialogTitle}</Button>
+            {#if isEmployee}
+                <Button variant="secondary" onclick={handleRefreshSession}>
+                    Refresh Session
+                </Button>
+            {/if}
+            <Button variant="outline" onclick={handleCancel}>Cancel</Button>
+        </Dialog.Footer>
+    </Dialog.Content>
+</Dialog.Root>
+```
+
+## Best Practices
+
+### 1. Handle Fetch Failures Gracefully
+
+External logout calls may fail due to network issues. Always continue with the Pika logout:
+
+```typescript
+try {
+    await fetch(externalLogoutUrl, { credentials: 'include' });
+} catch (error) {
+    // Log but don't block logout
+    console.log('External logout failed:', error);
+}
+// Always proceed with Pika logout
+window.location.href = '/logout-now';
+```
+
+### 2. Use the Stage Parameter
+
+Build environment-specific URLs using the `stage` prop:
+
+```typescript
+const apiUrl = stage === 'prod'
+    ? 'https://api.yourcompany.com'
+    : `https://${stage}-api.yourcompany.com`;
+```
+
+### 3. Keep the Dialog Simple
+
+The logout dialog should be fast and reliable. Avoid:
+- Heavy computations
+- Multiple sequential API calls
+- Blocking operations before showing the dialog
+
+### 4. Test All Logout Paths
+
+Ensure all logout scenarios work correctly:
+- Standard logout with redirect -> specified path
+- Multi-system logout -> both systems logged out
+- Cancel -> dialog closes, no logout
+
+## Troubleshooting
+
+**Dialog doesn't appear**
+- Verify the registry file (`$lib/custom/logout-dialog.ts`) exports your component (not `null`)
+- Ensure there are no JavaScript errors in the console
+- Check that the logout site feature is enabled in `pika-config.ts`
+
+**Redirect parameter ignored**
+- Verify the parameter name is `redirect_to` (not `redirect`)
+- Verify the path starts with `/`
+- Check for path traversal characters (`..`)
+- Check the server logs for validation rejection warnings (e.g., `[Utils] Rejected absolute URL redirect`)
+
+**External logout fails silently**
+- Check browser console for CORS errors
+- Verify credentials are being sent (`credentials: 'include'`)
+- Confirm the external endpoint allows cross-origin requests
+
+## Related Documentation
+
+- [Client Lifecycle Hooks](/guides/customization/client-lifecycle-hooks/) - Run custom code on page load and during polling
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Set custom data during authentication
+- [Customize the UI](/guides/customization/ui/) - Other UI customization options
+- [Override Default Features](/guides/customization/override-features/) - Feature-level customization
+- [Site Features Reference](/reference/configuration/site-features/) - All site feature options
