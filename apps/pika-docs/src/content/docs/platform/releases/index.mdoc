@@ -7,6 +7,14 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.19.1
+
+- **CLI Sync Fix** - Framework-internal files (`.github/`, `RELEASING.md`) no longer leak into user projects via sync
+- **CLI Create-App Fix** - New projects no longer include `RELEASING.md` and `RELEASE-SYSTEM-SUMMARY.md`
+- **CLI 1.4.1 Published** - Run `npm install -g pika-app@latest` to update
+
+**Latest Stable:** `0.19.1` (February 5, 2026)
+
 ### What's New in 0.19.0
 
 - **Custom Logout Dialog** - Replace the default logout dialog with a custom Svelte component
@@ -24,8 +32,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **CLI Sync Improvement** - Protected area files now delivered on first sync when missing locally
   - Ensures new extension points reach existing projects automatically
 - **CLI 1.4.0 Published** - Run `npm install -g pika-app@latest` to update
-
-**Latest Stable:** `0.19.0` (February 5, 2026)
 
 ### What's New in 0.18.5
 
@@ -490,6 +496,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.19.1  | Feb 5 2026  | Patch    | CLI fix: framework-internal files no longer sync to user projects |
 | 0.19.0  | Feb 5 2026  | Feature  | Custom logout dialog, client lifecycle hooks  |
 | 0.18.5  | Jan 26 2026 | Feature  | Stage placeholder in web component URLs       |
 | 0.18.4  | Jan 26 2026 | Patch    | Various widget system fixes                   |
