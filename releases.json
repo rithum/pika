@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.19.0",
-  "currentDevelopment": "0.19.0",
+  "latestVersion": "0.19.1",
+  "currentDevelopment": "0.19.1",
   "releases": [
+    {
+      "version": "0.19.1",
+      "date": "2026-02-06",
+      "status": "released",
+      "breaking": false,
+      "summary": "CLI fix: framework-internal files no longer sync to user projects",
+      "highlights": [
+        "Fixed pika sync incorrectly delivering framework-internal files (.github/, RELEASING.md) to user projects",
+        "Fixed pika create-app not removing RELEASING.md and RELEASE-SYSTEM-SUMMARY.md from new projects",
+        "Published pika-app CLI 1.4.1 with sync and create-app fixes"
+      ]
+    },
     {
       "version": "0.19.0",
       "date": "2026-02-05",

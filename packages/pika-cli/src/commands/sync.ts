@@ -985,8 +985,22 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
 
         logger.debug(`[DEBUG] Processing: ${relativeFilePath}`);
 
-        // Check if this is a directory (needed before protected area check)
+        // Check if this is a directory (needed before all other checks)
         const isDirectory = file.isDirectory();
+
+        // Hard-skip directories and framework-internal files FIRST, before any
+        // protected-area logic can recurse into them. Without this ordering,
+        // a directory like .github that is both in the skip list AND the
+        // protected areas list would be recursed into by the protected-area
+        // "find missing files" logic, leaking framework-internal files.
+        if (isDirectory && shouldSkipDirectory(relativeFilePath)) {
+            logger.debug(`[DEBUG] Skipping directory (shouldSkipDirectory): ${relativeFilePath}`);
+            continue;
+        }
+        if (!isDirectory && isFrameworkInternalFile(relativeFilePath)) {
+            logger.debug(`[DEBUG] Skipping framework-internal file: ${relativeFilePath}`);
+            continue;
+        }
 
         // Skip protected areas — unless the target doesn't exist locally (first-time sync)
         if (isProtectedArea(relativeFilePath, protectedAreas)) {
@@ -1005,12 +1019,6 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
             // Target doesn't exist locally — allow through for first-time sync
             logger.info(`Protected area missing locally, will sync: ${relativeFilePath}`);
             // Fall through to normal processing (directory recursion or file comparison)
-        }
-
-        // Skip directories we don't want to sync
-        if (isDirectory && shouldSkipDirectory(relativeFilePath)) {
-            logger.debug(`[DEBUG] Skipping directory (shouldSkipDirectory): ${relativeFilePath}`);
-            continue;
         }
 
         // Skip optional sample directories if user removed them
@@ -1224,12 +1232,12 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
         if (pattern.endsWith('/')) {
             pattern = pattern + '**';
         }
-        
+
         // Direct glob match
         if (minimatch(normalizedFilePath, pattern, matchOptions)) {
             return true;
         }
-        
+
         // Also protect parent directories of glob patterns
         // e.g., pattern "apps/pika-chat/static/custom/**" should also protect "apps/pika-chat/static/custom"
         if (pattern.endsWith('/**')) {
@@ -1238,7 +1246,7 @@ function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
                 return true;
             }
         }
-        
+
         return false;
     });
 
@@ -1266,6 +1274,8 @@ function shouldSkipDirectory(dirPath: string): boolean {
         'apps/pika-docs/**',
         'apps/pika-chat/graveyard/**',
         '**/future-changes/**',
+        // Framework-internal directory removed by create-app; should never sync.
+        '.github/**',
         '**/.pika-temp/**',
         '**/.vscode/**',
         '**/.idea/**',
@@ -1296,13 +1306,39 @@ function shouldSkipDirectory(dirPath: string): boolean {
     const matchOptions = { dot: true, matchBase: true } as const;
 
     for (const pattern of skipPatterns) {
+        // Standard glob match (with trailing-slash fallback for directories)
         if (minimatch(normalizedPath, pattern, matchOptions) || minimatch(normalizedPath + '/', pattern, matchOptions)) {
             logger.debug(`[DEBUG] shouldSkipDirectory: ${normalizedPath} matches glob: ${pattern}`);
             return true;
         }
+
+        // For patterns ending in /**, also match the parent directory itself.
+        // minimatch('.github/', '.github/**') returns false, so we need an
+        // explicit prefix check to catch the directory that owns the subtree.
+        if (pattern.endsWith('/**')) {
+            const parentPath = pattern.slice(0, -3); // Remove "/**"
+            if (normalizedPath === parentPath || normalizedPath.startsWith(parentPath + '/')) {
+                logger.debug(`[DEBUG] shouldSkipDirectory: ${normalizedPath} matches parent of: ${pattern}`);
+                return true;
+            }
+        }
     }
 
     return false;
+}
+
+/**
+ * Files that exist in the pika repo but are framework-internal and should
+ * never be synced to user projects. These are removed by create-app and
+ * blocked here so the first-time-delivery logic doesn't bring them back.
+ */
+function isFrameworkInternalFile(filePath: string): boolean {
+    const internalFiles = ['RELEASING.md', 'RELEASE-SYSTEM-SUMMARY.md'];
+
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    const basename = path.basename(normalizedPath);
+
+    return internalFiles.includes(basename);
 }
 
 function isOptionalSampleDirectory(filePath: string): boolean {
@@ -2092,31 +2128,31 @@ function showSyncHelp(): void {
  */
 async function checkThemeSchemaUpdate(projectRoot: string): Promise<void> {
     const CURRENT_THEME_SCHEMA_VERSION = 1; // Keep in sync with theme-schema.ts
-    
+
     const pikaConfigPath = path.join(projectRoot, 'pika-config.ts');
 
     // Check if custom theme is enabled
     if (!existsSync(pikaConfigPath)) return;
-    
+
     const pikaConfig = readFileSync(pikaConfigPath, 'utf-8');
     const themeEnabledMatch = pikaConfig.match(/customTheme:\s*\{[^}]*enabled:\s*(true|false)/s);
     const themeEnabled = themeEnabledMatch?.[1] === 'true';
-    
+
     if (!themeEnabled) return;
-    
+
     // Get theme config path from pika-config.ts (or use default)
     const themePathMatch = pikaConfig.match(/themeConfigPath:\s*['"]([^'"]+)['"]/);
     const relativePath = themePathMatch?.[1] || 'src/lib/custom/sample-purple-theme';
     const themeConfigPath = path.join(projectRoot, 'apps/pika-chat', relativePath + '.ts');
-    
+
     // Check if theme config exists
     if (!existsSync(themeConfigPath)) return;
-    
+
     // Parse schema version
     const themeConfig = readFileSync(themeConfigPath, 'utf-8');
     const versionMatch = themeConfig.match(/schemaVersion:\s*(\d+)/);
     const userVersion = versionMatch ? parseInt(versionMatch[1], 10) : 1;
-    
+
     if (userVersion < CURRENT_THEME_SCHEMA_VERSION) {
         console.log();
         console.log(chalk.yellow('━'.repeat(60)));
@@ -2126,7 +2162,7 @@ async function checkThemeSchemaUpdate(projectRoot: string): Promise<void> {
         console.log(chalk.gray(`  Your theme: v${userVersion}  →  Latest: v${CURRENT_THEME_SCHEMA_VERSION}`));
         console.log(chalk.gray('  New theme variables are available for customization.'));
         console.log();
-        console.log(chalk.gray('  Run ') + chalk.cyan('pika theme check') + chalk.gray(' to see what\'s new'));
+        console.log(chalk.gray('  Run ') + chalk.cyan('pika theme check') + chalk.gray(" to see what's new"));
         console.log(chalk.gray('  Run ') + chalk.cyan('pika theme update') + chalk.gray(' to add new variables'));
         console.log(chalk.yellow('━'.repeat(60)));
     }

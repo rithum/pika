@@ -246,7 +246,9 @@ async function cleanupRepositoryArtifacts(projectPath: string): Promise<void> {
         'apps/pika-chat/graveyard', // Remove graveyard code (development artifacts)
         'packages/tools', // Remove internal tools (not needed for user projects)
         '.gitignore', // We'll create a new one
-        'node_modules' // Remove any existing node_modules from the template
+        'node_modules', // Remove any existing node_modules from the template
+        'RELEASING.md', // Remove framework release process docs
+        'RELEASE-SYSTEM-SUMMARY.md' // Remove framework release system summary
     ];
 
     for (const artifact of artifactsToRemove) {

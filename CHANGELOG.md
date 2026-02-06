@@ -5,6 +5,25 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2026-02-05
+
+### Fixed
+
+- **CLI Sync: Framework-Internal File Leak** - `pika sync` no longer delivers framework-internal files to user projects
+    - `.github/` directory, `RELEASING.md`, and `RELEASE-SYSTEM-SUMMARY.md` were incorrectly synced via the new first-time delivery logic
+    - Added `.github/**` to the directory skip list and a dedicated file-level check for framework-internal files
+    - Separated directory skip logic (glob patterns) from file skip logic (explicit basename list) to prevent false positives
+
+- **CLI Create-App: Missing Artifact Cleanup** - `pika create-app` now removes `RELEASING.md` and `RELEASE-SYSTEM-SUMMARY.md` from new projects
+    - These framework release process documents were not included in the cleanup list
+
+### Changed
+
+- **CLI Package Published** - Published pika-app CLI version 1.4.4 to npm
+    - Run `npm install -g pika-app@latest` to get the updated CLI
+
+---
+
 ## [0.19.0] - 2026-02-05
 
 ### Added
