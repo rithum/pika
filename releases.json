@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.19.1",
+  "latestVersion": "0.19.2",
   "currentDevelopment": "0.19.2",
   "releases": [
     {
       "version": "0.19.2",
       "date": "2026-02-09",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Fixed chat titlebar being blocked by content overlap",
       "highlights": [
