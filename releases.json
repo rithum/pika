@@ -1,7 +1,19 @@
 {
   "latestVersion": "0.19.1",
-  "currentDevelopment": "0.19.1",
+  "currentDevelopment": "0.19.2",
   "releases": [
+    {
+      "version": "0.19.2",
+      "date": "2026-02-09",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Fixed chat titlebar being blocked by content overlap",
+      "highlights": [
+        "Fixed settings and navigation buttons in chat titlebar being inaccessible due to content overlapping",
+        "Added z-index stacking to keep titlebar above scrolling content",
+        "Fixed main layout container sizing to prevent content overflow"
+      ]
+    },
     {
       "version": "0.19.1",
       "date": "2026-02-06",

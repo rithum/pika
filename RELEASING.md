@@ -29,7 +29,7 @@ git checkout -b fix/session-sorting-bug
 git commit -m "fix: correct session chronological sorting"
 
 # 3. Update release notes (auto-detects patch bump: 0.5.0 → 0.5.1)
-pnpm release:notes
+pnpm run release:notes
 # → Creates/updates unreleased version
 # → Copy prompt → Cursor Composer → Review & Accept
 
