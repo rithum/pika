@@ -7,6 +7,16 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.19.2] - 2026-02-09
+
+### Fixed
+
+- **Chat Titlebar Blocked by Content** - Settings and navigation buttons in the chat titlebar were inaccessible due to content overlapping
+    - Added proper z-index stacking to the chat titlebar so it stays above scrolling content
+    - Fixed main layout container to use flex-based sizing instead of fixed height, preventing content overflow
+
+---
+
 ## [0.19.1] - 2026-02-05
 
 ### Fixed
