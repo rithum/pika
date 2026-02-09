@@ -116,11 +116,11 @@ When you're ready to publish an unreleased version:
 
 ```bash
 # 1. Check current status
-pnpm release:info
+pnpm run release:info
 # → Shows unreleased versions and deployment health
 
 # 2. Finalize the release
-pnpm release:notes:finalize
+pnpm run release:notes:finalize
 # → Prompts for version (shows unreleased versions)
 # → Marks as "released" with today's date
 # → Copy prompt → Cursor Composer → Review & Accept
@@ -130,11 +130,11 @@ git add releases.json CHANGELOG.md apps/pika-docs
 git commit -m "docs: finalize release v0.5.0"
 
 # 4. (Optional) Validate everything before publishing
-pnpm release:validate
+pnpm run release:validate
 # → Checks releases.json, CHANGELOG.md, git status
 
 # 5. Publish (creates git tag)
-pnpm release:publish
+pnpm run release:publish
 # → Auto-detects version if only one unreleased (or specify: pnpm release:publish 0.5.0)
 # → Checks deployment state of main branch
 # → Verifies version exists and is marked "released"
