@@ -1,7 +1,18 @@
 {
   "latestVersion": "0.19.2",
-  "currentDevelopment": "0.19.2",
+  "currentDevelopment": "0.19.3",
   "releases": [
+    {
+      "version": "0.19.3",
+      "date": "2026-02-13",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Collaborator requireConfirmation normalized to prevent Bedrock invocation failures",
+      "highlights": [
+        "Normalized requireConfirmation to 'DISABLED' when null on collaborator action group functions before agent invocation",
+        "Prevents AWS Bedrock invocation failures caused by sending null for requireConfirmation"
+      ]
+    },
     {
       "version": "0.19.2",
       "date": "2026-02-09",

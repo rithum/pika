@@ -7,13 +7,17 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.19.3
+
+- **Collaborator action groups fix** - `requireConfirmation` on collaborator action group functions is now normalized to `'DISABLED'` when it would otherwise be null, preventing AWS Bedrock invocation failures
+
+**Latest Stable:** `0.19.3` (February 13, 2026)
+
 ### What's New in 0.19.2
 
 - **Chat Titlebar Fix** - Settings and navigation buttons in the chat titlebar were inaccessible due to content overlapping
   - Added proper z-index stacking so the titlebar stays above scrolling content
   - Fixed main layout container sizing to prevent content overflow
-
-**Latest Stable:** `0.19.2` (February 9, 2026)
 
 ### What's New in 0.19.1
 
@@ -502,6 +506,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.19.3  | Feb 13 2026 | Patch    | Collaborator requireConfirmation normalized to prevent Bedrock invocation failures |
 | 0.19.2  | Feb 9 2026  | Patch    | Fixed chat titlebar blocked by content overlap |
 | 0.19.1  | Feb 5 2026  | Patch    | CLI fix: framework-internal files no longer sync to user projects |
 | 0.19.0  | Feb 5 2026  | Feature  | Custom logout dialog, client lifecycle hooks  |
