@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.3] - 2026-02-13
+
+### Fixed
+
+- **Collaborator action groups: requireConfirmation** - Normalized `requireConfirmation` to `'DISABLED'` when it would otherwise be null on collaborator action group functions before invoking the agent, preventing AWS Bedrock invocation failures caused by sending null
+
+---
+
 ## [0.19.2] - 2026-02-09
 
 ### Fixed

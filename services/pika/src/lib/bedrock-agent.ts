@@ -1142,6 +1142,16 @@ export async function invokeAgentToGetAnswer(
         //     elapsed: Date.now() - startingTime,
         //     timestamp: new Date().toISOString()
         // });
+        //NOTE: Something in the process (e.g. aws-sdk or serialization) can assign null to
+        // requireConfirmation on collaborator action group functions; sending null to AWS Bedrock
+        // causes issues, so we normalize to 'DISABLED'.
+        cmdInput.collaborators?.forEach((collaborator) => {
+            collaborator.actionGroups?.forEach((actionGroup) => {
+                actionGroup.functionSchema?.functions?.forEach((fn) => {
+                    fn.requireConfirmation = fn.requireConfirmation ?? 'DISABLED';
+                });
+            });
+        });
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:', appliedDirectives);
         // console.log('[STREAM-TIMING] invokeAgent returned (streaming complete)', {
         //     elapsed: Date.now() - startingTime,

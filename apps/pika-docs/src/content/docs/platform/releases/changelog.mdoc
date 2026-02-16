@@ -7,6 +7,14 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.19.3] - 2026-02-13
+
+### Fixed
+
+- **Collaborator action groups: requireConfirmation** - Normalized `requireConfirmation` to `'DISABLED'` when it would otherwise be null on collaborator action group functions before invoking the agent, preventing AWS Bedrock invocation failures caused by sending null
+
+---
+
 ## [0.19.2] - 2026-02-09
 
 ### Fixed
