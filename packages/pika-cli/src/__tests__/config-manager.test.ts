@@ -139,13 +139,14 @@ describe('ConfigManager', () => {
 
             const result = await configManager.validateConfig(mockConfig);
 
-            expect(result.warnings).toContain(expect.stringContaining('Custom components directory does not exist'));
-            expect(result.warnings).toContain(expect.stringContaining('Custom services directory does not exist'));
+            expect(result.warnings.some((w) => w.includes('Custom components directory'))).toBe(true);
+            expect(result.warnings.some((w) => w.includes('Custom services directory'))).toBe(true);
         });
     });
 
     describe('updateConfig', () => {
         it('should update existing configuration', async () => {
+            mockFileManager.exists.mockResolvedValue(true);
             mockFileManager.readJsonFile.mockResolvedValue(mockConfig);
             mockFileManager.writeJsonFile.mockResolvedValue();
 

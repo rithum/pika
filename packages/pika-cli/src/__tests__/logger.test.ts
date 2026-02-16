@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { logger } from '../utils/logger';
 
-// Mock console methods
-const mockConsoleLog = jest.spyOn(console, 'log').mockImplementation();
-const mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
+let mockConsoleLog: jest.SpyInstance;
+let mockConsoleError: jest.SpyInstance;
 
 describe('Logger', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockConsoleLog = jest.spyOn(console, 'log').mockImplementation();
+        mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
     });
 
     afterEach(() => {
