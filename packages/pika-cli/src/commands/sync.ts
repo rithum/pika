@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { fileManager } from '../utils/file-manager.js';
+import { loadGitignore, type GitignoreChecker } from '../utils/gitignore.js';
 import { logger } from '../utils/logger.js';
 
 // ES module compatible __dirname
@@ -326,14 +327,18 @@ function isSampleDirectory(filePath: string): boolean {
     return filePath.startsWith('apps/samples/') || filePath.startsWith('services/samples/');
 }
 
-async function checkForUserModificationsOutsideProtectedAreas(projectRoot: string, protectedAreas: string[]): Promise<void> {
+async function checkForUserModificationsOutsideProtectedAreas(
+    projectRoot: string,
+    protectedAreas: string[],
+    gitignoreChecker: GitignoreChecker
+): Promise<void> {
     try {
         const filesOutsideProtectedAreas: string[] = [];
 
         // Get the list of files that are part of the original framework
         const frameworkFiles = await getFrameworkFiles(projectRoot);
 
-        // Recursively scan directory for files
+        // Recursively scan directory for files; skip paths matched by .gitignore and do not recurse into ignored directories
         async function scanDirectory(dir: string, relativePath: string = '') {
             const entries = await readdir(dir, { withFileTypes: true });
 
@@ -343,6 +348,11 @@ async function checkForUserModificationsOutsideProtectedAreas(projectRoot: strin
 
                 // Skip protected areas
                 if (isProtectedArea(relativeFilePath, protectedAreas)) {
+                    continue;
+                }
+
+                // Skip paths matched by downstream .gitignore; do not recurse into ignored directories
+                if (gitignoreChecker.ignores(relativeFilePath) || gitignoreChecker.ignores(relativeFilePath + '/')) {
                     continue;
                 }
 
@@ -689,10 +699,13 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             // Change to project root for the sync operation
             process.chdir(projectRoot);
 
+            // Load downstream .gitignore for deletion respect (ignored paths are never deleted)
+            const gitignoreChecker = await loadGitignore(projectRoot, fileManager.readFile.bind(fileManager));
+
             // Check for user modifications outside protected areas
             const protectedAreas = getMergedProtectedAreas(syncConfig);
             logger.debug(`[DEBUG] Using protected areas: ${JSON.stringify(protectedAreas, null, 2)}`);
-            await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas);
+            await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas, gitignoreChecker);
 
             // Determine target version and branch
             const targetVersion = options.version || 'latest';
@@ -770,7 +783,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 // Compare files and identify changes
                 console.log(); // Ensures a blank line after
                 console.log(chalk.gray('Analyzing changes...'));
-                const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas);
+                const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas, gitignoreChecker);
                 console.log(chalk.gray('Analysis complete'));
                 console.log(); // Optional: another blank line for separation
 
@@ -858,7 +871,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
                 // Apply changes
                 const applySpinner = logger.startSpinner('Applying changes...');
-                await applyChanges(changes, options);
+                await applyChanges(changes, options, projectRoot, gitignoreChecker);
                 logger.stopSpinner(true, 'Changes applied');
 
                 // Update sync config
@@ -928,7 +941,12 @@ async function downloadPikaFramework(version: string, branch: string = 'main'): 
     return tempDir;
 }
 
-async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
+async function identifyChanges(
+    sourcePath: string,
+    targetPath: string,
+    protectedAreas: string[],
+    gitignoreChecker: GitignoreChecker
+): Promise<SyncChange[]> {
     const changes: SyncChange[] = [];
 
     logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
@@ -937,8 +955,8 @@ async function identifyChanges(sourcePath: string, targetPath: string, protected
     // Compare framework files recursively (source -> target)
     await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
 
-    // Check for files that exist in target but not in source (deleted files)
-    await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes);
+    // Check for files that exist in target but not in source (deleted files); respects .gitignore (surgical directory handling)
+    await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes, gitignoreChecker);
 
     logger.debug(`[DEBUG] identifyChanges: found ${changes.length} total changes`);
     return changes;
@@ -1147,7 +1165,69 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
     }
 }
 
-async function findDeletedFiles(sourcePath: string, targetPath: string, relativePath: string, protectedAreas: string[], changes: SyncChange[]): Promise<void> {
+/**
+ * Recurses into a target directory that does not exist in source (surgical mode).
+ * Pushes `deleted` only for non-ignored files; returns true if any path was ignored.
+ * Caller uses this to decide whether to push one `deleted` for the directory (when no ignored content).
+ */
+async function findDeletedFilesSurgical(
+    targetPath: string,
+    relativePath: string,
+    protectedAreas: string[],
+    changes: SyncChange[],
+    gitignoreChecker: GitignoreChecker
+): Promise<boolean> {
+    const targetFullPath = path.join(targetPath, relativePath);
+    if (!(await fileManager.exists(targetFullPath))) {
+        return false;
+    }
+    const { readdir } = await import('fs/promises');
+    const entries = await readdir(targetFullPath, { withFileTypes: true });
+    let hadIgnoredContent = false;
+    for (const entry of entries) {
+        const childRelative = path.join(relativePath, entry.name).replace(/\\/g, '/');
+        const targetFilePath = path.join(targetPath, childRelative);
+        if (isProtectedArea(childRelative, protectedAreas)) continue;
+        if (shouldSkipDirectory(childRelative)) continue;
+        if (isOptionalSampleDirectory(childRelative)) continue;
+        if (entry.isDirectory()) {
+            // Directories matched by .gitignore must not be marked for deletion; treat as ignored and do not recurse
+            if (gitignoreChecker.ignores(childRelative) || gitignoreChecker.ignores(childRelative + '/')) {
+                hadIgnoredContent = true;
+                continue;
+            }
+            const childHadIgnored = await findDeletedFilesSurgical(
+                targetPath,
+                childRelative,
+                protectedAreas,
+                changes,
+                gitignoreChecker
+            );
+            if (childHadIgnored) hadIgnoredContent = true;
+        } else {
+            if (gitignoreChecker.ignores(childRelative)) {
+                hadIgnoredContent = true;
+            } else {
+                changes.push({
+                    type: 'deleted',
+                    path: childRelative,
+                    sourcePath: '',
+                    targetPath: targetFilePath
+                });
+            }
+        }
+    }
+    return hadIgnoredContent;
+}
+
+async function findDeletedFiles(
+    sourcePath: string,
+    targetPath: string,
+    relativePath: string,
+    protectedAreas: string[],
+    changes: SyncChange[],
+    gitignoreChecker: GitignoreChecker
+): Promise<void> {
     const targetFullPath = path.join(targetPath, relativePath);
 
     if (!(await fileManager.exists(targetFullPath))) {
@@ -1184,27 +1264,38 @@ async function findDeletedFiles(sourcePath: string, targetPath: string, relative
         if (isDirectory) {
             // Check if directory exists in source
             if (!(await fileManager.exists(sourceFilePath))) {
-                // Directory was deleted from source, mark for deletion
-                changes.push({
-                    type: 'deleted',
-                    path: relativeFilePath,
-                    sourcePath: '', // No source path for deleted files
-                    targetPath: targetFilePath
-                });
+                // Directory not in source: surgical handling — recurse into target only, push per-file deleted for non-ignored
+                const hadIgnoredContent = await findDeletedFilesSurgical(
+                    targetPath,
+                    relativeFilePath,
+                    protectedAreas,
+                    changes,
+                    gitignoreChecker
+                );
+                if (!hadIgnoredContent) {
+                    changes.push({
+                        type: 'deleted',
+                        path: relativeFilePath,
+                        sourcePath: '',
+                        targetPath: targetFilePath
+                    });
+                }
             } else {
                 // Recursively check subdirectories
-                await findDeletedFiles(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+                await findDeletedFiles(sourcePath, targetPath, relativeFilePath, protectedAreas, changes, gitignoreChecker);
             }
         } else {
             // Check if file exists in source
             if (!(await fileManager.exists(sourceFilePath))) {
-                // File was deleted from source, mark for deletion
-                changes.push({
-                    type: 'deleted',
-                    path: relativeFilePath,
-                    sourcePath: '', // No source path for deleted files
-                    targetPath: targetFilePath
-                });
+                // File not in source: respect .gitignore — skip if ignored
+                if (!gitignoreChecker.ignores(relativeFilePath)) {
+                    changes.push({
+                        type: 'deleted',
+                        path: relativeFilePath,
+                        sourcePath: '', // No source path for deleted files
+                        targetPath: targetFilePath
+                    });
+                }
             }
         }
     }
@@ -1390,7 +1481,15 @@ async function fileHasChanged(sourcePath: string, targetPath: string): Promise<b
     }
 }
 
-async function applyChanges(changes: SyncChange[], options: SyncOptions): Promise<void> {
+async function applyChanges(
+    changes: SyncChange[],
+    options: SyncOptions,
+    projectRoot: string,
+    gitignoreChecker: GitignoreChecker
+): Promise<void> {
+    const appliedDeletedPaths: string[] = [];
+    const overwrittenIgnoredPaths: string[] = [];
+
     for (const change of changes) {
         logger.debug(`Applying ${change.type}: ${change.path}`);
 
@@ -1399,6 +1498,13 @@ async function applyChanges(changes: SyncChange[], options: SyncOptions): Promis
             const { shouldSync, mergedContent } = await comparePackageJsonFiles(change.sourcePath, change.targetPath);
 
             if (shouldSync && mergedContent) {
+                const targetExists = await fileManager.exists(change.targetPath);
+                if (targetExists && gitignoreChecker.ignores(change.path)) {
+                    overwrittenIgnoredPaths.push(change.path);
+                    if (process.env.PIKA_DEBUG === 'true') {
+                        logger.debug(`Overwrote framework file (in .gitignore): ${change.path}`);
+                    }
+                }
                 // Ensure target directory exists
                 const targetDir = path.dirname(change.targetPath);
                 await fileManager.ensureDir(targetDir);
@@ -1413,6 +1519,10 @@ async function applyChanges(changes: SyncChange[], options: SyncOptions): Promis
         }
 
         if (change.type === 'deleted') {
+            // Skip deletion if path is ignored by downstream .gitignore (defense in depth)
+            if (gitignoreChecker.ignores(change.path)) {
+                continue;
+            }
             // Remove file or directory
             if (await fileManager.exists(change.targetPath)) {
                 const { stat } = await import('fs/promises');
@@ -1423,14 +1533,60 @@ async function applyChanges(changes: SyncChange[], options: SyncOptions): Promis
                 } else {
                     await fsExtra.remove(change.targetPath);
                 }
+                appliedDeletedPaths.push(change.path);
             }
         } else {
+            const targetExists = await fileManager.exists(change.targetPath);
+            if (targetExists && gitignoreChecker.ignores(change.path)) {
+                overwrittenIgnoredPaths.push(change.path);
+                if (process.env.PIKA_DEBUG === 'true') {
+                    logger.debug(`Overwrote framework file (in .gitignore): ${change.path}`);
+                }
+            }
             // Ensure target directory exists
             const targetDir = path.dirname(change.targetPath);
             await fileManager.ensureDir(targetDir);
 
             // Copy file
             await fileManager.copyFile(change.sourcePath, change.targetPath);
+        }
+    }
+
+    if (overwrittenIgnoredPaths.length > 0) {
+        logger.info(
+            `Updated ${overwrittenIgnoredPaths.length} framework file(s) that are in your .gitignore.`
+        );
+    }
+
+    // Empty directory cleanup: remove directories that are now empty (parents of applied deleted paths)
+    await removeEmptyDirectoriesAfterDeletes(projectRoot, appliedDeletedPaths);
+}
+
+/**
+ * Removes directories that are empty after applying deleted changes.
+ * Collects every parent directory of each deleted path, sorts by depth (deepest first), removes if empty.
+ */
+async function removeEmptyDirectoriesAfterDeletes(projectRoot: string, deletedPaths: string[]): Promise<void> {
+    const parentDirs = new Set<string>();
+    for (const p of deletedPaths) {
+        let dir = path.dirname(p).replace(/\\/g, '/');
+        while (dir && dir !== '.' && !parentDirs.has(dir)) {
+            parentDirs.add(dir);
+            dir = path.dirname(dir).replace(/\\/g, '/');
+        }
+    }
+    const sorted = Array.from(parentDirs).sort((a, b) => b.split('/').length - a.split('/').length);
+    const { readdir, rmdir } = await import('fs/promises');
+    for (const rel of sorted) {
+        const fullPath = path.join(projectRoot, rel);
+        try {
+            const entries = await readdir(fullPath);
+            if (entries.length === 0) {
+                await rmdir(fullPath);
+                logger.debug(`Removed empty directory: ${rel}`);
+            }
+        } catch {
+            // Ignore (dir may already be removed or not empty)
         }
     }
 }

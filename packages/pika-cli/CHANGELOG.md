@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chalk for colored output
 - Ora for loading spinners
 
+## [1.5.0] - 2026-02-16
+
+### Added
+
+- **Sync respects downstream .gitignore**: `pika sync` now respects the project root `.gitignore` for deletion: ignored files and directories are never removed. Framework updates are still applied to all framework paths even when listed in `.gitignore`. Custom test scripts or other untracked assets can stay in place across syncs.
+
 ## [1.0.0] - 2024-01-01
 
 ### Added

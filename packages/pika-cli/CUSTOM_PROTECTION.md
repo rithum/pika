@@ -91,6 +91,10 @@ function getDefaultProtectedAreas(): string[] {
 }
 ```
 
+## Sync and .gitignore
+
+Sync respects your project root `.gitignore` when deciding what to **delete**. Paths that are ignored (e.g. `scripts/my-tests`, `*.local`) are never removed by sync, so you can keep custom test scripts or other untracked files without them being blown away. If you added a pika/framework path to your `.gitignore`, sync will still update that file when the framework changes.
+
 ## User Feedback
 
 The sync command now provides clear feedback about this feature:
