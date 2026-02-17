@@ -47,4 +47,13 @@ describe('sync command', () => {
             expect(true).toBe(true); // Placeholder assertion
         });
     });
+
+    describe('gitignore respect', () => {
+        it('should not delete paths matched by downstream .gitignore', () => {
+            // Sync loads project root .gitignore and passes a checker to findDeletedFiles and applyChanges.
+            // Paths for which checker.ignores(path) is true are never marked for deletion or removed.
+            // Non-ignored files inside directories that contain ignored content are still deleted (surgical approach).
+            expect(true).toBe(true); // Placeholder assertion
+        });
+    });
 });

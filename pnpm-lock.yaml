@@ -342,6 +342,9 @@ catalogs:
     highlight.js:
       specifier: ^11.11.1
       version: 11.11.1
+    ignore:
+      specifier: ^5.3.2
+      version: 5.3.2
     indefinite:
       specifier: ^2.5.1
       version: 2.5.2
@@ -1042,6 +1045,9 @@ importers:
       glob:
         specifier: 'catalog:'
         version: 11.0.3
+      ignore:
+        specifier: 'catalog:'
+        version: 5.3.2
       inquirer:
         specifier: 'catalog:'
         version: 12.10.0(@types/node@22.18.13)

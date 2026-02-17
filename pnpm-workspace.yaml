@@ -115,6 +115,7 @@ catalog:
   plur: ^5.1.0
   indefinite: ^2.5.1
   '@types/indefinite': ^2.3.4
+  ignore: ^5.3.2
   '@auth/sveltekit': ^1.9.2
   '@auth/core': ^0.39.1
   commander: ^14.0.0

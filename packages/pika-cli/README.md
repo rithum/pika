@@ -313,6 +313,10 @@ Keep your project updated with the latest Pika Framework improvements:
 4. **Apply Updates**: Framework files are updated safely
 5. **Report Changes**: Shows what was changed
 
+### Sync and .gitignore
+
+`pika sync` respects your project's root `.gitignore` for **deletion** only: files and directories matched by the root `.gitignore` are never deleted. That lets you keep custom test scripts, local config, or other untracked assets without sync removing them. Framework-file updates are always applied even if those paths are in your `.gitignore` (e.g. if you added a pika file to `.gitignore`, sync will still update it).
+
 ### Protected Areas
 
 These directories are never modified during sync:
