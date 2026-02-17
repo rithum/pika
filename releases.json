@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.19.3",
+  "latestVersion": "0.19.4",
   "currentDevelopment": "0.19.4",
   "releases": [
     {
       "version": "0.19.4",
-      "date": "TBD",
-      "status": "unreleased",
+      "date": "2026-02-17",
+      "status": "released",
       "breaking": false,
       "summary": "Admin settings button accessible on all admin pages",
       "highlights": [
