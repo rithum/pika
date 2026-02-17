@@ -1,15 +1,39 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
     import PanelLeft from '$icons/lucide/panel-left';
+    import Settings2 from '$icons/lucide/settings-2';
     import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
+    import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
     import { Button } from 'pika-ux/shadcn/button';
+    import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
     import { getContext } from 'svelte';
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
 
     const standalone = $derived(siteAdmin.mode === 'standalone');
+
+    const userInfo = $derived.by(() => {
+        const internalUser = appState.identity.user.userType === 'internal-user';
+        const customDataUiRepresentation = appState.customDataUiRepresentation;
+        const userId = appState.identity.user.userId;
+        const firstName = appState.identity.user.firstName;
+        const lastName = appState.identity.user.lastName;
+        const result: { title: string; value: string }[] = [];
+
+        if (internalUser && customDataUiRepresentation) {
+            result.push({ title: customDataUiRepresentation.title, value: customDataUiRepresentation.value });
+        }
+        if (internalUser) {
+            result.push({ title: 'User ID', value: userId });
+        }
+        if (firstName || lastName) {
+            result.push({ title: 'User', value: `${firstName} ${lastName}`.trim() });
+        }
+
+        return result.length > 0 ? result : undefined;
+    });
     // let panelWidthState: 'normal' | 'fullscreen' = $state('normal');
     // let userNeedsToProvideDataOverrides = $derived.by(() => {
     //     const settings = chat.userDataOverrideSettings;
@@ -80,50 +104,39 @@
             <PopupHelp useInfoIcon>{siteAdmin.pageTitlePopupHelp}</PopupHelp>
         {/if}
     </div>
-    <div class="ml-auto">
+    <div class="ml-auto flex items-center gap-2">
         {#if siteAdmin.pageHeaderRight}{@render siteAdmin.pageHeaderRight()}{/if}
+        <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+                <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8"
+                    ><Settings2 style="width: 1.3rem; height: 1.2rem;" /></Button
+                >
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content class="min-w-48">
+                {#if userInfo}
+                    {#each userInfo as info}
+                        <DropdownMenu.Label class="font-normal py-1">
+                            <div class="text-xs text-muted-foreground">{info.title}</div>
+                            <div class="font-medium">
+                                <CopyButton embedded={true}>{info.value}</CopyButton>
+                            </div>
+                        </DropdownMenu.Label>
+                    {/each}
+                    <DropdownMenu.Separator />
+                {/if}
+                <DropdownMenu.Item
+                    onclick={() => {
+                        appState.settings.dialogOpen = true;
+                    }}>Chatbot Settings</DropdownMenu.Item
+                >
+                {#if appState.logoutSiteFeature?.enabled}
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            appState.showLogoutDialog = true;
+                        }}>{appState.logoutSiteFeature?.menuItemTitle ?? 'Logout'}</DropdownMenu.Item
+                    >
+                {/if}
+            </DropdownMenu.Content>
+        </DropdownMenu.Root>
     </div>
 </div>
-
-<!-- {#snippet newChatButton()}
-    <TooltipPlus tooltip="New Chat">
-        <Button
-            variant="ghost"
-            disabled={chat.isInterimSession || chat.isStreamingResponseNow || chat.isViewingContentForAnotherUser}
-            size="icon"
-            class="pl-0 pr-0 w-8"
-            onclick={() => {
-                chat.startNewChatSession();
-            }}><SquarePen style="width: 1.3rem; height: 1.2rem;" /></Button
-        >
-    </TooltipPlus>
-{/snippet}
-
-<Dialog.Root
-    bind:open={showLogoutDialog}
-    onOpenChange={() => {
-        if (!showLogoutDialog) {
-            showLogoutDialog = false;
-        }
-    }}
->
-    <Dialog.Content>
-        <Dialog.Title>{chat.features.logout.dialogTitle}</Dialog.Title>
-
-        {chat.features.logout.dialogDescription}
-        <Dialog.Footer>
-            <Button
-                variant="default"
-                onclick={() => {
-                    window.location.href = '/logout-now';
-                }}>{chat.features.logout.dialogTitle}</Button
-            >
-            <Button
-                variant="outline"
-                onclick={() => {
-                    showLogoutDialog = false;
-                }}>Cancel</Button
-            >
-        </Dialog.Footer>
-    </Dialog.Content>
-</Dialog.Root> -->
