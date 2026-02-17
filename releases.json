@@ -1,7 +1,18 @@
 {
   "latestVersion": "0.19.3",
-  "currentDevelopment": "0.19.3",
+  "currentDevelopment": "0.19.4",
   "releases": [
+    {
+      "version": "0.19.4",
+      "date": "TBD",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Admin settings button accessible on all admin pages",
+      "highlights": [
+        "Moved settings button from General Settings page to the admin titlebar for access on all admin pages",
+        "New dropdown menu with chatbot settings, user info with copy-to-clipboard, and logout"
+      ]
+    },
     {
       "version": "0.19.3",
       "date": "2026-02-13",

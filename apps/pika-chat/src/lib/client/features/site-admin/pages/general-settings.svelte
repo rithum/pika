@@ -360,7 +360,5 @@
 </div>
 
 {#snippet pageHeaderRightSnippet()}
-    <Button variant="ghost" size="icon" class="pl-0 pr-0 w-8">
-        <Settings2 style="width: 1.3rem; height: 1.2rem;" />
-    </Button>
+    <!-- Settings are in the titlebar -->
 {/snippet}

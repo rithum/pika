@@ -5,6 +5,16 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.4] - 2026-02-17
+
+### Fixed
+
+- **Admin Settings Button Accessible on All Pages** - Moved the settings button from the General Settings page to the admin titlebar so it's available across all admin pages
+    - New dropdown menu provides quick access to chatbot settings, user info with copy-to-clipboard, and logout
+    - Previously, the settings gear icon was only visible on the General Settings page
+
+---
+
 ## [0.19.3] - 2026-02-13
 
 ### Fixed

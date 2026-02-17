@@ -7,11 +7,17 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.19.4
+
+- **Admin Settings Button Fix** - Settings button now accessible on all admin pages, not just General Settings
+  - New dropdown menu with chatbot settings, user info (with copy-to-clipboard), and logout
+  - Previously, the settings gear icon was only visible on the General Settings page
+
+**Latest Stable:** `0.19.4` (February 17, 2026)
+
 ### What's New in 0.19.3
 
 - **Collaborator action groups fix** - `requireConfirmation` on collaborator action group functions is now normalized to `'DISABLED'` when it would otherwise be null, preventing AWS Bedrock invocation failures
-
-**Latest Stable:** `0.19.3` (February 13, 2026)
 
 ### What's New in 0.19.2
 
@@ -506,6 +512,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.19.4  | Feb 17 2026 | Patch    | Admin settings button accessible on all admin pages |
 | 0.19.3  | Feb 13 2026 | Patch    | Collaborator requireConfirmation normalized to prevent Bedrock invocation failures |
 | 0.19.2  | Feb 9 2026  | Patch    | Fixed chat titlebar blocked by content overlap |
 | 0.19.1  | Feb 5 2026  | Patch    | CLI fix: framework-internal files no longer sync to user projects |
