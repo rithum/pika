@@ -5,6 +5,20 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.5] - 2026-02-23
+
+### Added
+
+- **Session context for collaborators** - Supervisor agents can pass session context (e.g. `userId`, `currentDate`, `timezone`, user attributes) to collaborators via `collaboratorContextFields`. Set an array of keys on the supervisor's agent definition; those keys are injected into each collaborator's instruction as a `<session-context>` XML block so collaborators can use user and session data. See [Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration) — "Passing session context to collaborators".
+
+### Changed
+
+- **Updateable agent definition fields** - `collaboratorContextFields` and `collaborators` are now included in the allowlist for agent updates via the chat-admin API, so existing agents can be updated with these fields without a full replace.
+
+- **Documentation** - Multi-Agent Collaboration guide now includes a "Passing session context to collaborators" section with configuration steps and examples; Agent Definition reference updated for `collaboratorContextFields` and the expanded updateable fields.
+
+---
+
 ## [0.19.4] - 2026-02-17
 
 ### Fixed

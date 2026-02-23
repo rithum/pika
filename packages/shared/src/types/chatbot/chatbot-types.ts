@@ -1877,6 +1877,14 @@ export interface AgentDefinition {
     /** The collaboration type for this agent. */
     agentCollaboration?: AgentCollaboration;
 
+    /**
+     * Session attribute keys to inject into collaborator instructions as a `<session-context>` block.
+     * Workaround for Bedrock not propagating promptSessionAttributes to inline collaborators.
+     * If omitted or empty, no session context is injected.
+     * @since 0.19.5
+     */
+    collaboratorContextFields?: string[];
+
     /** List of tool definitions that this agent uses */
     toolIds: string[];
     /** A list of knowledge bases that are associated with this agent. */
@@ -1896,9 +1904,18 @@ export interface AgentDefinition {
     testType?: 'mock';
 }
 
+/** @since 0.19.5 - Added collaboratorContextFields and collaborators to updateable fields */
 export type UpdateableAgentDefinitionFields = Extract<
     keyof AgentDefinition,
-    'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases'
+    | 'basePrompt'
+    | 'toolIds'
+    | 'accessRules'
+    | 'runtimeAdapter'
+    | 'rolloutPolicy'
+    | 'dontCacheThis'
+    | 'knowledgeBases'
+    | 'collaboratorContextFields'
+    | 'collaborators'
 >;
 
 export type AgentDefinitionForUpdate = Partial<Omit<AgentDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy' | 'test'>> & {

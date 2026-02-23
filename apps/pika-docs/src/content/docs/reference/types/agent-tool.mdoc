@@ -45,6 +45,8 @@ interface AgentDefinition {
     dontCacheThis?: boolean;
     collaborators?: Collaborator[];
     agentCollaboration?: AgentCollaboration;
+    /** Session attribute keys to inject into collaborator instructions as a `<session-context>` block. */
+    collaboratorContextFields?: string[];
     toolIds: string[];
     knowledgeBases?: KnowledgeBase[];
     version: number;
@@ -446,7 +448,8 @@ type ToolDataRequest = {
 type UpdateableAgentDefinitionFields = Extract<
     keyof AgentDefinition,
     'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 
-    'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases'
+    'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases' | 
+    'collaboratorContextFields' | 'collaborators'
 >;
 
 // Updateable tool fields

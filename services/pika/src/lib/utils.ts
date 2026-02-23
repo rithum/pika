@@ -501,4 +501,9 @@ export function convertTagDefinitionToCamelFromSnakeCase<T extends Record<string
     return converted;
 }
 
+/** Escape XML special characters for use in XML text content. */
+export function escapeXml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export type ApiResponse = APIGatewayProxyStructuredResultV2;

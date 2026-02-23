@@ -262,6 +262,8 @@ async function updateAgentData(agentData: AgentDataRequest, existingAgent: Agent
         // Handle optional fields that can be updated or removed
         handleArrayFieldUpdate(agentData.agent.accessRules, existingAgent.accessRules, 'accessRules', fieldsToUpdate, fieldsToRemove, true);
         handleArrayFieldUpdate(agentData.agent.knowledgeBases, existingAgent.knowledgeBases, 'knowledgeBases', fieldsToUpdate, fieldsToRemove, true);
+        handleArrayFieldUpdate(agentData.agent.collaboratorContextFields, existingAgent.collaboratorContextFields, 'collaboratorContextFields', fieldsToUpdate, fieldsToRemove, true);
+        handleArrayFieldUpdate(agentData.agent.collaborators, existingAgent.collaborators, 'collaborators', fieldsToUpdate, fieldsToRemove, true);
         handleObjectFieldUpdate(agentData.agent.rolloutPolicy, existingAgent.rolloutPolicy, 'rolloutPolicy', fieldsToUpdate, fieldsToRemove, true);
         handleOptionalFieldUpdate(agentData.agent.dontCacheThis, existingAgent.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
         handleOptionalFieldUpdate(agentData.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);
@@ -579,6 +581,8 @@ export async function updateAgentDefinition(request: UpdateAgentRequest): Promis
 
     // Handle optional fields that can be updated or removed
     handleArrayFieldUpdate(request.agent.accessRules, existingAgent.accessRules, 'accessRules', fieldsToUpdate, fieldsToRemove, true);
+    handleArrayFieldUpdate(request.agent.collaboratorContextFields, existingAgent.collaboratorContextFields, 'collaboratorContextFields', fieldsToUpdate, fieldsToRemove, true);
+    handleArrayFieldUpdate(request.agent.collaborators, existingAgent.collaborators, 'collaborators', fieldsToUpdate, fieldsToRemove, true);
     handleObjectFieldUpdate(request.agent.rolloutPolicy, existingAgent.rolloutPolicy, 'rolloutPolicy', fieldsToUpdate, fieldsToRemove, true);
     handleOptionalFieldUpdate(request.agent.dontCacheThis, existingAgent.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
     handleOptionalFieldUpdate(request.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);
