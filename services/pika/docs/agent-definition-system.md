@@ -58,6 +58,8 @@ A canonical, enterprise-wide registry of dynamic Agent Definitions, enabling run
 | lastModifiedBy | S       | Last editor user                                               |
 | createdAt      | S (ISO) | Timestamp                                                      |
 | updatedAt      | S (ISO) | Timestamp                                                      |
+| collaborators  | L       | List of collaborator configs (agentId, instruction, historyRelay) |
+| collaboratorContextFields | L | Session attribute keys to inject into collaborator instructions (see below) |
 
 **GSIs:**
 
@@ -238,6 +240,40 @@ For now:
 - Support `basePrompt` as either a full prompt or a template with placeholders.
 - Placeholders can be replaced using runtime values (e.g., user name, org, timestamp).
 - TODO: Add templating engine support, runtime augmentation lambdas in future versions.
+
+---
+
+## Supervisor agents and session context
+
+When an agent uses **inline collaborators** (Bedrock collaborator configurations), the main agent receives session and user data via `promptSessionAttributes`. **Collaborators do not**—Bedrock does not propagate `promptSessionAttributes` to inline collaborators. Without a workaround, collaborators cannot see user/session attributes (e.g. `userId`, `currentDate`, `timezone`, `firstName`, `lastName`).
+
+### Mechanism
+
+The runtime builds a single attribute map from:
+
+- Session attributes (`chatSession.sessionAttributes`)
+- User custom data (`simpleUser.customUserData`)
+- Standard fields: `userId`, `currentDate`, `messageId`
+
+That map is used in two ways:
+
+1. **Main agent:** It is sent as `promptSessionAttributes`, so the main agent sees all keys in its prompt.
+2. **Collaborators:** The agent’s `collaboratorContextFields` (a list of keys) is read. For each key that exists in the attribute map, the runtime injects a `<session-context>` XML block into **each collaborator’s instruction**. Only keys listed in `collaboratorContextFields` are included; values are XML-escaped.
+
+If `collaboratorContextFields` is omitted or empty, no session context is injected into collaborator instructions.
+
+### Data flow
+
+```
+Session attributes + user custom data + userId, currentDate, messageId
+    → one attribute map
+    → (1) main agent: promptSessionAttributes
+    → (2) keys in collaboratorContextFields → <session-context> block in each collaborator instruction
+```
+
+### Schema
+
+- **`collaboratorContextFields`** (optional): `string[]`. Keys that must exist in the attribute map (e.g. `userId`, `currentDate`, `timezone`, `firstName`, `lastName`, `accountId`, `accountType` if provided by your app). Only these keys are rendered in the `<session-context>` block for collaborators.
 
 ---
 

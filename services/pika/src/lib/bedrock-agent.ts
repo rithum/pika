@@ -61,7 +61,7 @@ import {
     type ToolContext
 } from './model-types-utils';
 import { parsers } from './tool-input-parser';
-import { convertDatesToStrings, getRegion, sanitizeAndStringifyError } from './utils';
+import { convertDatesToStrings, escapeXml, getRegion, sanitizeAndStringifyError } from './utils';
 import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
@@ -945,6 +945,25 @@ export async function invokeAgentToGetAnswer(
 
     // const authDataGzipHexEncoded = simpleUser.authData ? gzipAndBase64EncodeString(JSON.stringify(simpleUser.authData)) : undefined;
 
+    const fullPromptAttrs: Record<string, string> = {
+        ...chatSession.sessionAttributes,
+        ...(simpleUser.customUserData ?? {}),
+        userId: simpleUser.userId,
+        currentDate: new Date().toISOString(),
+        messageId: messageId
+    };
+
+    const contextFields = agentAndTools.agent.collaboratorContextFields;
+    const sessionContextBlock = contextFields?.length
+        ? [
+            '<session-context>',
+            ...contextFields
+                .filter(k => fullPromptAttrs[k] != null && fullPromptAttrs[k] !== '')
+                .map(k => `  <${k}>${escapeXml(String(fullPromptAttrs[k]))}</${k}>`),
+            '</session-context>'
+        ].join('\n')
+        : undefined;
+
     console.log('Building command input...');
     const cmdInput: InvokeInlineAgentCommandInput = {
         sessionId: chatSession.sessionId,
@@ -959,7 +978,11 @@ export async function invokeAgentToGetAnswer(
         collaborators: agentAndTools.collaborators?.map((collaborator) => {
             let col: Collaborator = {
                 agentName: collaborator.agentId,
-                instruction: [collaborator.basePrompt, ...toolContexts.map((context) => context.getInstructions?.(collaborator.toolIds ?? [])).filter((a) => a != null)].join('\n'),
+                instruction: [
+                    collaborator.basePrompt,
+                    ...toolContexts.map((context) => context.getInstructions?.(collaborator.toolIds ?? [])).filter((a) => a != null),
+                    sessionContextBlock
+                ].filter((a) => a != null).join('\n'),
                 agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), // (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
                 foundationModel: collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
                 actionGroups: toolContexts.map((context) => context.getActionGroups(collaborator.toolIds ?? [])).flat(),
@@ -987,13 +1010,7 @@ export async function invokeAgentToGetAnswer(
         inlineSessionState: {
             // Include the conversation history if we need to reattach to the session
             ...(conversationHistory ? { conversationHistory } : {}),
-            promptSessionAttributes: {
-                // Everything in here is available to the agent in the prompt
-                ...chatSession.sessionAttributes,
-                ...(simpleUser.customUserData ? simpleUser.customUserData : {}),
-                currentDate: new Date().toISOString(),
-                messageId: messageId
-            },
+            promptSessionAttributes: fullPromptAttrs,
             //SessionDataWithChatUserCustomDataSpreadIn
             sessionAttributes: {
                 //TODO: why doesn't the definition of sessionAttributes (the type) include userId and currentDate?

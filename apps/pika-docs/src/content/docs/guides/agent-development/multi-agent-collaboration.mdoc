@@ -165,6 +165,57 @@ If a request spans multiple domains, you can consult multiple specialists and pr
 };
 ```
 
+## Passing session context to collaborators
+
+Collaborators (inline specialist agents) do **not** receive `promptSessionAttributes` from Bedrock. Without configuration, they cannot see user or session data (e.g. `userId`, `currentDate`, `timezone`, names, account info).
+
+### Why configure it
+
+If your collaborators need to know who the user is, the current date, timezone, or other session/user fields, you must explicitly pass those into their instructions. The runtime supports this via **`collaboratorContextFields`** on the **supervisor** agent.
+
+### How it works
+
+Set **`collaboratorContextFields`** on the supervisor agent to an array of keys (e.g. `['userId', 'currentDate', 'timezone', 'firstName', 'lastName', 'accountId', 'accountType']`). Those keys are read from the same attribute map used for the main agent's `promptSessionAttributes` and injected into **each** collaborator's instruction as a `<session-context>` XML block.
+
+**Instructions for agent authors:**
+
+1. **Choose which keys collaborators need** (e.g. `userId`, `currentDate`, `timezone`, `firstName`, `lastName`, `accountId`, `accountType`).
+2. **Ensure those keys are present** in session attributes or user custom data (or use standard ones like `userId`, `currentDate` that the runtime always adds).
+3. **Add the same keys to `collaboratorContextFields`** in the supervisor's agent definition.
+4. **Optional:** In collaborator base prompts, mention that they can use the information in `<session-context>` when relevant.
+
+### Example
+
+**Supervisor agent definition (excerpt):**
+
+```typescript
+agent: {
+    agentId: 'customer-service-orchestrator',
+    basePrompt: '...',
+    collaboratorContextFields: ['userId', 'currentDate', 'timezone', 'firstName', 'lastName', 'accountId', 'accountType'],
+    collaborators: [
+        { agentId: 'tech-support-specialist', instruction: '...', historyRelay: 'TO_COLLABORATOR' },
+        { agentId: 'billing-specialist', instruction: '...', historyRelay: 'TO_COLLABORATOR' }
+    ]
+}
+```
+
+**What a collaborator sees in its instruction (conceptually):**
+
+```xml
+<session-context>
+  <userId>user-123</userId>
+  <currentDate>2025-02-18T12:00:00.000Z</currentDate>
+  <timezone>America/New_York</timezone>
+  <firstName>Jane</firstName>
+  <lastName>Doe</lastName>
+  <accountId>acct-456</accountId>
+  <accountType>retailer</accountType>
+</session-context>
+```
+
+Only keys that exist in the runtime attribute map are included; values are XML-escaped.
+
 ## Step 4: Implement Agent Delegation Tool
 
 Create a tool that allows one agent to invoke another.
