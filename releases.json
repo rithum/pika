@@ -1,7 +1,20 @@
 {
-  "latestVersion": "0.19.5",
-  "currentDevelopment": "0.19.5",
+  "latestVersion": "0.20.0",
+  "currentDevelopment": "0.20.0",
   "releases": [
+    {
+      "version": "0.20.0",
+      "date": "2026-02-26",
+      "status": "released",
+      "breaking": false,
+      "summary": "Custom agent field, updatable foundation models, and model ID validation",
+      "highlights": [
+        "New custom property on agent definitions for opaque key/value data (max 100KB serialized)",
+        "foundationModel and verificationFoundationModel now updatable via chat-admin API",
+        "Model IDs validated against known Bedrock model registry at creation and update time",
+        "Documentation updated for custom field, model validation rules, and expanded updatable fields"
+      ]
+    },
     {
       "version": "0.19.5",
       "date": "2026-02-23",

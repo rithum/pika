@@ -40,6 +40,23 @@ export function handleOptionalFieldUpdate<T, K extends keyof T>(
 }
 
 /**
+ * Sanitizes optional model field (foundationModel / verificationFoundationModel).
+ * - undefined -> undefined (no change on update; omit on create)
+ * - null -> null (explicit remove; pass through to handleOptionalFieldUpdate)
+ * - empty or whitespace-only string -> undefined (no-op on update; omit on create)
+ * - non-empty string -> trimmed string
+ */
+export function sanitizeOptionalModelField(value: string | null | undefined): string | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed === '' ? undefined : trimmed;
+    }
+    return undefined;
+}
+
+/**
  * Utility function to handle required field updates.
  * For required fields, we only update if the value is different (no removal).
  *
@@ -118,9 +135,29 @@ export function handleArrayFieldUpdate<T, K extends keyof T>(
     }
 }
 
+function sortedKeyStringify(obj: unknown): string {
+    if (obj === null || typeof obj !== 'object') {
+        return JSON.stringify(obj);
+    }
+    if (Array.isArray(obj)) {
+        return '[' + obj.map(sortedKeyStringify).join(',') + ']';
+    }
+    const keys = Object.keys(obj).sort();
+    const pairs = keys.map((k) => JSON.stringify(k) + ':' + sortedKeyStringify((obj as Record<string, unknown>)[k]));
+    return '{' + pairs.join(',') + '}';
+}
+
+export function objectEqualsOrderIndependent(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+        return a === b;
+    }
+    return sortedKeyStringify(a) === sortedKeyStringify(b);
+}
+
 /**
  * Utility function to handle object field updates with proper deep comparison.
- * Objects are compared using JSON.stringify after sorting keys.
+ * Objects are compared using JSON.stringify (key order sensitive).
  *
  * @param newObject The new object from the request
  * @param existingObject The current object in the database

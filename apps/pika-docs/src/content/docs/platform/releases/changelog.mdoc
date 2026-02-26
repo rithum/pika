@@ -7,6 +7,28 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.20.0] - 2026-02-26
+
+### Added
+
+- **Custom field for agent definitions** - Store arbitrary key/value data on agent definitions via the new `custom` property. Pika stores and passes through data without interpretation, enabling downstream systems to attach configuration, metadata, or feature flags to agents. Max 100KB serialized (DynamoDB 400KB item limit is shared across all agent attributes).
+
+- **Foundation model selection for agents** - `foundationModel` and `verificationFoundationModel` are now updateable via the chat-admin API, allowing you to change an agent's Bedrock model without a full replace. Model IDs are validated against the known Bedrock model registry (`MODEL_ID_TO_MODEL`) at creation and update time.
+
+### Changed
+
+- **Updateable agent definition fields** - `foundationModel`, `verificationFoundationModel`, and `custom` are now included in the allowlist for agent updates via the chat-admin API.
+
+- **Model ID validation** - Agent creation and updates now validate `foundationModel` and `verificationFoundationModel` against the known Bedrock model/inference profile registry, returning a clear error if an invalid ID is provided.
+
+- **Documentation** - Agent Definition reference and Agent Tool type reference updated with `custom` field documentation, model field validation rules, and expanded updateable fields.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+0.20.0) for @since 0.20.0 to find all type definitions that were added, updated, or removed in this release.
+
+---
+
 ## [0.19.5] - 2026-02-23
 
 ### Added

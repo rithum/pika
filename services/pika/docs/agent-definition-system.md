@@ -48,6 +48,8 @@ A canonical, enterprise-wide registry of dynamic Agent Definitions, enabling run
 | Field          | Type    | Description                                                    |
 | -------------- | ------- | -------------------------------------------------------------- |
 | agentId        | PK (S)  | Unique agent identifier (e.g., `weather-bot`)                  |
+| foundationModel | S      | Foundation model override (e.g., `us.anthropic.claude-3-5-sonnet-20241022-v2:0`). Falls back to system default when absent. |
+| verificationFoundationModel | S | Foundation model override for response verification. Falls back to system default when absent. |
 | basePrompt     | S       | System prompt template (can include placeholders)              |
 | accessRules    | L       | List of access control rules with conditions                   |
 | runtimeAdapter | S       | (Future) Optional Lambda for augmenting prompt/session context |
@@ -60,6 +62,7 @@ A canonical, enterprise-wide registry of dynamic Agent Definitions, enabling run
 | updatedAt      | S (ISO) | Timestamp                                                      |
 | collaborators  | L       | List of collaborator configs (agentId, instruction, historyRelay) |
 | collaboratorContextFields | L | Session attribute keys to inject into collaborator instructions (see below) |
+| custom         | M       | Opaque key/value map for downstream customization (max 100KB serialized). Pika stores and passes through only. |
 
 **GSIs:**
 

@@ -1885,6 +1885,13 @@ export interface AgentDefinition {
      */
     collaboratorContextFields?: string[];
 
+    /**
+     * Opaque key/value for downstream customization; pika stores and passes through only.
+     * Max 100KB serialized (DynamoDB 400KB item limit is shared across all agent attributes).
+     * @since 0.20.0
+     */
+    custom?: Record<string, unknown>;
+
     /** List of tool definitions that this agent uses */
     toolIds: string[];
     /** A list of knowledge bases that are associated with this agent. */
@@ -1904,7 +1911,7 @@ export interface AgentDefinition {
     testType?: 'mock';
 }
 
-/** @since 0.19.5 - Added collaboratorContextFields and collaborators to updateable fields */
+/** @since 0.20.0 - Added foundationModel, verificationFoundationModel, and custom to updatable fields (previously: 0.19.5 added collaboratorContextFields and collaborators) */
 export type UpdateableAgentDefinitionFields = Extract<
     keyof AgentDefinition,
     | 'basePrompt'
@@ -1916,6 +1923,9 @@ export type UpdateableAgentDefinitionFields = Extract<
     | 'knowledgeBases'
     | 'collaboratorContextFields'
     | 'collaborators'
+    | 'foundationModel'
+    | 'verificationFoundationModel'
+    | 'custom'
 >;
 
 export type AgentDefinitionForUpdate = Partial<Omit<AgentDefinition, 'version' | 'createdAt' | 'createdBy' | 'updatedAt' | 'lastModifiedBy' | 'test'>> & {

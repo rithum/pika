@@ -98,6 +98,12 @@ interface KnowledgeBase {
 }
 ```
 
+### Custom Data
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `custom` | `Record<string, unknown>` | Opaque key/value map for downstream customization. Pika stores and passes through only. Max 100KB serialized. |
+
 ### Other Fields
 
 | Field | Type | Description |
@@ -240,6 +246,8 @@ const update: AgentDefinitionForUpdate = {
 - `agentId` - Must be unique, alphanumeric with hyphens/underscores only
 - `basePrompt` - No strict length limit, but keep under 4000 characters for best performance
 - `toolIds` - Must reference existing tools in the tool definitions table
+- `foundationModel` / `verificationFoundationModel` - Must be a known Bedrock model or inference profile ID from `MODEL_ID_TO_MODEL`
+- `custom` - Must serialize to 100KB or less (DynamoDB 400KB item limit is shared across all agent attributes)
 - `accessRules` - Conditions must use valid CEL (Common Expression Language) syntax
 - `version` - Automatically incremented by the system on updates
 

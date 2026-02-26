@@ -15,7 +15,8 @@ module.exports = {
     transformIgnorePatterns: ['node_modules/(?!(camelcase-keys|map-obj|snakecase-keys|@pika)/)'],
     moduleNameMapper: {
         '^camelcase-keys$': '<rootDir>/test/__mocks__/camelcase-keys.js',
-        '^snakecase-keys$': '<rootDir>/test/__mocks__/snakecase-keys.js'
+        '^snakecase-keys$': '<rootDir>/test/__mocks__/snakecase-keys.js',
+        '^pika-shared/(.*)$': '<rootDir>/../../packages/shared/src/$1'
     },
     collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/index.ts'],
     coverageDirectory: 'coverage',
