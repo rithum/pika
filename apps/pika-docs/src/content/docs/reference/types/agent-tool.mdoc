@@ -47,6 +47,8 @@ interface AgentDefinition {
     agentCollaboration?: AgentCollaboration;
     /** Session attribute keys to inject into collaborator instructions as a `<session-context>` block. */
     collaboratorContextFields?: string[];
+    /** Opaque key/value for downstream customization; pika stores and passes through only. */
+    custom?: Record<string, unknown>;
     toolIds: string[];
     knowledgeBases?: KnowledgeBase[];
     version: number;
@@ -449,7 +451,8 @@ type UpdateableAgentDefinitionFields = Extract<
     keyof AgentDefinition,
     'basePrompt' | 'toolIds' | 'accessRules' | 'runtimeAdapter' | 
     'rolloutPolicy' | 'dontCacheThis' | 'knowledgeBases' | 
-    'collaboratorContextFields' | 'collaborators'
+    'collaboratorContextFields' | 'collaborators' |
+    'foundationModel' | 'verificationFoundationModel' | 'custom'
 >;
 
 // Updateable tool fields

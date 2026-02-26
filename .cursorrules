@@ -8,7 +8,7 @@ Always search for similar capabilities in:
 
 - Existing project files (`utils/`, `lib/`, `components/`)
 - Installed libraries
-- Standard libs installd in package.json (e.g., lodash for utils)
+- Standard libs installed in package.json (e.g., lodash for utils)
 - Do not duplicate code in files, instead create simple abstractions for reuse (functions, etc.)
 
 ## AWS-First Architecture

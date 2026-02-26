@@ -9,6 +9,18 @@
 const MAX_NUM_FUNCTIONS_PER_TOOL = 11;
 const MAX_NUM_PARAMS_PER_FUNCTION = 5;
 
+/** Max serialized size for agent custom payload (DynamoDB item limit is 400KB shared). */
+const MAX_CUSTOM_PAYLOAD_BYTES = 100 * 1024;
+
+function validateCustomPayloadSize(custom: Record<string, unknown>): void {
+    const payload = JSON.stringify(custom);
+    if (Buffer.byteLength(payload, 'utf8') > MAX_CUSTOM_PAYLOAD_BYTES) {
+        throw new BadRequestError(
+            `custom payload exceeds max size of ${MAX_CUSTOM_PAYLOAD_BYTES} bytes. DynamoDB item limit is 400KB shared across all agent attributes.`
+        );
+    }
+}
+
 //TODO: how do we create a first session with first message?
 
 import type {
@@ -103,11 +115,51 @@ import {
     handleOptionalFieldUpdate,
     handleRequiredArrayFieldUpdate,
     handleRequiredFieldUpdate,
+    objectEqualsOrderIndependent,
     recordsHaveSameElements,
+    sanitizeOptionalModelField,
     toolsAreSame,
     validateEntitiesExist
 } from './chat-admin-utils';
+import { MODEL_ID_TO_MODEL } from './model-types-utils';
 import { queryForSessionAnalytics, queryForSessions } from './opensearch/opensearch';
+
+function handleCustomFieldUpdate(
+    newCustom: Record<string, unknown> | null | undefined,
+    existingCustom: Record<string, unknown> | undefined,
+    fieldsToUpdate: Record<UpdateableAgentDefinitionFields, any>,
+    fieldsToRemove: UpdateableAgentDefinitionFields[]
+): void {
+    if (newCustom === undefined) return;
+    if (newCustom === null) {
+        if (existingCustom !== undefined) {
+            fieldsToRemove.push('custom');
+        }
+        return;
+    }
+    validateCustomPayloadSize(newCustom);
+    if (!objectEqualsOrderIndependent(newCustom, existingCustom)) {
+        fieldsToUpdate.custom = newCustom;
+    }
+}
+
+function validateAgentModelIds(agent: {
+    foundationModel?: string | null;
+    verificationFoundationModel?: string | null;
+}): void {
+    const fm = sanitizeOptionalModelField(agent.foundationModel);
+    const vfm = sanitizeOptionalModelField(agent.verificationFoundationModel);
+    if (typeof fm === 'string' && !MODEL_ID_TO_MODEL[fm]) {
+        throw new BadRequestError(
+            `foundationModel '${fm}' is not a known Bedrock model or inference profile ID. Valid IDs are configured in MODEL_ID_TO_MODEL (model-types-utils).`
+        );
+    }
+    if (typeof vfm === 'string' && !MODEL_ID_TO_MODEL[vfm]) {
+        throw new BadRequestError(
+            `verificationFoundationModel '${vfm}' is not a known Bedrock model or inference profile ID. Valid IDs are configured in MODEL_ID_TO_MODEL (model-types-utils).`
+        );
+    }
+}
 
 /**
  * Get all defined agents
@@ -189,6 +241,7 @@ export async function createOrUpdateAgentIdempotently(agentData: AgentDataReques
             console.error('createOrUpdateAgentIdempotently - Validation errors:', errors);
             throw new HttpStatusError(errors.join(', '), 400);
         }
+        validateAgentModelIds(agentData.agent);
         console.log('createOrUpdateAgentIdempotently - Validation passed');
 
         const now = new Date().toISOString();
@@ -216,6 +269,22 @@ export async function createOrUpdateAgentIdempotently(agentData: AgentDataReques
                 createdAt: now,
                 updatedAt: now
             };
+
+            const sanitizedFm = sanitizeOptionalModelField(agent.foundationModel);
+            const sanitizedVfm = sanitizeOptionalModelField(agent.verificationFoundationModel);
+            if (typeof sanitizedFm === 'string') {
+                agent.foundationModel = sanitizedFm;
+            } else {
+                delete agent.foundationModel;
+            }
+            if (typeof sanitizedVfm === 'string') {
+                agent.verificationFoundationModel = sanitizedVfm;
+            } else {
+                delete agent.verificationFoundationModel;
+            }
+            if (agent.custom != null) {
+                validateCustomPayloadSize(agent.custom);
+            }
 
             console.log('createOrUpdateAgentIdempotently - Creating agent in database. AgentId:', agent.agentId);
             await createAgent(agent);
@@ -267,6 +336,9 @@ async function updateAgentData(agentData: AgentDataRequest, existingAgent: Agent
         handleObjectFieldUpdate(agentData.agent.rolloutPolicy, existingAgent.rolloutPolicy, 'rolloutPolicy', fieldsToUpdate, fieldsToRemove, true);
         handleOptionalFieldUpdate(agentData.agent.dontCacheThis, existingAgent.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
         handleOptionalFieldUpdate(agentData.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);
+        handleOptionalFieldUpdate(sanitizeOptionalModelField(agentData.agent.foundationModel), existingAgent.foundationModel, 'foundationModel', fieldsToUpdate, fieldsToRemove);
+        handleOptionalFieldUpdate(sanitizeOptionalModelField(agentData.agent.verificationFoundationModel), existingAgent.verificationFoundationModel, 'verificationFoundationModel', fieldsToUpdate, fieldsToRemove);
+        handleCustomFieldUpdate(agentData.agent.custom, existingAgent.custom, fieldsToUpdate, fieldsToRemove);
 
         const updatedAgent = await updateAgent(existingAgent, fieldsToUpdate, fieldsToRemove, agentData.userId, now);
         return { agent: updatedAgent, tools: finalTools };
@@ -555,6 +627,7 @@ export async function updateAgentDefinition(request: UpdateAgentRequest): Promis
     if (!existingAgent) {
         throw new HttpStatusError(`Agent ${request.agent.agentId} not found`, 404);
     }
+    validateAgentModelIds(request.agent);
 
     const now = new Date().toISOString();
     const fieldsToUpdate: Record<UpdateableAgentDefinitionFields, any> = {} as any;
@@ -586,6 +659,9 @@ export async function updateAgentDefinition(request: UpdateAgentRequest): Promis
     handleObjectFieldUpdate(request.agent.rolloutPolicy, existingAgent.rolloutPolicy, 'rolloutPolicy', fieldsToUpdate, fieldsToRemove, true);
     handleOptionalFieldUpdate(request.agent.dontCacheThis, existingAgent.dontCacheThis, 'dontCacheThis', fieldsToUpdate, fieldsToRemove);
     handleOptionalFieldUpdate(request.agent.runtimeAdapter, existingAgent.runtimeAdapter, 'runtimeAdapter', fieldsToUpdate, fieldsToRemove);
+    handleOptionalFieldUpdate(sanitizeOptionalModelField(request.agent.foundationModel), existingAgent.foundationModel, 'foundationModel', fieldsToUpdate, fieldsToRemove);
+    handleOptionalFieldUpdate(sanitizeOptionalModelField(request.agent.verificationFoundationModel), existingAgent.verificationFoundationModel, 'verificationFoundationModel', fieldsToUpdate, fieldsToRemove);
+    handleCustomFieldUpdate(request.agent.custom, existingAgent.custom, fieldsToUpdate, fieldsToRemove);
 
     if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
         return existingAgent;

@@ -7,6 +7,19 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.20.0
+
+- **Custom field for agent definitions** - Store arbitrary key/value data on agents via the new `custom` property
+  - Pika stores and passes through data without interpretation — attach configuration, metadata, or feature flags
+  - Max 100KB serialized (DynamoDB 400KB item limit is shared across all agent attributes)
+- **Foundation model selection** - `foundationModel` and `verificationFoundationModel` are now updateable via the chat-admin API
+  - Change an agent's Bedrock model without a full replace
+  - Model IDs validated against the known Bedrock model registry at creation and update time
+- **Updateable agent fields** - `foundationModel`, `verificationFoundationModel`, and `custom` added to the update allowlist
+- **Documentation** - Agent Definition reference and Agent Tool type reference updated with custom field docs and model validation rules
+
+**Latest Stable:** `0.20.0` (February 26, 2026)
+
 ### What's New in 0.19.5
 
 - **Session context for collaborators** - Supervisor agents can pass session context to collaborators via `collaboratorContextFields`
@@ -15,8 +28,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
   - See [Multi-Agent Collaboration](/guides/agent-development/multi-agent-collaboration) — "Passing session context to collaborators"
 - **Updateable agent fields** - `collaboratorContextFields` and `collaborators` can now be updated via the chat-admin API on existing agents
 - **Documentation** - Multi-Agent Collaboration guide includes "Passing session context to collaborators"; Agent Definition reference updated for the new and updatable fields
-
-**Latest Stable:** `0.19.5` (February 23, 2026)
 
 ### What's New in 0.19.4
 
@@ -521,6 +532,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.20.0  | Feb 26 2026 | Feature  | Custom agent field, updatable foundation models, model validation |
 | 0.19.5  | Feb 23 2026 | Feature  | Session context for collaborators via collaboratorContextFields |
 | 0.19.4  | Feb 17 2026 | Patch    | Admin settings button accessible on all admin pages |
 | 0.19.3  | Feb 13 2026 | Patch    | Collaborator requireConfirmation normalized to prevent Bedrock invocation failures |
