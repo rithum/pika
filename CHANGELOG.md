@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.2] - 2026-03-03
+
+### Fixed
+
+- **Model ID validation accepts base model IDs** - `MODEL_ID_TO_MODEL` now registers non-prefixed base model IDs (e.g. `anthropic.claude-sonnet-4-5-20250929-v1:0`) as aliases for cross-region models that use a `us.` prefix. Previously, the chat-admin API rejected base model IDs sent by ai-agents when updating the foundation model on agents, returning a 400 error.
+
+---
+
 ## [0.20.1] - 2026-03-03
 
 ### Fixed

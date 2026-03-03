@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.20.1",
-  "currentDevelopment": "0.20.1",
+  "latestVersion": "0.20.2",
+  "currentDevelopment": "0.20.2",
   "releases": [
+    {
+      "version": "0.20.2",
+      "date": "2026-03-03",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fix model ID validation to accept base model IDs without cross-region prefix",
+      "highlights": [
+        "MODEL_ID_TO_MODEL now accepts base model IDs (e.g. anthropic.claude-sonnet-4-5-20250929-v1:0) in addition to cross-region prefixed IDs (us.anthropic.claude-…)",
+        "Fixes 400 error when updating foundation model on agents via chat-admin API with non-prefixed model IDs"
+      ]
+    },
     {
       "version": "0.20.1",
       "date": "2026-03-03",
