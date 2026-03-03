@@ -76,9 +76,7 @@
         if (firstName || lastName) {
             result.push({ title: 'User', value: `${firstName} ${lastName}` });
         }
-        if (internalUser) {
-            result.push({ title: 'Session ID', value: chat.currentSession.sessionId });
-        }
+        result.push({ title: 'Session ID', value: chat.currentSession.sessionId });
 
         return result.length > 0 ? result : undefined;
     });
