@@ -162,13 +162,19 @@ export interface ToolContext {
     end?: (sessionId: string) => Promise<void>;
 }
 
-// Map of model id to model
+// Map of model id to model. Also registers non-prefixed base model IDs
+// (e.g. "anthropic.claude-…") for cross-region models that use a "us." prefix,
+// so callers can reference either form.
 export const MODEL_ID_TO_MODEL = Object.values(MODELS)
     .map((provider) => Object.values(provider))
     .flat()
     .reduce(
         (acc, model) => {
             acc[model.id] = model;
+            const baseId = model.id.replace(/^us\./, '');
+            if (baseId !== model.id && !acc[baseId]) {
+                acc[baseId] = model;
+            }
             return acc;
         },
         {} as Record<string, Model>
