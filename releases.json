@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.20.0",
-  "currentDevelopment": "0.20.0",
+  "latestVersion": "0.20.1",
+  "currentDevelopment": "0.20.1",
   "releases": [
+    {
+      "version": "0.20.1",
+      "date": "2026-03-03",
+      "status": "released",
+      "breaking": false,
+      "summary": "Session ID visible to all users in chat titlebar",
+      "highlights": [
+        "Session ID in chat titlebar info panel now visible to all users, not just internal users",
+        "External users can copy the session ID for support and troubleshooting"
+      ]
+    },
     {
       "version": "0.20.0",
       "date": "2026-02-26",
