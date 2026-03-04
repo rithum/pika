@@ -2,7 +2,7 @@
 
 ## Overview
 
-Open-source chat platform framework for building AI-powered conversational applications on AWS. Provides a SvelteKit frontend, Lambda/CDK backend, shared type system, Serverless Framework plugin, CLI tooling, and a documentation site. Used as the foundation for derivative apps (e.g., ai-bot).
+Open-source chat platform framework for building AI-powered conversational applications on AWS. Provides a SvelteKit frontend, Lambda/CDK backend, shared type system, Serverless Framework plugin, CLI tooling, and a documentation site. Pika is a **framework, not a deployed application** — downstream repos (e.g., `ai-bot`) fork/extend pika and handle their own deployment. Pika itself only publishes npm packages and documentation.
 
 ## Tech Stack
 
@@ -17,7 +17,7 @@ Open-source chat platform framework for building AI-powered conversational appli
 - **Auth**: `@auth/sveltekit`, JWT via `x-chat-auth`, Cognito
 - **Build**: pnpm 10, Turborepo, tsup, esbuild
 - **Test**: Jest 29, ts-jest
-- **CI/CD**: GitHub Actions, Semantic Release
+- **CI/CD**: GitHub Actions (tests, npm publish, docs deploy). No application deployment — that's the downstream repo's job.
 
 ## Architecture
 
@@ -91,7 +91,7 @@ pnpm --filter @pika/service test  # Test specific package
 
 3. **Shared error types**: Throw `HttpStatusError` subclasses from `pika-shared/util/` — the decorator translates them to HTTP status codes. Never use raw `Error` for API responses.
 
-4. **CDK infrastructure**: Lives alongside code — `services/pika/lib/` for backend, `apps/pika-chat/infra/` for frontend. Deploy via `pnpm cdk:deploy:test` or `pnpm cdk:deploy:prod`.
+4. **CDK infrastructure**: Lives alongside code — `services/pika/lib/` for backend, `apps/pika-chat/infra/` for frontend. These are **reference implementations** — deployment happens in downstream repos, not from pika directly.
 
 ## Release Process
 
@@ -116,7 +116,7 @@ pnpm release:plan-breaking      # Plan breaking change + migration guide
 - **Agents**: Bedrock agents with tool definitions, cached via LRU in converse Lambda.
 - **Pika CLI**: `pika create-app` scaffolds new derivative apps. `pika sync` updates existing apps from the framework.
 - **Feature flags**: `pika-config.ts` `siteFeatures` controls UI capabilities (home page, traces, file upload, tags, etc.)
-- **Environments**: `test` and `production` stages via CDK context.
+- **No deployment from pika**: Pika publishes npm packages and docs. Application deployment (CDK stacks, Docker, Fargate) is handled by downstream repos like `ai-bot`.
 
 ## Gotchas
 
