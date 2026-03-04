@@ -5,6 +5,20 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-03-04
+
+### Added
+
+- **Non-interactive release mode** - Release tooling now supports `--non-interactive` for CI/CD pipelines and AI agent workflows. A unified `pnpm release --non-interactive` command auto-detects version bump type from branch prefix, gathers git context, and outputs a self-contained prompt to stdout — enabling fully automated release documentation workflows.
+
+- **AGENTS.md for AI agent context** - New `AGENTS.md` file at the repository root provides structured context for AI agents working in the codebase, including architecture overview, conventions, and key patterns.
+
+### Changed
+
+- **CLI: AGENTS.md is now a protected area** - `AGENTS.md` is included in the protected areas list for `pika sync` and `pika create-app`, so downstream projects can customize their own agent context file without it being overwritten on sync.
+
+---
+
 ## [0.20.2] - 2026-03-03
 
 ### Fixed

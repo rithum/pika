@@ -836,6 +836,96 @@ Users will receive:
 
 ---
 
+## Agent / CI Workflow (Non-Interactive Mode)
+
+For AI agents or CI/CD pipelines that need to automate releases without human prompts, all release commands support a `--non-interactive` flag.
+
+### Unified Release (Recommended for Agents)
+
+A single command that performs the entire release flow:
+
+```bash
+pnpm run release --non-interactive
+```
+
+**What happens:**
+
+1. **Guards** against running on `main`/`master`/detached HEAD
+2. **Detects** version bump type from branch name (feat/ = minor, fix/ = patch, breaking/ = major)
+3. **Creates/updates** unreleased version in `releases.json`
+4. **Finalizes** — sets date to today, status to "released"
+5. **Gathers** git context (commits, changed files, doc changes, type changes)
+6. **Outputs** a self-contained prompt to `stdout`
+
+The agent reads stdout, edits CHANGELOG.md / changelog.mdoc / index.mdoc per the prompt instructions, then runs the commit + tag commands printed at the bottom of the prompt.
+
+**All informational messages go to stderr** — stdout contains only the prompt.
+
+**Options:**
+
+```bash
+--non-interactive       # Required — triggers unified flow
+--dry-run               # Skip releases.json writes, still output prompt
+--since <branch>        # Compare against specific branch (default: main)
+```
+
+### Individual Commands (Non-Interactive)
+
+Each command also supports `--non-interactive` for granular control:
+
+```bash
+# Generate release notes prompt (no finalization)
+pnpm release:notes --non-interactive
+
+# Finalize release (set date, output prompt)
+pnpm release:notes --finalize --non-interactive
+
+# Publish (skip confirms, create tag, proper exit codes)
+pnpm release:publish --non-interactive
+
+# Plan breaking change — NOT supported non-interactively (errors immediately)
+pnpm release:plan-breaking --non-interactive  # → exit 1
+```
+
+### Main Branch Guard
+
+In non-interactive mode, the tool refuses to run on `main`, `master`, or detached HEAD. This prevents accidental releases from the wrong branch.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — prompt output, releases.json updated |
+| 1 | Error — on main, can't detect version, ambiguous state |
+
+### Recovery
+
+If the process fails midway:
+
+| State | Recovery |
+|-------|----------|
+| Tool ran, agent didn't edit | `git checkout releases.json` |
+| Agent edited but didn't commit | `git checkout -- .` |
+| Committed but tag failed | `git tag -a vX.Y.Z -m "Release vX.Y.Z"` |
+| Committed + tagged, didn't push | `git push -u origin HEAD` |
+
+### End-to-End Example
+
+```bash
+# Agent is on feat/custom-title-actions branch
+PROMPT=$(pnpm run release --non-interactive 2>/dev/null)
+
+# Agent reads $PROMPT, edits documentation files per instructions, then:
+git add releases.json CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/
+git commit -m "chore: release v0.6.0"
+git tag -a v0.6.0 -m "Release v0.6.0"
+git push -u origin HEAD
+
+# Create PR → merge → GitHub Actions creates GitHub Release
+```
+
+---
+
 ## Quick Reference Card
 
 ### I need to...
@@ -879,6 +969,13 @@ git push                         # Push branch (includes tag if followTags confi
 git checkout main && git merge your-branch && git push
 ```
 
+**Release via agent (non-interactive):**
+
+```bash
+pnpm run release --non-interactive   # Single unified command
+# Agent edits docs per stdout prompt, then commits + tags
+```
+
 **Check status:**
 
 ```bash
@@ -895,6 +992,9 @@ pnpm release:publish <version>  # Publish release (version optional)
 pnpm release:info               # Check status and deployment health
 pnpm release:validate           # Validate configuration
 pnpm release:plan-breaking      # Plan breaking change
+
+# Non-interactive (for agents/CI):
+pnpm run release --non-interactive  # Unified release flow
 ```
 
 ### Remember
