@@ -7,7 +7,7 @@ Open-source chat platform framework for building AI-powered conversational appli
 ## Tech Stack
 
 - **Language**: TypeScript (strict mode, no `any`)
-- **Frontend**: SvelteKit 2, Svelte 5 (runes), Vite 7, Tailwind CSS 4, bits-ui
+- **Frontend**: SvelteKit 2, Svelte 5 (runes), Vite 7, Tailwind CSS 4, shadcn-svelte (which pulls in bits-ui). Use shadcn-svelte components for new UI work.
 - **Docs site**: Astro 5, Starlight, Markdoc
 - **Backend**: AWS Lambda (Node 22), AWS CDK 2
 - **AI/LLM**: AWS Bedrock (Claude), Bedrock Agents
@@ -28,7 +28,7 @@ Monorepo managed by pnpm workspaces + Turborepo.
 | Path | Package | Purpose |
 |------|---------|---------|
 | `packages/shared/` | `pika-shared` | Shared types, utilities, error classes |
-| `packages/pika-ux/` | `pika-ux` | Svelte UI component library (shadcn-style) |
+| `packages/pika-ux/` | `pika-ux` | Svelte UI component library (shadcn-svelte based) |
 | `packages/pika-cli/` | `pika-app` | CLI: `pika create-app`, `pika sync` |
 | `packages/pika-serverless/` | `pika-serverless` | Serverless Framework plugin |
 | `packages/eslint-config/` | `@pika/eslint-config` | Shared ESLint flat config |
