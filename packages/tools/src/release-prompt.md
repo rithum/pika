@@ -591,3 +591,118 @@ Add a comment or issue that includes:
 3. Add [PLANNED] entry to changelogs
 4. Create implementation checklist
 ```
+
+---
+
+## PROMPT_UNIFIED
+
+Use this for the unified non-interactive release flow (`pnpm run release --non-interactive`).
+Combines changelog writing from INCREMENTAL with date-setting from FINALIZE.
+The `{{step1Content}}` variable is replaced with pre-gathered git context.
+
+```
+**TASK: Release version {{unifiedVersion}}**
+
+{{step1Content}}
+
+**Step 1b: Review documentation changes:**
+
+If documentation files are listed above, read them to understand what changed. Documentation updates should be reflected in the release notes under **Added** or **Changed** categories.
+
+**Step 1c: Check for type changes requiring @since annotations:**
+
+If type files are listed above, verify all new interfaces, methods, and properties have @since tags:
+
+**@since Annotation Rules:**
+- All new interfaces must have \`@since X.Y.Z\` in their JSDoc comment
+- All new methods/properties on existing interfaces must have \`@since X.Y.Z\` annotation
+- Moved types (interfaces moved between files) should note \`@since X.Y.Z - Moved from [old-location] to [new-location]\`
+- Updated method signatures should note \`@since X.Y.Z - [description of change]\`
+
+If type changes are missing @since annotations, add them before continuing with release notes.
+
+**Find All Type Changes for This Release:**
+
+[Search the repository](https://github.com/rithum/pika/search?q=%40since+{{version}}) for @since {{version}} to find all type definitions that were added, updated, or removed in this release.
+
+**Documentation for New Features:**
+If new features were added but not yet documented, use the documentation generation prompt at \`apps/pika-docs/prompt-for-code-assistant-gen-docs.md\` to create comprehensive documentation following the Diátaxis framework (Tutorials, How-To Guides, Explanations, Reference).
+
+**Step 2: Update ALL release documentation files:**
+
+If a \`## [{{unifiedVersion}}]\` section already exists in CHANGELOG.md, review and update the entries based on the commits above.
+If it does not exist, create it from the commits listed in the git context.
+
+1. **CHANGELOG.md** - Add/update entries in [{{unifiedVersion}}] section:
+
+    - **Breaking Changes** - API changes, removed features, requires manual migration
+    - **Added** - New features/capabilities
+    - **Changed** - Modifications to existing features (backward compatible)
+    - **Fixed** - Bug fixes
+    - **Deprecated** - Features marked for removal
+
+    Format: \`- Description [#PR] (@username)\`
+    Focus: USER impact (why it matters), not technical details
+
+    The section header date must be today: \`## [{{unifiedVersion}}] - {{currentDate}}\`
+
+2. **apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc** - Keep in sync with CHANGELOG.md
+
+3. **apps/pika-docs/src/content/docs/platform/releases/index.mdoc** - REQUIRED, update ALL of these:
+    - Add "What's New in {{unifiedVersion}}" section at top of "Current Version" (if not already there)
+    - Update "Latest Stable:" line to show \`{{unifiedVersion}}\` with date {{currentDate}}
+    - **IMPORTANT: Add row to "Version History" table** at the bottom of the file (scroll down to find it):
+      ```
+      | {{unifiedVersion}} | {{currentDate}} | Patch/Feature/Breaking | [Brief summary] |
+      ```
+    - Ensure release highlights match the changelog
+
+4. **releases.json** - Verify the {{unifiedVersion}} entry:
+    - \`date\` should be \`"{{currentDate}}"\`
+    - \`status\` should be \`"released"\` (the tool already set this — do NOT change it back)
+    - Verify \`breaking\` flag, \`summary\`, \`highlights\`, and \`migrationGuideUrl\` are accurate
+    - Update \`summary\` and \`highlights\` to reflect the actual changes
+
+**CRITICAL Documentation Rules:**
+
+- TypeScript code: Use \`\`\`typescript or \`\`\`ts for TypeScript code blocks
+- Tabs: Use markdoc syntax: \`{% tabs %}\` and \`{% tabitem label="Label" %}\`
+- Asides: Use markdoc syntax: \`{% aside type="note/caution/tip" %}\`
+- Section links: Standard markdown anchor format
+- **Complete Syntax Reference**: See \`apps/pika-docs/src/content/docs/doc-instructions/overview.mdoc\` for all markdoc components and patterns
+
+**Breaking Changes Protocol:**
+
+If you detect breaking changes:
+
+1. Flag clearly: "⚠️ BREAKING:"
+2. Create migration guide at: \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/[feature-name].mdoc\`
+3. Include: What changed, Why, Who's affected, Step-by-step migration, Before/After examples
+4. Link from changelog: \`See: [Migration Guide](/platform/releases/migration-guides/[name])\`
+5. **Add to sidebar navigation**: Update \`apps/pika-docs/sidebar-config.ts\` to add the new migration guide to the "Migration Guides" items array (add at the top, newest first)
+6. Update \`releases.json\` - Ensure the version {{unifiedVersion}} entry has \`breaking: true\` and proper migration guide URL
+
+**Writing Standards:**
+
+- User-focused: Explain impact, not implementation
+- Clear & concise: One line per change
+- Action-oriented: "Added X to enable Y" not "X was added"
+- Group related changes
+- Skip internal refactors unless user-visible
+
+**Release Documentation Note:**
+If adding breaking changes, also update:
+
+- \`releases.json\` - Ensure version {{unifiedVersion}} has \`breaking: true\`, migration guide URL, and affected components listed
+- \`apps/pika-docs/src/content/docs/platform/releases/index.mdoc\` - Update the "What's New" section
+- \`apps/pika-docs/src/content/docs/platform/releases/migration-guides/index.mdoc\` - Add migration guide link to the index
+- \`apps/pika-docs/sidebar-config.ts\` - Add new migration guide to the "Migration Guides" items array (newest first)
+
+**After editing, complete the release:**
+
+    git add releases.json CHANGELOG.md apps/pika-docs/src/content/docs/platform/releases/
+    git commit -m "chore: release v{{unifiedVersion}}"
+    git tag -a v{{unifiedVersion}} -m "Release v{{unifiedVersion}}"
+
+**Recovery:** If this process fails midway, reset with \`git checkout -- .\`
+```

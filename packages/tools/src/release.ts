@@ -18,6 +18,53 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Non-interactive mode state — when true, all informational output goes to stderr
+// so that stdout contains only the self-contained prompt for agent consumption.
+let _nonInteractive = false;
+
+function log(...args: unknown[]): void {
+    if (_nonInteractive) {
+        process.stderr.write(args.map(String).join(' ') + '\n');
+    } else {
+        console.log(...args);
+    }
+}
+
+function logError(...args: unknown[]): void {
+    process.stderr.write(args.map(String).join(' ') + '\n');
+}
+
+/**
+ * Create a spinner that respects non-interactive mode.
+ * In non-interactive mode, returns a fake spinner that logs to stderr.
+ */
+function createSpinner(text: string) {
+    if (_nonInteractive) {
+        return {
+            start() {
+                log(text);
+                return this;
+            },
+            set text(t: string) {
+                log(t);
+            },
+            succeed(msg: string) {
+                log(`✓ ${msg}`);
+            },
+            fail(msg: string) {
+                logError(`✗ ${msg}`);
+            },
+            warn(msg: string) {
+                log(`⚠ ${msg}`);
+            },
+            info(msg: string) {
+                log(`ℹ ${msg}`);
+            }
+        };
+    }
+    return ora(text);
+}
+
 interface ReleaseMetadata {
     latestVersion: string;
     currentDevelopment: string;
@@ -45,6 +92,79 @@ function getProjectRoot(): string {
 
 function getReleasesPath(): string {
     return path.join(getProjectRoot(), 'releases.json');
+}
+
+/**
+ * Refuse to run on main/master or detached HEAD.
+ * Returns the current branch name if valid.
+ */
+function guardAgainstMainBranch(): string {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    if (branch === 'main' || branch === 'master' || branch === 'HEAD') {
+        logError(chalk.red('Error: Release must be run from a feature branch, not main/master.'));
+        logError(chalk.red('Create a branch first: git checkout -b feat/your-feature'));
+        process.exit(1);
+    }
+    return branch;
+}
+
+interface GitContext {
+    branch: string;
+    baseBranch: string;
+    commits: string;
+    changedFileNames: string;
+    docChangedFileNames: string;
+    typeChangedFileNames: string;
+    uncommittedStatus: string;
+}
+
+function gatherGitContext(baseBranch: string): GitContext {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+
+    const safeExec = (cmd: string): string => {
+        try {
+            return execSync(cmd, { encoding: 'utf8' }).trim();
+        } catch {
+            return '';
+        }
+    };
+
+    return {
+        branch,
+        baseBranch,
+        commits: safeExec(`git log ${baseBranch}..HEAD --oneline --no-decorate`),
+        changedFileNames: safeExec(`git diff ${baseBranch}...HEAD --name-only`),
+        docChangedFileNames: safeExec(`git diff ${baseBranch}...HEAD --name-only -- apps/pika-docs/`),
+        typeChangedFileNames: safeExec(`git diff ${baseBranch}...HEAD --name-only -- packages/shared/src/types/`),
+        uncommittedStatus: safeExec('git status --short')
+    };
+}
+
+function formatGitContextBlock(ctx: GitContext): string {
+    const indent = (text: string) =>
+        text
+            ? text
+                  .split('\n')
+                  .map((l) => `  ${l}`)
+                  .join('\n')
+            : '  (none)';
+
+    return `**Git Context (branch: ${ctx.branch} vs ${ctx.baseBranch}):**
+
+Commits:
+${indent(ctx.commits)}
+
+Changed files:
+${indent(ctx.changedFileNames)}
+
+Documentation changes:
+${indent(ctx.docChangedFileNames)}
+
+Type file changes:
+${indent(ctx.typeChangedFileNames)}
+
+Uncommitted:
+${indent(ctx.uncommittedStatus)}`;
 }
 
 /**
@@ -92,7 +212,15 @@ function replacePromptVariables(template: string, variables: { [key: string]: st
 /**
  * Get the appropriate prompt based on the scenario
  */
-function getPrompt(options: { baseBranch: string; workingVersion?: string; existingVersion?: string; finalizeVersion?: string; addToUnpublishedVersion?: boolean }): string {
+function getPrompt(options: {
+    baseBranch: string;
+    workingVersion?: string;
+    existingVersion?: string;
+    finalizeVersion?: string;
+    unifiedVersion?: string;
+    step1Content?: string;
+    addToUnpublishedVersion?: boolean;
+}): string {
     const templates = loadPromptTemplates();
     const currentDate = new Date().toISOString().split('T')[0];
 
@@ -102,11 +230,13 @@ function getPrompt(options: { baseBranch: string; workingVersion?: string; exist
         currentDate
     };
 
-    if (options.existingVersion) {
+    if (options.unifiedVersion) {
+        templateName = 'PROMPT_UNIFIED';
+        variables.unifiedVersion = options.unifiedVersion;
+        variables.version = options.unifiedVersion;
+    } else if (options.existingVersion) {
         templateName = 'PROMPT_EXISTING_VERSION';
         variables.existingVersion = options.existingVersion;
-        // For existing version, we're working on the NEXT version, so we need to detect it
-        // For now, just use the existing version in the link (user can update if needed)
         variables.version = options.existingVersion;
     } else if (options.addToUnpublishedVersion && options.finalizeVersion) {
         templateName = 'PROMPT_UNPUBLISHED_VERSION';
@@ -122,7 +252,11 @@ function getPrompt(options: { baseBranch: string; workingVersion?: string; exist
         variables.version = options.workingVersion;
     } else {
         templateName = 'PROMPT_INCREMENTAL';
-        variables.version = '0.0.0'; // Fallback, should not happen
+        variables.version = '0.0.0';
+    }
+
+    if (options.step1Content) {
+        variables.step1Content = options.step1Content;
     }
 
     const template = templates.get(templateName);
@@ -168,7 +302,7 @@ function loadReleasesJson(): ReleaseMetadata {
     const releasesPath = getReleasesPath();
 
     if (!existsSync(releasesPath)) {
-        console.log(chalk.yellow('⚠ No releases.json found, creating with baseline version 0.4.0'));
+        log(chalk.yellow('⚠ No releases.json found, creating with baseline version 0.4.0'));
         const baseline: ReleaseMetadata = {
             latestVersion: '0.4.0',
             currentDevelopment: '0.5.0',
@@ -189,7 +323,7 @@ function loadReleasesJson(): ReleaseMetadata {
     try {
         return JSON.parse(readFileSync(releasesPath, 'utf8'));
     } catch (error) {
-        console.error(chalk.red('✗ Error parsing releases.json:'), error);
+        logError(chalk.red('✗ Error parsing releases.json:'), error);
         process.exit(1);
     }
 }
@@ -251,34 +385,32 @@ function incrementVersion(version: string, type: 'major' | 'minor' | 'patch' = '
 function detectVersionBumpFromBranch(): 'major' | 'minor' | 'patch' | null {
     try {
         const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-        console.log(chalk.dim(`Current branch: ${chalk.cyan(branch)}`));
+        log(chalk.dim(`Current branch: ${chalk.cyan(branch)}`));
 
-        // breaking/* or major/* -> major version bump
         if (branch.startsWith('breaking/') || branch.startsWith('major/')) {
-            console.log(chalk.yellow(`Detected ${chalk.bold('major')} version bump from branch name`));
+            log(chalk.yellow(`Detected ${chalk.bold('major')} version bump from branch name`));
             return 'major';
         }
 
-        // feat/* or feature/* -> minor version bump
         if (branch.startsWith('feat/') || branch.startsWith('feature/')) {
-            console.log(chalk.cyan(`Detected ${chalk.bold('minor')} version bump from branch name`));
+            log(chalk.cyan(`Detected ${chalk.bold('minor')} version bump from branch name`));
             return 'minor';
         }
 
-        // fix/*, chore/*, docs/*, refactor/*, test/*, build/*, ci/*, perf/* -> patch version bump
         const patchPrefixes = ['fix/', 'chore/', 'docs/', 'refactor/', 'test/', 'build/', 'ci/', 'perf/'];
         if (patchPrefixes.some((prefix) => branch.startsWith(prefix))) {
-            console.log(chalk.green(`Detected ${chalk.bold('patch')} version bump from branch name`));
+            log(chalk.green(`Detected ${chalk.bold('patch')} version bump from branch name`));
             return 'patch';
         }
 
-        // No recognized prefix
-        console.log(chalk.yellow('\n⚠ Branch name does not use a standard prefix'));
-        console.log(chalk.dim('Supported prefixes:'));
-        console.log(chalk.dim('  • breaking/ or major/ → major version bump (breaking changes)'));
-        console.log(chalk.dim('  • feat/ or feature/ → minor version bump (new features)'));
-        console.log(chalk.dim('  • fix/, chore/, docs/, refactor/, test/, build/, ci/, perf/ → patch version bump'));
-        console.log(chalk.yellow('\nYou will be prompted to choose the version bump type.\n'));
+        log(chalk.yellow('\n⚠ Branch name does not use a standard prefix'));
+        log(chalk.dim('Supported prefixes:'));
+        log(chalk.dim('  • breaking/ or major/ → major version bump (breaking changes)'));
+        log(chalk.dim('  • feat/ or feature/ → minor version bump (new features)'));
+        log(chalk.dim('  • fix/, chore/, docs/, refactor/, test/, build/, ci/, perf/ → patch version bump'));
+        if (!_nonInteractive) {
+            log(chalk.yellow('\nYou will be prompted to choose the version bump type.\n'));
+        }
         return null;
     } catch {
         return null;
@@ -325,7 +457,51 @@ async function ensureUnreleasedVersion(): Promise<string> {
     releases.currentDevelopment = newVersion;
 
     saveReleasesJson(releases);
-    console.log(chalk.green(`✓ Created unreleased version ${newVersion} in releases.json\n`));
+    log(chalk.green(`✓ Created unreleased version ${newVersion} in releases.json\n`));
+
+    return newVersion;
+}
+
+/**
+ * Non-interactive variant: auto-detect version, never prompt.
+ * Uses existing unreleased version if present (matching interactive behavior),
+ * warns if bump type doesn't match.
+ */
+function ensureUnreleasedVersionNonInteractive(bumpType: 'major' | 'minor' | 'patch'): string {
+    const releases = loadReleasesJson();
+    const mainReleases = loadReleasesJsonFromMain();
+
+    const unreleased = releases.releases.find((r) => r.status === 'unreleased');
+    if (unreleased) {
+        const currentVersion = mainReleases.latestVersion || '0.4.0';
+        const expectedVersion = incrementVersion(currentVersion, bumpType);
+        if (unreleased.version !== expectedVersion) {
+            log(
+                chalk.yellow(
+                    `⚠ Branch prefix suggests ${bumpType} (${expectedVersion}), but existing unreleased version is ${unreleased.version}.`
+                )
+            );
+            log(chalk.dim(`  Using existing ${unreleased.version}. Remove it from releases.json to override.`));
+        }
+        log(chalk.cyan(`Using existing unreleased version: ${chalk.bold(unreleased.version)}`));
+        return unreleased.version;
+    }
+
+    const currentVersion = mainReleases.latestVersion || '0.4.0';
+    const newVersion = incrementVersion(currentVersion, bumpType);
+    const isBreaking = bumpType === 'major';
+
+    releases.releases.unshift({
+        version: newVersion,
+        date: 'TBD',
+        status: 'unreleased',
+        breaking: isBreaking,
+        summary: `Version ${newVersion} (in development)`,
+        highlights: []
+    });
+    releases.currentDevelopment = newVersion;
+    saveReleasesJson(releases);
+    log(chalk.green(`✓ Created unreleased version ${newVersion} in releases.json`));
 
     return newVersion;
 }
@@ -577,59 +753,59 @@ function verifyDeploymentState(version: string): DeploymentState {
 // Release Command
 // ============================================================================
 
-async function publishRelease(versionArg: string | undefined, options: { dryRun?: boolean }): Promise<void> {
+async function publishRelease(versionArg: string | undefined, options: { dryRun?: boolean; nonInteractive?: boolean }): Promise<void> {
     const { dryRun = false } = options;
-
-    console.log(chalk.bold('\n╔════════════════════════════════════════╗'));
-    console.log(chalk.bold('║   🚀 Pika Framework Release Tool      ║'));
-    console.log(chalk.bold('╚════════════════════════════════════════╝\n'));
-
-    if (dryRun) {
-        console.log(chalk.cyan('DRY RUN MODE - No changes will be made\n'));
+    if (options.nonInteractive) {
+        _nonInteractive = true;
+        guardAgainstMainBranch();
     }
 
-    // Auto-detect version if not provided
+    log(chalk.bold('\n╔════════════════════════════════════════╗'));
+    log(chalk.bold('║   🚀 Pika Framework Release Tool      ║'));
+    log(chalk.bold('╚════════════════════════════════════════╝\n'));
+
+    if (dryRun) {
+        log(chalk.cyan('DRY RUN MODE - No changes will be made\n'));
+    }
+
     let version = versionArg;
     if (!version) {
         const releases = loadReleasesJson();
         const unreleased = releases.releases.filter((r) => r.status === 'unreleased');
 
         if (unreleased.length === 0) {
-            console.error(chalk.red('✗ No unreleased versions found'));
-            console.log(chalk.yellow('\nRun "pnpm release notes" first to create a version'));
+            logError(chalk.red('✗ No unreleased versions found'));
+            log(chalk.yellow('\nRun "pnpm release notes" first to create a version'));
             process.exit(1);
         } else if (unreleased.length === 1) {
             version = unreleased[0].version;
-            console.log(chalk.cyan(`Auto-detected version: ${chalk.bold(version)}\n`));
+            log(chalk.cyan(`Auto-detected version: ${chalk.bold(version)}\n`));
         } else {
-            console.error(chalk.red('✗ Multiple unreleased versions found:'));
-            unreleased.forEach((r) => console.log(chalk.yellow(`  - ${r.version}`)));
-            console.log(chalk.dim('\nPlease specify which version to publish:'));
-            console.log(chalk.dim('  pnpm release publish <version>'));
+            logError(chalk.red('✗ Multiple unreleased versions found:'));
+            unreleased.forEach((r) => log(chalk.yellow(`  - ${r.version}`)));
+            log(chalk.dim('\nPlease specify which version to publish:'));
+            log(chalk.dim('  pnpm release publish <version>'));
             process.exit(1);
         }
     }
 
-    // Validate version format
     if (!validateVersion(version)) {
-        console.error(chalk.red('✗ Invalid version format. Use semantic versioning (e.g., 0.5.0)'));
+        logError(chalk.red('✗ Invalid version format. Use semantic versioning (e.g., 0.5.0)'));
         process.exit(1);
     }
 
-    // Check deployment state of main branch
     const mainReleases = loadReleasesJsonFromMain();
     const mainState = verifyDeploymentState(mainReleases.latestVersion);
 
     if (mainState.issues.length > 0) {
-        console.log(chalk.yellow('\n⚠ Warning: Deployment issues detected in main branch:\n'));
+        log(chalk.yellow('\n⚠ Warning: Deployment issues detected in main branch:\n'));
         mainState.issues.forEach((issue) => {
-            console.log(chalk.dim(`  • ${issue}`));
+            log(chalk.dim(`  • ${issue}`));
         });
-        console.log(chalk.yellow('\nYou may want to fix these before publishing a new version.'));
-        console.log(chalk.dim('Run "pnpm release info" for more details and suggested fixes.\n'));
+        log(chalk.yellow('\nYou may want to fix these before publishing a new version.'));
+        log(chalk.dim('Run "pnpm release info" for more details and suggested fixes.\n'));
 
-        // In dry-run mode, continue anyway, but in real mode ask for confirmation
-        if (!dryRun) {
+        if (!dryRun && !_nonInteractive) {
             const { continueAnyway } = await inquirer.prompt([
                 {
                     type: 'confirm',
@@ -640,26 +816,23 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
             ]);
 
             if (!continueAnyway) {
-                console.log(chalk.yellow('\nPublish cancelled.'));
+                log(chalk.yellow('\nPublish cancelled.'));
                 process.exit(0);
             }
         }
     }
 
-    // Check for uncommitted changes
     if (!dryRun) {
         const changeStatus = checkUncommittedChangesDetailed();
 
         if (changeStatus.hasChanges) {
             if (changeStatus.onlyReleaseFiles) {
-                // Only release-related files changed - this is expected and fine
-                console.log(chalk.cyan('ℹ Uncommitted release files detected (this is normal):'));
+                log(chalk.cyan('ℹ Uncommitted release files detected (this is normal):'));
                 changeStatus.files.forEach((file) => {
-                    console.log(chalk.dim(`  • ${file}`));
+                    log(chalk.dim(`  • ${file}`));
                 });
-                console.log(chalk.dim('\nThese will be committed after publishing.\n'));
+                log(chalk.dim('\nThese will be committed after publishing.\n'));
             } else {
-                // Non-release files are uncommitted - warn but allow to continue
                 const releaseFilePatterns = [
                     'releases.json',
                     'CHANGELOG.md',
@@ -671,45 +844,45 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
                 const nonReleaseFiles = changeStatus.files.filter((file) => !releaseFilePatterns.some((pattern) => file.includes(pattern)));
 
                 if (nonReleaseFiles.length === 0) {
-                    // False alarm - all files are actually release files
-                    console.log(chalk.cyan('ℹ All uncommitted files are release-related. Continuing...\n'));
+                    log(chalk.cyan('ℹ All uncommitted files are release-related. Continuing...\n'));
                 } else {
-                    console.log(chalk.yellow('⚠ You have uncommitted changes beyond release files:'));
+                    log(chalk.yellow('⚠ You have uncommitted changes beyond release files:'));
                     nonReleaseFiles.forEach((file) => {
-                        console.log(chalk.yellow(`  • ${file}`));
+                        log(chalk.yellow(`  • ${file}`));
                     });
-                    console.log();
+                    log();
 
-                    const { continueAnyway } = await inquirer.prompt([
-                        {
-                            type: 'confirm',
-                            name: 'continueAnyway',
-                            message: 'These files will be included in your release commit. Continue?',
-                            default: true
+                    if (!_nonInteractive) {
+                        const { continueAnyway } = await inquirer.prompt([
+                            {
+                                type: 'confirm',
+                                name: 'continueAnyway',
+                                message: 'These files will be included in your release commit. Continue?',
+                                default: true
+                            }
+                        ]);
+
+                        if (!continueAnyway) {
+                            log(chalk.yellow('\nPublish cancelled.'));
+                            process.exit(0);
                         }
-                    ]);
-
-                    if (!continueAnyway) {
-                        console.log(chalk.yellow('\nPublish cancelled.'));
-                        process.exit(0);
                     }
                 }
             }
         }
     }
 
-    // Step 1: Update releases.json
-    const spinner = ora('Updating releases.json').start();
+    const spinner = createSpinner('Updating releases.json');
+    spinner.start();
     try {
         const releases = loadReleasesJson();
 
         spinner.text = `Publishing version: ${chalk.green(version)}`;
 
-        // Find the release entry and mark it as released
         const releaseIndex = releases.releases.findIndex((r) => r.version === version);
         if (releaseIndex === -1) {
             spinner.fail(`Version ${version} not found in releases array`);
-            console.log(chalk.yellow('\nTip: Run "pnpm release notes" first to create the release entry'));
+            log(chalk.yellow('\nTip: Run "pnpm release notes" first to create the release entry'));
             process.exit(1);
         }
 
@@ -718,11 +891,8 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
             spinner.warn(`Version ${version} is already marked as released`);
         }
 
-        // Mark as released and update date
         release.status = 'released';
         release.date = new Date().toISOString().split('T')[0];
-
-        // Update latestVersion
         releases.latestVersion = version;
 
         if (!dryRun) {
@@ -736,28 +906,28 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
         throw error;
     }
 
-    // Step 2: Get commits since last release
-    console.log(chalk.bold('\nChanges Since Last Release\n'));
+    log(chalk.bold('\nChanges Since Last Release\n'));
     const lastTag = getLastTag();
     const commits = getCommitsSinceTag(lastTag);
 
     if (lastTag) {
-        console.log(chalk.dim(`Since ${lastTag}:\n`));
+        log(chalk.dim(`Since ${lastTag}:\n`));
     } else {
-        console.log(chalk.dim('All commits (no previous release found):\n'));
+        log(chalk.dim('All commits (no previous release found):\n'));
     }
 
     if (commits) {
-        console.log(chalk.gray(commits));
+        log(chalk.gray(commits));
     } else {
-        console.log(chalk.yellow('No commits found\n'));
+        log(chalk.yellow('No commits found\n'));
     }
 
-    // Step 3: Generate Cursor AI Prompt
-    await generateCursorPrompt(version, commits);
+    if (!_nonInteractive) {
+        await generateCursorPrompt(version, commits);
+    }
 
-    // Step 4: Create git tag
-    const tagSpinner = ora('Creating git tag').start();
+    const tagSpinner = createSpinner('Creating git tag');
+    tagSpinner.start();
     try {
         if (!dryRun) {
             exec(`git tag -a v${version} -m "Release v${version}"`, { silent: true });
@@ -770,7 +940,6 @@ async function publishRelease(versionArg: string | undefined, options: { dryRun?
         throw error;
     }
 
-    // Step 5: Show next steps
     showNextSteps(version);
 }
 
@@ -1027,7 +1196,13 @@ async function validate(): Promise<void> {
 // Plan Breaking Change Command
 // ============================================================================
 
-async function planBreakingChange(options: { showPrompt?: boolean }): Promise<void> {
+async function planBreakingChange(options: { showPrompt?: boolean; nonInteractive?: boolean }): Promise<void> {
+    if (options.nonInteractive) {
+        logError(chalk.red('Error: Breaking change planning requires interactive mode.'));
+        logError(chalk.red('Run without --non-interactive.'));
+        process.exit(1);
+    }
+
     console.log(chalk.bold('\nPlan Breaking Change - Documentation Helper\n'));
 
     const templates = loadPromptTemplates();
@@ -1071,26 +1246,50 @@ async function planBreakingChange(options: { showPrompt?: boolean }): Promise<vo
 // Notes Command
 // ============================================================================
 
-async function updateNotes(options: { since?: string; ignoreUncommitted?: boolean; finalize?: string | boolean; showPrompt?: boolean }): Promise<void> {
-    console.log(chalk.bold('\nPika Framework Release Notes Helper\n'));
+async function updateNotes(options: { since?: string; ignoreUncommitted?: boolean; finalize?: string | boolean; showPrompt?: boolean; nonInteractive?: boolean }): Promise<void> {
+    if (options.nonInteractive) {
+        _nonInteractive = true;
+        guardAgainstMainBranch();
+    }
+
+    log(chalk.bold('\nPika Framework Release Notes Helper\n'));
 
     const baseBranch = options.since || 'main';
     let finalizeVersion: string | undefined;
     let workingVersion: string | undefined;
 
-    // Handle --finalize flag (can be boolean if no version provided, or string if version provided)
     if (options.finalize === true) {
-        // No version provided, auto-detect and prompt
-        finalizeVersion = await promptForVersion();
+        if (_nonInteractive) {
+            const releases = loadReleasesJson();
+            const unreleased = releases.releases.filter((r) => r.status === 'unreleased');
+            if (unreleased.length === 1) {
+                finalizeVersion = unreleased[0].version;
+            } else if (unreleased.length === 0) {
+                logError(chalk.red('✗ No unreleased versions to finalize'));
+                process.exit(1);
+            } else {
+                logError(chalk.red('✗ Multiple unreleased versions — specify which to finalize'));
+                unreleased.forEach((r) => logError(`  - ${r.version}`));
+                process.exit(1);
+            }
+        } else {
+            finalizeVersion = await promptForVersion();
+        }
     } else if (typeof options.finalize === 'string') {
-        // Version was provided
         finalizeVersion = options.finalize;
     } else {
-        // Not finalizing, just updating notes - ensure we have an unreleased version
-        workingVersion = await ensureUnreleasedVersion();
+        if (_nonInteractive) {
+            const bumpType = detectVersionBumpFromBranch();
+            if (!bumpType) {
+                logError(chalk.red('Cannot detect version bump type from branch name.'));
+                process.exit(1);
+            }
+            workingVersion = ensureUnreleasedVersionNonInteractive(bumpType);
+        } else {
+            workingVersion = await ensureUnreleasedVersion();
+        }
     }
 
-    // If finalizing, update releases.json with today's date
     if (finalizeVersion) {
         const releases = loadReleasesJson();
         const releaseIndex = releases.releases.findIndex((r) => r.version === finalizeVersion);
@@ -1099,57 +1298,50 @@ async function updateNotes(options: { since?: string; ignoreUncommitted?: boolea
             const release = releases.releases[releaseIndex];
             const today = new Date().toISOString().split('T')[0];
 
-            // Only update if date is TBD or different from today
             if (release.date === 'TBD' || release.date !== today) {
                 release.date = today;
                 saveReleasesJson(releases);
-                console.log(chalk.green(`✓ Updated releases.json: ${finalizeVersion} date set to ${today}\n`));
+                log(chalk.green(`✓ Updated releases.json: ${finalizeVersion} date set to ${today}\n`));
             }
         }
     }
 
     const includeUncommitted = !options.ignoreUncommitted;
 
-    // Get current branch
     let currentBranch = 'unknown';
     try {
         currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-        console.log(chalk.dim(`Current branch: ${chalk.cyan(currentBranch)}`));
-        console.log(chalk.dim(`Comparing against: ${chalk.cyan(baseBranch)}\n`));
+        log(chalk.dim(`Current branch: ${chalk.cyan(currentBranch)}`));
+        log(chalk.dim(`Comparing against: ${chalk.cyan(baseBranch)}\n`));
     } catch {
-        console.log(chalk.yellow('Not on a git branch\n'));
+        log(chalk.yellow('Not on a git branch\n'));
     }
 
-    // Get committed changes on this branch
-    console.log(chalk.bold('Committed Changes:\n'));
+    log(chalk.bold('Committed Changes:\n'));
     let commits = '';
     try {
-        // Get commits that are on current branch but not on base branch
         commits = execSync(`git log ${baseBranch}..HEAD --oneline --no-decorate 2>/dev/null || git log --oneline --no-decorate -10`, {
             encoding: 'utf8'
         });
 
         if (commits.trim()) {
-            console.log(chalk.gray(commits));
+            log(chalk.gray(commits));
         } else {
-            console.log(chalk.dim('  No commits yet on this branch\n'));
+            log(chalk.dim('  No commits yet on this branch\n'));
         }
     } catch (error) {
-        console.log(chalk.yellow('  Could not retrieve commits\n'));
+        log(chalk.yellow('  Could not retrieve commits\n'));
     }
 
-    // Get uncommitted changes (included by default unless --ignore-uncommitted)
-    // Note: Data gathering happens silently - Cursor AI will see changes via git commands
     let changedFiles = '';
     if (includeUncommitted) {
         try {
             changedFiles = execSync('git status --short', { encoding: 'utf8' });
         } catch {
-            // Silently continue if git status fails
+            // Silently continue
         }
     }
 
-    // Check if version is already published or just finalized (if finalizing)
     let versionPublished = false;
     let versionFinalized = false;
 
@@ -1157,14 +1349,12 @@ async function updateNotes(options: { since?: string; ignoreUncommitted?: boolea
         try {
             const projectRoot = getProjectRoot();
 
-            // Check if version is published (in releases.json)
             const releasesPath = path.join(projectRoot, 'releases.json');
             if (existsSync(releasesPath)) {
                 const releases = JSON.parse(readFileSync(releasesPath, 'utf8'));
                 versionPublished = releases.latestVersion === finalizeVersion;
             }
 
-            // Check if version is finalized (in CHANGELOG.md)
             const changelogPath = path.join(projectRoot, 'CHANGELOG.md');
             if (existsSync(changelogPath)) {
                 const changelog = readFileSync(changelogPath, 'utf8');
@@ -1172,31 +1362,40 @@ async function updateNotes(options: { since?: string; ignoreUncommitted?: boolea
             }
 
             if (versionPublished) {
-                console.log(chalk.yellow(`\nVersion [${finalizeVersion}] is already PUBLISHED\n`));
-                console.log(chalk.cyan('Creating/adding to next version instead - these changes go in the next release.\n'));
+                log(chalk.yellow(`\nVersion [${finalizeVersion}] is already PUBLISHED\n`));
+                log(chalk.cyan('Creating/adding to next version instead - these changes go in the next release.\n'));
             } else if (versionFinalized) {
-                console.log(chalk.yellow(`\nVersion [${finalizeVersion}] is finalized but not yet published\n`));
-                console.log(chalk.cyan('Adding to [${finalizeVersion}] - perfect for "one more fix" before publishing!\n'));
+                log(chalk.yellow(`\nVersion [${finalizeVersion}] is finalized but not yet published\n`));
+                log(chalk.cyan(`Adding to [${finalizeVersion}] - perfect for "one more fix" before publishing!\n`));
             }
         } catch (error) {
-            console.log(chalk.dim('Could not check version status\n'));
+            log(chalk.dim('Could not check version status\n'));
         }
     }
 
-    // Generate Cursor Composer prompt
-    // Four scenarios:
-    // 1. Normal incremental update: add to working version
-    // 2. Normal finalize: version doesn't exist yet
-    // 3. Version finalized but not published: add to that version
-    // 4. Version already published: create new working version
-    await generateNotesPrompt(
-        baseBranch,
-        workingVersion, // Pass working version for incremental updates
-        versionPublished ? undefined : finalizeVersion, // Pass finalize version unless already published
-        versionPublished ? finalizeVersion : undefined, // If published, treat as "existing version"
-        versionFinalized && !versionPublished, // Flag for "add to existing unpublished version"
-        options.showPrompt
-    );
+    if (_nonInteractive) {
+        const gitContext = gatherGitContext(baseBranch);
+        const step1Content = formatGitContextBlock(gitContext);
+        const version = workingVersion || finalizeVersion;
+        const prompt = getPrompt({
+            baseBranch,
+            workingVersion: versionPublished ? undefined : workingVersion,
+            existingVersion: versionPublished ? finalizeVersion : undefined,
+            finalizeVersion: versionPublished ? undefined : finalizeVersion,
+            step1Content,
+            addToUnpublishedVersion: versionFinalized && !versionPublished
+        });
+        process.stdout.write(prompt);
+    } else {
+        await generateNotesPrompt(
+            baseBranch,
+            workingVersion,
+            versionPublished ? undefined : finalizeVersion,
+            versionPublished ? finalizeVersion : undefined,
+            versionFinalized && !versionPublished,
+            options.showPrompt
+        );
+    }
 }
 
 async function generateNotesPrompt(
@@ -1286,18 +1485,73 @@ async function generateNotesPrompt(
 }
 
 // ============================================================================
+// Unified Non-Interactive Release
+// ============================================================================
+
+async function unifiedRelease(options: { nonInteractive?: boolean; dryRun?: boolean; since?: string }): Promise<void> {
+    _nonInteractive = true;
+
+    const branch = guardAgainstMainBranch();
+
+    const bumpType = detectVersionBumpFromBranch();
+    if (!bumpType) {
+        logError(chalk.red('Cannot detect version bump type from branch name.'));
+        logError(chalk.red('Use a standard prefix: feat/, fix/, breaking/, chore/, docs/, refactor/, test/, build/, ci/, perf/'));
+        process.exit(1);
+    }
+
+    const version = ensureUnreleasedVersionNonInteractive(bumpType);
+
+    if (!options.dryRun) {
+        const releases = loadReleasesJson();
+        const entry = releases.releases.find((r) => r.version === version);
+        if (entry) {
+            const today = new Date().toISOString().split('T')[0];
+            entry.date = today;
+            entry.status = 'released';
+            releases.latestVersion = version;
+            saveReleasesJson(releases);
+            log(chalk.green(`✓ releases.json: ${version} marked as released (${today})`));
+        }
+    } else {
+        log(chalk.cyan('Dry run: releases.json was NOT modified'));
+    }
+
+    const baseBranch = options.since || 'main';
+    const gitContext = gatherGitContext(baseBranch);
+
+    const step1Content = formatGitContextBlock(gitContext);
+    const prompt = getPrompt({ baseBranch, unifiedVersion: version, step1Content });
+
+    if (options.dryRun) {
+        process.stdout.write('[DRY RUN] ' + prompt);
+    } else {
+        process.stdout.write(prompt);
+    }
+}
+
+// ============================================================================
 // CLI Setup
 // ============================================================================
 
 const program = new Command();
 
-program.name('release').description('Pika Framework Release Management Tool').version('0.1.0');
+program
+    .name('release')
+    .description('Pika Framework Release Management Tool')
+    .version('0.1.0')
+    .enablePositionalOptions()
+    .passThroughOptions()
+    .option('--non-interactive', 'Run unified release flow without prompts (output self-contained prompt to stdout)')
+    .option('--dry-run', 'Show what would be done without making changes')
+    .option('--since <branch>', 'Compare against specific branch/ref (default: main)', 'main');
 
 program
     .command('publish')
     .description('Publish a new release')
     .argument('[version]', 'Semantic version number (e.g., 0.5.0) - optional if only one unreleased version exists')
     .option('--dry-run', 'Show what would be done without making changes')
+    .option('--non-interactive', 'Skip confirmation prompts, proper exit codes')
     .action(publishRelease);
 
 program
@@ -1307,6 +1561,7 @@ program
     .option('--ignore-uncommitted', 'Ignore uncommitted changes (by default they are included)')
     .option('--finalize [version]', 'Finalize: Update version date from TBD to today and mark as released (prompts if version not provided)')
     .option('--show-prompt', 'Display the full prompt text in addition to copying to clipboard')
+    .option('--non-interactive', 'Run without prompts, output self-contained prompt to stdout')
     .action(updateNotes);
 
 program.command('info').description('Show current release information').action(showInfo);
@@ -1317,14 +1572,23 @@ program
     .command('plan-breaking')
     .description('Generate prompt for planning a breaking change BEFORE implementation')
     .option('--show-prompt', 'Display the full prompt text in addition to copying to clipboard')
+    .option('--non-interactive', 'Not supported — will error')
     .action(planBreakingChange);
 
 // Default command (for backward compatibility)
 if (process.argv.length > 2 && !process.argv[2].startsWith('-') && !['publish', 'notes', 'info', 'validate', 'plan-breaking'].includes(process.argv[2])) {
-    // If first arg is a version number, assume publish command
     if (validateVersion(process.argv[2])) {
         process.argv.splice(2, 0, 'publish');
     }
 }
+
+// When no subcommand and --non-interactive is set, run unified flow
+program.action(async (options) => {
+    if (options.nonInteractive) {
+        await unifiedRelease(options);
+    } else {
+        program.help();
+    }
+});
 
 program.parse();

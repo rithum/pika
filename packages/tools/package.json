@@ -16,6 +16,7 @@
         "release:publish": "pnpm tsx src/release.ts publish",
         "release:validate": "pnpm tsx src/release.ts validate",
         "release:plan-breaking": "pnpm tsx src/release.ts plan-breaking",
+        "test": "jest",
         "clean": "rm -rf node_modules"
     },
     "dependencies": {
@@ -27,7 +28,10 @@
     },
     "devDependencies": {
         "@pika/typescript-config": "workspace:*",
+        "@types/jest": "catalog:",
         "@types/node": "catalog:",
+        "jest": "catalog:",
+        "ts-jest": "catalog:",
         "tsx": "catalog:",
         "typescript": "catalog:"
     },
