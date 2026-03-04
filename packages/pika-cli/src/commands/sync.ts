@@ -1780,6 +1780,7 @@ function getDefaultProtectedAreas(): string[] {
         'README-pika.md',
         'CODEOWNERS',
         'CONTRIBUTING.md',
+        'AGENTS.md',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte',
         'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte'
