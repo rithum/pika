@@ -5,6 +5,15 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-03-09
+
+### Added
+
+- **CLI: Non-interactive sync mode** - New `--yes` flag for `pika sync` auto-confirms all prompts, enabling use in CI/CD pipelines and automated agent workflows. When `--yes` is passed, the sync confirmation prompt is skipped and breaking changes are auto-acknowledged. Existing interactive behavior is unchanged without the flag.
+  - Run `npm install -g pika-app@latest` to get the updated CLI
+
+---
+
 ## [0.21.0] - 2026-03-04
 
 ### Added
