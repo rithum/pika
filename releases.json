@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.21.0",
-  "currentDevelopment": "0.21.0",
+  "latestVersion": "0.22.0",
+  "currentDevelopment": "0.22.0",
   "releases": [
+    {
+      "version": "0.22.0",
+      "date": "2026-03-09",
+      "status": "released",
+      "breaking": false,
+      "summary": "Non-interactive sync mode with --yes flag for CI/CD pipelines",
+      "highlights": [
+        "New --yes flag for pika sync auto-confirms all prompts and breaking changes",
+        "Enables pika sync in CI/CD pipelines and automated agent workflows without interactive input"
+      ]
+    },
     {
       "version": "0.21.0",
       "date": "2026-03-04",

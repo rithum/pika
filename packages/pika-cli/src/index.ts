@@ -40,6 +40,7 @@ program
     .option('--debug', 'Enable debug logging')
     .option('--verbose', 'Show detailed sync information and configuration')
     .option('--acknowledge-breaking-changes', 'Acknowledge breaking changes and proceed with sync')
+    .option('--yes', 'Auto-confirm all prompts (non-interactive mode for CI/CD)')
     .option('--help', 'Show detailed help about the sync system')
     .action(syncCommand);
 

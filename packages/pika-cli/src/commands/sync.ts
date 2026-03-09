@@ -32,6 +32,7 @@ interface SyncOptions {
     help?: boolean;
     verbose?: boolean;
     acknowledgeBreakingChanges?: boolean;
+    yes?: boolean;
 }
 
 interface SyncChange {
@@ -745,7 +746,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 if (versionDiff.hasBreakingChanges) {
                     const hasBreaking = showBreakingChangeWarning(versionDiff);
 
-                    if (hasBreaking && !options.acknowledgeBreakingChanges && !options.dryRun) {
+                    if (hasBreaking && !options.acknowledgeBreakingChanges && !options.yes && !options.dryRun) {
                         console.log(chalk.red('Cannot proceed with sync due to breaking changes.'));
                         console.log();
                         console.log(chalk.yellow('To proceed after reading the migration guide, run:'));
@@ -853,20 +854,24 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     return;
                 }
 
-                // Confirm sync
-                const { proceed } = await inquirer.prompt([
-                    {
-                        type: 'confirm',
-                        name: 'proceed',
-                        message: `Apply ${changes.length} framework changes from branch ${targetBranch}?`,
-                        default: true
-                    }
-                ]);
+                // Confirm sync (skip prompt in non-interactive mode)
+                if (options.yes) {
+                    console.log(chalk.cyan(`Auto-confirming ${changes.length} framework changes from branch ${targetBranch}...`));
+                } else {
+                    const { proceed } = await inquirer.prompt([
+                        {
+                            type: 'confirm',
+                            name: 'proceed',
+                            message: `Apply ${changes.length} framework changes from branch ${targetBranch}?`,
+                            default: true
+                        }
+                    ]);
 
-                if (!proceed) {
-                    console.log(chalk.red('Sync cancelled.'));
-                    await cleanupTempDir(tempDir);
-                    return;
+                    if (!proceed) {
+                        console.log(chalk.red('Sync cancelled.'));
+                        await cleanupTempDir(tempDir);
+                        return;
+                    }
                 }
 
                 // Apply changes
@@ -2249,6 +2254,7 @@ function showSyncHelp(): void {
     console.log(chalk.gray('  • --visual-diff: Open diffs in your IDE visually (Cursor or VS Code)'));
     console.log(chalk.gray('  • --debug: Enable detailed debug logging'));
     console.log(chalk.gray('  • --verbose: Show detailed sync information and configuration'));
+    console.log(chalk.gray('  • --yes: Auto-confirm all prompts (non-interactive mode for CI/CD)'));
     console.log(chalk.gray('  • --branch: Sync from a specific branch'));
     console.log(chalk.gray('  • --version: Sync to a specific version (not implemented yet)'));
     console.log();
