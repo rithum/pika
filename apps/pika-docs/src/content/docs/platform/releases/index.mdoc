@@ -7,14 +7,21 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.22.1
+
+- **External user chat app visibility fix** - Fixed a bug where external users could not see any chat apps on the home page
+  - The `ChatAppLite` mapping used the wrong property name (`userTypesAllowed` instead of `userTypes`)
+  - The client-side filter defaulted all users to `['internal-user']`, hiding chat apps from external users
+  - Internal users were unaffected
+
+**Latest Stable:** `0.22.1` (March 10, 2026)
+
 ### What's New in 0.22.0
 
 - **CLI: Non-interactive sync mode** - New `--yes` flag for `pika sync` auto-confirms all prompts
   - Enables `pika sync` in CI/CD pipelines and automated agent workflows without interactive input
   - When `--yes` is passed, breaking changes are also auto-acknowledged (no separate flag needed)
   - Existing interactive behavior is unchanged without the flag
-
-**Latest Stable:** `0.22.0` (March 9, 2026)
 
 ### What's New in 0.21.0
 
@@ -558,6 +565,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.22.1  | Mar 10 2026 | Patch    | Fix external users unable to see chat apps on home page |
 | 0.22.0  | Mar 9 2026  | Feature  | Non-interactive sync mode with --yes flag     |
 | 0.21.0  | Mar 4 2026  | Feature  | Non-interactive release mode, AGENTS.md context file |
 | 0.20.2  | Mar 3 2026  | Patch    | Model ID validation accepts base model IDs    |
