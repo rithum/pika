@@ -69,8 +69,7 @@ export const load: LayoutServerLoad = async ({ depends, locals }) => {
                     title: app.title,
                     description: app.description,
                     agentId: app.agentId,
-                    userTypesAllowed: app.userTypes,
-                    userRolesAllowed: app.userRoles
+                    userTypes: app.userTypes
                 }));
             } catch (e) {
                 handleApiGatewayError(e, 'loading home page chat apps');
