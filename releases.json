@@ -1,9 +1,9 @@
 {
   "latestVersion": "0.22.0",
-  "currentDevelopment": "0.23.0",
+  "currentDevelopment": "0.22.1",
   "releases": [
     {
-      "version": "0.23.0",
+      "version": "0.22.1",
       "date": "TBD",
       "status": "unreleased",
       "breaking": false,
