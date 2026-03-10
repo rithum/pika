@@ -1,7 +1,17 @@
 {
   "latestVersion": "0.22.0",
-  "currentDevelopment": "0.22.0",
+  "currentDevelopment": "0.23.0",
   "releases": [
+    {
+      "version": "0.23.0",
+      "date": "TBD",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Fix external users unable to see chat apps on home page",
+      "highlights": [
+        "Fixed ChatAppLite userTypes mapping that prevented external users from seeing chat apps"
+      ]
+    },
     {
       "version": "0.22.0",
       "date": "2026-03-09",

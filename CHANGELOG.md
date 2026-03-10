@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - TBD
+
+### Fixed
+
+- **External users unable to see chat apps on home page** - Fixed property name mismatch in `+layout.server.ts` where `userTypesAllowed` was mapped instead of `userTypes` when building the `ChatAppLite` array. This caused the client-side external-user filter to always default to `['internal-user']`, hiding all chat apps from external users. Internal users were unaffected.
+
+---
+
 ## [0.22.0] - 2026-03-09
 
 ### Added
