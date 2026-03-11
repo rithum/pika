@@ -1,0 +1,195 @@
+---
+title: Server Hooks
+description: Transform user data server-side before it reaches the AI agent
+---
+
+Learn how to use server hooks to enrich, validate, or transform `customUserData` before it is sent to the converse Lambda and ultimately passed to the AI agent as session attributes.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Create a server hook to transform `customUserData`
+- Resolve missing fields via external lookups (e.g., database, API)
+- Understand how the hook integrates into the message request lifecycle
+- Know how to enable/disable the hook
+
+## Prerequisites
+
+- A running Pika installation
+- Understanding of TypeScript and async/await
+- Familiarity with the Pika `customUserData` and `SimpleAuthenticatedUser` types
+
+## Understanding the Extension Point
+
+When a user sends a message, the message API route (`+server.ts`) builds a `SimpleAuthenticatedUser` object containing `customUserData` — the user's custom attributes provided by your authentication system (e.g., `accountId`, `accountType`, `companyName`). This object is signed into a JWT and sent to the converse Lambda, where the data becomes session attributes available to the AI agent.
+
+The **server hooks** extension point lets you transform `customUserData` after it is resolved from override data or the auth provider, but before it is encoded into the JWT.
+
+```
+Message Request:
+  +server.ts -> resolve customUserData -> transformCustomUserData() -> JWT -> Lambda -> Agent
+```
+
+{% aside type="note" title="When to Use This" %}
+Use server hooks when you need to:
+- Resolve missing user attributes from an external data source (database, API, OpenSearch)
+- Validate or sanitize custom data before it reaches the agent
+- Enrich user data with additional context not available at authentication time
+- Apply business logic that must survive Pika sync updates
+{% /aside %}
+
+## Step 1: Create the Server Hooks File
+
+Create or modify the hooks file in the protected customization area.
+
+**Location:** `src/lib/custom/server-hooks.ts`
+
+```typescript
+import type { RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+
+export interface TransformCustomUserDataContext {
+    userId: string;
+    chatAppId: string;
+}
+
+/**
+ * Called during the message API route before customUserData is encoded
+ * into the JWT and sent to the converse Lambda.
+ */
+export async function transformCustomUserData(
+    customUserData: RecordOrUndef,
+    context: TransformCustomUserDataContext
+): Promise<RecordOrUndef> {
+    if (!customUserData) {
+        return customUserData;
+    }
+
+    // Example: resolve a missing accountType from an external lookup
+    if (!customUserData.accountType && customUserData.accountId) {
+        try {
+            const resolved = await lookupAccountType(customUserData.accountId);
+            if (resolved) {
+                return { ...customUserData, accountType: resolved };
+            }
+        } catch {
+            // Lookup failed — return original data unchanged
+        }
+    }
+
+    return customUserData;
+}
+
+async function lookupAccountType(accountId: string): Promise<string | undefined> {
+    // Replace with your actual data source
+    const response = await fetch(`https://your-api.example.com/accounts/${accountId}`);
+    if (response.ok) {
+        const data = await response.json();
+        return data.accountType;
+    }
+    return undefined;
+}
+```
+
+### Hook Signature
+
+The `transformCustomUserData` hook receives:
+
+- `customUserData: RecordOrUndef` — The user's custom data, already resolved from `overrideData[chatAppId]` or `customData`. This is `Record<string, string | undefined> | undefined`.
+- `context: TransformCustomUserDataContext` — Contains `userId` and `chatAppId` for logging and lookup context.
+
+The hook is `async` and returns `Promise<RecordOrUndef>`. Return the transformed data, or the original data unchanged if no transformation is needed.
+
+## Step 2: How It Gets Called
+
+The core message API route automatically imports and calls your hook. No additional wiring is needed.
+
+```typescript
+import { transformCustomUserData } from '$lib/custom/server-hooks';
+
+// Resolve raw custom data (override or default)
+const rawCustomUserData = user.overrideData?.[params.chatAppId] || user.customData;
+
+// Allow consumer to transform customUserData before it reaches the agent
+let resolvedCustomUserData = rawCustomUserData;
+if (transformCustomUserData) {
+    try {
+        resolvedCustomUserData = await transformCustomUserData(rawCustomUserData, {
+            userId: user.userId,
+            chatAppId: params.chatAppId
+        });
+    } catch (e) {
+        console.warn('[server-hooks] transformCustomUserData threw an error, falling back to original data:', e instanceof Error ? e.message : String(e));
+    }
+}
+
+const simpleUser = {
+    userId: user.userId,
+    customUserData: resolvedCustomUserData
+};
+```
+
+The `if (transformCustomUserData)` guard ensures the hook is only called when it is an actual function (not `null`). Errors thrown inside the hook are caught — the original untransformed data is used as a fallback, and a warning is logged.
+
+## Disabling the Hook
+
+To disable the server hook, export `null` instead of a function:
+
+```typescript
+/**
+ * Server hooks disabled — no custom transformation needed.
+ */
+export const transformCustomUserData = null;
+```
+
+## Best Practices
+
+### 1. Keep Hooks Fast
+
+The hook runs in the message request path — every millisecond adds to the user's perceived latency. Avoid heavy computations or long chains of sequential API calls. Cache results where possible.
+
+### 2. Handle Failures Silently
+
+External lookups may be unavailable. The framework catches errors for you, but it's better to handle them inside your hook so you can log meaningful context:
+
+```typescript
+try {
+    const resolved = await lookupAccountType(customUserData.accountId);
+    if (resolved) {
+        return { ...customUserData, accountType: resolved };
+    }
+} catch (err) {
+    console.warn('[server-hooks] Account lookup failed:', err instanceof Error ? err.message : String(err));
+}
+return customUserData; // Graceful fallback
+```
+
+### 3. Don't Mutate the Input
+
+Always return a new object (e.g., using spread `{ ...customUserData, newField: value }`) rather than modifying the input directly. The input may be shared with session or cookie state.
+
+### 4. Only Transform When Needed
+
+Check whether transformation is necessary before doing work. Skip the hook early when data is already complete:
+
+```typescript
+// Already has the field — nothing to do
+if (customUserData.accountType) {
+    return customUserData;
+}
+```
+
+## How It Works with Pika Sync
+
+The `server-hooks.ts` file lives in the `$lib/custom/` protected area. Pika sync will:
+
+- **Deliver the file** on first sync if it doesn't exist locally
+- **Never overwrite** the file once it exists, preserving your customizations
+
+This means you can safely modify the hook without worrying about sync overwriting your changes.
+
+## Related Documentation
+
+- [Client Lifecycle Hooks](/guides/customization/client-lifecycle-hooks/) - Run custom client-side code during initialization and polling
+- [Extend User Data Models](/guides/customization/user-data-models/) - Configure user data overrides
+- [Integrate Your Authentication System](/guides/authentication/integrate-auth/) - Set custom data during authentication
