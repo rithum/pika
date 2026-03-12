@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-03-12
+
+### Added
+
+- **Server Hooks Extension Point** - New `transformCustomUserData` hook lets consumers enrich, validate, or transform `customUserData` before it reaches the converse Lambda. Configure in `$lib/custom/server-hooks.ts` — the file is sync-protected so your customizations survive pika updates. Includes 5-second timeout, undefined guard, and graceful error fallback. See [Server Hooks guide](/guides/customization/server-hooks/) for examples and best practices. [#133]
+
+---
+
 ## [0.22.1] - 2026-03-10
 
 ### Fixed
