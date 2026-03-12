@@ -180,6 +180,22 @@ export const MODEL_ID_TO_MODEL = Object.values(MODELS)
         {} as Record<string, Model>
     );
 
+/**
+ * Resolves a model identifier to its canonical inference profile ID.
+ * Looks up the model in MODEL_ID_TO_MODEL (which maps both bare and us.-prefixed IDs)
+ * and returns the resolved model.id — which may be an env-overridden inference profile ARN.
+ * Falls back to the original value if the model is not found.
+ */
+export function resolveModelId(modelId: string): string {
+    const model = MODEL_ID_TO_MODEL[modelId];
+    if (model) {
+        console.log(`Resolved model ID '${modelId}' → '${model.id}'`);
+        return model.id;
+    }
+    console.log(`Model ID '${modelId}' not found in MODEL_ID_TO_MODEL, using as-is`);
+    return modelId;
+}
+
 // Standard interface for model invocation body
 interface ModelBody {
     //anthropic_version: string;
