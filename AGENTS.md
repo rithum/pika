@@ -128,3 +128,4 @@ pnpm release:plan-breaking      # Plan breaking change + migration guide
 - Published packages (`pika-shared`, `pika-ux`, `pika-serverless`, `pika-app`) — changes to these affect downstream consumers
 - Commits must follow **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 - The docs site (`pika-docs`) uses Markdoc (`.mdoc` files), not standard Markdown
+- **When adding or removing a docs page**, you must also update `apps/pika-docs/sidebar-config.ts` — the `starlight-sidebar-topics` plugin requires every page to be registered in the sidebar. Always run `pnpm --filter "pika-docs" run build` locally to verify before committing.
