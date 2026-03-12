@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.23.0",
-  "currentDevelopment": "0.23.1",
+  "latestVersion": "0.23.1",
+  "currentDevelopment": null,
   "releases": [
     {
       "version": "0.23.1",
       "date": "2026-03-12",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Resolve agent model IDs through inference profile mapping before Bedrock invocation",
       "highlights": [
