@@ -1,7 +1,18 @@
 {
   "latestVersion": "0.23.0",
-  "currentDevelopment": "0.23.0",
+  "currentDevelopment": "0.23.1",
   "releases": [
+    {
+      "version": "0.23.1",
+      "date": "2026-03-12",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Resolve agent model IDs through inference profile mapping before Bedrock invocation",
+      "highlights": [
+        "Added resolveModelId() to map bare model IDs to inference profile IDs at invocation time",
+        "Prevents ValidationException when agent definitions use bare model IDs instead of inference profiles"
+      ]
+    },
     {
       "version": "0.23.0",
       "date": "2026-03-12",

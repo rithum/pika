@@ -7,6 +7,15 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.23.1
+
+- **Agent model ID resolution** - `resolveModelId()` automatically maps bare model IDs to inference profile IDs before Bedrock invocation
+  - Fixes `ValidationException` when agent definitions use bare model IDs (e.g. `anthropic.claude-…`) instead of inference profiles (`us.anthropic.claude-…`)
+  - Also resolves to env-overridden inference profile ARNs when configured
+  - Applied at all three invocation points: main agent, collaborators, and verification model
+
+**Latest Stable:** `0.23.1` (March 12, 2026)
+
 ### What's New in 0.23.0
 
 - **Server Hooks Extension Point** - New `transformCustomUserData` hook for server-side data transformation
@@ -14,8 +23,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
   - Enrich, validate, or resolve missing user attributes before they reach the converse Lambda
   - Built-in safety: 5-second timeout, undefined guard, and graceful error fallback
   - See [Server Hooks guide](/guides/customization/server-hooks/) for examples and best practices
-
-**Latest Stable:** `0.23.0` (March 12, 2026)
 
 ### What's New in 0.22.1
 
@@ -573,6 +580,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.23.1  | Mar 12 2026 | Patch    | Resolve agent model IDs through inference profile mapping |
 | 0.23.0  | Mar 12 2026 | Feature  | Server hooks extension point for customUserData transformation |
 | 0.22.1  | Mar 10 2026 | Patch    | Fix external users unable to see chat apps on home page |
 | 0.22.0  | Mar 9 2026  | Feature  | Non-interactive sync mode with --yes flag     |

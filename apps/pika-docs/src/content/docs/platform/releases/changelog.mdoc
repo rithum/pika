@@ -7,6 +7,14 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.23.1] - 2026-03-12
+
+### Fixed
+
+- **Agent model ID resolution for Bedrock InvokeInlineAgent** - Added `resolveModelId()` that maps bare model IDs (e.g. `anthropic.claude-sonnet-4-5-20250929-v1:0`) to their inference profile equivalents (`us.anthropic.claude-…`) or env-overridden ARNs before passing to Bedrock. Fixes `ValidationException` when agent definitions use bare model IDs instead of inference profile IDs. Applied at all three invocation points: main agent, collaborators, and verification model. [#136]
+
+---
+
 ## [0.23.0] - 2026-03-12
 
 ### Added

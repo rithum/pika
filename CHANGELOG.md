@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.1] - 2026-03-12
+
+### Fixed
+
+- **Agent model ID resolution for Bedrock InvokeInlineAgent** - Added `resolveModelId()` that maps bare model IDs (e.g. `anthropic.claude-sonnet-4-5-20250929-v1:0`) to their inference profile equivalents (`us.anthropic.claude-…`) or env-overridden ARNs before passing to Bedrock. Fixes `ValidationException` when agent definitions use bare model IDs instead of inference profile IDs. Applied at all three invocation points: main agent, collaborators, and verification model. [#136]
+
+---
+
 ## [0.23.0] - 2026-03-12
 
 ### Added
