@@ -6,6 +6,10 @@ import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
+import { transformCustomUserData } from '$lib/custom/server-hooks';
+
+/** Max time (ms) to wait for the server hook before falling back to original data */
+const SERVER_HOOK_TIMEOUT_MS = 5000;
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
@@ -45,9 +49,36 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         //TODO: what do we do if an internal user changes the custom data during a chat session?  Do we care?  Will it break anything downstream?
+        const rawCustomUserData = user.overrideData?.[params.chatAppId] || user.customData;
+
+        // Allow consumer to transform customUserData before it reaches the agent
+        let resolvedCustomUserData = rawCustomUserData;
+        if (transformCustomUserData) {
+            try {
+                const hookResult = await Promise.race([
+                    transformCustomUserData(rawCustomUserData, {
+                        userId: user.userId,
+                        chatAppId: params.chatAppId
+                    }),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(`transformCustomUserData timed out after ${SERVER_HOOK_TIMEOUT_MS}ms`)), SERVER_HOOK_TIMEOUT_MS)
+                    )
+                ]);
+
+                // Guard against hooks that accidentally return undefined when data existed
+                if (hookResult === undefined && rawCustomUserData !== undefined) {
+                    console.warn('[server-hooks] transformCustomUserData returned undefined; using original data');
+                } else {
+                    resolvedCustomUserData = hookResult;
+                }
+            } catch (e) {
+                console.warn('[server-hooks] transformCustomUserData threw an error, falling back to original data:', e instanceof Error ? e.message : String(e));
+            }
+        }
+
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
             userId: user.userId,
-            customUserData: user.overrideData?.[params.chatAppId] || user.customData
+            customUserData: resolvedCustomUserData
         };
 
         // Replace the s3Bucket with appConfig.pikaS3Bucket in any files we have

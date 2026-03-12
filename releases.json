@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.22.1",
-  "currentDevelopment": "0.22.1",
+  "latestVersion": "0.23.0",
+  "currentDevelopment": "0.23.0",
   "releases": [
+    {
+      "version": "0.23.0",
+      "date": "2026-03-12",
+      "status": "released",
+      "breaking": false,
+      "summary": "Server hooks extension point for customUserData transformation",
+      "highlights": [
+        "New transformCustomUserData hook in $lib/custom/server-hooks.ts",
+        "5-second timeout, undefined guard, and graceful error fallback",
+        "Customer-facing documentation guide"
+      ]
+    },
     {
       "version": "0.22.1",
       "date": "2026-03-10",
