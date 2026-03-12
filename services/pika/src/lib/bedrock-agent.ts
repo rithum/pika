@@ -133,6 +133,63 @@ export function getBedrockClient(): BedrockRuntimeClient {
     return bedrockClient;
 }
 
+interface ConverseToolUseBlock {
+    toolUse?: {
+        toolUseId?: string;
+        name?: string;
+        input?: { recipient?: string; content?: string };
+    };
+    text?: string;
+}
+
+interface ConverseResponseEnvelope {
+    output?: {
+        message?: {
+            role?: string;
+            content?: ConverseToolUseBlock[];
+        };
+    };
+    stopReason?: string;
+    usage?: Record<string, number>;
+}
+
+/**
+ * Detects raw Bedrock Converse API response objects being passed through in multi-agent
+ * collaboration scenarios (AgentCommunication__sendMessage) and extracts the actual text content.
+ *
+ * When a collaborator agent responds via AgentCommunication__sendMessage, Bedrock may pass
+ * through the entire raw Converse API response as the chunk bytes instead of just the text.
+ */
+export function extractTextFromRawResponse(decodedChunk: string): string {
+    if (!decodedChunk.startsWith('{')) {
+        return decodedChunk;
+    }
+
+    let parsed: ConverseResponseEnvelope;
+    try {
+        parsed = JSON.parse(decodedChunk);
+    } catch {
+        return decodedChunk;
+    }
+
+    const contentBlocks = parsed.output?.message?.content;
+    if (!Array.isArray(contentBlocks)) {
+        return decodedChunk;
+    }
+
+    const extractedParts: string[] = [];
+
+    for (const block of contentBlocks) {
+        if (block.toolUse?.name === 'AgentCommunication__sendMessage' && block.toolUse.input?.content) {
+            extractedParts.push(block.toolUse.input.content);
+        } else if (block.text) {
+            extractedParts.push(block.text);
+        }
+    }
+
+    return extractedParts.length > 0 ? extractedParts.join('\n') : decodedChunk;
+}
+
 async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: InvokeAgentHooks, label: string, appliedDirectives?: SemanticDirective[]) {
     let error: unknown;
     let startingTime = Date.now();
@@ -232,10 +289,12 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                 });
 
                 if (chunk.chunk?.bytes) {
-                    const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes);
+                    const rawChunk = new TextDecoder().decode(chunk.chunk.bytes);
+                    const decodedChunk = extractTextFromRawResponse(rawChunk);
                     console.log(label, `Chunk ${chunkCount} decoded:`, {
                         length: decodedChunk.length,
-                        preview: decodedChunk.substring(0, 100)
+                        preview: decodedChunk.substring(0, 100),
+                        wasExtracted: rawChunk !== decodedChunk
                     });
                     responseMsg += decodedChunk;
 
