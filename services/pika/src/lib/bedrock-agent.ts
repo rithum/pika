@@ -57,6 +57,7 @@ import {
     DEFAULT_ANTHROPIC_VERSION,
     DEFAULT_VERIFICATION_MODEL,
     type InvokeAgentHooks,
+    resolveModelId,
     type ReturnControlContext,
     type ToolContext
 } from './model-types-utils';
@@ -525,7 +526,7 @@ async function invokeAgentToVerifyAnswer(
     let cmdInput = cloneDeep(cmdInput1);
 
     // Use the verification model
-    cmdInput.foundationModel = model ?? DEFAULT_VERIFICATION_MODEL;
+    cmdInput.foundationModel = resolveModelId(model ?? DEFAULT_VERIFICATION_MODEL);
 
     // Remove tools, kb, and collaborators for verification data
     delete cmdInput.inlineSessionState?.conversationHistory;
@@ -967,7 +968,7 @@ export async function invokeAgentToGetAnswer(
     console.log('Building command input...');
     const cmdInput: InvokeInlineAgentCommandInput = {
         sessionId: chatSession.sessionId,
-        foundationModel: agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
+        foundationModel: resolveModelId(agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL),
         instruction: [agentAndTools.agent.basePrompt, ...toolContexts.map((context) => context.getInstructions?.(agentAndTools.agent.toolIds)).filter((a) => a != null)].join('\n'),
         inputText: questionFromUser,
         enableTrace: true,
@@ -984,7 +985,7 @@ export async function invokeAgentToGetAnswer(
                     sessionContextBlock
                 ].filter((a) => a != null).join('\n'),
                 agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), // (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
-                foundationModel: collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL,
+                foundationModel: resolveModelId(collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL),
                 actionGroups: toolContexts.map((context) => context.getActionGroups(collaborator.toolIds ?? [])).flat(),
                 knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
 
