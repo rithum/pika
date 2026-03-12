@@ -5,6 +5,14 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.2] - 2026-03-12
+
+### Fixed
+
+- **Raw Bedrock API response JSON displayed in multi-agent chat output** - Added `extractTextFromRawResponse()` to detect and extract text content from raw Converse API response objects that Bedrock now passes through in multi-agent collaboration chunks. When a collaborator agent uses `AgentCommunication__sendMessage`, Bedrock may send the entire raw response envelope instead of just the text — this fix parses it and extracts the clean content, falling back to the original chunk if parsing fails.
+
+---
+
 ## [0.23.1] - 2026-03-12
 
 ### Fixed
