@@ -129,7 +129,11 @@ const simpleUser = {
 };
 ```
 
-The `if (transformCustomUserData)` guard ensures the hook is only called when it is an actual function (not `null`). Errors thrown inside the hook are caught — the original untransformed data is used as a fallback, and a warning is logged.
+The `if (transformCustomUserData)` guard ensures the hook is only called when it is an actual function (not `null`). The framework provides three safety nets:
+
+1. **Timeout** — The hook must complete within 5 seconds. If it hangs (e.g., an unresponsive external service), the framework falls back to the original data and logs a warning.
+2. **Error catch** — Errors thrown inside the hook are caught. The original untransformed data is used as a fallback, and a warning is logged.
+3. **Undefined guard** — If the hook returns `undefined` when the original data was defined (a common bug from missing `return` statements), the framework uses the original data instead.
 
 ## Disabling the Hook
 
@@ -146,7 +150,7 @@ export const transformCustomUserData = null;
 
 ### 1. Keep Hooks Fast
 
-The hook runs in the message request path — every millisecond adds to the user's perceived latency. Avoid heavy computations or long chains of sequential API calls. Cache results where possible.
+The hook runs in the message request path and has a **5-second timeout**. If your hook doesn't resolve within that window, the framework falls back to the original data. Avoid heavy computations or long chains of sequential API calls. Cache results where possible.
 
 ### 2. Handle Failures Silently
 
@@ -168,7 +172,29 @@ return customUserData; // Graceful fallback
 
 Always return a new object (e.g., using spread `{ ...customUserData, newField: value }`) rather than modifying the input directly. The input may be shared with session or cookie state.
 
-### 4. Only Transform When Needed
+### 4. Always Return Data
+
+Make sure every code path returns the data (transformed or original). If your hook returns `undefined` when the input was defined, the framework treats it as a bug and falls back to the original data. Avoid implicit `undefined` returns:
+
+```typescript
+// BAD — missing return on the else branch
+export async function transformCustomUserData(data, ctx) {
+    if (someCondition) {
+        return { ...data, extra: 'val' };
+    }
+    // implicit return undefined — framework will use original data
+}
+
+// GOOD — always return
+export async function transformCustomUserData(data, ctx) {
+    if (someCondition) {
+        return { ...data, extra: 'val' };
+    }
+    return data;
+}
+```
+
+### 5. Only Transform When Needed
 
 Check whether transformation is necessary before doing work. Skip the hook early when data is already complete:
 

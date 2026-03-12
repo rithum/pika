@@ -8,6 +8,9 @@ import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-sha
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import { transformCustomUserData } from '$lib/custom/server-hooks';
 
+/** Max time (ms) to wait for the server hook before falling back to original data */
+const SERVER_HOOK_TIMEOUT_MS = 5000;
+
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
@@ -52,10 +55,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         let resolvedCustomUserData = rawCustomUserData;
         if (transformCustomUserData) {
             try {
-                resolvedCustomUserData = await transformCustomUserData(rawCustomUserData, {
-                    userId: user.userId,
-                    chatAppId: params.chatAppId
-                });
+                const hookResult = await Promise.race([
+                    transformCustomUserData(rawCustomUserData, {
+                        userId: user.userId,
+                        chatAppId: params.chatAppId
+                    }),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(`transformCustomUserData timed out after ${SERVER_HOOK_TIMEOUT_MS}ms`)), SERVER_HOOK_TIMEOUT_MS)
+                    )
+                ]);
+
+                // Guard against hooks that accidentally return undefined when data existed
+                if (hookResult === undefined && rawCustomUserData !== undefined) {
+                    console.warn('[server-hooks] transformCustomUserData returned undefined; using original data');
+                } else {
+                    resolvedCustomUserData = hookResult;
+                }
             } catch (e) {
                 console.warn('[server-hooks] transformCustomUserData threw an error, falling back to original data:', e instanceof Error ? e.message : String(e));
             }
