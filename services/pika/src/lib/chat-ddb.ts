@@ -244,6 +244,16 @@ export async function updateUser(user: ChatUser<RecordOrUndef>): Promise<ChatUse
         expressionAttributeNames['#lastName'] = 'last_name';
         expressionAttributeValues[':lastName'] = user.lastName;
     }
+    if (user.userType !== undefined) {
+        updateExpressions.push('#userType = :userType');
+        expressionAttributeNames['#userType'] = 'user_type';
+        expressionAttributeValues[':userType'] = user.userType;
+    }
+    if (user.roles !== undefined) {
+        updateExpressions.push('#roles = :roles');
+        expressionAttributeNames['#roles'] = 'roles';
+        expressionAttributeValues[':roles'] = user.roles;
+    }
     if (user.features !== undefined) {
         updateExpressions.push('#features = :features');
         expressionAttributeNames['#features'] = 'features';

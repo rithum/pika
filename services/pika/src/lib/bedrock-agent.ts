@@ -68,6 +68,11 @@ import { gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: getRegion() });
 const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 
+/** Soft size budget (chars) for collaborator instruction including injected directives. No hard API limit exists — this prevents flooding the collaborator's context window. */
+const MAX_COLLABORATOR_DIRECTIVE_SIZE = 20_000;
+/** Approximate overhead (chars) for the `<additional-instructions>` XML wrapper around injected directive text. */
+const DIRECTIVE_XML_WRAPPER_OVERHEAD = 50;
+
 // This is a map of toolId to local endpoint
 let localActionGroupEndpoints: Record<string, string> = {};
 if (process.env.LOCAL_TOOLS != null) {
@@ -817,6 +822,62 @@ function processInlineTool(tool: InlineToolDefinition, toolContext: Record<strin
  * @param userId The user id of the user who is sending the message.
  * @param messageId The message id of the user's message.
  * @param questionFromUser The question from the user with optional instructions prepended to ask the agent.
+ * Appends runtime-resolved directives to a collaborator's base instruction, respecting a size budget.
+ * Directives are assumed to be ranked by relevance (most relevant first). Once a directive would
+ * exceed the budget, it and all remaining (less relevant) directives are dropped.
+ */
+function buildCollaboratorInstructionWithDirectives(
+    baseInstruction: string,
+    agentId: string,
+    collaboratorDirectives?: Map<string, { instructions: string; appliedDirectives: SemanticDirective[] }>
+): string {
+    const directiveResult = collaboratorDirectives?.get(agentId);
+    if (!directiveResult || directiveResult.appliedDirectives.length === 0) {
+        return baseInstruction;
+    }
+
+    const budget = MAX_COLLABORATOR_DIRECTIVE_SIZE - baseInstruction.length - DIRECTIVE_XML_WRAPPER_OVERHEAD;
+    if (budget <= 0) {
+        console.warn(`[instruction-augmentation] No budget remaining for collaborator ${agentId} directives (base instruction: ${baseInstruction.length} chars)`);
+        return baseInstruction;
+    }
+
+    let directiveText = '';
+    const applied: SemanticDirective[] = [];
+    const dropped: string[] = [];
+
+    for (let i = 0; i < directiveResult.appliedDirectives.length; i++) {
+        const directive = directiveResult.appliedDirectives[i];
+        const separator = directiveText.length > 0 ? '\n' : '';
+        if (directiveText.length + separator.length + directive.instructions.length > budget) {
+            // Directives are ranked by relevance — all remaining are less relevant, stop here
+            for (let j = i; j < directiveResult.appliedDirectives.length; j++) {
+                dropped.push(directiveResult.appliedDirectives[j].id);
+            }
+            break;
+        }
+        directiveText += separator + directive.instructions;
+        applied.push(directive);
+    }
+
+    if (dropped.length > 0) {
+        console.warn(`[instruction-augmentation] Dropped ${dropped.length} directives for collaborator ${agentId} due to size budget (${budget} chars): ${dropped.join(', ')}`);
+    }
+
+    if (directiveText.length === 0) {
+        return baseInstruction;
+    }
+
+    console.log(`[instruction-augmentation] Injected ${applied.length} directives (${directiveText.length} chars) into collaborator ${agentId}`);
+    return baseInstruction + `\n<additional-instructions>\n${directiveText}\n</additional-instructions>`;
+}
+
+/**
+ * Invokes the Bedrock Inline Agent to generate a response to the user's message.
+ * @param chatSession The chat session to invoke the agent on.
+ * @param userId The user id of the user who is sending the message.
+ * @param messageId The message id of the user's message.
+ * @param questionFromUser The question from the user with optional instructions prepended to ask the agent.
  * @param responseStream The response stream to write the agent's response to.
  * @param conversationHistory The conversation history to reattach to the session if any.
  * @returns The chat message with the agent's response and the usage statistics. Note
@@ -835,7 +896,9 @@ export async function invokeAgentToGetAnswer(
     agentPostProcessorFnArn?: string,
     conversationHistory?: ConversationHistory,
     // The semantic directives that were applied to the prompt so we can add to trace to make it easier to debug
-    appliedDirectives?: SemanticDirective[]
+    appliedDirectives?: SemanticDirective[],
+    // Per-collaborator directives resolved at runtime, keyed by collaborator agentId
+    collaboratorDirectives?: Map<string, { instructions: string; appliedDirectives: SemanticDirective[] }>
 ): Promise<ChatMessageForCreate> {
     console.log('=== INVOKE AGENT START ===');
     console.log('invokeAgentToGetAnswer called with:', {
@@ -1036,14 +1099,21 @@ export async function invokeAgentToGetAnswer(
         },
         actionGroups: toolContexts.map((context) => context.getActionGroups(agentAndTools.agent.toolIds)).flat(),
         collaborators: agentAndTools.collaborators?.map((collaborator) => {
+            const baseInstruction = [
+                collaborator.basePrompt,
+                ...toolContexts.map((context) => context.getInstructions?.(collaborator.toolIds ?? [])).filter((a) => a != null),
+                sessionContextBlock
+            ]
+                .filter((a) => a != null)
+                .join('\n');
+
+            // Inject runtime-resolved directives for this collaborator (if any)
+            const instruction = buildCollaboratorInstructionWithDirectives(baseInstruction, collaborator.agentId, collaboratorDirectives);
+
             let col: Collaborator = {
                 agentName: collaborator.agentId,
-                instruction: [
-                    collaborator.basePrompt,
-                    ...toolContexts.map((context) => context.getInstructions?.(collaborator.toolIds ?? [])).filter((a) => a != null),
-                    sessionContextBlock
-                ].filter((a) => a != null).join('\n'),
-                agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), // (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),//?? (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED), (collaborator.collaboratorConfigurations?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
+                instruction,
+                agentCollaboration: collaborator.agentCollaboration ?? (collaborator.collaborators?.length ? AgentCollaboration.SUPERVISOR : AgentCollaboration.DISABLED),
                 foundationModel: resolveModelId(collaborator.foundationModel ?? agentAndTools.agent.foundationModel ?? DEFAULT_ANTHROPIC_MODEL),
                 actionGroups: toolContexts.map((context) => context.getActionGroups(collaborator.toolIds ?? [])).flat(),
                 knowledgeBases: collaborator.knowledgeBases?.map(toKnowledgeBase) ?? [],
@@ -1229,6 +1299,29 @@ export async function invokeAgentToGetAnswer(
                 });
             });
         });
+        // Emit per-collaborator directive traces for debugging (admin only on frontend)
+        if (collaboratorDirectives && collaboratorDirectives.size > 0) {
+            for (const [agentId, result] of collaboratorDirectives) {
+                hooks.onTrace({
+                    orchestrationTrace: {
+                        rationale: {
+                            traceId: `semantic-directives-collaborator-${agentId}`,
+                            text: JSON.stringify({
+                                type: 'semantic-directives-collaborator',
+                                collaboratorAgentId: agentId,
+                                directives: result.appliedDirectives.map((d) => ({
+                                    scope: d.scope,
+                                    id: d.id,
+                                    description: d.description,
+                                    instructions: d.instructions
+                                }))
+                            })
+                        }
+                    }
+                });
+            }
+        }
+
         let mainResponse = await invokeAgent(cmdInput, hooks, 'MAIN:', appliedDirectives);
         // console.log('[STREAM-TIMING] invokeAgent returned (streaming complete)', {
         //     elapsed: Date.now() - startingTime,

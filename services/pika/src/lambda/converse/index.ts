@@ -2,6 +2,7 @@ import { type ConversationHistory, ConversationRole } from '@aws-sdk/client-bedr
 import { LRUCache } from 'lru-cache';
 import type {
     AgentAndTools,
+    AgentDefinition,
     ChatAppComponentConfig,
     ChatAppOverridableFeaturesForConverseFn,
     ChatMessage,
@@ -16,6 +17,7 @@ import type {
     InvocationScopes,
     LLMContextItem,
     RecordOrUndef,
+    SemanticDirective,
     SentContextRecord,
     SimpleAuthenticatedUser,
     TagDefinition,
@@ -356,6 +358,7 @@ export const handler = enhancedStreamifyResponse(
                 features,
                 scopes,
                 invocationMode,
+                entityValue,
                 converseRequest.files,
                 converseRequest.chatAppComponentConfig,
                 converseRequest.llmContextItems
@@ -570,6 +573,7 @@ async function converse(
     features: ChatAppOverridableFeaturesForConverseFn,
     scopes: InvocationScopes,
     mode: ConverseInvocationMode,
+    entityValue?: string,
     files?: ChatMessageFile[],
     chatAppComponentConfig?: ChatAppComponentConfig,
     llmContextItems?: LLMContextItem[]
@@ -689,9 +693,62 @@ async function converse(
         }
     }
 
-    const additionalUserPromptInstructions = features.instructionAugmentation?.enabled
-        ? await getAdditionalUserPromptInstructions(scopes, message)
-        : { instructions: '', appliedDirectives: [] };
+    // Resolve directives for top-level agent AND all collaborators in parallel.
+    // Uses Promise.allSettled so a single failure doesn't prevent other directives from resolving.
+    const emptyDirectiveResult = { instructions: '', appliedDirectives: [] as SemanticDirective[] };
+    let additionalUserPromptInstructions = emptyDirectiveResult;
+    let collaboratorDirectives = new Map<string, { instructions: string; appliedDirectives: SemanticDirective[] }>();
+
+    if (features.instructionAugmentation?.enabled) {
+        const collaborators = agentAndTools.collaborators ?? [];
+
+        const buildCollaboratorScopes = (collab: AgentDefinition): InvocationScopes => {
+            // NOTE: chatapp scope is NOT included — it belongs to the top-level invocation only
+            const collabScopes: InvocationScopes = {
+                ...(collab.agentId ? { agent: [collab.agentId] } : {}),
+                ...(collab.toolIds?.length ? { tool: collab.toolIds } : {}),
+                ...(entityValue ? { entity: [entityValue] } : {})
+            };
+            if (collab.agentId && entityValue) {
+                collabScopes['agent-entity'] = [{ agent: collab.agentId, entity: entityValue }];
+            }
+            return collabScopes;
+        };
+
+        const results = await Promise.allSettled([
+            getAdditionalUserPromptInstructions(scopes, message),
+            ...collaborators.map((collab) =>
+                getAdditionalUserPromptInstructions(buildCollaboratorScopes(collab), message).then((result) => ({ agentId: collab.agentId, ...result }))
+            )
+        ]);
+
+        // First result is the top-level agent
+        if (results[0].status === 'fulfilled') {
+            additionalUserPromptInstructions = results[0].value;
+        } else {
+            console.warn('[instruction-augmentation] Top-level directive resolution failed:', results[0].reason);
+        }
+
+        // Remaining results are collaborators
+        for (let i = 1; i < results.length; i++) {
+            const result = results[i];
+            if (result.status === 'fulfilled') {
+                const { agentId, instructions, appliedDirectives } = result.value as { agentId: string; instructions: string; appliedDirectives: SemanticDirective[] };
+                if (appliedDirectives.length > 0) {
+                    collaboratorDirectives.set(agentId, { instructions, appliedDirectives });
+                }
+            } else {
+                console.warn(`[instruction-augmentation] Collaborator directive resolution failed for index ${i}:`, result.reason);
+            }
+        }
+
+        if (collaboratorDirectives.size > 0) {
+            console.log(
+                '[instruction-augmentation] Collaborator directives resolved:',
+                Object.fromEntries([...collaboratorDirectives.entries()].map(([id, d]) => [id, d.appliedDirectives.map((a) => a.id)]))
+            );
+        }
+    }
 
     // Filter and format LLM context items if provided
     let contextStr = '';
@@ -1045,7 +1102,8 @@ ${contextBlocks}
         memoryFeature,
         process.env.POST_PROCESSOR_FUNCTION_ARN,
         conversationHistory,
-        additionalUserPromptInstructions.appliedDirectives
+        additionalUserPromptInstructions.appliedDirectives,
+        collaboratorDirectives
     );
     // console.log('[STREAM-TIMING] Agent streaming complete (invokeAgent returned)', {
     //     elapsed: Date.now() - startTime,
