@@ -7,13 +7,23 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.24.0
+
+- **Semantic directive injection for collaborator agents** - Collaborators now receive their own runtime-resolved directives, not just the top-level agent
+  - Directives resolved in parallel using `Promise.allSettled` — one failure doesn't block others
+  - Injected into collaborator instruction via `<additional-instructions>` XML block with 20K-char size budget
+  - Relevance-ranked truncation drops least-important directives first when budget is exceeded
+  - Per-collaborator directive traces emitted for admin debugging
+- **Server hook hardening** - Timer leak fix, dead guard removal, and `??` nullish coalescing for `transformCustomUserData`
+- **userType and roles persistence** - `updateUser()` now writes `userType` and `roles` to DynamoDB, fixing silent data loss on login
+
+**Latest Stable:** `0.24.0` (March 30, 2026)
+
 ### What's New in 0.23.2
 
 - **Multi-agent raw response fix** - Chat output no longer displays raw Bedrock Converse API response JSON in multi-agent collaboration scenarios
   - Detects raw response envelopes from `AgentCommunication__sendMessage` and extracts clean text content
   - Falls back to original chunk if parsing fails — defensive against future Bedrock API changes
-
-**Latest Stable:** `0.23.2` (March 12, 2026)
 
 ### What's New in 0.23.1
 
@@ -586,6 +596,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.24.0  | Mar 30 2026 | Feature  | Collaborator directive injection, server hook hardening, userType/roles persistence |
 | 0.23.2  | Mar 12 2026 | Patch    | Fix raw Bedrock API response JSON in multi-agent chat output |
 | 0.23.1  | Mar 12 2026 | Patch    | Resolve agent model IDs through inference profile mapping |
 | 0.23.0  | Mar 12 2026 | Feature  | Server hooks extension point for customUserData transformation |
