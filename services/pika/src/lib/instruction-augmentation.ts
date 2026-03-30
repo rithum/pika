@@ -43,7 +43,7 @@ export async function getAdditionalUserPromptInstructions(
 
     const prompt = `Given this user query determine if any of the additional instructions need to be applied.
 
-Return only the ids that should be added as a json array inside an <answer></answer> tag.  If no instructions apply return an empty array []
+Return only the ids that should be added as a json array inside an <answer></answer> tag, ordered from most relevant to least relevant.  If no instructions apply return an empty array []
 Do not include any other text or reasoning.  Just the json array inside the <answer></answer> tag.
 <instructions>
 ${directivesString}

@@ -1,7 +1,20 @@
 {
-  "latestVersion": "0.23.2",
-  "currentDevelopment": "0.23.2",
+  "latestVersion": "0.24.0",
+  "currentDevelopment": "0.24.0",
   "releases": [
+    {
+      "version": "0.24.0",
+      "date": "2026-03-30",
+      "status": "released",
+      "breaking": false,
+      "summary": "Collaborator directive injection, server hook hardening, userType/roles persistence",
+      "highlights": [
+        "Semantic directives now resolved and injected for collaborator agents in parallel with top-level agent",
+        "Budget-aware directive truncation with relevance ranking for collaborator instructions",
+        "Timer leak fix and nullish coalescing in transformCustomUserData hook",
+        "updateUser() now persists userType and roles to DynamoDB"
+      ]
+    },
     {
       "version": "0.23.2",
       "date": "2026-03-12",

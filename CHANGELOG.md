@@ -5,6 +5,23 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-03-30
+
+### Added
+
+- **Semantic directive injection for collaborator agents** - Collaborator agents now receive runtime-resolved semantic directives alongside the top-level agent. Directives are resolved in parallel using `Promise.allSettled` (one failure doesn't block others) and injected into each collaborator's instruction within an `<additional-instructions>` XML block. A 20K-char size budget with relevance-ranked truncation prevents context window flooding. Per-collaborator directive traces are emitted for admin debugging. [#140]
+
+### Changed
+
+- **Relevance-ordered directive selection** - The LLM prompt for selecting applicable directives now requests IDs ordered from most relevant to least relevant, enabling budget-aware truncation to drop the least important directives first. [#140]
+
+### Fixed
+
+- **Timer leak in transformCustomUserData hook** - The `setTimeout` used for the 5-second hook timeout is now captured and cleared in a `finally` block, preventing a resource leak when the hook resolves before the timer fires. Also removed a dead `if (transformCustomUserData)` guard (the function is a static import, always truthy) and switched from `||` to `??` (nullish coalescing) so falsy-but-valid values like `0`, `""`, or `false` are preserved. [#140]
+- **userType and roles not persisted in DynamoDB** - `updateUser()` now includes `userType` and `roles` in the DynamoDB update expression, so auth-provider values are written back on login instead of silently dropped. Fixes a bug where users with missing `userType` would be defaulted to `external-user` and lose access to internal-only resources. [#140]
+
+---
+
 ## [0.23.2] - 2026-03-12
 
 ### Fixed
