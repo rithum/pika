@@ -256,6 +256,7 @@ export interface IChatAppState {
     readonly chatSessions: ChatSession<RecordOrUndef>[];
     readonly waitingForFirstStreamedResponse: boolean;
     readonly isStreamingResponseNow: boolean;
+    /** True when the server has stopped emitting content for long enough that the UI should show a stall indicator. @since 0.25.0 */
     readonly isStreamStalled: boolean;
     readonly isInterimSession: boolean;
     readonly currentSession: ChatSession<RecordOrUndef>;

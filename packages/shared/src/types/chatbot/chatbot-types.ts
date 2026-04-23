@@ -4045,7 +4045,7 @@ export interface SiteFeatures {
     /** Configure whether the Intent Router feature is enabled. @since 0.18.0 */
     intentRouter?: IntentRouterFeature;
 
-    /** Configure whether the Strands converse Lambda is used instead of the TypeScript converse Lambda. */
+    /** Configure whether the Strands converse Lambda is used instead of the TypeScript converse Lambda. @since 0.25.0 */
     strandsConverse?: { enabled: boolean };
 }
 
