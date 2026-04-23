@@ -256,6 +256,7 @@ export interface IChatAppState {
     readonly chatSessions: ChatSession<RecordOrUndef>[];
     readonly waitingForFirstStreamedResponse: boolean;
     readonly isStreamingResponseNow: boolean;
+    readonly isStreamStalled: boolean;
     readonly isInterimSession: boolean;
     readonly currentSession: ChatSession<RecordOrUndef>;
     readonly currentSessionMessages: ChatMessageForRendering[];

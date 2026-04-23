@@ -56,6 +56,7 @@ import {
     DEFAULT_ANTHROPIC_MODEL,
     DEFAULT_ANTHROPIC_VERSION,
     DEFAULT_VERIFICATION_MODEL,
+    MODELS,
     type InvokeAgentHooks,
     resolveModelId,
     type ReturnControlContext,
@@ -172,7 +173,12 @@ export function extractTextFromRawResponse(decodedChunk: string): string {
 
     let parsed: ConverseResponseEnvelope;
     try {
-        parsed = JSON.parse(decodedChunk);
+        // Bedrock streams collaborator responses with unescaped control characters
+        // (newlines, tabs, carriage returns) inside JSON string values. These are
+        // invalid JSON per spec. Trim whitespace first (trailing newlines from
+        // streaming), then escape remaining control chars before parsing.
+        const sanitized = decodedChunk.trim().replace(/[\n\r\t]/g, (ch) => (ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : '\\t'));
+        parsed = JSON.parse(sanitized);
     } catch {
         return decodedChunk;
     }
@@ -368,7 +374,15 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
                         if (trace.orchestrationTrace?.modelInvocationOutput?.rawResponse) {
                             let content = trace.orchestrationTrace.modelInvocationOutput.rawResponse.content!;
                             if (typeof content === 'string' && content.match(/^{.*}$/)) {
-                                lastModelInvocationOutputTraceContent = JSON.parse(content);
+                                try {
+                                    lastModelInvocationOutputTraceContent = JSON.parse(content);
+                                } catch (parseError) {
+                                    console.warn(label, 'Failed to parse rawResponse content as JSON, treating as text:', parseError);
+                                    lastModelInvocationOutputTraceContent = {
+                                        content: [{ text: content }],
+                                        traceId: ''
+                                    };
+                                }
                             } else {
                                 lastModelInvocationOutputTraceContent = {
                                     content: [
@@ -635,15 +649,34 @@ Response with the the classification Letter and Explanation as json in an <answe
         'VERIFICATION:'
     );
 
+    // If the verification agent errored (e.g. model not available), return early
+    // rather than trying to parse an empty/invalid response.
+    if (invokeResponse.error || !invokeResponse.message) {
+        return {
+            ...invokeResponse,
+            classification: Unclassified,
+            explanation: `Verification failed: ${(invokeResponse.error as Error)?.message ?? 'empty response'}`
+        };
+    }
+
     let rawJson = invokeResponse.message.replace(/<\/? *answer>/g, '');
-    let jsonResponse = JSON.parse(rawJson);
+    let jsonResponse: { classification?: string; explanation?: string };
+    try {
+        jsonResponse = JSON.parse(rawJson);
+    } catch {
+        return {
+            ...invokeResponse,
+            classification: Unclassified,
+            explanation: `Verification response was not valid JSON: ${rawJson.substring(0, 100)}`
+        };
+    }
 
     let classification = VerifyResponseClassifications.find((e) => e == jsonResponse.classification);
 
     return {
         ...invokeResponse,
         classification: classification ?? Accurate,
-        explanation: jsonResponse.explanation
+        explanation: jsonResponse.explanation ?? ''
     };
 }
 
@@ -1230,34 +1263,77 @@ export async function invokeAgentToGetAnswer(
     }
 
     let citationCount = 0;
+
+    // Streaming heartbeat: send periodic <heartbeat/> markers to keep the connection alive
+    // during long gaps (thinking phase, sequential tool calls). Without this, the ALB or
+    // intermediary proxies may drop the connection if no data flows for their idle timeout.
+    const HEARTBEAT_INTERVAL_MS = 15_000;
+    let lastStreamActivity = Date.now();
+    let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+
+    function resetHeartbeat() {
+        lastStreamActivity = Date.now();
+    }
+
+    function startHeartbeat() {
+        if (heartbeatInterval) return;
+        heartbeatInterval = setInterval(() => {
+            if (Date.now() - lastStreamActivity >= HEARTBEAT_INTERVAL_MS) {
+                try {
+                    responseStream.write('<heartbeat/>');
+                    console.log('Heartbeat sent to keep stream alive');
+                } catch {
+                    // Stream may have closed — stop heartbeat
+                    stopHeartbeat();
+                }
+            }
+        }, HEARTBEAT_INTERVAL_MS);
+    }
+
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = undefined;
+        }
+    }
+
+    // Collaborator responses arrive as a JSON envelope streamed in small fragments.
+    // When the first chunk starts with '{', buffer all chunks and extract on stream end.
+    let jsonBuffer: string | null = null;
+
     let hooks: InvokeAgentHooks = {
         returnControlHandlers: Object.values(toolContext).reduce((acc, context) => {
             return Object.assign(acc, context.getReturnControlHandlers?.() ?? {});
         }, {}),
 
         onStart: function (): void {
-            // console.log('[STREAM-TIMING] onStart - Response stream starting', {
-            //     elapsed: Date.now() - startingTime,
-            //     timestamp: new Date().toISOString()
-            // });
             console.log('Setting up HTTP response stream...');
             // Use safe setHeaders method - if headers were already set early in converse,
             // this will be a no-op. This handles both the normal flow and Intent Router paths.
             responseStream.setHeaders(chatSession.sessionId);
             console.log('HTTP response stream set up with session ID:', chatSession.sessionId);
+            resetHeartbeat();
+            startHeartbeat();
         },
         onChunk: function (chunk: string, chunkCount: number, attribution?: Attribution): void {
-            // if (!firstChunkReceived) {
-            //     firstChunkReceived = true;
-            //     console.log('[STREAM-TIMING] First chunk received from LLM', {
-            //         elapsed: Date.now() - startingTime,
-            //         timestamp: new Date().toISOString(),
-            //         chunkLength: chunk.length
-            //     });
-            // }
-            responseMsg += chunk;
-            responseStream.write(chunk);
-            console.log(`Chunk ${chunkCount} written to response stream`);
+            resetHeartbeat();
+
+            // Detect the start of a JSON envelope — the first data chunk from a collaborator
+            // response starts with '{'. Once detected, buffer all remaining chunks.
+            if (jsonBuffer === null && chunk.startsWith('{')) {
+                jsonBuffer = '';
+                console.log(`Chunk ${chunkCount}: detected JSON envelope start, buffering`);
+            }
+
+            if (jsonBuffer !== null) {
+                jsonBuffer += chunk;
+                console.log(`Chunk ${chunkCount} buffered (${chunk.length} chars, total=${jsonBuffer.length})`);
+            } else {
+                responseMsg += chunk;
+                responseStream.write(chunk);
+                console.log(`Chunk ${chunkCount} written to response stream`);
+            }
+
             attribution?.citations?.forEach((citation) => {
                 let citationText = `[Citation ${++citationCount}](${encodeURI(citation?.retrievedReferences?.[0]?.location?.s3Location?.uri!)})`;
                 responseMsg += citationText;
@@ -1265,13 +1341,33 @@ export async function invokeAgentToGetAnswer(
             });
         },
         onTrace: function (trace: Trace): void {
+            resetHeartbeat();
             traces.push(trace);
             responseStream.write(`<trace>${JSON.stringify(trace)}</trace>`);
         },
         onEnd: function (): void {
-            // Nothing
+            // Flush the buffered JSON envelope — extract the actual content and write it
+            if (jsonBuffer !== null) {
+                const extracted = extractTextFromRawResponse(jsonBuffer);
+                responseMsg += extracted;
+                responseStream.write(extracted);
+                console.log(`Flushed JSON buffer (${jsonBuffer.length} chars) → extracted ${extracted.length} chars`);
+                jsonBuffer = null;
+            }
+            stopHeartbeat();
         },
         onError: function (error: any): void {
+            // Flush buffer before rethrowing — streaming may have completed successfully
+            // but a later step (e.g. trace parsing) threw. Without this, the buffer content
+            // is lost and responseMsg stays empty.
+            if (jsonBuffer !== null) {
+                const extracted = extractTextFromRawResponse(jsonBuffer);
+                responseMsg += extracted;
+                responseStream.write(extracted);
+                console.log(`Flushed JSON buffer on error (${jsonBuffer.length} chars) → extracted ${extracted.length} chars`);
+                jsonBuffer = null;
+            }
+            stopHeartbeat();
             throw error;
         }
     };
@@ -1408,12 +1504,17 @@ export async function invokeAgentToGetAnswer(
     } catch (e) {
         console.error('=== BEDROCK AGENT ERROR ===');
         console.error('Error invoking inline agent:', e);
+        // Clean up any raw JSON envelope BEFORE appending the error message.
+        // Once "Oops!" is appended, the combined string is no longer valid JSON
+        // and extractTextFromRawResponse can't parse it.
+        responseMsg = extractTextFromRawResponse(responseMsg);
         const msg = '\nOops! Something glitched on my end.';
         responseMsg += msg;
         error = e;
         responseStream.write(msg);
         console.log('Error message written to response stream');
     } finally {
+        stopHeartbeat();
         console.log('Ending tool contexts...');
         await Promise.all(toolContexts.map((context) => context.end?.(chatSession.sessionId)));
     }
@@ -1428,6 +1529,11 @@ export async function invokeAgentToGetAnswer(
     } catch (e) {
         console.error('Error creating memory event:', e);
     }
+
+    // Safety net: if responseMsg still contains a raw Converse API JSON envelope
+    // (e.g. warm Lambda without buffer, onEnd didn't fire, or any other edge case),
+    // extract the actual content before persisting to DDB.
+    responseMsg = extractTextFromRawResponse(responseMsg);
 
     console.log('Building assistant message response...');
     const assistantMessage: ChatMessageForCreate = {
@@ -1476,17 +1582,15 @@ The title should be specific enough to distinguish this conversation from others
 
 IMPORTANT: Return ONLY the title text with no explanations, quotes, or additional text.`;
 
-    let response = await bedrockClient.send(
+    const response = await bedrockClient.send(
         new InvokeModelCommand({
-            modelId: DEFAULT_ANTHROPIC_MODEL,
+            modelId: resolveModelId(MODELS.ANTHROPIC.Claude4_5Haiku.id),
             contentType: 'application/json',
             accept: 'application/json',
             body: JSON.stringify({
                 anthropic_version: DEFAULT_ANTHROPIC_VERSION,
                 max_tokens: 200,
-                top_k: 250,
                 temperature: 1,
-                top_p: 0.999,
                 messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
             })
         })
@@ -1494,7 +1598,11 @@ IMPORTANT: Return ONLY the title text with no explanations, quotes, or additiona
 
     const responseBody = new TextDecoder().decode(response.body);
     const parsedResponse = JSON.parse(responseBody);
-    return parsedResponse.content[0].text;
+    const title = parsedResponse?.content?.[0]?.text;
+    if (!title) {
+        throw new Error(`Bedrock returned unexpected response structure for title generation: ${responseBody.substring(0, 200)}`);
+    }
+    return title;
 }
 
 function replaceTemplateValues(filter: RetrievalFilter, userData: any): RetrievalFilter {

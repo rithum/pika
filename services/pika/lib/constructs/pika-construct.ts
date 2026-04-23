@@ -2597,8 +2597,6 @@ export class PikaConstruct extends Construct {
                     },
                     description: `${profile.name} inference profile for ${this.props.projNameHuman}`,
                     tags: tags,
-                    // Force CloudFormation to re-invoke the custom resource on each deployment
-                    timestamp: new Date().toISOString()
                 }
             });
 

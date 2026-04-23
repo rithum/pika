@@ -143,6 +143,9 @@ export const pikaConfig: PikaConfig = {
         },
         intentRouter: {
             enabled: true
+        },
+        strandsConverse: {
+            enabled: false
         }
     },
     // Tags applied to all AWS resources in your CDK stacks.  Feel free to completely customize this to your needs.

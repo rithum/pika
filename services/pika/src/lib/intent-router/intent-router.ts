@@ -34,7 +34,7 @@ import { getRegion } from '../utils';
 import { buildClassificationPrompt } from './classification-prompt';
 
 // Model to use for intent classification (fast and cheap)
-export const INTENT_ROUTER_MODEL = DEFAULT_VERIFICATION_MODEL; // anthropic.claude-3-haiku-20240307-v1:0
+export const INTENT_ROUTER_MODEL = DEFAULT_VERIFICATION_MODEL;
 
 // Default confidence threshold (80% confidence = matched)
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.80;

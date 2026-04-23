@@ -255,6 +255,9 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
             // Remove the last incomplete segment and include its content in our parsing (we are guaranteed to have at least one segment)
             const removedSegment = segments.pop() as ProcessedSegment;
+            // Remove from modifiedSegments — it will be reconstructed and re-added below
+            const removedIdx = modifiedSegments.indexOf(removedSegment);
+            if (removedIdx !== -1) modifiedSegments.splice(removedIdx, 1);
 
             // console.log('[SEGMENT-PROCESSOR] 🔧 RECONSTRUCTION DEBUG:', {
             //     removedSegmentType: removedSegment.segmentType,
@@ -855,9 +858,8 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
         const lastSegment = segments.length > 0 ? segments[segments.length - 1] : undefined;
 
-        if (lastSegment && isProcessedTextSegment(lastSegment)) {
-            // Merge with previous text segment (regardless of streaming status)
-            // Once a text segment is created, we should always append to it rather than create new ones
+        if (lastSegment && isProcessedTextSegment(lastSegment) && lastSegment.streamingStatus !== 'completed') {
+            // Merge with previous streaming/incomplete text segment
             lastSegment.rawContent += textContent;
             if (!modifiedSegments.includes(lastSegment)) {
                 modifiedSegments.push(lastSegment);

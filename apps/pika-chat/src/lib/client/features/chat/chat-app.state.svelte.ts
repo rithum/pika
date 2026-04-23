@@ -105,6 +105,9 @@ const SUPPORTED_FILE_TYPES: Record<string, string> = {
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const INPROGRESS_INPUT_MSGS_KEY = 'inprogress-input-msgs';
 
+/** How long (ms) without user-facing content before showing the stall indicator */
+const STREAM_STALL_TIMEOUT_MS = 5_000;
+
 /**
  * An interim session is one that is not yet saved to the server and has a sessionId that starts with 'interim-'.
  *
@@ -154,6 +157,8 @@ export class ChatAppState implements IChatAppState {
     #newSession = $derived(!!this.#currentSession); // We don't have a session created yet that we are working within
     #isInterimSession = $derived(this.#currentSession?.sessionId?.startsWith('interim-'));
     #streamingResponseNow = $state<boolean>(false);
+    #streamStalled = $state<boolean>(false);
+    #streamStallTimer: ReturnType<typeof setTimeout> | undefined;
     #interimMessageId = $state<string | undefined>(undefined);
     #chatInput = $state<string>(''); // The message that the user is typing in the prompt input field
     #inprogressInputs = $state<Record<string, PersistedInputState>>({});
@@ -1548,6 +1553,10 @@ export class ChatAppState implements IChatAppState {
         return this.#streamingResponseNow;
     }
 
+    get isStreamStalled() {
+        return this.#streamStalled;
+    }
+
     get isInterimSession() {
         return this.#isInterimSession;
     }
@@ -2212,6 +2221,19 @@ export class ChatAppState implements IChatAppState {
 
             const decoder = new TextDecoder();
 
+            // Stall detection: show status indicator when no user-facing content arrives.
+            // Traces and metadata stream to the Answer Reasoning section but aren't directly
+            // visible to the user — only reset the timer when actual message text arrives.
+            // User-facing content is any text outside of XML-style tags (traces, metadata, etc.).
+            const resetStallTimer = () => {
+                this.#streamStalled = false;
+                clearTimeout(this.#streamStallTimer);
+                this.#streamStallTimer = setTimeout(() => {
+                    this.#streamStalled = true;
+                }, STREAM_STALL_TIMEOUT_MS);
+            };
+            resetStallTimer();
+
             // Read the stream chunk by chunk
             let chunkCount = 0;
             while (true) {
@@ -2225,9 +2247,25 @@ export class ChatAppState implements IChatAppState {
                 chunkCount++;
                 const decodedChunk = decoder.decode(value, { stream: true });
 
-                // Decode the chunk and append to accumulated text of the interim message
-                this.#appendToInterimMessage(decodedChunk);
+                // Strip server heartbeat markers — they keep the connection alive but carry no content
+                const contentChunk = decodedChunk.replace(/<heartbeat\/>/g, '');
+                if (contentChunk.length > 0) {
+                    // Only reset the stall timer if there's user-facing content.
+                    // Strip all complete tag pairs and self-closing tags — whatever remains is
+                    // user-visible text/markdown (traces, metadata, prompts are all tag-wrapped).
+                    const textOutsideTags = contentChunk
+                        .replace(/<[a-z][\w.-]*>[\s\S]*?<\/[a-z][\w.-]*>/gi, '')
+                        .replace(/<[a-z][\w.-]*\/>/gi, '')
+                        .trim();
+                    if (textOutsideTags.length > 0) {
+                        resetStallTimer();
+                    }
+                    this.#appendToInterimMessage(contentChunk);
+                }
             }
+
+            clearTimeout(this.#streamStallTimer);
+            this.#streamStalled = false;
 
             // Streaming is complete - convert any incomplete/streaming segments to text
             if (this.#interimMessageId) {
@@ -2260,6 +2298,8 @@ export class ChatAppState implements IChatAppState {
         } finally {
             //TODO: if we get an error what do we do with the interim messages and session?  I think we keep them there.
             this.#streamingResponseNow = false;
+            clearTimeout(this.#streamStallTimer);
+            this.#streamStalled = false;
         }
     }
 
@@ -2382,6 +2422,9 @@ export class ChatAppState implements IChatAppState {
      * @returns Object with extracted answer chunk and remaining buffer
      */
     #extractFromBuffer(buffer: string, options?: InvokeAgentAsComponentOptions): { answerChunk: string; remainingBuffer: string } {
+        // Strip server heartbeat markers before processing
+        buffer = buffer.replace(/<heartbeat\/>/g, '');
+
         let answerChunk = '';
         let processedUpTo = 0;
 

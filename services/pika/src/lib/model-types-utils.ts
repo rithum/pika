@@ -8,11 +8,10 @@ import {
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { type ChatMessageUsage } from 'pika-shared/types/chatbot/chatbot-types';
 
-export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
-//const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
+export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
 export const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
-export const DEFAULT_VERIFICATION_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'amazon.nova-micro-v1:0';
+export const DEFAULT_VERIFICATION_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 interface AnthropicConfig {
     maxTokens?: number;
@@ -66,24 +65,14 @@ function applyInferenceProfilesFromEnv<T>(obj: T): T {
 
 export const MODELS = applyInferenceProfilesFromEnv({
     ANTHROPIC: {
+        // LEGACY models — still listed by Bedrock but may be removed at any time
         Claude3Haiku: { name: 'Claude3Haiku', id: 'anthropic.claude-3-haiku-20240307-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
-        Claude3Sonnet: { name: 'Claude3Sonnet', id: 'anthropic.claude-3-sonnet-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
-        Claude3Opus: { name: 'Claude3Opus', id: 'anthropic.claude-3-opus-20240229-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
-        Claude3_5Haiku: {
-            name: 'Claude3_5Haiku',
-            id: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
-            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
-        },
-        Claude3_5SonnetV2: {
-            name: 'Claude3_5SonnetV2',
-            id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
-            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
-        },
         Claude3_7Sonnet: {
             name: 'Claude3_7Sonnet',
             id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
         },
+        // ACTIVE models
         Claude4Sonnet: {
             name: 'Claude4Sonnet',
             id: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
@@ -103,6 +92,21 @@ export const MODELS = applyInferenceProfilesFromEnv({
         Claude4_5Sonnet: {
             name: 'Claude4_5Sonnet',
             id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        Claude4_5Opus: {
+            name: 'Claude4_5Opus',
+            id: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        Claude4_6Sonnet: {
+            name: 'Claude4_6Sonnet',
+            id: 'us.anthropic.claude-sonnet-4-6',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        Claude4_6Opus: {
+            name: 'Claude4_6Opus',
+            id: 'us.anthropic.claude-opus-4-6-v1',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
         }
     },

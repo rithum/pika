@@ -203,7 +203,9 @@ export class PikaChatConstruct extends Construct {
         // Param comes from the pika service stack
         const chatAdminApiId = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/chat_admin_id`);
 
-        // Param comes from the pika service stack
+        // Param comes from the pika service stack.
+        // Default: TS converse Lambda. To opt into the Strands (Python) converse Lambda,
+        // swap 'converse_url' for 'converse_strands_url' after enabling the Strands construct.
         const converseFnUrl = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_url`);
 
         // Param comes from the pika service stack
@@ -496,8 +498,12 @@ export class PikaChatConstruct extends Construct {
                             resources: [
                                 ssm.StringParameter.valueForStringParameter(
                                     this,
-                                    `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_arn` // Comes from the pika service stack
-                                )
+                                    `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_arn` // TS converse Lambda
+                                ),
+                                ssm.StringParameter.valueForStringParameter(
+                                    this,
+                                    `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_strands_arn` // Strands converse Lambda
+                                ),
                             ]
                         }),
                         new iam.PolicyStatement({
@@ -645,6 +651,11 @@ export class PikaChatConstruct extends Construct {
             timeout: cdk.Duration.seconds(60),
             interval: cdk.Duration.seconds(90)
         });
+
+        // Set ALB idle timeout to match Lambda converse function timeout (300s).
+        // AWS default is 60s, which causes ALB to drop streaming connections during
+        // long-running agent responses (thinking phase, sequential tool calls).
+        this.service.loadBalancer.setAttribute('idle_timeout.timeout_seconds', '300');
 
         if (props.domainName) {
             // Output the service URL

@@ -1,3 +1,4 @@
+import { describe, it, test, expect, jest, beforeEach } from '@jest/globals';
 import { MessageSegmentProcessor } from '../src/lib/client/features/chat/message-segments/segment-processor';
 import type { ComponentRegistry } from '../src/lib/client/features/chat/message-segments/component-registry';
 import type {
