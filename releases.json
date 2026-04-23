@@ -1,7 +1,23 @@
 {
-  "latestVersion": "0.24.0",
-  "currentDevelopment": "0.24.0",
+  "latestVersion": "0.25.0",
+  "currentDevelopment": "0.25.0",
   "releases": [
+    {
+      "version": "0.25.0",
+      "date": "2026-04-23",
+      "status": "released",
+      "breaking": false,
+      "summary": "Optional Python (Strands) converse Lambda, new Claude 4.5/4.6 default models, streaming heartbeats, post-processor rewrite",
+      "highlights": [
+        "New ConverseStrandsConstruct — opt-in Python converse Lambda with full feature parity, Strands Skills for directives (no Nova Lite call), Swarm for collaborators, queue-based streaming on Python 3.14 arm64",
+        "DEFAULT_ANTHROPIC_MODEL bumped to Claude 4.5 Sonnet; verification model to Claude 4.5 Haiku; added 4.5 Opus / 4.6 Sonnet / 4.6 Opus to registry; removed decommissioned Claude 3.x models",
+        "Lambda streaming <heartbeat/> every 15s + ALB idle timeout → 300s prevent connection drops on long agent responses; client-side stall indicator",
+        "agent-post-processor rewrite handles both Converse envelope formats and unwraps AgentCommunication__sendMessage; Bedrock JSON sanitization workaround",
+        "Session title generation hardened with try/catch and moved to Haiku",
+        "Verification model ID gets us. prefix; inference-profile custom resource no longer churns on every deploy",
+        "Bumped aws-cdk-lib → ^2.249.0 / aws-cdk → ^2.1118.0 for Runtime.PYTHON_3_14"
+      ]
+    },
     {
       "version": "0.24.0",
       "date": "2026-03-30",
