@@ -58,7 +58,7 @@ Your role is to:
 
 Always be polite, professional, and empathetic. If you don't know something, admit it and offer to connect the customer with someone who can help.`,
         
-        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
         
         // Optional: Model parameters
         temperature: 0.7,
@@ -98,7 +98,7 @@ custom:
                     
                     Always be polite, professional, and empathetic.
                 
-                modelId: anthropic.claude-3-5-sonnet-20241022-v2:0
+                modelId: us.anthropic.claude-sonnet-4-5-20250929-v1:0
                 temperature: 0.7
                 maxTokens: 4096
 ```
@@ -209,7 +209,7 @@ Choose the appropriate model for your use case.
 
 **Claude 3.5 Sonnet** (Recommended):
 ```typescript
-modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
 ```
 - Best balance of intelligence and speed
 - Excellent for most use cases
@@ -217,7 +217,7 @@ modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
 
 **Claude 3 Opus**:
 ```typescript
-modelId: 'anthropic.claude-3-opus-20240229-v1:0'
+modelId: 'us.anthropic.claude-opus-4-5-20251101-v1:0'
 ```
 - Highest intelligence
 - Best for complex reasoning tasks
@@ -281,7 +281,7 @@ maxTokens: 8192   // Long-form content
 agent: {
     agentId: 'data-analyst-agent',
     basePrompt: 'You are a data analyst...',
-    modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
     temperature: 0.3,      // Low for consistent analysis
     maxTokens: 4096,       // Room for detailed explanations
     topP: 0.9,             // Nucleus sampling parameter
@@ -301,7 +301,7 @@ const agentData: AgentDataRequest = {
     agent: {
         agentId: 'weather-agent',
         basePrompt: 'You are a weather information assistant...',
-        modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+        modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
     },
     tools: [
         {
