@@ -31,7 +31,7 @@ The Strands Lambda is a full-parity alternative to the TypeScript converse Lambd
 - **Prompt caching** — `CacheConfig(strategy="auto")` on the Bedrock model (not available through `InvokeInlineAgentCommand`)
 - **Native streaming** — Real-time trace, heartbeat, and `pika-metadata` emission via a queue-based streaming loop
 
-Internal A/B benchmarking at Rithum on representative workloads showed **44% lower latency, 84% fewer tool calls, 74% lower cost, and equal response quality** against the TypeScript path. Your numbers will depend on agent shape, tool count, and model mix — treat the Strands path as an opt-in experiment until you have your own A/B data.
+Early A/B benchmarks on representative workloads showed **meaningful latency, cost, and tool-call reductions** versus the TypeScript path. Actual numbers depend heavily on agent shape, tool count, and model mix — treat the Strands path as an opt-in experiment and run your own A/B before cutting production traffic over.
 
 {% aside type="note" %}
 **Feature parity, not a fork.** The Strands Lambda supports the same 15 features as the TypeScript Lambda: JWT auth, dynamic agent/tool loading from DynamoDB, tag definitions, semantic directives, entity access control, user instructions, knowledge base integration, collaborator / supervisor orchestration (via Strands Swarm), file uploads, user memory (Bedrock AgentCore), real-time streaming, title generation, answer verification, pricing/usage tracking, and session insights.
@@ -194,7 +194,7 @@ CloudFormation will **replace** the old resources (deleting the customer-side lo
 
 ## What's Next
 
-- Tune iteration limits and time budgets in `handler.py`
-- Add custom tools via the Python inline-tools registry
-- Monitor cost/latency differences using the [Track AI Model Costs](/guides/admin/track-costs/) guide
-- Read the [Intent Router](/capabilities/intelligence/intent-router/) and [Instruction Augmentation](/guides/intelligence/instruction-augmentation/) guides — both features work identically under the Strands path, with directives served via Strands Skills instead of a Nova Lite call
+- **Compare against the TypeScript path in a non-prod stage.** Deploy both Lambdas side-by-side, then alternate the SSM lookup in `pika-chat-construct.ts` to A/B them. CloudWatch metrics (Duration, Invocations, Throttles) on the two function names give you the comparison data.
+- **Review the Strands Agents SDK documentation.** Customization the framework doesn't expose — tool loops, reasoning traces, custom callbacks — lives at the SDK layer. Start with [strands-agents/sdk-python](https://github.com/strands-agents/sdk-python).
+- **Understand the directive pathway.** The Strands path prefers Strands Skills for directive selection (no LLM call) and falls back to the same Nova Lite filtering the TS Lambda uses when Skills aren't viable. If you use semantic directives heavily, the [Instruction Augmentation guide](/guides/intelligence/instruction-augmentation/) still applies — directive authoring and DDB storage are unchanged.
+- **Keep customizations out of `handler.py`.** Constants like `MAX_ITERATIONS` and `LAMBDA_TIMEOUT_BUFFER_SECONDS` live in framework code that `pika sync` will overwrite. If you need to tune them, open an issue on the Pika repo so the knob becomes configuration rather than a fork of the Lambda source.
