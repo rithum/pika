@@ -127,6 +127,13 @@ export class ConverseStrandsConstruct extends Construct {
                 exclude: ['.venv', '__pycache__', 'tests', '*.pyc', '.pytest_cache'],
                 bundling: {
                     image: lambda.Runtime.PYTHON_3_14.bundlingImage,
+                    // Must match the deployed Lambda architecture (ARM_64) so pip
+                    // downloads manylinux_aarch64 wheels. A mismatch produces amd64
+                    // .so files that fail to import on arm64 at runtime (e.g.
+                    // ModuleNotFoundError: No module named 'pydantic_core._pydantic_core').
+                    // On x86_64 CI runners this requires docker/setup-qemu-action +
+                    // docker/setup-buildx-action before CDK deploy — see
+                    // guides/advanced/strands-converse for details.
                     platform: 'linux/arm64',
                     command: [
                         'bash',

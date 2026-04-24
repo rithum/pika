@@ -120,6 +120,7 @@ pnpm release:plan-breaking      # Plan breaking change + migration guide
 
 ## Gotchas
 
+- **Python Lambdas run on arm64 (Graviton).** CDK bundling `platform:` must be `linux/arm64` so pip resolves `manylinux_aarch64` wheels — a mismatch produces amd64 `.so` files that fail at Lambda INIT with `ModuleNotFoundError: No module named 'pydantic_core._pydantic_core'` or similar. On x86_64 CI runners, `docker/setup-qemu-action@v3` + `docker/setup-buildx-action@v3` must run before `cdk deploy`. See `guides/advanced/strands-converse` for the full wiring.
 - Lambda converse handler has a **30-second timeout** — agent tool execution must be fast
 - DynamoDB table names come from **environment variables**, never hardcoded
 - `pnpm build:packages` must complete before apps/services build (Turbo handles this automatically)
