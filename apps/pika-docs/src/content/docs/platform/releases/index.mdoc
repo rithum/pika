@@ -7,6 +7,24 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.25.0
+
+- **Optional Python (Strands) converse Lambda** - New `ConverseStrandsConstruct` opt-in alternative to the TypeScript converse Lambda
+  - Built on the Strands Agents SDK with full feature parity (auth, agent loading, collaborators via Strands Swarm, KB, inline tools, MCP, user memory, streaming, title, verification, pricing)
+  - Strands Skills replace the Nova Lite LLM call for directive selection on the preferred path — one fewer model invocation per request (Nova Lite remains as a fallback)
+  - Deployed on Python 3.14 / Graviton (arm64) with Lambda Web Adapter for response streaming
+  - Enable via `pikaConfig.siteFeatures.strandsConverse.enabled = true` and swap `converse_url` → `converse_strands_url` in the chat app SSM lookup — see the [Strands Converse guide](/guides/advanced/strands-converse/)
+- **New Claude default models** - `DEFAULT_ANTHROPIC_MODEL` bumped to Claude 4.5 Sonnet; `DEFAULT_VERIFICATION_MODEL` to Claude 4.5 Haiku. Added Claude 4.5 Opus / 4.6 Sonnet / 4.6 Opus to the registry with pricing. Removed decommissioned Claude 3.x models.
+- **Streaming stability** - Lambda emits `<heartbeat/>` every 15s during idle periods; ALB idle timeout raised to 300s; client-side stall indicator with rotating status messages
+- **Collaborator response rendering** - Post-processor rewrite handles both Converse envelope formats and unwraps `AgentCommunication__sendMessage`; JSON sanitization workaround for Bedrock's unescaped control-char streaming
+- **Session title hardening** - Title generation runs in a try/catch on Haiku; failures never block message persistence
+- **Verification model ID fix** - Adds `us.` inference-profile prefix to prevent `ValidationException` → "Oops! Something glitched"
+- **Inference profile custom resource** - No longer churns on every deployment (removed redundant `timestamp` property)
+- **CDK bump** - `aws-cdk-lib` → `^2.249.0`, `aws-cdk` → `^2.1118.0` (required for `Runtime.PYTHON_3_14`)
+- **Headless CI deploys** - `cdk:deploy` now includes `--require-approval never` so IAM changes don't block on TTY prompts
+
+**Latest Stable:** `0.25.0` (April 23, 2026)
+
 ### What's New in 0.24.0
 
 - **Semantic directive injection for collaborator agents** - Collaborators now receive their own runtime-resolved directives, not just the top-level agent
@@ -16,8 +34,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
   - Per-collaborator directive traces emitted for admin debugging
 - **Server hook hardening** - Timer leak fix, dead guard removal, and `??` nullish coalescing for `transformCustomUserData`
 - **userType and roles persistence** - `updateUser()` now writes `userType` and `roles` to DynamoDB, fixing silent data loss on login
-
-**Latest Stable:** `0.24.0` (March 30, 2026)
 
 ### What's New in 0.23.2
 
