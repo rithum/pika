@@ -33,7 +33,7 @@ AWS CDK uses TypeScript to define cloud infrastructure, which is then synthesize
 Pika typically consists of two stacks:
 
 1. **Pika Service Stack** (`services/pika/`) - Backend infrastructure
-   - Lambda functions
+   - Lambda functions (including the default TypeScript converse Lambda, and the opt-in Python Strands converse Lambda — see [Opt into the Strands Converse Lambda](/guides/advanced/strands-converse/))
    - DynamoDB tables
    - API Gateway
    - IAM roles and policies
@@ -451,6 +451,10 @@ pnpm cdk:deploy
 # Or deploy without prompts (use with caution)
 pnpm cdk:deploy --require-approval never
 ```
+
+{% aside type="note" %}
+Starting in 0.25.0, the default `cdk:deploy` script in `services/pika/package.json` already includes `--require-approval never` so headless CI runs don't block on IAM-change confirmation prompts. Remove the flag locally if you want interactive approval prompts back.
+{% /aside %}
 
 ### Deployment Output
 

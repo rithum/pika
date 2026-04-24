@@ -74,6 +74,33 @@
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
+    // Rotating stall messages — cycle through these while the stream is stalled
+    const stallMessages = [
+        'Thinking',
+        'Churning',
+        'Crunching numbers',
+        'Consulting the data',
+        'Digging deeper',
+        'Gathering insights',
+        'Almost there',
+        'Connecting the dots',
+        'Pondering',
+        'Running queries'
+    ];
+    let stallMessageIndex = $state(0);
+    let stallMessageInterval: ReturnType<typeof setInterval> | undefined;
+    $effect(() => {
+        if (chat.isStreamStalled && chat.isStreamingResponseNow) {
+            stallMessageIndex = Math.floor(Math.random() * stallMessages.length);
+            stallMessageInterval = setInterval(() => {
+                stallMessageIndex = (stallMessageIndex + 1) % stallMessages.length;
+            }, 10_000);
+        } else {
+            clearInterval(stallMessageInterval);
+        }
+        return () => clearInterval(stallMessageInterval);
+    });
+
     // NOTE: Static widget tracking is now stored in ChatAppState to persist across component remounts.
     // This prevents the bug where static widgets were re-injected when the layout switched between
     // companion mode and normal mode, causing the component to remount and lose its local state.
@@ -471,6 +498,16 @@
                                             isStreaming={chat.isStreamingResponseNow &&
                                                 !chat.waitingForFirstStreamedResponse}
                                         />
+                                    {/if}
+                                    {#if chat.isStreamStalled && chat.isStreamingResponseNow && message === chat.currentSessionMessages[chat.currentSessionMessages.length - 1]}
+                                        <div class="flex items-center gap-2 mt-1 px-3 py-1.5 rounded-lg bg-gray-100 w-fit">
+                                            <span class="text-xs font-medium text-gray-500">{stallMessages[stallMessageIndex]}</span>
+                                            <div class="flex items-center space-x-1">
+                                                <div class="h-1.5 w-1.5 bg-gray-400 rounded-full dot-1"></div>
+                                                <div class="h-1.5 w-1.5 bg-gray-400 rounded-full dot-2"></div>
+                                                <div class="h-1.5 w-1.5 bg-gray-400 rounded-full dot-3"></div>
+                                            </div>
+                                        </div>
                                     {/if}
                                     {#if message.files && message.files.length > 0 && !chat.isStreamingResponseNow}
                                         <div class="flex flex-wrap gap-2 max-w-[66%]">

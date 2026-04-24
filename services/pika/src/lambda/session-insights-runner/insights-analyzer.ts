@@ -83,8 +83,8 @@ const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 const s3Client = new S3Client({});
 
 const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
-const DEFAULT_MODEL = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
-const FAST_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'; //'amazon.nova-micro-v1:0';
+const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+const FAST_MODEL = 'anthropic.claude-haiku-4-5-20251001-v1:0';
 const MODEL = DEFAULT_MODEL;
 
 interface ModelResponseRaw<T = unknown, A extends Array<unknown> = T[]> {

@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { PikaConstruct } from '../constructs/pika-construct';
+import { ConverseStrandsConstruct } from '../constructs/converse-strands-construct';
 import { CustomStackDefs } from './custom-stack-defs';
 import { PikaConfig, SessionInsightsFeature, UserMemoryFeature } from 'pika-shared/types/chatbot/chatbot-types';
 import { interpolateStackTags, validateAndWarnTags } from '../utils/stack-tags';
@@ -50,6 +51,15 @@ export class PikaStack extends cdk.Stack {
                 componentTagNames: props.pikaConfig.stackTags?.componentTagNames
             })
         );
+
+        // Optional Strands (Python) converse Lambda — opt in via pika-config
+        if (props.pikaConfig.siteFeatures?.strandsConverse?.enabled) {
+            new ConverseStrandsConstruct(this, 'ConverseStrands', {
+                projNameKebabCase: props.projNameKebabCase,
+                stage: props.stage,
+                pikaOutputs: this.pikaConstruct.outputs
+            });
+        }
 
         customStackDefs.addStackResoucesAfterWeCreateThePikaConstruct();
 

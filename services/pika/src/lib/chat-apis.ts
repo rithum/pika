@@ -339,16 +339,18 @@ export async function addChatMessage(
     });
 
     if (userQuestionAsked && answerToQuestionFromAgent && chatSession.title == null) {
-        console.log('Updating session title with Bedrock');
-        // Use bedrock to generate a title for the session and update the session title in the database
-        const sessionResponse = await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
-            userId: chatMessageForCreate.userId,
-            userQuestionAsked: userQuestionAsked,
-            answerToQuestionFromAgent: answerToQuestionFromAgent
-        });
-        // Update the local chatSession object with the generated title
-        chatSession.title = sessionResponse.session.title;
-        console.log('Session title updated:', chatSession.title);
+        try {
+            console.log('Updating session title with Bedrock');
+            const sessionResponse = await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
+                userId: chatMessageForCreate.userId,
+                userQuestionAsked: userQuestionAsked,
+                answerToQuestionFromAgent: answerToQuestionFromAgent
+            });
+            chatSession.title = sessionResponse.session.title;
+            console.log('Session title updated:', chatSession.title);
+        } catch (error) {
+            console.error('Failed to generate session title (non-fatal):', error instanceof Error ? error.message : error);
+        }
     }
 
     console.log('Returning chat message:', {

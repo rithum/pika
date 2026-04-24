@@ -1,0 +1,9 @@
+boto3==1.42.85
+fastapi==0.135.3
+mcp==1.27.0
+PyJWT==2.12.1
+quickjs==1.19.4
+requests==2.33.1
+strands-agents==1.34.1
+strands-agents-bedrock==0.0.1
+uvicorn==0.44.0

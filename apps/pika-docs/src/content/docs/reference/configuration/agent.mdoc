@@ -30,7 +30,7 @@ import type { AgentDefinition } from 'pika-shared/types/chatbot/chatbot-types';
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `foundationModel` | `string` | System default | Foundation model to use for this agent (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`) |
+| `foundationModel` | `string` | System default | Foundation model to use for this agent (e.g., `us.anthropic.claude-sonnet-4-5-20250929-v1:0`) |
 | `verificationFoundationModel` | `string` | System default | Foundation model to use for verifying responses (self-correcting feature) |
 
 ### Access Control
@@ -119,8 +119,8 @@ import type { AgentDefinition } from 'pika-shared/types/chatbot/chatbot-types';
 
 const agent: AgentDefinition = {
     agentId: 'customer-support-agent',
-    foundationModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-    verificationFoundationModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    foundationModel: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+    verificationFoundationModel: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
     basePrompt: `You are a helpful customer support agent for {{company.name}}.
 The user you are helping is {{user.firstName}} {{user.lastName}} ({{user.email}}).
 Their account type is {{customData.accountType}}.

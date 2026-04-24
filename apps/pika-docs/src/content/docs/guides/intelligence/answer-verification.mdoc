@@ -72,7 +72,7 @@ If issues exist, respond with "FAILED: [brief explanation]".`,
             maxAttempts: 2,
             
             // Optional: Verifier model
-            verifierModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+            verifierModelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
         }
     }
 };
@@ -110,7 +110,7 @@ Respond "VERIFIED" only if all criteria met.
 Respond "FAILED: [reason]" if any issues found.`,
                 
                 maxAttempts: 3,  // Higher for critical domains
-                verifierModelId: 'anthropic.claude-3-opus-20240229-v1:0'  // Use most capable model
+                verifierModelId: 'us.anthropic.claude-opus-4-5-20251101-v1:0'  // Use most capable model
             }
         }
     }
@@ -420,7 +420,7 @@ verifyResponse: {
         },
         {
             name: 'thorough-review',
-            verifierModelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            verifierModelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
             prompt: 'Detailed accuracy and quality review...',
             timeoutMs: 5000,
             onlyIfPreviousPassed: true

@@ -7,6 +7,33 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.25.0] - 2026-04-23
+
+### Added
+
+- **Optional Python (Strands) converse Lambda** - New framework construct `ConverseStrandsConstruct` provides a drop-in Python alternative to the TypeScript converse Lambda, built on the [Strands Agents SDK](https://github.com/strands-agents/sdk-python). Full feature parity: auth/sessions, dynamic agent/tool loading, tag definitions, semantic directives (via Strands Skills — no Nova Lite LLM call), entity access control, knowledge bases, collaborator/supervisor via Strands Swarm, file uploads, user memory (Bedrock AgentCore), real-time queue-based streaming, title generation, response verification, pricing/usage tracking. Opt in by setting `pikaConfig.siteFeatures.strandsConverse.enabled = true` and swapping `converse_url` → `converse_strands_url` in the chat app SSM lookup. Deployed on Python 3.14 / Graviton (arm64) with Lambda Web Adapter for response streaming. [#141]
+- **New default Bedrock models** - Added Claude 4.5 Opus, Claude 4.6 Sonnet, and Claude 4.6 Opus to the model registry with pricing entries. [#141]
+- **Lambda streaming heartbeats** - Converse Lambda emits `<heartbeat/>` every 15 seconds during idle streaming periods to prevent ALB connection drops on long-running agent responses. Client-side processor strips heartbeat markers and shows rotating stall-indicator status messages. [#141]
+- **Strands tooling scripts** - `strands:setup`, `strands:test`, `strands:invoke`, `strands:validate` scripts in `services/pika/package.json` for local Python Lambda development. [#141]
+
+### Changed
+
+- **Default model upgrade** - `DEFAULT_ANTHROPIC_MODEL` → Claude 4.5 Sonnet (was Claude 3.5 Sonnet v2); `DEFAULT_VERIFICATION_MODEL` → Claude 4.5 Haiku (was Claude 3 Haiku). Removed decommissioned models from the registry: Claude 3 Sonnet, Claude 3 Opus, Claude 3.5 Haiku, Claude 3.5 Sonnet v2. Customers with pinned model IDs in agent definitions are unaffected. [#141]
+- **ALB idle timeout** - Raised to 300s to match Lambda timeout. Prevents premature connection drops on long agent responses. [#141]
+- **Session title generation** - Now uses Haiku (cheaper, sufficient for title generation) instead of Sonnet, wrapped in try/catch so title failures never block message persistence, with defensive response parsing. [#141]
+- **CDK headless deploys** - `cdk:deploy` script now includes `--require-approval never` so IAM changes don't block on TTY prompts in CI. [#141]
+- **Dependencies** - Bumped `aws-cdk-lib` → `^2.249.0` and `aws-cdk` → `^2.1118.0` (required for `Runtime.PYTHON_3_14`). [#141]
+
+### Fixed
+
+- **Collaborator response rendering** - Post-processor Lambda rewritten to handle both Converse API envelope formats and unwrap `AgentCommunication__sendMessage` tool-use envelopes. Fixes raw JSON envelopes, literal `\n` strings, broken chart data, and "Oops! Something glitched" errors in multi-agent responses. [#141]
+- **Streaming JSON envelope handling** - Buffer JSON envelope chunks in `onChunk` and extract clean content in `onEnd` (instead of calling `extractTextFromRawResponse()` per-chunk). Includes `onError` flush and defense-in-depth safety nets. [#141]
+- **JSON sanitization** - Trim and escape control characters before `JSON.parse` in the post-processor — workaround for Bedrock streaming occasionally emitting unescaped control characters in collaborator JSON. [#141]
+- **Verification model ID** - Add `us.` inference-profile prefix to verification model invocations to prevent `ValidationException` → uncaught `JSON.parse('')` → "Oops!" user-facing error. Added empty/error response guards in `invokeAgentToVerifyAnswer`. [#141]
+- **Inference profile custom resource churn** - Removed `timestamp` property that was forcing CloudFormation to recreate inference profiles on every deployment. [#141]
+
+---
+
 ## [0.24.0] - 2026-03-30
 
 ### Added

@@ -1,0 +1,200 @@
+---
+title: Opt into the Strands (Python) Converse Lambda
+description: Swap the TypeScript converse Lambda for the Strands Agents SDK Python runtime — full feature parity with direct control over the agent tool loop
+---
+
+Starting in 0.25.0, Pika ships an optional Python converse Lambda built on the [Strands Agents SDK](https://github.com/strands-agents/sdk-python) as a drop-in replacement for the default TypeScript converse Lambda. This guide walks through when to use it, how to turn it on, and what changes under the hood.
+
+## What You'll Accomplish
+
+By the end of this guide, you will:
+
+- Understand how the Strands path differs from the TypeScript converse Lambda
+- Enable the opt-in `ConverseStrandsConstruct` via `pika-config.ts`
+- Swap your chat app's SSM lookup to route traffic through the Strands Lambda
+- Configure your local and CI bundling environment (arm64 + QEMU)
+- Verify the cutover in CloudWatch
+
+## Prerequisites
+
+- Pika 0.25.0 or later
+- A working Pika deployment on AWS (both `pika` service stack and `pika-chat` stack)
+- Docker running locally for CDK Python Lambda bundling
+- On x86_64 CI runners: QEMU + buildx available (see [CI/CD Bundling](#cicd-bundling-arm64--qemu))
+
+## When to Use the Strands Lambda
+
+The Strands Lambda is a full-parity alternative to the TypeScript converse Lambda. It exists because the default path delegates the agent tool loop entirely to Bedrock via `InvokeInlineAgentCommand`, which limits what Pika can observe or override. Strands runs the loop itself, giving you:
+
+- **Fewer LLM calls** — Semantic directives are modeled as Strands Skills instead of a separate Nova Lite selection call. Typical savings of one model invocation per request
+- **Iteration & budget control** — Cap tool-call iterations, apply time budgets, and intercept individual tool calls
+- **Prompt caching** — `CacheConfig(strategy="auto")` on the Bedrock model (not available through `InvokeInlineAgentCommand`)
+- **Native streaming** — Real-time trace, heartbeat, and `pika-metadata` emission via a queue-based streaming loop
+
+Early A/B benchmarks on representative workloads showed **meaningful latency, cost, and tool-call reductions** versus the TypeScript path. Actual numbers depend heavily on agent shape, tool count, and model mix — treat the Strands path as an opt-in experiment and run your own A/B before cutting production traffic over.
+
+{% aside type="note" %}
+**Feature parity, not a fork.** The Strands Lambda supports the same 15 features as the TypeScript Lambda: JWT auth, dynamic agent/tool loading from DynamoDB, tag definitions, semantic directives, entity access control, user instructions, knowledge base integration, collaborator / supervisor orchestration (via Strands Swarm), file uploads, user memory (Bedrock AgentCore), real-time streaming, title generation, answer verification, pricing/usage tracking, and session insights.
+{% /aside %}
+
+## Architecture
+
+The Strands Lambda is deployed as a **framework-managed opt-in construct**. When the feature flag is on, the pika service stack instantiates a `ConverseStrandsConstruct` alongside the TypeScript converse Lambda — both exist simultaneously, each publishing their own SSM parameter:
+
+- `/stack/<proj>/<stage>/function/converse_url` — TypeScript Lambda (default)
+- `/stack/<proj>/<stage>/function/converse_strands_url` — Python/Strands Lambda
+
+The chat app picks which URL to call by reading one of these SSM parameters in `apps/pika-chat/infra/lib/stacks/pika-chat-construct.ts`. Swapping between the two is a one-line change in that file.
+
+```
+┌──────────────────┐
+│   Chat App       │
+│ (pika-chat)      │
+└────────┬─────────┘
+         │ reads one SSM param at deploy time
+         ▼
+   /function/converse_url  ◀─── ConverseFn (TypeScript, default)
+   /function/converse_strands_url  ◀─── ConverseStrandsFunction (Python, opt-in)
+```
+
+### Runtime and Bundling
+
+- **Runtime**: Python 3.14
+- **Architecture**: Graviton (arm64)
+- **Response streaming**: AWS Lambda Web Adapter layer (`LambdaAdapterLayerArm64`)
+- **Container**: FastAPI wrapper + queue-based streaming so Swarm's `stream_async` can coexist with Lambda Web Adapter's event loop
+
+## Step 1: Enable the Feature Flag
+
+Edit `pika-config.ts` at the repository root:
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ...
+    siteFeatures: {
+        // ...
+        intentRouter: { enabled: true },
+        strandsConverse: { enabled: true }  // ← add this
+    },
+    // ...
+};
+```
+
+This tells `pika-stack.ts` to instantiate the `ConverseStrandsConstruct`. The TypeScript converse Lambda is always created regardless — the flag only controls whether the Strands Lambda is also deployed.
+
+## Step 2: Route Traffic to the Strands Lambda
+
+Edit `apps/pika-chat/infra/lib/stacks/pika-chat-construct.ts` and change the SSM parameter name that the chat app reads:
+
+```typescript
+// Before (default — routes to TypeScript converse Lambda)
+const converseFnUrl = ssm.StringParameter.valueForStringParameter(
+    this,
+    `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_url`
+);
+
+// After (routes to Strands Python Lambda)
+const converseFnUrl = ssm.StringParameter.valueForStringParameter(
+    this,
+    `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_strands_url`
+);
+```
+
+{% aside type="tip" %}
+You can roll out gradually by only flipping this in your non-production stages first. Run the Strands Lambda alongside production traffic for a week, compare latency and cost in CloudWatch, then cut prod over with confidence.
+{% /aside %}
+
+## Step 3: Configure Bundling
+
+### Local Development
+
+CDK uses Docker to build the Python Lambda for `linux/arm64`. On an Apple Silicon Mac, this runs natively. On Intel/AMD machines, Docker Desktop handles emulation transparently.
+
+Verify Docker is running before `cdk synth` or `cdk deploy`:
+
+```bash
+docker info
+```
+
+### CI/CD Bundling (arm64 + QEMU)
+
+Standard x86_64 GitHub Actions runners cannot execute arm64 Docker images without emulation. Add QEMU + Buildx to your deploy workflow **before** the CDK deploy step:
+
+```yaml
+# .github/workflows/deploy.yml (or equivalent)
+- name: Set up QEMU
+  uses: docker/setup-qemu-action@v3
+
+- name: Set up Docker Buildx
+  uses: docker/setup-buildx-action@v3
+
+- name: CDK deploy
+  run: pnpm --filter @pika/service cdk:deploy
+```
+
+Bundling the Python Lambda under QEMU takes roughly 60–120 seconds per build. If that becomes a bottleneck, provision native arm64 runners instead of emulating — both approaches work; this guide doesn't prescribe one.
+
+{% aside type="caution" %}
+Skipping QEMU on x86_64 CI produces an `exec format error` or — more insidiously — a Lambda that fails at INIT with `ModuleNotFoundError: No module named 'pydantic_core._pydantic_core'`, because pip pulls x86_64 manylinux wheels whose compiled `.so` extensions can't load on Graviton. Always confirm bundling completed on an arm64-compatible host.
+{% /aside %}
+
+## Step 4: Local Development Tooling
+
+The Strands Lambda ships with helper scripts in `services/pika/package.json`:
+
+| Command | What it does |
+|---------|-------------|
+| `pnpm --filter @pika/service strands:setup` | Creates a `.venv`, installs Python + dev dependencies |
+| `pnpm --filter @pika/service strands:test` | Runs the Python pytest suite (contract + unit tests) |
+| `pnpm --filter @pika/service strands:invoke` | Invokes the handler locally against real DDB + Bedrock |
+| `pnpm --filter @pika/service strands:validate` | Full loop: setup, test, CDK synth |
+
+Run `strands:setup` once per clone, then `strands:test` on each change. `strands:invoke` requires AWS credentials and an agent definition already seeded in DynamoDB.
+
+## Step 5: Deploy and Verify
+
+Deploy the service stack first (creates the Lambda + SSM params), then the chat stack (reads the param you flipped):
+
+```bash
+pnpm --filter @pika/service cdk:deploy
+pnpm --filter @pika/chat cdk:deploy
+```
+
+After deploy, verify:
+
+1. **Lambda exists and INIT succeeds** — check `/aws/lambda/<project>-<stage>-ConverseStrandsFunction...` in CloudWatch Logs. You should see `Uvicorn running on http://0.0.0.0:8080`. If you see `ModuleNotFoundError`, the bundling platform mismatched the runtime arch (see the caution box above).
+
+2. **Traffic is flowing to Strands** — send a chat message and tail the same log group. You should see the request handler entry and subsequent streaming traces. If you see no traffic, confirm the chat stack was deployed after flipping the SSM path.
+
+3. **SSM parameters are correct**:
+
+```bash
+aws ssm get-parameter --name /stack/<proj>/<stage>/function/converse_strands_url
+aws ssm get-parameter --name /stack/<proj>/<stage>/function/converse_arn
+```
+
+## Rolling Back
+
+The TypeScript Lambda stays deployed while the Strands flag is on. To roll back:
+
+1. Change the SSM lookup in `pika-chat-construct.ts` back to `converse_url`
+2. Redeploy the chat stack
+
+Traffic cuts back to the TypeScript path immediately. You can leave `strandsConverse.enabled = true` if you want to keep the Strands Lambda warm for experimentation — or flip it off to stop paying for an idle function.
+
+## Migrating from an Existing Strands Customization
+
+If you previously added a Strands-style Lambda via `services/pika/lib/stacks/custom-stack-defs.ts` (customer override), migrate to the framework construct after upgrading to 0.25.0:
+
+1. Delete your custom `createStrandsConverseLambda()` implementation and any supporting constants from `custom-stack-defs.ts`. Restore the file to the pika scaffold defaults.
+2. Flip `pikaConfig.siteFeatures.strandsConverse.enabled` to `true`.
+3. Deploy.
+
+CloudFormation will **replace** the old resources (deleting the customer-side logical IDs and creating new framework-side ones). The Function URL will change, but the `/function/converse_strands_url` SSM parameter rewrites automatically — downstream consumers picking it up through SSM will cut over on their next deploy. Expect a brief reachability gap at cutover; coordinate an off-hours deploy if needed.
+
+## What's Next
+
+- **Compare against the TypeScript path in a non-prod stage.** Deploy both Lambdas side-by-side, then alternate the SSM lookup in `pika-chat-construct.ts` to A/B them. CloudWatch metrics (Duration, Invocations, Throttles) on the two function names give you the comparison data.
+- **Review the Strands Agents SDK documentation.** Customization the framework doesn't expose — tool loops, reasoning traces, custom callbacks — lives at the SDK layer. Start with [strands-agents/sdk-python](https://github.com/strands-agents/sdk-python).
+- **Understand the directive pathway.** The Strands path prefers Strands Skills for directive selection (no LLM call) and falls back to the same Nova Lite filtering the TS Lambda uses when Skills aren't viable. If you use semantic directives heavily, the [Instruction Augmentation guide](/guides/intelligence/instruction-augmentation/) still applies — directive authoring and DDB storage are unchanged.
+- **Keep customizations out of `handler.py`.** Constants like `MAX_ITERATIONS` and `LAMBDA_TIMEOUT_BUFFER_SECONDS` live in framework code that `pika sync` will overwrite. If you need to tune them, open an issue on the Pika repo so the knob becomes configuration rather than a fork of the Lambda source.

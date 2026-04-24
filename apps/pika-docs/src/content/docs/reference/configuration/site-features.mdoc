@@ -507,6 +507,34 @@ userMemory: {
 }
 ```
 
+### Strands Converse Lambda
+
+Opt into the Python (Strands Agents SDK) converse Lambda as a drop-in alternative to the default TypeScript converse Lambda. Added in 0.25.0.
+
+```typescript
+strandsConverse: {
+    enabled: boolean;
+}
+```
+
+**Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | When `true`, the pika service stack deploys `ConverseStrandsFunction` (Python 3.14, arm64) alongside the TypeScript converse Lambda. Both run in parallel; the chat app picks one by SSM parameter lookup. Default `false`. |
+
+**Example:**
+
+```typescript
+strandsConverse: {
+    enabled: false  // default — keep traffic on the TypeScript converse Lambda
+}
+```
+
+**Traffic routing:**
+
+Enabling the flag only deploys the Lambda — it does not reroute traffic. To send chat requests to the Strands Lambda, also update `apps/pika-chat/infra/lib/stacks/pika-chat-construct.ts` to read `/stack/<proj>/<stage>/function/converse_strands_url` instead of `/stack/<proj>/<stage>/function/converse_url`. See the [Opt into the Strands Converse Lambda guide](/guides/advanced/strands-converse/) for the full cutover procedure, including arm64 bundling prerequisites.
+
 ## Feature Override Pattern
 
 Most features can be overridden per chat app:
@@ -633,6 +661,9 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
             maxMemoryRecordsPerPrompt: 25,
             maxKMatchesPerStrategy: 5
+        },
+        strandsConverse: {
+            enabled: false
         }
     }
 };

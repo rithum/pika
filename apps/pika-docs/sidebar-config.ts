@@ -199,7 +199,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Direct Agent Invocation', slug: 'guides/advanced/direct-invocation' },
                     { label: 'Custom Widget Tag Definitions', slug: 'guides/advanced/widget-tags' },
                     { label: 'Work with Pika UX Module', slug: 'guides/advanced/pika-ux-module' },
-                    { label: 'Configure Sync System', slug: 'guides/advanced/sync-system' }
+                    { label: 'Configure Sync System', slug: 'guides/advanced/sync-system' },
+                    { label: 'Opt into the Strands Converse Lambda', slug: 'guides/advanced/strands-converse' }
                 ]
             }
         ]

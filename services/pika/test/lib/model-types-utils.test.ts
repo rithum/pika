@@ -1,4 +1,14 @@
-import { MODEL_ID_TO_MODEL, MODELS } from '../../src/lib/model-types-utils';
+import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_VERIFICATION_MODEL, MODEL_ID_TO_MODEL, MODELS } from '../../src/lib/model-types-utils';
+
+describe('default models', () => {
+    it('DEFAULT_ANTHROPIC_MODEL is resolvable in the model registry', () => {
+        expect(MODEL_ID_TO_MODEL[DEFAULT_ANTHROPIC_MODEL]).toBeDefined();
+    });
+
+    it('DEFAULT_VERIFICATION_MODEL is resolvable in the model registry', () => {
+        expect(MODEL_ID_TO_MODEL[DEFAULT_VERIFICATION_MODEL]).toBeDefined();
+    });
+});
 
 describe('MODEL_ID_TO_MODEL', () => {
     it('includes all model IDs from MODELS', () => {

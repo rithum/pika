@@ -15,7 +15,11 @@
         "cdk:synth": "cdk synth -c stage=${STAGE:-test}",
         "cdk:deploy": "cdk deploy -c stage=${STAGE:-test}",
         "cdk:diff": "cdk diff",
-        "jwt-secret": "tsx tools/jwt-secret-generator/generate-jwt-secret.ts"
+        "jwt-secret": "tsx tools/jwt-secret-generator/generate-jwt-secret.ts",
+        "strands:setup": "src/lambda/converse-strands/scripts/setup.sh",
+        "strands:test": "src/lambda/converse-strands/scripts/test.sh",
+        "strands:invoke": "src/lambda/converse-strands/scripts/local-invoke.sh",
+        "strands:validate": "pnpm run strands:setup && pnpm run strands:test && pnpm run cdk:synth"
     },
     "devDependencies": {
         "@aws-crypto/sha256-js": "catalog:",
@@ -26,6 +30,7 @@
         "@aws-sdk/credential-provider-node": "catalog:",
         "@aws-sdk/types": "catalog:",
         "@aws-sdk/util-dynamodb": "catalog:",
+        "@jest/globals": "^30.3.0",
         "@pika/typescript-config": "workspace:*",
         "@smithy/signature-v4": "catalog:",
         "@types/aws-lambda": "catalog:",

@@ -276,7 +276,13 @@
                 // Check if this is a semantic directives trace (detailed traces permission required)
                 try {
                     const parsed = JSON.parse(rationaleText);
-                    if (parsed.type === 'semantic-directives' && detailedTrace && parsed.directives) {
+
+                    // Hide directive and LLM instruction traces entirely when detailedTrace is off
+                    if (!detailedTrace && (parsed.type === 'semantic-directives' || parsed.type === 'semantic-directives-collaborator' || parsed.type === 'llm-instruction')) {
+                        return; // Skip — these are implementation details not meant for regular users
+                    }
+
+                    if ((parsed.type === 'semantic-directives' || parsed.type === 'semantic-directives-collaborator') && detailedTrace && parsed.directives) {
                         // Build a nice table format for the directives
                         const directivesTable = parsed.directives
                             .map((d: any) => {
@@ -816,14 +822,30 @@
 {#snippet toolInvocationTrace(
     trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' }
 )}
-    <div class="font-medium text-gray-700 mb-3">{trace.title}</div>
+    <button
+        class="flex items-center gap-1 font-medium text-gray-700 mb-1 hover:text-gray-900 transition-colors cursor-pointer"
+        onclick={() => {
+            if (expandedTraces[trace.id]) {
+                delete expandedTraces[trace.id];
+            } else {
+                expandedTraces[trace.id] = true;
+            }
+        }}
+    >
+        <ChevronRight
+            class="w-4 h-4 transition-transform duration-200 {expandedTraces[trace.id] ? 'rotate-90' : ''}"
+        />
+        {trace.title}
+    </button>
 
-    {#if trace.parameters}
-        {@render codeSection('Request Parameters', trace.parameters, trace, 'parameters')}
-    {/if}
+    {#if expandedTraces[trace.id]}
+        {#if trace.parameters}
+            {@render codeSection('Request Parameters', trace.parameters, trace, 'parameters')}
+        {/if}
 
-    {#if trace.response}
-        {@render codeSection('Response', trace.response, trace, 'response')}
+        {#if trace.response}
+            {@render codeSection('Response', trace.response, trace, 'response')}
+        {/if}
     {/if}
 {/snippet}
 
@@ -833,6 +855,7 @@
     trace: GroupedTrace & { type: 'toolInvocation' | 'knowledgeBaseInvocation' | 'collaboratorInvocation' },
     section: 'parameters' | 'response'
 )}
+    {@const sectionKey = `${trace.id}_${section}`}
     <div class="mb-4">
         <div
             class="text-sm font-medium text-gray-600 mb-2 flex justify-between relative mt-[-30px] top-[33px] items-center"
@@ -853,14 +876,14 @@
                     variant="ghost"
                     size="icon"
                     onclick={() => {
-                        if (expandedTraces[trace.id]) {
-                            delete expandedTraces[trace.id];
+                        if (expandedTraces[sectionKey]) {
+                            delete expandedTraces[sectionKey];
                         } else {
-                            expandedTraces[trace.id] = true;
+                            expandedTraces[sectionKey] = true;
                         }
                     }}
                 >
-                    {#if expandedTraces[trace.id]}
+                    {#if expandedTraces[sectionKey]}
                         <Shrink class="w-4 h-4" />
                     {:else}
                         <Expand class="w-4 h-4" />
@@ -869,23 +892,23 @@
             </div>
         </div>
         <div
-            class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${expandedTraces[trace.id] ? '' : 'max-h-64'}`}
+            class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${expandedTraces[sectionKey] ? '' : 'max-h-64'}`}
         >
             {@html content.markdown}
-            {#if expandedTraces[trace.id]}
+            {#if expandedTraces[sectionKey]}
                 <div class="buttons flex relative mt-[-20px]">
                     <Button
                         variant="ghost"
                         size="icon"
                         onclick={() => {
-                            if (expandedTraces[trace.id]) {
-                                delete expandedTraces[trace.id];
+                            if (expandedTraces[sectionKey]) {
+                                delete expandedTraces[sectionKey];
                             } else {
-                                expandedTraces[trace.id] = true;
+                                expandedTraces[sectionKey] = true;
                             }
                         }}
                     >
-                        {#if expandedTraces[trace.id]}
+                        {#if expandedTraces[sectionKey]}
                             <Shrink class="w-4 h-4" />
                         {:else}
                             <Expand class="w-4 h-4" />
