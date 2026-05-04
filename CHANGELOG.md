@@ -5,6 +5,18 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.2] - 2026-05-04
+
+### Changed
+
+- **Strands converse Lambda `max_tokens` raised to 64000** - The hardcoded `max_tokens=4096` in both the main agent and collaborator `BedrockModel` configurations in `services/pika/src/lambda/converse-strands/handler.py` was leftover from older Claude defaults. Claude 4.5 Sonnet's actual maximum output is 64K, and the framework now uses the model's real capacity. Long-form responses (detailed explanations, code generation, multi-step plans) that previously truncated at ~3KB now stream through cleanly. [#144]
+
+### Fixed
+
+- **Graceful handling of `MaxTokensReachedException`** - The Strands converse Lambda now catches `MaxTokensReachedException` from the Strands SDK explicitly and emits a user-facing message ("your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request.") instead of falling through to the generic "I encountered an error" handler. Users get an actionable suggestion rather than a generic failure. [#144]
+
+---
+
 ## [0.25.1] - 2026-05-04
 
 ### Added

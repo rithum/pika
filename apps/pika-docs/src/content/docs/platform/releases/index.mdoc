@@ -7,14 +7,19 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.25.2
+
+- **Strands converse Lambda `max_tokens` raised to 64000** - Both the main agent and collaborator `BedrockModel` configs now use Claude 4.5 Sonnet's actual max output (64K), up from a hardcoded 4096 leftover from older Claude defaults. Long-form responses (detailed explanations, code generation, multi-step plans) that previously truncated at ~3KB now stream through cleanly.
+- **Graceful `MaxTokensReachedException` handling** - When the model hits its max output limit, users now see "your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request." instead of a generic error message.
+
+**Latest Stable:** `0.25.2` (May 4, 2026)
+
 ### What's New in 0.25.1
 
 - **`useStrandsConverse` prop on PikaChatConstruct** - New optional boolean drives the converse Lambda SSM key (`converse_url` vs `converse_strands_url`). Reference `bin/pika-chat.ts` wires it from `pikaConfig.siteFeatures?.strandsConverse?.enabled`, so a single flag drives both the optional `ConverseStrandsConstruct` and the chat app's URL lookup. Closes a gap from 0.25.0 where the SSM key was hardcoded to `converse_url`, contradicting the conditional construct.
 - **`SessionInsightsSchedule` is now flag-gated, with a finer-grained `scheduleEnabled` knob** - The per-minute EventBridge rule that fires the insights runner Lambda is created only when `sessionInsightsFeature.enabled` is true AND `sessionInsightsFeature.scheduleEnabled` is not `false`. Set `scheduleEnabled: false` to deploy the runner Lambda and OpenSearch domain but skip the per-minute schedule (cost-control mode — keeps the infrastructure available for manual/backfill runs without idle Bedrock charges). Previously the rule fired every minute regardless of any flag.
 - **`userType` and `roles` propagated to DDB on login** - `apps/pika-chat/src/hooks.server.ts` now writes `userType` and `roles` from the auth provider through to `ChatUser` in DynamoDB, alongside `firstName`/`lastName`. The DDB write capability was added in 0.24.0; the call site was overlooked. Auth-provider changes to userType/roles now actually persist.
 - **Default `pnpm test` no longer hits AWS** - `apps/pika-chat/jest.config.js` excludes `test/integration/`; `services/pika/jest.config.cjs` excludes `chat-admin.test.ts` and `chat-session-os.test.ts`. New `test:integration` script in `apps/pika-chat/package.json` for opt-in runs.
-
-**Latest Stable:** `0.25.1` (May 4, 2026)
 
 ### What's New in 0.25.0
 
@@ -619,6 +624,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.25.2  | May 4 2026  | Patch    | Strands converse Lambda: raise max_tokens to model capacity (64K), add explicit MaxTokensReachedException handler |
 | 0.25.1  | May 4 2026  | Patch    | Back-port gaps from 0.25.0: hooks userType/roles propagation, jest integration-test isolation, flag-gated insights schedule, flag-conditional Strands SSM lookup |
 | 0.25.0  | Apr 23 2026 | Feature  | Optional Python (Strands) converse Lambda, Claude 4.5/4.6 default models, streaming heartbeats, post-processor rewrite |
 | 0.24.0  | Mar 30 2026 | Feature  | Collaborator directive injection, server hook hardening, userType/roles persistence |
