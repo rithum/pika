@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.25.0",
+  "latestVersion": "0.25.1",
   "currentDevelopment": "0.25.1",
   "releases": [
     {
       "version": "0.25.1",
       "date": "2026-05-04",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Back-port v0.25.0 gaps: hooks userType/roles propagation, jest integration-test isolation, flag-gated insights schedule, flag-conditional Strands SSM lookup",
       "highlights": [
