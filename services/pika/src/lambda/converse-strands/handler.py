@@ -15,6 +15,7 @@ from strands import Agent
 from strands.models.bedrock import BedrockModel, CacheConfig
 from strands.multiagent.swarm import Swarm
 from strands.tools.tools import PythonAgentTool
+from strands.types.exceptions import MaxTokensReachedException
 
 from pricing import extract_usage_from_result, extract_full_usage, calculate_usage
 from title import generate_session_title
@@ -1194,7 +1195,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         # Configure Strands agent
         model = BedrockModel(
             model_id=model_id,
-            max_tokens=4096,
+            max_tokens=64000,
             cache_config=CacheConfig(strategy="auto"),
         )
 
@@ -1303,7 +1304,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
                     collab_model = BedrockModel(
                         model_id=collab_model_id,
-                        max_tokens=4096,
+                        max_tokens=64000,
                         cache_config=CacheConfig(strategy="auto"),
                     )
 
@@ -1521,6 +1522,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 # the callback; skip to avoid duplication.
                 if knowledge_bases and response_text:
                     stream.write(response_text)
+        except MaxTokensReachedException as e:
+            logger.error(f"Agent execution error: {e}")
+            response_text = "I'm sorry, your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request."
+            stream.write(response_text)
         except Exception as e:
             logger.error(f"Agent execution error: {e}")
             response_text = "I'm sorry, I encountered an error processing your request."

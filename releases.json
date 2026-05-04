@@ -1,7 +1,18 @@
 {
-  "latestVersion": "0.25.1",
-  "currentDevelopment": "0.25.1",
+  "latestVersion": "0.25.2",
+  "currentDevelopment": "0.25.2",
   "releases": [
+    {
+      "version": "0.25.2",
+      "date": "2026-05-04",
+      "status": "released",
+      "breaking": false,
+      "summary": "Strands converse Lambda: raise max_tokens to model capacity (64K) and add explicit MaxTokensReachedException handler",
+      "highlights": [
+        "max_tokens raised from 4096 → 64000 in both main agent and collaborator BedrockModel configs — Claude 4.5 Sonnet's actual max output. Long responses no longer truncate at ~3KB.",
+        "MaxTokensReachedException now caught explicitly with a user-facing 'try breaking into smaller steps' message, instead of falling through to the generic error handler"
+      ]
+    },
     {
       "version": "0.25.1",
       "date": "2026-05-04",
