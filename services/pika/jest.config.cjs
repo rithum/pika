@@ -4,6 +4,8 @@ module.exports = {
     testEnvironment: 'node',
     roots: ['<rootDir>/test'],
     testMatch: ['**/*.test.ts'],
+    // Exclude integration tests that require STAGE, AWS credentials, and network (run via test:integration)
+    testPathIgnorePatterns: ['/node_modules/', '<rootDir>/test/chat-admin.test.ts', '<rootDir>/test/chat-session-os.test.ts'],
     transform: {
         '^.+\\.(ts|tsx)$': [
             'ts-jest',

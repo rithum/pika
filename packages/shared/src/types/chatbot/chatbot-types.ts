@@ -4523,6 +4523,16 @@ export interface SessionInsightsFeature {
     enabled: boolean;
 
     /**
+     * When false, the per-minute EventBridge schedule that fires the insights runner Lambda
+     * is skipped, but the runner Lambda and OpenSearch domain are still deployed (so the
+     * runner can be invoked manually or via custom triggers for backfill). Useful for cost
+     * control: avoid Bedrock costs from idle per-minute invocations while keeping the
+     * insights infrastructure available. Defaults to the value of `enabled`.
+     * @since 0.25.1
+     */
+    scheduleEnabled?: boolean;
+
+    /**
      * The string is the stage that the session config applies to.  If you provide a stage named
      * `default` then any stage not found in your map will use the default config.
      *

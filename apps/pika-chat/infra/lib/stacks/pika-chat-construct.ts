@@ -155,6 +155,16 @@ export interface PikaChatConstructProps {
      * If provided, each infrastructure resource will be tagged with these key names and a component-specific value.
      */
     componentTagNames?: string[];
+
+    /**
+     * If true, route the chat app to the Strands (Python) converse Lambda by reading the
+     * `converse_strands_url` SSM parameter instead of `converse_url`. Must match the value
+     * passed to the pika service stack (`pikaConfig.siteFeatures.strandsConverse.enabled`),
+     * which determines whether `ConverseStrandsConstruct` is deployed and publishes the
+     * `converse_strands_url` parameter. Default: false (use the TypeScript converse Lambda).
+     * @since 0.25.1
+     */
+    useStrandsConverse?: boolean;
 }
 
 /** Includes the things we know have to be provided by whomever implements the getPikaChatConstructProps function. */
@@ -203,10 +213,14 @@ export class PikaChatConstruct extends Construct {
         // Param comes from the pika service stack
         const chatAdminApiId = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/api/chat_admin_id`);
 
-        // Param comes from the pika service stack.
-        // Default: TS converse Lambda. To opt into the Strands (Python) converse Lambda,
-        // swap 'converse_url' for 'converse_strands_url' after enabling the Strands construct.
-        const converseFnUrl = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/converse_url`);
+        // Param comes from the pika service stack. SSM key is flag-conditional: when
+        // `useStrandsConverse` is true (matching `pikaConfig.siteFeatures.strandsConverse.enabled`),
+        // read the Strands (Python) Lambda URL; otherwise read the TypeScript Lambda URL.
+        const converseUrlParamKey = props.useStrandsConverse ? 'converse_strands_url' : 'converse_url';
+        const converseFnUrl = ssm.StringParameter.valueForStringParameter(
+            this,
+            `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/function/${converseUrlParamKey}`
+        );
 
         // Param comes from the pika service stack
         const chatAppTableArn = ssm.StringParameter.valueForStringParameter(this, `/stack/${props.pikaServiceProjNameKebabCase}/${props.stage}/ddb_table/chat_app_table_arn`);

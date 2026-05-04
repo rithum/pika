@@ -2967,18 +2967,27 @@ export class PikaConstruct extends Construct {
             })
         );
 
-        // Create EventBridge rule to trigger insights runner every minute
-        const sessionInsightsSchedule = new events.Rule(this, 'SessionInsightsSchedule', {
-            ruleName: `session-insights-schedule-${this.props.stackName}`,
-            description: 'Triggers session insights runner every minute',
-            schedule: events.Schedule.rate(cdk.Duration.minutes(1))
-        });
+        // Create EventBridge rule to trigger insights runner every minute.
+        // Gated on `enabled` (matches the OpenSearch domain gate) AND `scheduleEnabled` (a
+        // finer-grained knob defaulting to `enabled`). When `scheduleEnabled === false` but
+        // `enabled === true`, the runner Lambda + OpenSearch domain are still deployed but
+        // the per-minute schedule is skipped — avoids Bedrock costs from idle runs while
+        // keeping the runner available for manual/backfill invocation.
+        const insightsFeature = this.props.sessionInsightsFeature;
+        const scheduleEnabled = insightsFeature.enabled && (insightsFeature.scheduleEnabled ?? true);
+        if (scheduleEnabled) {
+            const sessionInsightsSchedule = new events.Rule(this, 'SessionInsightsSchedule', {
+                ruleName: `session-insights-schedule-${this.props.stackName}`,
+                description: 'Triggers session insights runner every minute',
+                schedule: events.Schedule.rate(cdk.Duration.minutes(1))
+            });
 
-        sessionInsightsSchedule.addTarget(
-            new targets.LambdaFunction(sessionInsightsRunnerLambda, {
-                retryAttempts: 0 // Don't retry - let next schedule handle it
-            })
-        );
+            sessionInsightsSchedule.addTarget(
+                new targets.LambdaFunction(sessionInsightsRunnerLambda, {
+                    retryAttempts: 0 // Don't retry - let next schedule handle it
+                })
+            );
+        }
 
         // Grant additional permissions
         chatSessionTable.grantReadWriteData(sessionInsightsRunnerLambda);

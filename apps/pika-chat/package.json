@@ -28,7 +28,8 @@
         "generate-tag-defs-for-build": "tsx tools/generate-tag-defs-for-build/index.ts",
         "upload-tag-defs": "pnpm run generate-tag-defs-for-build && tsx tools/upload-tag-defs/index.ts",
         "test": "jest",
-        "test:watch": "jest --watch"
+        "test:watch": "jest --watch",
+        "test:integration": "jest --testPathPattern=test/integration"
     },
     "devDependencies": {
         "@auth/core": "catalog:",
