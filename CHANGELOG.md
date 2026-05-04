@@ -5,6 +5,25 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.1] - 2026-05-04
+
+### Added
+
+- **`useStrandsConverse` prop on PikaChatConstruct** - New optional boolean on `PikaChatConstructProps` / `PikaChatStackProps` that drives which converse Lambda SSM key the chat app reads (`converse_url` vs `converse_strands_url`). Reference `bin/pika-chat.ts` wires the flag from `pikaConfig.siteFeatures?.strandsConverse?.enabled`, so a single config switch drives both the optional `ConverseStrandsConstruct` deployment and the chat app's URL lookup. Previously the SSM key was hardcoded to `converse_url`, contradicting the conditional construct introduced in 0.25.0. [#143]
+- **`test:integration` script in `apps/pika-chat/package.json`** - Opt-in command to run integration tests under `apps/pika-chat/test/integration/` (which are excluded from the default `test` run). [#143]
+
+### Changed
+
+- **`SessionInsightsSchedule` EventBridge rule is now flag-gated** - The per-minute schedule that triggers the session insights runner Lambda is created only when `sessionInsightsFeature.enabled` is `true`, consistent with the existing OpenSearch-domain gate. Previously the rule was created and enabled regardless of the flag, invoking the runner Lambda every minute (and incurring Bedrock costs) even when the feature was disabled. The runner Lambda itself is still deployed so it can be invoked manually for backfill. [#143]
+
+### Fixed
+
+- **`userType` and `roles` not written back to DynamoDB on login** - `apps/pika-chat/src/hooks.server.ts` now propagates `userType` and `roles` from the auth provider to `ChatUser` in DDB during the initial-login refresh path, alongside `firstName`/`lastName`. The DDB write capability was added in 0.24.0 (PR #140 → `chat-ddb.ts updateUser`), but the call site was overlooked, so changes from the auth provider were never persisted. [#143]
+- **`apps/pika-chat/jest.config.js` excludes `<rootDir>/test/integration/`** - Default `pnpm test` no longer attempts to run integration tests that require `STAGE`, AWS credentials, and network. Use `pnpm test:integration` to run them explicitly. [#143]
+- **`services/pika/jest.config.cjs` excludes `chat-admin.test.ts` and `chat-session-os.test.ts`** - Same reason: default `pnpm test` no longer fails on integration tests requiring AWS access. [#143]
+
+---
+
 ## [0.25.0] - 2026-04-23
 
 ### Added
