@@ -7,11 +7,12 @@
       "date": "2026-05-04",
       "status": "released",
       "breaking": false,
-      "summary": "Back-port v0.25.0 gaps: hooks userType/roles propagation, jest integration-test isolation, flag-gated insights schedule, flag-conditional Strands SSM lookup",
+      "summary": "Back-port v0.25.0 gaps: hooks userType/roles propagation, jest integration-test isolation, flag-gated insights schedule (with new scheduleEnabled knob), flag-conditional Strands SSM lookup",
       "highlights": [
         "hooks.server.ts now propagates userType/roles from auth provider to DDB on initial login (closes the call-site gap that left PR #140's chat-ddb updateUser support unused)",
         "jest configs in pika-chat and services/pika now exclude integration tests by default; new test:integration script in pika-chat for opt-in runs",
         "SessionInsightsSchedule EventBridge rule is now gated on sessionInsightsFeature.enabled — previously always-on regardless of the flag, incurring Bedrock costs when the feature was disabled",
+        "New SessionInsightsFeature.scheduleEnabled knob lets consumers deploy the insights infrastructure (runner Lambda + OpenSearch) while skipping the per-minute schedule — cost-control mode for manual/backfill-only invocation",
         "PikaChatConstruct accepts new useStrandsConverse?: boolean prop driving the converse Lambda SSM key (converse_url vs converse_strands_url); reference bin/pika-chat.ts wires it from pikaConfig.siteFeatures.strandsConverse.enabled so a single flag drives both the construct and the URL lookup"
       ]
     },

@@ -12,11 +12,12 @@ Complete version history of the Pika Framework.
 ### Added
 
 - **`useStrandsConverse` prop on PikaChatConstruct** - New optional boolean on `PikaChatConstructProps` / `PikaChatStackProps` that drives which converse Lambda SSM key the chat app reads (`converse_url` vs `converse_strands_url`). Reference `bin/pika-chat.ts` wires the flag from `pikaConfig.siteFeatures?.strandsConverse?.enabled`, so a single config switch drives both the optional `ConverseStrandsConstruct` deployment and the chat app's URL lookup. Previously the SSM key was hardcoded to `converse_url`, contradicting the conditional construct introduced in 0.25.0. [#143]
+- **`SessionInsightsFeature.scheduleEnabled`** - New optional boolean on the session insights feature config. When `false`, the per-minute EventBridge schedule that fires the runner Lambda is skipped, but the runner Lambda and OpenSearch domain are still deployed. Useful for cost control: avoid Bedrock costs from idle per-minute invocations while keeping the insights infrastructure available for manual/backfill runs. Defaults to the value of `enabled`. [#143]
 - **`test:integration` script in `apps/pika-chat/package.json`** - Opt-in command to run integration tests under `apps/pika-chat/test/integration/` (which are excluded from the default `test` run). [#143]
 
 ### Changed
 
-- **`SessionInsightsSchedule` EventBridge rule is now flag-gated** - The per-minute schedule that triggers the session insights runner Lambda is created only when `sessionInsightsFeature.enabled` is `true`, consistent with the existing OpenSearch-domain gate. Previously the rule was created and enabled regardless of the flag, invoking the runner Lambda every minute (and incurring Bedrock costs) even when the feature was disabled. The runner Lambda itself is still deployed so it can be invoked manually for backfill. [#143]
+- **`SessionInsightsSchedule` EventBridge rule is now flag-gated** - The per-minute schedule that triggers the session insights runner Lambda is created only when `sessionInsightsFeature.enabled` is `true` AND `sessionInsightsFeature.scheduleEnabled` is not `false`, consistent with the existing OpenSearch-domain gate on `enabled`. Previously the rule was created and enabled regardless of any flag, invoking the runner Lambda every minute (and incurring Bedrock costs) even when the feature was disabled. The runner Lambda itself is still deployed so it can be invoked manually for backfill. [#143]
 
 ### Fixed
 
