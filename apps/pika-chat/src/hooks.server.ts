@@ -359,30 +359,42 @@ export const handle: Handle = async ({ event, resolve }) => {
                     //     chatUserRoles: chatUser.roles
                     // });
 
-                    // Check if firstName or lastName from DSCO differs from ChatUser and update if needed
+                    // Check if firstName or lastName from auth provider differs from ChatUser and update if needed
                     // Only update if new values are non-empty (protect manually set names from being overwritten with empty values)
                     const shouldUpdateFirstName = user.firstName && user.firstName.trim() !== '' && user.firstName !== chatUser.firstName;
                     const shouldUpdateLastName = user.lastName && user.lastName.trim() !== '' && user.lastName !== chatUser.lastName;
 
-                    if (shouldUpdateFirstName || shouldUpdateLastName) {
-                        console.log('[Hooks] Updating ChatUser with fresh firstName/lastName from DSCO:', {
+                    // Auth provider is the source of truth for userType and roles — propagate changes back to DDB.
+                    // (createChatUser writes via updateUser in chat-ddb.ts, which supports these fields as of 0.25.0.)
+                    const shouldUpdateUserType = user.userType && user.userType !== chatUser.userType;
+                    const shouldUpdateRoles = user.roles && !arraysEqual(user.roles, chatUser.roles);
+
+                    if (shouldUpdateFirstName || shouldUpdateLastName || shouldUpdateUserType || shouldUpdateRoles) {
+                        console.log('[Hooks] Updating ChatUser with fresh data from auth provider:', {
                             userId: user.userId,
                             oldFirstName: chatUser.firstName || '(empty)',
                             newFirstName: shouldUpdateFirstName ? user.firstName : chatUser.firstName,
                             firstNameWillUpdate: shouldUpdateFirstName,
                             oldLastName: chatUser.lastName || '(empty)',
                             newLastName: shouldUpdateLastName ? user.lastName : chatUser.lastName,
-                            lastNameWillUpdate: shouldUpdateLastName
+                            lastNameWillUpdate: shouldUpdateLastName,
+                            oldUserType: chatUser.userType || '(empty)',
+                            newUserType: shouldUpdateUserType ? user.userType : chatUser.userType,
+                            userTypeWillUpdate: shouldUpdateUserType,
+                            oldRoles: chatUser.roles,
+                            newRoles: shouldUpdateRoles ? user.roles : chatUser.roles,
+                            rolesWillUpdate: shouldUpdateRoles
                         });
 
-                        // Update the ChatUser - include all existing data and only override names if they have valid values
                         await createChatUser({
                             ...chatUser,
                             firstName: shouldUpdateFirstName ? user.firstName : chatUser.firstName,
-                            lastName: shouldUpdateLastName ? user.lastName : chatUser.lastName
+                            lastName: shouldUpdateLastName ? user.lastName : chatUser.lastName,
+                            userType: shouldUpdateUserType ? user.userType : chatUser.userType,
+                            roles: shouldUpdateRoles ? user.roles : chatUser.roles
                         });
 
-                        console.log('[Hooks] ChatUser firstName/lastName updated successfully');
+                        console.log('[Hooks] ChatUser data updated successfully');
                     }
                 }
 

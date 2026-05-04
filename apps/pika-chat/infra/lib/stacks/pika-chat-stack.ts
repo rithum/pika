@@ -22,6 +22,8 @@ export interface PikaChatStackProps extends cdk.StackProps {
     tagDefinitions: TagDefinitionsJsonFile;
     stackTags?: Record<string, string>; // Merged and interpolated stack tags from pika-config.ts
     componentTagNames?: string[];
+    /** Mirror of `pikaConfig.siteFeatures.strandsConverse.enabled` — see PikaChatConstructProps.useStrandsConverse. @since 0.25.1 */
+    useStrandsConverse?: boolean;
 }
 
 /**
@@ -89,7 +91,8 @@ export class PikaChatStack extends cdk.Stack {
             pikaServiceProjNameKebabCase: props.pikaServiceProjNameKebabCase,
             tagDefinitions: props.tagDefinitions,
             stackTags: props.stackTags,
-            componentTagNames: props.componentTagNames
+            componentTagNames: props.componentTagNames,
+            useStrandsConverse: props.useStrandsConverse
         };
 
         const pikaChatConstructProps: PikaChatConstructProps = customStackDefs.getPikaChatConstructProps(partialProps);

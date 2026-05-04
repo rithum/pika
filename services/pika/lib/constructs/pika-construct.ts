@@ -2967,18 +2967,23 @@ export class PikaConstruct extends Construct {
             })
         );
 
-        // Create EventBridge rule to trigger insights runner every minute
-        const sessionInsightsSchedule = new events.Rule(this, 'SessionInsightsSchedule', {
-            ruleName: `session-insights-schedule-${this.props.stackName}`,
-            description: 'Triggers session insights runner every minute',
-            schedule: events.Schedule.rate(cdk.Duration.minutes(1))
-        });
+        // Create EventBridge rule to trigger insights runner every minute.
+        // Gated on the same feature flag as the OpenSearch domain — when disabled, the runner Lambda
+        // is still deployed (so it can be invoked manually for backfill) but the per-minute schedule
+        // is skipped to avoid Bedrock costs from idle runs.
+        if (this.props.sessionInsightsFeature.enabled) {
+            const sessionInsightsSchedule = new events.Rule(this, 'SessionInsightsSchedule', {
+                ruleName: `session-insights-schedule-${this.props.stackName}`,
+                description: 'Triggers session insights runner every minute',
+                schedule: events.Schedule.rate(cdk.Duration.minutes(1))
+            });
 
-        sessionInsightsSchedule.addTarget(
-            new targets.LambdaFunction(sessionInsightsRunnerLambda, {
-                retryAttempts: 0 // Don't retry - let next schedule handle it
-            })
-        );
+            sessionInsightsSchedule.addTarget(
+                new targets.LambdaFunction(sessionInsightsRunnerLambda, {
+                    retryAttempts: 0 // Don't retry - let next schedule handle it
+                })
+            );
+        }
 
         // Grant additional permissions
         chatSessionTable.grantReadWriteData(sessionInsightsRunnerLambda);

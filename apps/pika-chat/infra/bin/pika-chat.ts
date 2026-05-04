@@ -79,7 +79,8 @@ async function main() {
         pikaServiceProjNameKebabCase,
         tagDefinitions: tagDefinitionsData as TagDefinitionsJsonFile,
         stackTags,
-        componentTagNames: pikaConfig.stackTags?.componentTagNames
+        componentTagNames: pikaConfig.stackTags?.componentTagNames,
+        useStrandsConverse: pikaConfig.siteFeatures?.strandsConverse?.enabled
     });
 
     // Apply stack tags if configured
