@@ -58,6 +58,10 @@ const ddbDocClient = DynamoDBDocument.from(ddbClient, {
     }
 });
 
+function isChatDebugLogsEnabled(): boolean {
+    return process.env.CHAT_DEBUG_LOGS === 'true';
+}
+
 export async function searchForUsersByPartialUserId(partialUserId: string): Promise<ChatUserLite[]> {
     const users = await ddbDocClient.query({
         TableName: getChatUserTable(),
@@ -181,7 +185,9 @@ export async function addUser(user: ChatUser<RecordOrUndef>): Promise<ChatUser<R
     (user as any).userIdPrefix = user.userId.slice(0, 3).toLowerCase(); // Used as partition key for the GSI.
     (user as any).userIdLower = user.userId.toLowerCase(); // This is used for case insensitive searches.
 
-    console.log('about to add user in chat database', convertChatUserToSnakeFromCamelCase(user));
+    if (isChatDebugLogsEnabled()) {
+        console.log('about to add user in chat database', convertChatUserToSnakeFromCamelCase(user));
+    }
 
     await ddbDocClient.put({
         TableName: getChatUserTable(),
@@ -321,11 +327,63 @@ export async function getChatSessionByUserIdAndSessionId(userId: string, session
         }
     });
 
+    try {
+        const item = session.Item as Record<string, unknown> | undefined;
+        if (isChatDebugLogsEnabled()) {
+            console.log('getChatSessionByUserIdAndSessionId raw item debug:', {
+                userId,
+                sessionId,
+                found: !!item,
+                itemKeys: item ? Object.keys(item) : [],
+                entityId: item?.entity_id ?? item?.entityId ?? null,
+                accountId: item?.account_id ?? item?.accountId ?? null,
+                sessionAttributesKeys: item?.session_attributes && typeof item.session_attributes === 'object' && !Array.isArray(item.session_attributes)
+                    ? Object.keys(item.session_attributes as Record<string, unknown>)
+                    : [],
+                sessionAttributesAccountId:
+                    item?.session_attributes && typeof item.session_attributes === 'object' && !Array.isArray(item.session_attributes)
+                        ? (item.session_attributes as Record<string, unknown>).account_id ??
+                            (item.session_attributes as Record<string, unknown>).accountId ??
+                            null
+                        : null,
+                sessionAttributesAccount:
+                    item?.session_attributes && typeof item.session_attributes === 'object' && !Array.isArray(item.session_attributes)
+                        ? (item.session_attributes as Record<string, unknown>).account ?? null
+                        : null
+            });
+        }
+    } catch (error) {
+        if (isChatDebugLogsEnabled()) {
+            console.warn('getChatSessionByUserIdAndSessionId: failed to log raw item debug', error);
+        }
+    }
+
     return session.Item ? convertChatSessionToCamelFromSnakeCase<RecordOrUndef>(session.Item as SnakeCase<ChatSession<RecordOrUndef>>) : undefined;
 }
 
 export async function addChatSession(chatSession: ChatSession<RecordOrUndef>): Promise<ChatSession<RecordOrUndef>> {
     const item = convertChatSessionToSnakeFromCamelCase<RecordOrUndef>(chatSession);
+
+    try {
+        const sessionAttributes = (item as Record<string, unknown>).session_attributes as Record<string, unknown> | undefined;
+        if (isChatDebugLogsEnabled()) {
+            console.log('addChatSession raw item debug:', {
+                sessionId: chatSession.sessionId,
+                userId: chatSession.userId,
+                chatAppId: chatSession.chatAppId,
+                itemKeys: Object.keys(item as Record<string, unknown>),
+                entityId: (item as Record<string, unknown>).entity_id ?? (item as Record<string, unknown>).entityId ?? null,
+                accountId: (item as Record<string, unknown>).account_id ?? (item as Record<string, unknown>).accountId ?? null,
+                sessionAttributesKeys: sessionAttributes ? Object.keys(sessionAttributes) : [],
+                sessionAttributesAccountId: sessionAttributes?.account_id ?? sessionAttributes?.accountId ?? null,
+                sessionAttributesAccount: sessionAttributes?.account ?? null
+            });
+        }
+    } catch (error) {
+        if (isChatDebugLogsEnabled()) {
+            console.warn('addChatSession: failed to log raw item debug', error);
+        }
+    }
 
     // Default source to 'user' if not present
     const source = chatSession.source || 'user';
@@ -449,6 +507,54 @@ export async function updateSession(
                                output_cost :outputCost,
                                output_tokens :outputTokens,
                                total_cost :totalCost`,
+        ExpressionAttributeValues: expressionAttributeValues
+    });
+}
+
+/**
+ * Merges additional key-value pairs into the `session_attributes` map of an existing session.
+ * Safely initialises `session_attributes` to an empty map if it does not yet exist, then
+ * writes each attribute individually to avoid overwriting unrelated keys.
+ *
+ * @param userId - Owner of the session
+ * @param sessionId - Session to update
+ * @param attributes - Key-value pairs to merge into sessionAttributes
+ */
+export async function mergeSessionAttributes(userId: string, sessionId: string, attributes: Record<string, unknown>): Promise<void> {
+    if (Object.keys(attributes).length === 0) {
+        return;
+    }
+
+    const setExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {
+        '#sessionAttributes': 'session_attributes'
+    };
+    const expressionAttributeValues: Record<string, unknown> = {};
+
+    let i = 0;
+    for (const [key, value] of Object.entries(attributes)) {
+        const nameKey = `#k${i}`;
+        const valueKey = `:v${i}`;
+        expressionAttributeNames[nameKey] = key;
+        expressionAttributeValues[valueKey] = value;
+        setExpressions.push(`#sessionAttributes.${nameKey} = ${valueKey}`);
+        i += 1;
+    }
+
+    // Ensure session_attributes map exists before setting nested keys
+    await ddbDocClient.update({
+        TableName: getChatSessionTable(),
+        Key: { user_id: userId, session_id: sessionId },
+        UpdateExpression: 'SET #sessionAttributes = if_not_exists(#sessionAttributes, :emptyMap)',
+        ExpressionAttributeNames: { '#sessionAttributes': 'session_attributes' },
+        ExpressionAttributeValues: { ':emptyMap': {} }
+    });
+
+    await ddbDocClient.update({
+        TableName: getChatSessionTable(),
+        Key: { user_id: userId, session_id: sessionId },
+        UpdateExpression: `SET ${setExpressions.join(', ')}`,
+        ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues
     });
 }

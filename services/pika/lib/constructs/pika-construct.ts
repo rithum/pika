@@ -35,6 +35,8 @@ export interface PikaConstructProps {
     userMemoryFeature: UserMemoryFeature;
     stackTags?: Record<string, string>;
     componentTagNames?: string[];
+    /** Field names used to normalize account ID from session attributes. Comma-joined into PIKA_ACCOUNT_ID_FIELD_NAMES env var. */
+    accountIdFieldNames?: string[];
 }
 
 export interface PikaConstructOutputs {
@@ -1819,7 +1821,8 @@ export class PikaConstruct extends Construct {
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
                 ...(memoryId ? { MEMORY_ID: memoryId } : {}),
                 ...(sharedSessionVisitHistoryTable ? { SHARED_SESSION_VISIT_HISTORY_TABLE: sharedSessionVisitHistoryTable.tableName } : {}),
-                ...(pinnedSessionTable ? { PINNED_SESSION_TABLE: pinnedSessionTable.tableName } : {})
+                ...(pinnedSessionTable ? { PINNED_SESSION_TABLE: pinnedSessionTable.tableName } : {}),
+                ...(this.props.accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: this.props.accountIdFieldNames.join(',') } : {})
             },
             bundling: {
                 minify: true,
@@ -1954,7 +1957,8 @@ export class PikaConstruct extends Construct {
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
                 ...(memoryId ? { MEMORY_ID: memoryId } : {}),
-                ...(memoryStrategies ? { MEMORY_STRATEGIES: JSON.stringify(memoryStrategies) } : {})
+                ...(memoryStrategies ? { MEMORY_STRATEGIES: JSON.stringify(memoryStrategies) } : {}),
+                ...(this.props.accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: this.props.accountIdFieldNames.join(',') } : {})
             },
             bundling: {
                 minify: true,
@@ -2060,7 +2064,8 @@ export class PikaConstruct extends Construct {
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
                 POST_PROCESSOR_FUNCTION_ARN: agentPostProcessorFn.functionArn,
                 ...(memoryId ? { MEMORY_ID: memoryId } : {}),
-                ...inferenceProfileEnvVars
+                ...inferenceProfileEnvVars,
+                ...(this.props.accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: this.props.accountIdFieldNames.join(',') } : {})
             },
             bundling: {
                 minify: true,

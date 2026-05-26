@@ -3977,6 +3977,21 @@ export interface PikaConfig {
          */
         componentTagNames?: string[];
     };
+
+    /**
+     * Field names to search when normalizing an account ID out of session attributes.
+     * Tried in order against sessionAttributes (top-level keys) and the nested `account` object.
+     *
+     * Default: `['accountId', 'account_id']`
+     *
+     * Override when your user records use additional or legacy field names, e.g.:
+     * ```typescript
+     * accountIdFieldNames: ['accountId', 'account_id', 'retailerId', 'supplierId']
+     * ```
+     *
+     * @since 0.26.0
+     */
+    accountIdFieldNames?: string[];
 }
 
 /**
