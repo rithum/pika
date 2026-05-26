@@ -323,9 +323,87 @@ export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef =
 
 const DEFAULT_ACCOUNT_ID_FIELD_NAMES = ['accountId', 'account_id'];
 
-function getAccountIdFieldNames(): string[] {
+/**
+ * Returns the list of field names used to resolve an account ID from session data.
+ * Reads from the `PIKA_ACCOUNT_ID_FIELD_NAMES` environment variable (comma-separated).
+ * Falls back to `['accountId', 'account_id']` when the env var is not set.
+ */
+export function getAccountIdFieldNames(): string[] {
     const envVal = process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
     return envVal ? envVal.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_ACCOUNT_ID_FIELD_NAMES;
+}
+
+/**
+ * Returns true when the session already carries an account ID in any recognised field,
+ * so the backfill step can be skipped for existing sessions.
+ * Checks top-level fields, sessionAttributes fields, and the nested `account` object.
+ * Uses `getAccountIdFieldNames()` so `PIKA_ACCOUNT_ID_FIELD_NAMES` controls resolution.
+ */
+export function hasSessionAccountContext(session: ChatSession<RecordOrUndef>): boolean {
+    const fieldNames = getAccountIdFieldNames();
+    const sessionRecord = session as unknown as Record<string, unknown>;
+
+    // Check top-level fields first
+    for (const field of fieldNames) {
+        const v = sessionRecord[field];
+        if (typeof v === 'string' && v.length > 0) return true;
+        if (typeof v === 'number') return true;
+    }
+
+    const sessionAttributes = (sessionRecord.sessionAttributes as Record<string, unknown> | undefined) ?? undefined;
+
+    // Check sessionAttributes fields
+    if (sessionAttributes) {
+        for (const field of fieldNames) {
+            const v = sessionAttributes[field];
+            if (typeof v === 'string' && v.length > 0) return true;
+            if (typeof v === 'number') return true;
+        }
+    }
+
+    // Fall back to nested account object (account.id, account.accountId, account.account_id)
+    const accountObject = sessionAttributes?.account;
+    if (accountObject && typeof accountObject === 'object' && !Array.isArray(accountObject)) {
+        const accountRecord = accountObject as Record<string, unknown>;
+        const nestedId = accountRecord.id ?? accountRecord.accountId ?? accountRecord.account_id;
+        if (typeof nestedId === 'string' && nestedId.length > 0) return true;
+        if (typeof nestedId === 'number') return true;
+    }
+
+    return false;
+}
+
+/**
+ * Extracts the subset of user customData fields that are relevant to account context,
+ * for backfilling onto sessions that don't yet have an account ID.
+ * Includes all `getAccountIdFieldNames()` fields plus static metadata keys and the
+ * nested `account` object.
+ */
+export function getAccountBackfillAttributes(customUserData: Record<string, unknown> | undefined): Record<string, unknown> {
+    if (!customUserData) {
+        return {};
+    }
+
+    // Start with dynamic account ID field names (e.g. accountId, account_id, retailerId, supplierId, etc.)
+    // then append the static metadata fields and the nested account object.
+    const allowedKeys = [
+        ...getAccountIdFieldNames(),
+        'accountType',
+        'account_type',
+        'accountName',
+        'account_name',
+        'account'
+    ];
+
+    const attributes: Record<string, unknown> = {};
+    for (const key of allowedKeys) {
+        const value = customUserData[key];
+        if (value !== undefined && value !== null) {
+            attributes[key] = value;
+        }
+    }
+
+    return attributes;
 }
 
 /**

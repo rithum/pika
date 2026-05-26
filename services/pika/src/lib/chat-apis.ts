@@ -73,7 +73,7 @@ import {
     updateSessionTitleInDdb
 } from './chat-ddb';
 import { getMatchingChatApps } from './get-matching-chat-apps';
-import { createSessionToken, getNextMessageId, validateUserCanAccessSession } from './utils';
+import { createSessionToken, getAccountBackfillAttributes, hasSessionAccountContext, getNextMessageId, validateUserCanAccessSession } from './utils';
 
 function toStringId(value: unknown): string | undefined {
     if (typeof value === 'string' && value.length > 0) {
@@ -83,54 +83,6 @@ function toStringId(value: unknown): string | undefined {
         return String(value);
     }
     return undefined;
-}
-
-function hasSessionAccountContext(session: ChatSession<RecordOrUndef>): boolean {
-    const sessionRecord = session as unknown as Record<string, unknown>;
-    const topLevelAccountId = sessionRecord.accountId ?? sessionRecord.account_id;
-    if (toStringId(topLevelAccountId)) {
-        return true;
-    }
-
-    const sessionAttributes = (sessionRecord.sessionAttributes as Record<string, unknown> | undefined) ?? undefined;
-    const sessionAttributesAccountId = sessionAttributes?.accountId ?? sessionAttributes?.account_id;
-    if (toStringId(sessionAttributesAccountId)) {
-        return true;
-    }
-
-    const accountObject = sessionAttributes?.account;
-    if (accountObject && typeof accountObject === 'object' && !Array.isArray(accountObject)) {
-        const accountRecord = accountObject as Record<string, unknown>;
-        return !!toStringId(accountRecord.id ?? accountRecord.accountId ?? accountRecord.account_id);
-    }
-
-    return false;
-}
-
-function getAccountBackfillAttributes(customUserData: Record<string, unknown> | undefined): Record<string, unknown> {
-    if (!customUserData) {
-        return {};
-    }
-
-    const allowedKeys = [
-        'accountId',
-        'account_id',
-        'accountType',
-        'account_type',
-        'accountName',
-        'account_name',
-        'account'
-    ];
-
-    const attributes: Record<string, unknown> = {};
-    for (const key of allowedKeys) {
-        const value = customUserData[key];
-        if (value !== undefined && value !== null) {
-            attributes[key] = value;
-        }
-    }
-
-    return attributes;
 }
 
 function isChatDebugLogsEnabled(): boolean {

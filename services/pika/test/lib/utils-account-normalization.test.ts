@@ -1,4 +1,4 @@
-import { convertChatSessionToCamelFromSnakeCase } from '../../src/lib/utils';
+import { convertChatSessionToCamelFromSnakeCase, getAccountBackfillAttributes, hasSessionAccountContext } from '../../src/lib/utils';
 
 /** Minimal snake_case session for testing account-normalization logic only. */
 function makeSession(sessionAttributes?: Record<string, unknown>): any {
@@ -131,5 +131,163 @@ describe('convertChatSessionToCamelFromSnakeCase — account ID normalization', 
             const result = convertChatSessionToCamelFromSnakeCase(makeSession({ supplierId: 'sup-2' }));
             expect((result as any).accountId).toBe('sup-2');
         });
+    });
+});
+
+// ─── helpers for chat-apis tests ────────────────────────────────────────────
+
+/** Minimal camelCase ChatSession for hasSessionAccountContext. */
+function makeChatSession(overrides: Record<string, unknown> = {}, sessionAttributesOverrides?: Record<string, unknown>): any {
+    const base: Record<string, unknown> = {
+        sessionId: 'sess-1',
+        userId: 'user-1',
+        agentId: 'agent-1',
+        chatAppId: 'app-1',
+        identityId: 'id-1',
+        invocationMode: 'chat',
+        createDate: '2024-01-01T00:00:00Z',
+        lastUpdate: '2024-01-01T00:00:00Z',
+        entityId: 'ent-1',
+        ...overrides
+    };
+    if (sessionAttributesOverrides !== undefined) {
+        base.sessionAttributes = {
+            userId: 'user-1',
+            chatAppId: 'app-1',
+            agentId: 'agent-1',
+            currentDate: '2024-01-01',
+            ...sessionAttributesOverrides
+        };
+    }
+    return base;
+}
+
+// ─── hasSessionAccountContext ────────────────────────────────────────────────
+
+describe('hasSessionAccountContext', () => {
+    const originalEnv = process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+
+    afterEach(() => {
+        if (originalEnv === undefined) {
+            delete process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+        } else {
+            process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = originalEnv;
+        }
+    });
+
+    describe('default field names (accountId, account_id)', () => {
+        it('returns true when top-level accountId is set', () => {
+            expect(hasSessionAccountContext(makeChatSession({ accountId: 'acc-1' }))).toBe(true);
+        });
+
+        it('returns true when top-level account_id is set', () => {
+            expect(hasSessionAccountContext(makeChatSession({ account_id: 'acc-2' }))).toBe(true);
+        });
+
+        it('returns true when sessionAttributes.accountId is set', () => {
+            expect(hasSessionAccountContext(makeChatSession({}, { accountId: 'attr-acc' }))).toBe(true);
+        });
+
+        it('returns true when sessionAttributes.account_id is set', () => {
+            expect(hasSessionAccountContext(makeChatSession({}, { account_id: 'attr-acc' }))).toBe(true);
+        });
+
+        it('returns false when no account fields are present', () => {
+            expect(hasSessionAccountContext(makeChatSession({}, { someField: 'value' }))).toBe(false);
+        });
+
+        it('returns false when session has no sessionAttributes', () => {
+            expect(hasSessionAccountContext(makeChatSession())).toBe(false);
+        });
+
+        it('returns true via nested account.id fallback', () => {
+            expect(hasSessionAccountContext(makeChatSession({}, { account: { id: 'nested-1' } }))).toBe(true);
+        });
+    });
+
+    describe('legacy field names (retailerId, supplierId, etc.)', () => {
+        it('returns true when top-level retailerId is set (default field names)', () => {
+            // With default field names, retailerId is NOT included — should return false
+            delete process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+            expect(hasSessionAccountContext(makeChatSession({ retailerId: 'ret-1' }))).toBe(false);
+        });
+
+        it('returns true when top-level retailerId is set with PIKA_ACCOUNT_ID_FIELD_NAMES override', () => {
+            process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = 'accountId,account_id,retailerId,retailer_id,supplierId,supplier_id,actingAsAccountId,acting_as_account_id';
+            expect(hasSessionAccountContext(makeChatSession({ retailerId: 'ret-1' }))).toBe(true);
+        });
+
+        it('returns true when sessionAttributes.supplierId is set with PIKA_ACCOUNT_ID_FIELD_NAMES override', () => {
+            process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = 'accountId,account_id,retailerId,retailer_id,supplierId,supplier_id';
+            expect(hasSessionAccountContext(makeChatSession({}, { supplierId: 'sup-42' }))).toBe(true);
+        });
+
+        it('returns true when top-level actingAsAccountId is set with PIKA_ACCOUNT_ID_FIELD_NAMES override', () => {
+            process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = 'accountId,account_id,actingAsAccountId,acting_as_account_id';
+            expect(hasSessionAccountContext(makeChatSession({ actingAsAccountId: 'act-5' }))).toBe(true);
+        });
+    });
+});
+
+// ─── getAccountBackfillAttributes ───────────────────────────────────────────
+
+describe('getAccountBackfillAttributes', () => {
+    const originalEnv = process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+
+    afterEach(() => {
+        if (originalEnv === undefined) {
+            delete process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+        } else {
+            process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = originalEnv;
+        }
+    });
+
+    it('returns empty object for undefined input', () => {
+        expect(getAccountBackfillAttributes(undefined)).toEqual({});
+    });
+
+    it('picks up accountId and accountType with default field names', () => {
+        const result = getAccountBackfillAttributes({ accountId: 'acc-1', accountType: 'retailer', irrelevant: 'drop-me' });
+        expect(result).toEqual({ accountId: 'acc-1', accountType: 'retailer' });
+        expect(result).not.toHaveProperty('irrelevant');
+    });
+
+    it('picks up account_id and account_name with default field names', () => {
+        const result = getAccountBackfillAttributes({ account_id: 'acc-2', account_name: 'Acme' });
+        expect(result).toEqual({ account_id: 'acc-2', account_name: 'Acme' });
+    });
+
+    it('picks up nested account object', () => {
+        const result = getAccountBackfillAttributes({ account: { id: 'nested-1' } });
+        expect(result).toEqual({ account: { id: 'nested-1' } });
+    });
+
+    it('does NOT pick up retailerId with default field names', () => {
+        delete process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+        const result = getAccountBackfillAttributes({ retailerId: 'ret-1', accountId: 'acc-1' });
+        expect(result).toHaveProperty('accountId', 'acc-1');
+        expect(result).not.toHaveProperty('retailerId');
+    });
+
+    it('picks up retailerId when included in PIKA_ACCOUNT_ID_FIELD_NAMES', () => {
+        process.env.PIKA_ACCOUNT_ID_FIELD_NAMES = 'accountId,account_id,retailerId,retailer_id,supplierId,supplier_id,actingAsAccountId,acting_as_account_id';
+        const result = getAccountBackfillAttributes({
+            retailerId: 'ret-99',
+            supplierId: 'sup-99',
+            actingAsAccountId: 'act-99',
+            accountType: 'retailer',
+            irrelevant: 'drop-me'
+        });
+        expect(result).toHaveProperty('retailerId', 'ret-99');
+        expect(result).toHaveProperty('supplierId', 'sup-99');
+        expect(result).toHaveProperty('actingAsAccountId', 'act-99');
+        expect(result).toHaveProperty('accountType', 'retailer');
+        expect(result).not.toHaveProperty('irrelevant');
+    });
+
+    it('omits null values', () => {
+        const result = getAccountBackfillAttributes({ accountId: null as any, account_id: 'acc-3' });
+        expect(result).not.toHaveProperty('accountId');
+        expect(result).toHaveProperty('account_id', 'acc-3');
     });
 });

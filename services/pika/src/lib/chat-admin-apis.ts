@@ -124,6 +124,7 @@ import {
 } from './chat-admin-utils';
 import { MODEL_ID_TO_MODEL } from './model-types-utils';
 import { queryForSessionAnalytics, queryForSessions } from './opensearch/opensearch';
+import { getAccountIdFieldNames } from './utils';
 
 function handleCustomFieldUpdate(
     newCustom: Record<string, unknown> | null | undefined,
@@ -1565,30 +1566,45 @@ export async function searchForSessions(search: SessionSearchRequest<RecordOrUnd
     return response;
 }
 
-/** Returns the top-level accountId/account_id value from a session row, or undefined. */
+/**
+ * Returns the top-level account ID value from a session row, or undefined.
+ * Iterates over `getAccountIdFieldNames()` so `PIKA_ACCOUNT_ID_FIELD_NAMES` controls resolution.
+ */
 function extractTopLevelAccountId(session: ChatSession<RecordOrUndef>): string | undefined {
     const r = session as unknown as Record<string, unknown>;
-    const v = r.accountId ?? r.account_id;
-    if (typeof v === 'string' && v.length > 0) return v;
-    if (typeof v === 'number') return String(v);
+    for (const field of getAccountIdFieldNames()) {
+        const v = r[field];
+        if (typeof v === 'string' && v.length > 0) return v;
+        if (typeof v === 'number') return String(v);
+    }
     return undefined;
 }
 
-/** Returns the accountId/account_id value nested inside sessionAttributes, or undefined. */
+/**
+ * Returns the account ID value nested inside sessionAttributes, or undefined.
+ * Iterates over `getAccountIdFieldNames()` so `PIKA_ACCOUNT_ID_FIELD_NAMES` controls resolution.
+ */
 function extractSessionAttributesAccountId(session: ChatSession<RecordOrUndef>): string | undefined {
     const attrs = (session as unknown as Record<string, unknown>).sessionAttributes as Record<string, unknown> | undefined;
     if (!attrs) return undefined;
-    const v = attrs.accountId ?? attrs.account_id;
-    if (typeof v === 'string' && v.length > 0) return v;
-    if (typeof v === 'number') return String(v);
+    for (const field of getAccountIdFieldNames()) {
+        const v = attrs[field];
+        if (typeof v === 'string' && v.length > 0) return v;
+        if (typeof v === 'number') return String(v);
+    }
     return undefined;
 }
 
-/** Extracts a string account ID from an arbitrary data record (e.g., user customData). */
+/**
+ * Extracts a string account ID from an arbitrary data record (e.g., user customData).
+ * Iterates over `getAccountIdFieldNames()` so `PIKA_ACCOUNT_ID_FIELD_NAMES` controls resolution.
+ */
 function extractAccountIdFromRecord(data: Record<string, unknown>): string | undefined {
-    const v = data.accountId ?? data.account_id;
-    if (typeof v === 'string' && v.length > 0) return v;
-    if (typeof v === 'number') return String(v);
+    for (const field of getAccountIdFieldNames()) {
+        const v = data[field];
+        if (typeof v === 'string' && v.length > 0) return v;
+        if (typeof v === 'number') return String(v);
+    }
     return undefined;
 }
 
