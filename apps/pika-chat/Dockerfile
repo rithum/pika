@@ -13,7 +13,8 @@ RUN --mount=type=cache,id=pnpm,target=/home/node/.pnpm-store \
     rm -rf node_modules && pnpm install --frozen-lockfile --prefer-offline --prod
 
 # Final stage with minimal image
-FROM alpine:3.21
+# Pinned to 3.22.3 — Snyk advisory: alpine:3.21 has known CVEs
+FROM alpine:3.22.3
 
 # Install only Node.js runtime (not npm)
 RUN apk add --no-cache nodejs

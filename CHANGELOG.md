@@ -5,6 +5,15 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - TBD
+
+### Security
+
+- **Bumped Alpine base image to 3.22.3** (`apps/pika-chat/Dockerfile` final stage) — addresses Snyk advisories against alpine:3.21. [ES-3131]
+- **Bumped `services/samples/weather-direct` dependencies** — pinned `@aws-sdk/client-lambda` to 3.974.0 and `@aws-sdk/credential-provider-node` to 3.972.1, fixing 5 high-severity `fast-xml-parser` Snyk advisories (SNYK-JS-FASTXMLPARSER-15155603, -15307668, -15324289, -15677840, -15699647). [ES-3131]
+
+---
+
 ## [0.25.2] - 2026-05-04
 
 ### Changed
