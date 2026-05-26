@@ -44,8 +44,14 @@
         "RELEASING.md",
         "releases.json",
         "RELEASE-SYSTEM-SUMMARY.md",
-        "packages/tools/**"
+        "packages/tools/**",
+        "apps/pika-chat/src/lib/custom-shared-types.ts",
+        "apps/pika-chat/src/lib/server/custom-site-features.ts",
+        "apps/pika-chat/src/routes/(auth)/api/session/legacy/[chatAppId]/+server.ts",
+        "apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts",
+        "apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts",
+        "apps/pika-chat/tools/custom-*/**"
     ],
-    "version": "1.0.4",
-    "lastUpdated": "2025-10-20T15:00:00.000Z"
+    "version": "1.0.5",
+    "lastUpdated": "2026-05-26T00:00:00.000Z"
 }

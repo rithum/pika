@@ -1733,6 +1733,23 @@ async function cleanupTempDir(tempDir: string): Promise<void> {
     }
 }
 
+/**
+ * Returns the list of paths that `pika sync` never overwrites or deletes.
+ *
+ * POLICY: Consumer extension points are protected by default so that syncing
+ * to a newer pika version never destroys consumer customisations.
+ * Framework-owned files are NOT protected — they sync freely.
+ *
+ * The canonical list lives in `packages/pika-cli/src/config/protected-areas.json`
+ * and is pushed to consumers during every sync so they stay up to date
+ * automatically.  This hardcoded fallback is only used when the config file
+ * cannot be loaded at runtime (e.g. running directly from source in tests).
+ *
+ * When adding a new protected path:
+ *   1. Add it to protected-areas.json (bump "version" + "lastUpdated").
+ *   2. Mirror it here in the fallback list.
+ *   3. Update docs/concepts/pika-sync.md with a one-line rationale entry.
+ */
 function getDefaultProtectedAreas(): string[] {
     try {
         // Try to load from the centralized config file
@@ -1788,7 +1805,13 @@ function getDefaultProtectedAreas(): string[] {
         'AGENTS.md',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte',
-        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte'
+        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte',
+        'apps/pika-chat/src/lib/custom-shared-types.ts',
+        'apps/pika-chat/src/lib/server/custom-site-features.ts',
+        'apps/pika-chat/src/routes/(auth)/api/session/legacy/[chatAppId]/+server.ts',
+        'apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts',
+        'apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts',
+        'apps/pika-chat/tools/custom-*/**'
     ];
 }
 
