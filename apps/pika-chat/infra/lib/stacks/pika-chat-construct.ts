@@ -185,12 +185,21 @@ export class PikaChatConstruct extends Construct {
         // Build the full domain name
 
         // Create Docker image asset
+        // cacheFrom is only set when DOCKER_CACHE_FROM_GHA=true (CI deploys via deploy.yml).
+        // The GHA cache is populated by the build job; this lets CDK's asset publisher skip the
+        // full Docker build and use cached layers instead (near-instant on cache hit).
+        // docker buildx --cache-from type=gha silently no-ops locally when ACTIONS_CACHE_URL is not set.
+        const dockerCacheFrom = process.env.DOCKER_CACHE_FROM_GHA === 'true'
+            ? [{ type: 'gha' as const }]
+            : undefined;
+
         this.dockerImage = new ecr_assets.DockerImageAsset(this, `${props.projNameTitleCase}Image`, {
             directory: props.dockerBuildPath,
             buildArgs: {
                 BUILDPLATFORM: 'linux/amd64'
             },
-            platform: ecr_assets.Platform.LINUX_AMD64
+            platform: ecr_assets.Platform.LINUX_AMD64,
+            ...(dockerCacheFrom && { cacheFrom: dockerCacheFrom })
         });
         this.applyComponentTags(this.dockerImage, 'DockerImageAsset');
 
