@@ -9,6 +9,7 @@
     import SquarePen from '$icons/lucide/square-pen';
     import type { AppState } from '$lib/client/app/app.state.svelte';
     import { getDemoModeMenuItem } from '$lib/custom/demo-mode-menu-item';
+    import { shouldShowLogout } from '$lib/custom/show-logout';
     import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
@@ -400,11 +401,13 @@
                     <svelte:component this={DemoModeMenuComponent} {appState} />
                     <DropdownMenu.Separator />
                 {/if}
-                <DropdownMenu.Item
-                    onclick={() => {
-                        appState.showLogoutDialog = true;
-                    }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
-                >
+                {#if shouldShowLogout(appState.identity.user)}
+                    <DropdownMenu.Item
+                        onclick={() => {
+                            appState.showLogoutDialog = true;
+                        }}>{chat.features.logout.menuItemTitle}</DropdownMenu.Item
+                    >
+                {/if}
             </DropdownMenu.Group>
         </DropdownMenu.Content>
     </DropdownMenu.Root>

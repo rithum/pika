@@ -1,11 +1,11 @@
 ---
 title: Demo-Mode Hooks
-description: Framework seams for demo mode — override identity, home-page filtering, banner slot, menu-item slot, and polling interval without editing synced files
+description: Framework seams for demo mode — override identity, home-page filtering, banner slot, menu-item slot, polling interval, detailed-trace gate, and logout visibility without editing synced files
 ---
 
-Pika ships five extension points that let you present a "demo" view of the app (external-user UI, custom banner, toggled menu item) without touching any pika-synced files. All hooks live in `apps/pika-chat/src/lib/custom/` which is covered by the existing `apps/pika-chat/src/lib/custom/**` protected glob in `.pika-sync.json`, so your overrides survive every `pika sync`.
+Pika ships seven extension points that let you present a "demo" view of the app (external-user UI, custom banner, toggled menu item) without touching any pika-synced files. All hooks live in `apps/pika-chat/src/lib/custom/` which is covered by the existing `apps/pika-chat/src/lib/custom/**` protected glob in `.pika-sync.json`, so your overrides survive every `pika sync`.
 
-## The Five Hooks
+## The Seven Hooks
 
 | File | Export | Purpose |
 |---|---|---|
@@ -14,6 +14,8 @@ Pika ships five extension points that let you present a "demo" view of the app (
 | `demo-mode-banner.ts` | `getDemoBannerComponent()` | Inject a banner above every page |
 | `demo-mode-menu-item.ts` | `getDemoModeMenuItem()` | Inject an item in user dropdowns |
 | `polling-interval.ts` | `getUserRefreshIntervalMs(user)` | Override the user-data refresh cadence |
+| `show-detailed-trace.ts` | `shouldShowDetailedTrace(user)` | Gate the detailed-trace UI in the chat trace panel |
+| `show-logout.ts` | `shouldShowLogout(user)` | Gate the Logout menu item in all four user dropdowns |
 
 ---
 
@@ -183,6 +185,48 @@ export function getUserRefreshIntervalMs(user: ChatUser<RecordOrUndef> | undefin
 
 ---
 
+## Hook 6 — `shouldShowDetailedTrace` (show-detailed-trace.ts)
+
+Controls whether the detailed-trace panel is rendered inside the chat message trace UI. When this returns `false`, the `detailedTraces` value is set to `undefined`, which suppresses the "Detailed Traces" section entirely.
+
+**Default behavior:** returns `true` — detailed traces are always shown.
+
+**Override example** — demo mode hides detailed traces for demo-mode-on sessions:
+
+```typescript
+// apps/pika-chat/src/lib/custom/show-detailed-trace.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { demoModeStore } from './demo-mode/state.svelte';
+
+export function shouldShowDetailedTrace(user: ChatUser<RecordOrUndef> | undefined): boolean {
+    if (demoModeStore.isOn) return false;
+    return true;
+}
+```
+
+---
+
+## Hook 7 — `shouldShowLogout` (show-logout.ts)
+
+Controls whether the Logout menu item is visible in user-settings dropdowns. When this returns `false`, the item is removed from all four dropdown locations: chat titlebar, chat sidebar nav, site-admin titlebar, and the home-page settings gear.
+
+**Default behavior:** returns `true` — Logout is always shown.
+
+**Override example** — demo mode hides Logout while demo mode is on:
+
+```typescript
+// apps/pika-chat/src/lib/custom/show-logout.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { demoModeStore } from './demo-mode/state.svelte';
+
+export function shouldShowLogout(user: ChatUser<RecordOrUndef> | undefined): boolean {
+    if (demoModeStore.isOn) return false;
+    return true;
+}
+```
+
+---
+
 ## Putting It All Together
 
 A complete demo-mode implementation in ai-bot needs only files under `apps/pika-chat/src/lib/custom/`:
@@ -194,6 +238,8 @@ apps/pika-chat/src/lib/custom/
 ├── demo-mode-banner.ts        ← return DemoBanner component
 ├── demo-mode-menu-item.ts     ← return DemoModeMenuItem component
 ├── polling-interval.ts        ← override getUserRefreshIntervalMs
+├── show-detailed-trace.ts     ← override shouldShowDetailedTrace
+├── show-logout.ts             ← override shouldShowLogout
 └── components/
     ├── DemoBanner.svelte
     └── DemoModeMenuItem.svelte
