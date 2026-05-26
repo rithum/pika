@@ -7,12 +7,24 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.26.0
+
+- **CM-491 framework seams — 11 AzureAD-friendly extension-point hooks** in `apps/pika-chat/src/lib/custom/`. Admin gating (`isUserAllowedAdminAccess`), legacy session loading (`loadLegacyChatsIfNeeded`, header/trigger slots), session permissions (`isCurrentSessionReadOnly`), legacy-user-id validation, entity extraction, session account-context transformation, ChatUser role-merge bypass (`shouldBypassChatUserRoleMerge`), and auth-provider hooks (`onAuthProviderCallback`, `onBeforeAuth`). All hooks default to no-op — see the [Extension Points guide](/guides/customization/extension-points/).
+- **Demo-mode framework seams — 7 hooks + public CSS contract**. New hooks: banner slot, menu-item slot (wired into 4 dropdowns), polling-interval, effective-user predicate, home-page-user resolver, Logout visibility, detailed-trace gate. CSS contract via `--demo-banner-h` reserves viewport space when a banner is mounted. Defaults preserve current behavior — see the [Demo-Mode Hooks guide](/guides/customization/demo-mode-hooks/).
+- **Strands-native long-term user memory** in the Python `converseStrands` Lambda. Agent-driven retrieval (`agent_core_memory.retrieve`) and save (`record`) replace the legacy TS Lambda's per-turn `CreateEventCommand` writes. Two-layer design (system-prompt addition + first-turn nudge) preserves Bedrock prompt cache. Opt in via `agent_def.memory_feature.enabled = true` with a `memory_id` — see the [Strands Long-Term User Memory guide](/guides/advanced/strands-memory/).
+- **Services library account-context utilities** — `batchGetUserCustomDataByUserIds()`, configurable account-ID resolution via new `PikaConfig.accountIdFieldNames` / `PIKA_ACCOUNT_ID_FIELD_NAMES` env var, `mergeSessionAttributes()` helper, and `CHAT_DEBUG_LOGS` env gate for noisy chat-API debug logs. Defaults preserve current behavior.
+- **Sync `protectedAreas` expanded to v1.0.6** — 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling. Run `pika sync` after upgrading to pick up the new list automatically.
+- **Docker build-cache optimization in `pika-chat-construct.ts`** — `cacheFrom: [{ type: 'gha' }]` is conditionally passed to `DockerImageAsset` when `DOCKER_CACHE_FROM_GHA=true`, enabling near-instant CDK asset publishing on GHA cache hit. Local builds unaffected.
+- **5 generic robustness improvements ported from ai-bot CM-491** — cookie error/version-mismatch split (preserves non-auth cookies on corruption), SSM `ParameterNotFound` graceful return, `chatAppState` null guards on route transitions, file-upload hardening (MIME allowlist + filename sanitization + S3 key validation), and `isUserAllowedToUseSessionInsights` made async.
+- **Fixed gzip+base64 encoding in Strands `debug_trace.py`** — encoded payloads now round-trip through the JS client decoder; the LLM Instruction accordion in the trace UI decodes correctly.
+- **Security upgrades** — Alpine base image → 3.22.3, weather-direct sample pins `@aws-sdk/client-lambda` 3.974.0 and `@aws-sdk/credential-provider-node` 3.972.1 (patched `fast-xml-parser` for Snyk CVEs).
+
+**Latest Stable:** `0.26.0` (May 26, 2026)
+
 ### What's New in 0.25.2
 
 - **Strands converse Lambda `max_tokens` raised to 64000** - Both the main agent and collaborator `BedrockModel` configs now use Claude 4.5 Sonnet's actual max output (64K), up from a hardcoded 4096 leftover from older Claude defaults. Long-form responses (detailed explanations, code generation, multi-step plans) that previously truncated at ~3KB now stream through cleanly.
 - **Graceful `MaxTokensReachedException` handling** - When the model hits its max output limit, users now see "your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request." instead of a generic error message.
-
-**Latest Stable:** `0.25.2` (May 4, 2026)
 
 ### What's New in 0.25.1
 
@@ -624,6 +636,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.26.0  | May 26 2026 | Feature  | CM-491 framework seams (11 AzureAD-friendly hooks), demo-mode seams (7 hooks + CSS contract), Strands long-term user memory, services library account-context utilities, sync protectedAreas v1.0.6 |
 | 0.25.2  | May 4 2026  | Patch    | Strands converse Lambda: raise max_tokens to model capacity (64K), add explicit MaxTokensReachedException handler |
 | 0.25.1  | May 4 2026  | Patch    | Back-port gaps from 0.25.0: hooks userType/roles propagation, jest integration-test isolation, flag-gated insights schedule, flag-conditional Strands SSM lookup |
 | 0.25.0  | Apr 23 2026 | Feature  | Optional Python (Strands) converse Lambda, Claude 4.5/4.6 default models, streaming heartbeats, post-processor rewrite |
