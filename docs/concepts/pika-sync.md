@@ -8,7 +8,7 @@
 2. **User-defined protected areas** can be added in your `.pika-sync.json` under `userProtectedAreas`. These are merged with the defaults.
 3. **User-unprotected areas** (`userUnprotectedAreas`) let you opt specific paths back into syncing even if they appear in the default list.
 
-## Default protected paths (v0.26.0 / protected-areas.json v1.0.6)
+## Default protected paths (v0.26.0 / protected-areas.json v1.0.5)
 
 ### Consumer extension globs
 
@@ -31,13 +31,6 @@
 | `apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts` | Consumer account-service integration |
 | `apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts` | Consumer AzureAD auth-provider callback; companion to the protected `lib/server/auth-provider/**` |
 | `apps/pika-chat/tools/custom-*/**` | Consumer dev tooling subdirectories (e.g. `custom-ssl/`, `custom-update-all-users/`) |
-
-### CDK stack customisation entry points (ES-3126)
-
-| Path | Why it is protected |
-|------|---------------------|
-| `apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts` | Consumer CDK stack overrides |
-| `services/pika/lib/stacks/custom-stack-defs.ts` | Consumer CDK stack overrides (services variant) |
 
 ### Auth routes (framework-scaffolded but consumer-owned)
 
@@ -84,8 +77,6 @@ Affected paths:
 - `apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts`
 - `apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts`
 - `apps/pika-chat/tools/custom-*/**`
-
-Likewise for the **ES-3126** CDK stack paths (`apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`, `services/pika/lib/stacks/custom-stack-defs.ts`).
 
 ## Adding a new protected path
 
