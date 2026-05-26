@@ -401,3 +401,40 @@
 @theme {
     --text-xxs: 0.625rem;
 }
+
+/*
+ * Demo-mode banner viewport contract — PUBLIC API.
+ *
+ * When a consumer mounts a demo-mode banner (via getDemoBannerComponent in
+ * lib/custom/demo-mode-banner.ts), it must:
+ *   1. Toggle the `.demo-mode-on` class on <html>.
+ *   2. Set `--demo-banner-h` on <html> to the banner's rendered height (e.g. 32px).
+ *
+ * The rules below subtract --demo-banner-h from every viewport-height utility
+ * (h-svh, h-screen, min-h-screen, max-h-screen) and offset the fixed sidebar
+ * container so that nothing is clipped behind the banner.
+ *
+ * Default value of --demo-banner-h is 0 — these rules are no-ops when no
+ * banner is mounted and the class is absent.
+ */
+:root {
+    --demo-banner-h: 0px;
+}
+
+.demo-mode-on .h-svh,
+.demo-mode-on .h-screen {
+    height: calc(100svh - var(--demo-banner-h));
+}
+
+.demo-mode-on .min-h-screen {
+    min-height: calc(100svh - var(--demo-banner-h));
+}
+
+.demo-mode-on .max-h-screen {
+    max-height: calc(100svh - var(--demo-banner-h));
+}
+
+.demo-mode-on [data-slot="sidebar-container"] {
+    top: var(--demo-banner-h);
+    height: calc(100svh - var(--demo-banner-h));
+}

@@ -8,12 +8,15 @@
     import Share from '$icons/lucide/share-2';
     import SquarePen from '$icons/lucide/square-pen';
     import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { getDemoModeMenuItem } from '$lib/custom/demo-mode-menu-item';
     import CopyButton from 'pika-ux/pika/copy-button/copy-button.svelte';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
     import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
     import { getContext, onMount } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
+
+    const DemoModeMenuComponent = getDemoModeMenuItem();
 
     // Check for custom header icon URL from theme (reactive to light/dark mode changes)
     let customHeaderIconUrl: string | null = $state(null);
@@ -391,6 +394,10 @@
                     >
                 {/if}
                 {#if chat.userDataOverrideSettings.enabled || chat.userIsContentAdmin || showHistoryAndPanelWidth}
+                    <DropdownMenu.Separator />
+                {/if}
+                {#if DemoModeMenuComponent}
+                    <svelte:component this={DemoModeMenuComponent} {appState} />
                     <DropdownMenu.Separator />
                 {/if}
                 <DropdownMenu.Item

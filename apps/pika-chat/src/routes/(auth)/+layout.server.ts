@@ -2,12 +2,14 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { handleApiGatewayError } from '$lib/server/utils';
+import { resolveUserForHomeChatApps } from '$lib/custom/home-page-user';
 import { createUserDataVersion } from '$lib/utils/user-data-version';
 import { redirect } from '@sveltejs/kit';
 import type { ChatAppLite, ChatUser, CustomDataUiRepresentation, HomePageSiteFeature, LogoutFeature } from 'pika-shared/types/chatbot/chatbot-types';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ depends, locals }) => {
+export const load: LayoutServerLoad = async (event) => {
+    const { depends, locals } = event;
     // Add dependency tracking for targeted invalidation.  We will invalidate
     // the user data every X amount of time to make sure the client stays in sync
     // with the server-side ChatUser changes detected in hooks.server.ts.  Note
@@ -58,7 +60,7 @@ export const load: LayoutServerLoad = async ({ depends, locals }) => {
             // They mean to turn on the feature, so we need to get the matching chat apps
             try {
                 const matchingChatApps = await getMatchingChatApps(
-                    user,
+                    resolveUserForHomeChatApps(user, event),
                     true,
                     homePageSiteFeature.linksToChatApps.userChatAppRules,
                     undefined,
