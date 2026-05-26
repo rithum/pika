@@ -1,0 +1,169 @@
+---
+title: Strands Long-Term User Memory
+description: Enable per-user persistent memory on the Strands (Python) converse Lambda using Bedrock AgentCore — two-layer design, cache-safe injection, and agent_core_memory tool contract
+---
+
+Long-term user memory on the Strands path gives agents the ability to recall preferences, context, and facts from previous conversations — without breaking the Bedrock prompt cache. This guide covers how to enable and configure it for agents running on the `converseStrands` Lambda.
+
+{% aside type="note" title="Strands-only feature" %}
+This guide applies exclusively to agents routed through the Strands Python converse Lambda (`converseStrands`). The legacy TypeScript converse Lambda has its own memory implementation — see [Configure User Memory](/guides/data-sessions/user-memory/) for that path.
+{% /aside %}
+
+## Overview
+
+When a user returns to an agent that has memory enabled, the agent can:
+
+- Retrieve past preferences ("I prefer bullet-point summaries")
+- Recall professional context ("I'm a senior DevOps engineer working on Kubernetes")
+- Honor explicit "remember this" requests the user made in earlier sessions
+
+This bridges the stateless-per-session default of chat LLMs with continuity that users actually feel.
+
+The feature is powered by [AWS Bedrock AgentCore Memory](https://docs.aws.amazon.com/bedrock/latest/userguide/agent-core.html). Pika configures the `agent_core_memory` tool on the Strands agent and injects prompt additions that guide when and how to use it.
+
+## How It Works — Two-Layer Design
+
+Per-user context cannot be injected directly into the system prompt. Doing so would create a unique system prompt per user, busting the Bedrock prompt cache and eliminating shared cache benefits across your user base. Instead, the Strands Lambda uses a two-layer approach:
+
+### Layer 1 — System Prompt Addition (`MEMORY_SYSTEM_PROMPT_ADDITION`)
+
+A durable capability description is appended to the agent's system prompt at request time. It describes what the `agent_core_memory` tool does and sets the rules for when to use each action:
+
+```
+You have access to a memory tool (agent_core_memory) that stores and retrieves context
+from past conversations. Use it as follows:
+- Use action="retrieve" any time past preferences or context would help you give a more
+  personalized response — especially at the start of a new conversation.
+- When the user explicitly asks you to remember something (e.g., "remember that I prefer X",
+  "make a note that...", "don't forget..."), immediately call agent_core_memory with
+  action="record" to save it to long-term memory.
+- Do not proactively record information unless the user explicitly requests it.
+```
+
+This text is the same for all users, so it does not bust the prompt cache. It gives the agent standing context on every turn without any per-user content in the system prompt.
+
+### Layer 2 — New-Session Nudge (`NEW_SESSION_MEMORY_NUDGE`)
+
+The system prompt alone is not always sufficient to trigger retrieval on the very first message of a conversation. To ensure the agent actually calls `retrieve` before responding to the user's first message, a short nudge is appended to the **user message** on new sessions only:
+
+```
+[System note: This is the start of a new conversation. Please use your memory tool to
+check for any relevant preferences or past context about this user before responding.]
+```
+
+Because this goes into the user turn rather than the system prompt, the Bedrock prompt cache is preserved — the system prompt remains identical across users. The nudge fires exactly once per new session (when the conversation history is empty before this request).
+
+## Cache Safety
+
+The core constraint is: **never inject per-user content into the system prompt**. The system prompt is shared by all users of an agent on the same deployment; any user-specific data inserted there would force Bedrock to create a unique cached entry per user, multiplying cache storage costs and eliminating cache hit savings.
+
+The two-layer design preserves cache safety:
+
+| Content | Placement | Per-user? | Cache impact |
+|---------|-----------|-----------|--------------|
+| `MEMORY_SYSTEM_PROMPT_ADDITION` | System prompt | No — same for all users | None |
+| `NEW_SESSION_MEMORY_NUDGE` | First user message of new session | Per-session (not per-user) | None — user turn is not cached |
+| Retrieved memories (from `agent_core_memory`) | Agent tool call result | Yes | None — tool results are not part of cached prefix |
+
+## Enabling the Feature
+
+Memory is configured per agent definition in DynamoDB. Add a `memory_feature` key to the `agent_def` record:
+
+```json
+{
+  "memory_feature": {
+    "enabled": true,
+    "memory_id": "your-memory-id-from-agentcore"
+  }
+}
+```
+
+### `memory_feature` Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | Yes | Set to `true` to activate memory tooling |
+| `memory_id` | string | Yes (when enabled) | The AgentCore Memory resource ID — provisioned separately via the Bedrock console or CDK |
+
+### No-op Behavior
+
+If `enabled` is `true` but `memory_id` is absent or empty, the feature silently no-ops — the Lambda logs a `WARNING` (`memory_feature.enabled=True but memory_id is missing or empty; memory disabled`) and proceeds without memory tools. No error is returned to the caller.
+
+This means misconfiguration degrades gracefully rather than breaking the agent. Check CloudWatch logs if memory retrieval is unexpectedly not occurring.
+
+## The `agent_core_memory` Tool Contract
+
+When memory is enabled, the Strands agent receives the `agent_core_memory` tool via `AgentCoreMemoryToolProvider`. The tool exposes two actions:
+
+### `action="retrieve"`
+
+Queries AgentCore for stored memories scoped to the current user.
+
+**When the agent calls it:**
+- Automatically at the start of new conversations, triggered by `NEW_SESSION_MEMORY_NUDGE`
+- Proactively mid-conversation when past context would help (e.g., user asks a personalization question)
+
+**What it returns:**
+- A list of extracted memory records for the current user, filtered by semantic relevance
+
+### `action="record"`
+
+Writes new content to AgentCore for long-term storage.
+
+**When the agent calls it:**
+- Only when the user explicitly requests it — phrases like "remember that...", "make a note...", "don't forget..."
+- The agent must not record proactively; the system prompt addition instructs this explicitly
+
+**Namespace scoping:**
+The tool provider is initialized with `namespace=user_id`. The `retrieve_memory_records` call scopes reads to this namespace. If the namespace used at write time does not match the namespace used at read time, retrieval silently returns empty results. Both sides use `user_id` to ensure consistency.
+
+## Known Limitations
+
+### Hardcoded `role="ASSISTANT"` in Record Events
+
+`strands-agents-tools==0.4.1` hardcodes `role="ASSISTANT"` in `CreateEvent` payloads regardless of whether the content being recorded originated from the user or the assistant. AgentCore's memory extraction pipeline uses this role to classify and extract preferences. Because all events are tagged as `ASSISTANT`, the pipeline may under-extract or misclassify user-stated preferences (e.g., "I prefer X" from the user turn may not be extracted as a user preference).
+
+Practical impact: memory quality may be lower than expected for preferences stated by the user in their own words. Preferences that the agent paraphrases in its response are more likely to be correctly extracted.
+
+A future task may introduce a custom event format to work around this. Until then, monitor extracted memory quality in your deployment and adjust agent prompts to encourage the agent to restate preferences in its own response before recording.
+
+### New-Session Nudge Persisted in DynamoDB
+
+The `NEW_SESSION_MEMORY_NUDGE` text is appended to the user message before it is sent to the Strands agent. The Lambda stores the complete user message (including the nudge) in DynamoDB session history. This means the nudge text is visible in:
+
+- Debug session exports
+- Analytics dashboards
+- Fine-tuning or evaluation data derived from session history
+
+This is expected behavior — the nudge lives in the user turn so it does not affect prompt caching. If this affects your analytics pipelines, filter on the literal `[System note: This is the start of a new conversation.` prefix.
+
+### AgentCore Retrieve Latency
+
+On new sessions, the nudge triggers a synchronous `agent_core_memory` retrieve round-trip to AgentCore before the agent responds. This adds latency on the first turn. Observed p99 latency for the retrieve call is approximately 800ms. The Lambda's `LAMBDA_TIMEOUT_BUFFER_SECONDS` constant (30s) provides buffer. If you observe timeout-adjacent behavior on first turns, check whether retrieve latency has increased beyond the buffer.
+
+## Testing
+
+Contract tests for this feature live at:
+
+```
+services/pika/src/lambda/converse-strands/tests/test_contract_user_memory.py
+```
+
+Run the full test suite with:
+
+```bash
+pnpm --filter @pika/service strands:test
+```
+
+The contract tests cover:
+- Memory tools are injected when `memory_feature.enabled=True` and `memory_id` is set
+- `MEMORY_SYSTEM_PROMPT_ADDITION` is appended to the system prompt when memory is active
+- `NEW_SESSION_MEMORY_NUDGE` is appended to the user message only on new sessions (empty history)
+- No-op behavior when `memory_id` is missing
+- No memory tools injected when `enabled=False`
+
+## See Also
+
+- **Source**: `services/pika/src/lambda/converse-strands/handler.py` — `MEMORY_SYSTEM_PROMPT_ADDITION`, `NEW_SESSION_MEMORY_NUDGE`, and `_build_memory_tools()` starting around line 670
+- [Opt into the Strands Converse Lambda](/guides/advanced/strands-converse/) — enable and deploy the Strands Lambda before configuring memory
+- [Configure User Memory (TypeScript path)](/guides/data-sessions/user-memory/) — legacy memory on the default TypeScript converse Lambda

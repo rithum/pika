@@ -669,10 +669,41 @@ def _build_directive_skills_plugin(agent_id: str, chat_app_id: str, entity_id: s
 # User memory tools (Bedrock AgentCore)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Memory feature prompts — two-layer design
+#
+# Layer 1 — MEMORY_SYSTEM_PROMPT_ADDITION (appended to system_prompt):
+#   A durable capability description telling the agent WHAT the tool does and
+#   WHEN to use it. Lives in the system prompt for standing context on every
+#   turn. Does NOT carry a per-session imperative — the system prompt is shared
+#   across users and cached by Bedrock; per-user injections would bust the cache.
+#
+# Layer 2 — NEW_SESSION_MEMORY_NUDGE (appended to the first user message only):
+#   A lightweight runtime trigger that fires exactly once on the first turn of
+#   a new session. Goes in the user message, not the system prompt, so the
+#   Bedrock prompt cache is preserved. Ensures the agent retrieves past context
+#   before the first response without relying solely on model judgment.
+#
+# Note on action="record": strands-agents-tools==0.4.1 hardcodes role="ASSISTANT"
+# in create_event payloads regardless of content origin. AgentCore's extraction
+# pipeline may under-extract or misclassify user preferences stored this way.
+# Monitor extracted memory quality; a custom event format may be needed in future.
+# ---------------------------------------------------------------------------
 MEMORY_SYSTEM_PROMPT_ADDITION = (
-    '\n\nYou have access to a memory tool that stores context from past conversations. '
-    'Check your memory for relevant context from past conversations when it would help '
-    'you provide a better response.'
+    '\n\nYou have access to a memory tool (agent_core_memory) that stores and retrieves context from past '
+    'conversations. Use it as follows:\n'
+    '- Use action="retrieve" any time past preferences or context would help you give a more '
+    'personalized response — especially at the start of a new conversation.\n'
+    '- When the user explicitly asks you to remember something (e.g., "remember that I prefer X", '
+    '"make a note that...", "don\'t forget..."), immediately call agent_core_memory with action="record" '
+    'to save it to long-term memory.\n'
+    '- Do not proactively record information unless the user explicitly requests it.'
+)
+
+NEW_SESSION_MEMORY_NUDGE = (
+    '\n\n[System note: This is the start of a new conversation. '
+    'Please use your memory tool to check for any relevant preferences or past context about this user '
+    'before responding.]'
 )
 
 
@@ -686,6 +717,7 @@ def _build_memory_tools(memory_feature: dict, user_id: str, session_id: str) -> 
 
     memory_id = memory_feature.get('memory_id', '')
     if not memory_id:
+        logger.warning('memory_feature.enabled=True but memory_id is missing or empty; memory disabled')
         return []
 
     try:
@@ -695,8 +727,11 @@ def _build_memory_tools(memory_feature: dict, user_id: str, session_id: str) -> 
         provider = AgentCoreMemoryToolProvider(
             memory_id=memory_id,
             actor_id=user_id,
-            session_id=session_id,
-            namespace=f'{user_id}',
+            session_id=session_id,  # used for write-side event correlation; does not scope reads
+            # retrieve_memory_records scopes reads to this namespace. Must match the namespace
+            # AgentCore uses when extracting memories from recorded events — a mismatch
+            # silently returns empty results on every retrieve call.
+            namespace=user_id,
         )
         return provider.tools
     except Exception as e:
@@ -922,7 +957,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
         # Fetch conversation history BEFORE storing the current user message so
         # the LLM only sees prior turns — not the message it's about to receive.
-        _prior_messages_raw = get_messages(dynamodb, CHAT_MESSAGES_TABLE, user_id, session_id)
+        _raw_messages = get_messages(dynamodb, CHAT_MESSAGES_TABLE, user_id, session_id)
+        if _raw_messages is None:
+            logger.warning('get_messages returned None for user=%s session=%s; treating as new session', user_id, session_id)
+        _prior_messages_raw = _raw_messages or []
 
         # Store user message
         user_message_id = f"{session_id}:{_now_ms()}"
@@ -1188,9 +1226,11 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         # Add user memory tools if enabled
         memory_feature = agent_def.get('memory_feature') or {}
         memory_tools = _build_memory_tools(memory_feature, user_id, session_id)
+        _memory_is_new_session = False
         if memory_tools:
             strands_tools.extend(memory_tools)
             system_prompt += MEMORY_SYSTEM_PROMPT_ADDITION
+            _memory_is_new_session = _prior_messages_raw == []
 
         # Configure Strands agent
         model = BedrockModel(
@@ -1233,6 +1273,17 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 parts.append(file_info)
             agent_message = '\n\n'.join(parts)
 
+            # Appended to the user turn rather than the system prompt to preserve system-prompt
+            # cache hit rate — the system prompt is shared across users; per-session content
+            # there would bust the Bedrock prompt cache for every user.
+            # Side effect: the nudge is stored as part of the user turn in DynamoDB and will
+            # appear in retrieved history, debug sessions, and analytics/fine-tuning data.
+            # Note: on new sessions this adds a synchronous AgentCore retrieve round-trip
+            # (p99 ~800ms) before the agent responds; current buffer=30s (LAMBDA_TIMEOUT_BUFFER_SECONDS)
+            # — review if retrieve latency data shows budget exhaustion.
+            if _memory_is_new_session:
+                agent_message += NEW_SESSION_MEMORY_NUDGE
+
             # Inject context items if provided
             llm_context_items = body.get('llmContextItems') or []
             context_xml = build_context_xml(llm_context_items)
@@ -1250,6 +1301,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 # system_prompt already has tag instructions folded in (see above).
                 # agent_message already contains user_instruction + directives + message
                 # (see composition a few lines up). Pass each component exactly once.
+                # Note: on new sessions, agent_message includes NEW_SESSION_MEMORY_NUDGE —
+                # intentional. The trace captures the full turn context the agent received,
+                # including the nudge, which makes memory-triggered sessions identifiable
+                # in Answer Reasoning without additional instrumentation.
                 _llm_inst_supervisor = build_full_instruction(
                     system_prompt=system_prompt,
                     user_message=agent_message,
