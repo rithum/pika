@@ -106,6 +106,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         } catch (callbackErr) {
             console.warn('[Hooks] onAuthProviderCallback threw for provider', provider, callbackErr);
         }
+        // Allow provider-specific callback handlers to run without pre-auth redirect loops
+        return addSecurityHeaders(await resolve(event));
     }
 
     // Force re-authentication route - clears cookies and redirects to trigger fresh auth
@@ -210,7 +212,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (shouldRefreshChatUser) {
             try {
                 // Get current ChatUser data from DynamoDB
-                const currentChatUser = await getChatUser(user.userId);
+                let currentChatUser = await getChatUser(user.userId);
                 // console.log('[Hooks Debug] Raw ChatUser from database:', {
                 //     userId: user.userId,
                 //     fullChatUser: currentChatUser,
@@ -221,9 +223,20 @@ export const handle: Handle = async ({ event, resolve }) => {
 
                 if (!currentChatUser) {
                     if (shouldBypassChatUserRoleMerge(user)) {
+                        // ChatUser not found — this happens for OIDC users (AzureAD) whose
+                        // session cookie is written directly by the callback route before a ChatUser
+                        // record is created. Create it now rather than clearing the valid session.
                         const newChatUser = { ...user } as any;
                         delete newChatUser.authData;
-                        await createChatUser(newChatUser);
+                        const createdChatUser = await createChatUser(newChatUser);
+                        if (!createdChatUser) {
+                            console.error('[Hooks] Failed to create ChatUser for authenticated user - clearing cookies:', {
+                                userId: user.userId
+                            });
+                            clearAllCookies(event);
+                            return redirect(302, '/login');
+                        }
+                        currentChatUser = createdChatUser;
                     } else {
                         console.error('[Hooks] ChatUser not found for authenticated user - clearing cookies and forcing re-login:', {
                             userId: user.userId

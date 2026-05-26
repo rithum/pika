@@ -45,16 +45,24 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         if (params.userId !== user.userId) {
-            console.log('User ID mismatch:', { userId: params.userId, user: user.userId });
-            throw error(401, 'Unauthorized');
+            const legacyUserId = await validateLegacyUserIdIfNeeded(user.userId, params.userId, {
+                request,
+                cookies,
+                stage: appConfig.stage
+            });
+            if (!legacyUserId) {
+                console.warn('[Legacy Message Auth] legacy userId validation failed for message POST', {
+                    path: '/api/message',
+                    chatAppId: params.chatAppId,
+                    requestedLegacyUserId: params.userId,
+                    sessionUserId: user.userId
+                });
+                throw error(401, 'Unauthorized');
+            }
+            params.userId = legacyUserId;
         }
 
-        const legacyUserId = await validateLegacyUserIdIfNeeded(user.userId, params.userId, {
-            request,
-            cookies,
-            stage: appConfig.stage
-        });
-        const effectiveUserId = legacyUserId ?? user.userId;
+        const effectiveUserId = params.userId;
 
         //TODO: what do we do if an internal user changes the custom data during a chat session?  Do we care?  Will it break anything downstream?
         const rawCustomUserData = user.overrideData?.[params.chatAppId] ?? user.customData;
@@ -68,7 +76,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         try {
             const hookResult = await Promise.race([
                 transformCustomUserData(rawCustomUserData, {
-                    userId: user.userId,
+                    userId: effectiveUserId,
                     chatAppId: params.chatAppId
                 }),
                 timeout
@@ -87,7 +95,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
-            userId: user.userId,
+            userId: effectiveUserId,
             customUserData: resolvedCustomUserData
         };
 
