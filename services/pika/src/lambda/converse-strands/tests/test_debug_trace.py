@@ -146,3 +146,98 @@ class TestTraceEnvelope:
         assert trace['orchestrationTrace']['rationale']['traceId'] == 'llm-instruction-collaborator-foo'
         parsed = json.loads(trace['orchestrationTrace']['rationale']['text'])
         assert js_client_decode(parsed['compressedData']) == 'collab instruction'
+
+    def test_none_instruction_is_treated_as_empty(self):
+        """build_llm_instruction_trace(None) must not raise — handler.py calls it with instruction or ''."""
+        trace = build_llm_instruction_trace(None)  # type: ignore[arg-type]
+        parsed = json.loads(trace['orchestrationTrace']['rationale']['text'])
+        assert js_client_decode(parsed['compressedData']) == ''
+
+
+# ---------------------------------------------------------------------------
+# Regression prevention — explicit proof that the old broken form would fail
+# ---------------------------------------------------------------------------
+
+class TestRegressionPrevention:
+    """Prove that the pre-ES-3069 hex-encoding path fails the JS client decode.
+
+    This class exists so any future regression is caught immediately rather than
+    being masked by a fallback. The old encoder did:
+        base64(ascii(hex(gzip(s))))
+    which produces a payload that looks like valid base64 but decodes to hex
+    characters, not gzip bytes — gunzipSync throws in the browser.
+    """
+
+    def _old_broken_encode(self, s: str) -> str:
+        """Reproduce the pre-fix encoder: base64(ascii(hex(gzip(s))))."""
+        gzipped = gzip.compress(s.encode('utf-8'))
+        hex_string = gzipped.hex()
+        return base64.b64encode(hex_string.encode('ascii')).decode('ascii')
+
+    def test_old_hex_form_fails_js_client_path(self):
+        """The old encoder output must NOT decompress via the strict JS client path.
+
+        If this test fails it means we've accidentally regressed to the broken
+        hex encoding — or the test helper is wrong.
+        """
+        original = 'You are a helpful agent.'
+        broken_encoded = self._old_broken_encode(original)
+        raw = base64.b64decode(broken_encoded)
+        with pytest.raises((OSError, UnicodeDecodeError)):
+            gzip.decompress(raw)
+
+    def test_new_encoder_does_not_produce_hex_form(self):
+        """Current encoder must NOT produce the hex-as-ASCII form.
+
+        The old form, when base64-decoded, yields printable hex characters
+        (e.g. b'1f8b...'). The correct form yields raw gzip bytes starting
+        with the gzip magic number 0x1f 0x8b — not the ASCII characters '1', 'f'.
+        """
+        encoded = gzip_base64_encode('check encoding')
+        decoded_bytes = base64.b64decode(encoded)
+        assert decoded_bytes[:2] == b'\x1f\x8b', (
+            'Encoder regressed to hex form: decoded bytes are hex characters, not gzip magic bytes.'
+        )
+
+
+# ---------------------------------------------------------------------------
+# build_full_instruction — sparse input coverage
+# ---------------------------------------------------------------------------
+
+class TestBuildFullInstruction:
+
+    def test_all_fields_empty_returns_empty_string(self):
+        assert build_full_instruction() == ''
+
+    def test_only_system_prompt(self):
+        result = build_full_instruction(system_prompt='SYS')
+        assert result == 'SYS'
+
+    def test_only_user_message(self):
+        result = build_full_instruction(user_message='HELLO')
+        assert result == 'HELLO'
+
+    def test_system_prompt_and_user_message_separated_by_blank_line(self):
+        result = build_full_instruction(system_prompt='SYS', user_message='MSG')
+        assert result == 'SYS\n\nMSG'
+
+    def test_empty_fields_are_omitted_from_output(self):
+        """Empty-string fields must not produce extra blank lines."""
+        result = build_full_instruction(
+            system_prompt='SYS',
+            tags_instructions='',
+            directives_instructions='',
+            user_instruction='',
+            user_message='MSG',
+        )
+        assert result == 'SYS\n\nMSG'
+
+    @pytest.mark.parametrize('fields,expected_sections', [
+        ({'system_prompt': 'A', 'tags_instructions': 'B', 'directives_instructions': 'C',
+          'user_instruction': 'D', 'user_message': 'E'}, 5),
+        ({'system_prompt': 'A', 'user_message': 'E'}, 2),
+        ({'directives_instructions': 'C'}, 1),
+    ])
+    def test_section_count_matches_non_empty_fields(self, fields, expected_sections):
+        result = build_full_instruction(**fields)
+        assert len(result.split('\n\n')) == expected_sections
