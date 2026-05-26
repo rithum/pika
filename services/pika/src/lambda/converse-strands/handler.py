@@ -1301,6 +1301,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 # system_prompt already has tag instructions folded in (see above).
                 # agent_message already contains user_instruction + directives + message
                 # (see composition a few lines up). Pass each component exactly once.
+                # Note: on new sessions, agent_message includes NEW_SESSION_MEMORY_NUDGE —
+                # intentional. The trace captures the full turn context the agent received,
+                # including the nudge, which makes memory-triggered sessions identifiable
+                # in Answer Reasoning without additional instrumentation.
                 _llm_inst_supervisor = build_full_instruction(
                     system_prompt=system_prompt,
                     user_message=agent_message,
