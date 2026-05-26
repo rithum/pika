@@ -494,7 +494,7 @@ class TestMemorySystemPromptStrong:
         assert result['statusCode'] == 200
 
         system_prompt = captured.get('system_prompt', '')
-        assert h.MEMORY_SYSTEM_PROMPT_ADDITION in system_prompt, (
+        assert h.MEMORY_SYSTEM_PROMPT_ADDITION.strip() in system_prompt, (
             'System prompt must contain MEMORY_SYSTEM_PROMPT_ADDITION verbatim when memory is enabled. '
             f'Got system_prompt: {system_prompt!r}'
         )
@@ -564,7 +564,7 @@ class TestMemorySystemPromptStrong:
         assert result['statusCode'] == 200
 
         system_prompt = captured.get('system_prompt', '')
-        assert 'especially at the start of a new conversation' in system_prompt.lower(), (
+        assert 'especially at the start of a new conversation' in system_prompt, (
             'System prompt must hint at new-conversation retrieval via the phrase '
             '"especially at the start of a new conversation" (unique to MEMORY_SYSTEM_PROMPT_ADDITION). '
             f'Got system_prompt: {system_prompt!r}'

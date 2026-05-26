@@ -717,6 +717,7 @@ def _build_memory_tools(memory_feature: dict, user_id: str, session_id: str) -> 
 
     memory_id = memory_feature.get('memory_id', '')
     if not memory_id:
+        logger.warning('memory_feature.enabled=True but memory_id is missing or empty; memory disabled')
         return []
 
     try:
