@@ -1,5 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
+    import { getDemoModeMenuItem } from '$lib/custom/demo-mode-menu-item';
+    import { shouldShowLogout } from '$lib/custom/show-logout';
     import PanelLeft from '$icons/lucide/panel-left';
     import Settings2 from '$icons/lucide/settings-2';
     import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
@@ -11,6 +13,7 @@
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
+    const DemoModeMenuComponent = getDemoModeMenuItem();
 
     const standalone = $derived(siteAdmin.mode === 'standalone');
 
@@ -129,7 +132,11 @@
                         appState.settings.dialogOpen = true;
                     }}>Chatbot Settings</DropdownMenu.Item
                 >
-                {#if appState.logoutSiteFeature?.enabled}
+                {#if DemoModeMenuComponent}
+                    <DropdownMenu.Separator />
+                    <svelte:component this={DemoModeMenuComponent} {appState} />
+                {/if}
+                {#if appState.logoutSiteFeature?.enabled && shouldShowLogout(appState.identity.user)}
                     <DropdownMenu.Item
                         onclick={() => {
                             appState.showLogoutDialog = true;

@@ -27,9 +27,11 @@ export default {
     moduleNameMapper: {
         '^\\$lib/server/custom-site-features$': '<rootDir>/test/__mocks__/custom-site-features.ts',
         '^\\$lib/(.*)$': '<rootDir>/src/lib/$1',
+        '^\\$client/(.*)$': '<rootDir>/src/lib/client/$1',
         '^pika-shared/(.*)$': '<rootDir>/../../packages/shared/src/$1',
         '^\\$env/dynamic/private$': '<rootDir>/test/__mocks__/$env-dynamic-private.ts',
-        '^@sveltejs/kit$': '<rootDir>/test/__mocks__/@sveltejs-kit.ts'
+        '^@sveltejs/kit$': '<rootDir>/test/__mocks__/@sveltejs-kit.ts',
+        '^svelte$': '<rootDir>/test/__mocks__/svelte.ts'
     },
 
     // Enable ES modules

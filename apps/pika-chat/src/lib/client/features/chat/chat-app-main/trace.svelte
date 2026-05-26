@@ -9,19 +9,24 @@
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
     import type { ChatAppOverridableFeatures, ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
     import * as Dialog from 'pika-ux/shadcn/dialog';
     import TextWaveShimmer from 'pika-ux/pika/text-wave-shimmer/text-wave-shimmer.svelte';
     import { Button } from 'pika-ux/shadcn/button';
+    import { getContext } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { v4 as uuidv4 } from 'uuid';
     import type { ChatAppState } from '../chat-app.state.svelte';
+    import { shouldShowDetailedTrace } from '$lib/custom/show-detailed-trace';
 
     interface Props {
         message: ChatMessageForRendering;
         features: ChatAppOverridableFeatures;
         chatAppState?: ChatAppState;
     }
+
+    const appState = getContext<AppState | undefined>('appState');
 
     const md = new MarkdownIt({
         html: true,
@@ -44,7 +49,11 @@
 
     let { message, features, chatAppState }: Props = $props();
 
-    const detailedTrace = $derived(features.traces.detailedTraces);
+    // Gate detailed traces on the shouldShowDetailedTrace hook so consumers
+    // can hide implementation details (e.g. in demo mode or for external users).
+    const detailedTrace = $derived(
+        shouldShowDetailedTrace(appState?.identity.user) ? features.traces.detailedTraces : undefined
+    );
     const isContentAdmin = $derived(chatAppState?.userIsContentAdmin ?? false);
     let expandedTraces = $state<Record<string, boolean>>({});
     let decompressedInstructions = $state<Record<string, string>>({});

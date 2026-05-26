@@ -1,0 +1,248 @@
+---
+title: Demo-Mode Hooks
+description: Framework seams for demo mode — override identity, home-page filtering, banner slot, menu-item slot, polling interval, detailed-trace gate, and logout visibility without editing synced files
+---
+
+Pika ships seven extension points that let you present a "demo" view of the app (external-user UI, custom banner, toggled menu item) without touching any pika-synced files. All hooks live in `apps/pika-chat/src/lib/custom/` which is covered by the existing `apps/pika-chat/src/lib/custom/**` protected glob in `.pika-sync.json`, so your overrides survive every `pika sync`.
+
+## The Seven Hooks
+
+| File | Export | Purpose |
+|---|---|---|
+| `effective-user.ts` | `isInternalUser(user)` | Controls UI "internal" rendering |
+| `home-page-user.ts` | `resolveUserForHomeChatApps(user, event)` | Home-page chat-app filter identity |
+| `demo-mode-banner.ts` | `getDemoBannerComponent()` | Inject a banner above every page |
+| `demo-mode-menu-item.ts` | `getDemoModeMenuItem()` | Inject an item in user dropdowns |
+| `polling-interval.ts` | `getUserRefreshIntervalMs(user)` | Override the user-data refresh cadence |
+| `show-detailed-trace.ts` | `shouldShowDetailedTrace(user)` | Gate the detailed-trace UI in the chat trace panel |
+| `show-logout.ts` | `shouldShowLogout(user)` | Gate the Logout menu item in all four user dropdowns |
+
+---
+
+## Hook 1 — `isInternalUser` (effective-user.ts)
+
+Controls which users see internal-only UI elements: internal-user badges on chat-app cards, User ID in dropdown headers, and extra `userInfo` rows.
+
+**Default behavior:** returns `true` when `user.userType === 'internal-user'`.
+
+**Override example** — demo mode always presents the user as external:
+
+```typescript
+// apps/pika-chat/src/lib/custom/effective-user.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { getCookie } from '$lib/utils/cookies'; // your helper
+
+export function isInternalUser(user: ChatUser<RecordOrUndef>): boolean {
+    if (getCookie('demo-mode') === 'on') return false;
+    return user.userType === 'internal-user';
+}
+```
+
+**Important:** This hook affects UI rendering only. Admin-access gating (`isUserAllowedAdminAccess`) reads `user.userType` / `user.authData.provider` directly and is deliberately independent — demo mode does not hide admin controls.
+
+---
+
+## Hook 2 — `resolveUserForHomeChatApps` (home-page-user.ts)
+
+Called server-side before filtering which chat apps appear on the home page. The real `locals.user` is still sent to the client and used for auth, logging, and the message API — only the home-page `getMatchingChatApps` call uses the resolved value.
+
+**Default behavior:** returns `user` unchanged.
+
+**Override example** — demo mode substitutes an external persona:
+
+```typescript
+// apps/pika-chat/src/lib/custom/home-page-user.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type { RequestEvent } from '@sveltejs/kit';
+
+export function resolveUserForHomeChatApps(
+    user: ChatUser<RecordOrUndef>,
+    event: RequestEvent
+): ChatUser<RecordOrUndef> {
+    const demoCookie = event.cookies.get('demo-mode');
+    if (demoCookie === 'on') {
+        return { ...user, userType: 'external-user' };
+    }
+    return user;
+}
+```
+
+---
+
+## Hook 3 — `getDemoBannerComponent` (demo-mode-banner.ts)
+
+Returns a Svelte component rendered at the top of every authenticated page (inside the auth layout, above `children`). The component receives `appState` as a prop.
+
+**Default behavior:** returns `undefined` — no banner.
+
+**Override example:**
+
+```typescript
+// apps/pika-chat/src/lib/custom/demo-mode-banner.ts
+import DemoBanner from './components/DemoBanner.svelte';
+import type { DemoBannerProps } from '$lib/custom/demo-mode-banner';
+import type { Component } from 'svelte';
+
+export function getDemoBannerComponent(): Component<DemoBannerProps> | undefined {
+    return DemoBanner;
+}
+```
+
+### CSS viewport contract
+
+When a banner mounts, you must keep the rest of the viewport from being clipped behind it. Pika provides the contract via `app.css`:
+
+1. **Set `--demo-banner-h`** on `<html>` to the banner's rendered height (e.g. `32px`).
+2. **Toggle `.demo-mode-on`** on `<html>`.
+
+Pika applies these rules automatically when the class is present:
+
+```
+.demo-mode-on .h-svh, .demo-mode-on .h-screen → calc(100svh - var(--demo-banner-h))
+.demo-mode-on .min-h-screen                   → calc(100svh - var(--demo-banner-h))
+.demo-mode-on .max-h-screen                   → calc(100svh - var(--demo-banner-h))
+.demo-mode-on [data-slot="sidebar-container"] → top + height offset by banner height
+```
+
+A minimal banner component that wires this up:
+
+```svelte
+<!-- apps/pika-chat/src/lib/custom/components/DemoBanner.svelte -->
+<script lang="ts">
+    import { onMount, onDestroy } from 'svelte';
+
+    const BANNER_H = '32px';
+
+    onMount(() => {
+        document.documentElement.style.setProperty('--demo-banner-h', BANNER_H);
+        document.documentElement.classList.add('demo-mode-on');
+    });
+
+    onDestroy(() => {
+        document.documentElement.style.removeProperty('--demo-banner-h');
+        document.documentElement.classList.remove('demo-mode-on');
+    });
+</script>
+
+<div class="fixed top-0 left-0 right-0 z-50 h-8 flex items-center justify-center bg-amber-400 text-amber-900 text-sm font-medium">
+    Demo mode — data shown is for illustration only
+</div>
+```
+
+---
+
+## Hook 4 — `getDemoModeMenuItem` (demo-mode-menu-item.ts)
+
+Returns a Svelte component injected into the user-settings dropdown in four locations: chat titlebar, chat sidebar nav, site-admin titlebar, and the home-page settings gear. The component receives `appState` and is responsible for its own label, icon, and `onclick`. It should render a `<DropdownMenu.Item>` from `pika-ux/shadcn/dropdown-menu`.
+
+**Default behavior:** returns `undefined` — no extra item.
+
+**Override example:**
+
+```typescript
+// apps/pika-chat/src/lib/custom/demo-mode-menu-item.ts
+import DemoModeMenuItem from './components/DemoModeMenuItem.svelte';
+import type { DemoModeMenuItemProps } from '$lib/custom/demo-mode-menu-item';
+import type { Component } from 'svelte';
+
+export function getDemoModeMenuItem(): Component<DemoModeMenuItemProps> | undefined {
+    return DemoModeMenuItem;
+}
+```
+
+```svelte
+<!-- apps/pika-chat/src/lib/custom/components/DemoModeMenuItem.svelte -->
+<script lang="ts">
+    import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
+    import { toggleDemoMode, isDemoModeOn } from '../demo-mode-state.svelte';
+</script>
+
+<DropdownMenu.Item onclick={toggleDemoMode}>
+    {isDemoModeOn ? 'Exit Demo Mode' : 'Enter Demo Mode'}
+</DropdownMenu.Item>
+```
+
+---
+
+## Hook 5 — `getUserRefreshIntervalMs` (polling-interval.ts)
+
+Controls how often the client polls the server for user-data updates. Called reactively when `user` changes.
+
+**Default behavior:** `60_000` ms for internal users, `600_000` ms (10 min) for external users.
+
+**Override example** — demo mode always uses the external cadence:
+
+```typescript
+// apps/pika-chat/src/lib/custom/polling-interval.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { getCookie } from '$lib/utils/cookies';
+
+export function getUserRefreshIntervalMs(user: ChatUser<RecordOrUndef> | undefined): number {
+    if (getCookie('demo-mode') === 'on') return 600_000;
+    return user?.userType === 'internal-user' ? 60_000 : 600_000;
+}
+```
+
+---
+
+## Hook 6 — `shouldShowDetailedTrace` (show-detailed-trace.ts)
+
+Controls whether the detailed-trace panel is rendered inside the chat message trace UI. When this returns `false`, the `detailedTraces` value is set to `undefined`, which suppresses the "Detailed Traces" section entirely.
+
+**Default behavior:** returns `true` — detailed traces are always shown.
+
+**Override example** — demo mode hides detailed traces for demo-mode-on sessions:
+
+```typescript
+// apps/pika-chat/src/lib/custom/show-detailed-trace.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { demoModeStore } from './demo-mode/state.svelte';
+
+export function shouldShowDetailedTrace(user: ChatUser<RecordOrUndef> | undefined): boolean {
+    if (demoModeStore.isOn) return false;
+    return true;
+}
+```
+
+---
+
+## Hook 7 — `shouldShowLogout` (show-logout.ts)
+
+Controls whether the Logout menu item is visible in user-settings dropdowns. When this returns `false`, the item is removed from all four dropdown locations: chat titlebar, chat sidebar nav, site-admin titlebar, and the home-page settings gear.
+
+**Default behavior:** returns `true` — Logout is always shown.
+
+**Override example** — demo mode hides Logout while demo mode is on:
+
+```typescript
+// apps/pika-chat/src/lib/custom/show-logout.ts
+import type { ChatUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { demoModeStore } from './demo-mode/state.svelte';
+
+export function shouldShowLogout(user: ChatUser<RecordOrUndef> | undefined): boolean {
+    if (demoModeStore.isOn) return false;
+    return true;
+}
+```
+
+---
+
+## Putting It All Together
+
+A complete demo-mode implementation in ai-bot needs only files under `apps/pika-chat/src/lib/custom/`:
+
+```
+apps/pika-chat/src/lib/custom/
+├── effective-user.ts          ← override isInternalUser
+├── home-page-user.ts          ← override resolveUserForHomeChatApps
+├── demo-mode-banner.ts        ← return DemoBanner component
+├── demo-mode-menu-item.ts     ← return DemoModeMenuItem component
+├── polling-interval.ts        ← override getUserRefreshIntervalMs
+├── show-detailed-trace.ts     ← override shouldShowDetailedTrace
+├── show-logout.ts             ← override shouldShowLogout
+└── components/
+    ├── DemoBanner.svelte
+    └── DemoModeMenuItem.svelte
+```
+
+None of the synced pika files need to be modified. Running `pika sync` will not affect these files.

@@ -6,6 +6,8 @@
     import AppSettings from '$client/app/settings/app-settings.svelte';
     import { onInit, onPoll } from '$lib/custom/client-lifecycle';
     import { CustomLogoutDialog } from '$lib/custom/logout-dialog';
+    import { getDemoBannerComponent } from '$lib/custom/demo-mode-banner';
+    import { getUserRefreshIntervalMs } from '$lib/custom/polling-interval';
     import { hasUserDataChanged } from '$lib/utils/user-data-version';
     import type {
         ChatAppLite,
@@ -53,8 +55,10 @@
     let previousUserVersion = $state<string | undefined>(undefined);
     let visibilityState = $state<DocumentVisibilityState>('visible');
 
-    // Internal users we refresh once a minute, external users we refresh once every 10 minutes
-    let userRefreshIntervalMs = $derived(user.userType === 'internal-user' ? 60 * 1000 : 10 * 60 * 1000);
+    const DemoBannerComponent = getDemoBannerComponent();
+
+    // Polling cadence — override getUserRefreshIntervalMs in polling-interval.ts to customize
+    let userRefreshIntervalMs = $derived(getUserRefreshIntervalMs(user));
 
     // Create AppState immediately so child components can access it from context
     // Use $effect.pre() to run synchronously during initial render
@@ -226,6 +230,10 @@
 
 <svelte:window onunload={onUnload} onkeydown={handleKeydown} />
 <svelte:document bind:visibilityState onvisibilitychange={handleVisibilityChange} />
+
+{#if DemoBannerComponent && appState}
+    <svelte:component this={DemoBannerComponent} {appState} />
+{/if}
 
 {@render children?.()}
 

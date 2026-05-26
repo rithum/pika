@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
+    import { getDemoModeMenuItem } from '$lib/custom/demo-mode-menu-item';
     import Settings2 from '$icons/lucide/settings-2';
     import Search from '$icons/lucide/search';
     import ArrowRight from '$icons/lucide/arrow-right';
@@ -10,6 +11,7 @@
     import { getContext, onMount } from 'svelte';
 
     const appState = getContext<AppState>('appState');
+    const DemoModeMenuComponent = getDemoModeMenuItem();
 
     // Search state
     let searchQuery = $state('');
@@ -284,6 +286,9 @@
                     </DropdownMenu.Label>
                 {/each}
                 <DropdownMenu.Separator />
+            {/if}
+            {#if DemoModeMenuComponent}
+                <svelte:component this={DemoModeMenuComponent} {appState} />
             {/if}
             {#if appState.logoutSiteFeature?.enabled}
                 <DropdownMenu.Item

@@ -94,6 +94,22 @@ siteFeatures: {
 pnpm run dev
 ```
 
+## Hooks
+
+All hook files live in this directory and are protected from `pika sync`. Override the exported function in each file to customize behavior without touching synced framework files.
+
+| File | Export | Description |
+|---|---|---|
+| `demo-mode-banner.ts` | `getDemoBannerComponent()` | render a top-of-page banner |
+| `demo-mode-menu-item.ts` | `getDemoModeMenuItem()` | inject a menu item into the 4 user dropdowns |
+| `polling-interval.ts` | `getUserRefreshIntervalMs(user)` | override the user-refresh polling cadence |
+| `effective-user.ts` | `isInternalUser(user)` | override the internal-user predicate |
+| `home-page-user.ts` | `resolveUserForHomeChatApps(user, event)` | transform the user passed to home-page chat-app filtering |
+| `show-detailed-trace.ts` | `shouldShowDetailedTrace(user)` | gate the detailed-trace UI |
+| `show-logout.ts` | `shouldShowLogout(user)` | gate the Logout menu item |
+
+See also: `apps/pika-docs/src/content/docs/guides/customization/demo-mode-hooks.mdoc` for full docs.
+
 ## Files
 
 - `sample-purple-theme.ts` - Sample theme to copy and customize

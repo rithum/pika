@@ -2,11 +2,12 @@ import type { ChatUser, ChatUserLite, RecordOrUndef, ShowToastFn, UserAwsCredent
 import type { IIdentityState } from 'pika-shared/types/chatbot/webcomp-types';
 import type { FetchZ } from '../types';
 import { AwsCredsState } from './aws-creds.state.svelte';
+import { isInternalUser } from '$lib/custom/effective-user';
 
 export class IdentityState implements IIdentityState {
     #fetchz: FetchZ;
     #user = $state<ChatUser<RecordOrUndef>>() as ChatUser<RecordOrUndef>;
-    #isInternalUser = $derived(this.#user && this.#user.userType === 'internal-user');
+    #isInternalUser = $derived(this.#user && isInternalUser(this.#user));
     #isSiteAdmin = $derived(this.#user && this.#user.roles?.includes('pika:site-admin'));
     #isContentAdmin = $derived(this.#user && this.#user.roles?.includes('pika:content-admin'));
     #awsCredsState = $state<AwsCredsState | undefined>(undefined);

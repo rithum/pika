@@ -1,5 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
+    import { getDemoModeMenuItem } from '$lib/custom/demo-mode-menu-item';
+    import { shouldShowLogout } from '$lib/custom/show-logout';
     import ChevronsUpDown from '$icons/lucide/chevrons-up-down';
     import * as Avatar from 'pika-ux/shadcn/avatar';
     import * as DropdownMenu from 'pika-ux/shadcn/dropdown-menu';
@@ -10,6 +12,7 @@
     const sidebar = useSidebar();
 
     const appState = getContext<AppState>('appState');
+    const DemoModeMenuComponent = getDemoModeMenuItem();
 </script>
 
 <Sidebar.Menu>
@@ -53,7 +56,12 @@
                 <DropdownMenu.Separator />
                 <DropdownMenu.Group>
                     <DropdownMenu.Item onclick={() => appState.settings.showDialog()}>Settings</DropdownMenu.Item>
-                    <DropdownMenu.Item onclick={() => appState.identity.logout()}>Logout</DropdownMenu.Item>
+                    {#if DemoModeMenuComponent}
+                        <svelte:component this={DemoModeMenuComponent} {appState} />
+                    {/if}
+                    {#if shouldShowLogout(appState.identity.user)}
+                        <DropdownMenu.Item onclick={() => appState.identity.logout()}>Logout</DropdownMenu.Item>
+                    {/if}
                 </DropdownMenu.Group>
             </DropdownMenu.Content>
         </DropdownMenu.Root>
