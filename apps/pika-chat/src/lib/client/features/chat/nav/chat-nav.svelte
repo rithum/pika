@@ -2,6 +2,7 @@
     import PinOff from '$icons/lucide/pin-off';
     import Share from '$icons/lucide/share-2';
     import { getLegacyChatsSectionHeader } from '$lib/custom/legacy-chats-section-header';
+    import { getLegacyChatsSectionTrigger } from '$lib/custom/legacy-chats-section-trigger';
     import { Button } from 'pika-ux/shadcn/button';
     import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
@@ -10,6 +11,7 @@
     const chat = getContext<ChatAppState>('chatAppState');
 
     const LegacyChatsHeader = getLegacyChatsSectionHeader();
+    const LegacyChatsTrigger = getLegacyChatsSectionTrigger();
 
     let hoveredSessionId: string | null = null;
     let hoveredShareId: string | null = null;
@@ -141,6 +143,12 @@
                 {/if}
             {/each}
         </div>
+    </Sidebar.Group>
+{/if}
+
+{#if LegacyChatsTrigger && !chat.legacyChatsLoaded}
+    <Sidebar.Group>
+        <svelte:component this={LegacyChatsTrigger} />
     </Sidebar.Group>
 {/if}
 

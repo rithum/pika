@@ -23,7 +23,9 @@ import { isCurrentSessionReadOnly } from '../../src/lib/custom/session-read-only
 import { validateLegacyUserIdIfNeeded, LEGACY_ACTION_USER_ID_COOKIE, type LegacyUserValidatorContext } from '../../src/lib/custom/legacy-user-validator';
 import { getSessionEntityValue } from '../../src/lib/custom/session-entity-extraction';
 import { transformSessionAccountContext } from '../../src/lib/custom/session-account-context';
-import { transformCustomUserData, onAuthProviderCallback } from '../../src/lib/custom/server-hooks';
+import { transformCustomUserData, onAuthProviderCallback, onBeforeAuth } from '../../src/lib/custom/server-hooks';
+import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-auth';
+import { getLegacyChatsSectionTrigger } from '../../src/lib/custom/legacy-chats-section-trigger';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -32,6 +34,8 @@ type C2cSig = (session: ChatSession<RecordOrUndef> | undefined) => boolean;
 type C3Sig = (effectiveUserId: string, sessionUserId: string, context: LegacyUserValidatorContext) => Promise<string | undefined>;
 type C4Sig = (session: ChatSession<RecordOrUndef>) => string | undefined;
 type C5Sig = (session: ChatSession<RecordOrUndef>, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => ChatSession<RecordOrUndef>;
+type C7Sig = (event: any, pathName: string, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined) => Promise<{ clearSession: boolean }>;
+type C8Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const _c1: C1Sig = isUserAllowedAdminAccess;
@@ -40,6 +44,8 @@ const _c2c: C2cSig = isCurrentSessionReadOnly;
 const _c3: C3Sig = validateLegacyUserIdIfNeeded;
 const _c4: C4Sig = getSessionEntityValue;
 const _c5: C5Sig = transformSessionAccountContext;
+const _c7: C7Sig = onBeforeAuth;
+const _c8: C8Sig = shouldBypassChatUserRoleMerge;
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ===== Shared mock data =====
@@ -142,6 +148,32 @@ describe('lib/custom hook defaults', () => {
         it('is a non-empty string constant', () => {
             expect(typeof LEGACY_ACTION_USER_ID_COOKIE).toBe('string');
             expect(LEGACY_ACTION_USER_ID_COOKIE.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('onBeforeAuth', () => {
+        it('returns clearSession: false by default', async () => {
+            const mockEvent = { url: new URL('https://example.com/') } as any;
+            const result = await onBeforeAuth(mockEvent, '/chat/app1', mockUser);
+            expect(result).toEqual({ clearSession: false });
+        });
+
+        it('returns clearSession: false when user is undefined', async () => {
+            const mockEvent = { url: new URL('https://example.com/') } as any;
+            const result = await onBeforeAuth(mockEvent, '/admin', undefined);
+            expect(result).toEqual({ clearSession: false });
+        });
+    });
+
+    describe('shouldBypassChatUserRoleMerge', () => {
+        it('returns false by default', () => {
+            expect(shouldBypassChatUserRoleMerge(mockUser)).toBe(false);
+        });
+    });
+
+    describe('getLegacyChatsSectionTrigger', () => {
+        it('returns undefined by default', () => {
+            expect(getLegacyChatsSectionTrigger()).toBeUndefined();
         });
     });
 });

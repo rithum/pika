@@ -20,6 +20,9 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
+| `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
+| `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `legacy-chats-section-trigger.ts` | `getLegacyChatsSectionTrigger()` | `undefined` | Inject a nav component when legacy chats are not yet loaded |
 
 ## How to Override
 
@@ -153,6 +156,56 @@ export function transformSessionAccountContext(
 ```
 
 Called on every session returned from the sessions API and the site-admin search endpoint. Override to copy account data from `user` onto sessions that were created before account context was stored on sessions. Return a new object rather than mutating the input. The default returns the session unchanged.
+
+---
+
+### `onBeforeAuth` — `server-hooks.ts`
+
+Called on every request after the AUTH_USER cookie is deserialized but before the ChatUser refresh and auth-provider validation steps run.
+
+```typescript
+export async function onBeforeAuth(
+    event: RequestEvent,
+    pathName: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
+): Promise<{ clearSession: boolean }>
+```
+
+Return `{ clearSession: true }` to atomically clear all cookies and drop the current session — the request continues as unauthenticated, triggering a fresh auth flow. Use this to discard stale sessions based on path, request headers, or cookie state without editing the synced `hooks.server.ts`. The default returns `{ clearSession: false }`.
+
+---
+
+### `shouldBypassChatUserRoleMerge` — `chat-user-auth.ts`
+
+Controls whether the framework uses roles from the authentication token instead of merging with the stored ChatUser record in the database.
+
+```typescript
+export function shouldBypassChatUserRoleMerge(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): boolean
+```
+
+When this returns `true` the framework will:
+- Treat roles as unchanged during periodic refreshes (no cookie re-serialization for role drift)
+- Use token roles instead of database roles when building the merged user object
+- Skip `mergeAuthenticatedUserWithExistingChatUser` on initial login
+- Create the ChatUser record if it is missing during a refresh rather than forcing re-authentication
+
+This is useful when the identity provider is the authoritative source for roles and the database should not override them. The default returns `false`.
+
+---
+
+### `getLegacyChatsSectionTrigger` — `legacy-chats-section-trigger.ts`
+
+Returns an optional Svelte component rendered in the sidebar when legacy chats have not yet been loaded (i.e., `legacyChatsLoaded === false`).
+
+```typescript
+export function getLegacyChatsSectionTrigger(): Component<Record<string, never>> | undefined
+```
+
+Use this to inject a load trigger — for example, a button that initiates a user-triggered legacy session fetch — without editing the synced `chat-nav.svelte`. The component receives no props. The default returns `undefined` (nothing is rendered before loading).
+
+Pair with `loadLegacyChatsIfNeeded` for the data-loading side of the same feature.
 
 ---
 

@@ -20,7 +20,10 @@ Extension points are exported functions you can override to add deployment-speci
 | `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
 | `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
-| `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks (e.g., AzureAD) |
+| `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
+| `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
+| `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `legacy-chats-section-trigger.ts` | `getLegacyChatsSectionTrigger()` | `undefined` | Inject a component into the nav when legacy chats are not yet loaded |
 
 ### How to override
 

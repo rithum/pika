@@ -9,7 +9,8 @@
  *
  * Hooks in this file:
  *   - transformCustomUserData  — enrich/transform user data before the converse Lambda
- *   - onAuthProviderCallback   — run custom logic on OAuth provider callbacks (C6)
+ *   - onAuthProviderCallback   — run custom logic on OAuth provider callbacks
+ *   - onBeforeAuth             — inspect or clear the session before auth proceeds
  *
  * To ENABLE custom server hooks:
  *   Export the relevant function as shown below.
@@ -18,7 +19,7 @@
  *   export const transformCustomUserData = null;
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import type { RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
  * Context passed to the transformCustomUserData hook.
@@ -65,13 +66,33 @@ export async function transformCustomUserData(
  *
  * Default: no-op.
  *
- * ⚠️ Co-design note (ES-3126/ES-3127): the companion hook for
- * isAdminSectionPath-driven session clearing lives here as well; its exact
- * signature was finalized in coordination with the ES-3127 ai-bot consumer.
- *
  * @param _event - The SvelteKit request event for the callback request
  * @param _provider - The OAuth provider extracted from the path (e.g., 'azuread')
  */
 export async function onAuthProviderCallback(_event: RequestEvent, _provider: string): Promise<void> {
     // No-op. Override to add per-provider post-callback logic.
+}
+
+/**
+ * Called on every request after the AUTH_USER cookie is deserialized but before
+ * the ChatUser refresh and auth-provider validation steps run.
+ *
+ * Return `{ clearSession: true }` to atomically clear all cookies and drop the
+ * current session — the request will then proceed as unauthenticated, triggering
+ * a fresh authentication flow. This is useful when the current session should be
+ * discarded based on request context (path, cookies, headers) before the normal
+ * auth flow continues.
+ *
+ * Return `{ clearSession: false }` (the default) to leave the session untouched.
+ *
+ * @param _event - The SvelteKit request event
+ * @param _pathName - The normalized request path (trailing slash removed)
+ * @param _user - The deserialized authenticated user, or undefined if no valid cookie
+ */
+export async function onBeforeAuth(
+    _event: RequestEvent,
+    _pathName: string,
+    _user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
+): Promise<{ clearSession: boolean }> {
+    return { clearSession: false };
 }
