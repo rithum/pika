@@ -1,8 +1,10 @@
 <!--
-  This is a simple implementation of the custom data overrides ui.  See the blank template for just the bare bones
-  of what you need to do with complete instructions.
+  Account-picker implementation for the user data override dialog.
+  Combobox field accessors and change-detection live in lib/custom/account-mapping.ts
+  so consumers can replace them to match their entity data shape.
 -->
 <script lang="ts">
+    import { comboboxMapping, accountsAreDifferent } from '$lib/custom/account-mapping';
     import type { UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
     import Combobox from 'pika-ux/pika/combobox/combobox.svelte';
 
@@ -27,17 +29,12 @@
     }: Props = $props();
 
     let loading = $derived(userDataOverrideOperationInProgress['getValuesForAutoComplete']);
-    let originalAccountFromServer = $derived(initialDataFromServer as Account | undefined);
+    let selectedAccount = $derived(initialDataFromServer);
 
-    let selectedAccount = $derived(initialDataFromServer as Account | undefined);
-
-    const valuesAsAccounts = $derived.by(() => {
-        // We only have a single combobox in this example, so we can just return the values for the account component
-        return (valuesForAutoComplete?.['accountComponent'] ?? []) as Account[];
-    });
+    const valuesAsItems = $derived(valuesForAutoComplete?.['accountComponent'] ?? []);
 
     export function reset() {
-        selectedAccount = originalAccountFromServer;
+        selectedAccount = initialDataFromServer;
         dataChanged = false;
         isValid = false;
     }
@@ -46,52 +43,14 @@
         return selectedAccount;
     }
 
-    function valueChanged(value: Account) {
+    function valueChanged(value: unknown) {
         selectedAccount = value;
-
-        // Are initialDataFromServer and selectedAccount different?
-        // Smart comparison for account data
-        const hasChanged = (() => {
-            // Cast to correct type for comparison
-            const initialAccount = initialDataFromServer as typeof selectedAccount;
-
-            // Both undefined - no change
-            if (!initialAccount && !selectedAccount) {
-                return false;
-            }
-
-            // One is undefined, other isn't - changed
-            if (!initialAccount || !selectedAccount) {
-                return true;
-            }
-
-            // Both exist - compare properties
-            return (
-                initialAccount.accountId !== selectedAccount.accountId ||
-                initialAccount.details.accountName !== selectedAccount.details.accountName ||
-                initialAccount.details.accountType !== selectedAccount.details.accountType
-            );
-        })();
-
-        dataChanged = hasChanged;
-
-        if (selectedAccount) {
-            // Our only validation is that there is a selected account.
-            isValid = true;
-        }
+        dataChanged = accountsAreDifferent(initialDataFromServer, value);
+        if (selectedAccount) isValid = true;
     }
 
     async function onSearchValueChanged(value: string) {
-        // This will cause the valuesForAutoComplete property to be updated with the new values.
         await getValuesForAutoComplete('accountComponent', value);
-    }
-
-    interface Account {
-        accountId: string;
-        details: {
-            accountName: string;
-            accountType: 'standard' | 'premium';
-        };
     }
 </script>
 
@@ -99,12 +58,8 @@
 
 <Combobox
     value={selectedAccount}
-    mapping={{
-        value: (value) => value.accountId,
-        label: (value) => value.details.accountName,
-        secondaryLabel: (value) => value.details.accountType,
-    }}
-    options={valuesAsAccounts}
+    mapping={comboboxMapping}
+    options={valuesAsItems}
     onValueChanged={valueChanged}
     {onSearchValueChanged}
     {loading}
