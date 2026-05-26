@@ -1,18 +1,23 @@
 /**
  * Server-Side Hooks
  *
- * Extension point for running custom server-side code during the message API route.
- * The core message handler imports and calls these hooks at the right times.
+ * Extension points for custom server-side code. The core framework imports and
+ * calls these hooks at the appropriate times.
  *
  * Files in `src/lib/custom/` are protected from pika sync — your changes
  * will be preserved when you update from upstream.
  *
+ * Hooks in this file:
+ *   - transformCustomUserData  — enrich/transform user data before the converse Lambda
+ *   - onAuthProviderCallback   — run custom logic on OAuth provider callbacks (C6)
+ *
  * To ENABLE custom server hooks:
- *   Export a `transformCustomUserData` function (as shown below).
+ *   Export the relevant function as shown below.
  *
  * To DISABLE custom server hooks:
  *   export const transformCustomUserData = null;
  */
+import type { RequestEvent } from '@sveltejs/kit';
 import type { RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 /**
@@ -47,4 +52,26 @@ export async function transformCustomUserData(
 ): Promise<RecordOrUndef> {
     // No-op: return data unchanged. Override in your project to add transformation logic.
     return customUserData;
+}
+
+/**
+ * Called from hooks.server.ts whenever a request arrives at an OAuth provider
+ * callback path (/auth/callback/<provider>). Use this to register per-provider
+ * post-callback logic — e.g., clearing legacy session cookies or exchanging tokens
+ * with an external identity service — without editing the synced hooks.server.ts.
+ *
+ * The hook fires BEFORE the route is resolved, so cookies set here are visible
+ * to the downstream route handler.
+ *
+ * Default: no-op.
+ *
+ * ⚠️ Co-design note (ES-3126/ES-3127): the companion hook for
+ * isAdminSectionPath-driven session clearing lives here as well; its exact
+ * signature was finalized in coordination with the ES-3127 ai-bot consumer.
+ *
+ * @param _event - The SvelteKit request event for the callback request
+ * @param _provider - The OAuth provider extracted from the path (e.g., 'azuread')
+ */
+export async function onAuthProviderCallback(_event: RequestEvent, _provider: string): Promise<void> {
+    // No-op. Override to add per-provider post-callback logic.
 }

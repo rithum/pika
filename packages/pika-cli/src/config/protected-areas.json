@@ -44,8 +44,10 @@
         "RELEASING.md",
         "releases.json",
         "RELEASE-SYSTEM-SUMMARY.md",
-        "packages/tools/**"
+        "packages/tools/**",
+        "apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts",
+        "services/pika/lib/stacks/custom-stack-defs.ts"
     ],
-    "version": "1.0.4",
-    "lastUpdated": "2025-10-20T15:00:00.000Z"
+    "version": "1.0.5",
+    "lastUpdated": "2026-05-26T00:00:00.000Z"
 }

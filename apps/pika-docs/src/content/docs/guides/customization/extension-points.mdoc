@@ -1,0 +1,198 @@
+---
+title: Extension Points
+description: Override framework behaviors with deployment-specific logic that survives pika sync
+---
+
+Extension points are exported functions in `src/lib/custom/` that you can override to add deployment-specific behavior. Each has a no-op default — Pika works correctly without any overrides.
+
+All files under `src/lib/custom/` are protected from `pika sync`, so your overrides survive framework updates.
+
+## Available Extension Points
+
+| File | Export | Default | Purpose |
+|------|--------|---------|---------|
+| `site-admin.ts` | `isUserAllowedAdminAccess(user)` | delegates to `isUserSiteAdmin()` | Gate admin routes on custom criteria |
+| `legacy-session-loader.ts` | `loadLegacyChatsIfNeeded(user, chatAppId)` | `{ sessions: [], loaded: false }` | Load sessions from a pre-OIDC legacy system |
+| `legacy-chats-section-header.ts` | `getLegacyChatsSectionHeader()` | `undefined` | Inject a header above the legacy chats nav section |
+| `session-read-only.ts` | `isCurrentSessionReadOnly(session)` | `false` | Mark additional session types as read-only |
+| `legacy-user-validator.ts` | `validateLegacyUserIdIfNeeded(effectiveId, sessionId, ctx)` | `undefined` | Cross-validate legacy user IDs for dual-auth deployments |
+| `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
+| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
+| `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
+| `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
+
+## How to Override
+
+1. Open the relevant file in `src/lib/custom/`.
+2. Replace the default function body with your implementation.
+3. The framework calls your override automatically.
+
+Example — require AzureAD for admin access:
+
+```typescript
+// src/lib/custom/site-admin.ts
+import { isUserSiteAdmin } from '$lib/server/utils';
+import type { AuthenticatedUser, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+
+export async function isUserAllowedAdminAccess(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<boolean> {
+    return isUserSiteAdmin(user) && user.authData?.provider === 'azuread';
+}
+```
+
+## Hook Reference
+
+### `isUserAllowedAdminAccess` — `site-admin.ts`
+
+Controls which users can access the site admin panel and session insights.
+
+```typescript
+export async function isUserAllowedAdminAccess(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): Promise<boolean>
+```
+
+The default delegates to the built-in `isUserSiteAdmin(user)` check. Override to add additional criteria such as provider checks, group membership, or external permission lookups.
+
+---
+
+### `loadLegacyChatsIfNeeded` — `legacy-session-loader.ts`
+
+Loads chat sessions from a pre-OIDC or legacy system and surfaces them in the sidebar nav.
+
+```typescript
+export async function loadLegacyChatsIfNeeded(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId: string
+): Promise<LegacySessionsResult>
+
+export interface LegacySessionsResult {
+    sessions: ChatSession<RecordOrUndef>[];
+    loaded: boolean;
+}
+```
+
+Return `{ sessions: [...], loaded: true }` to populate the legacy chats section. The sidebar only renders the section when `loaded` is `true`. The default returns `{ sessions: [], loaded: false }`.
+
+---
+
+### `getLegacyChatsSectionHeader` — `legacy-chats-section-header.ts`
+
+Returns an optional Svelte component rendered as the header of the legacy chats sidebar section.
+
+```typescript
+export function getLegacyChatsSectionHeader(): Component<Record<string, never>> | undefined
+```
+
+Return a Svelte component to display a label, icon, or any markup above the legacy session list. Return `undefined` (the default) to render no header.
+
+---
+
+### `isCurrentSessionReadOnly` — `session-read-only.ts`
+
+Marks additional session types as read-only in the chat UI.
+
+```typescript
+export function isCurrentSessionReadOnly(
+    session: ChatSession<RecordOrUndef> | undefined
+): boolean
+```
+
+The framework already marks shared sessions as read-only. Override this hook to add further conditions — for example, marking sessions owned by a different legacy user as read-only. The default returns `false`.
+
+---
+
+### `validateLegacyUserIdIfNeeded` — `legacy-user-validator.ts`
+
+Cross-validates user IDs for dual-auth deployments where a legacy cookie may carry a different user ID than the OIDC-derived identity.
+
+```typescript
+export async function validateLegacyUserIdIfNeeded(
+    effectiveUserId: string,
+    sessionUserId: string,
+    context: LegacyUserValidatorContext
+): Promise<string | undefined>
+
+export interface LegacyUserValidatorContext {
+    request: Request;
+    cookies: Cookies;
+    stage: string;
+}
+```
+
+Return the validated user ID to use for the request, or `undefined` to use the default OIDC-derived user ID. The default always returns `undefined`.
+
+The exported constant `LEGACY_ACTION_USER_ID_COOKIE` names the cookie used to carry the legacy ID — reference it in your override instead of hardcoding the cookie name.
+
+---
+
+### `getSessionEntityValue` — `session-entity-extraction.ts`
+
+Extracts the entity or account ID from a session for display and analytics.
+
+```typescript
+export function getSessionEntityValue(
+    session: ChatSession<RecordOrUndef>
+): string | undefined
+```
+
+Override when your deployment stores the relevant account context in a field other than `session.entityId`, or when you need to normalize/transform the raw value. The default returns `session.entityId || undefined`.
+
+---
+
+### `transformSessionAccountContext` — `session-account-context.ts`
+
+Backfills missing account context onto sessions before they are returned to the client.
+
+```typescript
+export function transformSessionAccountContext(
+    session: ChatSession<RecordOrUndef>,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+): ChatSession<RecordOrUndef>
+```
+
+Called on every session returned from the sessions API and the site-admin search endpoint. Override to copy account data from `user` onto sessions that were created before account context was stored on sessions. Return a new object rather than mutating the input. The default returns the session unchanged.
+
+---
+
+### `transformCustomUserData` — `server-hooks.ts`
+
+Transforms `customUserData` server-side before it is encoded into the message JWT and sent to the converse Lambda.
+
+See [Server Hooks](/guides/customization/server-hooks/) for full documentation.
+
+---
+
+### `onAuthProviderCallback` — `server-hooks.ts`
+
+Called from `hooks.server.ts` whenever a request arrives at an OAuth provider callback path (`/auth/callback/<provider>`).
+
+```typescript
+export async function onAuthProviderCallback(
+    event: RequestEvent,
+    provider: string
+): Promise<void>
+```
+
+The `provider` parameter is the path segment after `/auth/callback/` (e.g., `"azuread"`, `"okta"`). The hook fires before the route is resolved, so cookies set here are visible to the downstream route handler.
+
+Use this hook to run per-provider post-callback logic — such as clearing legacy session cookies or triggering a token exchange — without editing the synced `hooks.server.ts`. The default is a no-op.
+
+---
+
+## Signature Stability
+
+`test/custom/contract.test.ts` contains compile-time type assertions and runtime smoke tests for every hook. If a Pika upgrade accidentally changes a hook's signature, this test fails before the breakage reaches your deployment.
+
+Run the tests with:
+
+```bash
+pnpm test --filter pika-chat -- --testPathPattern=contract
+```
+
+## Related Documentation
+
+- [Server Hooks](/guides/customization/server-hooks/) — Full guide for `transformCustomUserData`
+- [Client Lifecycle Hooks](/guides/customization/client-lifecycle-hooks/) — Client-side init and polling hooks
+- [UI Theming](/guides/customization/theming/) — Custom theme configuration

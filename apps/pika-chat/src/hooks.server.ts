@@ -1,5 +1,6 @@
 import { ForceUserToReauthenticateError, loadAuthProvider, NotAuthenticatedError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
+import { onAuthProviderCallback } from '$lib/custom/server-hooks';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import {
@@ -94,6 +95,16 @@ export const handle: Handle = async ({ event, resolve }) => {
         await addToLocalsFromAuthProvider(pathName, event, authProvider, user);
         // Allow access to client auth page without authentication
         return addSecurityHeaders(await resolve(event));
+    }
+
+    const AUTH_CALLBACK_PREFIX = '/auth/callback/';
+    if (pathName.startsWith(AUTH_CALLBACK_PREFIX)) {
+        const provider = pathName.slice(AUTH_CALLBACK_PREFIX.length);
+        try {
+            await onAuthProviderCallback(event, provider);
+        } catch (callbackErr) {
+            console.warn('[Hooks] onAuthProviderCallback threw for provider', provider, callbackErr);
+        }
     }
 
     // Force re-authentication route - clears cookies and redirects to trigger fresh auth

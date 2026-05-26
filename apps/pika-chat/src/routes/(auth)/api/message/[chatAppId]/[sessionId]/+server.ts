@@ -1,12 +1,14 @@
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { getChatMessages } from '$lib/server/chat-apis';
+import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
+import { validateLegacyUserIdIfNeeded } from '$lib/custom/legacy-user-validator';
 import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
 import { getEntityIdForUser, getOverridableFeatures } from 'pika-shared/util/server-utils';
 
-export const GET: RequestHandler = async ({ params, locals, url }) => {
+export const GET: RequestHandler = async ({ params, locals, url, request, cookies }) => {
     const user = locals.user;
     if (!user) {
         throw redirect(302, '/auth/login');
@@ -36,7 +38,17 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
     }
 
     if (!userId) {
-        userId = user.userId;
+        const legacyQueryUserId = url.searchParams.get('legacyUserId') ?? undefined;
+        if (legacyQueryUserId) {
+            const validated = await validateLegacyUserIdIfNeeded(user.userId, legacyQueryUserId, {
+                request,
+                cookies,
+                stage: appConfig.stage
+            });
+            userId = validated ?? user.userId;
+        } else {
+            userId = user.userId;
+        }
     }
 
     let entityId: string | undefined;

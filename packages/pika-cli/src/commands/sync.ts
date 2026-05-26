@@ -1788,7 +1788,9 @@ function getDefaultProtectedAreas(): string[] {
         'AGENTS.md',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.server.ts',
         'apps/pika-chat/src/routes/(noauth)/auth/client-auth/+page.svelte',
-        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte'
+        'apps/pika-chat/src/routes/(noauth)/logout/+page.svelte',
+        'apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts',
+        'services/pika/lib/stacks/custom-stack-defs.ts'
     ];
 }
 

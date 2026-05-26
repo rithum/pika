@@ -80,6 +80,9 @@ import type {
 import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
+import { loadLegacyChatsIfNeeded, type LegacySessionsResult } from '$lib/custom/legacy-session-loader';
+import { isCurrentSessionReadOnly } from '$lib/custom/session-read-only';
+import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { Component, Snippet } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import { v7 as uuidv7 } from 'uuid';
@@ -194,6 +197,10 @@ export class ChatAppState implements IChatAppState {
     });
     #customDataForChatApp = $state<Record<string, unknown> | undefined>(undefined);
 
+    #legacyChatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
+    #loadingLegacyChatSessions = $state<boolean>(false);
+    #legacyChatsLoaded = $state<boolean>(false);
+
     // Sharing-related state
     #recentSharedSessionVisits = $state<SharedSessionVisitHistory[]>([]);
     #recentSharedSessions = $state<ChatSession<RecordOrUndef>[]>([]);
@@ -256,7 +263,7 @@ export class ChatAppState implements IChatAppState {
     #pinnedOwnSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.sessionId));
     #pinnedSharedSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.shareId));
 
-    #currentSessionIsReadOnly = $derived(this.#currentSessionIsSharedBySomeoneElse);
+    #currentSessionIsReadOnly = $derived(this.#currentSessionIsSharedBySomeoneElse || isCurrentSessionReadOnly(this.#currentSession));
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
@@ -1503,6 +1510,22 @@ export class ChatAppState implements IChatAppState {
 
     get sortedChatSessions() {
         return this.#sortedChatSessions;
+    }
+
+    get legacyChatSessions() {
+        return this.#legacyChatSessions;
+    }
+
+    get loadingLegacyChatSessions() {
+        return this.#loadingLegacyChatSessions;
+    }
+
+    get legacyChatsLoaded() {
+        return this.#legacyChatsLoaded;
+    }
+
+    get currentAccountContext(): string | undefined {
+        return getSessionEntityValue(this.#currentSession);
     }
 
     get userDataOverrideSettings() {
@@ -2772,7 +2795,23 @@ export class ChatAppState implements IChatAppState {
     // === SHARING-RELATED METHODS ===
 
     async initializeData() {
-        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions()]);
+        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions(), this.loadLegacySessions()]);
+    }
+
+    async loadLegacySessions() {
+        this.#loadingLegacyChatSessions = true;
+        try {
+            const result: LegacySessionsResult = await loadLegacyChatsIfNeeded(
+                this.#appState.identity.user,
+                this.#chatApp.chatAppId
+            );
+            this.#legacyChatSessions = result.sessions;
+            this.#legacyChatsLoaded = result.loaded;
+        } catch (err) {
+            handleClientError(err, 'loading legacy chat sessions', this.#showToast, 'loading legacy sessions failed:');
+        } finally {
+            this.#loadingLegacyChatSessions = false;
+        }
     }
 
     async refreshRecentSharedSessions() {

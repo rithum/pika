@@ -1,3 +1,4 @@
+import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { IdentityState } from '$lib/client/app/identity/identity.state.svelte';
 import type { FetchZ } from '$lib/client/app/types';
 import type { ComponentRegistry } from '$lib/client/features/chat/message-segments/component-registry';
@@ -214,6 +215,12 @@ export class SessionInsightsState {
 
     get currentSession() {
         return this.#currentSession;
+    }
+
+    /** Returns the entity/account identifier for the currently selected session (C4). */
+    getCurrentSessionAccountOrEntityValue(): string | undefined {
+        if (!this.#currentSession) return undefined;
+        return getSessionEntityValue(this.#currentSession);
     }
 
     get currentSessionMessages() {

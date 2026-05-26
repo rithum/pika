@@ -1,6 +1,7 @@
 import { getAllChatApps } from '$lib/server/chat-admin-apis';
+import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { handleApiGatewayError, isUserAllowedToUseSessionInsights, isUserSiteAdmin } from '$lib/server/utils';
+import { handleApiGatewayError, isUserAllowedToUseSessionInsights } from '$lib/server/utils';
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 
@@ -12,11 +13,11 @@ export const load: LayoutServerLoad = async ({ locals, url, depends }) => {
         error(401, 'Unauthorized');
     }
 
-    if (!isUserSiteAdmin(locals.user)) {
+    if (!(await isUserAllowedAdminAccess(locals.user))) {
         error(403, 'User is not site admin');
     }
 
-    if (url.pathname.includes('session-insights') && !isUserAllowedToUseSessionInsights(locals.user)) {
+    if (url.pathname.includes('session-insights') && !(await isUserAllowedToUseSessionInsights(locals.user))) {
         error(403, 'User is not allowed to use session insights');
     }
 

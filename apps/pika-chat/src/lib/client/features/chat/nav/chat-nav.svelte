@@ -1,12 +1,15 @@
 <script lang="ts">
     import PinOff from '$icons/lucide/pin-off';
     import Share from '$icons/lucide/share-2';
+    import { getLegacyChatsSectionHeader } from '$lib/custom/legacy-chats-section-header';
     import { Button } from 'pika-ux/shadcn/button';
     import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
 
     const chat = getContext<ChatAppState>('chatAppState');
+
+    const LegacyChatsHeader = getLegacyChatsSectionHeader();
 
     let hoveredSessionId: string | null = null;
     let hoveredShareId: string | null = null;
@@ -137,6 +140,36 @@
                     </Button>
                 {/if}
             {/each}
+        </div>
+    </Sidebar.Group>
+{/if}
+
+{#if chat.legacyChatsLoaded}
+    <Sidebar.Group>
+        <Sidebar.GroupLabel>
+            {#if LegacyChatsHeader}
+                <svelte:component this={LegacyChatsHeader} />
+            {/if}
+        </Sidebar.GroupLabel>
+        <div class="flex flex-col w-full pl-2">
+            {#if chat.loadingLegacyChatSessions}
+                <div class="text-xs text-muted-foreground px-2 py-1">Loading...</div>
+            {:else if chat.legacyChatSessions.length === 0}
+                <div class="text-xs text-muted-foreground px-2 py-1">No legacy sessions found.</div>
+            {:else}
+                {#each chat.legacyChatSessions as session}
+                    <Button
+                        variant="ghost"
+                        class="w-full text-sm font-medium justify-start p-0"
+                        disabled={chat.isStreamingResponseNow}
+                        onclick={() => chat.setCurrentSessionById(session.sessionId)}
+                    >
+                        <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
+                            {session.title || session.sessionId}
+                        </div>
+                    </Button>
+                {/each}
+            {/if}
         </div>
     </Sidebar.Group>
 {/if}

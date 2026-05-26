@@ -1,4 +1,5 @@
 import type { ErrorResponse, SuccessResponse } from '$client/app/types';
+import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { error, isHttpError, json } from '@sveltejs/kit';
 import { type AuthenticatedUser, type ChatUser, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
@@ -128,8 +129,8 @@ export function isUserSiteAdmin(user: AuthenticatedUser<RecordOrUndef, RecordOrU
     return result;
 }
 
-export function isUserAllowedToUseSessionInsights(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {
-    return isUserSiteAdmin(user) && (siteFeatures?.siteAdmin?.sessionInsights?.enabled ?? false);
+export async function isUserAllowedToUseSessionInsights(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): Promise<boolean> {
+    return (await isUserAllowedAdminAccess(user)) && (siteFeatures?.siteAdmin?.sessionInsights?.enabled ?? false);
 }
 
 export function isUserAllowedToUseSpecificUserAccessControl(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): boolean {

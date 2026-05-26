@@ -150,6 +150,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Customize the UI', slug: 'guides/customization/ui' },
                     { label: 'UI Theming', slug: 'guides/customization/theming' },
                     { label: 'Custom Logout Dialog', slug: 'guides/customization/custom-logout-dialog' },
+                    { label: 'Extension Points', slug: 'guides/customization/extension-points' },
                     { label: 'Client Lifecycle Hooks', slug: 'guides/customization/client-lifecycle-hooks' },
                     { label: 'Server Hooks', slug: 'guides/customization/server-hooks' },
                     { label: 'Build Custom Web Components', slug: 'guides/customization/build-web-components' },

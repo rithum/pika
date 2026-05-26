@@ -25,7 +25,9 @@ import {
 import { getChatMessages, searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
-import { handleApiGatewayError, isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl, isUserSiteAdmin } from '$lib/server/utils';
+import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
+import { transformSessionAccountContext } from '$lib/custom/session-account-context';
+import { handleApiGatewayError, isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ConverseRequestWithCommand, GetChatMessagesAsAdminResponse, SimpleAuthenticatedUser, SiteAdminRequest } from 'pika-shared/types/chatbot/chatbot-types';
 import { getValuesForEntityAutoComplete, getValuesForEntityList } from './custom-data';
@@ -38,7 +40,7 @@ export const POST: RequestHandler = async (event) => {
         throw redirect(302, '/auth/login');
     }
 
-    if (!isUserSiteAdmin(user)) {
+    if (!(await isUserAllowedAdminAccess(user))) {
         throw error(403, 'You do not have permission to perform this action');
     }
 
@@ -251,7 +253,8 @@ export const POST: RequestHandler = async (event) => {
             }
 
             const search = await searchForSessions(siteAdminReq.search);
-            return json({ ...search });
+            const enrichedSessions = search.sessions?.map((s) => transformSessionAccountContext(s, user)) ?? search.sessions;
+            return json({ ...search, sessions: enrichedSessions });
         } else if (siteAdminReq.command === 'getSessionAnalytics') {
             if (!('analyticsRequest' in siteAdminReq)) {
                 throw error(400, 'analyticsRequest is required');

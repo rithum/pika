@@ -1,4 +1,4 @@
-import { isUserSiteAdmin } from '$lib/server/utils';
+import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     // console.log('[Layout Server] User:', JSON.stringify(locals.user, null, 2));
 
-    if (!isUserSiteAdmin(locals.user)) {
+    if (!(await isUserAllowedAdminAccess(locals.user))) {
         error(403, 'User is not site admin');
     }
 };
