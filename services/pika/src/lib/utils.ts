@@ -311,7 +311,65 @@ export function convertChatSessionToCamelFromSnakeCase<T extends RecordOrUndef =
         );
     }
 
+    // Normalize account ID onto the top-level session row for admin tables.
+    const sessionAttributes = (converted as any).sessionAttributes as Record<string, unknown> | undefined;
+    const normalizedAccountId = getNormalizedAccountId(sessionAttributes);
+    if (normalizedAccountId) {
+        (converted as any).accountId = normalizedAccountId;
+    }
+
     return converted as ChatSession<T>;
+}
+
+const DEFAULT_ACCOUNT_ID_FIELD_NAMES = ['accountId', 'account_id'];
+
+function getAccountIdFieldNames(): string[] {
+    const envVal = process.env.PIKA_ACCOUNT_ID_FIELD_NAMES;
+    return envVal ? envVal.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_ACCOUNT_ID_FIELD_NAMES;
+}
+
+/**
+ * Extracts a normalized account ID string from a session-attributes object.
+ * Tries each field name in `accountIdFieldNames` (top-level keys first, then
+ * the nested `account` sub-object's `id`/`accountId`/`account_id` fields).
+ *
+ * @param sessionAttributes - The session attributes record to inspect
+ * @param accountIdFieldNames - Field names to try, in order. Defaults to `PIKA_ACCOUNT_ID_FIELD_NAMES`
+ *   env var value, or `['accountId', 'account_id']` if not set.
+ * @returns The first non-empty string (or stringified number) found, or undefined
+ */
+function getNormalizedAccountId(
+    sessionAttributes: Record<string, unknown> | undefined,
+    accountIdFieldNames: string[] = getAccountIdFieldNames()
+): string | undefined {
+    if (!sessionAttributes) {
+        return undefined;
+    }
+
+    for (const fieldName of accountIdFieldNames) {
+        const rawValue = sessionAttributes[fieldName];
+        if (typeof rawValue === 'string' && rawValue.length > 0) {
+            return rawValue;
+        }
+        if (typeof rawValue === 'number') {
+            return String(rawValue);
+        }
+    }
+
+    // Fall back to nested account object (account.id, account.accountId, account.account_id)
+    const accountObject = sessionAttributes.account;
+    if (accountObject && typeof accountObject === 'object' && !Array.isArray(accountObject)) {
+        const accountRecord = accountObject as Record<string, unknown>;
+        const nestedAccountId = accountRecord.id ?? accountRecord.accountId ?? accountRecord.account_id;
+        if (typeof nestedAccountId === 'string' && nestedAccountId.length > 0) {
+            return nestedAccountId;
+        }
+        if (typeof nestedAccountId === 'number') {
+            return String(nestedAccountId);
+        }
+    }
+
+    return undefined;
 }
 
 /**

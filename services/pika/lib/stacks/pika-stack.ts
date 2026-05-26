@@ -48,7 +48,8 @@ export class PikaStack extends cdk.Stack {
                 sessionInsightsFeature: props.sessionInsightsFeature,
                 userMemoryFeature: props.userMemoryFeature,
                 stackTags: processedTags,
-                componentTagNames: props.pikaConfig.stackTags?.componentTagNames
+                componentTagNames: props.pikaConfig.stackTags?.componentTagNames,
+                accountIdFieldNames: props.pikaConfig.accountIdFieldNames
             })
         );
 

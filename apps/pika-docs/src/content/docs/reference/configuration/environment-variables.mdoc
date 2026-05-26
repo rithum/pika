@@ -97,6 +97,18 @@ Feature flags are typically configured in `pika-config.ts` rather than environme
 | `DISABLE_USER_MEMORY` | `boolean` | Disable user memory feature |
 | `DISABLE_INSIGHTS` | `boolean` | Disable session insights |
 
+### Debug Logging
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CHAT_DEBUG_LOGS` | `'true'` \| `'false'` | `'false'` | Enable verbose session debug logging in the chat and admin APIs. When `'true'`, Lambda functions log raw DDB item keys, account-ID fields found, session-attribute contents, and each step of `ensureChatSession`/`addChatMessage`. **Disable in production** — outputs are intended for debugging account-context issues only and can be noisy. Has zero cost when `'false'` (all checks are `=== 'true'` comparisons). |
+
+### Account ID Field Names
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PIKA_ACCOUNT_ID_FIELD_NAMES` | `string` (comma-separated) | `'accountId,account_id'` | Comma-separated list of field names to search when normalizing an account ID out of `sessionAttributes`. Tried in order. Set automatically by CDK from `pikaConfig.accountIdFieldNames`. Most consumers do not need to override this. |
+
 ## Local Development
 
 ### Local .env File Example

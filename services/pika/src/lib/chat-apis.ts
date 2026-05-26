@@ -61,6 +61,7 @@ import {
     getUserPrefsByUserId,
     getUserSessionsByUserId,
     markSessionAsShared,
+    mergeSessionAttributes,
     pinSession,
     recordSharedSessionVisit,
     revokeSharedSession,
@@ -73,6 +74,68 @@ import {
 } from './chat-ddb';
 import { getMatchingChatApps } from './get-matching-chat-apps';
 import { createSessionToken, getNextMessageId, validateUserCanAccessSession } from './utils';
+
+function toStringId(value: unknown): string | undefined {
+    if (typeof value === 'string' && value.length > 0) {
+        return value;
+    }
+    if (typeof value === 'number') {
+        return String(value);
+    }
+    return undefined;
+}
+
+function hasSessionAccountContext(session: ChatSession<RecordOrUndef>): boolean {
+    const sessionRecord = session as unknown as Record<string, unknown>;
+    const topLevelAccountId = sessionRecord.accountId ?? sessionRecord.account_id;
+    if (toStringId(topLevelAccountId)) {
+        return true;
+    }
+
+    const sessionAttributes = (sessionRecord.sessionAttributes as Record<string, unknown> | undefined) ?? undefined;
+    const sessionAttributesAccountId = sessionAttributes?.accountId ?? sessionAttributes?.account_id;
+    if (toStringId(sessionAttributesAccountId)) {
+        return true;
+    }
+
+    const accountObject = sessionAttributes?.account;
+    if (accountObject && typeof accountObject === 'object' && !Array.isArray(accountObject)) {
+        const accountRecord = accountObject as Record<string, unknown>;
+        return !!toStringId(accountRecord.id ?? accountRecord.accountId ?? accountRecord.account_id);
+    }
+
+    return false;
+}
+
+function getAccountBackfillAttributes(customUserData: Record<string, unknown> | undefined): Record<string, unknown> {
+    if (!customUserData) {
+        return {};
+    }
+
+    const allowedKeys = [
+        'accountId',
+        'account_id',
+        'accountType',
+        'account_type',
+        'accountName',
+        'account_name',
+        'account'
+    ];
+
+    const attributes: Record<string, unknown> = {};
+    for (const key of allowedKeys) {
+        const value = customUserData[key];
+        if (value !== undefined && value !== null) {
+            attributes[key] = value;
+        }
+    }
+
+    return attributes;
+}
+
+function isChatDebugLogsEnabled(): boolean {
+    return process.env.CHAT_DEBUG_LOGS === 'true';
+}
 
 /**
  * Get all chat messages for a session.
@@ -156,28 +219,64 @@ export async function ensureChatSession(
     source: ConverseSource,
     userType?: UserType
 ): Promise<[ChatSession<RecordOrUndef>, boolean]> {
-    console.log('ensureChatSession called with:', {
-        userId: user.userId,
-        sessionId: requestData.sessionId,
-        agentId,
-        chatAppId,
-        simpleUser,
-        invocationMode,
-        entityEnabled,
-        entityValue,
-        userType
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('ensureChatSession called with:', {
+            userId: user.userId,
+            sessionId: requestData.sessionId,
+            agentId,
+            chatAppId,
+            simpleUser,
+            invocationMode,
+            entityEnabled,
+            entityValue,
+            userType
+        });
+    }
 
     let isNewSession = false;
     let chatSession: ChatSession<RecordOrUndef> | undefined = requestData.sessionId ? await getChatSession(user.userId, requestData.sessionId) : undefined;
 
-    console.log('Existing session lookup result:', {
-        found: !!chatSession,
-        sessionId: requestData.sessionId
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('Existing session lookup result:', {
+            found: !!chatSession,
+            sessionId: requestData.sessionId
+        });
+    }
+
+    if (chatSession) {
+        const customUserDataRecord = simpleUser.customUserData as Record<string, unknown> | undefined;
+        const backfillAttributes = getAccountBackfillAttributes(customUserDataRecord);
+
+        if (!hasSessionAccountContext(chatSession) && Object.keys(backfillAttributes).length > 0) {
+            try {
+                await mergeSessionAttributes(user.userId, chatSession.sessionId, backfillAttributes);
+                chatSession.sessionAttributes = {
+                    ...(chatSession.sessionAttributes ?? {}),
+                    ...backfillAttributes
+                };
+
+                if (isChatDebugLogsEnabled()) {
+                    console.log('ensureChatSession backfilled account context for existing session', {
+                        sessionId: chatSession.sessionId,
+                        userId: chatSession.userId,
+                        chatAppId: chatSession.chatAppId,
+                        backfilledKeys: Object.keys(backfillAttributes)
+                    });
+                }
+            } catch (error) {
+                console.warn('ensureChatSession failed to backfill account context', {
+                    sessionId: chatSession.sessionId,
+                    userId: chatSession.userId,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            }
+        }
+    }
 
     if (!chatSession) {
-        console.log('No existing session found, creating new session');
+        if (isChatDebugLogsEnabled()) {
+            console.log('No existing session found, creating new session');
+        }
 
         chatSession = await createChatSession({
             userId: user.userId,
@@ -201,22 +300,26 @@ export async function ensureChatSession(
             userType: userType ?? 'external-user'
         });
 
-        console.log('New session created:', {
-            sessionId: chatSession.sessionId,
-            userId: chatSession.userId,
-            chatAppId: chatSession.chatAppId,
-            agentId: chatSession.agentId,
-            entityId: chatSession.entityId
-        });
+        if (isChatDebugLogsEnabled()) {
+            console.log('New session created:', {
+                sessionId: chatSession.sessionId,
+                userId: chatSession.userId,
+                chatAppId: chatSession.chatAppId,
+                agentId: chatSession.agentId,
+                entityId: chatSession.entityId
+            });
+        }
 
         isNewSession = true;
     }
 
-    console.log('Returning session:', {
-        sessionId: chatSession.sessionId,
-        isNewSession,
-        lastUpdate: chatSession.lastUpdate
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('Returning session:', {
+            sessionId: chatSession.sessionId,
+            isNewSession,
+            lastUpdate: chatSession.lastUpdate
+        });
+    }
 
     return [chatSession, isNewSession];
 }
@@ -258,6 +361,27 @@ export async function getChatSession(userId: string, sessionId: string): Promise
     const chatSession = await getChatSessionByUserIdAndSessionId(userId, sessionId);
     if (chatSession) {
         validateUserAgainstSession(chatSession, userId, sessionId);
+        try {
+            const sessionAttributes = chatSession.sessionAttributes as Record<string, unknown> | undefined;
+            if (isChatDebugLogsEnabled()) {
+                console.log('getChatSession debug:', {
+                    sessionId: chatSession.sessionId,
+                    userId: chatSession.userId,
+                    chatAppId: chatSession.chatAppId,
+                    entityId: chatSession.entityId ?? null,
+                    accountId: (chatSession as unknown as { accountId?: unknown }).accountId ?? null,
+                    sessionAttributesKeys: sessionAttributes ? Object.keys(sessionAttributes) : [],
+                    sessionAttributesAccountId: sessionAttributes?.accountId ?? sessionAttributes?.account_id ?? null,
+                    sessionAttributesAccount: sessionAttributes?.account ?? null,
+                    createDate: chatSession.createDate,
+                    lastUpdate: chatSession.lastUpdate
+                });
+            }
+        } catch (e) {
+            if (isChatDebugLogsEnabled()) {
+                console.warn('getChatSession: failed to log session debug', e);
+            }
+        }
     }
     return chatSession;
 }
@@ -277,22 +401,28 @@ export async function addChatMessage(
     userQuestionAsked?: string,
     answerToQuestionFromAgent?: string
 ): Promise<ChatMessage> {
-    console.log('addChatMessage called with:', {
-        sessionId: chatMessageForCreate.sessionId,
-        userId: chatMessageForCreate.userId,
-        source: chatMessageForCreate.source,
-        hasChatSession: !!chatSession,
-        hasUserQuestion: !!userQuestionAsked,
-        hasAgentAnswer: !!answerToQuestionFromAgent
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('addChatMessage called with:', {
+            sessionId: chatMessageForCreate.sessionId,
+            userId: chatMessageForCreate.userId,
+            source: chatMessageForCreate.source,
+            hasChatSession: !!chatSession,
+            hasUserQuestion: !!userQuestionAsked,
+            hasAgentAnswer: !!answerToQuestionFromAgent
+        });
+    }
 
     if (!chatSession) {
-        console.log('No chat session provided, fetching from database');
+        if (isChatDebugLogsEnabled()) {
+            console.log('No chat session provided, fetching from database');
+        }
         chatSession = await getChatSession(chatMessageForCreate.userId, chatMessageForCreate.sessionId);
-        console.log('Fetched chat session:', {
-            found: !!chatSession,
-            sessionId: chatMessageForCreate.sessionId
-        });
+        if (isChatDebugLogsEnabled()) {
+            console.log('Fetched chat session:', {
+                found: !!chatSession,
+                sessionId: chatMessageForCreate.sessionId
+            });
+        }
     }
     if (!chatSession) {
         console.error('Chat session not found:', {
@@ -302,7 +432,9 @@ export async function addChatMessage(
         throw new UnauthorizedError(`Unauthorized: chat session not found: ${chatMessageForCreate.sessionId}`);
     }
 
-    console.log('Validating user against session');
+    if (isChatDebugLogsEnabled()) {
+        console.log('Validating user against session');
+    }
     if (chatMessageForCreate.userId !== 'assistant') {
         // Only validate the user against the session if the user is not the assistant adding the message
         validateUserAgainstSession(chatSession, chatMessageForCreate.userId, chatMessageForCreate.sessionId);
@@ -317,47 +449,61 @@ export async function addChatMessage(
         userType: chatSession.userType || 'internal-user'
     };
 
-    console.log('Created chat message:', {
-        messageId: chatMessage.messageId,
-        timestamp: chatMessage.timestamp,
-        lastMessageId: chatSession.lastMessageId
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('Created chat message:', {
+            messageId: chatMessage.messageId,
+            timestamp: chatMessage.timestamp,
+            lastMessageId: chatSession.lastMessageId
+        });
+    }
 
-    console.log('Adding message and updating session in parallel');
+    if (isChatDebugLogsEnabled()) {
+        console.log('Adding message and updating session in parallel');
+    }
     await Promise.all([
         addMessage(chatMessage),
         updateSession(chatMessage.sessionId, chatSession.userId, chatMessage.messageId, chatMessage.timestamp, chatMessage.usage, chatSession.chatAppId, chatSession.source)
     ]);
-    console.log('Message added and session updated');
+    if (isChatDebugLogsEnabled()) {
+        console.log('Message added and session updated');
+    }
 
     // Update the local object with the new message id and update timestamp
     chatSession.lastMessageId = chatMessage.messageId;
     chatSession.lastUpdate = chatMessage.timestamp;
-    console.log('Local session object updated:', {
-        lastMessageId: chatSession.lastMessageId,
-        lastUpdate: chatSession.lastUpdate
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('Local session object updated:', {
+            lastMessageId: chatSession.lastMessageId,
+            lastUpdate: chatSession.lastUpdate
+        });
+    }
 
     if (userQuestionAsked && answerToQuestionFromAgent && chatSession.title == null) {
         try {
-            console.log('Updating session title with Bedrock');
+            if (isChatDebugLogsEnabled()) {
+                console.log('Updating session title with Bedrock');
+            }
             const sessionResponse = await updateSessionTitle(chatMessageForCreate.sessionId, chatMessageForCreate.userId, {
                 userId: chatMessageForCreate.userId,
                 userQuestionAsked: userQuestionAsked,
                 answerToQuestionFromAgent: answerToQuestionFromAgent
             });
             chatSession.title = sessionResponse.session.title;
-            console.log('Session title updated:', chatSession.title);
+            if (isChatDebugLogsEnabled()) {
+                console.log('Session title updated:', chatSession.title);
+            }
         } catch (error) {
             console.error('Failed to generate session title (non-fatal):', error instanceof Error ? error.message : error);
         }
     }
 
-    console.log('Returning chat message:', {
-        messageId: chatMessage.messageId,
-        timestamp: chatMessage.timestamp,
-        source: chatMessage.source
-    });
+    if (isChatDebugLogsEnabled()) {
+        console.log('Returning chat message:', {
+            messageId: chatMessage.messageId,
+            timestamp: chatMessage.timestamp,
+            source: chatMessage.source
+        });
+    }
     return chatMessage;
 }
 

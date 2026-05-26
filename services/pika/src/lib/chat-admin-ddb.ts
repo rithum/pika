@@ -2578,3 +2578,70 @@ export async function batchGetUsersByUserIds(userIds: string[]): Promise<ChatUse
 
     return allUsers;
 }
+
+/**
+ * Batch-fetch the `customData` field for a list of user IDs.
+ * Uses BatchGetItem for efficiency, processing in batches of 100 with p-retry.
+ *
+ * @param userIds - User IDs to fetch custom data for
+ * @returns Map of userId → customData (entries missing from DDB are omitted)
+ */
+export async function batchGetUserCustomDataByUserIds(userIds: string[]): Promise<Map<string, RecordOrUndef>> {
+    if (userIds.length === 0) {
+        return new Map();
+    }
+
+    const BATCH_SIZE = 100;
+    const result = new Map<string, RecordOrUndef>();
+
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+        const chunk = userIds.slice(i, i + BATCH_SIZE);
+
+        const users = await pRetry(
+            async () => {
+                const keys = chunk.map((userId) => ({ user_id: userId }));
+
+                const response = await ddbDocClient.batchGet({
+                    RequestItems: {
+                        [getChatUserTable()]: {
+                            Keys: keys,
+                            ProjectionExpression: 'user_id, custom_data'
+                        }
+                    }
+                });
+
+                if (response.UnprocessedKeys && Object.keys(response.UnprocessedKeys).length > 0) {
+                    console.warn('Some keys were unprocessed in batch get user customData operation, will retry');
+                    throw new HttpStatusError('Unprocessed keys detected', 500);
+                }
+
+                return (response.Responses?.[getChatUserTable()] || []).map((item) => {
+                    const camelItem = convertChatUserToCamelFromSnakeCase(item as SnakeCase<ChatUser>);
+                    return { userId: camelItem.userId, customData: camelItem.customData };
+                });
+            },
+            {
+                retries: 3,
+                factor: 2,
+                minTimeout: 100,
+                maxTimeout: 2000,
+                onFailedAttempt: (error) => {
+                    if (isRetryableError(error)) {
+                        console.warn(`Batch get user customData attempt ${error.attemptNumber} failed, retrying:`, error.message);
+                    } else {
+                        console.warn('Non-retryable error in batch get user customData:', error.message);
+                        throw new AbortError(error.message);
+                    }
+                }
+            }
+        );
+
+        for (const u of users) {
+            if (u.userId) {
+                result.set(u.userId, u.customData ?? undefined);
+            }
+        }
+    }
+
+    return result;
+}

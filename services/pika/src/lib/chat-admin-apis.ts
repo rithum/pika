@@ -33,6 +33,7 @@ import type {
     ChatAppOverride,
     ChatAppOverrideDdb,
     ChatAppOverrideForCreateOrUpdate,
+    ChatSession,
     ChatSessionFeedback,
     ChatSessionFeedbackForCreate,
     ChatSessionFeedbackForUpdate,
@@ -103,7 +104,7 @@ import {
     updateFeedback,
     updateTool
 } from './chat-admin-ddb';
-import { batchGetUsersByUserIds } from './chat-admin-ddb';
+import { batchGetUsersByUserIds, batchGetUserCustomDataByUserIds } from './chat-admin-ddb';
 import {
     agentsAreSame,
     arraysAreSame,
@@ -1524,14 +1525,71 @@ export async function updateChatSessionFeedback(feedback: ChatSessionFeedbackFor
 }
 
 export async function searchForSessions(search: SessionSearchRequest<RecordOrUndef>): Promise<SessionSearchResponse<RecordOrUndef>> {
-    // Log what we're about to pass to the OS query layer
+    const response = await queryForSessions<RecordOrUndef>(search);
+
+    // Enrich sessions missing account context by looking up user customData from DDB.
+    // This handles sessions created before account tracking was implemented.
     try {
-        console.log('searchForSessions: calling queryForSessions with', JSON.stringify(search, null, 2));
+        const sessionsNeedingEnrichment = response.sessions.filter(
+            (s) => !extractTopLevelAccountId(s) && !extractSessionAttributesAccountId(s)
+        );
+        if (sessionsNeedingEnrichment.length > 0) {
+            const userIds = [
+                ...new Set(
+                    sessionsNeedingEnrichment
+                        .map((s) => s.userId)
+                        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+                )
+            ];
+            if (userIds.length > 0) {
+                const customDataMap = await batchGetUserCustomDataByUserIds(userIds);
+                for (const session of sessionsNeedingEnrichment) {
+                    const customData = session.userId ? customDataMap.get(session.userId) : undefined;
+                    if (!customData) continue;
+                    const accountId = extractAccountIdFromRecord(customData as Record<string, unknown>);
+                    if (accountId) {
+                        const sessionRecord = session as unknown as Record<string, unknown>;
+                        sessionRecord.accountId = accountId;
+                        if (!sessionRecord.sessionAttributes || typeof sessionRecord.sessionAttributes !== 'object') {
+                            sessionRecord.sessionAttributes = {};
+                        }
+                        (sessionRecord.sessionAttributes as Record<string, unknown>).accountId = accountId;
+                    }
+                }
+            }
+        }
     } catch (e) {
-        console.warn('searchForSessions: failed to log request payload', e);
+        console.warn('searchForSessions account enrichment failed (non-fatal):', e instanceof Error ? e.message : e);
     }
 
-    return await queryForSessions<RecordOrUndef>(search);
+    return response;
+}
+
+/** Returns the top-level accountId/account_id value from a session row, or undefined. */
+function extractTopLevelAccountId(session: ChatSession<RecordOrUndef>): string | undefined {
+    const r = session as unknown as Record<string, unknown>;
+    const v = r.accountId ?? r.account_id;
+    if (typeof v === 'string' && v.length > 0) return v;
+    if (typeof v === 'number') return String(v);
+    return undefined;
+}
+
+/** Returns the accountId/account_id value nested inside sessionAttributes, or undefined. */
+function extractSessionAttributesAccountId(session: ChatSession<RecordOrUndef>): string | undefined {
+    const attrs = (session as unknown as Record<string, unknown>).sessionAttributes as Record<string, unknown> | undefined;
+    if (!attrs) return undefined;
+    const v = attrs.accountId ?? attrs.account_id;
+    if (typeof v === 'string' && v.length > 0) return v;
+    if (typeof v === 'number') return String(v);
+    return undefined;
+}
+
+/** Extracts a string account ID from an arbitrary data record (e.g., user customData). */
+function extractAccountIdFromRecord(data: Record<string, unknown>): string | undefined {
+    const v = data.accountId ?? data.account_id;
+    if (typeof v === 'string' && v.length > 0) return v;
+    if (typeof v === 'number') return String(v);
+    return undefined;
 }
 
 /**

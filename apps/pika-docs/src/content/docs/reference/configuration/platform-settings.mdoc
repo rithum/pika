@@ -601,6 +601,36 @@ userMemory: {
 }
 ```
 
+## Account ID Field Names
+
+Controls which field names are searched when normalizing an account ID out of a user's `sessionAttributes`. The normalized value is projected onto the top-level session row so admin tables and search results always have a consistent `accountId` column.
+
+```typescript
+accountIdFieldNames?: string[];
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `accountIdFieldNames` | `string[]` | `['accountId', 'account_id']` | Field names tried in order against `sessionAttributes` (and the nested `account` sub-object). |
+
+**When to use:** Override this when your user records store the account identifier under a different or additional field name (e.g., legacy B2B systems using `retailerId` or `supplierId`). The default covers the two canonical pika field names; consumers should only extend this list, not replace it.
+
+**Example:**
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    // ... project names, siteFeatures ...
+    accountIdFieldNames: ['accountId', 'account_id', 'retailerId', 'supplierId']
+};
+```
+
+The value is passed to Lambda functions as the `PIKA_ACCOUNT_ID_FIELD_NAMES` environment variable (comma-joined). Consumers that do not set this option get the default `['accountId', 'account_id']` behavior with no change to existing sessions.
+
+{% aside type="note" title="Behavior on upgrade" %}
+Adding field names is non-breaking. Existing sessions that already have `accountId` or `account_id` are unaffected. New or legacy sessions that only have an account ID under a custom field name will now surface it in admin queries.
+{% /aside %}
+
 ## Complete Example
 
 ```typescript
