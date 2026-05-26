@@ -3,8 +3,8 @@ llm-instruction debug trace.
 
 Emits a trace containing the full instruction string (system prompt + tags +
 directives + user instruction + user message) the agent was given on this turn.
-The trace is gzip+base64-encoded using the exact encoding TS uses
-(gzipSync -> hex -> base64) so the existing downstream consumers keep working:
+The trace is gzip+base64-encoded using the exact encoding TS uses so the existing
+downstream consumers keep working:
 
   1. Admin Answer Reasoning panel (trace.svelte) — decompresses and renders.
   2. OpenSearch message indexing (message-changed/index.ts) — filters by the
@@ -20,7 +20,7 @@ Wire format MUST match exactly:
         "traceId": "llm-instruction",
         "text": JSON.stringify({
           "type": "llm-instruction",
-          "compressedData": "<gzip->hex->base64 of instruction>"
+          "compressedData": "<base64(gzip(instruction))>"
         })
       }
     }
@@ -35,16 +35,24 @@ from typing import Optional
 
 
 def gzip_base64_encode(s: str) -> str:
-    """Encode a string as gzip -> hex -> base64, matching TS gzipAndBase64EncodeString()."""
+    """Encode a string as gzip -> base64, matching TS gzipAndBase64EncodeString().
+
+    TS gzipAndBase64EncodeString() does: gzip -> hex -> decode-hex-back-to-bytes -> base64.
+    The intermediate hex round-trip is a no-op; the result is base64(gzip(s)).
+
+    The prior implementation encoded the hex string as ASCII before base64, producing
+    base64(ascii(hex(gzip(s)))) which the client's gunzipBase64EncodedString cannot
+    decompress — causing the LLM Instruction accordion onclick to throw, so the chevron
+    never rotated and the panel never expanded.
+    """
     gzipped = gzip.compress(s.encode('utf-8'))
-    hex_string = gzipped.hex()
-    return base64.b64encode(hex_string.encode('ascii')).decode('ascii')
+    return base64.b64encode(gzipped).decode('ascii')
 
 
 def gunzip_base64_decode(encoded: str) -> str:
     """Inverse of gzip_base64_encode(). Matches TS gunzipBase64EncodedString()."""
-    hex_string = base64.b64decode(encoded).decode('ascii')
-    return gzip.decompress(bytes.fromhex(hex_string)).decode('utf-8')
+    gzip_bytes = base64.b64decode(encoded)
+    return gzip.decompress(gzip_bytes).decode('utf-8')
 
 
 def build_full_instruction(system_prompt: str = '', tags_instructions: str = '',
