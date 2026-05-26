@@ -59,20 +59,19 @@ class TestLlmInstructionEncoding:
         assert decoded == original
 
     def test_node_gzip_compatibility(self):
-        """Payload must gunzip with Python gzip (stdlib) — compatibility with Node gzipSync."""
+        """Payload must gunzip with Python gzip (stdlib) — compatibility with Node gzipSync.
+
+        The fallback hex-decode path was removed (ES-3073): it masked the bug where the
+        encoder produced base64(ascii(hex(gzip(s)))) instead of base64(gzip(s)). The JS
+        client has no fallback — it calls gunzipSync() directly on the base64-decoded bytes,
+        so gzip.decompress must succeed without any hex round-trip.
+        """
         from debug_trace import gzip_base64_encode  # noqa: PLC0415
 
         original = 'test instruction payload'
         encoded = gzip_base64_encode(original)
         raw = base64.b64decode(encoded)
-        # If the encoder produced a hex-then-base64 blob (as Node does), base64 decode yields
-        # the hex string; we accept either "pure gzip bytes" or "hex-of-gzip-bytes" as long as
-        # it round-trips to original.
-        try:
-            decompressed = gzip.decompress(raw).decode('utf-8')
-        except (OSError, UnicodeDecodeError):
-            # Try hex path — matches Node's gzipSync(...).toString('hex')-then-base64
-            decompressed = gzip.decompress(bytes.fromhex(raw.decode('ascii'))).decode('utf-8')
+        decompressed = gzip.decompress(raw).decode('utf-8')
         assert decompressed == original
 
 
