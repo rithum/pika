@@ -7,6 +7,48 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.26.0] - 2026-05-26
+
+### Added
+
+- **CM-491 framework seams — 11 AzureAD-friendly extension-point hooks** in `apps/pika-chat/src/lib/custom/`. Covers admin gating (`isUserAllowedAdminAccess` in `site-admin.ts`), legacy session loading (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`), session permissions (`isCurrentSessionReadOnly`), legacy-user-id validation (`validateLegacyUserIdIfNeeded`), entity extraction (`getSessionEntityValue`), session account-context transformation (`transformSessionAccountContext`), ChatUser role-merge bypass (`shouldBypassChatUserRoleMerge`), and auth-provider hooks (`onAuthProviderCallback`, `onBeforeAuth` in `server-hooks.ts`). All hooks default to no-op so existing deployments are unaffected. New `lib/custom/README.md` Extension Points section and pika-docs [Extension Points guide](/guides/customization/extension-points/). [#147]
+- **Demo-mode framework seams — 7 hooks + public CSS contract** in `apps/pika-chat/src/lib/custom/`: `getDemoBannerComponent` (banner slot), `getDemoModeMenuItem` (menu-item slot wired into 4 user dropdowns), `getUserRefreshIntervalMs` (polling cadence), `isInternalUser` (effective-user predicate), `resolveUserForHomeChatApps` (home-page chat-app filter), `shouldShowLogout` (Logout-item visibility in chat/admin/nav dropdowns), `shouldShowDetailedTrace` (detailed-trace UI gate). Public CSS contract via `--demo-banner-h` custom property reserves viewport space when a banner is mounted (5 selectors in `app.css` subtract banner height from `100svh`/`100vh` containers). Defaults preserve current behavior. New pika-docs [Demo-Mode Hooks guide](/guides/customization/demo-mode-hooks/). [#146]
+- **Strands-native long-term user memory** in the Python `converseStrands` Lambda. Agent-driven retrieval (`agent_core_memory.retrieve`) and explicit save (`record`) replace the legacy TypeScript Lambda's per-turn `CreateEventCommand` writes. Two-layer design preserves Bedrock prompt cache: `MEMORY_SYSTEM_PROMPT_ADDITION` describes capability in the shared system prompt; `NEW_SESSION_MEMORY_NUDGE` appends a lightweight retrieval trigger to the first user message of a new session only. Opt in via `agent_def.memory_feature.enabled = true` with a non-empty `memory_id` from AgentCore. New pika-docs [Strands Long-Term User Memory guide](/guides/advanced/strands-memory/). [#152]
+- **Services library account-context utilities** in `services/pika/src/lib/`:
+  - `batchGetUserCustomDataByUserIds()` — batched DDB BatchGet (size 100) with `p-retry` for admin enrichment paths
+  - `getAccountIdFieldNames()` / `getNormalizedAccountId()` / `hasSessionAccountContext()` / `getAccountBackfillAttributes()` — configurable account-ID resolution honoring `PIKA_ACCOUNT_ID_FIELD_NAMES` env var and `PikaConfig.accountIdFieldNames`
+  - `mergeSessionAttributes()` — DDB session-attribute merge helper used by admin search enrichment
+  - `CHAT_DEBUG_LOGS` env var gates noisy chat-API debug logs
+  - New `PikaConfig.accountIdFieldNames` option (defaults to `['accountId', 'account_id']`) wired into the `PIKA_ACCOUNT_ID_FIELD_NAMES` Lambda environment on all 3 converse-handler Lambda definitions in `PikaConstruct` [#149]
+
+### Changed
+
+- **Default `pika sync` `protectedAreas` expanded to v1.0.6** — 9 new default-protected paths cover account/entity integration extension points (`custom-shared-types.ts`, `custom-site-features.ts`, legacy session endpoint, custom-account-search-api, AzureAD callback route, `apps/pika-chat/tools/custom-*/**`), CDK stack-def files (`apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`, `services/pika/lib/stacks/custom-stack-defs.ts`), and shared tooling (`packages/tools/**`). Fallback list in `getDefaultProtectedAreas()` (`packages/pika-cli/src/commands/sync.ts`) mirrored. New `docs/concepts/pika-sync.md` documents the rationale per entry. [#147, #150]
+- **Docker build-cache optimization in `pika-chat-construct.ts`** — `cacheFrom: [{ type: 'gha' }]` is now conditionally passed to `DockerImageAsset` when `DOCKER_CACHE_FROM_GHA=true` (CI deploys via the deploy workflow), enabling near-instant CDK asset publishing on GHA cache hit. Local builds and non-GHA pipelines are unaffected — `buildx --cache-from type=gha` silently no-ops without `ACTIONS_CACHE_URL`. [#148]
+- **Generic robustness improvements** ported from ai-bot CM-491:
+  - **Cookie error path split** in `apps/pika-chat/src/lib/server/cookies.ts` — a corrupt `AUTH_USER` cookie now returns `no_auth_cookie` rather than wiping all other cookies via `version_mismatch`.
+  - **SSM `ParameterNotFound` graceful return** in `apps/pika-chat/src/lib/server/ssm.ts` — catches both typed `ParameterNotFound` and `error.name === 'ParameterNotFound'` and returns `undefined` for caller handling instead of re-throwing.
+  - **`chatAppState` null guards** in `apps/pika-chat/src/routes/(auth)/chat/[chatAppId]/+layout.svelte` — defensive guards on route transitions.
+  - **File-upload hardening** in `apps/pika-chat/src/routes/(auth)/api/site-admin/file/+server.ts` — MIME allowlist, filename sanitization (strip path separators, non-printable chars), and S3 key character-set validation on both POST and DELETE.
+  - **`isUserAllowedToUseSessionInsights` made async** in `apps/pika-chat/src/lib/server/utils.ts` to mirror `isUserAllowedAdminAccess`. All call sites updated. [#147]
+
+### Fixed
+
+- **Strands `debug_trace.py` gzip+base64 encoding** — `gzip_base64_encode` previously produced `base64(hex(gzip(s)))`; the JS client decoder at `apps/pika-chat/src/lib/client/util.ts` expects `base64(gzip(s))`. Encoded debug-trace payloads now round-trip cleanly and the LLM Instruction accordion in the trace UI decodes successfully. Added `test_debug_trace.py` regression suite. [#145]
+
+### Security
+
+- **Alpine base image bumped to 3.22.3** in `apps/pika-chat/Dockerfile` final stage (Snyk advisories on lower-version Alpine). [#151]
+- **`services/samples/weather-direct` SDK pins** — `@aws-sdk/client-lambda` pinned to `3.974.0` and `@aws-sdk/credential-provider-node` pinned to `3.972.1` to pull in patched `fast-xml-parser` (CVEs SNYK-JS-FASTXMLPARSER-15155603, -15307668, -15324289, -15677840, -15699647). Pinned versions only on the weather-direct sample to avoid forcing the workspace catalog. [#151]
+
+### Migration notes
+
+**Stricter admin gating**: If your deployment authenticates a mixed user population (e.g. some users via AzureAD, others via another provider) and you require admin access to be limited to a specific provider, implement `isUserAllowedAdminAccess(user)` in `apps/pika-chat/src/lib/custom/site-admin.ts` BEFORE running `pika sync` to v0.26.0. The default hook is a no-op that delegates to the existing `isUserSiteAdmin` check — adopting the seam before sync avoids any brief window where admin gating differs from your override.
+
+**Strands long-term memory is opt-in**: Existing Strands deployments without `agent_def.memory_feature` are unchanged. To enable, set `memory_feature.enabled = true` and provide a `memory_id` from AgentCore. Without `memory_id`, the handler logs a warning and runs without memory tools.
+
+---
+
 ## [0.25.2] - 2026-05-04
 
 ### Changed
