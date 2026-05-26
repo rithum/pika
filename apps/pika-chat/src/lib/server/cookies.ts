@@ -313,9 +313,14 @@ export function validateAllCookieVersions(
         return { overallStatus: 'no_auth_cookie', details };
     }
 
-    // If AUTH_USER has version issues, we have a problem
-    if (details.AUTH_USER === 'version_mismatch' || details.AUTH_USER === 'error') {
+    // Version mismatch triggers a full cookie wipe to force reauthentication cleanly.
+    if (details.AUTH_USER === 'version_mismatch') {
         return { overallStatus: 'version_mismatch', details };
+    }
+    // Deserialization error (corrupted cookie) — the bad cookie was already cleared.
+    // Treat as no_auth_cookie so only the auth session is lost, not all other cookies.
+    if (details.AUTH_USER === 'error') {
+        return { overallStatus: 'no_auth_cookie', details };
     }
 
     // If ANY other cookie exists but has version issues, we have inconsistent state

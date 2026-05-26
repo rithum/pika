@@ -7,11 +7,12 @@ import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import { transformCustomUserData } from '$lib/custom/server-hooks';
+import { validateLegacyUserIdIfNeeded } from '$lib/custom/legacy-user-validator';
 
 /** Max time (ms) to wait for the server hook before falling back to original data */
 const SERVER_HOOK_TIMEOUT_MS = 5000;
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     if (locals.user.viewingContentFor && Object.keys(locals.user.viewingContentFor).length > 0) {
         if (!isUserContentAdmin(locals.user)) {
             throw error(403, 'Forbidden');
@@ -44,9 +45,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         if (params.userId !== user.userId) {
-            console.log('User ID mismatch:', { userId: params.userId, user: user.userId });
-            throw error(401, 'Unauthorized');
+            const legacyUserId = await validateLegacyUserIdIfNeeded(user.userId, params.userId, {
+                request,
+                cookies,
+                stage: appConfig.stage
+            });
+            if (!legacyUserId) {
+                console.warn('[Legacy Message Auth] legacy userId validation failed for message POST', {
+                    path: '/api/message',
+                    chatAppId: params.chatAppId,
+                    requestedLegacyUserId: params.userId,
+                    sessionUserId: user.userId
+                });
+                throw error(401, 'Unauthorized');
+            }
+            params.userId = legacyUserId;
         }
+
+        const effectiveUserId = params.userId;
 
         //TODO: what do we do if an internal user changes the custom data during a chat session?  Do we care?  Will it break anything downstream?
         const rawCustomUserData = user.overrideData?.[params.chatAppId] ?? user.customData;
@@ -60,7 +76,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         try {
             const hookResult = await Promise.race([
                 transformCustomUserData(rawCustomUserData, {
-                    userId: user.userId,
+                    userId: effectiveUserId,
                     chatAppId: params.chatAppId
                 }),
                 timeout
@@ -79,7 +95,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
-            userId: user.userId,
+            userId: effectiveUserId,
             customUserData: resolvedCustomUserData
         };
 

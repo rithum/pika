@@ -50,8 +50,10 @@
         "apps/pika-chat/src/routes/(auth)/api/session/legacy/[chatAppId]/+server.ts",
         "apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts",
         "apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts",
-        "apps/pika-chat/tools/custom-*/**"
+        "apps/pika-chat/tools/custom-*/**",
+        "apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts",
+        "services/pika/lib/stacks/custom-stack-defs.ts"
     ],
-    "version": "1.0.5",
-    "lastUpdated": "2026-05-26T00:00:00.000Z"
+    "version": "1.0.6",
+    "lastUpdated": "2026-05-26T22:00:00.000Z"
 }

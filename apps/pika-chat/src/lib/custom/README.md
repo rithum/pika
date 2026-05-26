@@ -1,6 +1,52 @@
-# Custom Theme Configuration
+# Customization — Extension Points & Theme
 
-This directory contains your project's custom theme configuration. Files in this directory are **protected from pika sync** - your changes will be preserved when you update from upstream.
+This directory contains sync-protected customization files. All files here are **protected from `pika sync`** — your changes survive framework updates.
+
+Two categories of customization live here: **extension-point hooks** (function overrides) and **theme configuration** (visual branding).
+
+---
+
+## Extension Points (v0.26.0)
+
+Extension points are exported functions you can override to add deployment-specific behavior without editing synced framework files. Each has a no-op default — pika works correctly without any overrides.
+
+| File | Export | Default | Purpose |
+|------|--------|---------|---------|
+| `site-admin.ts` | `isUserAllowedAdminAccess(user)` | delegates to `isUserSiteAdmin()` | Gate admin routes on custom criteria (e.g., provider check) |
+| `legacy-session-loader.ts` | `loadLegacyChatsIfNeeded(user, chatAppId)` | `{ sessions: [], loaded: false }` | Load sessions from a pre-OIDC legacy system |
+| `legacy-chats-section-header.ts` | `getLegacyChatsSectionHeader()` | `undefined` | Inject a header component above the legacy chats nav section |
+| `session-read-only.ts` | `isCurrentSessionReadOnly(session)` | `false` | Mark additional session types as read-only |
+| `legacy-user-validator.ts` | `validateLegacyUserIdIfNeeded(effectiveId, sessionId, ctx)` | `undefined` | Cross-validate legacy user IDs for dual-auth deployments |
+| `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
+| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
+| `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
+| `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
+| `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
+| `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `legacy-chats-section-trigger.ts` | `getLegacyChatsSectionTrigger()` | `undefined` | Inject a component into the nav when legacy chats are not yet loaded |
+
+### How to override
+
+1. Open the relevant file in this directory.
+2. Replace the default function body with your implementation.
+3. The framework will call your override automatically.
+
+Example — require AzureAD provider for admin access:
+
+```typescript
+// site-admin.ts
+export async function isUserAllowedAdminAccess(user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>): Promise<boolean> {
+    return isUserSiteAdmin(user) && user.authData?.provider === 'azuread';
+}
+```
+
+### Signature stability
+
+`test/custom/contract.test.ts` contains compile-time type assertions and runtime smoke tests for every hook. If a pika upgrade accidentally changes a hook's signature, this test fails before the breakage reaches your deployment.
+
+---
+
+## Theme Configuration
 
 ## Quick Start
 

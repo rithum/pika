@@ -1,5 +1,7 @@
 import { ForceUserToReauthenticateError, loadAuthProvider, NotAuthenticatedError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
+import { shouldBypassChatUserRoleMerge } from '$lib/custom/chat-user-auth';
+import { onAuthProviderCallback, onBeforeAuth } from '$lib/custom/server-hooks';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import {
@@ -96,6 +98,18 @@ export const handle: Handle = async ({ event, resolve }) => {
         return addSecurityHeaders(await resolve(event));
     }
 
+    const AUTH_CALLBACK_PREFIX = '/auth/callback/';
+    if (pathName.startsWith(AUTH_CALLBACK_PREFIX)) {
+        const provider = pathName.slice(AUTH_CALLBACK_PREFIX.length);
+        try {
+            await onAuthProviderCallback(event, provider);
+        } catch (callbackErr) {
+            console.warn('[Hooks] onAuthProviderCallback threw for provider', provider, callbackErr);
+        }
+        // Allow provider-specific callback handlers to run without pre-auth redirect loops
+        return addSecurityHeaders(await resolve(event));
+    }
+
     // Force re-authentication route - clears cookies and redirects to trigger fresh auth
     if (pathName === '/force-reauth') {
         clearAllCookies(event);
@@ -166,6 +180,13 @@ export const handle: Handle = async ({ event, resolve }) => {
         user = undefined;
     }
 
+    // Give consumers a chance to clear the session before auth proceeds.
+    const beforeAuthResult = await onBeforeAuth(event, pathName, user);
+    if (beforeAuthResult.clearSession) {
+        clearAllCookies(event);
+        user = undefined;
+    }
+
     // ===== ChatUser Refresh Logic =====
     let needsSerializationDueToChatUserChanges = false;
 
@@ -191,7 +212,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (shouldRefreshChatUser) {
             try {
                 // Get current ChatUser data from DynamoDB
-                const currentChatUser = await getChatUser(user.userId);
+                let currentChatUser = await getChatUser(user.userId);
                 // console.log('[Hooks Debug] Raw ChatUser from database:', {
                 //     userId: user.userId,
                 //     fullChatUser: currentChatUser,
@@ -201,12 +222,28 @@ export const handle: Handle = async ({ event, resolve }) => {
                 // });
 
                 if (!currentChatUser) {
-                    // ChatUser should exist if we have a valid cookie user - something is wrong
-                    console.error('[Hooks] ChatUser not found for authenticated user - clearing cookies and forcing re-login:', {
-                        userId: user.userId
-                    });
-                    clearAllCookies(event);
-                    return redirect(302, '/login');
+                    if (shouldBypassChatUserRoleMerge(user)) {
+                        // ChatUser not found — this happens for OIDC users (AzureAD) whose
+                        // session cookie is written directly by the callback route before a ChatUser
+                        // record is created. Create it now rather than clearing the valid session.
+                        const newChatUser = { ...user } as any;
+                        delete newChatUser.authData;
+                        const createdChatUser = await createChatUser(newChatUser);
+                        if (!createdChatUser) {
+                            console.error('[Hooks] Failed to create ChatUser for authenticated user - clearing cookies:', {
+                                userId: user.userId
+                            });
+                            clearAllCookies(event);
+                            return redirect(302, '/login');
+                        }
+                        currentChatUser = createdChatUser;
+                    } else {
+                        console.error('[Hooks] ChatUser not found for authenticated user - clearing cookies and forcing re-login:', {
+                            userId: user.userId
+                        });
+                        clearAllCookies(event);
+                        return redirect(302, '/login');
+                    }
                 }
 
                 // Detect if core user data controlled by Pika has changed
@@ -215,7 +252,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                 const firstNameChanged = user.firstName !== currentChatUser.firstName;
                 const lastNameChanged = user.lastName !== currentChatUser.lastName;
                 const userTypeChanged = user.userType !== currentChatUser.userType;
-                const rolesChanged = !arraysEqual(user.roles, currentChatUser.roles);
+                const rolesChanged = shouldBypassChatUserRoleMerge(user) ? false : !arraysEqual(user.roles, currentChatUser.roles);
                 const viewingContentForChanged = !deepEqual(user.viewingContentFor, currentChatUser.viewingContentFor);
 
                 // console.log('[Hooks Debug] Individual field comparisons:', {
@@ -288,7 +325,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                         firstName: currentChatUser.firstName || user.firstName,
                         lastName: currentChatUser.lastName || user.lastName,
                         userType: currentChatUser.userType || user.userType,
-                        roles: currentChatUser.roles || user.roles,
+                        roles: shouldBypassChatUserRoleMerge(user) ? user.roles : (currentChatUser.roles || user.roles),
                         viewingContentFor: currentChatUser.viewingContentFor || user.viewingContentFor,
                         customData: currentChatUser.customData || user.customData
                     };
@@ -346,13 +383,10 @@ export const handle: Handle = async ({ event, resolve }) => {
                     //     success: !!chatUser
                     // });
                 } else {
-                    // console.log('[Hooks Debug] Found existing ChatUser, merging roles:', {
-                    //     userId: user.userId,
-                    //     existingChatUserRoles: chatUser.roles,
-                    //     userRoles: user.roles
-                    // });
-                    // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added indepently of the auth provider
-                    mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
+                    // We need to merge in any existing pika:xxx roles that exist in the chat user database that may have been added independently of the auth provider
+                    if (!shouldBypassChatUserRoleMerge(user)) {
+                        mergeAuthenticatedUserWithExistingChatUser(user, chatUser);
+                    }
                     // console.log('[Hooks Debug] After merging roles:', {
                     //     userId: user.userId,
                     //     mergedUserRoles: user.roles,

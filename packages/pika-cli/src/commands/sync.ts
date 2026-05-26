@@ -1811,7 +1811,9 @@ function getDefaultProtectedAreas(): string[] {
         'apps/pika-chat/src/routes/(auth)/api/session/legacy/[chatAppId]/+server.ts',
         'apps/pika-chat/src/routes/(auth)/api/user-data-override/custom-account-search-api.ts',
         'apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts',
-        'apps/pika-chat/tools/custom-*/**'
+        'apps/pika-chat/tools/custom-*/**',
+        'apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts',
+        'services/pika/lib/stacks/custom-stack-defs.ts'
     ];
 }
 

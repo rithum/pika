@@ -76,6 +76,7 @@
 
     // Auto-close sidebar when entering companion mode, restore when exiting
     $effect(() => {
+        if (!chatAppState) return;
         const unsubEnter = chatAppState.addEventListener('companionModeEnter', () => {
             sidebarOpenBeforeCompanion = sidebarOpen;
             sidebarOpen = false;
@@ -119,6 +120,7 @@
     });
 
     $effect(() => {
+        if (!chatAppState) return;
         const shareId = data.shareId;
         if (shareId) {
             chatAppState.loadSharedSession(shareId, true);
@@ -134,6 +136,7 @@
     });
 </script>
 
+{#if chatAppState}
 <Sidebar.Provider bind:open={sidebarOpen}>
     <ChatSidebar />
     <SlideoutProvider side="right" initialWidth={320}>
@@ -246,6 +249,7 @@
         </Dialog.Footer>
     </Dialog.Content>
 </Dialog.Root>
+{/if}
 
 <style>
     .writing-mode-vertical {

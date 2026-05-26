@@ -2,6 +2,7 @@ import Archive from '$icons/lucide/archive';
 import Eye from '$icons/lucide/eye';
 import MessageSquare from '$icons/lucide/message-square';
 import Trash2 from '$icons/lucide/trash-2';
+import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { ColumnDef } from '@tanstack/table-core';
 import { formatDistanceToNow } from 'date-fns';
 import type { ChatSession, RecordOrUndef, SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
@@ -177,19 +178,19 @@ export function buildColumns(
         cols.splice(4, 0, {
             id: 'entityColumn',
             accessorFn: (row) => {
-                const entityId = (row as any).entityId as string | undefined;
+                const entityId = getSessionEntityValue(row);
                 if (!entityId) return '';
-                
+
                 // Get enriched entity name for filtering (includes chat-app-global -> '-')
                 const entityName = sessionInsights.getEntityName(entityId);
                 return entityName || entityId;
             },
-            header: ({ column }) => renderComponent(TableColumnHeader, { 
-                column, 
+            header: ({ column }) => renderComponent(TableColumnHeader, {
+                column,
                 title: entityDisplayName.charAt(0).toUpperCase() + entityDisplayName.slice(1)
             }),
             cell: ({ row }) => {
-                const entityId = (row.original as any).entityId as string | undefined;
+                const entityId = getSessionEntityValue(row.original);
                 if (!entityId) return '';
                 
                 // Special case: chat-app-global just shows '-' without copy functionality
