@@ -81,6 +81,11 @@ import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-type
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import { getAdditionalSessionSources, type SessionSource } from '$lib/custom/additional-session-sources';
+
+type SessionSourceState =
+    | { status: 'loading' }
+    | { status: 'loaded'; sessions: ChatSession<RecordOrUndef>[] }
+    | { status: 'error'; error: unknown };
 import { isSessionReadOnly } from '$lib/custom/session-read-only';
 import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { Component, Snippet } from 'svelte';
@@ -197,8 +202,8 @@ export class ChatAppState implements IChatAppState {
     });
     #customDataForChatApp = $state<Record<string, unknown> | undefined>(undefined);
 
-    #sessionSources: SessionSource[] = [];
-    #sourceState = new SvelteMap<string, { status: 'loading' | 'loaded' | 'error'; sessions: ChatSession<RecordOrUndef>[]; error?: unknown }>();
+    #sessionSources = $state<SessionSource[]>([]);
+    #sourceState = new SvelteMap<string, SessionSourceState>();
     #sessionToSource = new SvelteMap<string, string>();
 
     // Sharing-related state
@@ -1534,7 +1539,8 @@ export class ChatAppState implements IChatAppState {
     }
 
     sourceSessions(id: string): ChatSession<RecordOrUndef>[] {
-        return this.#sourceState.get(id)?.sessions ?? [];
+        const state = this.#sourceState.get(id);
+        return state?.status === 'loaded' ? state.sessions : [];
     }
 
     sourceLabel(id: string): string | undefined {
@@ -2816,11 +2822,18 @@ export class ChatAppState implements IChatAppState {
     }
 
     async loadAdditionalSessions() {
-        const sources = await getAdditionalSessionSources(this.#appState.identity.user, this.#chatApp.chatAppId);
+        let sources: SessionSource[];
+        try {
+            sources = await getAdditionalSessionSources(this.#appState.identity.user, this.#chatApp.chatAppId);
+        } catch (e) {
+            handleClientError(e, 'getAdditionalSessionSources', this.#showToast, 'getAdditionalSessionSources failed:');
+            this.#sessionSources = [];
+            return;
+        }
         this.#sessionSources = sources;
 
         for (const source of sources) {
-            this.#sourceState.set(source.id, { status: 'loading', sessions: [] });
+            this.#sourceState.set(source.id, { status: 'loading' });
         }
 
         const results = await Promise.allSettled(sources.map(s => s.load()));
@@ -2837,7 +2850,7 @@ export class ChatAppState implements IChatAppState {
                     this.#sessionToSource.set(session.sessionId, source.id);
                 }
             } else {
-                this.#sourceState.set(source.id, { status: 'error', sessions: [], error: result.reason });
+                this.#sourceState.set(source.id, { status: 'error', error: result.reason });
                 handleClientError(result.reason, `loading session source ${source.id}`, this.#showToast, `loading session source ${source.id} failed:`);
             }
         }

@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - `loadLegacyChatsIfNeeded` body → `SessionSource.load()` returned by `getAdditionalSessionSources` in `additional-session-sources.ts` (return a single descriptor; omit it entirely instead of returning `loaded: false`).
    - `getLegacyChatsSectionHeader` / `-Trigger` Components → `SessionSource.sidebarSlot.header` / `.trigger` on the descriptor.
    - `isCurrentSessionReadOnly(session)` body → either `isSessionReadOnly(session, user)` (add the new `user` param) for cross-cutting rules, or `SessionSource.isReadOnly(session)` for per-source rules.
-   - `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` body → `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` in `request-user-id-resolver.ts` (rename the first param; body unchanged).
+   - `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` → `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` in `request-user-id-resolver.ts`. **Argument order changed**: v0.26.0 called the hook with `(user.userId, params.userId, ctx)`; v0.27.0 calls it with `(params.userId, user.userId, ctx)`. arg1 is now the request-supplied (attacker-influenceable) id rather than the session id — re-read your override end-to-end before keeping it; do not just rename the parameter.
    - `LEGACY_ACTION_USER_ID_COOKIE` references → consumer-owned constant.
 4. Run `pnpm test` in `apps/pika-chat` (contract test) and `pnpm test:components` (component tests) to verify the override compiles and the sidebar still renders.
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { existsSync, cpSync, rmSync, mkdirSync } from 'fs';
+import { existsSync, cpSync, rmSync, mkdirSync, symlinkSync, writeFileSync, readFileSync } from 'fs';
 import path from 'path';
 import os from 'os';
 
@@ -92,5 +92,80 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
         const exitSpy = jest.spyOn(process, 'exit').mockImplementation((_code?: any) => { throw new Error('process.exit'); });
         await expect(migrateCommand('v0.99.0-v0.100.0', { force: true })).rejects.toThrow('process.exit');
         exitSpy.mockRestore();
+    });
+
+    it('refuses to delete a symlink (does not follow the target)', async () => {
+        const sentinelPath = path.join(tmpDir, 'sentinel.txt');
+        writeFileSync(sentinelPath, 'sentinel-content');
+        const targetRel = 'apps/pika-chat/src/lib/custom/legacy-session-loader.ts';
+        const targetAbs = path.join(tmpDir, targetRel);
+        rmSync(targetAbs);
+        symlinkSync(sentinelPath, targetAbs);
+
+        await migrateCommand('v0.26.0-v0.27.0', { force: true });
+
+        // Sentinel survives untouched; symlink itself also survives (skipped, not deleted).
+        expect(readFileSync(sentinelPath, 'utf8')).toBe('sentinel-content');
+        expect(existsSync(targetAbs)).toBe(true);
+        // Other 3 files (not symlinks) should be deleted.
+        for (const rel of DELETABLE_FILES.slice(1)) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(false);
+        }
+    });
+
+    it('skips files that differ from the v0.26.0 default stub (customized)', async () => {
+        const customizedRel = 'apps/pika-chat/src/lib/custom/legacy-session-loader.ts';
+        writeFileSync(path.join(tmpDir, customizedRel), '// my custom implementation\nexport async function loadLegacyChatsIfNeeded() { return { sessions: [{ id: "mine" }], loaded: true }; }');
+
+        await migrateCommand('v0.26.0-v0.27.0', { force: true });
+
+        expect(existsSync(path.join(tmpDir, customizedRel))).toBe(true);
+        // Other 3 still match defaults and are deleted.
+        for (const rel of DELETABLE_FILES.slice(1)) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(false);
+        }
+    });
+
+    it('--force-content-mismatch deletes customized files too', async () => {
+        const customizedRel = 'apps/pika-chat/src/lib/custom/legacy-session-loader.ts';
+        writeFileSync(path.join(tmpDir, customizedRel), '// my custom implementation');
+
+        await migrateCommand('v0.26.0-v0.27.0', { force: true, forceContentMismatch: true });
+
+        expect(existsSync(path.join(tmpDir, customizedRel))).toBe(false);
+    });
+
+    it('refuses to run outside a pika consumer tree (no package.json with pika dep) unless --force', async () => {
+        rmSync(path.join(tmpDir, 'package.json'));
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((_code?: any) => { throw new Error('process.exit'); });
+        await expect(migrateCommand('v0.26.0-v0.27.0')).rejects.toThrow('process.exit');
+        exitSpy.mockRestore();
+    });
+
+    it('--force bypasses the consumer-tree check', async () => {
+        rmSync(path.join(tmpDir, 'package.json'));
+        await migrateCommand('v0.26.0-v0.27.0', { force: true });
+        for (const rel of DELETABLE_FILES) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(false);
+        }
+    });
+
+    it('--dry-run + --force combination is a no-op (force does not enable deletes)', async () => {
+        await migrateCommand('v0.26.0-v0.27.0', { dryRun: true, force: true });
+        for (const rel of DELETABLE_FILES) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(true);
+        }
+    });
+
+    it('partial-state recovery: succeeds when some files already absent', async () => {
+        // Pre-delete 2 of 4 files
+        rmSync(path.join(tmpDir, DELETABLE_FILES[0]));
+        rmSync(path.join(tmpDir, DELETABLE_FILES[1]));
+
+        await migrateCommand('v0.26.0-v0.27.0', { force: true });
+
+        for (const rel of DELETABLE_FILES) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(false);
+        }
     });
 });

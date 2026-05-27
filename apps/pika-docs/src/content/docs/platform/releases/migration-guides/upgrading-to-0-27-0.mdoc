@@ -45,7 +45,7 @@ The four legacy hook files are protected from sync, so they will remain in your 
 pnpm pika migrate v0.26.0-v0.27.0
 ```
 
-This removes the four orphan hook files (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `session-read-only.ts` is rewritten in place with the new signature and is **not** deleted.
+This removes the four orphan hook files (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `session-read-only.ts` is **not** touched by `pika migrate` — it's a sync-protected file in your consumer tree, so `pika sync` doesn't overwrite it either. You must **hand-edit** `session-read-only.ts` in step 3 below to adopt the new `isSessionReadOnly(session, user)` signature.
 
 Flags:
 
@@ -62,7 +62,7 @@ If you had implementations in any of the five removed hooks, move them as follow
 
 ```typescript
 import type { ChatUser, ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
-import type { SessionSource } from 'apps/pika-chat/src/lib/custom/additional-session-sources';
+import type { SessionSource } from '$lib/custom/additional-session-sources';
 
 export async function getAdditionalSessionSources(
     user: ChatUser<RecordOrUndef>,
@@ -112,7 +112,9 @@ export function isSessionReadOnly(
 
 For per-source rules ("all sessions from source X are read-only"), prefer `SessionSource.isReadOnly` on the descriptor instead — keep the cross-cutting hook minimal.
 
-**`validateLegacyUserIdIfNeeded` → `resolveRequestUserId`** in `request-user-id-resolver.ts` (rename the first param; body unchanged):
+**`validateLegacyUserIdIfNeeded` → `resolveRequestUserId`** in `request-user-id-resolver.ts`.
+
+> **⚠️ Security-sensitive rename — read this carefully.** The framework call sites also swapped argument order: v0.26.0 called the hook as `validateLegacyUserIdIfNeeded(user.userId, params.userId, ctx)` (session id first, request id second); v0.27.0 calls it as `resolveRequestUserId(params.userId, user.userId, ctx)` (request id first, session id second). If your v0.26.0 override trusted arg1 — for example, doing a DB lookup or admin check on it — that arg is now the **request-supplied (attacker-influenceable)** id, not the session id. Re-read your override end-to-end before keeping it; do not just rename the parameter.
 
 ```typescript
 export async function resolveRequestUserId(

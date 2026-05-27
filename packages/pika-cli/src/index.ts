@@ -32,9 +32,10 @@ program
 program
     .command('migrate')
     .description('Run a Pika framework migration script')
-    .argument('<migration>', 'Migration to run (e.g. v0.26.0-v0.27.0)')
+    .argument('<migration>', 'Migration to run (currently: v0.26.0-v0.27.0)')
     .option('--dry-run', 'Print what would be deleted without touching the filesystem')
-    .option('--force', 'Skip dirty-tree check and run even with uncommitted changes')
+    .option('--force', 'Skip dirty-tree and consumer-tree checks')
+    .option('--force-content-mismatch', 'Delete files even if their content differs from the v0.26.0 default stub (overrides the customized-file safety check)')
     .action(async (migration, options) => {
         await migrateCommand(migration, options);
     });

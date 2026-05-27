@@ -246,8 +246,8 @@ The v0.26.0 → v0.27.0 release replaces five ai-bot-specific hooks with three g
 | `loadLegacyChatsIfNeeded(user, chatAppId) → LegacySessionsResult` | `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` returning a single descriptor | Move loader body into `source.load()`; if `loaded: false` was the signal, omit the source from the array instead. |
 | `getLegacyChatsSectionHeader() → Component?` | `SessionSource.sidebarSlot.header` | Move component reference onto the source descriptor. |
 | `getLegacyChatsSectionTrigger() → Component?` | `SessionSource.sidebarSlot.trigger` | Same. |
-| `isCurrentSessionReadOnly(session)` | `isSessionReadOnly(session, user)` | Add `user` to the signature. For per-source rules, prefer `SessionSource.isReadOnly` instead. |
-| `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | Rename the param at the call site; body unchanged. |
+| `isCurrentSessionReadOnly(session)` | `isSessionReadOnly(session, user)` | Add `user` to the signature. **`session-read-only.ts` is sync-protected — `pika sync` does not overwrite it and `pika migrate` does not touch it. You must hand-edit the file.** For per-source rules, prefer `SessionSource.isReadOnly` instead. |
+| `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | **Argument order changed.** The framework call site swapped from `(user.userId, params.userId, ctx)` to `(params.userId, user.userId, ctx)` — arg1 is now the request-supplied (attacker-influenceable) id, not the session id. Re-read your override end-to-end; do not just rename the parameter. |
 | `LEGACY_ACTION_USER_ID_COOKIE` constant | **Removed** | Define your own constant in consumer code. |
 | Type `LegacySessionsResult` | **Removed** | No replacement; not needed under the new shape. |
 
