@@ -1,17 +1,12 @@
 <script lang="ts">
     import PinOff from '$icons/lucide/pin-off';
     import Share from '$icons/lucide/share-2';
-    import { getLegacyChatsSectionHeader } from '$lib/custom/legacy-chats-section-header';
-    import { getLegacyChatsSectionTrigger } from '$lib/custom/legacy-chats-section-trigger';
     import { Button } from 'pika-ux/shadcn/button';
     import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
 
     const chat = getContext<ChatAppState>('chatAppState');
-
-    const LegacyChatsHeader = getLegacyChatsSectionHeader();
-    const LegacyChatsTrigger = getLegacyChatsSectionTrigger();
 
     let hoveredSessionId: string | null = null;
     let hoveredShareId: string | null = null;
@@ -146,41 +141,59 @@
     </Sidebar.Group>
 {/if}
 
-{#if LegacyChatsTrigger && !chat.legacyChatsLoaded}
-    <Sidebar.Group>
-        <svelte:component this={LegacyChatsTrigger} />
-    </Sidebar.Group>
-{/if}
-
-{#if chat.legacyChatsLoaded}
-    <Sidebar.Group>
-        <Sidebar.GroupLabel>
-            {#if LegacyChatsHeader}
-                <svelte:component this={LegacyChatsHeader} />
-            {/if}
-        </Sidebar.GroupLabel>
-        <div class="flex flex-col w-full pl-2">
-            {#if chat.loadingLegacyChatSessions}
-                <div class="text-xs text-muted-foreground px-2 py-1">Loading...</div>
-            {:else if chat.legacyChatSessions.length === 0}
-                <div class="text-xs text-muted-foreground px-2 py-1">No legacy sessions found.</div>
+{#each chat.sessionSources as source (source.id)}
+    {@const status = chat.sourceStatus(source.id)}
+    {#if status === 'loading'}
+        <Sidebar.Group>
+            {#if source.sidebarSlot?.trigger}
+                <svelte:component this={source.sidebarSlot.trigger} />
             {:else}
-                {#each chat.legacyChatSessions as session}
-                    <Button
-                        variant="ghost"
-                        class="w-full text-sm font-medium justify-start p-0"
-                        disabled={chat.isStreamingResponseNow}
-                        onclick={() => chat.setCurrentSessionById(session.sessionId)}
-                    >
-                        <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
-                            {session.title || session.sessionId}
-                        </div>
-                    </Button>
-                {/each}
+                <div class="text-xs text-muted-foreground px-2 py-1">Loading...</div>
             {/if}
-        </div>
-    </Sidebar.Group>
-{/if}
+        </Sidebar.Group>
+    {:else if status === 'loaded'}
+        <Sidebar.Group>
+            <Sidebar.GroupLabel>
+                {#if source.sidebarSlot?.header}
+                    <svelte:component this={source.sidebarSlot.header} />
+                {:else if source.label}
+                    {source.label}
+                {/if}
+            </Sidebar.GroupLabel>
+            <div class="flex flex-col w-full pl-2">
+                {#if chat.sourceSessions(source.id).length === 0}
+                    <div class="text-xs text-muted-foreground px-2 py-1">No sessions found.</div>
+                {:else}
+                    {#each chat.sourceSessions(source.id) as session (session.sessionId)}
+                        <Button
+                            variant="ghost"
+                            class="w-full text-sm font-medium justify-start p-0"
+                            disabled={chat.isStreamingResponseNow}
+                            onclick={() => chat.setCurrentSessionById(session.sessionId)}
+                        >
+                            <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
+                                {session.title || session.sessionId}
+                            </div>
+                        </Button>
+                    {/each}
+                {/if}
+            </div>
+        </Sidebar.Group>
+    {:else if status === 'error'}
+        <Sidebar.Group>
+            <Sidebar.GroupLabel>
+                {#if source.sidebarSlot?.header}
+                    <svelte:component this={source.sidebarSlot.header} />
+                {:else if source.label}
+                    {source.label}
+                {/if}
+            </Sidebar.GroupLabel>
+            <div class="flex flex-col w-full pl-2">
+                <div class="text-xs text-muted-foreground px-2 py-1">This section could not be loaded.</div>
+            </div>
+        </Sidebar.Group>
+    {/if}
+{/each}
 
 <!-- My Chats Section (existing, enhanced) -->
 <Sidebar.Group>
