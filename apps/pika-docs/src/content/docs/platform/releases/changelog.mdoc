@@ -7,6 +7,32 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.27.0] - 2026-05-27
+
+### Changed
+
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings.
+
+### Added
+
+- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree. Supports `--dry-run` and `--force`. Idempotent; safe to re-run.
+- **Svelte 5 component test infrastructure** in `apps/pika-chat` (Vitest + `@testing-library/svelte` + jsdom, alongside the existing Jest setup via `pnpm test:components`). Initial coverage: 7 component tests for `chat-nav.svelte` across every session-source render state.
+
+### Migration notes
+
+Breaking change — but no merged consumer is on v0.26.0 yet (ai-bot consumption was paused after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
+
+Step-by-step:
+
+1. `pnpm pika sync` to v0.27.0 (the four legacy hook files are protected — sync will leave them in place).
+2. `pnpm pika migrate v0.26.0-v0.27.0` (deletes the four orphan files; idempotent).
+3. Move any v0.26.0 overrides into the new shapes — see the [Extension Points guide](/guides/customization/extension-points/) for the migration table.
+4. Run `pnpm test` in `apps/pika-chat` (contract) and `pnpm test:components` (component) to verify.
+
+See the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guides/upgrading-to-0-27-0/).
+
+---
+
 ## [0.26.0] - 2026-05-26
 
 ### Added

@@ -12,17 +12,15 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | File | Export | Default | Purpose |
 |------|--------|---------|---------|
 | `site-admin.ts` | `isUserAllowedAdminAccess(user)` | delegates to `isUserSiteAdmin()` | Gate admin routes on custom criteria |
-| `legacy-session-loader.ts` | `loadLegacyChatsIfNeeded(user, chatAppId)` | `{ sessions: [], loaded: false }` | Load sessions from a pre-OIDC legacy system |
-| `legacy-chats-section-header.ts` | `getLegacyChatsSectionHeader()` | `undefined` | Inject a header above the legacy chats nav section |
-| `session-read-only.ts` | `isCurrentSessionReadOnly(session)` | `false` | Mark additional session types as read-only |
-| `legacy-user-validator.ts` | `validateLegacyUserIdIfNeeded(effectiveId, sessionId, ctx)` | `undefined` | Cross-validate legacy user IDs for dual-auth deployments |
+| `additional-session-sources.ts` | `getAdditionalSessionSources(user, chatAppId)` | `[]` | Add 0..N custom session sources to the sidebar |
+| `session-read-only.ts` | `isSessionReadOnly(session, user)` | `false` | Mark additional session types as read-only |
+| `request-user-id-resolver.ts` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | `undefined` | Override the user id used by message routes |
 | `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
 | `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
-| `legacy-chats-section-trigger.ts` | `getLegacyChatsSectionTrigger()` | `undefined` | Inject a nav component when legacy chats are not yet loaded |
 
 ## How to Override
 
@@ -60,73 +58,92 @@ The default delegates to the built-in `isUserSiteAdmin(user)` check. Override to
 
 ---
 
-### `loadLegacyChatsIfNeeded` — `legacy-session-loader.ts`
+### `getAdditionalSessionSources` — `additional-session-sources.ts`
 
-Loads chat sessions from a pre-OIDC or legacy system and surfaces them in the sidebar nav.
+Adds 0..N custom session sources to the sidebar. Each source has its own loader, optional sidebar slots, and optional per-source read-only predicate. Pika iterates the returned array in declared order and renders one `Sidebar.Group` per source.
 
 ```typescript
-export async function loadLegacyChatsIfNeeded(
-    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+export async function getAdditionalSessionSources(
+    user: ChatUser<RecordOrUndef>,
     chatAppId: string
-): Promise<LegacySessionsResult>
+): Promise<SessionSource[]>
 
-export interface LegacySessionsResult {
-    sessions: ChatSession<RecordOrUndef>[];
-    loaded: boolean;
+export interface SessionSource {
+    /** Stable identifier for this source. Used as a Svelte key and for diagnostics. */
+    id: string;
+    /** Header label rendered above this source's session list. */
+    label?: string;
+    /**
+     * Loads sessions for this source. Called client-side once per chat-app init,
+     * in parallel with other sources via Promise.allSettled. Capture user/chatAppId
+     * from the enclosing getAdditionalSessionSources closure when constructing this
+     * descriptor — the framework does not re-pass them.
+     *
+     * Return [] for "applicable but empty." If the source is not applicable to this
+     * user, omit it from the getAdditionalSessionSources return array entirely.
+     */
+    load(): Promise<ChatSession<RecordOrUndef>[]>;
+    /** Per-source read-only predicate. OR-ed with the top-level isSessionReadOnly hook. */
+    isReadOnly?: (session: ChatSession<RecordOrUndef>) => boolean;
+    /**
+     * Optional sidebar slots:
+     * - `trigger` renders before load completes (e.g. a "Load sessions" button)
+     * - `header` renders inside Sidebar.GroupLabel above the loaded session list
+     */
+    sidebarSlot?: {
+        header?: Component<Record<string, never>>;
+        trigger?: Component<Record<string, never>>;
+    };
 }
 ```
 
-Return `{ sessions: [...], loaded: true }` to populate the legacy chats section. The sidebar only renders the section when `loaded` is `true`. The default returns `{ sessions: [], loaded: false }`.
+**Rendering semantics**: the sidebar renders each source's group through three states:
+
+- **Loading**: if `sidebarSlot.trigger` is set, render it; otherwise render a default loading row.
+- **Loaded**: render `sidebarSlot.header` (if set) inside `Sidebar.GroupLabel`, then the session list (or "No sessions found." when empty).
+- **Errored**: render `sidebarSlot.header` (if set) and an inline error row. The group does not collapse; sibling sources are unaffected.
+
+Sources load via `Promise.allSettled`, so one failing source never breaks the others. The default returns `[]` (no additional sources).
 
 ---
 
-### `getLegacyChatsSectionHeader` — `legacy-chats-section-header.ts`
+### `isSessionReadOnly` — `session-read-only.ts`
 
-Returns an optional Svelte component rendered as the header of the legacy chats sidebar section.
-
-```typescript
-export function getLegacyChatsSectionHeader(): Component<Record<string, never>> | undefined
-```
-
-Return a Svelte component to display a label, icon, or any markup above the legacy session list. Return `undefined` (the default) to render no header.
-
----
-
-### `isCurrentSessionReadOnly` — `session-read-only.ts`
-
-Marks additional session types as read-only in the chat UI.
+Marks additional session types as read-only in the chat UI. Applies cross-cutting rules — for per-source rules, prefer `SessionSource.isReadOnly`.
 
 ```typescript
-export function isCurrentSessionReadOnly(
-    session: ChatSession<RecordOrUndef> | undefined
+export function isSessionReadOnly(
+    session: ChatSession<RecordOrUndef> | undefined,
+    user: ChatUser<RecordOrUndef> | undefined
 ): boolean
 ```
 
-The framework already marks shared sessions as read-only. Override this hook to add further conditions — for example, marking sessions owned by a different legacy user as read-only. The default returns `false`.
+The framework already marks shared sessions as read-only. Override this hook to add further conditions — for example, marking sessions belonging to a different effective user as read-only. The result is OR-ed with the framework's shared-session predicate and with each `SessionSource.isReadOnly`. The default returns `false`.
 
 ---
 
-### `validateLegacyUserIdIfNeeded` — `legacy-user-validator.ts`
+### `resolveRequestUserId` — `request-user-id-resolver.ts`
 
-Cross-validates user IDs for dual-auth deployments where a legacy cookie may carry a different user ID than the OIDC-derived identity.
+Server-side hook called on message routes before the effective user id is used. Override to honor an alternate user id source (e.g. a separate cookie for legacy actions).
 
 ```typescript
-export async function validateLegacyUserIdIfNeeded(
-    effectiveUserId: string,
+export async function resolveRequestUserId(
+    requestedUserId: string,
     sessionUserId: string,
-    context: LegacyUserValidatorContext
+    context: RequestUserIdResolverContext
 ): Promise<string | undefined>
 
-export interface LegacyUserValidatorContext {
+export interface RequestUserIdResolverContext {
     request: Request;
     cookies: Cookies;
     stage: string;
+    chatAppId?: string;
 }
 ```
 
-Return the validated user ID to use for the request, or `undefined` to use the default OIDC-derived user ID. The default always returns `undefined`.
+Return a non-undefined string to override the user id used for the request; return `undefined` (the default) to leave `requestedUserId` unchanged. Scope is limited to the message routes (`api/message/+server.ts` and `api/message/[chatAppId]/[sessionId]/+server.ts`).
 
-The exported constant `LEGACY_ACTION_USER_ID_COOKIE` names the cookie used to carry the legacy ID — reference it in your override instead of hardcoding the cookie name.
+Consumers that need a cookie name should define their own constant — the framework no longer exports one.
 
 ---
 
@@ -195,20 +212,6 @@ This is useful when the identity provider is the authoritative source for roles 
 
 ---
 
-### `getLegacyChatsSectionTrigger` — `legacy-chats-section-trigger.ts`
-
-Returns an optional Svelte component rendered in the sidebar when legacy chats have not yet been loaded (i.e., `legacyChatsLoaded === false`).
-
-```typescript
-export function getLegacyChatsSectionTrigger(): Component<Record<string, never>> | undefined
-```
-
-Use this to inject a load trigger — for example, a button that initiates a user-triggered legacy session fetch — without editing the synced `chat-nav.svelte`. The component receives no props. The default returns `undefined` (nothing is rendered before loading).
-
-Pair with `loadLegacyChatsIfNeeded` for the data-loading side of the same feature.
-
----
-
 ### `transformCustomUserData` — `server-hooks.ts`
 
 Transforms `customUserData` server-side before it is encoded into the message JWT and sent to the converse Lambda.
@@ -233,6 +236,22 @@ The `provider` parameter is the path segment after `/auth/callback/` (e.g., `"az
 Use this hook to run per-provider post-callback logic — such as clearing legacy session cookies or triggering a token exchange — without editing the synced `hooks.server.ts`. The default is a no-op.
 
 ---
+
+## Migration from v0.26.0
+
+The v0.26.0 → v0.27.0 release replaces five ai-bot-specific hooks with three generic seams. The `pika migrate v0.26.0-v0.27.0` CLI subcommand removes the orphan hook files from your consumer tree (see [Migration Guides](/platform/releases/migration-guides/upgrading-to-0-27-0/) for the full procedure).
+
+| v0.26.0 hook | v0.27.0 replacement | Migration |
+|---|---|---|
+| `loadLegacyChatsIfNeeded(user, chatAppId) → LegacySessionsResult` | `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` returning a single descriptor | Move loader body into `source.load()`; if `loaded: false` was the signal, omit the source from the array instead. |
+| `getLegacyChatsSectionHeader() → Component?` | `SessionSource.sidebarSlot.header` | Move component reference onto the source descriptor. |
+| `getLegacyChatsSectionTrigger() → Component?` | `SessionSource.sidebarSlot.trigger` | Same. |
+| `isCurrentSessionReadOnly(session)` | `isSessionReadOnly(session, user)` | Add `user` to the signature. For per-source rules, prefer `SessionSource.isReadOnly` instead. |
+| `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | Rename the param at the call site; body unchanged. |
+| `LEGACY_ACTION_USER_ID_COOKIE` constant | **Removed** | Define your own constant in consumer code. |
+| Type `LegacySessionsResult` | **Removed** | No replacement; not needed under the new shape. |
+
+Client-side hook signatures use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) so server-only fields like `authData` are not leaked across the public hook surface. Server-side hooks (e.g. `resolveRequestUserId`'s context) continue to use the server-side types where appropriate.
 
 ## Signature Stability
 

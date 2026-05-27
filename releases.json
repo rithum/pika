@@ -1,7 +1,23 @@
 {
-  "latestVersion": "0.26.0",
-  "currentDevelopment": "0.25.2",
+  "latestVersion": "0.27.0",
+  "currentDevelopment": "0.27.0",
   "releases": [
+    {
+      "version": "0.27.0",
+      "date": "2026-05-27",
+      "status": "released",
+      "breaking": true,
+      "summary": "Breaking framework redesign: 5 ai-bot-specific legacy-chats hooks (v0.26.0) replaced by 3 generic session-source seams. New pika migrate CLI removes the orphan files. Svelte 5 component test infrastructure added.",
+      "highlights": [
+        "BREAKING — replace `loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded` with `getAdditionalSessionSources(user, chatAppId) → SessionSource[]`, `isSessionReadOnly(session, user)`, and `resolveRequestUserId(requestedUserId, sessionUserId, ctx)`. SessionSource carries its own loader, optional sidebarSlot.{header,trigger}, and optional per-source isReadOnly predicate.",
+        "Remove `LEGACY_ACTION_USER_ID_COOKIE` constant — consumers define their own cookie names.",
+        "Client-side hook signatures use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) — server-only fields like `authData` no longer leak across the public hook surface.",
+        "Sources load via Promise.allSettled, so one failing source never breaks siblings; per-source error rows render inline.",
+        "New `pika migrate v0.26.0-v0.27.0` CLI subcommand removes the 4 orphan hook files from consumer trees (sync does not propagate deletes of protected files). Supports --dry-run and --force; idempotent.",
+        "Svelte 5 component test infrastructure (Vitest + @testing-library/svelte + jsdom) added alongside the existing Jest setup; new `pnpm test:components` script. 7 component tests for chat-nav.svelte across every session-source render state.",
+        "Why now: no merged consumer is on v0.26.0 yet (ai-bot consumption paused after design smell identified). Only window to redesign these seams without breaking a real consumer."
+      ]
+    },
     {
       "version": "0.26.0",
       "date": "2026-05-26",

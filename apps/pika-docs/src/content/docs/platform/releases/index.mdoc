@@ -7,6 +7,16 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.27.0
+
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]`, `isSessionReadOnly(session, user)`, and `resolveRequestUserId(requestedUserId, sessionUserId, ctx)`. `LEGACY_ACTION_USER_ID_COOKIE` is removed. Client-side hook signatures now use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) to keep server-only fields off the public hook surface. Sources load via `Promise.allSettled` so one failing source never breaks siblings — see the [Extension Points guide](/guides/customization/extension-points/) and the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guides/upgrading-to-0-27-0/).
+- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree. Supports `--dry-run` and `--force`; idempotent. `pika sync` does not propagate deletes of protected files, so consumers must run this command after upgrading.
+- **Svelte 5 component test infrastructure** — Vitest + `@testing-library/svelte` + jsdom added to `apps/pika-chat` alongside the existing Jest setup. New `pnpm test:components` script. Initial coverage: 7 tests for `chat-nav.svelte` across every session-source render state.
+
+**Why now**: no merged consumer is on v0.26.0 yet (ai-bot consumption was paused after the design smell was identified). This is the only window to redesign these seams without breaking a real consumer.
+
+**Latest Stable:** `0.27.0` (May 27, 2026)
+
 ### What's New in 0.26.0
 
 - **CM-491 framework seams — 11 AzureAD-friendly extension-point hooks** in `apps/pika-chat/src/lib/custom/`. Admin gating (`isUserAllowedAdminAccess`), legacy session loading (`loadLegacyChatsIfNeeded`, header/trigger slots), session permissions (`isCurrentSessionReadOnly`), legacy-user-id validation, entity extraction, session account-context transformation, ChatUser role-merge bypass (`shouldBypassChatUserRoleMerge`), and auth-provider hooks (`onAuthProviderCallback`, `onBeforeAuth`). All hooks default to no-op — see the [Extension Points guide](/guides/customization/extension-points/).
@@ -18,8 +28,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **5 generic robustness improvements ported from ai-bot CM-491** — cookie error/version-mismatch split (preserves non-auth cookies on corruption), SSM `ParameterNotFound` graceful return, `chatAppState` null guards on route transitions, file-upload hardening (MIME allowlist + filename sanitization + S3 key validation), and `isUserAllowedToUseSessionInsights` made async.
 - **Fixed gzip+base64 encoding in Strands `debug_trace.py`** — encoded payloads now round-trip through the JS client decoder; the LLM Instruction accordion in the trace UI decodes correctly.
 - **Security upgrades** — Alpine base image → 3.22.3, weather-direct sample pins `@aws-sdk/client-lambda` 3.974.0 and `@aws-sdk/credential-provider-node` 3.972.1 (patched `fast-xml-parser` for Snyk CVEs).
-
-**Latest Stable:** `0.26.0` (May 26, 2026)
 
 ### What's New in 0.25.2
 
