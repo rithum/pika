@@ -111,11 +111,12 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
 
     // (b) single source status: 'loading' with sidebarSlot.trigger → trigger rendered, no loading row
     it('(b) renders trigger component when source is loading and sidebarSlot.trigger is set', async () => {
-        // Import the noop stub to use as a real Svelte component stand-in
-        const { default: NoopComponent } = await import('../__mocks__/noop.svelte');
+        // Use a sentinel stub with identifiable text so we can assert the trigger actually rendered
+        // (a bare noop component would also pass an "absence of Loading…" assertion).
+        const { default: TriggerSentinel } = await import('../__mocks__/trigger-sentinel.svelte');
 
         const source = makeSource('test-src', {
-            sidebarSlot: { trigger: NoopComponent as Component<Record<string, never>> },
+            sidebarSlot: { trigger: TriggerSentinel as Component<Record<string, never>> },
         });
         const chat = makeMockChat({
             sessionSources: [source],
@@ -123,8 +124,42 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
         });
         renderChatNav(chat);
 
-        // Default loading row must NOT appear when a trigger component replaces it
+        // Trigger sentinel rendered
+        expect(screen.getByTestId('trigger-sentinel')).toBeInTheDocument();
+        // Default loading row replaced by the trigger
         expect(screen.queryByText('Loading...')).toBeNull();
+    });
+
+    // (b2) trigger is NOT rendered when source is loaded — guards against template regressions
+    // moving the trigger out of the loading-only branch.
+    it('(b2) does NOT render trigger when source is loaded, even if sidebarSlot.trigger is set', async () => {
+        const { default: TriggerSentinel } = await import('../__mocks__/trigger-sentinel.svelte');
+        const source = makeSource('test-src', {
+            sidebarSlot: { trigger: TriggerSentinel as Component<Record<string, never>> },
+        });
+        const chat = makeMockChat({
+            sessionSources: [source],
+            sourceStatus: vi.fn(() => 'loaded' as SourceStatus),
+            sourceSessions: vi.fn(() => []),
+        });
+        renderChatNav(chat);
+
+        expect(screen.queryByTestId('trigger-sentinel')).toBeNull();
+    });
+
+    // (b3) trigger is NOT rendered when source is errored.
+    it('(b3) does NOT render trigger when source is errored, even if sidebarSlot.trigger is set', async () => {
+        const { default: TriggerSentinel } = await import('../__mocks__/trigger-sentinel.svelte');
+        const source = makeSource('test-src', {
+            sidebarSlot: { trigger: TriggerSentinel as Component<Record<string, never>> },
+        });
+        const chat = makeMockChat({
+            sessionSources: [source],
+            sourceStatus: vi.fn(() => 'error' as SourceStatus),
+        });
+        renderChatNav(chat);
+
+        expect(screen.queryByTestId('trigger-sentinel')).toBeNull();
     });
 
     // (c) single source status: 'loading' without trigger → default loading row

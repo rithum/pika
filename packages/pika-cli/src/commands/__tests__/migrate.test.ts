@@ -2,14 +2,30 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { existsSync, cpSync, rmSync, mkdirSync, symlinkSync, writeFileSync, readFileSync } from 'fs';
 import path from 'path';
 import os from 'os';
+import { promisify } from 'util';
 
 // Mock logger to suppress output during tests
 jest.mock('../../utils/logger.js');
 
-// Mock child_process to control git status responses
-jest.mock('child_process', () => ({
-    exec: jest.fn()
-}));
+// Mock child_process to control git status responses. The production code calls
+// `util.promisify(exec)`. `util.promisify` checks for a `util.promisify.custom` symbol on the
+// function; the real Node.js `exec` defines this symbol so promisify resolves to
+// `{stdout, stderr}` instead of an array. Our mock replicates that so the production code can
+// rely on the canonical `{stdout}` shape without test-mock-shape branching.
+jest.mock('child_process', () => {
+    const promisifyCustom = promisify.custom;
+    const execFn = jest.fn() as unknown as ((...args: unknown[]) => unknown) & {
+        [k: symbol]: unknown;
+    };
+    execFn[promisifyCustom] = (cmd: string, opts?: unknown) =>
+        new Promise((resolve, reject) => {
+            (execFn as unknown as (c: string, o: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => void)(cmd, opts, (err, stdout, stderr) => {
+                if (err) reject(err);
+                else resolve({ stdout, stderr });
+            });
+        });
+    return { exec: execFn };
+});
 
 import { exec } from 'child_process';
 import { migrateCommand } from '../migrate.js';

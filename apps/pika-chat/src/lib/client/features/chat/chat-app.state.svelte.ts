@@ -2,7 +2,12 @@ import type { AppState } from '$client/app/app.state.svelte';
 import type { FetchZ } from '$client/app/types';
 import { UserWidgetDataStoreState } from '$client/features/chat/user-widget-data-store.state.svelte';
 import { UserPrefsState } from '$client/features/prefs/user-prefs.state.svelte';
-import { checkClientResponse, checkClientResponseAndBody, CLIENT_RESOURCE_NAMES, handleClientError } from '$client/util';
+import {
+    checkClientResponse,
+    checkClientResponseAndBody,
+    CLIENT_RESOURCE_NAMES,
+    handleClientError,
+} from '$client/util';
 import { initializeCanonicalTagMap } from '$lib/client/webcomponent-utils';
 import type { Page } from '@sveltejs/kit';
 import findAndParseJsonLikeText from 'json-like-parse';
@@ -63,9 +68,13 @@ import type {
     ValidateShareAccessResponse,
     WidgetContextSourceDef,
     WidgetInstance,
-    WidgetRenderingContextType
+    WidgetRenderingContextType,
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { ContentAdminCommand, DEFAULT_MEMORY_STRATEGIES, UserOverrideDataCommand } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    ContentAdminCommand,
+    DEFAULT_MEMORY_STRATEGIES,
+    UserOverrideDataCommand,
+} from 'pika-shared/types/chatbot/chatbot-types';
 import type {
     ChatAppEventHandler,
     ChatAppEvents,
@@ -75,12 +84,16 @@ import type {
     SpotlightWidgetDefinition,
     WidgetAction,
     WidgetMetadata,
-    WidgetMetadataState
+    WidgetMetadataState,
 } from 'pika-shared/types/chatbot/webcomp-types';
 import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
-import { getAdditionalSessionSources, type SessionSource } from '$lib/custom/additional-session-sources';
+import {
+    getAdditionalSessionSources,
+    SESSION_SOURCE_ID_PATTERN,
+    type SessionSource,
+} from '$lib/custom/additional-session-sources';
 import { isSessionReadOnly } from '$lib/custom/session-read-only';
 import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { Component, Snippet } from 'svelte';
@@ -104,7 +117,7 @@ const MAX_FILES = 5;
 
 //TODO: get from feature, it's already there just use it
 const SUPPORTED_FILE_TYPES: Record<string, string> = {
-    'text/csv': 'csv (Comma Separated Values)'
+    'text/csv': 'csv (Comma Separated Values)',
     // 'application/pdf': 'pdf (Portable Document Format)',
     // 'text/plain': 'txt (Plain Text)',
 };
@@ -191,7 +204,10 @@ export class ChatAppState implements IChatAppState {
     #contentAdminDialogOpen = $state<boolean>(false);
     #userDataOverrideSettings = $state<UserDataOverrideSettings>() as UserDataOverrideSettings;
     #userDataOverrideDialogOpen = $state(false);
-    #isViewingContentForAnotherUser = $derived(this.#appState.identity.user.viewingContentFor && !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]);
+    #isViewingContentForAnotherUser = $derived(
+        this.#appState.identity.user.viewingContentFor &&
+            !!this.#appState.identity.user.viewingContentFor[this.chatApp.chatAppId]
+    );
     #addingFeedback = $state<boolean>(false);
     #feedbackDialogOpen = $state<boolean>(false);
     #allMemoryRecords = $state<RetrievedMemoryRecordSummary[]>([]);
@@ -233,7 +249,9 @@ export class ChatAppState implements IChatAppState {
             return 'disable-pin-feature';
         }
 
-        const val = pinnedSessions.find((pin) => pin.chatSession.sessionId === currentSession.sessionId) ? 'pinned' : 'not-pinned';
+        const val = pinnedSessions.find((pin) => pin.chatSession.sessionId === currentSession.sessionId)
+            ? 'pinned'
+            : 'not-pinned';
 
         return val;
     });
@@ -268,36 +286,41 @@ export class ChatAppState implements IChatAppState {
     #pinnedOwnSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.sessionId));
     #pinnedSharedSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.shareId));
 
-    #currentSessionSourceIsReadOnly = () => {
+    // Per-source read-only leg of the read-only OR-chain. Inline as $derived.by so reactive
+    // dependencies on #currentSession / #sessionToSource / #sessionSources are explicit and
+    // don't rely on tracking propagating through an enclosing function call.
+    #currentSessionSourceIsReadOnly = $derived.by(() => {
         const session = this.#currentSession;
         if (!session) return false;
         const sourceId = this.#sessionToSource.get(session.sessionId);
         if (!sourceId) return false;
-        const source = this.#sessionSources.find(s => s.id === sourceId);
+        const source = this.#sessionSources.find((s) => s.id === sourceId);
         return source?.isReadOnly?.(session) ?? false;
-    };
+    });
 
     #currentSessionIsReadOnly = $derived(
-        this.#currentSessionIsSharedBySomeoneElse
-        || isSessionReadOnly(this.#currentSession, this.#user)
-        || this.#currentSessionSourceIsReadOnly()
+        this.#currentSessionIsSharedBySomeoneElse ||
+            isSessionReadOnly(this.#currentSession, this.#user) ||
+            this.#currentSessionSourceIsReadOnly
     );
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
-        !this.#isViewingContentForAnotherUser && this.#userDataOverrideSettings?.enabled && this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides
+        !this.#isViewingContentForAnotherUser &&
+            this.#userDataOverrideSettings?.enabled &&
+            this.#userDataOverrideSettings?.userNeedsToProvideDataOverrides
     );
 
     userDataOverrideOperationInProgress: Record<UserOverrideDataCommand, boolean> = $state({
         getInitialDialogData: false,
         getValuesForAutoComplete: false,
         saveUserOverrideData: false,
-        clearUserOverrideData: false
+        clearUserOverrideData: false,
     });
     contentAdminOperationInProgress: Record<ContentAdminCommand, boolean> = $state({
         viewContentForUser: false,
         stopViewingContentForUser: false,
-        getValuesForAutoComplete: false
+        getValuesForAutoComplete: false,
     });
     #appSidebarState: SidebarState | undefined;
     #appSidebarOpen = $derived.by(() => {
@@ -369,7 +392,10 @@ export class ChatAppState implements IChatAppState {
     // Event system - stores handlers for each event type
     #eventHandlers = new Map<keyof ChatAppEvents, Set<ChatAppEventHandler<keyof ChatAppEvents>>>();
     // Track which widget instance registered which handlers for auto-cleanup
-    #widgetEventHandlers = new Map<string, Array<{ event: keyof ChatAppEvents; handler: ChatAppEventHandler<keyof ChatAppEvents> }>>();
+    #widgetEventHandlers = new Map<
+        string,
+        Array<{ event: keyof ChatAppEvents; handler: ChatAppEventHandler<keyof ChatAppEvents> }>
+    >();
     #webComponentUrls = $state<Record<string, string> | undefined>(undefined);
 
     // #userActionsInProgress: Record<string, boolean> = $state({
@@ -603,7 +629,11 @@ export class ChatAppState implements IChatAppState {
      * @returns A function to unsubscribe
      * @since 0.17.0
      */
-    addEventListener<K extends keyof ChatAppEvents>(event: K, handler: ChatAppEventHandler<K>, instanceId?: string): () => void {
+    addEventListener<K extends keyof ChatAppEvents>(
+        event: K,
+        handler: ChatAppEventHandler<K>,
+        instanceId?: string
+    ): () => void {
         if (!this.#eventHandlers.has(event)) {
             this.#eventHandlers.set(event, new Set());
         }
@@ -791,7 +821,7 @@ export class ChatAppState implements IChatAppState {
         this.#emitEvent('widgetOpen', {
             tagId: instance.tagId,
             renderingContext: instance.renderingContext,
-            instanceId: instance.instanceId
+            instanceId: instance.instanceId,
         });
     }
 
@@ -818,7 +848,7 @@ export class ChatAppState implements IChatAppState {
             this.#emitEvent('widgetClose', {
                 tagId: instance.tagId,
                 renderingContext: instance.renderingContext,
-                instanceId
+                instanceId,
             });
         }
     }
@@ -851,7 +881,7 @@ export class ChatAppState implements IChatAppState {
             appState: this.#appState,
             chatAppState: this,
             chatAppId: this.#chatApp.chatAppId,
-            dataForWidget: {} // Data is already in the widget, doesn't need to be in context
+            dataForWidget: {}, // Data is already in the widget, doesn't need to be in context
         };
     }
 
@@ -919,7 +949,7 @@ export class ChatAppState implements IChatAppState {
                         ...contextDef,
                         type: 'widget',
                         instanceId: instanceId,
-                        origin: existingContext.origin // Preserve whether user or auto added
+                        origin: existingContext.origin, // Preserve whether user or auto added
                     };
                     this.addContextSource(updatedContext);
                     // console.log(`[Context] Updated context ${contextDef.sourceId} for widget ${instanceId}`);
@@ -930,7 +960,7 @@ export class ChatAppState implements IChatAppState {
                             ...contextDef,
                             type: 'widget',
                             instanceId: instanceId,
-                            origin: 'auto'
+                            origin: 'auto',
                         };
                         this.addContextSource(widgetContext);
                         // console.log(`[Context] Auto-added new context ${contextDef.sourceId} for widget ${instanceId}`);
@@ -964,7 +994,7 @@ export class ChatAppState implements IChatAppState {
             console.log('[Context] Widget instance or element not found:', {
                 instanceId,
                 hasInstance: !!instance,
-                hasElement: !!instance?.element
+                hasElement: !!instance?.element,
             });
             return;
         }
@@ -1009,7 +1039,7 @@ export class ChatAppState implements IChatAppState {
                 const widgetContext: WidgetContextSourceDef = {
                     ...contextDef,
                     type: 'widget',
-                    instanceId: instanceId
+                    instanceId: instanceId,
                 };
 
                 // Check if user has manually removed this context (don't auto-add again)
@@ -1154,7 +1184,7 @@ export class ChatAppState implements IChatAppState {
                                 ...contextDef,
                                 type: 'widget',
                                 instanceId: instanceId,
-                                origin: 'user' // Will be user-added if they select it
+                                origin: 'user', // Will be user-added if they select it
                             });
                         }
                     }
@@ -1214,7 +1244,7 @@ export class ChatAppState implements IChatAppState {
                                 ...contextDef,
                                 type: 'widget',
                                 instanceId: instanceId,
-                                origin: currentContext.origin
+                                origin: currentContext.origin,
                             });
                         }
                     }
@@ -1326,15 +1356,24 @@ export class ChatAppState implements IChatAppState {
      * );
      * ```
      */
-    getWidgetMetadataAPI(scope: string, tag: string, instanceId: string, renderingContext: WidgetRenderingContextType): IWidgetMetadataAPI {
+    getWidgetMetadataAPI(
+        scope: string,
+        tag: string,
+        instanceId: string,
+        renderingContext: WidgetRenderingContextType
+    ): IWidgetMetadataAPI {
         // Validate required parameters
         if (!instanceId) {
-            console.error(`[Widget Metadata] instanceId is required for ${scope}.${tag}. This should come from context.instanceId set during injection.`);
+            console.error(
+                `[Widget Metadata] instanceId is required for ${scope}.${tag}. This should come from context.instanceId set during injection.`
+            );
             throw new Error(`instanceId is required for getWidgetMetadataAPI. Widget: ${scope}.${tag}`);
         }
 
         if (!renderingContext) {
-            console.error(`[Widget Metadata] renderingContext is required for ${scope}.${tag}. This should come from context.renderingContext set during injection.`);
+            console.error(
+                `[Widget Metadata] renderingContext is required for ${scope}.${tag}. This should come from context.renderingContext set during injection.`
+            );
             throw new Error(`renderingContext is required for getWidgetMetadataAPI. Widget: ${scope}.${tag}`);
         }
 
@@ -1364,7 +1403,7 @@ export class ChatAppState implements IChatAppState {
                     iconColor: metadata.iconColor,
                     actions: metadata.actions || [],
                     renderingContext: renderingContext,
-                    loadingStatus: metadata.loadingStatus
+                    loadingStatus: metadata.loadingStatus,
                 };
 
                 // console.log(`[Widget Metadata] Storing metadata for ${scope}.${tag}:`, storedMetadata);
@@ -1379,7 +1418,7 @@ export class ChatAppState implements IChatAppState {
                 if (existing) {
                     this.#widgetMetadata.set(instanceId, {
                         ...existing,
-                        title
+                        title,
                     });
                     // console.log(`[Widget Metadata] Updated title for ${scope}.${tag} (instance: ${widgetInstanceId}): "${title}"`);
                 }
@@ -1393,11 +1432,11 @@ export class ChatAppState implements IChatAppState {
                         const updatedActions = [...existing.actions];
                         updatedActions[actionIndex] = {
                             ...updatedActions[actionIndex],
-                            ...updates
+                            ...updates,
                         };
                         this.#widgetMetadata.set(instanceId, {
                             ...existing,
-                            actions: updatedActions
+                            actions: updatedActions,
                         });
                         // console.log(`[Widget Metadata] Updated action "${actionId}" for ${scope}.${tag} (instance: ${widgetInstanceId})`, updates);
                     }
@@ -1409,7 +1448,7 @@ export class ChatAppState implements IChatAppState {
                 if (existing) {
                     this.#widgetMetadata.set(instanceId, {
                         ...existing,
-                        actions: [...(existing.actions || []), action]
+                        actions: [...(existing.actions || []), action],
                     });
                     // console.log(`[Widget Metadata] Added action "${action.id}" for ${scope}.${tag} (instance: ${widgetInstanceId})`);
                 }
@@ -1420,7 +1459,7 @@ export class ChatAppState implements IChatAppState {
                 if (existing && existing.actions) {
                     this.#widgetMetadata.set(instanceId, {
                         ...existing,
-                        actions: existing.actions.filter((a) => a.id !== actionId)
+                        actions: existing.actions.filter((a) => a.id !== actionId),
                     });
                     // console.log(`[Widget Metadata] Removed action "${actionId}" for ${scope}.${tag} (instance: ${widgetInstanceId})`);
                 }
@@ -1436,16 +1475,18 @@ export class ChatAppState implements IChatAppState {
                         ...existing,
                         loadingStatus: {
                             loading,
-                            loadingMsg
-                        }
+                            loadingMsg,
+                        },
                     };
                     // console.log(`[Widget Metadata] Setting updated metadata:`, updated);
                     this.#widgetMetadata.set(instanceId, updated);
                     // console.log(`[Widget Metadata] After setLoadingStatus, can retrieve?`, this.#widgetMetadata.get(instanceId));
                 } else {
-                    console.warn(`[Widget Metadata] No existing metadata found for ${scope}.${tag} (instance: ${instanceId})`);
+                    console.warn(
+                        `[Widget Metadata] No existing metadata found for ${scope}.${tag} (instance: ${instanceId})`
+                    );
                 }
-            }
+            },
         };
     }
 
@@ -1544,7 +1585,7 @@ export class ChatAppState implements IChatAppState {
     }
 
     sourceLabel(id: string): string | undefined {
-        return this.#sessionSources.find(s => s.id === id)?.label;
+        return this.#sessionSources.find((s) => s.id === id)?.label;
     }
 
     get currentAccountContext(): string | undefined {
@@ -1624,7 +1665,9 @@ export class ChatAppState implements IChatAppState {
     }
 
     get chatInput() {
-        return this.#isViewingContentForAnotherUser ? 'You may not send messages while viewing content for another user.' : this.#chatInput;
+        return this.#isViewingContentForAnotherUser
+            ? 'You may not send messages while viewing content for another user.'
+            : this.#chatInput;
     }
 
     set chatInput(msg: string) {
@@ -1796,7 +1839,9 @@ export class ChatAppState implements IChatAppState {
      * @param tagDefinitions - Original tag definitions from the server
      * @returns Tag definitions with URL overrides applied
      */
-    #applyWebComponentUrlOverrides(tagDefinitions: TagDefinition<TagDefinitionWidget>[]): TagDefinition<TagDefinitionWidget>[] {
+    #applyWebComponentUrlOverrides(
+        tagDefinitions: TagDefinition<TagDefinitionWidget>[]
+    ): TagDefinition<TagDefinitionWidget>[] {
         // If no overrides configured, return original definitions
         if (!this.#webComponentUrls || Object.keys(this.#webComponentUrls).length === 0) {
             return tagDefinitions;
@@ -1819,8 +1864,8 @@ export class ChatAppState implements IChatAppState {
                 webComponent: {
                     ...tagDef.widget.webComponent,
                     url: overrideUrl,
-                    s3: undefined // Remove S3 config when using URL override
-                }
+                    s3: undefined, // Remove S3 config when using URL override
+                },
             };
 
             // console.log(`[ChatAppState] Applied web component URL override for ${key}:`, overrideUrl);
@@ -1866,13 +1911,15 @@ export class ChatAppState implements IChatAppState {
                         size: upload.size,
                         lastModified: upload.lastModified,
                         type: upload.type,
-                        status: upload.status
+                        status: upload.status,
                     }) as UploadInstance
             );
 
         const hasFileStillOnTheObject = completedUploads.some((upload) => !!upload.file);
         if (hasFileStillOnTheObject) {
-            throw new Error('Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.');
+            throw new Error(
+                'Uploads still have files on the object, not persisting.  Should not be possible so this is a bug.'
+            );
         }
 
         if (text === '' && completedUploads.length === 0) {
@@ -1880,7 +1927,7 @@ export class ChatAppState implements IChatAppState {
         } else {
             this.#inprogressInputs[sessionId] = {
                 text,
-                uploads: completedUploads
+                uploads: completedUploads,
             };
         }
 
@@ -1898,7 +1945,9 @@ export class ChatAppState implements IChatAppState {
         } else {
             // Make a new interim session if we don't have an interim sessionId/message in progress in local storage
             // otherwise use the interim sessionId from local storage
-            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) => key.startsWith('interim-'));
+            let inprogressInterimSessionId = Object.keys(this.#inprogressInputs).find((key) =>
+                key.startsWith('interim-')
+            );
             this.#currentSession = {
                 sessionId: inprogressInterimSessionId ?? `interim-${uuidv7()}`,
                 userId: this.#user.userId,
@@ -1917,10 +1966,10 @@ export class ChatAppState implements IChatAppState {
                     agentId: this.#chatApp.agentId,
                     userId: this.#user.userId,
                     chatAppId: this.#chatApp.chatAppId,
-                    currentDate: new Date().toISOString()
+                    currentDate: new Date().toISOString(),
                 },
                 createDate: new Date().toISOString(),
-                lastUpdate: new Date().toISOString()
+                lastUpdate: new Date().toISOString(),
             };
             this.#curSessionMessages = [];
         }
@@ -1935,14 +1984,14 @@ export class ChatAppState implements IChatAppState {
         this.#addingFeedback = true;
         try {
             const req: AddChatSessionFeedbackRequest = {
-                feedback: feedback
+                feedback: feedback,
             };
             const response = await this.fetchz('/api/session-feedback', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(req)
+                body: JSON.stringify(req),
             });
 
             checkClientResponse(response, 'adding feedback', this.#showToast, CLIENT_RESOURCE_NAMES.FEEDBACK);
@@ -1973,7 +2022,12 @@ export class ChatAppState implements IChatAppState {
             this.#refreshingChatSessions = true;
             const resp = await this.fetchz(`/api/session/${this.#chatApp.chatAppId}`);
 
-            const sessionsResult = await checkClientResponseAndBody<ChatSessionsResponse>(resp, 'refreshing chat sessions', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+            const sessionsResult = await checkClientResponseAndBody<ChatSessionsResponse>(
+                resp,
+                'refreshing chat sessions',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SESSION
+            );
 
             this.#chatSessions = sessionsResult.sessions;
 
@@ -2028,9 +2082,16 @@ export class ChatAppState implements IChatAppState {
                 `/api/message/${this.#chatApp.chatAppId}/${this.#currentSession.sessionId}${this.#currentSessionIsSharedBySomeoneElse ? `?shareId=${this.#currentSession.shareId}` : ''}`
             );
 
-            const msgResult = await checkClientResponseAndBody<ChatMessagesResponse>(resp, 'refreshing messages', this.#showToast, CLIENT_RESOURCE_NAMES.MESSAGE);
+            const msgResult = await checkClientResponseAndBody<ChatMessagesResponse>(
+                resp,
+                'refreshing messages',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.MESSAGE
+            );
 
-            this.#curSessionMessages = msgResult.messages.map((msg) => this.#processMessageIntoSegments({ ...msg, segments: [] }, false));
+            this.#curSessionMessages = msgResult.messages.map((msg) =>
+                this.#processMessageIntoSegments({ ...msg, segments: [] }, false)
+            );
         } catch (error) {
             handleClientError(error, 'refreshing messages', this.#showToast, 'refreshing messages failed:');
         } finally {
@@ -2048,12 +2109,17 @@ export class ChatAppState implements IChatAppState {
                     const response = await this.fetchz('/api/memory', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ strategy, nextToken })
+                        body: JSON.stringify({ strategy, nextToken }),
                     });
 
-                    checkClientResponse(response, 'loading memory records', this.#showToast, CLIENT_RESOURCE_NAMES.MEMORY);
+                    checkClientResponse(
+                        response,
+                        'loading memory records',
+                        this.#showToast,
+                        CLIENT_RESOURCE_NAMES.MEMORY
+                    );
 
                     const json = (await response.json()) as SearchAllMyMemoryRecordsResponse;
                     this.#allMemoryRecords.push(...json.results.records);
@@ -2102,9 +2168,9 @@ export class ChatAppState implements IChatAppState {
                     locationType: 's3',
                     size: file.size,
                     lastModified: file.lastModified,
-                    type: file.type
-                }))
-            })
+                    type: file.type,
+                })),
+            }),
         };
         this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...userMessage, segments: [] }, false));
 
@@ -2118,7 +2184,7 @@ export class ChatAppState implements IChatAppState {
             segments: [],
             isStreaming: true,
             source: 'assistant',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         };
         this.#curSessionMessages.push(interimMessage);
 
@@ -2137,7 +2203,7 @@ export class ChatAppState implements IChatAppState {
                       locationType: 's3',
                       size: file.size,
                       lastModified: file.lastModified,
-                      type: file.type
+                      type: file.type,
                   }));
 
         const wasInterimSession = this.#isInterimSession;
@@ -2154,7 +2220,7 @@ export class ChatAppState implements IChatAppState {
             origin: source.origin,
             title: source.title,
             description: source.description,
-            data: source.data
+            data: source.data,
         }));
 
         let llmContextItems: LLMContextItem[] = [];
@@ -2168,7 +2234,7 @@ export class ChatAppState implements IChatAppState {
                     context: source.data,
                     origin: source.origin,
                     contentHash: await getContentHashString(source.data),
-                    lastUpdated: new Date().toISOString()
+                    lastUpdated: new Date().toISOString(),
                 }))
             );
             // console.log(`[Context] LLM context items:`, llmContextItems);
@@ -2185,15 +2251,15 @@ export class ChatAppState implements IChatAppState {
                 features: {} as ChatAppOverridableFeatures, // This will be set server side
                 timezone: this.#currentSession.sessionAttributes?.timezone,
                 ...(files && { files }),
-                ...(llmContextItems.length > 0 && { llmContextItems })
+                ...(llmContextItems.length > 0 && { llmContextItems }),
             };
             // Send the message to the server and stream the response
             const response = await this.fetchz('/api/message', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(converseRequest)
+                body: JSON.stringify(converseRequest),
             });
 
             if (!response.ok) {
@@ -2236,14 +2302,14 @@ export class ChatAppState implements IChatAppState {
                 // Create entirely new session object with updated sessionId
                 this.#currentSession = {
                     ...oldSession,
-                    sessionId: newSessionId
+                    sessionId: newSessionId,
                 };
 
                 // Update the messages with the new session ID
                 const oldMessages = this.#curSessionMessages;
                 this.#curSessionMessages = this.#curSessionMessages.map((msg) => ({
                     ...msg,
-                    sessionId: newSessionId!
+                    sessionId: newSessionId!,
                 }));
 
                 // console.log('[CHAT-APP-STATE] After session ID update:', {
@@ -2361,7 +2427,13 @@ export class ChatAppState implements IChatAppState {
      * @returns The parsed JSON response from the agent
      * @throws Error if the request fails or response cannot be parsed
      */
-    async invokeAgentAsComponent<T = any>(scope: string, tag: string, instructionName: string, userMessage: string, options?: InvokeAgentAsComponentOptions): Promise<T> {
+    async invokeAgentAsComponent<T = any>(
+        scope: string,
+        tag: string,
+        instructionName: string,
+        userMessage: string,
+        options?: InvokeAgentAsComponentOptions
+    ): Promise<T> {
         try {
             const converseRequest: ConverseRequest = {
                 message: userMessage,
@@ -2376,17 +2448,17 @@ export class ChatAppState implements IChatAppState {
                     componentAgentInstructionName: instructionName,
                     componentTagDefinition: {
                         scope,
-                        tag
-                    }
-                }
+                        tag,
+                    },
+                },
             };
 
             const response = await this.fetchz('/api/message', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(converseRequest)
+                body: JSON.stringify(converseRequest),
             });
 
             if (!response.ok) {
@@ -2467,7 +2539,10 @@ export class ChatAppState implements IChatAppState {
      * @param options Optional callbacks
      * @returns Object with extracted answer chunk and remaining buffer
      */
-    #extractFromBuffer(buffer: string, options?: InvokeAgentAsComponentOptions): { answerChunk: string; remainingBuffer: string } {
+    #extractFromBuffer(
+        buffer: string,
+        options?: InvokeAgentAsComponentOptions
+    ): { answerChunk: string; remainingBuffer: string } {
         // Strip server heartbeat markers before processing
         buffer = buffer.replace(/<heartbeat\/>/g, '');
 
@@ -2500,11 +2575,14 @@ export class ChatAppState implements IChatAppState {
                     }
 
                     // Extract tool calls
-                    if (options.onToolCall && traceJson.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
+                    if (
+                        options.onToolCall &&
+                        traceJson.orchestrationTrace?.invocationInput?.actionGroupInvocationInput
+                    ) {
                         const invocation = traceJson.orchestrationTrace.invocationInput.actionGroupInvocationInput;
                         options.onToolCall({
                             name: `${invocation.actionGroupName}__${invocation.function}`,
-                            params: invocation.parameters || {}
+                            params: invocation.parameters || {},
                         });
                     }
                 } catch (e) {
@@ -2544,7 +2622,7 @@ export class ChatAppState implements IChatAppState {
 
         return {
             answerChunk,
-            remainingBuffer: buffer.substring(processedUpTo)
+            remainingBuffer: buffer.substring(processedUpTo),
         };
     }
 
@@ -2554,9 +2632,9 @@ export class ChatAppState implements IChatAppState {
             const response = await this.fetchz('/api/user-data-override', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             checkClientResponse(response, 'sending user override data command', this.#showToast);
@@ -2582,12 +2660,20 @@ export class ChatAppState implements IChatAppState {
                     delete this.valuesForAutoCompleteForUserOverrideDialog[request.componentName];
                 }
             } else if (request.command === 'saveUserOverrideData') {
-                this.#appState.identity.updateUserOverrideData(this.#chatApp.chatAppId, (json as SaveUserOverrideDataResponse).data);
+                this.#appState.identity.updateUserOverrideData(
+                    this.#chatApp.chatAppId,
+                    (json as SaveUserOverrideDataResponse).data
+                );
             } else if (request.command === 'clearUserOverrideData') {
                 this.#appState.identity.clearUserOverrideData(this.#chatApp.chatAppId);
             }
         } catch (error) {
-            handleClientError(error, 'sending user override data command', this.#showToast, 'sending user override data command failed:');
+            handleClientError(
+                error,
+                'sending user override data command',
+                this.#showToast,
+                'sending user override data command failed:'
+            );
             throw error;
         } finally {
             this.userDataOverrideOperationInProgress[request.command] = false;
@@ -2600,9 +2686,9 @@ export class ChatAppState implements IChatAppState {
             const response = await this.fetchz('/api/content-admin', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             checkClientResponse(response, 'sending content admin command', this.#showToast);
@@ -2618,14 +2704,20 @@ export class ChatAppState implements IChatAppState {
                 if (!this.valuesForAutoCompleteForContentAdminDialog) {
                     this.valuesForAutoCompleteForContentAdminDialog = [];
                 }
-                this.valuesForAutoCompleteForContentAdminDialog = (json as GetValuesForContentAdminAutoCompleteResponse).data ?? undefined;
+                this.valuesForAutoCompleteForContentAdminDialog =
+                    (json as GetValuesForContentAdminAutoCompleteResponse).data ?? undefined;
             } else if (request.command === 'viewContentForUser') {
                 this.#appState.identity.updateViewingContentFor(this.#chatApp.chatAppId, request.user);
             } else if (request.command === 'stopViewingContentForUser') {
                 this.#appState.identity.clearViewingContentFor(this.#chatApp.chatAppId);
             }
         } catch (error) {
-            handleClientError(error, 'sending content admin command', this.#showToast, 'sending content admin command failed:');
+            handleClientError(
+                error,
+                'sending content admin command',
+                this.#showToast,
+                'sending content admin command failed:'
+            );
             throw error;
         } finally {
             this.contentAdminOperationInProgress[request.command] = false;
@@ -2720,7 +2812,9 @@ export class ChatAppState implements IChatAppState {
 
         // Throw an error if any of the files are not one of the supported file types
         if (files.some((file) => !Object.keys(SUPPORTED_FILE_TYPES).includes(file.type))) {
-            throw new ChatFileValidationError('Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', '));
+            throw new ChatFileValidationError(
+                'Each file must be one of the following types: ' + Object.values(SUPPORTED_FILE_TYPES).join(', ')
+            );
         }
 
         // Create upload instances for the new files
@@ -2764,7 +2858,7 @@ export class ChatAppState implements IChatAppState {
             messageId: `user-mock-${uuidv7()}`,
             message: 'What is the weather like in New York?',
             source: 'user',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         };
 
         // Add the user message to current session messages
@@ -2780,11 +2874,13 @@ export class ChatAppState implements IChatAppState {
                 messageId: assistantMessageId,
                 message: '',
                 source: 'assistant',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             };
 
             // Add the assistant message to current session messages
-            this.#curSessionMessages.push(this.#processMessageIntoSegments({ ...assistantMessage, segments: [] }, true));
+            this.#curSessionMessages.push(
+                this.#processMessageIntoSegments({ ...assistantMessage, segments: [] }, true)
+            );
 
             // Define the mock weather response content to stream
             const mockResponse =
@@ -2818,25 +2914,60 @@ export class ChatAppState implements IChatAppState {
     // === SHARING-RELATED METHODS ===
 
     async initializeData() {
-        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions(), this.loadAdditionalSessions()]);
+        await Promise.all([
+            this.refreshChatSessions(),
+            this.refreshRecentSharedSessions(),
+            this.refreshPinnedSessions(),
+            this.loadAdditionalSessions(),
+        ]);
     }
 
     async loadAdditionalSessions() {
-        let sources: SessionSource[];
+        let rawSources: SessionSource[];
         try {
-            sources = await getAdditionalSessionSources(this.#appState.identity.user, this.#chatApp.chatAppId);
+            rawSources = await getAdditionalSessionSources(this.#appState.identity.user, this.#chatApp.chatAppId);
         } catch (e) {
             handleClientError(e, 'getAdditionalSessionSources', this.#showToast, 'getAdditionalSessionSources failed:');
+            this.#sourceState.clear();
+            this.#sessionToSource.clear();
             this.#sessionSources = [];
             return;
         }
-        this.#sessionSources = sources;
 
+        // Validate ids: enforce SESSION_SOURCE_ID_PATTERN and reject duplicates. Both are
+        // programming errors at the consumer side; log + drop rather than throw, so one
+        // misconfigured source doesn't take down the whole sidebar.
+        const sources: SessionSource[] = [];
+        const seenIds = new Set<string>();
+        for (const source of rawSources) {
+            if (!SESSION_SOURCE_ID_PATTERN.test(source.id)) {
+                console.warn(
+                    `[SessionSources] dropping source with invalid id ${JSON.stringify(source.id)} — must match ${SESSION_SOURCE_ID_PATTERN}`
+                );
+                continue;
+            }
+            if (seenIds.has(source.id)) {
+                console.warn(
+                    `[SessionSources] dropping duplicate source id ${JSON.stringify(source.id)} — first descriptor wins`
+                );
+                continue;
+            }
+            seenIds.add(source.id);
+            sources.push(source);
+        }
+
+        // Clear stale per-source state before assigning new sources. If a previous invocation
+        // returned a source that's no longer in the list (e.g. consumer state changed between
+        // calls), its entry would otherwise persist indefinitely. Populate the new entries
+        // BEFORE swapping #sessionSources so chat-nav never observes a source whose state map
+        // entry is missing (which would surface the 'loading' fallback in sourceStatus).
+        this.#sourceState.clear();
         for (const source of sources) {
             this.#sourceState.set(source.id, { status: 'loading' });
         }
+        this.#sessionSources = sources;
 
-        const results = await Promise.allSettled(sources.map(s => s.load()));
+        const results = await Promise.allSettled(sources.map((s) => s.load()));
 
         this.#sessionToSource.clear();
 
@@ -2851,7 +2982,12 @@ export class ChatAppState implements IChatAppState {
                 }
             } else {
                 this.#sourceState.set(source.id, { status: 'error', error: result.reason });
-                handleClientError(result.reason, `loading session source ${source.id}`, this.#showToast, `loading session source ${source.id} failed:`);
+                handleClientError(
+                    result.reason,
+                    `loading session source ${source.id}`,
+                    this.#showToast,
+                    `loading session source ${source.id} failed:`
+                );
             }
         }
     }
@@ -2861,7 +2997,7 @@ export class ChatAppState implements IChatAppState {
             const resp = await this.fetchz(`/api/session/share/recent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chatAppId: this.#chatApp.chatAppId })
+                body: JSON.stringify({ chatAppId: this.#chatApp.chatAppId }),
             });
 
             const result = await checkClientResponseAndBody<GetRecentSharedResponse>(
@@ -2874,7 +3010,12 @@ export class ChatAppState implements IChatAppState {
             this.#recentSharedSessionVisits = result.recentShared;
             this.#recentSharedSessions = [];
         } catch (error) {
-            handleClientError(error, 'refreshing recent shared sessions', this.#showToast, 'refreshing recent shared sessions failed:');
+            handleClientError(
+                error,
+                'refreshing recent shared sessions',
+                this.#showToast,
+                'refreshing recent shared sessions failed:'
+            );
         }
     }
 
@@ -2894,22 +3035,34 @@ export class ChatAppState implements IChatAppState {
                         body: JSON.stringify({
                             chatAppId: this.#chatApp.chatAppId,
                             limit: 20,
-                            nextToken
-                        } as GetPinnedSessionsRequest)
+                            nextToken,
+                        } as GetPinnedSessionsRequest),
                     });
 
-                    let result = await checkClientResponseAndBody<GetPinnedSessionsResponse>(resp, 'refreshing pinned sessions', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
+                    let result = await checkClientResponseAndBody<GetPinnedSessionsResponse>(
+                        resp,
+                        'refreshing pinned sessions',
+                        this.#showToast,
+                        CLIENT_RESOURCE_NAMES.SESSION
+                    );
 
                     // They are already sorted by pinnedAt in descending order
                     pinnedSessions.push(...result.results);
                     // Store nextToken for pagination
                     nextToken = result.nextToken;
                 } catch (error) {
-                    handleClientError(error, 'refreshing pinned sessions', this.#showToast, 'refreshing pinned sessions failed:');
+                    handleClientError(
+                        error,
+                        'refreshing pinned sessions',
+                        this.#showToast,
+                        'refreshing pinned sessions failed:'
+                    );
                 }
             } while (nextToken);
 
-            pinnedSessions.sort((a, b) => new Date(b.pinnedSession.pinnedAt).getTime() - new Date(a.pinnedSession.pinnedAt).getTime());
+            pinnedSessions.sort(
+                (a, b) => new Date(b.pinnedSession.pinnedAt).getTime() - new Date(a.pinnedSession.pinnedAt).getTime()
+            );
             this.#pinnedSessions = pinnedSessions;
         } finally {
             this.#loadingPinnedSessions = false;
@@ -2930,14 +3083,14 @@ export class ChatAppState implements IChatAppState {
             const request: CreateSharedSessionRequest = {
                 sessionId,
                 sessionUserId: this.#user.userId,
-                chatAppId: this.#chatApp.chatAppId
+                chatAppId: this.#chatApp.chatAppId,
             };
 
             this.#sharingSession = true;
             const resp = await this.fetchz('/api/session/share', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             const result = await checkClientResponseAndBody<CreateSharedSessionResponse>(
@@ -2991,10 +3144,15 @@ export class ChatAppState implements IChatAppState {
             const resp = await this.fetchz('/api/session/share', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shareId } as RevokeSharedSessionRequest)
+                body: JSON.stringify({ shareId } as RevokeSharedSessionRequest),
             });
 
-            await checkClientResponseAndBody<RevokeSharedSessionResponse>(resp, 'revoking shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+            await checkClientResponseAndBody<RevokeSharedSessionResponse>(
+                resp,
+                'revoking shared session',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SHARED_SESSION
+            );
 
             const session = this.#chatSessions.find((s) => s.shareId === shareId);
             if (session) {
@@ -3026,10 +3184,15 @@ export class ChatAppState implements IChatAppState {
             const resp = await this.fetchz('/api/session/share/unrevoke', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shareId } as UnrevokeSharedSessionRequest)
+                body: JSON.stringify({ shareId } as UnrevokeSharedSessionRequest),
             });
 
-            await checkClientResponseAndBody<UnrevokeSharedSessionResponse>(resp, 'unrevoking shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
+            await checkClientResponseAndBody<UnrevokeSharedSessionResponse>(
+                resp,
+                'unrevoking shared session',
+                this.#showToast,
+                CLIENT_RESOURCE_NAMES.SHARED_SESSION
+            );
 
             const session = this.#chatSessions.find((s) => s.shareId === shareId);
             if (session) {
@@ -3087,14 +3250,14 @@ export class ChatAppState implements IChatAppState {
                     userId: this.#user.userId,
                     ...(sessionIdToUse ? { sessionId: sessionIdToUse } : { shareId }),
                     chatAppId: this.#chatApp.chatAppId,
-                    pinnedAt: new Date().toISOString()
-                }
+                    pinnedAt: new Date().toISOString(),
+                },
             };
 
             const resp = await this.fetchz('/api/session/pinned', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(request)
+                body: JSON.stringify(request),
             });
 
             checkClientResponse(resp, 'pinning session', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
@@ -3122,8 +3285,8 @@ export class ChatAppState implements IChatAppState {
                 body: JSON.stringify({
                     sessionId: pinnedSession.shareId ? undefined : pinnedSession.sessionId,
                     shareId: pinnedSession.shareId,
-                    chatAppId: this.#chatApp.chatAppId
-                } as UnpinSessionRequest)
+                    chatAppId: this.#chatApp.chatAppId,
+                } as UnpinSessionRequest),
             });
 
             checkClientResponse(resp, 'unpinning session', this.#showToast, CLIENT_RESOURCE_NAMES.SESSION);
@@ -3146,8 +3309,8 @@ export class ChatAppState implements IChatAppState {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     shareId,
-                    chatAppId: this.#chatApp.chatAppId
-                } as ValidateShareAccessRequest)
+                    chatAppId: this.#chatApp.chatAppId,
+                } as ValidateShareAccessRequest),
             });
 
             checkClientResponse(resp, 'loading shared session', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
@@ -3208,7 +3371,7 @@ export class ChatAppState implements IChatAppState {
             const resp = await this.fetchz('/api/session/share/visit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shareId })
+                body: JSON.stringify({ shareId }),
             });
 
             checkClientResponse(resp, 'recording share visit', this.#showToast, CLIENT_RESOURCE_NAMES.SHARED_SESSION);
@@ -3263,19 +3426,26 @@ export class ChatAppState implements IChatAppState {
     async initializeSpotlight() {
         // 1. Filter tag definitions for spotlight-enabled widgets
         const spotlightTags = this.#tagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
-        const manuallyRegisteredTags = this.#manuallyRegisteredTagDefs.filter((tag) => tag.renderingContexts?.spotlight?.enabled === true);
+        const manuallyRegisteredTags = this.#manuallyRegisteredTagDefs.filter(
+            (tag) => tag.renderingContexts?.spotlight?.enabled === true
+        );
 
         // 2. Load user preferences for spotlight
         this.#spotlightUserPrefs = await this.loadSpotlightPreferences();
 
         // 3. Resolve which widgets to show and in what order
-        this.#spotlightWidgets = this.resolveSpotlightWidgets([...spotlightTags, ...manuallyRegisteredTags], this.#spotlightUserPrefs);
+        this.#spotlightWidgets = this.resolveSpotlightWidgets(
+            [...spotlightTags, ...manuallyRegisteredTags],
+            this.#spotlightUserPrefs
+        );
 
         // 4. Check if any resolved spotlight widget has startCollapsed - if so, start spotlight collapsed
         // This only applies on first initialization, not subsequent calls (e.g., when adding widgets)
         // Note: We check resolved widgets (not raw tags) so user preferences (unpinned) are respected
         if (!this.#spotlightInitialized && this.#spotlightWidgets.length > 0) {
-            const anyStartCollapsed = this.#spotlightWidgets.some((widget) => widget.tagDefinition.renderingContexts?.spotlight?.startCollapsed === true);
+            const anyStartCollapsed = this.#spotlightWidgets.some(
+                (widget) => widget.tagDefinition.renderingContexts?.spotlight?.startCollapsed === true
+            );
             if (anyStartCollapsed) {
                 this.#spotlightVisible = false;
             }
@@ -3296,7 +3466,10 @@ export class ChatAppState implements IChatAppState {
 
         // Find a hero-enabled tag with autoCreateInstance: true
         const heroTag = this.#tagDefs.find(
-            (tag) => tag.widget.type === 'web-component' && tag.renderingContexts?.hero?.enabled === true && tag.renderingContexts?.hero?.autoCreateInstance === true
+            (tag) =>
+                tag.widget.type === 'web-component' &&
+                tag.renderingContexts?.hero?.enabled === true &&
+                tag.renderingContexts?.hero?.autoCreateInstance === true
         );
 
         if (heroTag) {
@@ -3352,7 +3525,7 @@ export class ChatAppState implements IChatAppState {
             savedAt: new Date().toISOString(),
             displayOrder: registry.length - 1,
             parentTag: baseTag,
-            instanceId
+            instanceId,
         } as SpotlightInstanceMetadata);
 
         await instanceStore.setValue(dataKey, data);
@@ -3365,7 +3538,7 @@ export class ChatAppState implements IChatAppState {
             customElementName,
             autoCreateInstance: true, // Show immediately
             singleton: false,
-            showInUnpinnedMenu: false // Don't clutter menu with instances
+            showInUnpinnedMenu: false, // Don't clutter menu with instances
         });
 
         // 4. Render with data and optional metadata
@@ -3381,7 +3554,9 @@ export class ChatAppState implements IChatAppState {
      *
      * @param persistableWidgets List of base widgets that support persistent instances
      */
-    async loadSavedSpotlightInstances(persistableWidgets: Array<{ scope: string; tag: string; customElementName: string; dataKey?: string }>): Promise<void> {
+    async loadSavedSpotlightInstances(
+        persistableWidgets: Array<{ scope: string; tag: string; customElementName: string; dataKey?: string }>
+    ): Promise<void> {
         console.log('[SpotlightInstance] Loading saved instances...');
 
         for (const { scope, tag: baseTag, customElementName, dataKey = 'data' } of persistableWidgets) {
@@ -3399,7 +3574,8 @@ export class ChatAppState implements IChatAppState {
                         const instanceStore = this.getUserWidgetDataStoreState(scope, instanceTag);
 
                         // Load metadata and data
-                        const metadata = await instanceStore.getValue<SpotlightInstanceMetadata>('pika.instanceMetadata');
+                        const metadata =
+                            await instanceStore.getValue<SpotlightInstanceMetadata>('pika.instanceMetadata');
                         const data = await instanceStore.getValue(dataKey);
 
                         if (!metadata) {
@@ -3416,7 +3592,7 @@ export class ChatAppState implements IChatAppState {
                             displayOrder: metadata.displayOrder,
                             autoCreateInstance: true, // Show immediately
                             singleton: false,
-                            showInUnpinnedMenu: false
+                            showInUnpinnedMenu: false,
                         });
 
                         // 4. Pass data (will be stored in #manuallyRegisteredSpotlightData)
@@ -3458,7 +3634,9 @@ export class ChatAppState implements IChatAppState {
 
         // 4. Unregister from state
         const tagId = `${scope}.${instanceTag}`;
-        this.#manuallyRegisteredTagDefs = this.#manuallyRegisteredTagDefs.filter((t) => !(t.scope === scope && t.tag === instanceTag));
+        this.#manuallyRegisteredTagDefs = this.#manuallyRegisteredTagDefs.filter(
+            (t) => !(t.scope === scope && t.tag === instanceTag)
+        );
         this.#manuallyRegisteredUnpinned.delete(tagId);
         this.#manuallyRegisteredSpotlightData.delete(tagId);
 
@@ -3492,8 +3670,8 @@ export class ChatAppState implements IChatAppState {
                     enabled: true,
                     displayOrder: definition.displayOrder,
                     singleton: definition.singleton ?? true,
-                    showInUnpinnedMenu: definition.showInUnpinnedMenu ?? true
-                }
+                    showInUnpinnedMenu: definition.showInUnpinnedMenu ?? true,
+                },
             },
             usageMode: 'chat-app',
             status: 'enabled',
@@ -3514,9 +3692,9 @@ export class ChatAppState implements IChatAppState {
                     encoding: 'gzip',
                     encodedSizeBytes: 0,
                     encodedSha256Base64: '',
-                    mediaType: 'application/javascript'
-                }
-            }
+                    mediaType: 'application/javascript',
+                },
+            },
         };
 
         this.#manuallyRegisteredTagDefs.push(tagDef);
@@ -3543,21 +3721,28 @@ export class ChatAppState implements IChatAppState {
      */
     #initializeStaticWidgets() {
         // Filter tag definitions for static-enabled widgets and cast to StaticWidgetTagDefinition
-        this.#staticWidgets = this.#tagDefs.filter((tag) => tag.widget.type === 'web-component' && tag.renderingContexts?.static?.enabled === true) as StaticWidgetTagDefinition[];
+        this.#staticWidgets = this.#tagDefs.filter(
+            (tag) => tag.widget.type === 'web-component' && tag.renderingContexts?.static?.enabled === true
+        ) as StaticWidgetTagDefinition[];
     }
 
     /**
      * Resolve which spotlight widgets to show based on preferences.
      * Filters out unpinned widgets and sorts by display order.
      */
-    private resolveSpotlightWidgets(spotlightTags: TagDefinition<TagDefinitionWidget>[], prefs: UserSpotlightPreferences | undefined): SpotlightWidget[] {
+    private resolveSpotlightWidgets(
+        spotlightTags: TagDefinition<TagDefinitionWidget>[],
+        prefs: UserSpotlightPreferences | undefined
+    ): SpotlightWidget[] {
         const widgets: SpotlightWidget[] = [];
         const unpinnedSet = new Set(prefs?.unpinned || []);
 
         // Filter out unpinned widgets
         const pinnedTags = spotlightTags.filter((tag) => {
             const tagId = `${tag.scope}.${tag.tag}`;
-            const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag.tag && t.scope === tag.scope);
+            const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some(
+                (t) => t.tag === tag.tag && t.scope === tag.scope
+            );
 
             // Check unpinned status based on source
             if (isManuallyRegistered) {
@@ -3575,7 +3760,9 @@ export class ChatAppState implements IChatAppState {
                 return orderA - orderB;
             })
             .forEach((tag, index) => {
-                const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some((t) => t.tag === tag.tag && t.scope === tag.scope);
+                const isManuallyRegistered = this.#manuallyRegisteredTagDefs.some(
+                    (t) => t.tag === tag.tag && t.scope === tag.scope
+                );
                 const tagId = `${tag.scope}.${tag.tag}`;
 
                 // Restore data if this is a manually registered widget with stored data
@@ -3591,7 +3778,7 @@ export class ChatAppState implements IChatAppState {
                     contextConfig: tag.renderingContexts!.spotlight!,
                     isManuallyRegistered,
                     data,
-                    metadata
+                    metadata,
                 });
             });
 
@@ -3618,7 +3805,7 @@ export class ChatAppState implements IChatAppState {
             // Initialize preferences if needed
             if (!this.#spotlightUserPrefs) {
                 this.#spotlightUserPrefs = {
-                    unpinned: []
+                    unpinned: [],
                 };
             }
 
@@ -3663,7 +3850,7 @@ export class ChatAppState implements IChatAppState {
             // For database widgets, persist to server
             if (!this.#spotlightUserPrefs) {
                 this.#spotlightUserPrefs = {
-                    unpinned: []
+                    unpinned: [],
                 };
             }
 
@@ -3695,7 +3882,11 @@ export class ChatAppState implements IChatAppState {
             const dbUnpinned = this.#tagDefs.filter((tag) => {
                 const tagId = `${tag.scope}.${tag.tag}`;
                 const showInMenu = tag.renderingContexts?.spotlight?.showInUnpinnedMenu ?? true;
-                return tag.renderingContexts?.spotlight?.enabled === true && this.#spotlightUserPrefs!.unpinned.includes(tagId) && showInMenu;
+                return (
+                    tag.renderingContexts?.spotlight?.enabled === true &&
+                    this.#spotlightUserPrefs!.unpinned.includes(tagId) &&
+                    showInMenu
+                );
             });
             unpinned.push(...dbUnpinned);
         }
@@ -3704,7 +3895,11 @@ export class ChatAppState implements IChatAppState {
         const manualUnpinned = this.#manuallyRegisteredTagDefs.filter((tag) => {
             const tagId = `${tag.scope}.${tag.tag}`;
             const showInMenu = tag.renderingContexts?.spotlight?.showInUnpinnedMenu ?? true;
-            return tag.renderingContexts?.spotlight?.enabled === true && this.#manuallyRegisteredUnpinned.has(tagId) && showInMenu;
+            return (
+                tag.renderingContexts?.spotlight?.enabled === true &&
+                this.#manuallyRegisteredUnpinned.has(tagId) &&
+                showInMenu
+            );
         });
         unpinned.push(...manualUnpinned);
 
@@ -3744,7 +3939,12 @@ export class ChatAppState implements IChatAppState {
      * @param data Optional data/props to pass to the component
      * @param metadata Optional metadata (title, actions, icon) for the widget
      */
-    async renderTag(tagId: string, renderingContext: WidgetRenderingContextType, data?: Record<string, any>, metadata?: WidgetMetadata): Promise<void> {
+    async renderTag(
+        tagId: string,
+        renderingContext: WidgetRenderingContextType,
+        data?: Record<string, any>,
+        metadata?: WidgetMetadata
+    ): Promise<void> {
         // 1. Parse tagId
         const [scope, tag] = tagId.split('.');
         if (!scope || !tag) {
@@ -3764,7 +3964,9 @@ export class ChatAppState implements IChatAppState {
                 const overrideUrl = this.#webComponentUrls?.[tagId];
 
                 // Create a new tag definition
-                console.log(`Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.${overrideUrl ? ` Using URL override: ${overrideUrl}` : ''}`);
+                console.log(
+                    `Tag ${tagId} not found. Auto-generating tag definition for ${renderingContext} context.${overrideUrl ? ` Using URL override: ${overrideUrl}` : ''}`
+                );
 
                 tagDef = {
                     tag,
@@ -3777,7 +3979,7 @@ export class ChatAppState implements IChatAppState {
                     usageMode: 'chat-app',
                     status: 'enabled',
                     renderingContexts: {
-                        [renderingContext]: { enabled: true }
+                        [renderingContext]: { enabled: true },
                     },
                     widget: {
                         type: 'web-component',
@@ -3790,13 +3992,13 @@ export class ChatAppState implements IChatAppState {
                             encodedSha256Base64: '',
                             mediaType: 'application/javascript',
                             // Apply URL override if available (for local development)
-                            ...(overrideUrl ? { url: overrideUrl } : {})
-                        }
+                            ...(overrideUrl ? { url: overrideUrl } : {}),
+                        },
                     },
                     createdBy: this.#user.userId,
                     lastUpdatedBy: this.#user.userId,
                     createDate: new Date().toISOString(),
-                    lastUpdate: new Date().toISOString()
+                    lastUpdate: new Date().toISOString(),
                 };
 
                 // Register the new tag definition
@@ -3840,7 +4042,7 @@ export class ChatAppState implements IChatAppState {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                     contextConfig: tagDef.renderingContexts.canvas!,
                     data,
-                    metadata
+                    metadata,
                 };
                 this.#canvasOpen = true;
 
@@ -3854,7 +4056,7 @@ export class ChatAppState implements IChatAppState {
                     // We track existence (not visibility) because widgets often call hideHero() before renderTag()
                     // and we want to restore the hero when companion mode exits regardless
                     this.#heroExistedBeforeCompanionMode = this.#heroWidget !== undefined;
-                    
+
                     this.#companionMode = true;
                     this.#emitEvent('companionModeEnter', {});
 
@@ -3872,7 +4074,7 @@ export class ChatAppState implements IChatAppState {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                     contextConfig: tagDef.renderingContexts.dialog!,
                     data,
-                    metadata
+                    metadata,
                 };
                 this.#widgetDialogOpen = true;
                 break;
@@ -3890,7 +4092,7 @@ export class ChatAppState implements IChatAppState {
                     tagDefinition: tagDef as TagDefinition<TagDefinitionWidgetWebComponent>,
                     contextConfig: tagDef.renderingContexts.hero!,
                     data,
-                    metadata
+                    metadata,
                 };
                 this.#heroVisible = true;
                 this.#heroCollapsed = false;
@@ -3908,7 +4110,9 @@ export class ChatAppState implements IChatAppState {
      * Close the canvas view.
      */
     closeCanvas() {
-        const tagId = this.#canvasWidget ? `${this.#canvasWidget.tagDefinition.scope}.${this.#canvasWidget.tagDefinition.tag}` : undefined;
+        const tagId = this.#canvasWidget
+            ? `${this.#canvasWidget.tagDefinition.scope}.${this.#canvasWidget.tagDefinition.tag}`
+            : undefined;
         const instanceId = this.#canvasWidget?.instanceId;
 
         // Unregister widget instance if it exists
@@ -3955,7 +4159,9 @@ export class ChatAppState implements IChatAppState {
      * @since 0.17.0
      */
     async requestCanvasClose(): Promise<boolean> {
-        const canvasOptions = this.#canvasWidget?.metadata as { closeConfig?: { confirmOnClose?: boolean } } | undefined;
+        const canvasOptions = this.#canvasWidget?.metadata as
+            | { closeConfig?: { confirmOnClose?: boolean } }
+            | undefined;
 
         // If no confirmation needed, just close
         if (!canvasOptions?.closeConfig?.confirmOnClose) {
@@ -4105,7 +4311,7 @@ export class ChatAppState implements IChatAppState {
             this.#emitEvent('widgetReady', {
                 tagId: instance.tagId,
                 renderingContext: instance.renderingContext,
-                instanceId
+                instanceId,
             });
         }
     }

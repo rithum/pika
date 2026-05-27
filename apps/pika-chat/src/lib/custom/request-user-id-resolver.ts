@@ -24,6 +24,15 @@ export interface RequestUserIdResolverContext {
  *    sees their own messages); this asymmetry is intentional because GET fallback yields the
  *    caller's own data, not another user's.
  *
+ * Invocation scope:
+ *  - POST `/api/message`: called whenever `params.userId !== user.userId` (every cross-user
+ *    request).
+ *  - GET `/api/message/[chatAppId]/[sessionId]`: called ONLY when the request includes a
+ *    `?requestedUserId=` (preferred) or `?legacyUserId=` (deprecated alias) query string AND no
+ *    site-admin viewing-content-for override is active. If neither query param is present, the
+ *    hook is NOT invoked and `sessionUserId` is used directly. A consumer expecting to intercept
+ *    every GET fetch must rely on the caller including the query param.
+ *
  * Migration note: in v0.26.0 the corresponding hook was called with `(sessionUserId, requestedUserId, ctx)`.
  * v0.27.0 swaps the arg order so the request-supplied (untrusted) id comes first. If you ported a
  * v0.26.0 override, re-read its body to confirm it still validates the right input.

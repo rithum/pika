@@ -239,17 +239,23 @@ describe('lib/custom hook defaults', () => {
             expect(effectiveUserId).toBe(consumerOverride);
         });
 
-        it('is imported and called in api/message/+server.ts', () => {
+        it('is invoked transitively via $lib/server/resolve-user-id from api/message/+server.ts', () => {
             const routeSrc = readFileSync(join(__dirname, '../../src/routes/(auth)/api/message/+server.ts'), 'utf-8');
-            expect(routeSrc).toContain('resolveRequestUserId');
+            expect(routeSrc).toContain('resolveUserId');
+            expect(routeSrc).toContain('$lib/server/resolve-user-id');
+            // The helper at $lib/server/resolve-user-id.ts wraps the consumer hook resolveRequestUserId.
+            const helperSrc = readFileSync(join(__dirname, '../../src/lib/server/resolve-user-id.ts'), 'utf-8');
+            expect(helperSrc).toContain('resolveRequestUserId');
+            expect(helperSrc).toContain('$lib/custom/request-user-id-resolver');
         });
 
-        it('is imported and called in api/message/[chatAppId]/[sessionId]/+server.ts', () => {
+        it('is invoked transitively via $lib/server/resolve-user-id from api/message/[chatAppId]/[sessionId]/+server.ts', () => {
             const routeSrc = readFileSync(
                 join(__dirname, '../../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server.ts'),
                 'utf-8'
             );
-            expect(routeSrc).toContain('resolveRequestUserId');
+            expect(routeSrc).toContain('resolveUserId');
+            expect(routeSrc).toContain('$lib/server/resolve-user-id');
         });
     });
 

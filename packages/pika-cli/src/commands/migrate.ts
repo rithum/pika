@@ -71,7 +71,7 @@ function detectPikaConsumer(projectRoot: string): ConsumerDetectionResult {
     }
     if (pkg.name === '@pika/root') return { isConsumer: true };
     const allDeps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-    const matched = Object.keys(allDeps).some(d => d === 'pika-cli' || d.startsWith('@pika/'));
+    const matched = Object.keys(allDeps).some((d) => d === 'pika-cli' || d.startsWith('@pika/'));
     return matched ? { isConsumer: true } : { isConsumer: false, reason: 'package.json has no pika-cli or @pika/* dependency' };
 }
 
@@ -99,16 +99,7 @@ export async function migrateCommand(migrationId: string, options: MigrateOption
         let gitCheckSkipped = false;
         try {
             const result = await execAsync('git status --porcelain', { cwd: projectRoot });
-            // execAsync resolves to {stdout, stderr} in production (util.promisify.custom on real exec).
-            // Under jest mocks (no custom symbol), promisify resolves to [stdout, stderr] when the
-            // callback passes two success args. Handle all three shapes.
-            if (typeof result === 'string') {
-                gitStatusOutput = result;
-            } else if (Array.isArray(result)) {
-                gitStatusOutput = (result as string[])[0] ?? '';
-            } else {
-                gitStatusOutput = (result as { stdout: string }).stdout ?? '';
-            }
+            gitStatusOutput = result.stdout ?? '';
         } catch (err) {
             // ENOENT (git not installed) or "not a git repo" — log and require --force to proceed.
             gitCheckSkipped = true;
