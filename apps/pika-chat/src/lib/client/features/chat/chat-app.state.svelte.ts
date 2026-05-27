@@ -80,8 +80,8 @@ import type {
 import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-types';
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
-import { loadLegacyChatsIfNeeded, type LegacySessionsResult } from '$lib/custom/legacy-session-loader';
-import { isCurrentSessionReadOnly } from '$lib/custom/session-read-only';
+import { getAdditionalSessionSources, type SessionSource } from '$lib/custom/additional-session-sources';
+import { isSessionReadOnly } from '$lib/custom/session-read-only';
 import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { Component, Snippet } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
@@ -197,9 +197,9 @@ export class ChatAppState implements IChatAppState {
     });
     #customDataForChatApp = $state<Record<string, unknown> | undefined>(undefined);
 
-    #legacyChatSessions = $state<ChatSession<RecordOrUndef>[]>([]);
-    #loadingLegacyChatSessions = $state<boolean>(false);
-    #legacyChatsLoaded = $state<boolean>(false);
+    #sessionSources: SessionSource[] = [];
+    #sourceState = new SvelteMap<string, { status: 'loading' | 'loaded' | 'error'; sessions: ChatSession<RecordOrUndef>[]; error?: unknown }>();
+    #sessionToSource = new SvelteMap<string, string>();
 
     // Sharing-related state
     #recentSharedSessionVisits = $state<SharedSessionVisitHistory[]>([]);
@@ -263,7 +263,20 @@ export class ChatAppState implements IChatAppState {
     #pinnedOwnSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.sessionId));
     #pinnedSharedSessions = $derived.by(() => this.#pinnedSessions.filter((pin) => pin.pinnedSession.shareId));
 
-    #currentSessionIsReadOnly = $derived(this.#currentSessionIsSharedBySomeoneElse || isCurrentSessionReadOnly(this.#currentSession));
+    #currentSessionSourceIsReadOnly = () => {
+        const session = this.#currentSession;
+        if (!session) return false;
+        const sourceId = this.#sessionToSource.get(session.sessionId);
+        if (!sourceId) return false;
+        const source = this.#sessionSources.find(s => s.id === sourceId);
+        return source?.isReadOnly?.(session) ?? false;
+    };
+
+    #currentSessionIsReadOnly = $derived(
+        this.#currentSessionIsSharedBySomeoneElse
+        || isSessionReadOnly(this.#currentSession, this.#user)
+        || this.#currentSessionSourceIsReadOnly()
+    );
 
     // You may not have overridden data if you are viewing content for another user.
     #userNeedsToProvideDataOverrides = $derived(
@@ -1512,16 +1525,20 @@ export class ChatAppState implements IChatAppState {
         return this.#sortedChatSessions;
     }
 
-    get legacyChatSessions() {
-        return this.#legacyChatSessions;
+    get sessionSources() {
+        return this.#sessionSources;
     }
 
-    get loadingLegacyChatSessions() {
-        return this.#loadingLegacyChatSessions;
+    sourceStatus(id: string): 'loading' | 'loaded' | 'error' {
+        return this.#sourceState.get(id)?.status ?? 'loading';
     }
 
-    get legacyChatsLoaded() {
-        return this.#legacyChatsLoaded;
+    sourceSessions(id: string): ChatSession<RecordOrUndef>[] {
+        return this.#sourceState.get(id)?.sessions ?? [];
+    }
+
+    sourceLabel(id: string): string | undefined {
+        return this.#sessionSources.find(s => s.id === id)?.label;
     }
 
     get currentAccountContext(): string | undefined {
@@ -2795,22 +2812,34 @@ export class ChatAppState implements IChatAppState {
     // === SHARING-RELATED METHODS ===
 
     async initializeData() {
-        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions(), this.loadLegacySessions()]);
+        await Promise.all([this.refreshChatSessions(), this.refreshRecentSharedSessions(), this.refreshPinnedSessions(), this.loadAdditionalSessions()]);
     }
 
-    async loadLegacySessions() {
-        this.#loadingLegacyChatSessions = true;
-        try {
-            const result: LegacySessionsResult = await loadLegacyChatsIfNeeded(
-                this.#appState.identity.user,
-                this.#chatApp.chatAppId
-            );
-            this.#legacyChatSessions = result.sessions;
-            this.#legacyChatsLoaded = result.loaded;
-        } catch (err) {
-            handleClientError(err, 'loading legacy chat sessions', this.#showToast, 'loading legacy sessions failed:');
-        } finally {
-            this.#loadingLegacyChatSessions = false;
+    async loadAdditionalSessions() {
+        const sources = await getAdditionalSessionSources(this.#appState.identity.user, this.#chatApp.chatAppId);
+        this.#sessionSources = sources;
+
+        for (const source of sources) {
+            this.#sourceState.set(source.id, { status: 'loading', sessions: [] });
+        }
+
+        const results = await Promise.allSettled(sources.map(s => s.load()));
+
+        this.#sessionToSource.clear();
+
+        for (let i = 0; i < sources.length; i++) {
+            const source = sources[i];
+            const result = results[i];
+            if (result.status === 'fulfilled') {
+                const sessions = result.value;
+                this.#sourceState.set(source.id, { status: 'loaded', sessions });
+                for (const session of sessions) {
+                    this.#sessionToSource.set(session.sessionId, source.id);
+                }
+            } else {
+                this.#sourceState.set(source.id, { status: 'error', sessions: [], error: result.reason });
+                handleClientError(result.reason, `loading session source ${source.id}`, this.#showToast, `loading session source ${source.id} failed:`);
+            }
         }
     }
 
