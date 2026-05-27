@@ -7,7 +7,7 @@ import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import { transformCustomUserData } from '$lib/custom/server-hooks';
-import { validateLegacyUserIdIfNeeded } from '$lib/custom/legacy-user-validator';
+import { resolveRequestUserId } from '$lib/custom/request-user-id-resolver';
 
 /** Max time (ms) to wait for the server hook before falling back to original data */
 const SERVER_HOOK_TIMEOUT_MS = 5000;
@@ -45,21 +45,22 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         if (params.userId !== user.userId) {
-            const legacyUserId = await validateLegacyUserIdIfNeeded(user.userId, params.userId, {
+            const resolvedUserId = await resolveRequestUserId(params.userId, user.userId, {
                 request,
                 cookies,
-                stage: appConfig.stage
+                stage: appConfig.stage,
+                chatAppId: params.chatAppId
             });
-            if (!legacyUserId) {
-                console.warn('[Legacy Message Auth] legacy userId validation failed for message POST', {
+            if (!resolvedUserId) {
+                console.warn('[Message Auth] resolveRequestUserId returned undefined for mismatched userId', {
                     path: '/api/message',
                     chatAppId: params.chatAppId,
-                    requestedLegacyUserId: params.userId,
+                    requestedUserId: params.userId,
                     sessionUserId: user.userId
                 });
                 throw error(401, 'Unauthorized');
             }
-            params.userId = legacyUserId;
+            params.userId = resolvedUserId;
         }
 
         const effectiveUserId = params.userId;
