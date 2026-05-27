@@ -7,7 +7,7 @@ import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import { transformCustomUserData } from '$lib/custom/server-hooks';
-import { validateLegacyUserIdIfNeeded } from '$lib/custom/legacy-user-validator';
+import { resolveUserId } from '$lib/server/resolve-user-id';
 
 /** Max time (ms) to wait for the server hook before falling back to original data */
 const SERVER_HOOK_TIMEOUT_MS = 5000;
@@ -17,7 +17,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         if (!isUserContentAdmin(locals.user)) {
             throw error(403, 'Forbidden');
         }
-        throw error(403, 'You have selected view content for another user and you are not allowed to take action as that user.');
+        throw error(
+            403,
+            'You have selected view content for another user and you are not allowed to take action as that user.'
+        );
     }
 
     try {
@@ -45,21 +48,19 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         if (params.userId !== user.userId) {
-            const legacyUserId = await validateLegacyUserIdIfNeeded(user.userId, params.userId, {
+            // POST routes fail closed: a denying/throwing resolver becomes a 401 — the caller was
+            // attempting to act *as* another user. arg1 (params.userId) is the request-supplied,
+            // attacker-influenceable id; arg2 (user.userId) is the trusted session id.
+            params.userId = await resolveUserId({
+                requestedUserId: params.userId,
+                sessionUserId: user.userId,
                 request,
                 cookies,
-                stage: appConfig.stage
+                stage: appConfig.stage,
+                chatAppId: params.chatAppId,
+                failOpen: false,
+                routeLabel: 'POST /api/message',
             });
-            if (!legacyUserId) {
-                console.warn('[Legacy Message Auth] legacy userId validation failed for message POST', {
-                    path: '/api/message',
-                    chatAppId: params.chatAppId,
-                    requestedLegacyUserId: params.userId,
-                    sessionUserId: user.userId
-                });
-                throw error(401, 'Unauthorized');
-            }
-            params.userId = legacyUserId;
         }
 
         const effectiveUserId = params.userId;
@@ -71,15 +72,18 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         let resolvedCustomUserData = rawCustomUserData;
         let timer: ReturnType<typeof setTimeout>;
         const timeout = new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`transformCustomUserData timed out after ${SERVER_HOOK_TIMEOUT_MS}ms`)), SERVER_HOOK_TIMEOUT_MS);
+            timer = setTimeout(
+                () => reject(new Error(`transformCustomUserData timed out after ${SERVER_HOOK_TIMEOUT_MS}ms`)),
+                SERVER_HOOK_TIMEOUT_MS
+            );
         });
         try {
             const hookResult = await Promise.race([
                 transformCustomUserData(rawCustomUserData, {
                     userId: effectiveUserId,
-                    chatAppId: params.chatAppId
+                    chatAppId: params.chatAppId,
                 }),
-                timeout
+                timeout,
             ]);
 
             // Guard against hooks that accidentally return undefined when data existed
@@ -89,14 +93,17 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
                 resolvedCustomUserData = hookResult;
             }
         } catch (e) {
-            console.warn('[server-hooks] transformCustomUserData threw an error, falling back to original data:', e instanceof Error ? e.message : String(e));
+            console.warn(
+                '[server-hooks] transformCustomUserData threw an error, falling back to original data:',
+                e instanceof Error ? e.message : String(e)
+            );
         } finally {
             clearTimeout(timer!);
         }
 
         const simpleUser: SimpleAuthenticatedUser<typeof user.customData> = {
             userId: effectiveUserId,
-            customUserData: resolvedCustomUserData
+            customUserData: resolvedCustomUserData,
         };
 
         // Replace the s3Bucket with appConfig.pikaS3Bucket in any files we have
@@ -104,7 +111,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
             params.files = params.files?.map((file) => ({
                 ...file,
                 s3Bucket: appConfig.pikaS3Bucket,
-                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.pikaS3Bucket)
+                fileId: file.fileId.replace('REPLACE_ME_SERVER_SIDE', appConfig.pikaS3Bucket),
             }));
         }
 
@@ -115,7 +122,13 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
                 customDataFieldPathToMatchUsersEntity = siteFeatures.entity.attributeName;
             }
 
-            const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, params.chatAppId, customDataFieldPathToMatchUsersEntity);
+            const matchingChatApps = await getMatchingChatApps(
+                locals.user,
+                false,
+                undefined,
+                params.chatAppId,
+                customDataFieldPathToMatchUsersEntity
+            );
             if (matchingChatApps && matchingChatApps.length === 1) {
                 chatApp = matchingChatApps[0];
             } else {
@@ -129,11 +142,16 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         // Don't trust the features passed in the request and don't send UI-only features to the converse function
-        const { chatDisclaimerNotice, traces, logout, fileUpload, suggestions, promptInputFieldLabel, uiCustomization, ...featuresForConverse } = getOverridableFeatures(
-            siteFeatures ?? {},
-            chatApp,
-            locals.user
-        );
+        const {
+            chatDisclaimerNotice,
+            traces,
+            logout,
+            fileUpload,
+            suggestions,
+            promptInputFieldLabel,
+            uiCustomization,
+            ...featuresForConverse
+        } = getOverridableFeatures(siteFeatures ?? {}, chatApp, locals.user);
         params.features = featuresForConverse;
         // console.log('featuresForConverse', featuresForConverse);
 
@@ -155,7 +173,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         const responseHeaders: Record<string, string> = {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-cache',
-            Connection: 'keep-alive'
+            Connection: 'keep-alive',
         };
 
         if (sessionId) {
@@ -166,7 +184,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         // Since your Lambda streams plain text, we just pass it through
         return new Response(lambdaResponse.body, {
             status: 200,
-            headers: responseHeaders
+            headers: responseHeaders,
         });
     } catch (e) {
         handleApiGatewayError(e, 'getting answer back from chatbot');

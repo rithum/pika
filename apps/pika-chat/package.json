@@ -29,7 +29,8 @@
         "upload-tag-defs": "pnpm run generate-tag-defs-for-build && tsx tools/upload-tag-defs/index.ts",
         "test": "jest",
         "test:watch": "jest --watch",
-        "test:integration": "jest --testPathPattern=test/integration"
+        "test:integration": "jest --testPathPattern=test/integration",
+        "test:components": "vitest run --config vitest.config.ts"
     },
     "devDependencies": {
         "@auth/core": "catalog:",
@@ -134,7 +135,11 @@
         "typescript": "catalog:",
         "unplugin-icons": "catalog:",
         "uuid": "catalog:",
-        "vite": "catalog:"
+        "vite": "catalog:",
+        "vitest": "^3.0.0",
+        "@testing-library/svelte": "^5.2.0",
+        "@testing-library/jest-dom": "^6.4.0",
+        "jsdom": "^26.0.0"
     },
     "dependencies": {
         "@cartamd/plugin-code": "catalog:",

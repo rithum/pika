@@ -1,0 +1,166 @@
+---
+title: Upgrading to 0.27.0
+description: Migration guide for Pika 0.27.0 — generic session-source extension seams replacing the v0.26.0 legacy-chats hooks
+---
+
+This guide covers migrating from Pika 0.26.0 to 0.27.0. Version 0.27.0 replaces five ai-bot-specific legacy-chats hooks with three generic session-source seams. This is a **breaking change** for any consumer that adopted the v0.26.0 hooks.
+
+## Overview
+
+The five hooks introduced in v0.26.0 — `loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded` — were named and shaped around one consumer's (ai-bot's) AzureAD migration. v0.27.0 generalizes them into three consumer-agnostic seams so any deployment can inject custom session sources.
+
+**Why this is breaking but cost-free**: no merged consumer is on v0.26.0 yet — ai-bot's consumption (ES-3127) was paused on 2026-05-27 after the design smell was identified. v0.27.0 is the only window to redesign these seams without breaking a real consumer.
+
+## Breaking Changes
+
+### Removed hooks
+
+| v0.26.0 hook | v0.27.0 replacement |
+|---|---|
+| `loadLegacyChatsIfNeeded(user, chatAppId) → LegacySessionsResult` | `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` returning a single descriptor |
+| `getLegacyChatsSectionHeader() → Component?` | `SessionSource.sidebarSlot.header` |
+| `getLegacyChatsSectionTrigger() → Component?` | `SessionSource.sidebarSlot.trigger` |
+| `isCurrentSessionReadOnly(session)` | `isSessionReadOnly(session, user)` (or per-source `SessionSource.isReadOnly`) |
+| `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` |
+| `LEGACY_ACTION_USER_ID_COOKIE` constant export | **Removed** — define your own constant |
+| Type `LegacySessionsResult` | **Removed** — not needed under the new shape |
+
+### Client-side hook signatures use `ChatUser<U>`, not `AuthenticatedUser<T, U>`
+
+Client-facing hook signatures now use `ChatUser<U>` (the parent of `AuthenticatedUser`) so server-only fields like `authData` (access/refresh tokens) are not leaked across the public hook surface. Server-side hooks (e.g. `resolveRequestUserId`'s `RequestUserIdResolverContext`) continue to use server-side types where appropriate.
+
+## Migration Steps
+
+### 1. Sync to v0.27.0
+
+```bash
+pnpm pika sync
+```
+
+The four legacy hook files are protected from sync, so they will remain in your tree after this step.
+
+### 2. Run the migration command
+
+```bash
+pnpm pika migrate v0.26.0-v0.27.0
+```
+
+This removes the four orphan hook files (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `session-read-only.ts` is **not** touched by `pika migrate` — it's a sync-protected file in your consumer tree, so `pika sync` doesn't overwrite it either. You must **hand-edit** `session-read-only.ts` in step 3 below to adopt the new `isSessionReadOnly(session, user)` signature.
+
+Flags:
+
+- `--dry-run` — preview the deletes without touching the filesystem.
+- `--force` — skip both safety pre-checks: the consumer-tree detection (refuses to run when `package.json` doesn't depend on a pika package) **and** the dirty-tree check (refuses to run when `git status --porcelain` is non-empty). Use only when you've reviewed the tree and intend to proceed.
+- `--force-content-mismatch` — by default, the command computes SHA-256 over each target file and only deletes when the content matches the v0.26.0 default stub byte-for-byte. If you customized the legacy hook in place (added a real implementation in `legacy-session-loader.ts`, etc.), the file is **skipped with a warning** rather than nuked. Pass this flag to delete diverged files anyway. **Read your override first** — once deleted, the file is gone; recover from git.
+
+When the safety check trips on customized files, you'll see output like:
+
+```text
+⚠ skipped apps/pika-chat/src/lib/custom/legacy-session-loader.ts: content differs from v0.26.0 default (likely customized); pass --force-content-mismatch to delete anyway
+```
+
+The remediation is usually: copy the implementation logic into `additional-session-sources.ts` first (step 3 below), then re-run `pika migrate v0.26.0-v0.27.0 --force-content-mismatch` to clean up the now-superseded legacy file.
+
+The command is idempotent — re-running it is safe.
+
+### 3. Move your v0.26.0 overrides into the new shapes
+
+If you had implementations in any of the five removed hooks, move them as follows.
+
+**`loadLegacyChatsIfNeeded` → `getAdditionalSessionSources`** in `additional-session-sources.ts`:
+
+```typescript
+import type { ChatUser, ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type { SessionSource } from '$lib/custom/additional-session-sources';
+
+export async function getAdditionalSessionSources(
+    user: ChatUser<RecordOrUndef>,
+    chatAppId: string
+): Promise<SessionSource[]> {
+    // If this user has no legacy sessions, omit the source entirely (don't return it with an empty load()).
+    if (!userHasLegacySessions(user)) return [];
+
+    return [
+        {
+            id: 'legacy',
+            label: 'Legacy Sessions',
+            load: async () => {
+                return await fetchLegacySessions(user, chatAppId);
+            },
+            isReadOnly: (session) => true, // example: all legacy sessions read-only
+        },
+    ];
+}
+```
+
+**`getLegacyChatsSectionHeader` / `getLegacyChatsSectionTrigger` → `SessionSource.sidebarSlot`**:
+
+```typescript
+{
+    id: 'legacy',
+    label: 'Legacy Sessions',
+    load: async () => { ... },
+    sidebarSlot: {
+        header: MyHeaderComponent,
+        trigger: MyTriggerComponent,
+    },
+}
+```
+
+**`isCurrentSessionReadOnly` → `isSessionReadOnly`** in `session-read-only.ts` (add the `user` param):
+
+```typescript
+export function isSessionReadOnly(
+    session: ChatSession<RecordOrUndef> | undefined,
+    user: ChatUser<RecordOrUndef> | undefined
+): boolean {
+    if (!session) return false;
+    return session.someCustomFlag === true;
+}
+```
+
+For per-source rules ("all sessions from source X are read-only"), prefer `SessionSource.isReadOnly` on the descriptor instead — keep the cross-cutting hook minimal.
+
+**`validateLegacyUserIdIfNeeded` → `resolveRequestUserId`** in `request-user-id-resolver.ts`.
+
+> **⚠️ Security-sensitive rename — read this carefully.** The framework call sites also swapped argument order: v0.26.0 called the hook as `validateLegacyUserIdIfNeeded(user.userId, params.userId, ctx)` (session id first, request id second); v0.27.0 calls it as `resolveRequestUserId(params.userId, user.userId, ctx)` (request id first, session id second). If your v0.26.0 override trusted arg1 — for example, doing a DB lookup or admin check on it — that arg is now the **request-supplied (attacker-influenceable)** id, not the session id. Re-read your override end-to-end before keeping it; do not just rename the parameter.
+
+```typescript
+export async function resolveRequestUserId(
+    requestedUserId: string,
+    sessionUserId: string,
+    context: RequestUserIdResolverContext
+): Promise<string | undefined> {
+    const cookieValue = context.cookies.get('my_custom_user_id_cookie');
+    if (cookieValue && cookieValue !== requestedUserId) {
+        return cookieValue;
+    }
+    return undefined;
+}
+```
+
+**`LEGACY_ACTION_USER_ID_COOKIE` references** — define your own constant in consumer code; the framework no longer exports one.
+
+### 4. Verify
+
+```bash
+pnpm -C apps/pika-chat test           # Jest contract suite
+pnpm -C apps/pika-chat test:components # Vitest component suite (Svelte 5)
+```
+
+The component suite is new in v0.27.0 and runs alongside Jest. Add `pnpm test:components` to your CI if it isn't already.
+
+## Rendering Semantics
+
+`chat-nav.svelte` iterates `getAdditionalSessionSources` results in declared order, rendering one `Sidebar.Group` per source with three possible states:
+
+- **Loading** — `sidebarSlot.trigger` if set, otherwise a default loading row.
+- **Loaded** — `sidebarSlot.header` (if set), then the session list (or "No sessions found.").
+- **Errored** — `sidebarSlot.header` (if set), then an inline error row. The group does not collapse. Sibling sources are unaffected.
+
+Sources load via `Promise.allSettled`, so one failing source never breaks the others.
+
+## Related
+
+- [Extension Points guide](/guides/customization/extension-points/) — full hook reference and migration table
+- ES-3141 plan (in genie workspace) — design rationale and implementation notes

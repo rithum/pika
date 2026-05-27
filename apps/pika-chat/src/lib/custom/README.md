@@ -6,24 +6,22 @@ Two categories of customization live here: **extension-point hooks** (function o
 
 ---
 
-## Extension Points (v0.26.0)
+## Extension Points (v0.27.0)
 
 Extension points are exported functions you can override to add deployment-specific behavior without editing synced framework files. Each has a no-op default — pika works correctly without any overrides.
 
 | File | Export | Default | Purpose |
 |------|--------|---------|---------|
 | `site-admin.ts` | `isUserAllowedAdminAccess(user)` | delegates to `isUserSiteAdmin()` | Gate admin routes on custom criteria (e.g., provider check) |
-| `legacy-session-loader.ts` | `loadLegacyChatsIfNeeded(user, chatAppId)` | `{ sessions: [], loaded: false }` | Load sessions from a pre-OIDC legacy system |
-| `legacy-chats-section-header.ts` | `getLegacyChatsSectionHeader()` | `undefined` | Inject a header component above the legacy chats nav section |
-| `session-read-only.ts` | `isCurrentSessionReadOnly(session)` | `false` | Mark additional session types as read-only |
-| `legacy-user-validator.ts` | `validateLegacyUserIdIfNeeded(effectiveId, sessionId, ctx)` | `undefined` | Cross-validate legacy user IDs for dual-auth deployments |
+| `additional-session-sources.ts` | `getAdditionalSessionSources(user, chatAppId)` | `[]` | Add 0..N custom session sources to the sidebar, each with its own loader, sidebar slots, and read-only predicate |
+| `session-read-only.ts` | `isSessionReadOnly(session, user)` | `false` | Mark additional session types as read-only (cross-cutting; per-source rules go on the source descriptor) |
+| `request-user-id-resolver.ts` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | `undefined` | Override the user id used by the message routes (e.g., honor a separate cookie for legacy actions) |
 | `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
 | `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
-| `legacy-chats-section-trigger.ts` | `getLegacyChatsSectionTrigger()` | `undefined` | Inject a component into the nav when legacy chats are not yet loaded |
 
 ### How to override
 

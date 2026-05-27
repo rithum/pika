@@ -2,7 +2,7 @@ import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { getChatMessages } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
-import { validateLegacyUserIdIfNeeded } from '$lib/custom/legacy-user-validator';
+import { resolveUserId } from '$lib/server/resolve-user-id';
 import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
@@ -38,14 +38,36 @@ export const GET: RequestHandler = async ({ params, locals, url, request, cookie
     }
 
     if (!userId) {
-        const legacyQueryUserId = url.searchParams.get('legacyUserId') ?? undefined;
-        if (legacyQueryUserId) {
-            const validated = await validateLegacyUserIdIfNeeded(user.userId, legacyQueryUserId, {
+        // Prefer the new `requestedUserId` query param; honor `legacyUserId` as a deprecated alias
+        // for v0.26.0 wire-API compatibility. If a caller passes the old name, emit a one-line
+        // warn so the deprecation surfaces in observability without breaking the request.
+        const newParam = url.searchParams.get('requestedUserId');
+        const legacyParam = url.searchParams.get('legacyUserId');
+        if (legacyParam && !newParam) {
+            console.warn(
+                '[Message Auth] deprecated query param `legacyUserId` used on GET messages route — use `requestedUserId` instead',
+                {
+                    path: '/api/message/[chatAppId]/[sessionId]',
+                    chatAppId,
+                }
+            );
+        }
+        const requestedUserId = newParam ?? legacyParam ?? undefined;
+        if (requestedUserId) {
+            // GET fails open by design: a denying/throwing resolver falls back to the session
+            // user (the caller sees their own messages, never another user's data). POST is
+            // fail-closed; resolveUserId encapsulates both asymmetric paths. arg1 is the
+            // attacker-influenceable query-supplied id; arg2 is the trusted session id.
+            userId = await resolveUserId({
+                requestedUserId,
+                sessionUserId: user.userId,
                 request,
                 cookies,
-                stage: appConfig.stage
+                stage: appConfig.stage,
+                chatAppId,
+                failOpen: true,
+                routeLabel: 'GET /api/message/[chatAppId]/[sessionId]',
             });
-            userId = validated ?? user.userId;
         } else {
             userId = user.userId;
         }
@@ -60,7 +82,13 @@ export const GET: RequestHandler = async ({ params, locals, url, request, cookie
 
     let chatApp: ChatApp | undefined;
     try {
-        const matchingChatApps = await getMatchingChatApps(locals.user, false, undefined, chatAppId, customDataFieldPathToMatchUsersEntity);
+        const matchingChatApps = await getMatchingChatApps(
+            locals.user,
+            false,
+            undefined,
+            chatAppId,
+            customDataFieldPathToMatchUsersEntity
+        );
         if (matchingChatApps && matchingChatApps.length === 1) {
             chatApp = matchingChatApps[0];
         } else {
@@ -76,7 +104,10 @@ export const GET: RequestHandler = async ({ params, locals, url, request, cookie
     let features = getOverridableFeatures(siteFeatures ?? {}, chatApp, user);
     if (features.entity.enabled) {
         if (!siteFeatures?.entity?.attributeName) {
-            throw error(400, 'attribute name is not defined on the site wide entity feature even though the entity feature is enabled');
+            throw error(
+                400,
+                'attribute name is not defined on the site wide entity feature even though the entity feature is enabled'
+            );
         }
         entityId = getEntityIdForUser(user, user.overrideData?.[chatApp.chatAppId], siteFeatures.entity.attributeName);
     }

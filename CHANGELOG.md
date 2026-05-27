@@ -5,6 +5,37 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-05-27
+
+### Changed
+
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; same scope — message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields like `authData` are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings; per-source error rows render inline without collapsing the group. Updated `lib/custom/README.md`, [Extension Points guide](/guides/customization/extension-points/), and contract test (`apps/pika-chat/test/custom/contract.test.ts`).
+
+### Added
+
+- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `pika sync` does not propagate deletes of protected files, so consumers must run this command after upgrading. Flags: `--dry-run` (preview without filesystem changes), `--force` (skip both consumer-tree detection AND the dirty-tree git check), `--force-content-mismatch` (override the per-file SHA-256 safety check that skips customized files). Symlinks are always refused; rmSync failures are surfaced as a per-file failure summary with a non-zero exit. Idempotent; safe to re-run.
+- **Svelte 5 component test infrastructure** in `apps/pika-chat` — added Vitest + `@testing-library/svelte` + jsdom for component-level DOM tests, running alongside the existing Jest setup via the new `pnpm test:components` script. Initial coverage: 7 component tests for `chat-nav.svelte` exercising every session-source render state (no sources, loading with/without trigger, loaded with/without sessions, errored, mixed-status siblings).
+
+### Migration notes
+
+**Breaking change** — but no merged consumer is on v0.26.0 yet (ai-bot consumption was paused on 2026-05-27 after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
+
+**Step-by-step**:
+
+1. `pnpm pika sync` to v0.27.0 (the four legacy hook files are protected — sync will leave them in place).
+2. `pnpm pika migrate v0.26.0-v0.27.0` (deletes the four orphan files; idempotent).
+3. Move any v0.26.0 overrides into the new shapes:
+   - `loadLegacyChatsIfNeeded` body → `SessionSource.load()` returned by `getAdditionalSessionSources` in `additional-session-sources.ts` (return a single descriptor; omit it entirely instead of returning `loaded: false`).
+   - `getLegacyChatsSectionHeader` / `-Trigger` Components → `SessionSource.sidebarSlot.header` / `.trigger` on the descriptor.
+   - `isCurrentSessionReadOnly(session)` body → either `isSessionReadOnly(session, user)` (add the new `user` param) for cross-cutting rules, or `SessionSource.isReadOnly(session)` for per-source rules.
+   - `validateLegacyUserIdIfNeeded(effectiveUserId, sessionUserId, ctx)` → `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` in `request-user-id-resolver.ts`. **Argument order changed**: v0.26.0 called the hook with `(user.userId, params.userId, ctx)`; v0.27.0 calls it with `(params.userId, user.userId, ctx)`. arg1 is now the request-supplied (attacker-influenceable) id rather than the session id — re-read your override end-to-end before keeping it; do not just rename the parameter.
+   - `LEGACY_ACTION_USER_ID_COOKIE` references → consumer-owned constant.
+4. Run `pnpm test` in `apps/pika-chat` (contract test) and `pnpm test:components` (component tests) to verify the override compiles and the sidebar still renders.
+
+See the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guides/upgrading-to-0-27-0/) for the long form.
+
+---
+
 ## [0.26.0] - 2026-05-26
 
 ### Added

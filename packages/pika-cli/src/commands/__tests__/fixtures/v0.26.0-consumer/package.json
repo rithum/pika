@@ -1,0 +1,8 @@
+{
+    "name": "test-fixture-consumer",
+    "version": "0.0.0",
+    "private": true,
+    "devDependencies": {
+        "pika-cli": "0.26.0"
+    }
+}

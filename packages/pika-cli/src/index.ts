@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { createApp } from './commands/create-app.js';
+import { migrateCommand } from './commands/migrate.js';
 import { syncCommand } from './commands/sync.js';
 import { componentCommand } from './commands/component.js';
 import { authCommand } from './commands/auth.js';
@@ -27,6 +28,17 @@ program
     .option('--skip-install', 'Skip installing dependencies')
     .option('--skip-git', 'Skip initializing git repository')
     .action(createApp);
+
+program
+    .command('migrate')
+    .description('Run a Pika framework migration script')
+    .argument('<migration>', 'Migration to run (currently: v0.26.0-v0.27.0)')
+    .option('--dry-run', 'Print what would be deleted without touching the filesystem')
+    .option('--force', 'Skip dirty-tree and consumer-tree checks')
+    .option('--force-content-mismatch', 'Delete files even if their content differs from the v0.26.0 default stub (overrides the customized-file safety check)')
+    .action(async (migration, options) => {
+        await migrateCommand(migration, options);
+    });
 
 program
     .command('sync')
