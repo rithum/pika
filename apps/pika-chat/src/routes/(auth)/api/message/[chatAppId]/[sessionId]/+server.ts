@@ -40,12 +40,37 @@ export const GET: RequestHandler = async ({ params, locals, url, request, cookie
     if (!userId) {
         const requestedUserId = url.searchParams.get('legacyUserId') ?? undefined;
         if (requestedUserId) {
-            const resolved = await resolveRequestUserId(requestedUserId, user.userId, {
-                request,
-                cookies,
-                stage: appConfig.stage,
-                chatAppId
-            });
+            // Intentional asymmetry with the POST route: on the GET messages endpoint, a denied
+            // or thrown resolver falls back to the session user (the caller sees their own
+            // messages). POST 401s because the caller was attempting to act *as* another user;
+            // here the caller is only reading their own data when fallback kicks in. We still
+            // log so denials/throws surface in observability.
+            let resolved: string | undefined;
+            try {
+                resolved = await resolveRequestUserId(requestedUserId, user.userId, {
+                    request,
+                    cookies,
+                    stage: appConfig.stage,
+                    chatAppId
+                });
+            } catch (e) {
+                console.warn('[Message Auth] resolveRequestUserId threw — falling back to session user', {
+                    path: '/api/message/[chatAppId]/[sessionId]',
+                    chatAppId,
+                    requestedUserId,
+                    sessionUserId: user.userId,
+                    error: e instanceof Error ? e.message : String(e)
+                });
+                resolved = undefined;
+            }
+            if (!resolved) {
+                console.warn('[Message Auth] resolveRequestUserId returned undefined — falling back to session user', {
+                    path: '/api/message/[chatAppId]/[sessionId]',
+                    chatAppId,
+                    requestedUserId,
+                    sessionUserId: user.userId
+                });
+            }
             userId = resolved ?? user.userId;
         } else {
             userId = user.userId;

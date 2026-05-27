@@ -31,10 +31,21 @@ import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-au
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
 type C2aSig = (user: ChatUser<RecordOrUndef>, chatAppId: string) => Promise<SessionSource[]>;
 type C2cSig = (session: ChatSession<RecordOrUndef> | undefined, user: ChatUser<RecordOrUndef> | undefined) => boolean;
-type C3Sig = (requestedUserId: string, sessionUserId: string, context: RequestUserIdResolverContext) => Promise<string | undefined>;
+type C3Sig = (
+    requestedUserId: string,
+    sessionUserId: string,
+    context: RequestUserIdResolverContext
+) => Promise<string | undefined>;
 type C4Sig = (session: ChatSession<RecordOrUndef>) => string | undefined;
-type C5Sig = (session: ChatSession<RecordOrUndef>, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => ChatSession<RecordOrUndef>;
-type C7Sig = (event: any, pathName: string, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined) => Promise<{ clearSession: boolean }>;
+type C5Sig = (
+    session: ChatSession<RecordOrUndef>,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>
+) => ChatSession<RecordOrUndef>;
+type C7Sig = (
+    event: any,
+    pathName: string,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
+) => Promise<{ clearSession: boolean }>;
 type C8Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -55,7 +66,7 @@ const mockUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef> = {
     identityId: 'test-identity-id',
     userType: 'external-user',
     roles: [],
-    customData: undefined
+    customData: undefined,
 };
 
 // ChatUser is the parent of AuthenticatedUser; safe to use mockUser where ChatUser is expected.
@@ -71,7 +82,7 @@ const mockSession: ChatSession<RecordOrUndef> = {
     entityId: 'test-entity-id',
     createDate: '2024-01-01T00:00:00Z',
     lastUpdate: '2024-01-01T00:00:00Z',
-    sessionAttributes: {}
+    sessionAttributes: {},
 };
 
 // ===== Default behavior smoke tests =====
@@ -94,7 +105,7 @@ describe('lib/custom hook defaults', () => {
         it('SessionSource requires only id and load — label, isReadOnly, sidebarSlot are optional', () => {
             const minimal: SessionSource = {
                 id: 'minimal',
-                load: async () => []
+                load: async () => [],
             };
             expect(minimal.id).toBe('minimal');
             expect(minimal.label).toBeUndefined();
@@ -110,11 +121,28 @@ describe('lib/custom hook defaults', () => {
                 isReadOnly: (_session) => false,
                 sidebarSlot: {
                     header: undefined,
-                    trigger: undefined
-                }
+                    trigger: undefined,
+                },
             };
             expect(full.id).toBe('full-source');
             expect(full.label).toBe('Full Source');
+        });
+
+        it('the framework loader uses Promise.allSettled (not Promise.all) — text smoke test', () => {
+            // Documents the framework's load-time guarantee at the call site. A swap to
+            // Promise.all in chat-app.state.svelte.ts#loadAdditionalSessions would break the
+            // public sibling-isolation contract; this assertion fails fast in that case.
+            const stateSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/chat-app.state.svelte.ts'),
+                'utf8'
+            );
+            // Find the loadAdditionalSessions method body and assert it uses allSettled, not bare .all.
+            const methodMatch = stateSrc.match(/async loadAdditionalSessions\(\)[\s\S]*?(?=\n    [a-zA-Z#])/);
+            expect(methodMatch).not.toBeNull();
+            const body = methodMatch![0];
+            expect(body).toContain('Promise.allSettled');
+            // Bare Promise.all( with no "Settled" would regress sibling isolation.
+            expect(body).not.toMatch(/Promise\.all\(/);
         });
 
         it('Promise.allSettled semantics: a rejecting source does not affect sibling sources', async () => {
@@ -122,16 +150,18 @@ describe('lib/custom hook defaults', () => {
             // must not prevent other sources from loading.
             const rejectingSource: SessionSource = {
                 id: 'failing',
-                load: async () => { throw new Error('source load error'); }
+                load: async () => {
+                    throw new Error('source load error');
+                },
             };
             const succeedingSource: SessionSource = {
                 id: 'working',
-                load: async () => []
+                load: async () => [],
             };
             const results = await Promise.allSettled([rejectingSource.load(), succeedingSource.load()]);
             expect(results[0].status).toBe('rejected');
             expect(results[1].status).toBe('fulfilled');
-            expect((results[1] as PromiseFulfilledResult<any>).value).toEqual([]);
+            expect((results[1] as PromiseFulfilledResult<ChatSession<RecordOrUndef>[]>).value).toEqual([]);
         });
     });
 
@@ -169,7 +199,7 @@ describe('lib/custom hook defaults', () => {
             const readOnlySource: SessionSource = {
                 id: 'read-only-source',
                 load: async () => [],
-                isReadOnly: () => true
+                isReadOnly: () => true,
             };
             const sourceReadOnly = readOnlySource.isReadOnly!(mockSession);
             expect(hookResult).toBe(false);
@@ -182,7 +212,7 @@ describe('lib/custom hook defaults', () => {
             const ctx: RequestUserIdResolverContext = {
                 request: new Request('https://example.com'),
                 cookies: {} as any,
-                stage: 'test'
+                stage: 'test',
             };
             const result = await resolveRequestUserId('user-a', 'user-b', ctx);
             expect(result).toBeUndefined();
@@ -192,7 +222,7 @@ describe('lib/custom hook defaults', () => {
             const ctx: RequestUserIdResolverContext = {
                 request: new Request('https://example.com'),
                 cookies: {} as any,
-                stage: 'test'
+                stage: 'test',
             };
             const requestedUserId = 'original-user-id';
             const override = await resolveRequestUserId(requestedUserId, 'session-user-id', ctx);
@@ -210,10 +240,7 @@ describe('lib/custom hook defaults', () => {
         });
 
         it('is imported and called in api/message/+server.ts', () => {
-            const routeSrc = readFileSync(
-                join(__dirname, '../../src/routes/(auth)/api/message/+server.ts'),
-                'utf-8'
-            );
+            const routeSrc = readFileSync(join(__dirname, '../../src/routes/(auth)/api/message/+server.ts'), 'utf-8');
             expect(routeSrc).toContain('resolveRequestUserId');
         });
 
@@ -268,6 +295,38 @@ describe('lib/custom hook defaults', () => {
     describe('shouldBypassChatUserRoleMerge', () => {
         it('returns false by default', () => {
             expect(shouldBypassChatUserRoleMerge(mockUser)).toBe(false);
+        });
+    });
+
+    /**
+     * Regression guard: the v0.27.0 release removed the five v0.26.0 legacy-chats hook files
+     * and the LEGACY_ACTION_USER_ID_COOKIE constant. A partial revert that brings any of these
+     * back would silently re-introduce ai-bot-specific shapes into the public hook surface.
+     * Assert each removed module cannot be required.
+     */
+    describe('removed v0.26.0 legacy symbols (regression guard)', () => {
+        const removedModules = [
+            '$lib/custom/legacy-session-loader',
+            '$lib/custom/legacy-chats-section-header',
+            '$lib/custom/legacy-chats-section-trigger',
+            '$lib/custom/legacy-user-validator',
+        ];
+        for (const modulePath of removedModules) {
+            it(`module ${modulePath} no longer resolves`, async () => {
+                await expect(import(modulePath)).rejects.toThrow();
+            });
+        }
+
+        it('LEGACY_ACTION_USER_ID_COOKIE is not re-exported from any custom module', async () => {
+            // Spot-check the surviving modules — none should re-export the removed cookie name.
+            const survivors: Record<string, unknown>[] = await Promise.all([
+                import('$lib/custom/additional-session-sources'),
+                import('$lib/custom/session-read-only'),
+                import('$lib/custom/request-user-id-resolver'),
+            ]);
+            for (const mod of survivors) {
+                expect(Object.keys(mod)).not.toContain('LEGACY_ACTION_USER_ID_COOKIE');
+            }
         });
     });
 });

@@ -50,21 +50,29 @@ function sha256(buf: Buffer): string {
     return createHash('sha256').update(buf).digest('hex');
 }
 
-function looksLikePikaConsumer(projectRoot: string): boolean {
+type ConsumerDetectionResult = { isConsumer: boolean; reason?: string };
+
+function detectPikaConsumer(projectRoot: string): ConsumerDetectionResult {
     const pkgPath = path.join(projectRoot, 'package.json');
-    if (!existsSync(pkgPath)) return false;
-    try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-            name?: string;
-            dependencies?: Record<string, string>;
-            devDependencies?: Record<string, string>;
-        };
-        if (pkg.name === '@pika/root') return true;
-        const allDeps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-        return Object.keys(allDeps).some(d => d === 'pika-cli' || d.startsWith('@pika/'));
-    } catch {
-        return false;
+    if (!existsSync(pkgPath)) {
+        return { isConsumer: false, reason: 'no package.json' };
     }
+    let raw: string;
+    try {
+        raw = readFileSync(pkgPath, 'utf8');
+    } catch (err) {
+        return { isConsumer: false, reason: `cannot read package.json: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    let pkg: { name?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    try {
+        pkg = JSON.parse(raw);
+    } catch (err) {
+        return { isConsumer: false, reason: `package.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    if (pkg.name === '@pika/root') return { isConsumer: true };
+    const allDeps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+    const matched = Object.keys(allDeps).some(d => d === 'pika-cli' || d.startsWith('@pika/'));
+    return matched ? { isConsumer: true } : { isConsumer: false, reason: 'package.json has no pika-cli or @pika/* dependency' };
 }
 
 export async function migrateCommand(migrationId: string, options: MigrateOptions = {}): Promise<void> {
@@ -76,10 +84,13 @@ export async function migrateCommand(migrationId: string, options: MigrateOption
 
     const projectRoot = process.cwd();
 
-    if (!options.force && !looksLikePikaConsumer(projectRoot)) {
-        logger.error(`${projectRoot} does not look like a pika consumer tree (no package.json with a pika dependency).`);
-        logger.info('Re-run from the consumer project root, or pass --force to override this check.');
-        process.exit(1);
+    if (!options.force) {
+        const detection = detectPikaConsumer(projectRoot);
+        if (!detection.isConsumer) {
+            logger.error(`${projectRoot} does not look like a pika consumer tree: ${detection.reason ?? 'unknown reason'}.`);
+            logger.info('Re-run from the consumer project root, or pass --force to override this check.');
+            process.exit(1);
+        }
     }
 
     if (!options.dryRun && !options.force) {
@@ -123,12 +134,24 @@ export async function migrateCommand(migrationId: string, options: MigrateOption
                 console.log(chalk.gray(`  already removed: ${relPath}`));
                 continue;
             }
-            const stat = lstatSync(absPath);
+            let stat;
+            try {
+                stat = lstatSync(absPath);
+            } catch (err) {
+                console.log(chalk.red(`  ERROR (lstat failed): ${relPath} — ${err instanceof Error ? err.message : String(err)}`));
+                continue;
+            }
             if (stat.isSymbolicLink()) {
                 console.log(chalk.red(`  SKIP (symlink): ${relPath}`));
                 continue;
             }
-            const actualSha256 = sha256(readFileSync(absPath));
+            let actualSha256: string;
+            try {
+                actualSha256 = sha256(readFileSync(absPath));
+            } catch (err) {
+                console.log(chalk.red(`  ERROR (read failed): ${relPath} — ${err instanceof Error ? err.message : String(err)}`));
+                continue;
+            }
             if (actualSha256 === defaultSha256) {
                 console.log(chalk.yellow(`  would delete (matches v0.26.0 default): ${relPath}`));
             } else if (options.forceContentMismatch) {
@@ -165,7 +188,13 @@ export async function migrateCommand(migrationId: string, options: MigrateOption
             continue;
         }
 
-        const actualSha256 = sha256(readFileSync(absPath));
+        let actualSha256: string;
+        try {
+            actualSha256 = sha256(readFileSync(absPath));
+        } catch (err) {
+            failures.push({ relPath, reason: `content-hash read failed: ${err instanceof Error ? err.message : String(err)}` });
+            continue;
+        }
         if (actualSha256 !== defaultSha256 && !options.forceContentMismatch) {
             skipped.push({ relPath, reason: 'content differs from v0.26.0 default (likely customized); pass --force-content-mismatch to delete anyway' });
             continue;

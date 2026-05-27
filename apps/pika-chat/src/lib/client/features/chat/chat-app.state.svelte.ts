@@ -81,11 +81,6 @@ import type { IntentRouterHandler } from 'pika-shared/types/chatbot/chatbot-type
 import { generateChatFileUploadS3KeyName, sanitizeFileName } from 'pika-shared/util/chatbot-shared-utils';
 import type { SidebarState } from 'pika-ux/shadcn/sidebar/context.svelte';
 import { getAdditionalSessionSources, type SessionSource } from '$lib/custom/additional-session-sources';
-
-type SessionSourceState =
-    | { status: 'loading' }
-    | { status: 'loaded'; sessions: ChatSession<RecordOrUndef>[] }
-    | { status: 'error'; error: unknown };
 import { isSessionReadOnly } from '$lib/custom/session-read-only';
 import { getSessionEntityValue } from '$lib/custom/session-entity-extraction';
 import type { Component, Snippet } from 'svelte';
@@ -99,6 +94,11 @@ import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
 import { WidgetRegistry } from './widgets/widget-registry';
 import { getContentHashString } from 'pika-shared/util/server-client-utils';
+
+type SessionSourceState =
+    | { status: 'loading' }
+    | { status: 'loaded'; sessions: ChatSession<RecordOrUndef>[] }
+    | { status: 'error'; error: unknown };
 
 const MAX_FILES = 5;
 

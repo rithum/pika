@@ -50,7 +50,16 @@ This removes the four orphan hook files (`legacy-session-loader.ts`, `legacy-cha
 Flags:
 
 - `--dry-run` — preview the deletes without touching the filesystem.
-- `--force` — skip the dirty-tree check (use only if you have intentional uncommitted work).
+- `--force` — skip both safety pre-checks: the consumer-tree detection (refuses to run when `package.json` doesn't depend on a pika package) **and** the dirty-tree check (refuses to run when `git status --porcelain` is non-empty). Use only when you've reviewed the tree and intend to proceed.
+- `--force-content-mismatch` — by default, the command computes SHA-256 over each target file and only deletes when the content matches the v0.26.0 default stub byte-for-byte. If you customized the legacy hook in place (added a real implementation in `legacy-session-loader.ts`, etc.), the file is **skipped with a warning** rather than nuked. Pass this flag to delete diverged files anyway. **Read your override first** — once deleted, the file is gone; recover from git.
+
+When the safety check trips on customized files, you'll see output like:
+
+```text
+⚠ skipped apps/pika-chat/src/lib/custom/legacy-session-loader.ts: content differs from v0.26.0 default (likely customized); pass --force-content-mismatch to delete anyway
+```
+
+The remediation is usually: copy the implementation logic into `additional-session-sources.ts` first (step 3 below), then re-run `pika migrate v0.26.0-v0.27.0 --force-content-mismatch` to clean up the now-superseded legacy file.
 
 The command is idempotent — re-running it is safe.
 

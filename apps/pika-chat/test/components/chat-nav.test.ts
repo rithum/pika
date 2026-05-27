@@ -38,10 +38,7 @@ function makeSession(id: string, title = ''): ChatSession<RecordOrUndef> {
     };
 }
 
-function makeSource(
-    id: string,
-    overrides: Partial<SessionSource> = {}
-): SessionSource {
+function makeSource(id: string, overrides: Partial<SessionSource> = {}): SessionSource {
     return {
         id,
         load: async () => [],
@@ -144,10 +141,7 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
 
     // (d) single source status: 'loaded' with sessions → header (if set) + session list
     it('(d) renders session list when source is loaded with sessions', () => {
-        const sessions = [
-            makeSession('s-1', 'Session Alpha'),
-            makeSession('s-2', 'Session Beta'),
-        ];
+        const sessions = [makeSession('s-1', 'Session Alpha'), makeSession('s-2', 'Session Beta')];
         const source = makeSource('test-src', { label: 'My Source' });
         const chat = makeMockChat({
             sessionSources: [source],
@@ -213,7 +207,7 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
             sessionSources: [sourceA, sourceB],
             sourceStatus: vi.fn((id: string) => statusMap[id]),
             sourceSessions: vi.fn((id: string) => sessionsMap[id] ?? []),
-            sourceLabel: vi.fn((id: string) => id === 'src-loaded' ? 'Source B' : undefined),
+            sourceLabel: vi.fn((id: string) => (id === 'src-loaded' ? 'Source B' : undefined)),
         });
         renderChatNav(chat);
 

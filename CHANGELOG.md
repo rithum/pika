@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `pika sync` does not propagate deletes of protected files, so consumers must run this command after upgrading. Supports `--dry-run` (preview without filesystem changes) and `--force` (skip the dirty-tree check). Idempotent; safe to re-run.
+- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree (`legacy-session-loader.ts`, `legacy-chats-section-header.ts`, `legacy-chats-section-trigger.ts`, `legacy-user-validator.ts`). `pika sync` does not propagate deletes of protected files, so consumers must run this command after upgrading. Flags: `--dry-run` (preview without filesystem changes), `--force` (skip both consumer-tree detection AND the dirty-tree git check), `--force-content-mismatch` (override the per-file SHA-256 safety check that skips customized files). Symlinks are always refused; rmSync failures are surfaced as a per-file failure summary with a non-zero exit. Idempotent; safe to re-run.
 - **Svelte 5 component test infrastructure** in `apps/pika-chat` — added Vitest + `@testing-library/svelte` + jsdom for component-level DOM tests, running alongside the existing Jest setup via the new `pnpm test:components` script. Initial coverage: 7 component tests for `chat-nav.svelte` exercising every session-source render state (no sources, loading with/without trigger, loaded with/without sessions, errored, mixed-status siblings).
 
 ### Migration notes

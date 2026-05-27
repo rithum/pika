@@ -13,7 +13,7 @@
         "Remove `LEGACY_ACTION_USER_ID_COOKIE` constant — consumers define their own cookie names.",
         "Client-side hook signatures use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) — server-only fields like `authData` no longer leak across the public hook surface.",
         "Sources load via Promise.allSettled, so one failing source never breaks siblings; per-source error rows render inline.",
-        "New `pika migrate v0.26.0-v0.27.0` CLI subcommand removes the 4 orphan hook files from consumer trees (sync does not propagate deletes of protected files). Supports --dry-run and --force; idempotent.",
+        "New `pika migrate v0.26.0-v0.27.0` CLI subcommand removes the 4 orphan hook files from consumer trees (sync does not propagate deletes of protected files). Flags: --dry-run (preview), --force (skip both consumer-tree detection and dirty-tree check), --force-content-mismatch (override per-file SHA-256 customized-file safety check). Symlinks always refused; per-file failures aggregated. Idempotent.",
         "Svelte 5 component test infrastructure (Vitest + @testing-library/svelte + jsdom) added alongside the existing Jest setup; new `pnpm test:components` script. 7 component tests for chat-nav.svelte across every session-source render state.",
         "Why now: no merged consumer is on v0.26.0 yet (ai-bot consumption paused after design smell identified). Only window to redesign these seams without breaking a real consumer."
       ]

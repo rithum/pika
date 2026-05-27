@@ -45,12 +45,24 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
 
         if (params.userId !== user.userId) {
-            const resolvedUserId = await resolveRequestUserId(params.userId, user.userId, {
-                request,
-                cookies,
-                stage: appConfig.stage,
-                chatAppId: params.chatAppId
-            });
+            let resolvedUserId: string | undefined;
+            try {
+                resolvedUserId = await resolveRequestUserId(params.userId, user.userId, {
+                    request,
+                    cookies,
+                    stage: appConfig.stage,
+                    chatAppId: params.chatAppId
+                });
+            } catch (e) {
+                console.warn('[Message Auth] resolveRequestUserId threw — failing closed', {
+                    path: '/api/message',
+                    chatAppId: params.chatAppId,
+                    requestedUserId: params.userId,
+                    sessionUserId: user.userId,
+                    error: e instanceof Error ? e.message : String(e)
+                });
+                throw error(401, 'Unauthorized');
+            }
             if (!resolvedUserId) {
                 console.warn('[Message Auth] resolveRequestUserId returned undefined for mismatched userId', {
                     path: '/api/message',

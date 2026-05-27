@@ -15,7 +15,7 @@ Complete version history of the Pika Framework.
 
 ### Added
 
-- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree. Supports `--dry-run` and `--force`. Idempotent; safe to re-run.
+- **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree. Flags: `--dry-run` (preview), `--force` (skip both consumer-tree detection and dirty-tree git check), `--force-content-mismatch` (override the per-file SHA-256 safety check that skips customized files). Symlinks always refused. Idempotent; safe to re-run.
 - **Svelte 5 component test infrastructure** in `apps/pika-chat` (Vitest + `@testing-library/svelte` + jsdom, alongside the existing Jest setup via `pnpm test:components`). Initial coverage: 7 component tests for `chat-nav.svelte` across every session-source render state.
 
 ### Migration notes

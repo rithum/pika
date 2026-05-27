@@ -14,6 +14,14 @@ jest.mock('child_process', () => ({
 import { exec } from 'child_process';
 import { migrateCommand } from '../migrate.js';
 
+// `exec` is heavily overloaded; for these mocks we only need the 3-arg callback form.
+type ExecImpl = (cmd: string, opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => void;
+
+// jest's `process.exit` typings require a never return; reuse a single typed throw stub.
+const throwOnExit = (_code?: string | number | null | undefined): never => {
+    throw new Error('process.exit');
+};
+
 const FIXTURE_DIR = path.join(__dirname, 'fixtures/v0.26.0-consumer');
 
 const DELETABLE_FILES = [
@@ -41,10 +49,12 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
         tmpDir = path.join(os.tmpdir(), `pika-migrate-test-${Date.now()}`);
         copyFixture(tmpDir);
         process.chdir(tmpDir);
-        // Default: clean working tree (exec callback signature: error, stdout, stderr)
-        (mockExec as any).mockImplementation((_cmd: string, _opts: any, cb: any) => {
+        // Default: clean working tree. The `exec` callback signature is heavily overloaded; we cast
+        // to the canonical 3-arg-callback form for testing.
+        const cleanTreeImpl: ExecImpl = (_cmd, _opts, cb) => {
             cb(null, '', '');
-        });
+        };
+        mockExec.mockImplementation(cleanTreeImpl as unknown as typeof exec);
     });
 
     afterEach(() => {
@@ -80,16 +90,17 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
     });
 
     it('refuses to run with uncommitted changes unless --force is passed', async () => {
-        (mockExec as any).mockImplementation((_cmd: string, _opts: any, cb: any) => {
+        const dirtyTreeImpl: ExecImpl = (_cmd, _opts, cb) => {
             cb(null, ' M some-file.ts\n', '');
-        });
-        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((_code?: any) => { throw new Error('process.exit'); });
+        };
+        mockExec.mockImplementation(dirtyTreeImpl as unknown as typeof exec);
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(throwOnExit);
         await expect(migrateCommand('v0.26.0-v0.27.0')).rejects.toThrow('process.exit');
         exitSpy.mockRestore();
     });
 
     it('rejects unknown migration IDs', async () => {
-        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((_code?: any) => { throw new Error('process.exit'); });
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(throwOnExit);
         await expect(migrateCommand('v0.99.0-v0.100.0', { force: true })).rejects.toThrow('process.exit');
         exitSpy.mockRestore();
     });
@@ -115,7 +126,10 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
 
     it('skips files that differ from the v0.26.0 default stub (customized)', async () => {
         const customizedRel = 'apps/pika-chat/src/lib/custom/legacy-session-loader.ts';
-        writeFileSync(path.join(tmpDir, customizedRel), '// my custom implementation\nexport async function loadLegacyChatsIfNeeded() { return { sessions: [{ id: "mine" }], loaded: true }; }');
+        writeFileSync(
+            path.join(tmpDir, customizedRel),
+            '// my custom implementation\nexport async function loadLegacyChatsIfNeeded() { return { sessions: [{ id: "mine" }], loaded: true }; }'
+        );
 
         await migrateCommand('v0.26.0-v0.27.0', { force: true });
 
@@ -137,7 +151,7 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
 
     it('refuses to run outside a pika consumer tree (no package.json with pika dep) unless --force', async () => {
         rmSync(path.join(tmpDir, 'package.json'));
-        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((_code?: any) => { throw new Error('process.exit'); });
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(throwOnExit);
         await expect(migrateCommand('v0.26.0-v0.27.0')).rejects.toThrow('process.exit');
         exitSpy.mockRestore();
     });
