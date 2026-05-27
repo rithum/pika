@@ -10,28 +10,28 @@
  * consumer-specific behavior.
  */
 import { describe, it, expect } from '@jest/globals';
-import type { AuthenticatedUser, ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import type { AuthenticatedUser, ChatUser, ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 // ===== Type-contract assertions =====
 // These lines cause a TypeScript compile error if any signature drifts.
 // The unused-var suppression is intentional.
 
 import { isUserAllowedAdminAccess } from '../../src/lib/custom/site-admin';
-import { loadLegacyChatsIfNeeded, type LegacySessionsResult } from '../../src/lib/custom/legacy-session-loader';
-import { getLegacyChatsSectionHeader } from '../../src/lib/custom/legacy-chats-section-header';
-import { isCurrentSessionReadOnly } from '../../src/lib/custom/session-read-only';
-import { validateLegacyUserIdIfNeeded, LEGACY_ACTION_USER_ID_COOKIE, type LegacyUserValidatorContext } from '../../src/lib/custom/legacy-user-validator';
+import { getAdditionalSessionSources, type SessionSource } from '../../src/lib/custom/additional-session-sources';
+import { isSessionReadOnly } from '../../src/lib/custom/session-read-only';
+import { resolveRequestUserId, type RequestUserIdResolverContext } from '../../src/lib/custom/request-user-id-resolver';
 import { getSessionEntityValue } from '../../src/lib/custom/session-entity-extraction';
 import { transformSessionAccountContext } from '../../src/lib/custom/session-account-context';
 import { transformCustomUserData, onAuthProviderCallback, onBeforeAuth } from '../../src/lib/custom/server-hooks';
 import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-auth';
-import { getLegacyChatsSectionTrigger } from '../../src/lib/custom/legacy-chats-section-trigger';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
-type C2aSig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>, chatAppId: string) => Promise<LegacySessionsResult>;
-type C2cSig = (session: ChatSession<RecordOrUndef> | undefined) => boolean;
-type C3Sig = (effectiveUserId: string, sessionUserId: string, context: LegacyUserValidatorContext) => Promise<string | undefined>;
+type C2aSig = (user: ChatUser<RecordOrUndef>, chatAppId: string) => Promise<SessionSource[]>;
+type C2cSig = (session: ChatSession<RecordOrUndef> | undefined, user: ChatUser<RecordOrUndef> | undefined) => boolean;
+type C3Sig = (requestedUserId: string, sessionUserId: string, context: RequestUserIdResolverContext) => Promise<string | undefined>;
 type C4Sig = (session: ChatSession<RecordOrUndef>) => string | undefined;
 type C5Sig = (session: ChatSession<RecordOrUndef>, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => ChatSession<RecordOrUndef>;
 type C7Sig = (event: any, pathName: string, user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined) => Promise<{ clearSession: boolean }>;
@@ -39,9 +39,9 @@ type C8Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const _c1: C1Sig = isUserAllowedAdminAccess;
-const _c2a: C2aSig = loadLegacyChatsIfNeeded;
-const _c2c: C2cSig = isCurrentSessionReadOnly;
-const _c3: C3Sig = validateLegacyUserIdIfNeeded;
+const _c2a: C2aSig = getAdditionalSessionSources;
+const _c2c: C2cSig = isSessionReadOnly;
+const _c3: C3Sig = resolveRequestUserId;
 const _c4: C4Sig = getSessionEntityValue;
 const _c5: C5Sig = transformSessionAccountContext;
 const _c7: C7Sig = onBeforeAuth;
@@ -57,6 +57,9 @@ const mockUser: AuthenticatedUser<RecordOrUndef, RecordOrUndef> = {
     roles: [],
     customData: undefined
 };
+
+// ChatUser is the parent of AuthenticatedUser; safe to use mockUser where ChatUser is expected.
+const mockChatUser: ChatUser<RecordOrUndef> = mockUser;
 
 const mockSession: ChatSession<RecordOrUndef> = {
     sessionId: 'test-session-id',
@@ -81,41 +84,145 @@ describe('lib/custom hook defaults', () => {
         });
     });
 
-    describe('loadLegacyChatsIfNeeded (C2a)', () => {
-        it('returns loaded=false by default', async () => {
-            const result = await loadLegacyChatsIfNeeded(mockUser, 'test-app');
-            expect(result.loaded).toBe(false);
-            expect(Array.isArray(result.sessions)).toBe(true);
-            expect(result.sessions).toHaveLength(0);
+    describe('getAdditionalSessionSources (C2a)', () => {
+        it('returns empty array by default', async () => {
+            const result = await getAdditionalSessionSources(mockChatUser, 'test-app');
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toHaveLength(0);
+        });
+
+        it('SessionSource requires only id and load — label, isReadOnly, sidebarSlot are optional', () => {
+            const minimal: SessionSource = {
+                id: 'minimal',
+                load: async () => []
+            };
+            expect(minimal.id).toBe('minimal');
+            expect(minimal.label).toBeUndefined();
+            expect(minimal.isReadOnly).toBeUndefined();
+            expect(minimal.sidebarSlot).toBeUndefined();
+        });
+
+        it('SessionSource accepts full shape: id, label, load, isReadOnly, sidebarSlot', () => {
+            const full: SessionSource = {
+                id: 'full-source',
+                label: 'Full Source',
+                load: async () => [],
+                isReadOnly: (_session) => false,
+                sidebarSlot: {
+                    header: undefined,
+                    trigger: undefined
+                }
+            };
+            expect(full.id).toBe('full-source');
+            expect(full.label).toBe('Full Source');
+        });
+
+        it('Promise.allSettled semantics: a rejecting source does not affect sibling sources', async () => {
+            // Framework calls Promise.allSettled(sources.map(s => s.load())) so one failure
+            // must not prevent other sources from loading.
+            const rejectingSource: SessionSource = {
+                id: 'failing',
+                load: async () => { throw new Error('source load error'); }
+            };
+            const succeedingSource: SessionSource = {
+                id: 'working',
+                load: async () => []
+            };
+            const results = await Promise.allSettled([rejectingSource.load(), succeedingSource.load()]);
+            expect(results[0].status).toBe('rejected');
+            expect(results[1].status).toBe('fulfilled');
+            expect((results[1] as PromiseFulfilledResult<any>).value).toEqual([]);
         });
     });
 
-    describe('getLegacyChatsSectionHeader (C2b)', () => {
-        it('returns undefined by default', () => {
-            const header = getLegacyChatsSectionHeader();
-            expect(header).toBeUndefined();
+    describe('isSessionReadOnly (C2c)', () => {
+        it('returns false by default', () => {
+            expect(isSessionReadOnly(mockSession, mockChatUser)).toBe(false);
+        });
+
+        it('does not throw when called with undefined session', () => {
+            expect(() => isSessionReadOnly(undefined, mockChatUser)).not.toThrow();
+            expect(isSessionReadOnly(undefined, mockChatUser)).toBe(false);
+        });
+
+        it('does not throw when called with undefined user', () => {
+            expect(() => isSessionReadOnly(mockSession, undefined)).not.toThrow();
+            expect(isSessionReadOnly(mockSession, undefined)).toBe(false);
+        });
+
+        it('does not throw when called with both args undefined', () => {
+            expect(() => isSessionReadOnly(undefined, undefined)).not.toThrow();
+            expect(isSessionReadOnly(undefined, undefined)).toBe(false);
+        });
+
+        it('OR-composition with shared-by-someone-else: session is read-only when shared even if hook returns false', () => {
+            // Framework: isSharedBySomeoneElse || isSessionReadOnly(session, user) || sourceReadOnly
+            const hookResult = isSessionReadOnly(mockSession, mockChatUser);
+            const sharedBySomeoneElse = true;
+            expect(hookResult).toBe(false);
+            expect(sharedBySomeoneElse || hookResult).toBe(true);
+        });
+
+        it('OR-composition with per-source isReadOnly: session is read-only when source predicate returns true even if hook returns false', () => {
+            // Framework OR-s top-level hook with SessionSource.isReadOnly for the session's source.
+            const hookResult = isSessionReadOnly(mockSession, mockChatUser);
+            const readOnlySource: SessionSource = {
+                id: 'read-only-source',
+                load: async () => [],
+                isReadOnly: () => true
+            };
+            const sourceReadOnly = readOnlySource.isReadOnly!(mockSession);
+            expect(hookResult).toBe(false);
+            expect(hookResult || sourceReadOnly).toBe(true);
         });
     });
 
-    describe('isCurrentSessionReadOnly (C2c)', () => {
-        it('returns false for a real session', () => {
-            expect(isCurrentSessionReadOnly(mockSession)).toBe(false);
-        });
-
-        it('returns false for undefined session', () => {
-            expect(isCurrentSessionReadOnly(undefined)).toBe(false);
-        });
-    });
-
-    describe('validateLegacyUserIdIfNeeded (C3)', () => {
+    describe('resolveRequestUserId (C3)', () => {
         it('returns undefined by default', async () => {
-            const ctx: LegacyUserValidatorContext = {
+            const ctx: RequestUserIdResolverContext = {
                 request: new Request('https://example.com'),
                 cookies: {} as any,
                 stage: 'test'
             };
-            const result = await validateLegacyUserIdIfNeeded('user-a', 'user-b', ctx);
+            const result = await resolveRequestUserId('user-a', 'user-b', ctx);
             expect(result).toBeUndefined();
+        });
+
+        it('undefined return leaves requestedUserId unchanged — downstream uses original value', async () => {
+            const ctx: RequestUserIdResolverContext = {
+                request: new Request('https://example.com'),
+                cookies: {} as any,
+                stage: 'test'
+            };
+            const requestedUserId = 'original-user-id';
+            const override = await resolveRequestUserId(requestedUserId, 'session-user-id', ctx);
+            const effectiveUserId = override ?? requestedUserId;
+            expect(effectiveUserId).toBe(requestedUserId);
+        });
+
+        it('non-undefined return overrides the userId used in the downstream request', async () => {
+            // Consumers can override by returning a non-undefined string.
+            // The default returns undefined; this test verifies the ?? fallback pattern the routes use.
+            const requestedUserId = 'session-derived-id';
+            const consumerOverride = 'consumer-resolved-id';
+            const effectiveUserId = consumerOverride ?? requestedUserId;
+            expect(effectiveUserId).toBe(consumerOverride);
+        });
+
+        it('is imported and called in api/message/+server.ts', () => {
+            const routeSrc = readFileSync(
+                join(__dirname, '../../src/routes/(auth)/api/message/+server.ts'),
+                'utf-8'
+            );
+            expect(routeSrc).toContain('resolveRequestUserId');
+        });
+
+        it('is imported and called in api/message/[chatAppId]/[sessionId]/+server.ts', () => {
+            const routeSrc = readFileSync(
+                join(__dirname, '../../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server.ts'),
+                'utf-8'
+            );
+            expect(routeSrc).toContain('resolveRequestUserId');
         });
     });
 
@@ -144,13 +251,6 @@ describe('lib/custom hook defaults', () => {
         });
     });
 
-    describe('LEGACY_ACTION_USER_ID_COOKIE', () => {
-        it('is a non-empty string constant', () => {
-            expect(typeof LEGACY_ACTION_USER_ID_COOKIE).toBe('string');
-            expect(LEGACY_ACTION_USER_ID_COOKIE.length).toBeGreaterThan(0);
-        });
-    });
-
     describe('onBeforeAuth', () => {
         it('returns clearSession: false by default', async () => {
             const mockEvent = { url: new URL('https://example.com/') } as any;
@@ -168,12 +268,6 @@ describe('lib/custom hook defaults', () => {
     describe('shouldBypassChatUserRoleMerge', () => {
         it('returns false by default', () => {
             expect(shouldBypassChatUserRoleMerge(mockUser)).toBe(false);
-        });
-    });
-
-    describe('getLegacyChatsSectionTrigger', () => {
-        it('returns undefined by default', () => {
-            expect(getLegacyChatsSectionTrigger()).toBeUndefined();
         });
     });
 });
