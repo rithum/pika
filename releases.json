@@ -25,15 +25,15 @@
       "breaking": false,
       "summary": "Framework extension-point release: 11 AzureAD-friendly seams (CM-491), 7 demo-mode seams + CSS contract, Strands long-term user memory, services library account-context utilities, expanded sync protectedAreas (v1.0.6)",
       "highlights": [
-        "CM-491 framework seams \u2014 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
-        "Demo-mode framework seams \u2014 7 hooks (banner, menu-item, polling, effective-user, home-page-user, Logout visibility, detailed-trace gate) plus a public --demo-banner-h CSS contract that reserves viewport space for a mounted banner.",
-        "Strands-native long-term user memory in the Python converse Lambda \u2014 agent-driven retrieval and save via agent_core_memory tool; new-session nudge triggers reliable retrieval without busting Bedrock prompt cache. Opt in via agent_def.memory_feature.",
-        "Services library account-context utilities \u2014 batchGetUserCustomDataByUserIds, configurable PIKA_ACCOUNT_ID_FIELD_NAMES / PikaConfig.accountIdFieldNames resolution, mergeSessionAttributes helper, CHAT_DEBUG_LOGS env gate.",
-        "Sync protectedAreas expanded to v1.0.6 \u2014 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling.",
-        "Docker build-cache optimization in pika-chat-construct.ts \u2014 cacheFrom: [{ type: 'gha' }] conditional restructured for reliable CI cache hits without affecting local builds.",
+        "CM-491 framework seams — 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
+        "Demo-mode framework seams — 7 hooks (banner, menu-item, polling, effective-user, home-page-user, Logout visibility, detailed-trace gate) plus a public --demo-banner-h CSS contract that reserves viewport space for a mounted banner.",
+        "Strands-native long-term user memory in the Python converse Lambda — agent-driven retrieval and save via agent_core_memory tool; new-session nudge triggers reliable retrieval without busting Bedrock prompt cache. Opt in via agent_def.memory_feature.",
+        "Services library account-context utilities — batchGetUserCustomDataByUserIds, configurable PIKA_ACCOUNT_ID_FIELD_NAMES / PikaConfig.accountIdFieldNames resolution, mergeSessionAttributes helper, CHAT_DEBUG_LOGS env gate.",
+        "Sync protectedAreas expanded to v1.0.6 — 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling.",
+        "Docker build-cache optimization in pika-chat-construct.ts — cacheFrom: [{ type: 'gha' }] conditional restructured for reliable CI cache hits without affecting local builds.",
         "5 generic robustness improvements ported from ai-bot CM-491: cookie error/version-mismatch split, SSM ParameterNotFound graceful return, chatAppState null guards, file-upload hardening, async isUserAllowedToUseSessionInsights.",
         "Fixed gzip+base64 encoding in Strands debug_trace so the LLM Instruction accordion in the trace UI decodes correctly.",
-        "Security: Alpine base image \u2192 3.22.3 and weather-direct SDK pins for patched fast-xml-parser (Snyk advisories)."
+        "Security: Alpine base image → 3.22.3 and weather-direct SDK pins for patched fast-xml-parser (Snyk advisories)."
       ]
     },
     {
@@ -43,7 +43,7 @@
       "breaking": false,
       "summary": "Strands converse Lambda: raise max_tokens to model capacity (64K) and add explicit MaxTokensReachedException handler",
       "highlights": [
-        "max_tokens raised from 4096 \u2192 64000 in both main agent and collaborator BedrockModel configs \u2014 Claude 4.5 Sonnet's actual max output. Long responses no longer truncate at ~3KB.",
+        "max_tokens raised from 4096 → 64000 in both main agent and collaborator BedrockModel configs — Claude 4.5 Sonnet's actual max output. Long responses no longer truncate at ~3KB.",
         "MaxTokensReachedException now caught explicitly with a user-facing 'try breaking into smaller steps' message, instead of falling through to the generic error handler"
       ]
     },
@@ -56,8 +56,8 @@
       "highlights": [
         "hooks.server.ts now propagates userType/roles from auth provider to DDB on initial login (closes the call-site gap that left PR #140's chat-ddb updateUser support unused)",
         "jest configs in pika-chat and services/pika now exclude integration tests by default; new test:integration script in pika-chat for opt-in runs",
-        "SessionInsightsSchedule EventBridge rule is now gated on sessionInsightsFeature.enabled \u2014 previously always-on regardless of the flag, incurring Bedrock costs when the feature was disabled",
-        "New SessionInsightsFeature.scheduleEnabled knob lets consumers deploy the insights infrastructure (runner Lambda + OpenSearch) while skipping the per-minute schedule \u2014 cost-control mode for manual/backfill-only invocation",
+        "SessionInsightsSchedule EventBridge rule is now gated on sessionInsightsFeature.enabled — previously always-on regardless of the flag, incurring Bedrock costs when the feature was disabled",
+        "New SessionInsightsFeature.scheduleEnabled knob lets consumers deploy the insights infrastructure (runner Lambda + OpenSearch) while skipping the per-minute schedule — cost-control mode for manual/backfill-only invocation",
         "PikaChatConstruct accepts new useStrandsConverse?: boolean prop driving the converse Lambda SSM key (converse_url vs converse_strands_url); reference bin/pika-chat.ts wires it from pikaConfig.siteFeatures.strandsConverse.enabled so a single flag drives both the construct and the URL lookup"
       ]
     },
@@ -68,13 +68,13 @@
       "breaking": false,
       "summary": "Optional Python (Strands) converse Lambda, new Claude 4.5/4.6 default models, streaming heartbeats, post-processor rewrite",
       "highlights": [
-        "New ConverseStrandsConstruct \u2014 opt-in Python converse Lambda with full feature parity, Strands Skills for directives (no Nova Lite call), Swarm for collaborators, queue-based streaming on Python 3.14 arm64",
+        "New ConverseStrandsConstruct — opt-in Python converse Lambda with full feature parity, Strands Skills for directives (no Nova Lite call), Swarm for collaborators, queue-based streaming on Python 3.14 arm64",
         "DEFAULT_ANTHROPIC_MODEL bumped to Claude 4.5 Sonnet; verification model to Claude 4.5 Haiku; added 4.5 Opus / 4.6 Sonnet / 4.6 Opus to registry; removed decommissioned Claude 3.x models",
-        "Lambda streaming <heartbeat/> every 15s + ALB idle timeout \u2192 300s prevent connection drops on long agent responses; client-side stall indicator",
+        "Lambda streaming <heartbeat/> every 15s + ALB idle timeout → 300s prevent connection drops on long agent responses; client-side stall indicator",
         "agent-post-processor rewrite handles both Converse envelope formats and unwraps AgentCommunication__sendMessage; Bedrock JSON sanitization workaround",
         "Session title generation hardened with try/catch and moved to Haiku",
         "Verification model ID gets us. prefix; inference-profile custom resource no longer churns on every deploy",
-        "Bumped aws-cdk-lib \u2192 ^2.249.0 / aws-cdk \u2192 ^2.1118.0 for Runtime.PYTHON_3_14"
+        "Bumped aws-cdk-lib → ^2.249.0 / aws-cdk → ^2.1118.0 for Runtime.PYTHON_3_14"
       ]
     },
     {
@@ -165,7 +165,7 @@
       "breaking": false,
       "summary": "Fix model ID validation to accept base model IDs without cross-region prefix",
       "highlights": [
-        "MODEL_ID_TO_MODEL now accepts base model IDs (e.g. anthropic.claude-sonnet-4-5-20250929-v1:0) in addition to cross-region prefixed IDs (us.anthropic.claude-\u2026)",
+        "MODEL_ID_TO_MODEL now accepts base model IDs (e.g. anthropic.claude-sonnet-4-5-20250929-v1:0) in addition to cross-region prefixed IDs (us.anthropic.claude-…)",
         "Fixes 400 error when updating foundation model on agents via chat-admin API with non-prefixed model IDs"
       ]
     },
@@ -725,7 +725,7 @@
       "summary": "Complete documentation site overhaul with Astro",
       "highlights": [
         "Brand new Astro-based documentation experience",
-        "Comprehensive documentation following Di\u00e1taxis framework",
+        "Comprehensive documentation following Diátaxis framework",
         "Reorganized content: Why Pika, Getting Started, Concepts, Capabilities, Guides, Reference, Platform",
         "Enhanced with detailed diagrams, code examples, and step-by-step instructions",
         "Improved navigation, search, and custom Markdoc components",
