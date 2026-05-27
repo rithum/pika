@@ -3,6 +3,19 @@ import { error } from '@sveltejs/kit';
 import { resolveRequestUserId } from '$lib/custom/request-user-id-resolver';
 
 /**
+ * Max length applied to attacker-influenceable identifiers before they're written to server
+ * logs. Caps log-injection / oversize-payload blast radius if a caller crafts a hostile
+ * userId. The truncation is for logging only — the full value is still passed to the consumer
+ * resolver hook so consumer-side validation operates on the real input.
+ */
+const LOG_VALUE_MAX_LEN = 128;
+
+function safeForLog(value: string): string {
+    if (value.length <= LOG_VALUE_MAX_LEN) return value;
+    return `${value.slice(0, LOG_VALUE_MAX_LEN)}…[truncated, full length ${value.length}]`;
+}
+
+/**
  * Server-side wrapper around the `resolveRequestUserId` consumer hook.
  *
  * Encapsulates the throw-safety, undefined-handling, and observability logging that both message
@@ -52,7 +65,7 @@ export async function resolveUserId(args: ResolveUserIdArgs): Promise<string> {
         console.warn(`[Message Auth] resolveRequestUserId threw — ${action}`, {
             path: routeLabel,
             chatAppId,
-            requestedUserId,
+            requestedUserId: safeForLog(requestedUserId),
             sessionUserId,
             error: e instanceof Error ? e.message : String(e),
         });
@@ -65,7 +78,7 @@ export async function resolveUserId(args: ResolveUserIdArgs): Promise<string> {
         console.warn(`[Message Auth] resolveRequestUserId returned undefined — ${action}`, {
             path: routeLabel,
             chatAppId,
-            requestedUserId,
+            requestedUserId: safeForLog(requestedUserId),
             sessionUserId,
         });
         if (failOpen) return sessionUserId;

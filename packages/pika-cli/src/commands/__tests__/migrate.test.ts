@@ -172,6 +172,27 @@ describe('pika migrate v0.26.0-v0.27.0', () => {
         exitSpy.mockRestore();
     });
 
+    it('refuses to run when package.json exists but is malformed JSON unless --force', async () => {
+        writeFileSync(path.join(tmpDir, 'package.json'), '{not valid json');
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(throwOnExit);
+        await expect(migrateCommand('v0.26.0-v0.27.0')).rejects.toThrow('process.exit');
+        // Fixture files should remain untouched — refusal happened before delete loop.
+        for (const rel of DELETABLE_FILES) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(true);
+        }
+        exitSpy.mockRestore();
+    });
+
+    it('refuses to run when package.json exists but has no pika dependency unless --force', async () => {
+        writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'unrelated', version: '0.0.0' }));
+        const exitSpy = jest.spyOn(process, 'exit').mockImplementation(throwOnExit);
+        await expect(migrateCommand('v0.26.0-v0.27.0')).rejects.toThrow('process.exit');
+        for (const rel of DELETABLE_FILES) {
+            expect(existsSync(path.join(tmpDir, rel))).toBe(true);
+        }
+        exitSpy.mockRestore();
+    });
+
     it('--force bypasses the consumer-tree check', async () => {
         rmSync(path.join(tmpDir, 'package.json'));
         await migrateCommand('v0.26.0-v0.27.0', { force: true });
