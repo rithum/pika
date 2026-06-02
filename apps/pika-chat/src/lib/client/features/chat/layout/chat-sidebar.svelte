@@ -58,7 +58,14 @@
         <div class="flex flex-col gap-2 mt-1">
             <div class="flex items-center justify-between">
                 <div class="flex flex-1 items-center ml-1">
-                    {#if chat.mode === 'standalone' && chat.appSidebarOpen}
+                    <!--
+                        Sidebar collapse toggle. Shown in every mode whenever the sidebar is open
+                        (was previously standalone-only, with the sidebar "rail" providing the
+                        toggle in other modes). The rail was removed because it overlapped the
+                        scrollbar and intercepted drags; this header icon is its replacement, and
+                        chat-titlebar provides the re-open affordance when the sidebar is closed.
+                    -->
+                    {#if chat.appSidebarOpen}
                         <TooltipPlus tooltip={chat.appSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}>
                             <Button
                                 variant="ghost"
@@ -68,7 +75,7 @@
                                 ><PanelLeft style="width: 1.3rem; height: 1.7rem;" /></Button
                             >
                         </TooltipPlus>
-                        {#if appState.homePageSiteFeature && appState.homePageSiteFeature.linksToChatApps && appState.allChatApps.length > 0}
+                        {#if chat.mode === 'standalone' && appState.homePageSiteFeature && appState.homePageSiteFeature.linksToChatApps && appState.allChatApps.length > 0}
                             <Button onclick={() => goto('/')} variant="ghost" size="sm" class="flex-1 text-center"
                                 >{appState.homePageSiteFeature.navigationButtonText ?? 'AI Assistants'}</Button
                             >
@@ -102,5 +109,10 @@
     <!-- <Sidebar.Footer>
         <ChatNavUser />
     </Sidebar.Footer> -->
-    <Sidebar.Rail />
+    <!--
+        Sidebar.Rail removed (ES-3168 #3): the rail's hit area (-right-4, z-20) straddled the
+        sidebar's right edge, overlapping the scrollbar and intercepting click/drag. The header
+        PanelLeft toggle above (always visible when open) + the chat-titlebar open affordance
+        replace it. The reusable pika-ux Sidebar.Rail component is intentionally left intact.
+    -->
 </Sidebar.Root>
