@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.27.0",
+  "latestVersion": "0.28.0",
   "currentDevelopment": "0.28.0",
   "releases": [
     {
       "version": "0.28.0",
       "date": "2026-06-02",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Fast-follow to v0.27.0: an additive SessionSource.position ordering seam plus fixes for five session-source/sidebar defects surfaced by ai-bot, the first consumer of the generic session-source feature.",
       "highlights": [
