@@ -105,6 +105,7 @@ import { ChatFileValidationError } from './lib/ChatFileValidationError';
 import type { ComponentRegistry } from './message-segments/component-registry';
 import { MessageSegmentProcessor } from './message-segments/segment-processor';
 import { ChatNavState } from './nav/chat-nav.state.svelte';
+import { resolveSessionById } from './session-resolver';
 import { WidgetRegistry } from './widgets/widget-registry';
 import { getContentHashString } from 'pika-shared/util/server-client-utils';
 
@@ -298,8 +299,12 @@ export class ChatAppState implements IChatAppState {
         return source?.isReadOnly?.(session) ?? false;
     });
 
-    #currentSessionIsReadOnly = $derived(
-        this.#currentSessionIsSharedBySomeoneElse ||
+    // Use $derived.by (lazy closure) rather than the eager $derived(expr) form: the expression
+    // references this.#user, which is declared later in the class, so the eager form trips
+    // TS "used before its initialization". This matches #currentSessionSourceIsReadOnly above.
+    #currentSessionIsReadOnly = $derived.by(
+        () =>
+            this.#currentSessionIsSharedBySomeoneElse ||
             isSessionReadOnly(this.#currentSession, this.#user) ||
             this.#currentSessionSourceIsReadOnly
     );
@@ -1730,7 +1735,9 @@ export class ChatAppState implements IChatAppState {
             return;
         }
         if (this.#appState.isMobile) {
-            this.#appSidebarState.setOpenMobile(this.#appState.isMobile);
+            // Pass the requested open state, not isMobile (which is always true here) — otherwise
+            // the mobile sidebar can be opened but never closed via this setter.
+            this.#appSidebarState.setOpenMobile(value);
         } else {
             this.#appSidebarState.setOpen(value);
         }
@@ -1874,7 +1881,16 @@ export class ChatAppState implements IChatAppState {
     }
 
     setCurrentSessionById(sessionId: string) {
-        this.#setSession(this.#chatSessions.find((session) => session.sessionId === sessionId));
+        // Resolve from regular chat sessions OR any registered source's loaded sessions. Source
+        // sessions are not in #chatSessions, so the previous #chatSessions-only lookup missed them
+        // and fell through to #setSession(undefined), which silently started a new interim chat.
+        // On a genuine miss (id in neither collection) leave the current session unchanged — only
+        // the explicit "new chat" entry points should create an interim session.
+        const sourceSessions = this.#sessionSources.flatMap((source) => this.sourceSessions(source.id));
+        const session = resolveSessionById(sessionId, this.#chatSessions, sourceSessions);
+        if (session) {
+            this.#setSession(session);
+        }
     }
 
     /**
