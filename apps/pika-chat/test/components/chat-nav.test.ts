@@ -256,3 +256,62 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
         expect(screen.queryByText('No sessions found.')).toBeNull();
     });
 });
+
+// ---------------------------------------------------------------------------
+// SessionSource.position — group ordering relative to "My Chats" (ES-3168 #1)
+// ---------------------------------------------------------------------------
+
+describe('chat-nav.svelte — SessionSource.position ordering', () => {
+    /** True when `b` follows `a` in document order. */
+    function follows(a: Element, b: Element): boolean {
+        return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+
+    function loadedSourceChat(sources: SessionSource[], labels: Record<string, string>) {
+        return makeMockChat({
+            sessionSources: sources,
+            sourceStatus: vi.fn(() => 'loaded' as SourceStatus),
+            sourceSessions: vi.fn((id: string) => [makeSession(`${id}-s1`, `${id} session`)]),
+            sourceLabel: vi.fn((id: string) => labels[id]),
+        });
+    }
+
+    it('renders a source with no position BEFORE "My Chats" (default is before)', () => {
+        const src = makeSource('def-src', { label: 'Default Source' });
+        renderChatNav(loadedSourceChat([src], { 'def-src': 'Default Source' }));
+
+        const sourceLabel = screen.getByText('Default Source');
+        const myChats = screen.getByText('My Chats');
+        expect(follows(sourceLabel, myChats)).toBe(true); // My Chats comes after the source
+    });
+
+    it('renders a source with position "before" ABOVE "My Chats"', () => {
+        const src = makeSource('before-src', { label: 'Before Source', position: 'before' });
+        renderChatNav(loadedSourceChat([src], { 'before-src': 'Before Source' }));
+
+        const sourceLabel = screen.getByText('Before Source');
+        const myChats = screen.getByText('My Chats');
+        expect(follows(sourceLabel, myChats)).toBe(true);
+    });
+
+    it('renders a source with position "after" BELOW "My Chats"', () => {
+        const src = makeSource('after-src', { label: 'After Source', position: 'after' });
+        renderChatNav(loadedSourceChat([src], { 'after-src': 'After Source' }));
+
+        const myChats = screen.getByText('My Chats');
+        const sourceLabel = screen.getByText('After Source');
+        expect(follows(myChats, sourceLabel)).toBe(true); // the source comes after My Chats
+    });
+
+    it('places before-sources above and after-sources below "My Chats" simultaneously', () => {
+        const before = makeSource('b-src', { label: 'Top Source' }); // omitted → before
+        const after = makeSource('a-src', { label: 'Bottom Source', position: 'after' });
+        renderChatNav(loadedSourceChat([before, after], { 'b-src': 'Top Source', 'a-src': 'Bottom Source' }));
+
+        const top = screen.getByText('Top Source');
+        const myChats = screen.getByText('My Chats');
+        const bottom = screen.getByText('Bottom Source');
+        expect(follows(top, myChats)).toBe(true);
+        expect(follows(myChats, bottom)).toBe(true);
+    });
+});
