@@ -5,6 +5,25 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-06-02
+
+### Added
+
+- **`SessionSource.position` ordering seam** — a session source can render its sidebar group above or below the built-in "My Chats" group via a new additive `position?: 'before' | 'after'` field (default `'before'`, which preserves prior behavior). [#155]
+
+### Fixed
+
+- **Clicking a session in a custom session source now opens it** — `setCurrentSessionById` resolves sessions from registered session sources, not just the user's own chats; an unknown session id no longer silently starts a new chat. [#155]
+- **The sidebar chat list scrolls and its scrollbar is usable** — removed the sidebar "rail" toggle, which overlapped the scrollbar and intercepted click/drag (and made a long list appear unscrollable). The sidebar's header collapse icon now appears in every mode as the toggle, and `chat-titlebar` re-opens it when collapsed. [#155]
+- **`svelte-check` build no longer fails** on `#currentSessionIsReadOnly` ("'#user' is used before its initialization") — converted to the lazy `$derived.by` form. [#155]
+- **The mobile sidebar can be closed again** — the `appSidebarOpen` setter now passes the requested value to `setOpenMobile` instead of always `true`. [#155]
+
+### Notes
+
+Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source feature, surfaced these five framework defects. `SessionSource` is defined in the sync-protected `apps/pika-chat/src/lib/custom/additional-session-sources.ts`, so the new `position` field does **not** propagate via `pika sync` — a consumer adds it to its own copy when adopting it (the framework reads `source.position`, defaulting to `'before'`). The reusable `pika-ux` `Sidebar.Rail` component is unchanged; only the chat sidebar stops rendering it.
+
+---
+
 ## [0.27.0] - 2026-05-27
 
 ### Changed
