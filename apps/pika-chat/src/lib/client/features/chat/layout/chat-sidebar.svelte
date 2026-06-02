@@ -110,7 +110,7 @@
         <ChatNavUser />
     </Sidebar.Footer> -->
     <!--
-        Sidebar.Rail removed (ES-3168 #3): the rail's hit area (-right-4, z-20) straddled the
+        Sidebar.Rail removed: the rail's hit area (-right-4, z-20) straddled the
         sidebar's right edge, overlapping the scrollbar and intercepting click/drag. The header
         PanelLeft toggle above (always visible when open) + the chat-titlebar open affordance
         replace it. The reusable pika-ux Sidebar.Rail component is intentionally left intact.

@@ -258,7 +258,7 @@ describe('chat-nav.svelte — sessionSources rendering', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SessionSource.position — group ordering relative to "My Chats" (ES-3168 #1)
+// SessionSource.position — group ordering relative to "My Chats"
 // ---------------------------------------------------------------------------
 
 describe('chat-nav.svelte — SessionSource.position ordering', () => {
