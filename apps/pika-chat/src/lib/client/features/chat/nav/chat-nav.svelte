@@ -5,6 +5,7 @@
     import * as Sidebar from 'pika-ux/shadcn/sidebar';
     import { getContext } from 'svelte';
     import { ChatAppState } from '../chat-app.state.svelte';
+    import type { SessionSource } from '$lib/custom/additional-session-sources';
 
     const chat = getContext<ChatAppState>('chatAppState');
 
@@ -141,7 +142,11 @@
     </Sidebar.Group>
 {/if}
 
-{#each chat.sessionSources as source (source.id)}
+<!--
+    A single session-source group. Rendered once per source, either before or after the
+    "My Chats" group depending on source.position (see the two {#each} blocks below).
+-->
+{#snippet sourceGroup(source: SessionSource)}
     {@const status = chat.sourceStatus(source.id)}
     {#if status === 'loading'}
         <Sidebar.Group>
@@ -193,6 +198,11 @@
             </div>
         </Sidebar.Group>
     {/if}
+{/snippet}
+
+<!-- Source groups rendered ABOVE "My Chats". position defaults to 'before' when omitted. -->
+{#each chat.sessionSources.filter((source) => source.position !== 'after') as source (source.id)}
+    {@render sourceGroup(source)}
 {/each}
 
 <!-- My Chats Section (existing, enhanced) -->
@@ -230,3 +240,8 @@
         {/each}
     </div>
 </Sidebar.Group>
+
+<!-- Source groups rendered BELOW "My Chats" (source.position === 'after'). -->
+{#each chat.sessionSources.filter((source) => source.position === 'after') as source (source.id)}
+    {@render sourceGroup(source)}
+{/each}

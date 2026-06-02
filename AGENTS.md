@@ -16,7 +16,7 @@ Open-source chat platform framework for building AI-powered conversational appli
 - **Search**: OpenSearch (session analytics)
 - **Auth**: `@auth/sveltekit`, JWT via `x-chat-auth`, Cognito
 - **Build**: pnpm 10, Turborepo, tsup, esbuild
-- **Test**: Jest 29, ts-jest
+- **Test**: Jest 29 + ts-jest (unit/logic); Vitest + `@testing-library/svelte` + jsdom for Svelte 5 component/DOM tests (added v0.27.0)
 - **CI/CD**: GitHub Actions (tests, npm publish, docs deploy). No application deployment — that's the downstream repo's job.
 
 ## Architecture
@@ -80,6 +80,7 @@ pnpm --filter @pika/service test  # Test specific package
 ```
 
 - Tests live in `test/` directories, suffix `*.test.ts`
+- **Two runners in `apps/pika-chat`**: Jest (`pnpm test`) for unit/logic tests, and Vitest + `@testing-library/svelte` + jsdom (`pnpm test:components`) for Svelte 5 component/DOM tests. `pnpm test` (jest) **excludes** `test/components/` (vitest's) and `test/integration/`, so a component test placed outside `test/components/` silently won't run under the runner you expect.
 - Tests depend on `build` in Turbo pipeline
 - Jest uses `ts-jest` preset with module mapping for `pika-shared`
 
@@ -106,8 +107,8 @@ pnpm release:plan-breaking      # Plan breaking change + migration guide
 ```
 
 - **Branch naming determines version bump**: `feat/` → minor, `fix/` → patch, `breaking/` → breaking change
-- **Files touched by release**: `releases.json`, `CHANGELOG.md`, `apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc`
-- **Breaking changes** also create migration guides in `apps/pika-docs/src/content/docs/platform/releases/migration-guides/`
+- **Files touched by every release**: `releases.json`, `CHANGELOG.md`, `apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc`, **and** `apps/pika-docs/src/content/docs/platform/releases/index.mdoc` (the "What's New" section, the "Latest Stable" line, and the Version History table at the bottom). The `release:notes` prompt lists all four — don't skip `index.mdoc`.
+- **Breaking changes** also create a migration guide in `apps/pika-docs/src/content/docs/platform/releases/migration-guides/` **and** register it in `apps/pika-docs/sidebar-config.ts` (Migration Guides list, newest first)
 - **Auto-release**: GitHub Actions (`auto-release.yml`) creates GitHub releases from `releases.json` on push to `main`
 
 ## Domain Context

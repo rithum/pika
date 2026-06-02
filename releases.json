@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.27.0",
-  "currentDevelopment": "0.27.0",
+  "latestVersion": "0.28.0",
+  "currentDevelopment": "0.28.0",
   "releases": [
+    {
+      "version": "0.28.0",
+      "date": "2026-06-02",
+      "status": "released",
+      "breaking": false,
+      "summary": "Fast-follow to v0.27.0: an additive SessionSource.position ordering seam plus fixes for five session-source/sidebar defects surfaced by ai-bot, the first consumer of the generic session-source feature.",
+      "highlights": [
+        "Added SessionSource.position ('before' | 'after', default 'before') — session-source groups can render above or below the built-in \"My Chats\" group. Additive; preserves prior behavior. SessionSource lives in the sync-protected lib/custom file, so consumers add the field to their own copy when adopting it.",
+        "Fixed: clicking a session in a custom session source now opens it (setCurrentSessionById resolves source sessions, not just the user's own chats; an unknown id no longer starts a new chat).",
+        "Fixed: the sidebar chat list scrolls and its scrollbar is usable — removed the sidebar rail that overlapped the scrollbar and intercepted click/drag. The header collapse icon is now the toggle in every mode.",
+        "Fixed: svelte-check build blocker on #currentSessionIsReadOnly ('#user used before its initialization') — converted to lazy $derived.by.",
+        "Fixed: the mobile sidebar can be closed again (appSidebarOpen setter passes the requested value to setOpenMobile instead of always true)."
+      ]
+    },
     {
       "version": "0.27.0",
       "date": "2026-05-27",

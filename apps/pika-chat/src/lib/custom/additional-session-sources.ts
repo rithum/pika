@@ -21,6 +21,13 @@ export interface SessionSource {
     /** Header label rendered above this source's session list. */
     label?: string;
     /**
+     * Where this source's group renders relative to the built-in "My Chats" group in the sidebar.
+     * - `'before'` (default) renders the group above "My Chats" — preserves pre-v0.27.x behavior.
+     * - `'after'` renders the group below "My Chats".
+     * Omitting the field is treated as `'before'`.
+     */
+    position?: 'before' | 'after';
+    /**
      * Loads sessions for this source.
      *
      * Called client-side once per chat-app init, in parallel with other sources via Promise.allSettled.
