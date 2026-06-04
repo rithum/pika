@@ -1,7 +1,20 @@
 {
   "latestVersion": "0.28.0",
-  "currentDevelopment": "0.28.0",
+  "currentDevelopment": "0.28.1",
   "releases": [
+    {
+      "version": "0.28.1",
+      "date": "2026-06-04",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Bug fix: the Strands converse Lambda now surfaces the current date on the user turn so agents resolve relative date ranges (\"year to date\", \"this month\", \"last 30 days\") against today instead of guessing the year.",
+      "highlights": [
+        "Fixed: agents resolve relative date ranges against the real current date. currentDate was delivered only via promptSessionAttributes, which reach tool Lambdas but never the LLM, so the model had no authoritative \"today\" and guessed the year (e.g. resolving \"year to date\" to a prior full year).",
+        "The date is appended to the user turn rather than the system prompt — preserves the Bedrock prompt cache and keeps the system_prompt == base_prompt handler/collaborator contract intact (same idiom as NEW_SESSION_MEMORY_NUDGE).",
+        "Reaches both the supervisor and its collaborators (via Swarm shared context).",
+        "Added regression contract test (tests/test_contract_current_date.py)."
+      ]
+    },
     {
       "version": "0.28.0",
       "date": "2026-06-02",
