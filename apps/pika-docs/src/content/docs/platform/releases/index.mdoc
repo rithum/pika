@@ -7,13 +7,22 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.29.0
+
+- **Carry edits to seam-less framework files across `pika sync` as patches.** When you need to customize a framework-owned file that has no extension point, capture the edit as a `pika-patches/NNN-*.patch` instead of orphaning the whole file from upstream updates. See the [Patch Overlay guide](/guides/customization/patch-overlay/).
+- **`pika capture-patch [file]`** captures a working-tree edit (auto-detecting the changed file). It doesn't revert — commit the custom file + the patch together, so the repo actually works between syncs; the patch re-derives your change after a sync overwrites the file.
+- **`pika sync` reapplies patches** (via `git apply --3way`) after overwriting framework files. A failed reapply stops the sync (non-zero exit, conflict markers) so a customization is never lost silently — that's the cue to refresh the patch or promote the change to a real seam and delete it.
+- **`pika sync --check-collisions`** is a read-only CI gate that flags any framework file edited without a covering patch (it would be overwritten on the next sync). Protected files and sync PRs are exempt.
+
+**Why now**: downstream consumers need to customize framework files (e.g. `jest.config.js`) that have no seam, and whole-file protection silently freezes those files from all upstream updates. Patches keep the edit *and* the upstream stream.
+
+**Latest Stable:** `0.29.0` (June 4, 2026)
+
 ### What's New in 0.28.1
 
 - **Agents resolve relative dates against the real current date.** The Strands converse handler now puts the current date on the user turn, so "year to date", "this month", "last 30 days", etc. resolve against today instead of a guessed year. Previously `currentDate` was delivered only via `promptSessionAttributes` (which reach tool Lambdas, not the model), so date-relative queries could land in the wrong year. The date is appended to the user turn rather than the system prompt — preserving the Bedrock prompt cache and keeping the `system_prompt == base_prompt` handler/collaborator contract — and reaches both the supervisor and its collaborators (via Swarm context).
 
-**Why now**: ai-bot agents were resolving "year to date" to a prior full year in production.
-
-**Latest Stable:** `0.28.1` (June 4, 2026)
+**Why now**: downstream consumers' agents were resolving "year to date" to a prior full year in production.
 
 ### What's New in 0.28.0
 
@@ -23,15 +32,15 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **Fixed — `svelte-check` build blocker** on `#currentSessionIsReadOnly` ("'#user' is used before its initialization") — converted to the lazy `$derived.by` form.
 - **Fixed — the mobile sidebar can be closed again** — the toggle now passes the requested open state to `setOpenMobile`.
 
-**Why now**: fast-follow to v0.27.0 — ai-bot, the first consumer of the generic session-source feature, surfaced these five framework defects.
+**Why now**: fast-follow to v0.27.0 — the first downstream consumer of the generic session-source feature surfaced these five framework defects.
 
 ### What's New in 0.27.0
 
-- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]`, `isSessionReadOnly(session, user)`, and `resolveRequestUserId(requestedUserId, sessionUserId, ctx)`. `LEGACY_ACTION_USER_ID_COOKIE` is removed. Client-side hook signatures now use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) to keep server-only fields off the public hook surface. Sources load via `Promise.allSettled` so one failing source never breaks siblings — see the [Extension Points guide](/guides/customization/extension-points/) and the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guides/upgrading-to-0-27-0/).
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five consumer-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]`, `isSessionReadOnly(session, user)`, and `resolveRequestUserId(requestedUserId, sessionUserId, ctx)`. `LEGACY_ACTION_USER_ID_COOKIE` is removed. Client-side hook signatures now use `ChatUser<U>` (not `AuthenticatedUser<T, U>`) to keep server-only fields off the public hook surface. Sources load via `Promise.allSettled` so one failing source never breaks siblings — see the [Extension Points guide](/guides/customization/extension-points/) and the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guides/upgrading-to-0-27-0/).
 - **`pika migrate v0.26.0-v0.27.0` CLI subcommand** — removes the four orphan hook files from a consumer tree. Flags: `--dry-run` (preview), `--force` (skip both consumer-tree detection and dirty-tree git check), `--force-content-mismatch` (override the per-file SHA-256 safety check that skips customized files). Symlinks always refused. Idempotent. `pika sync` does not propagate deletes of protected files, so consumers must run this command after upgrading.
 - **Svelte 5 component test infrastructure** — Vitest + `@testing-library/svelte` + jsdom added to `apps/pika-chat` alongside the existing Jest setup. New `pnpm test:components` script. Initial coverage: 7 tests for `chat-nav.svelte` across every session-source render state.
 
-**Why now**: no merged consumer is on v0.26.0 yet (ai-bot consumption was paused after the design smell was identified). This is the only window to redesign these seams without breaking a real consumer.
+**Why now**: no merged consumer is on v0.26.0 yet (downstream consumption was paused after the design smell was identified). This is the only window to redesign these seams without breaking a real consumer.
 
 ### What's New in 0.26.0
 
@@ -41,7 +50,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **Services library account-context utilities** — `batchGetUserCustomDataByUserIds()`, configurable account-ID resolution via new `PikaConfig.accountIdFieldNames` / `PIKA_ACCOUNT_ID_FIELD_NAMES` env var, `mergeSessionAttributes()` helper, and `CHAT_DEBUG_LOGS` env gate for noisy chat-API debug logs. Defaults preserve current behavior.
 - **Sync `protectedAreas` expanded to v1.0.6** — 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling. Run `pika sync` after upgrading to pick up the new list automatically.
 - **Docker build-cache optimization in `pika-chat-construct.ts`** — `cacheFrom: [{ type: 'gha' }]` is conditionally passed to `DockerImageAsset` when `DOCKER_CACHE_FROM_GHA=true`, enabling near-instant CDK asset publishing on GHA cache hit. Local builds unaffected.
-- **5 generic robustness improvements ported from ai-bot CM-491** — cookie error/version-mismatch split (preserves non-auth cookies on corruption), SSM `ParameterNotFound` graceful return, `chatAppState` null guards on route transitions, file-upload hardening (MIME allowlist + filename sanitization + S3 key validation), and `isUserAllowedToUseSessionInsights` made async.
+- **5 generic robustness improvements ported from a downstream consumer (CM-491)** — cookie error/version-mismatch split (preserves non-auth cookies on corruption), SSM `ParameterNotFound` graceful return, `chatAppState` null guards on route transitions, file-upload hardening (MIME allowlist + filename sanitization + S3 key validation), and `isUserAllowedToUseSessionInsights` made async.
 - **Fixed gzip+base64 encoding in Strands `debug_trace.py`** — encoded payloads now round-trip through the JS client decoder; the LLM Instruction accordion in the trace UI decodes correctly.
 - **Security upgrades** — Alpine base image → 3.22.3, weather-direct sample pins `@aws-sdk/client-lambda` 3.974.0 and `@aws-sdk/credential-provider-node` 3.972.1 (patched `fast-xml-parser` for Snyk CVEs).
 
@@ -660,6 +669,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.29.0  | Jun 4 2026  | Feature  | `pika-patches/` overlay: carry edits to seam-less framework files across sync — `pika capture-patch`, `pika sync` reapply (`git apply --3way`), and a `--check-collisions` CI gate |
 | 0.28.1  | Jun 4 2026  | Patch    | Strands converse: surface the current date on the user turn so agents resolve relative date ranges ("year to date", "last 30 days") against today instead of guessing the year |
 | 0.28.0  | Jun 2 2026  | Feature  | Fast-follow to v0.27.0: SessionSource.position ordering seam; fixes for source-session click-through, sidebar scroll/rail overlap, a svelte-check build blocker, and the mobile sidebar toggle |
 | 0.27.0  | May 27 2026 | Breaking | Legacy-chats hooks redesigned as 3 generic session-source seams; `pika migrate v0.26.0-v0.27.0` CLI; Svelte 5 component test infrastructure |

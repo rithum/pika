@@ -5,6 +5,17 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-06-04
+
+### Added
+
+- **`pika-patches/` overlay — carry edits to seam-less framework files across sync.** When you need to customize a framework-owned file that has no extension point, capture the edit as a patch instead of orphaning the whole file from upstream updates. [#157]
+- **`pika capture-patch [file]`** — captures a working-tree edit as `pika-patches/NNN-*.patch` (auto-detects the changed file if omitted). It does **not** revert your edit — commit the custom file + the patch together so the repo works between syncs. [#157]
+- **`pika sync` reapplies `pika-patches/*.patch`** (via `git apply --3way`) after overwriting framework files, re-deriving your customizations. A failed reapply stops the sync (non-zero exit, conflict markers) so a customization is never lost silently — that's the signal to refresh the patch or promote the change to a real seam. [#157]
+- **`pika sync --check-collisions`** — a read-only gate (for CI) that flags any framework file whose committed content isn't reproducible from `pristine + patches`, i.e. an edit that would be silently overwritten on the next sync. Protected files and sync PRs are exempt. [#157]
+
+Backward compatible: consumers with no `pika-patches/` directory are unaffected. See `packages/pika-cli/CUSTOM_PROTECTION.md`.
+
 ## [0.28.1] - 2026-06-04
 
 ### Fixed
@@ -26,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
-Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source feature, surfaced these five framework defects. `SessionSource` is defined in the sync-protected `apps/pika-chat/src/lib/custom/additional-session-sources.ts`, so the new `position` field does **not** propagate via `pika sync` — a consumer adds it to its own copy when adopting it (the framework reads `source.position`, defaulting to `'before'`). The reusable `pika-ux` `Sidebar.Rail` component is unchanged; only the chat sidebar stops rendering it.
+Fast-follow to v0.27.0: the first downstream consumer of the generic session-source feature, surfaced these five framework defects. `SessionSource` is defined in the sync-protected `apps/pika-chat/src/lib/custom/additional-session-sources.ts`, so the new `position` field does **not** propagate via `pika sync` — a consumer adds it to its own copy when adopting it (the framework reads `source.position`, defaulting to `'before'`). The reusable `pika-ux` `Sidebar.Rail` component is unchanged; only the chat sidebar stops rendering it.
 
 ---
 
@@ -34,7 +45,7 @@ Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source
 
 ### Changed
 
-- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; same scope — message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields like `authData` are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings; per-source error rows render inline without collapsing the group. Updated `lib/custom/README.md`, [Extension Points guide](/guides/customization/extension-points/), and contract test (`apps/pika-chat/test/custom/contract.test.ts`).
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five consumer-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; same scope — message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields like `authData` are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings; per-source error rows render inline without collapsing the group. Updated `lib/custom/README.md`, [Extension Points guide](/guides/customization/extension-points/), and contract test (`apps/pika-chat/test/custom/contract.test.ts`).
 
 ### Added
 
@@ -43,7 +54,7 @@ Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source
 
 ### Migration notes
 
-**Breaking change** — but no merged consumer is on v0.26.0 yet (ai-bot consumption was paused on 2026-05-27 after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
+**Breaking change** — but no merged consumer is on v0.26.0 yet (downstream consumption was paused on 2026-05-27 after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
 
 **Step-by-step**:
 
@@ -79,7 +90,7 @@ See the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guide
 
 - **Default `pika sync` `protectedAreas` expanded to v1.0.6** — 9 new default-protected paths cover account/entity integration extension points (`custom-shared-types.ts`, `custom-site-features.ts`, legacy session endpoint, custom-account-search-api, AzureAD callback route, `apps/pika-chat/tools/custom-*/**`), CDK stack-def files (`apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`, `services/pika/lib/stacks/custom-stack-defs.ts`), and shared tooling (`packages/tools/**`). Fallback list in `getDefaultProtectedAreas()` (`packages/pika-cli/src/commands/sync.ts`) mirrored. New `docs/concepts/pika-sync.md` documents the rationale per entry. [#147, #150]
 - **Docker build-cache optimization in `pika-chat-construct.ts`** — `cacheFrom: [{ type: 'gha' }]` is now conditionally passed to `DockerImageAsset` when `DOCKER_CACHE_FROM_GHA=true` (CI deploys via the deploy workflow), enabling near-instant CDK asset publishing on GHA cache hit. Local builds and non-GHA pipelines are unaffected — `buildx --cache-from type=gha` silently no-ops without `ACTIONS_CACHE_URL`. [#148]
-- **Generic robustness improvements** ported from ai-bot CM-491:
+- **Generic robustness improvements** ported from a downstream consumer (CM-491):
   - **Cookie error path split** in `apps/pika-chat/src/lib/server/cookies.ts` — a corrupt `AUTH_USER` cookie now returns `no_auth_cookie` rather than wiping all other cookies via `version_mismatch`.
   - **SSM `ParameterNotFound` graceful return** in `apps/pika-chat/src/lib/server/ssm.ts` — catches both typed `ParameterNotFound` and `error.name === 'ParameterNotFound'` and returns `undefined` for caller handling instead of re-throwing.
   - **`chatAppState` null guards** in `apps/pika-chat/src/routes/(auth)/chat/[chatAppId]/+layout.svelte` — defensive guards on route transitions.

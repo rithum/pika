@@ -151,6 +151,7 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'UI Theming', slug: 'guides/customization/theming' },
                     { label: 'Custom Logout Dialog', slug: 'guides/customization/custom-logout-dialog' },
                     { label: 'Extension Points', slug: 'guides/customization/extension-points' },
+                    { label: 'Patch Overlay', slug: 'guides/customization/patch-overlay' },
                     { label: 'Demo-Mode Hooks', slug: 'guides/customization/demo-mode-hooks' },
                     { label: 'Client Lifecycle Hooks', slug: 'guides/customization/client-lifecycle-hooks' },
                     { label: 'Server Hooks', slug: 'guides/customization/server-hooks' },
