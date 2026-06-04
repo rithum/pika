@@ -1273,6 +1273,16 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 parts.append(file_info)
             agent_message = '\n\n'.join(parts)
 
+            # Date goes on the user turn, not the system prompt (cache) and not
+            # promptSessionAttributes (those reach only tool Lambdas, not the LLM), so the
+            # model resolves relative ranges against the real date instead of guessing.
+            agent_message = (
+                f"{agent_message}\n\nFor reference, the current date is {current_date}. "
+                "Use this as today's date when interpreting relative time periods such as "
+                '"year to date", "this month", or "last 30 days"; never assume the year '
+                "from training data."
+            )
+
             # Appended to the user turn rather than the system prompt to preserve system-prompt
             # cache hit rate — the system prompt is shared across users; per-session content
             # there would bust the Bedrock prompt cache for every user.

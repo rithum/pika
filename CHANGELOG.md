@@ -5,6 +5,12 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] - 2026-06-04
+
+### Fixed
+
+- **Agents resolve relative date ranges against the real current date** — the Strands converse handler now surfaces the current date on the user turn, so "year to date", "this month", "last 30 days", etc. resolve against today instead of a guessed year. `currentDate` was previously delivered only via `promptSessionAttributes`, which reach tool Lambdas but never the LLM, so date-relative queries could land in the wrong year. The date is appended to the user turn (not the system prompt) to preserve the Bedrock prompt cache and keep the `system_prompt == base_prompt` handler/collaborator contract; it reaches both the supervisor and its collaborators (via Swarm context). [#156]
+
 ## [0.28.0] - 2026-06-02
 
 ### Added
