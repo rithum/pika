@@ -91,6 +91,47 @@ function getDefaultProtectedAreas(): string[] {
 }
 ```
 
+## Patches for framework files (`pika-patches/`)
+
+Protection is whole-file and all-or-nothing: a protected file keeps your version but stops receiving
+**any** framework updates. When you need a **small, surgical** edit to a framework-owned file that has
+no extension point/seam, prefer a **patch** instead of orphaning the whole file.
+
+A patch is a unified diff stored in `pika-patches/NNN-<name>.patch`. `pika sync` reapplies every patch
+(via `git apply --3way`) right after it overwrites framework files with the pristine copies — so your
+edit survives the sync, and the file still receives upstream changes to the lines you didn't touch.
+
+### Authoring
+
+```bash
+# 1. Edit the framework file in place and test it.
+# 2. Capture the edit (auto-detects the changed file if you omit the path):
+pika capture-patch apps/pika-chat/jest.config.js --reason "why" --upstream-ticket ABC-123
+# 3. Commit the CUSTOM file + the new patch together.
+```
+
+`capture-patch` writes the patch and **leaves your edit in the working tree** (it does not revert).
+Commit the custom file, not the pristine one — the repo must contain your actual change so it works
+between syncs; the patch only *re-derives* the change after a sync overwrites the file. Keep edits
+surgical ("inject, don't refactor"): smaller diffs conflict less often on future syncs.
+
+### Reapply, conflicts, and promotion
+
+Patches apply in lexical (`NNN-`) order. If a patch fails to reapply (pika changed the same lines),
+`pika sync` stops with a non-zero exit and leaves `<<<<<<<` markers (or a `.rej`). That recurrence is
+the signal to either refresh the patch (`pika capture-patch <file>` again) or **promote** the change
+to a proper seam upstream and delete the patch.
+
+### Checking capture-completeness
+
+```bash
+pika sync --check-collisions   # exits non-zero if any framework file's committed content
+                               # isn't reproducible from pristine + pika-patches
+```
+
+Run this in CI to catch an edited framework file that was never captured (it would otherwise be
+silently overwritten on the next sync). Protected files and sync PRs are exempt by construction.
+
 ## Sync and .gitignore
 
 Sync respects your project root `.gitignore` when deciding what to **delete**. Paths that are ignored (e.g. `scripts/my-tests`, `*.local`) are never removed by sync, so you can keep custom test scripts or other untracked files without them being blown away. If you added a pika/framework path to your `.gitignore`, sync will still update that file when the framework changes.
