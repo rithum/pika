@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.28.0",
+  "latestVersion": "0.28.1",
   "currentDevelopment": "0.28.1",
   "releases": [
     {
       "version": "0.28.1",
       "date": "2026-06-04",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Bug fix: the Strands converse Lambda now surfaces the current date on the user turn so agents resolve relative date ranges (\"year to date\", \"this month\", \"last 30 days\") against today instead of guessing the year.",
       "highlights": [
