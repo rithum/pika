@@ -64,15 +64,15 @@
       "date": "2026-05-26",
       "status": "released",
       "breaking": false,
-      "summary": "Framework extension-point release: 11 AzureAD-friendly seams (CM-491), 7 demo-mode seams + CSS contract, Strands long-term user memory, services library account-context utilities, expanded sync protectedAreas (v1.0.6)",
+      "summary": "Framework extension-point release: 11 AzureAD-friendly seams, 7 demo-mode seams + CSS contract, Strands long-term user memory, services library account-context utilities, expanded sync protectedAreas (v1.0.6)",
       "highlights": [
-        "CM-491 framework seams — 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
+        "Framework seams — 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
         "Demo-mode framework seams — 7 hooks (banner, menu-item, polling, effective-user, home-page-user, Logout visibility, detailed-trace gate) plus a public --demo-banner-h CSS contract that reserves viewport space for a mounted banner.",
         "Strands-native long-term user memory in the Python converse Lambda — agent-driven retrieval and save via agent_core_memory tool; new-session nudge triggers reliable retrieval without busting Bedrock prompt cache. Opt in via agent_def.memory_feature.",
         "Services library account-context utilities — batchGetUserCustomDataByUserIds, configurable PIKA_ACCOUNT_ID_FIELD_NAMES / PikaConfig.accountIdFieldNames resolution, mergeSessionAttributes helper, CHAT_DEBUG_LOGS env gate.",
         "Sync protectedAreas expanded to v1.0.6 — 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling.",
         "Docker build-cache optimization in pika-chat-construct.ts — cacheFrom: [{ type: 'gha' }] conditional restructured for reliable CI cache hits without affecting local builds.",
-        "5 generic robustness improvements ported from a downstream consumer (CM-491): cookie error/version-mismatch split, SSM ParameterNotFound graceful return, chatAppState null guards, file-upload hardening, async isUserAllowedToUseSessionInsights.",
+        "5 generic robustness improvements ported from a downstream consumer: cookie error/version-mismatch split, SSM ParameterNotFound graceful return, chatAppState null guards, file-upload hardening, async isUserAllowedToUseSessionInsights.",
         "Fixed gzip+base64 encoding in Strands debug_trace so the LLM Instruction accordion in the trace UI decodes correctly.",
         "Security: Alpine base image → 3.22.3 and weather-direct SDK pins for patched fast-xml-parser (Snyk advisories)."
       ]
