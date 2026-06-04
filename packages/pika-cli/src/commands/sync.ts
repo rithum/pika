@@ -12,6 +12,7 @@ import { promisify } from 'util';
 import { fileManager } from '../utils/file-manager.js';
 import { loadGitignore, type GitignoreChecker } from '../utils/gitignore.js';
 import { logger } from '../utils/logger.js';
+import { reapplyPikaPatches, checkCaptureCompleteness } from '../utils/pika-patches.js';
 
 // ES module compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -33,9 +34,11 @@ interface SyncOptions {
     verbose?: boolean;
     acknowledgeBreakingChanges?: boolean;
     yes?: boolean;
+    force?: boolean;
+    checkCollisions?: boolean;
 }
 
-interface SyncChange {
+export interface SyncChange {
     type: 'modified' | 'added' | 'deleted';
     path: string;
     sourcePath: string;
@@ -708,6 +711,21 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             logger.debug(`[DEBUG] Using protected areas: ${JSON.stringify(protectedAreas, null, 2)}`);
             await checkForUserModificationsOutsideProtectedAreas(projectRoot, protectedAreas, gitignoreChecker);
 
+            // Capture-completeness gate (S2). `--check-collisions` is the read-only CI path; a
+            // mutating sync hard-stops unless --force.
+            if (options.checkCollisions || (!options.force && !options.dryRun)) {
+                const offenders = await computeCaptureOffenders(projectRoot, syncConfig, protectedAreas, gitignoreChecker);
+                if (options.checkCollisions) {
+                    reportCaptureOffenders(offenders);
+                    if (offenders.length > 0) process.exit(1);
+                    return;
+                }
+                if (offenders.length > 0) {
+                    reportCaptureOffenders(offenders, true);
+                    process.exit(1);
+                }
+            }
+
             // Determine target version and branch
             const targetVersion = options.version || 'latest';
             const targetBranch = options.branch || syncConfig.pikaBranch || 'main';
@@ -878,6 +896,9 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 const applySpinner = logger.startSpinner('Applying changes...');
                 await applyChanges(changes, options, projectRoot, gitignoreChecker);
                 logger.stopSpinner(true, 'Changes applied');
+
+                // Reapply consumer patches onto the freshly-overwritten framework files (M1).
+                await reapplyPikaPatches(projectRoot);
 
                 // Update sync config
                 const configSpinner = logger.startSpinner('Updating sync configuration...');
@@ -1731,6 +1752,51 @@ async function cleanupTempDir(tempDir: string): Promise<void> {
     } catch (error) {
         logger.debug('Failed to cleanup temp directory:', error);
     }
+}
+
+/**
+ * Returns framework files whose committed content != `pinned-pristine + pika-patches` — uncaptured
+ * divergence a sync would overwrite. Baseline is the PINNED pristine (syncConfig.pikaVersion), so the
+ * check is independent of the sync target.
+ */
+async function computeCaptureOffenders(
+    projectRoot: string,
+    syncConfig: SyncConfig,
+    protectedAreas: string[],
+    gitignoreChecker: GitignoreChecker
+): Promise<string[]> {
+    const pinnedRef = `v${syncConfig.pikaVersion}`;
+    let pinnedDir: string;
+    try {
+        pinnedDir = await downloadPikaFramework('latest', pinnedRef);
+    } catch (e) {
+        logger.warn(`Could not fetch pinned pristine (${pinnedRef}) to verify pika-patch capture-completeness; skipping the check.`);
+        logger.debug(`[DEBUG] pinned pristine fetch failed: ${e instanceof Error ? e.message : e}`);
+        return [];
+    }
+    try {
+        // Effective protection = merged defaults + the consumer's stored protectedAreas (the list it
+        // actually syncs against; getMergedProtectedAreas rebuilds from CLI defaults and omits it).
+        const effectiveProtected = [...new Set([...protectedAreas, ...(syncConfig.protectedAreas || []), ...(syncConfig.userProtectedAreas || [])])];
+        const changes = await identifyChanges(pinnedDir, projectRoot, effectiveProtected, gitignoreChecker);
+        return await checkCaptureCompleteness(pinnedDir, changes, projectRoot, (rel) => isProtectedArea(rel, effectiveProtected));
+    } finally {
+        await cleanupTempDir(pinnedDir);
+    }
+}
+
+function reportCaptureOffenders(offenders: string[], blocking = false): void {
+    if (offenders.length === 0) {
+        logger.success('All framework divergences are captured — every changed framework file equals pristine + pika-patches.');
+        return;
+    }
+    console.log();
+    console.log(chalk.red.bold(blocking ? 'Sync stopped — uncaptured framework divergence would be overwritten:' : 'Uncaptured framework divergence detected:'));
+    offenders.forEach((f) => console.log(chalk.red(`    ${f}`)));
+    console.log();
+    console.log(chalk.yellow('  These framework files differ from pristine + pika-patches and would be lost on `pika sync`.'));
+    console.log(chalk.gray('  For each: run `pnpm capture-patch <file>` to preserve it as a patch, or move the logic into lib/custom/.'));
+    if (blocking) console.log(chalk.gray('  Or re-run with --force to overwrite them anyway.'));
 }
 
 /**

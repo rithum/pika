@@ -5,6 +5,7 @@ import { syncCommand } from './commands/sync.js';
 import { componentCommand } from './commands/component.js';
 import { authCommand } from './commands/auth.js';
 import { themeCommand } from './commands/theme.js';
+import { capturePatchCommand } from './commands/capture-patch.js';
 import { logger } from './utils/logger.js';
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
@@ -53,8 +54,21 @@ program
     .option('--verbose', 'Show detailed sync information and configuration')
     .option('--acknowledge-breaking-changes', 'Acknowledge breaking changes and proceed with sync')
     .option('--yes', 'Auto-confirm all prompts (non-interactive mode for CI/CD)')
+    .option('--check-collisions', 'Read-only: report framework files whose committed content differs from pristine+patches (used by CI). Exits non-zero if any are found.')
     .option('--help', 'Show detailed help about the sync system')
     .action(syncCommand);
+
+program
+    .command('capture-patch')
+    .description('Capture an edit to a framework-owned file as a pika-patches/ patch that survives sync')
+    .argument('[file]', 'Framework file to capture (auto-detected from the working tree if omitted)')
+    .option('--name <name>', 'Patch name (default: derived from the filename)')
+    .option('--reason <reason>', 'Why this customization exists (recorded in the patch header)')
+    .option('--upstream-ticket <ticket>', 'Optional upstream pika ticket tracking promotion of this edit to a seam')
+    .option('--owner <owner>', 'Owner email (default: git config user.email)')
+    .action(async (file, options) => {
+        await capturePatchCommand(file, options);
+    });
 
 program
     .command('component')

@@ -1,0 +1,109 @@
+---
+title: Patch Overlay
+description: Customize framework-owned files that have no extension point, with edits that survive pika sync
+---
+
+`pika sync` overwrites framework-owned files with the upstream copy. Files under `src/lib/custom/`,
+`custom-*` paths, and entries in `.pika-sync.json` are protected and skipped. But sometimes you need a
+small edit to a framework file that has **no extension point** and isn't yours to own.
+
+Your options used to be: lose the edit on the next sync, or add the file to `protectedAreas` — which
+keeps your version but **freezes the file from every future framework update**. The **patch overlay**
+is the middle ground: store the edit as a diff in `pika-patches/`, and `pika sync` reapplies it after
+pulling upstream changes. You keep your edit *and* the upstream stream.
+
+{% aside type="note" %}
+Reach for a patch only when there's no seam. If an [extension point](/guides/customization/extension-points/)
+exists, use it. If the file is genuinely yours, put it under `src/lib/custom/`. Patches are for
+framework-owned files you must touch but don't own.
+{% /aside %}
+
+## How it works
+
+A patch is a unified diff at `pika-patches/NNN-<name>.patch`. On every `pika sync`, after the
+framework files are overwritten with pristine copies, Pika reapplies each patch (in `NNN` order) via
+`git apply --3way`, re-deriving your customization on top of the latest framework code.
+
+**The one rule that makes this safe: commit the _customized_ file, never the pristine one.** The repo
+must contain your actual change so it works between syncs (CI, fresh checkouts, and every developer
+use the committed file as-is). The patch exists to *re-derive* that change after a sync overwrites the
+file — not to be the only place the change lives.
+
+## Capturing a patch
+
+```bash
+# 1. Edit the framework file in place and test your change.
+# 2. Capture it (auto-detects the changed file if you omit the path):
+pika capture-patch src/path/to/framework-file.ts --reason "why this edit exists" --upstream-ticket ABC-123
+# 3. Commit the customized file + the new pika-patches/NNN-*.patch together.
+```
+
+`capture-patch` writes the patch from your working-tree diff and **does not revert your edit** — your
+change stays in the file. Options:
+
+- `--name` — patch name (defaults to the filename).
+- `--reason` — why the customization exists (recorded in the patch header).
+- `--upstream-ticket` — optional ticket tracking promotion of this edit to a real seam.
+- `--owner` — defaults to your `git config user.email`.
+
+{% aside type="tip" %}
+**Inject, don't refactor.** Patch stability is almost entirely a function of diff shape. Make the
+smallest, most additive edit (drop in a line or a component); avoid renaming locals, restructuring
+conditionals, or changing signatures in the surrounding framework code. Surgical patches reapply
+cleanly across syncs for years; refactors conflict whenever the framework touches that file.
+{% /aside %}
+
+## Reapply on sync
+
+`pika sync` reapplies `pika-patches/*.patch` automatically. If a patch no longer applies (the
+framework changed the same lines), the sync **stops with a non-zero exit** and leaves `<<<<<<<`
+conflict markers (or a `.rej`) — it is never lost silently. That's your cue to either:
+
+- **Refresh the patch**: resolve the markers in the file, then re-run `pika capture-patch <file>` to
+  regenerate the patch against the new pristine, and delete any `.rej`; or
+- **Promote it**: a patch that keeps conflicting is a signal the edit deserves a real extension point.
+  Open a framework change to add the seam, and once it ships, delete the patch and move your logic into
+  `src/lib/custom/` against the seam.
+
+A patch that keeps applying cleanly costs nothing — leave it indefinitely. There is deliberately no
+patch classification or tracking ledger: a sync conflict is the only triage signal you need.
+
+## Catching uncaptured edits in CI
+
+```bash
+pika sync --check-collisions
+```
+
+This read-only check flags any framework file whose committed content **isn't reproducible from
+`pristine + pika-patches`** — i.e. an edit that was made without a covering patch and would be
+silently overwritten on the next sync. It exits non-zero when it finds one, so you can run it as a
+required check on every pull request. Protected files and `pika sync` PRs are exempt by construction.
+
+A convenient consumer setup is a `package.json` script plus a CI job:
+
+```jsonc
+// package.json
+"scripts": {
+  "capture-patch": "pika capture-patch",
+  "check:patches": "pika sync --check-collisions"
+}
+```
+
+## Adopting a file you already protected
+
+To migrate a file that's currently orphaned in `protectedAreas` (committed as your customized version)
+to a patch:
+
+1. Remove the file from `protectedAreas` in `.pika-sync.json`.
+2. Commit the **pristine** version once (copy it from the framework at your pinned version). This
+   registers the pristine blob in git history so `git apply --3way` has its base.
+3. Re-apply your customization, run `pika capture-patch <file>`, and commit the **customized file + the
+   patch**.
+
+The end state: the committed file is your customized version, the patch reproduces it from pristine,
+and the file now receives upstream updates again.
+
+{% aside type="caution" %}
+Generated build artifacts (e.g. a generated theme CSS file) legitimately differ from pristine and
+aren't hand-edits — keep those in `userProtectedAreas` rather than capturing them as patches.
+{% /aside %}

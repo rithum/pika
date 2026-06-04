@@ -1,7 +1,21 @@
 {
-  "latestVersion": "0.28.1",
-  "currentDevelopment": "0.28.1",
+  "latestVersion": "0.29.0",
+  "currentDevelopment": "0.29.0",
   "releases": [
+    {
+      "version": "0.29.0",
+      "date": "2026-06-04",
+      "status": "released",
+      "breaking": false,
+      "summary": "New customization model: carry edits to framework-owned files that have no extension point as patches that survive `pika sync`, instead of orphaning the whole file from upstream updates.",
+      "highlights": [
+        "Added `pika capture-patch [file]`: captures a working-tree edit to a framework file as pika-patches/NNN-*.patch (auto-detects the changed file). It does not revert — commit the custom file + the patch together so the repo works between syncs.",
+        "`pika sync` now reapplies pika-patches/*.patch (via git apply --3way) after overwriting framework files, re-deriving your customizations. A failed reapply stops the sync (non-zero exit, conflict markers) so it is never lost silently — the signal to refresh the patch or promote the change to a real seam.",
+        "Added `pika sync --check-collisions` (a read-only CI gate): flags any framework file whose committed content is not reproducible from pristine + patches, i.e. an edit that would be silently overwritten on the next sync. Protected files and sync PRs are exempt.",
+        "Surgical patches (\"inject, dont refactor\") reapply cleanly across syncs; use whole-file protection only when an edit cannot be expressed as a small patch.",
+        "Backward compatible: consumers with no pika-patches/ directory are unaffected."
+      ]
+    },
     {
       "version": "0.28.1",
       "date": "2026-06-04",
@@ -20,7 +34,7 @@
       "date": "2026-06-02",
       "status": "released",
       "breaking": false,
-      "summary": "Fast-follow to v0.27.0: an additive SessionSource.position ordering seam plus fixes for five session-source/sidebar defects surfaced by ai-bot, the first consumer of the generic session-source feature.",
+      "summary": "Fast-follow to v0.27.0: an additive SessionSource.position ordering seam plus fixes for five session-source/sidebar defects surfaced by the first downstream consumer of the generic session-source feature.",
       "highlights": [
         "Added SessionSource.position ('before' | 'after', default 'before') — session-source groups can render above or below the built-in \"My Chats\" group. Additive; preserves prior behavior. SessionSource lives in the sync-protected lib/custom file, so consumers add the field to their own copy when adopting it.",
         "Fixed: clicking a session in a custom session source now opens it (setCurrentSessionById resolves source sessions, not just the user's own chats; an unknown id no longer starts a new chat).",
@@ -34,7 +48,7 @@
       "date": "2026-05-27",
       "status": "released",
       "breaking": true,
-      "summary": "Breaking framework redesign: 5 ai-bot-specific legacy-chats hooks (v0.26.0) replaced by 3 generic session-source seams. New pika migrate CLI removes the orphan files. Svelte 5 component test infrastructure added.",
+      "summary": "Breaking framework redesign: 5 a downstream consumer-specific legacy-chats hooks (v0.26.0) replaced by 3 generic session-source seams. New pika migrate CLI removes the orphan files. Svelte 5 component test infrastructure added.",
       "highlights": [
         "BREAKING — replace `loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded` with `getAdditionalSessionSources(user, chatAppId) → SessionSource[]`, `isSessionReadOnly(session, user)`, and `resolveRequestUserId(requestedUserId, sessionUserId, ctx)`. SessionSource carries its own loader, optional sidebarSlot.{header,trigger}, and optional per-source isReadOnly predicate.",
         "Remove `LEGACY_ACTION_USER_ID_COOKIE` constant — consumers define their own cookie names.",
@@ -42,7 +56,7 @@
         "Sources load via Promise.allSettled, so one failing source never breaks siblings; per-source error rows render inline.",
         "New `pika migrate v0.26.0-v0.27.0` CLI subcommand removes the 4 orphan hook files from consumer trees (sync does not propagate deletes of protected files). Flags: --dry-run (preview), --force (skip both consumer-tree detection and dirty-tree check), --force-content-mismatch (override per-file SHA-256 customized-file safety check). Symlinks always refused; per-file failures aggregated. Idempotent.",
         "Svelte 5 component test infrastructure (Vitest + @testing-library/svelte + jsdom) added alongside the existing Jest setup; new `pnpm test:components` script. 7 component tests for chat-nav.svelte across every session-source render state.",
-        "Why now: no merged consumer is on v0.26.0 yet (ai-bot consumption paused after design smell identified). Only window to redesign these seams without breaking a real consumer."
+        "Why now: no merged consumer is on v0.26.0 yet (a downstream consumer consumption paused after design smell identified). Only window to redesign these seams without breaking a real consumer."
       ]
     },
     {
@@ -50,15 +64,15 @@
       "date": "2026-05-26",
       "status": "released",
       "breaking": false,
-      "summary": "Framework extension-point release: 11 AzureAD-friendly seams (CM-491), 7 demo-mode seams + CSS contract, Strands long-term user memory, services library account-context utilities, expanded sync protectedAreas (v1.0.6)",
+      "summary": "Framework extension-point release: 11 AzureAD-friendly seams, 7 demo-mode seams + CSS contract, Strands long-term user memory, services library account-context utilities, expanded sync protectedAreas (v1.0.6)",
       "highlights": [
-        "CM-491 framework seams — 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
+        "Framework seams — 11 AzureAD-friendly extension-point hooks in apps/pika-chat/src/lib/custom/ covering admin gating, legacy sessions, role-merge bypass, auth-provider callbacks, and session/entity transforms. All hooks default to no-op so existing deployments are unaffected.",
         "Demo-mode framework seams — 7 hooks (banner, menu-item, polling, effective-user, home-page-user, Logout visibility, detailed-trace gate) plus a public --demo-banner-h CSS contract that reserves viewport space for a mounted banner.",
         "Strands-native long-term user memory in the Python converse Lambda — agent-driven retrieval and save via agent_core_memory tool; new-session nudge triggers reliable retrieval without busting Bedrock prompt cache. Opt in via agent_def.memory_feature.",
         "Services library account-context utilities — batchGetUserCustomDataByUserIds, configurable PIKA_ACCOUNT_ID_FIELD_NAMES / PikaConfig.accountIdFieldNames resolution, mergeSessionAttributes helper, CHAT_DEBUG_LOGS env gate.",
         "Sync protectedAreas expanded to v1.0.6 — 9 new default-protected paths cover account/entity integration extension points, CDK stack-def files, and shared tooling.",
         "Docker build-cache optimization in pika-chat-construct.ts — cacheFrom: [{ type: 'gha' }] conditional restructured for reliable CI cache hits without affecting local builds.",
-        "5 generic robustness improvements ported from ai-bot CM-491: cookie error/version-mismatch split, SSM ParameterNotFound graceful return, chatAppState null guards, file-upload hardening, async isUserAllowedToUseSessionInsights.",
+        "5 generic robustness improvements ported from a downstream consumer: cookie error/version-mismatch split, SSM ParameterNotFound graceful return, chatAppState null guards, file-upload hardening, async isUserAllowedToUseSessionInsights.",
         "Fixed gzip+base64 encoding in Strands debug_trace so the LLM Instruction accordion in the trace UI decodes correctly.",
         "Security: Alpine base image → 3.22.3 and weather-direct SDK pins for patched fast-xml-parser (Snyk advisories)."
       ]

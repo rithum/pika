@@ -7,6 +7,17 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.29.0] - 2026-06-04
+
+### Added
+
+- **`pika-patches/` overlay — carry edits to seam-less framework files across sync.** When you need to customize a framework-owned file that has no extension point, capture the edit as a patch instead of orphaning the whole file from upstream updates. [#157]
+- **`pika capture-patch [file]`** — captures a working-tree edit as `pika-patches/NNN-*.patch` (auto-detects the changed file if omitted). It does **not** revert your edit — commit the custom file + the patch together so the repo works between syncs. [#157]
+- **`pika sync` reapplies `pika-patches/*.patch`** (via `git apply --3way`) after overwriting framework files, re-deriving your customizations. A failed reapply stops the sync (non-zero exit, conflict markers) so a customization is never lost silently — that's the signal to refresh the patch or promote the change to a real seam. [#157]
+- **`pika sync --check-collisions`** — a read-only gate (for CI) that flags any framework file whose committed content isn't reproducible from `pristine + patches`, i.e. an edit that would be silently overwritten on the next sync. Protected files and sync PRs are exempt. [#157]
+
+Backward compatible: consumers with no `pika-patches/` directory are unaffected. See `packages/pika-cli/CUSTOM_PROTECTION.md`.
+
 ## [0.28.1] - 2026-06-04
 
 ### Fixed
@@ -28,7 +39,7 @@ Complete version history of the Pika Framework.
 
 ### Notes
 
-Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source feature, surfaced these five framework defects. `SessionSource` is defined in the sync-protected `apps/pika-chat/src/lib/custom/additional-session-sources.ts`, so the new `position` field does **not** propagate via `pika sync` — a consumer adds it to its own copy when adopting it (the framework reads `source.position`, defaulting to `'before'`).
+Fast-follow to v0.27.0: the first downstream consumer of the generic session-source feature, surfaced these five framework defects. `SessionSource` is defined in the sync-protected `apps/pika-chat/src/lib/custom/additional-session-sources.ts`, so the new `position` field does **not** propagate via `pika sync` — a consumer adds it to its own copy when adopting it (the framework reads `source.position`, defaulting to `'before'`).
 
 ---
 
@@ -36,7 +47,7 @@ Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source
 
 ### Changed
 
-- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five ai-bot-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings.
+- **BREAKING — legacy-chats hooks redesigned as generic session-source seams** in `apps/pika-chat/src/lib/custom/`. The five consumer-named hooks shipped in v0.26.0 (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`, `isCurrentSessionReadOnly`, `validateLegacyUserIdIfNeeded`) are replaced by three generic seams: `getAdditionalSessionSources(user, chatAppId) → SessionSource[]` (each source has its own loader, optional `sidebarSlot.{header,trigger}`, and optional per-source `isReadOnly`); `isSessionReadOnly(session, user)` (now takes `user`; OR-ed with per-source predicates); `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` (auth-provider-agnostic name; message routes only). The exported `LEGACY_ACTION_USER_ID_COOKIE` constant is removed; consumers define their own cookie names. Client-side hook signatures now use `ChatUser<U>` instead of `AuthenticatedUser<T, U>` so server-only fields are not leaked across the public hook surface. Sources load via `Promise.allSettled`, so one failing source never breaks siblings.
 
 ### Added
 
@@ -45,7 +56,7 @@ Fast-follow to v0.27.0: ai-bot, the first consumer of the generic session-source
 
 ### Migration notes
 
-Breaking change — but no merged consumer is on v0.26.0 yet (ai-bot consumption was paused after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
+Breaking change — but no merged consumer is on v0.26.0 yet (downstream consumption was paused after the design smell was identified). Migration cost is therefore zero relative to deferring; this is the only window to redesign these seams without breaking a real consumer.
 
 Step-by-step:
 
@@ -62,7 +73,7 @@ See the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guide
 
 ### Added
 
-- **CM-491 framework seams — 11 AzureAD-friendly extension-point hooks** in `apps/pika-chat/src/lib/custom/`. Covers admin gating (`isUserAllowedAdminAccess` in `site-admin.ts`), legacy session loading (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`), session permissions (`isCurrentSessionReadOnly`), legacy-user-id validation (`validateLegacyUserIdIfNeeded`), entity extraction (`getSessionEntityValue`), session account-context transformation (`transformSessionAccountContext`), ChatUser role-merge bypass (`shouldBypassChatUserRoleMerge`), and auth-provider hooks (`onAuthProviderCallback`, `onBeforeAuth` in `server-hooks.ts`). All hooks default to no-op so existing deployments are unaffected. New `lib/custom/README.md` Extension Points section and pika-docs [Extension Points guide](/guides/customization/extension-points/). [#147]
+- **Framework seams — 11 AzureAD-friendly extension-point hooks** in `apps/pika-chat/src/lib/custom/`. Covers admin gating (`isUserAllowedAdminAccess` in `site-admin.ts`), legacy session loading (`loadLegacyChatsIfNeeded`, `getLegacyChatsSectionHeader`, `getLegacyChatsSectionTrigger`), session permissions (`isCurrentSessionReadOnly`), legacy-user-id validation (`validateLegacyUserIdIfNeeded`), entity extraction (`getSessionEntityValue`), session account-context transformation (`transformSessionAccountContext`), ChatUser role-merge bypass (`shouldBypassChatUserRoleMerge`), and auth-provider hooks (`onAuthProviderCallback`, `onBeforeAuth` in `server-hooks.ts`). All hooks default to no-op so existing deployments are unaffected. New `lib/custom/README.md` Extension Points section and pika-docs [Extension Points guide](/guides/customization/extension-points/). [#147]
 - **Demo-mode framework seams — 7 hooks + public CSS contract** in `apps/pika-chat/src/lib/custom/`: `getDemoBannerComponent` (banner slot), `getDemoModeMenuItem` (menu-item slot wired into 4 user dropdowns), `getUserRefreshIntervalMs` (polling cadence), `isInternalUser` (effective-user predicate), `resolveUserForHomeChatApps` (home-page chat-app filter), `shouldShowLogout` (Logout-item visibility in chat/admin/nav dropdowns), `shouldShowDetailedTrace` (detailed-trace UI gate). Public CSS contract via `--demo-banner-h` custom property reserves viewport space when a banner is mounted (5 selectors in `app.css` subtract banner height from `100svh`/`100vh` containers). Defaults preserve current behavior. New pika-docs [Demo-Mode Hooks guide](/guides/customization/demo-mode-hooks/). [#146]
 - **Strands-native long-term user memory** in the Python `converseStrands` Lambda. Agent-driven retrieval (`agent_core_memory.retrieve`) and explicit save (`record`) replace the legacy TypeScript Lambda's per-turn `CreateEventCommand` writes. Two-layer design preserves Bedrock prompt cache: `MEMORY_SYSTEM_PROMPT_ADDITION` describes capability in the shared system prompt; `NEW_SESSION_MEMORY_NUDGE` appends a lightweight retrieval trigger to the first user message of a new session only. Opt in via `agent_def.memory_feature.enabled = true` with a non-empty `memory_id` from AgentCore. New pika-docs [Strands Long-Term User Memory guide](/guides/advanced/strands-memory/). [#152]
 - **Services library account-context utilities** in `services/pika/src/lib/`:
@@ -76,7 +87,7 @@ See the [v0.26.0 → v0.27.0 migration guide](/platform/releases/migration-guide
 
 - **Default `pika sync` `protectedAreas` expanded to v1.0.6** — 9 new default-protected paths cover account/entity integration extension points (`custom-shared-types.ts`, `custom-site-features.ts`, legacy session endpoint, custom-account-search-api, AzureAD callback route, `apps/pika-chat/tools/custom-*/**`), CDK stack-def files (`apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts`, `services/pika/lib/stacks/custom-stack-defs.ts`), and shared tooling (`packages/tools/**`). Fallback list in `getDefaultProtectedAreas()` (`packages/pika-cli/src/commands/sync.ts`) mirrored. New `docs/concepts/pika-sync.md` documents the rationale per entry. [#147, #150]
 - **Docker build-cache optimization in `pika-chat-construct.ts`** — `cacheFrom: [{ type: 'gha' }]` is now conditionally passed to `DockerImageAsset` when `DOCKER_CACHE_FROM_GHA=true` (CI deploys via the deploy workflow), enabling near-instant CDK asset publishing on GHA cache hit. Local builds and non-GHA pipelines are unaffected — `buildx --cache-from type=gha` silently no-ops without `ACTIONS_CACHE_URL`. [#148]
-- **Generic robustness improvements** ported from ai-bot CM-491:
+- **Generic robustness improvements** ported from a downstream consumer:
   - **Cookie error path split** in `apps/pika-chat/src/lib/server/cookies.ts` — a corrupt `AUTH_USER` cookie now returns `no_auth_cookie` rather than wiping all other cookies via `version_mismatch`.
   - **SSM `ParameterNotFound` graceful return** in `apps/pika-chat/src/lib/server/ssm.ts` — catches both typed `ParameterNotFound` and `error.name === 'ParameterNotFound'` and returns `undefined` for caller handling instead of re-throwing.
   - **`chatAppState` null guards** in `apps/pika-chat/src/routes/(auth)/chat/[chatAppId]/+layout.svelte` — defensive guards on route transitions.
