@@ -7,6 +7,8 @@ ActionGroupInvocationInput payload format.
 import os
 import json
 import logging
+from collections.abc import Callable
+
 import boto3
 
 # Constants for the Bedrock ActionGroupInvocationInput payload
@@ -110,7 +112,7 @@ def build_strands_tools(
     input_text: str = '',
     session_attributes: dict | None = None,
     prompt_session_attributes: dict | None = None,
-    trace_callback: callable | None = None,
+    trace_callback: Callable[..., None] | None = None,
     *,
     tool_definitions: list[dict] | None = None,
 ) -> list:
@@ -248,7 +250,7 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
                func_desc: str, params, session_id: str,
                input_text: str, session_attributes: dict | None = None,
                prompt_session_attributes: dict | None = None,
-               trace_callback: callable | None = None) -> PythonAgentTool:
+               trace_callback: Callable[..., None] | None = None) -> PythonAgentTool:
     """Create a PythonAgentTool that invokes a tool Lambda.
 
     Uses late-binding-safe closures — all variables captured at definition time.
