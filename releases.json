@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.29.0",
+  "latestVersion": "0.29.1",
   "currentDevelopment": "0.29.1",
   "releases": [
     {
       "version": "0.29.1",
       "date": "2026-07-30",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Bug fix: the Strands converse Lambda now reads `invocationMode` as the wire field for component invocation, with `mode` retained as a compatibility alias.",
       "highlights": [
