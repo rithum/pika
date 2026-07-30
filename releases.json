@@ -1,7 +1,19 @@
 {
   "latestVersion": "0.29.0",
-  "currentDevelopment": "0.29.0",
+  "currentDevelopment": "0.29.1",
   "releases": [
+    {
+      "version": "0.29.1",
+      "date": "2026-07-30",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Bug fix: the Strands converse Lambda now reads `invocationMode` as the wire field for component invocation, with `mode` retained as a compatibility alias.",
+      "highlights": [
+        "Fixed: component-mode requests resolve correctly again. determine_mode() read only `mode`, but the client sends `invocationMode` (declared on ConverseRequest). The mismatch fell through to the chatAppId-present branch and silently resolved to `chat-app`, so the tag definition's component system prompt never loaded and widget responses were unstructured prose cast to the expected type with no error raised.",
+        "`invocationMode` now wins; `mode` is retained as a compatibility alias for existing callers.",
+        "Added a contract test that derives the expected wire-field key from the client source on disk and asserts both the server and the shared ConverseRequest type agree with it, so the two sides cannot silently drift apart again."
+      ]
+    },
     {
       "version": "0.29.0",
       "date": "2026-06-04",

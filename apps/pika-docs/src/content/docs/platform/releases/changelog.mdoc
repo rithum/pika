@@ -7,6 +7,12 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.29.1] - 2026-07-30
+
+### Fixed
+
+- **Component-mode requests now read the wire field the client actually sends** — the Strands converse Lambda's `determine_mode()` read only `mode`, but the client sends `invocationMode` (the field declared on `ConverseRequest`). The mismatch fell through to the `chatAppId`-present branch and silently resolved to `chat-app`: the tag definition's component system prompt never loaded, and widget responses came back as unstructured prose cast to the expected response type with no error raised. `invocationMode` now wins, with `mode` retained as a compatibility alias for existing callers. Added a contract test that derives the expected wire-field key from the client source on disk, so the two sides cannot silently drift apart again.
+
 ## [0.29.0] - 2026-06-04
 
 ### Added
