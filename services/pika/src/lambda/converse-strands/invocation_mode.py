@@ -9,8 +9,23 @@ Mirrors the mode-determination block in the TS converse Lambda
   DIRECT_AGENT_INVOKE   programmatic invoke (no chatAppId; falls back to agentId)
   CHAT_APP_COMPONENT    embedded widget (validated separately in chat_app_component.py)
 
-Precedence: explicit body.mode wins; otherwise chatAppId→chat-app; otherwise
-direct-agent-invoke.
+Precedence: an explicit mode on the request wins; otherwise chatAppId→chat-app;
+otherwise direct-agent-invoke.
+
+## The wire field is `invocationMode` (field-name regression, fixed 2026-07-29)
+
+The client sends **`invocationMode`** — that is the field on `ConverseRequest`
+(packages/shared/src/types/chatbot/chatbot-types.ts) and the payload reaches this
+Lambda verbatim (`JSON.stringify(request)` in
+apps/pika-chat/src/lib/server/invoke-converse-fn-url.ts). The TS converse Lambda
+reads it correctly (services/pika/src/lambda/converse/index.ts). This module
+originally read only `mode`, so `invocationMode: 'chat-app-component'` fell through
+to the `chatAppId`-present branch and silently resolved to `chat-app`: component
+requests never got their tag-def system prompt, and the widget received unstructured
+prose instead of the JSON its instruction set was supposed to produce.
+
+`mode` is retained as an ALIAS because the local harness (local_invoke.py) and
+existing callers use it; `invocationMode` wins when both are present.
 """
 from typing import Any, Dict, List, Optional
 
@@ -20,16 +35,22 @@ CHAT_APP_COMPONENT = 'chat-app-component'
 
 SUPPORTED_MODES = (CHAT_APP, DIRECT_AGENT_INVOKE, CHAT_APP_COMPONENT)
 
+#: Request keys that may carry an explicit invocation mode, in precedence order.
+#: `invocationMode` is the real wire contract; `mode` is a retained alias.
+MODE_KEYS = ('invocationMode', 'mode')
+
 
 def determine_mode(body: Dict[str, Any]) -> str:
     """Return the active invocation mode for this request.
 
-    Explicit `body.mode` wins (even if invalid — validation is a separate step).
-    Otherwise infer from presence of chatAppId.
+    An explicit mode wins (even if invalid — validation is a separate step), read
+    from `invocationMode` first and then the `mode` alias. Otherwise infer from the
+    presence of chatAppId.
     """
-    explicit = body.get('mode')
-    if explicit:
-        return explicit
+    for key in MODE_KEYS:
+        explicit = body.get(key)
+        if explicit:
+            return explicit
     if body.get('chatAppId'):
         return CHAT_APP
     return DIRECT_AGENT_INVOKE

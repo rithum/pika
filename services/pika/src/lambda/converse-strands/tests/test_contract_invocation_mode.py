@@ -11,9 +11,17 @@ Supported modes:
   - "chat-app-component"   : embedded widget (covered by test_contract_chat_app_component.py)
 
 Mode determination precedence:
-  1. If request.mode is explicitly set, use it (and validate per-mode requirements).
+  1. If an explicit mode is set, use it (and validate per-mode requirements).
   2. Else, if chatAppId is present → infer mode='chat-app'.
   3. Else → infer mode='direct-agent-invoke'.
+
+WIRE FIELD: the request key is `invocationMode` — that is what ConverseRequest
+declares and what the client actually sends. `mode` is a retained alias for the local
+harness. The bodies below deliberately use `invocationMode` so this suite exercises
+the real contract; these tests previously used only `mode`, which is how a
+field-name mismatch survived undetected (the tests authored their own input and so
+could only confirm the server agreed with the tests). Alias coverage and a
+client-source-derived guard live in test_contract_invocation_mode_wire_field.py.
 
 Per-mode validation:
   - chat-app:            requires chatAppId, agentId, userId, message, sessionId
@@ -48,7 +56,7 @@ class TestInvocationModeInference:
     def test_explicit_mode_wins_over_inference(self):
         from invocation_mode import determine_mode  # noqa: PLC0415
 
-        body = {'mode': 'direct-agent-invoke', 'chatAppId': 'rcs', 'agentId': 'a',
+        body = {'invocationMode': 'direct-agent-invoke', 'chatAppId': 'rcs', 'agentId': 'a',
                 'userId': 'u', 'message': 'm', 'sessionId': 's'}
         assert determine_mode(body) == 'direct-agent-invoke'
 
@@ -63,7 +71,7 @@ class TestInvocationModeValidation:
         from handler import handler as lambda_handler  # noqa: PLC0415
 
         event = {'body': json.dumps({
-            'mode': 'not-a-real-mode',
+            'invocationMode': 'not-a-real-mode',
             'agentId': 'a', 'userId': 'u', 'message': 'm', 'sessionId': 's',
         })}
         resp = lambda_handler(event, MagicMock())
@@ -73,7 +81,7 @@ class TestInvocationModeValidation:
         from handler import handler as lambda_handler  # noqa: PLC0415
 
         event = {'body': json.dumps({
-            'mode': 'chat-app',
+            'invocationMode': 'chat-app',
             'agentId': 'a', 'userId': 'u', 'message': 'm', 'sessionId': 's',
         })}
         resp = lambda_handler(event, MagicMock())
@@ -83,7 +91,7 @@ class TestInvocationModeValidation:
         """direct-agent-invoke must succeed (at validation) without chatAppId."""
         from invocation_mode import validate_for_mode  # noqa: PLC0415
 
-        body = {'mode': 'direct-agent-invoke', 'agentId': 'a', 'userId': 'u',
+        body = {'invocationMode': 'direct-agent-invoke', 'agentId': 'a', 'userId': 'u',
                 'message': 'm', 'sessionId': 's'}
         # validate_for_mode must not raise
         errors = validate_for_mode(body)
@@ -97,6 +105,6 @@ class TestInvocationModeValidation:
         """
         from invocation_mode import resolve_chat_app_id  # noqa: PLC0415
 
-        body = {'mode': 'direct-agent-invoke', 'agentId': 'order-analyzer-2',
+        body = {'invocationMode': 'direct-agent-invoke', 'agentId': 'order-analyzer-2',
                 'userId': 'u', 'message': 'm', 'sessionId': 's'}
         assert resolve_chat_app_id(body) == 'order-analyzer-2'
