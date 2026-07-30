@@ -75,6 +75,36 @@ def client_mode_key() -> str:
     return match.group(1)
 
 
+def _converse_request_interface_block() -> str:
+    """Return the source text of the `ConverseRequest` interface body only.
+
+    `invocationMode` is declared on six interfaces in chatbot-types.ts (ChatSession,
+    ChatMessage, ConverseRequest, SessionSearchRequest, SessionAnalyticsRequest,
+    SessionAnalyticsCostByMode). Searching the whole file for the field would pass
+    vacuously if it were renamed on ConverseRequest alone and left on the others — the
+    contract this test exists to guard is specifically that ConverseRequest declares
+    what the client sends. Brace-counted so nested `{...}` in a future property
+    doesn't truncate the block early.
+    """
+    src = _read(SHARED_TYPES)
+    match = re.search(r'export interface ConverseRequest\b[^{]*\{', src)
+    assert match, (
+        'could not find "export interface ConverseRequest" in chatbot-types.ts; if it '
+        'was renamed or restructured, update this test — do NOT delete it'
+    )
+    depth = 0
+    i = match.end() - 1  # index of the interface's opening brace
+    while i < len(src):
+        if src[i] == '{':
+            depth += 1
+        elif src[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return src[match.start():i + 1]
+        i += 1
+    raise AssertionError('unbalanced braces while scanning the ConverseRequest interface body')
+
+
 class TestClientServerAgreeOnTheModeField:
     """The server must honor the key the client actually sends."""
 
@@ -107,12 +137,14 @@ class TestClientServerAgreeOnTheModeField:
         )
 
     def test_shared_type_declares_the_same_field(self):
-        """ConverseRequest must declare the field the server reads."""
-        src = _read(SHARED_TYPES)
+        """ConverseRequest specifically — not just some interface in the file — must
+        declare the field the server reads.
+        """
+        interface_block = _converse_request_interface_block()
         key = client_mode_key()
-        assert re.search(rf'\b{re.escape(key)}\??\s*:', src), (
-            f'{key!r} is sent by the client but is not declared on any type in '
-            f'chatbot-types.ts'
+        assert re.search(rf'\b{re.escape(key)}\??\s*:', interface_block), (
+            f'{key!r} is sent by the client but is not declared on the ConverseRequest '
+            f'interface in chatbot-types.ts'
         )
 
 
@@ -132,6 +164,10 @@ class TestAliasAndFallbackBehavior:
     def test_blank_explicit_mode_falls_through_to_inference(self):
         assert determine_mode({'invocationMode': '', 'chatAppId': 'rcs'}) == CHAT_APP
         assert determine_mode({'invocationMode': '', 'mode': '', 'agentId': 'a'}) == DIRECT_AGENT_INVOKE
+
+    def test_blank_wire_key_yields_to_populated_alias(self):
+        """A blank invocationMode must not shadow a populated `mode` alias."""
+        assert determine_mode({'invocationMode': '', 'mode': CHAT_APP_COMPONENT, 'chatAppId': 'rcs'}) == CHAT_APP_COMPONENT
 
     def test_inference_unchanged_when_no_explicit_mode(self):
         assert determine_mode({'chatAppId': 'rcs'}) == CHAT_APP
