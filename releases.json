@@ -1,7 +1,20 @@
 {
-  "latestVersion": "0.29.1",
-  "currentDevelopment": "0.29.1",
+  "latestVersion": "0.29.2",
+  "currentDevelopment": "0.29.2",
   "releases": [
+    {
+      "version": "0.29.2",
+      "date": "2026-07-30",
+      "status": "released",
+      "breaking": false,
+      "summary": "Maintenance: the Strands converse Lambda's callback type annotations are now real types, so the module survives runtime annotation introspection and a type-checker pass.",
+      "highlights": [
+        "Fixed: `trace_callback` was annotated `callable | None` in `agent_loader.py`. `callable` is the builtin function, not a type, and `callable | None` raises TypeError the moment it is evaluated. The annotation stayed inert only because the Lambda pins Python 3.14, where annotations are evaluated lazily — on Python 3.13 or earlier it is evaluated at import and breaks the whole module.",
+        "Fixed: even on Python 3.14, anything that resolves annotations at runtime — `typing.get_type_hints()`, `annotationlib.get_annotations()`, and libraries built on them such as pydantic or dataclasses — raised TypeError against this module. It now resolves cleanly.",
+        "Fixed: `handler.py`'s `_make_callback` carried the same defect as a `-> callable` return annotation. Both sites now use `Callable[..., None]` from `collections.abc`; these were the only two bare-`callable` annotations in the framework.",
+        "Annotations only — no signature, behavior, or dependency change (`collections.abc` is stdlib). If you carried this fix downstream as a `pika-patches/` entry, you can drop the patch after syncing."
+      ]
+    },
     {
       "version": "0.29.1",
       "date": "2026-07-30",
