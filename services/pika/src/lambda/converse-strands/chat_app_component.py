@@ -1,7 +1,8 @@
 """
 chat-app-component invocation mode support.
 
-When a request arrives with mode='chat-app-component', the agent's base_prompt is
+When a request arrives in chat-app-component mode (the wire field is
+`invocationMode`; see invocation_mode.py), the agent's base_prompt is
 REPLACED by a tag definition's component_agent_instructions_md[name] content for
 that single request. This supports embedded-widget deployments where one agent
 is reused across N embedded surfaces, each with its own scoped system prompt.

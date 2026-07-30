@@ -7,6 +7,15 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.29.1
+
+- **Component-mode requests now read the wire field the client actually sends.** The Strands converse Lambda's `determine_mode()` read only `mode`, but the client sends `invocationMode` (the field declared on `ConverseRequest`). The mismatch fell through to the `chatAppId`-present branch and silently resolved to `chat-app`: the tag definition's component system prompt never loaded, and widget responses came back as unstructured prose cast to the expected response type with no error raised. `invocationMode` now wins, with `mode` retained as a compatibility alias for existing callers.
+- **New contract test guards the wire-field boundary.** It derives the expected key from the client source on disk (not hand-written) and asserts both the server and the shared `ConverseRequest` type agree with it, so the two sides cannot silently drift apart again.
+
+**Why now**: component-mode (embedded widget) invocations were silently falling back to full chat-app behavior — the failure was total and produced no error, just the wrong response shape.
+
+**Latest Stable:** `0.29.1` (July 30, 2026)
+
 ### What's New in 0.29.0
 
 - **Carry edits to seam-less framework files across `pika sync` as patches.** When you need to customize a framework-owned file that has no extension point, capture the edit as a `pika-patches/NNN-*.patch` instead of orphaning the whole file from upstream updates. See the [Patch Overlay guide](/guides/customization/patch-overlay/).
@@ -15,8 +24,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **`pika sync --check-collisions`** is a read-only CI gate that flags any framework file edited without a covering patch (it would be overwritten on the next sync). Protected files and sync PRs are exempt.
 
 **Why now**: downstream consumers need to customize framework files (e.g. `jest.config.js`) that have no seam, and whole-file protection silently freezes those files from all upstream updates. Patches keep the edit *and* the upstream stream.
-
-**Latest Stable:** `0.29.0` (June 4, 2026)
 
 ### What's New in 0.28.1
 
@@ -669,6 +676,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.29.1  | Jul 30 2026 | Patch    | Strands converse: component-mode requests now read `invocationMode`, the wire field the client actually sends, instead of `mode`; new contract test derives the key from client source |
 | 0.29.0  | Jun 4 2026  | Feature  | `pika-patches/` overlay: carry edits to seam-less framework files across sync — `pika capture-patch`, `pika sync` reapply (`git apply --3way`), and a `--check-collisions` CI gate |
 | 0.28.1  | Jun 4 2026  | Patch    | Strands converse: surface the current date on the user turn so agents resolve relative date ranges ("year to date", "last 30 days") against today instead of guessing the year |
 | 0.28.0  | Jun 2 2026  | Feature  | Fast-follow to v0.27.0: SessionSource.position ordering seam; fixes for source-session click-through, sidebar scroll/rail overlap, a svelte-check build blocker, and the mobile sidebar toggle |
