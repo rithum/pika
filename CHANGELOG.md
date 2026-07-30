@@ -5,6 +5,12 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.2] - 2026-07-30
+
+### Fixed
+
+- **The Strands converse Lambda's callback annotations are real types again** — `trace_callback` was annotated `callable | None` in `agent_loader.py`. `callable` is the builtin *function*, not a type, and `callable | None` raises `TypeError` the moment it is evaluated. It stayed inert only because the Lambda pins Python 3.14, where annotations are evaluated lazily; on Python 3.13 or earlier the annotation is evaluated at import and breaks the entire module. Even on 3.14, anything that resolves annotations at runtime — `typing.get_type_hints()`, `annotationlib.get_annotations()`, and libraries built on them such as pydantic or dataclasses — raised `TypeError` against this module. `handler.py`'s `_make_callback` carried the same defect as a `-> callable` return annotation. Both sites now use `Callable[..., None]` from `collections.abc`; these were the only two bare-`callable` annotations in the framework. Annotations only — no signature, behavior, or dependency change. If you carried this fix downstream as a `pika-patches/` entry, you can drop the patch after syncing. [#161]
+
 ## [0.29.1] - 2026-07-30
 
 ### Fixed

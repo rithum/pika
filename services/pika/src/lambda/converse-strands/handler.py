@@ -8,6 +8,7 @@ import time
 import uuid
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
 import boto3
 import jwt as pyjwt
@@ -215,7 +216,7 @@ class _StreamWriter:
 # Strands callback handler
 # ---------------------------------------------------------------------------
 
-def _make_callback(stream: _StreamWriter) -> callable:
+def _make_callback(stream: _StreamWriter) -> Callable[..., None]:
     """Return a Strands callback_handler that writes chunks and traces to *stream*.
 
     The callback is called synchronously during agent execution, so it can write

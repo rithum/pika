@@ -7,14 +7,22 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.29.2
+
+- **The Strands converse Lambda's callback annotations are real types again.** `trace_callback` was annotated `callable | None` in `agent_loader.py` — but `callable` is the builtin *function*, not a type, and `callable | None` raises `TypeError` the moment it is evaluated. `handler.py`'s `_make_callback` carried the same defect as a `-> callable` return annotation. Both now use `Callable[..., None]` from `collections.abc`.
+- **Why it was invisible.** The annotation stayed inert only because the Lambda pins Python 3.14, where annotations are evaluated lazily. On Python 3.13 or earlier the same annotation is evaluated at import and breaks the entire module — so the code was one runtime pin away from a hard `ImportError`.
+- **What it actually broke on 3.14.** Anything that resolves annotations at runtime — `typing.get_type_hints()`, `annotationlib.get_annotations()`, and libraries built on them such as pydantic or dataclasses — raised `TypeError` against this module. It now resolves cleanly, which is what makes a type-checker pass over this Lambda achievable at all.
+
+**Upgrade impact**: none. Annotations only — no signature, behavior, or dependency change (`collections.abc` is stdlib). If you carried this fix downstream as a `pika-patches/` entry, you can drop the patch after syncing.
+
+**Latest Stable:** `0.29.2` (July 30, 2026)
+
 ### What's New in 0.29.1
 
 - **Component-mode requests now read the wire field the client actually sends.** The Strands converse Lambda's `determine_mode()` read only `mode`, but the client sends `invocationMode` (the field declared on `ConverseRequest`). The mismatch fell through to the `chatAppId`-present branch and silently resolved to `chat-app`: the tag definition's component system prompt never loaded, and widget responses came back as unstructured prose cast to the expected response type with no error raised. `invocationMode` now wins, with `mode` retained as a compatibility alias for existing callers.
 - **New contract test guards the wire-field boundary.** It derives the expected key from the client source on disk (not hand-written) and asserts both the server and the shared `ConverseRequest` type agree with it, so the two sides cannot silently drift apart again.
 
 **Why now**: component-mode (embedded widget) invocations were silently falling back to full chat-app behavior — the failure was total and produced no error, just the wrong response shape.
-
-**Latest Stable:** `0.29.1` (July 30, 2026)
 
 ### What's New in 0.29.0
 
@@ -676,6 +684,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.29.2  | Jul 30 2026 | Patch    | Strands converse: `trace_callback` and `_make_callback` annotated with real `Callable[..., None]` types instead of the `callable` builtin — the old annotation raised `TypeError` under any runtime annotation introspection, and breaks the module outright on Python 3.13 or earlier |
 | 0.29.1  | Jul 30 2026 | Patch    | Strands converse: component-mode requests now read `invocationMode`, the wire field the client actually sends, instead of `mode`; new contract test derives the key from client source |
 | 0.29.0  | Jun 4 2026  | Feature  | `pika-patches/` overlay: carry edits to seam-less framework files across sync — `pika capture-patch`, `pika sync` reapply (`git apply --3way`), and a `--check-collisions` CI gate |
 | 0.28.1  | Jun 4 2026  | Patch    | Strands converse: surface the current date on the user turn so agents resolve relative date ranges ("year to date", "last 30 days") against today instead of guessing the year |
