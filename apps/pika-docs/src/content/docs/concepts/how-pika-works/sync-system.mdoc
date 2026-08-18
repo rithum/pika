@@ -140,6 +140,11 @@ userProtectedAreas: ['my-file.ts', 'my-directory/']
 - New framework files added
 - Deleted framework files removed (if not protected)
 
+Protection is enforced when a deletion is *applied*, not only when it is planned. A directory that
+exists in your project but not in the framework is removed — except for protected paths beneath it,
+which are preserved along with the directories needed to reach them. A directory with nothing
+protected under it is removed outright.
+
 **Step 6: Handle Modifications**
 
 **If you modified a non-protected file**, you're prompted:
@@ -167,6 +172,45 @@ Sync Summary:
 - 8 files protected (framework default)
 - 0 conflicts requiring attention
 ```
+
+If the framework has started shipping a file at a path you protect, sync also reports it as
+**adopted upstream** — see [Protected paths adopted upstream](#protected-paths-adopted-upstream).
+
+## Protected Paths Adopted Upstream
+
+Protection is permanent: a protected file is never overwritten, so once you protect a path, you own
+it forever. That is usually what you want — but if the framework also ships its own file at that
+same path, your copy is not tracking upstream, and nothing else would tell you.
+
+Sync reports this. When a path you protect exists **both** locally and in the incoming framework
+version, it is listed as adopted upstream:
+
+```
+1 protected path also exists in Pika (adopted upstream):
+  services/pika/test/lambda/session-insights-analyzer.test.ts
+Your copy is NOT being overwritten. To take Pika's version instead:
+  remove the entry from userProtectedAreas, sync, re-apply your delta,
+  then run `pika capture-patch <file>` BEFORE committing.
+  Staying diverged is fine too — just record why.
+```
+
+This is **reporting only**. Nothing is overwritten, and the exit code is unchanged. It appears on
+`pika sync --dry-run` as well.
+
+You have three options:
+
+1. **Take the framework's version and drop your changes** — remove the entry from
+   `userProtectedAreas`; the next sync overwrites your copy and it becomes an ordinary framework file.
+2. **Take the framework's version and keep your changes** — remove the entry, sync (the framework's
+   version lands), re-apply your delta in the working tree, then run `pika capture-patch <file>`
+   **before committing**. Order matters: capturing before the sync produces a patch against the wrong
+   base, which then conflicts on the next sync. See the [Patch Overlay guide](/guides/customization/patch-overlay/).
+3. **Stay deliberately diverged** — keep the protection, but record why. A year later a deliberate
+   divergence is indistinguishable from an accident.
+
+Paths from the framework's **default** protected list (`package.json`, `.gitignore`, `README.md` and
+similar) are summarised as a count rather than listed individually — every project diverges from
+those by design, so listing them each sync would bury the paths that actually need a decision.
 
 ## Protection System
 

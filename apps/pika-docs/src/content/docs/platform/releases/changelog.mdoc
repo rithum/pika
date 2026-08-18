@@ -7,6 +7,16 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.29.3] - 2026-08-18
+
+### Fixed
+
+- **Protected files are no longer deleted when Pika doesn't have their directory** — if a directory existed in your project but not in the framework, `pika sync` queued the *directory* for deletion and removed it recursively, taking any protected file inside it with it. Protection was consulted when *building* the deletion list but never when *applying* one, so per-file `userProtectedAreas` entries inside such a directory looked protective in both your config and the dry-run, and were silently ignored — the dry-run even listed the files correctly as protected, then listed the parent directory on the next line. Deletions now honour protected areas at both points: the directory is no longer queued when protected content lives beneath it, and a directory deletion that reaches the apply step prunes protected paths instead of removing the tree wholesale. A directory with nothing protected under it is still deleted outright, so nothing that used to be cleaned up is left behind. If you worked around this by protecting such directories with a `/**` glob, that remains correct and needs no change. [#163]
+
+### Added
+
+- **`pika sync` now reports protected paths that also exist upstream** — when the framework ships its own file at a path in your `userProtectedAreas`, your copy is not tracking upstream, and nothing said so; the only way to find out was to audit every protected entry against each incoming version by hand. Sync now reports those paths, with the steps to take the framework's version if you want it. Reporting only — protected files are still never overwritten and the exit code is unchanged. Shown on `--dry-run` as well. Paths from the framework's own default protected list (`package.json`, `.gitignore`, `README.md` and friends) are summarised as a count rather than listed, since every consumer diverges from those by design. [#163]
+
 ## [0.29.2] - 2026-07-30
 
 ### Fixed
