@@ -42,6 +42,12 @@ export interface SyncChange {
     isUserModification?: boolean; // New field to distinguish user modifications from remote changes
 }
 
+export interface IdentifyChangesResult {
+    changes: SyncChange[];
+    /** Protected paths that exist both locally and in the incoming Pika version. */
+    adoptedUpstream: string[];
+}
+
 interface SyncConfig {
     pikaVersion: string;
     createdAt: string;
@@ -798,7 +804,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 // Compare files and identify changes
                 console.log(); // Ensures a blank line after
                 console.log(chalk.gray('Analyzing changes...'));
-                const changes = await identifyChanges(tempDir, process.cwd(), protectedAreas, gitignoreChecker);
+                const { changes, adoptedUpstream } = await identifyChanges(tempDir, process.cwd(), protectedAreas, gitignoreChecker);
                 console.log(chalk.gray('Analysis complete'));
                 console.log(); // Optional: another blank line for separation
 
@@ -847,6 +853,10 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     }
                     return;
                 }
+
+                // Report adopted-upstream paths first: both the zero-change branch below and the
+                // dry-run branch return early, and this must be visible in either case.
+                reportAdoptedUpstream(adoptedUpstream, syncConfig.userProtectedAreas || []);
 
                 // Show remaining changes
                 if (changes.length > 0) {
@@ -968,20 +978,22 @@ export async function identifyChanges(
     targetPath: string,
     protectedAreas: string[],
     gitignoreChecker: GitignoreChecker
-): Promise<SyncChange[]> {
+): Promise<IdentifyChangesResult> {
     const changes: SyncChange[] = [];
+    const adoptedUpstream: string[] = [];
 
     logger.debug(`[DEBUG] identifyChanges: comparing source=${sourcePath} with target=${targetPath}`);
     logger.debug(`[DEBUG] identifyChanges: protected areas count=${protectedAreas.length}`);
 
     // Compare framework files recursively (source -> target)
-    await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes);
+    await compareDirectories(sourcePath, targetPath, '', protectedAreas, changes, adoptedUpstream);
 
     // Check for files that exist in target but not in source (deleted files); respects .gitignore (surgical directory handling)
     await findDeletedFiles(sourcePath, targetPath, '', protectedAreas, changes, gitignoreChecker);
 
     logger.debug(`[DEBUG] identifyChanges: found ${changes.length} total changes`);
-    return changes;
+    logger.debug(`[DEBUG] identifyChanges: ${adoptedUpstream.length} protected path(s) also exist upstream`);
+    return { changes, adoptedUpstream };
 }
 
 // async function identifyChanges(sourcePath: string, targetPath: string, protectedAreas: string[]): Promise<SyncChange[]> {
@@ -1004,7 +1016,14 @@ export async function identifyChanges(
 //     return changes;
 // }
 
-async function compareDirectories(sourcePath: string, targetPath: string, relativePath: string, protectedAreas: string[], changes: SyncChange[]): Promise<void> {
+async function compareDirectories(
+    sourcePath: string,
+    targetPath: string,
+    relativePath: string,
+    protectedAreas: string[],
+    changes: SyncChange[],
+    adoptedUpstream: string[]
+): Promise<void> {
     const sourceFullPath = path.join(sourcePath, relativePath);
 
     if (!(await fileManager.exists(sourceFullPath))) {
@@ -1046,10 +1065,13 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
         if (isProtectedArea(relativeFilePath, protectedAreas)) {
             const targetExists = await fileManager.exists(targetFilePath);
             if (targetExists) {
+                // Pika has this path too, so the protection is now holding back upstream changes.
+                // Record it — the consumer otherwise has no way to discover the adoption.
+                adoptedUpstream.push(relativeFilePath);
                 if (isDirectory) {
                     // Protected directory exists — recurse to find any missing files inside
                     logger.debug(`[DEBUG] Protected directory exists, recursing to check for missing files: ${relativeFilePath}`);
-                    await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+                    await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes, adoptedUpstream);
                 } else {
                     // Protected file exists — skip to preserve user customizations
                     logger.debug(`[DEBUG] Skipping protected file (exists locally): ${relativeFilePath}`);
@@ -1074,7 +1096,7 @@ async function compareDirectories(sourcePath: string, targetPath: string, relati
 
         if (isDirectory) {
             logger.debug(`[DEBUG] Recursing into directory: ${relativeFilePath}`);
-            await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes);
+            await compareDirectories(sourcePath, targetPath, relativeFilePath, protectedAreas, changes, adoptedUpstream);
         } else {
             // Compare file content
             logger.debug(`[DEBUG] Comparing file: ${relativeFilePath}`);
@@ -1826,7 +1848,7 @@ async function computeCaptureOffenders(
         // Effective protection = merged defaults + the consumer's stored protectedAreas (the list it
         // actually syncs against; getMergedProtectedAreas rebuilds from CLI defaults and omits it).
         const effectiveProtected = [...new Set([...protectedAreas, ...(syncConfig.protectedAreas || []), ...(syncConfig.userProtectedAreas || [])])];
-        const changes = await identifyChanges(pinnedDir, projectRoot, effectiveProtected, gitignoreChecker);
+        const { changes } = await identifyChanges(pinnedDir, projectRoot, effectiveProtected, gitignoreChecker);
         return await checkCaptureCompleteness(pinnedDir, changes, projectRoot, (rel) => isProtectedArea(rel, effectiveProtected));
     } finally {
         await cleanupTempDir(pinnedDir);
@@ -2093,6 +2115,42 @@ function showDetailedSyncInfo(syncConfig: SyncConfig): void {
     console.log(chalk.gray("  • If you delete a sample, it won't be restored (you can remove samples you don't want)"));
     console.log(chalk.gray('  • This allows you to learn from samples while keeping your modifications'));
     logger.newLine();
+}
+
+/**
+ * Tells the consumer which protected paths now also exist in Pika.
+ *
+ * Paths the consumer chose to protect are listed in full: those are the ones where Pika has adopted
+ * a file and the protection is now silently holding back upstream changes. Paths from the
+ * framework's own default list are summarised as a count instead — every consumer diverges from
+ * those by design, so listing them on every sync would bury the signal.
+ *
+ * Reporting only. Nothing here overwrites a protected file, and the exit code is unaffected.
+ */
+export function reportAdoptedUpstream(adoptedUpstream: string[], userProtectedAreas: string[]): void {
+    if (adoptedUpstream.length === 0) {
+        return;
+    }
+
+    const userChosen = adoptedUpstream.filter((areaPath) => isProtectedArea(areaPath, userProtectedAreas));
+    const frameworkDefaults = adoptedUpstream.length - userChosen.length;
+
+    if (userChosen.length > 0) {
+        const one = userChosen.length === 1;
+        console.log(chalk.yellow.bold(`${userChosen.length} protected ${one ? 'path' : 'paths'} now also ${one ? 'exists' : 'exist'} in Pika (adopted upstream):`));
+        userChosen.forEach((areaPath) => console.log(chalk.yellow(`  ${areaPath}`)));
+        console.log(chalk.reset(`Your ${one ? 'copy is' : 'copies are'} NOT being overwritten. To take Pika’s version instead:`));
+        console.log(chalk.gray('  remove the entry from userProtectedAreas, sync, re-apply your delta,'));
+        console.log(chalk.gray('  then run `pnpm capture-patch <file>` BEFORE committing.'));
+        console.log(chalk.gray('  Staying diverged is fine too — just record why.'));
+        logger.newLine();
+    }
+
+    if (frameworkDefaults > 0) {
+        const one = frameworkDefaults === 1;
+        console.log(chalk.gray(`(${frameworkDefaults} default-protected ${one ? 'path' : 'paths'} also ${one ? 'differs' : 'differ'} from Pika — expected; ${one ? 'that is' : 'those are'} yours by design.)`));
+        logger.newLine();
+    }
 }
 
 function getMergedProtectedAreas(syncConfig: SyncConfig): string[] {

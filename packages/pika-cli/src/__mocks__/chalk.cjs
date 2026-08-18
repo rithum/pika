@@ -12,6 +12,7 @@ const chalk = {
     red: color(),
     gray: color(),
     cyan: color(),
+    reset: color(),
     bold: {
         blue: identity,
         green: identity,
