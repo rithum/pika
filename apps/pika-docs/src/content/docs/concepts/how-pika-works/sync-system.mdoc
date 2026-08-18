@@ -179,18 +179,18 @@ If the framework has started shipping a file at a path you protect, sync also re
 ## Protected Paths Adopted Upstream
 
 Protection is permanent: a protected file is never overwritten, so once you protect a path, you own
-it forever. That is usually what you want — but if the framework later starts shipping its own file
-at that same path, your copy silently stops tracking upstream and you would have no way to know.
+it forever. That is usually what you want — but if the framework also ships its own file at that
+same path, your copy is not tracking upstream, and nothing else would tell you.
 
 Sync reports this. When a path you protect exists **both** locally and in the incoming framework
 version, it is listed as adopted upstream:
 
 ```
-1 protected path now also exists in Pika (adopted upstream):
+1 protected path also exists in Pika (adopted upstream):
   services/pika/test/lambda/session-insights-analyzer.test.ts
 Your copy is NOT being overwritten. To take Pika's version instead:
   remove the entry from userProtectedAreas, sync, re-apply your delta,
-  then run `pnpm capture-patch <file>` BEFORE committing.
+  then run `pika capture-patch <file>` BEFORE committing.
   Staying diverged is fine too — just record why.
 ```
 

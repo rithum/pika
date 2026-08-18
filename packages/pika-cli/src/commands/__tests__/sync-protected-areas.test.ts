@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, afterEach } from '@jest/globals';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
@@ -148,6 +148,55 @@ describe('protected areas on deletion — behaviour matrix', () => {
         const queued = changes.map((change) => change.path).sort();
         expect(queued).not.toContain('services/pika/test/lambda');
         expect(queued).toEqual(['services/pika/test/lambda/stale.ts']);
+    });
+
+    // NEGATIVE CONTROL. A directory-level deletion whose target is a symlink must remove the link and
+    // nothing else. `stat()` follows symlinks and reports isDirectory() for a link to a directory, so
+    // a recursive removal driven off `stat` would walk into the target and delete files outside the
+    // project entirely.
+    it('removes a directory symlink without touching anything inside its target', async () => {
+        const outside = makeTree({ 'precious.txt': 'lives outside the project', 'nested/also-precious.txt': 'also outside' });
+        const target = makeTree({ ...FRAMEWORK_ONLY, 'services/pika/real/stale.ts': 'unprotected' });
+
+        const linkPath = path.join(target, 'services/pika/linked');
+        symlinkSync(outside, linkPath);
+
+        const handBuilt: SyncChange[] = [
+            { type: 'deleted', path: 'services/pika/linked', sourcePath: '', targetPath: linkPath }
+        ];
+        await applyChanges(handBuilt, {}, target, NEVER_IGNORES, []);
+
+        // The link is gone...
+        expect(existsSync(linkPath)).toBe(false);
+        // ...and every file it pointed at survives, byte for byte.
+        expect(survivingFiles(outside)).toEqual(['nested/also-precious.txt', 'precious.txt']);
+        expect(readFileSync(path.join(outside, 'precious.txt'), 'utf8')).toBe('lives outside the project');
+    });
+
+    it('still prunes protected descendants inside a real directory alongside symlink handling', async () => {
+        const outside = makeTree({ 'precious.txt': 'outside' });
+        const target = makeTree({
+            ...FRAMEWORK_ONLY,
+            'services/pika/test/lambda/keeper.ts': 'protected',
+            'services/pika/test/lambda/stale.ts': 'unprotected'
+        });
+        symlinkSync(outside, path.join(target, 'services/pika/test/lambda/linked'));
+
+        const handBuilt: SyncChange[] = [
+            {
+                type: 'deleted',
+                path: 'services/pika/test/lambda',
+                sourcePath: '',
+                targetPath: path.join(target, 'services/pika/test/lambda')
+            }
+        ];
+        await applyChanges(handBuilt, {}, target, NEVER_IGNORES, ['services/pika/test/lambda/keeper.ts']);
+
+        expect(survivingFiles(target)).toContain('services/pika/test/lambda/keeper.ts');
+        expect(existsSync(path.join(target, 'services/pika/test/lambda/stale.ts'))).toBe(false);
+        // The nested symlink was unlinked, not traversed.
+        expect(existsSync(path.join(target, 'services/pika/test/lambda/linked'))).toBe(false);
+        expect(survivingFiles(outside)).toEqual(['precious.txt']);
     });
 
     // The apply site is the real safety boundary: a directory-level deletion that reaches it by any

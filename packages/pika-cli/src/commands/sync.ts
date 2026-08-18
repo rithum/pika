@@ -804,7 +804,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                 // Compare files and identify changes
                 console.log(); // Ensures a blank line after
                 console.log(chalk.gray('Analyzing changes...'));
-                const { changes, adoptedUpstream } = await identifyChanges(tempDir, process.cwd(), protectedAreas, gitignoreChecker);
+                const changes = await analyzeAndReportChanges(tempDir, process.cwd(), protectedAreas, gitignoreChecker, syncConfig.userProtectedAreas || []);
                 console.log(chalk.gray('Analysis complete'));
                 console.log(); // Optional: another blank line for separation
 
@@ -853,10 +853,6 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
                     }
                     return;
                 }
-
-                // Report adopted-upstream paths first: both the zero-change branch below and the
-                // dry-run branch return early, and this must be visible in either case.
-                reportAdoptedUpstream(adoptedUpstream, syncConfig.userProtectedAreas || []);
 
                 // Show remaining changes
                 if (changes.length > 0) {
@@ -971,6 +967,27 @@ async function downloadPikaFramework(version: string, branch: string = 'main'): 
     }
 
     return tempDir;
+}
+
+/**
+ * Runs the change analysis and reports coexisting protected paths in one step.
+ *
+ * The reporting is fused to the analysis deliberately. `syncCommand` has several early returns
+ * between analysis and applying changes — no ordinary changes, `--diff`, `--visual-diff`,
+ * `--dry-run` — and the adoption-only case produces no ordinary changes at all, so a report placed
+ * after any of them is exactly the report the consumer never sees. Keeping the two together makes
+ * that ordering impossible to get wrong.
+ */
+export async function analyzeAndReportChanges(
+    sourcePath: string,
+    targetPath: string,
+    protectedAreas: string[],
+    gitignoreChecker: GitignoreChecker,
+    userProtectedAreas: string[]
+): Promise<SyncChange[]> {
+    const { changes, adoptedUpstream } = await identifyChanges(sourcePath, targetPath, protectedAreas, gitignoreChecker);
+    reportAdoptedUpstream(adoptedUpstream, userProtectedAreas);
+    return changes;
 }
 
 export async function identifyChanges(
@@ -1580,8 +1597,10 @@ export async function applyChanges(
             }
             // Remove file or directory
             if (await fileManager.exists(change.targetPath)) {
-                const { stat } = await import('fs/promises');
-                const stats = await stat(change.targetPath);
+                // lstat, not stat: stat() follows symlinks, so a link pointing at a directory would
+                // report isDirectory() and send the recursive removal into files outside this project.
+                const { lstat } = await import('fs/promises');
+                const stats = await lstat(change.targetPath);
 
                 if (stats.isDirectory()) {
                     await removeDirectoryPreservingProtected(change.targetPath, change.path, protectedAreas);
@@ -1637,7 +1656,15 @@ async function removeDirectoryPreservingProtected(absolutePath: string, relative
         const childAbsolute = path.join(absolutePath, entry.name);
         const childRelative = path.join(relativePath, entry.name).replace(/\\/g, '/');
 
-        if (entry.isDirectory()) {
+        if (entry.isSymbolicLink()) {
+            // A symlink is always a leaf. Remove the link itself, never what it points at.
+            if (isProtectedArea(childRelative, protectedAreas)) {
+                logger.debug(`Preserved protected symlink inside deleted directory: ${childRelative}`);
+                keptContent = true;
+            } else {
+                await fsExtra.remove(childAbsolute);
+            }
+        } else if (entry.isDirectory()) {
             const removed = await removeDirectoryPreservingProtected(childAbsolute, childRelative, protectedAreas);
             if (!removed) {
                 keptContent = true;
@@ -2118,7 +2145,10 @@ function showDetailedSyncInfo(syncConfig: SyncConfig): void {
 }
 
 /**
- * Tells the consumer which protected paths now also exist in Pika.
+ * Tells the consumer which protected paths also exist in the incoming Pika version.
+ *
+ * This observes coexistence, not history: sync keeps no record of when a path appeared upstream, so
+ * the report says the two versions exist side by side, never that Pika adopted it after you did.
  *
  * Paths the consumer chose to protect are listed in full: those are the ones where Pika has adopted
  * a file and the protection is now silently holding back upstream changes. Paths from the
@@ -2137,11 +2167,11 @@ export function reportAdoptedUpstream(adoptedUpstream: string[], userProtectedAr
 
     if (userChosen.length > 0) {
         const one = userChosen.length === 1;
-        console.log(chalk.yellow.bold(`${userChosen.length} protected ${one ? 'path' : 'paths'} now also ${one ? 'exists' : 'exist'} in Pika (adopted upstream):`));
+        console.log(chalk.yellow.bold(`${userChosen.length} protected ${one ? 'path' : 'paths'} also ${one ? 'exists' : 'exist'} in Pika (adopted upstream):`));
         userChosen.forEach((areaPath) => console.log(chalk.yellow(`  ${areaPath}`)));
         console.log(chalk.reset(`Your ${one ? 'copy is' : 'copies are'} NOT being overwritten. To take Pika’s version instead:`));
         console.log(chalk.gray('  remove the entry from userProtectedAreas, sync, re-apply your delta,'));
-        console.log(chalk.gray('  then run `pnpm capture-patch <file>` BEFORE committing.'));
+        console.log(chalk.gray('  then run `pika capture-patch <file>` BEFORE committing.'));
         console.log(chalk.gray('  Staying diverged is fine too — just record why.'));
         logger.newLine();
     }

@@ -27,8 +27,8 @@ deletion half is enforced when a deletion is *applied*, not only when it is plan
 ## When the framework adopts a path you protect
 
 Protection is permanent, so you own a protected path forever — including picking up framework
-bugfixes to it by hand. If the framework later starts shipping its own file at that path, your copy
-silently stops tracking upstream.
+bugfixes to it by hand. If the framework also ships its own file at that path, your copy is not
+tracking upstream and nothing else would tell you.
 
 `pika sync` reports this as **adopted upstream**, listing the affected paths and what to do about
 them. It is reporting only: the file is still not overwritten and the exit code is unchanged, and it
