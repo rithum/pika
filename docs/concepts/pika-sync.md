@@ -24,7 +24,7 @@ deletion half is enforced when a deletion is *applied*, not only when it is plan
 > not have looked protective in both the config and the dry-run, and were deleted anyway. Protecting
 > such a directory with a `/**` glob was the workaround; it remains correct and needs no change.
 
-## When the framework adopts a path you protect
+## Protected paths that also exist upstream
 
 Protection is permanent, so you own a protected path forever — including picking up framework
 bugfixes to it by hand. If the framework also ships its own file at that path, your copy is not

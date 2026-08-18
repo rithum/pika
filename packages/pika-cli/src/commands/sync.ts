@@ -974,7 +974,7 @@ async function downloadPikaFramework(version: string, branch: string = 'main'): 
  *
  * The reporting is fused to the analysis deliberately. `syncCommand` has several early returns
  * between analysis and applying changes — no ordinary changes, `--diff`, `--visual-diff`,
- * `--dry-run` — and the adoption-only case produces no ordinary changes at all, so a report placed
+ * `--dry-run` — and a coexistence-only sync produces no ordinary changes at all, so a report placed
  * after any of them is exactly the report the consumer never sees. Keeping the two together makes
  * that ordering impossible to get wrong.
  */
@@ -1083,7 +1083,7 @@ async function compareDirectories(
             const targetExists = await fileManager.exists(targetFilePath);
             if (targetExists) {
                 // Pika has this path too, so the protection is now holding back upstream changes.
-                // Record it — the consumer otherwise has no way to discover the adoption.
+                // Record it — the consumer otherwise has no way to discover the overlap.
                 adoptedUpstream.push(relativeFilePath);
                 if (isDirectory) {
                     // Protected directory exists — recurse to find any missing files inside
