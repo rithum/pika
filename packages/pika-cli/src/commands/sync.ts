@@ -7,16 +7,12 @@ import inquirer from 'inquirer';
 import { minimatch } from 'minimatch';
 import { tmpdir } from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { fileManager } from '../utils/file-manager.js';
 import { loadGitignore, type GitignoreChecker } from '../utils/gitignore.js';
+import { moduleDir } from '../utils/module-dir.js';
 import { logger } from '../utils/logger.js';
 import { reapplyPikaPatches, checkCaptureCompleteness } from '../utils/pika-patches.js';
-
-// ES module compatible __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const execAsync = promisify(exec);
 
@@ -1246,7 +1242,7 @@ async function findDeletedFilesSurgical(
     return hadIgnoredContent;
 }
 
-async function findDeletedFiles(
+export async function findDeletedFiles(
     sourcePath: string,
     targetPath: string,
     relativePath: string,
@@ -1507,7 +1503,7 @@ async function fileHasChanged(sourcePath: string, targetPath: string): Promise<b
     }
 }
 
-async function applyChanges(
+export async function applyChanges(
     changes: SyncChange[],
     options: SyncOptions,
     projectRoot: string,
@@ -1819,7 +1815,7 @@ function reportCaptureOffenders(offenders: string[], blocking = false): void {
 function getDefaultProtectedAreas(): string[] {
     try {
         // Try to load from the centralized config file
-        const configPath = path.join(__dirname, '../config/protected-areas.json');
+        const configPath = path.join(moduleDir, '../config/protected-areas.json');
         if (existsSync(configPath)) {
             const config = JSON.parse(readFileSync(configPath, 'utf8'));
             return config.defaultProtectedAreas || [];
