@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.29.2",
+  "latestVersion": "0.29.3",
   "currentDevelopment": "0.29.3",
   "releases": [
     {
       "version": "0.29.3",
       "date": "2026-08-18",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Protected areas are now honoured when sync deletes a directory \u2014 a protected file inside a directory Pika did not have was previously deleted anyway \u2014 and sync now reports protected paths that Pika has since adopted.",
       "highlights": [
