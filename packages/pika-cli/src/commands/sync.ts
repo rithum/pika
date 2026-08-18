@@ -1552,7 +1552,7 @@ export async function applyChanges(
     options: SyncOptions,
     projectRoot: string,
     gitignoreChecker: GitignoreChecker,
-    protectedAreas: string[] = []
+    protectedAreas: string[]
 ): Promise<void> {
     const appliedDeletedPaths: string[] = [];
     const overwrittenIgnoredPaths: string[] = [];
@@ -1892,7 +1892,7 @@ function reportCaptureOffenders(offenders: string[], blocking = false): void {
     offenders.forEach((f) => console.log(chalk.red(`    ${f}`)));
     console.log();
     console.log(chalk.yellow('  These framework files differ from pristine + pika-patches and would be lost on `pika sync`.'));
-    console.log(chalk.gray('  For each: run `pnpm capture-patch <file>` to preserve it as a patch, or move the logic into lib/custom/.'));
+    console.log(chalk.gray('  For each: run `pika capture-patch <file>` to preserve it as a patch, or move the logic into lib/custom/.'));
     if (blocking) console.log(chalk.gray('  Or re-run with --force to overwrite them anyway.'));
 }
 

@@ -23,6 +23,12 @@ import type { GitignoreChecker } from '../../utils/gitignore.js';
 //
 // This file is the immutable lock on that guarantee. If a change makes one of these fail, the
 // change is wrong — not the test. Strengthen these assertions; never weaken them.
+//
+// AMENDED deliberately (2026-08-18, PR review): `applyChanges` now *requires* the protected-areas
+// argument rather than defaulting it to none, so the delete path cannot be invoked without its
+// protection context. These calls pass it. The assertions are unchanged — only the call shape is.
+// Note this means C1 now exercises the production configuration, where both the queue and apply
+// guards are active; a queue-site regression on its own is caught by the queue-list behaviour test.
 
 const NEVER_IGNORES: GitignoreChecker = { ignores: () => false };
 
@@ -61,7 +67,7 @@ function survivingFiles(root: string, relativePath = ''): string[] {
 async function runSync(source: string, target: string, protectedAreas: string[]): Promise<void> {
     const changes: SyncChange[] = [];
     await findDeletedFiles(source, target, '', protectedAreas, changes, NEVER_IGNORES);
-    await applyChanges(changes, {}, target, NEVER_IGNORES);
+    await applyChanges(changes, {}, target, NEVER_IGNORES, protectedAreas);
 }
 
 describe('sync protected-areas contract', () => {
@@ -116,7 +122,7 @@ describe('sync protected-areas contract', () => {
 
         const changes: SyncChange[] = [];
         await findDeletedFiles(source, target, '', [], changes, ignoresGenerated);
-        await applyChanges(changes, {}, target, ignoresGenerated);
+        await applyChanges(changes, {}, target, ignoresGenerated, []);
 
         expect(survivingFiles(target)).toContain('services/pika/generated/output.ts');
     });
