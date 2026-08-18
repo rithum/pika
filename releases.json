@@ -1,7 +1,20 @@
 {
   "latestVersion": "0.29.2",
-  "currentDevelopment": "0.29.2",
+  "currentDevelopment": "0.29.3",
   "releases": [
+    {
+      "version": "0.29.3",
+      "date": "2026-08-18",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Protected areas are now honoured when sync deletes a directory \u2014 a protected file inside a directory Pika did not have was previously deleted anyway \u2014 and sync now reports protected paths that Pika has since adopted.",
+      "highlights": [
+        "Fixed: a directory present in your project but absent from the framework was queued for deletion and removed recursively, taking protected files inside it. Protection was consulted when building the deletion list and never when applying one, so per-file userProtectedAreas entries inside such a directory were silently ignored.",
+        "Fixed: deletions now honour protected areas at both the queue and apply steps. A directory with nothing protected beneath it is still deleted outright, so existing cleanup behaviour is unchanged.",
+        "Added: sync reports protected paths that also exist in the incoming Pika version \u2014 the case where your copy has silently stopped tracking upstream \u2014 along with the steps to adopt the framework's version. Reporting only; nothing is overwritten and the exit code is unchanged. Works with --dry-run.",
+        "Existing `/**` glob workarounds for this bug remain correct and need no change."
+      ]
+    },
     {
       "version": "0.29.2",
       "date": "2026-07-30",

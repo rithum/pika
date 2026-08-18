@@ -8,6 +8,44 @@
 2. **User-defined protected areas** can be added in your `.pika-sync.json` under `userProtectedAreas`. These are merged with the defaults.
 3. **User-unprotected areas** (`userUnprotectedAreas`) let you opt specific paths back into syncing even if they appear in the default list.
 
+## What protection guarantees
+
+A protected path is never overwritten and never deleted by `pika sync`. Both halves matter, and the
+deletion half is enforced when a deletion is *applied*, not only when it is planned:
+
+- A directory that exists in your project but **not** in the framework is removed as stale — except
+  for protected paths beneath it, which are preserved along with the directories needed to reach
+  them. A directory with nothing protected under it is still removed outright.
+- This holds however the deletion was arrived at, so a protected file cannot be lost to a
+  directory-level removal.
+
+> **Before v0.29.3 the deletion half was not true.** Protection was consulted when building the
+> deletion list but never when applying one, so per-file entries inside a directory the framework did
+> not have looked protective in both the config and the dry-run, and were deleted anyway. Protecting
+> such a directory with a `/**` glob was the workaround; it remains correct and needs no change.
+
+## When the framework adopts a path you protect
+
+Protection is permanent, so you own a protected path forever — including picking up framework
+bugfixes to it by hand. If the framework later starts shipping its own file at that path, your copy
+silently stops tracking upstream.
+
+`pika sync` reports this as **adopted upstream**, listing the affected paths and what to do about
+them. It is reporting only: the file is still not overwritten and the exit code is unchanged, and it
+appears under `--dry-run` too. Three responses are reasonable:
+
+1. **Take the framework's version, drop your changes** — remove the entry from `userProtectedAreas`;
+   the next sync overwrites your copy and it becomes an ordinary framework file.
+2. **Take the framework's version, keep your changes** — remove the entry, sync (the framework's
+   version lands; yours is in git history), re-apply your delta, then `pika capture-patch <file>`
+   **before committing**. Capturing before the sync produces a patch against the wrong base, which
+   then conflicts on the next sync.
+3. **Stay deliberately diverged** — keep the protection and record why, or a year later it is
+   indistinguishable from an accident.
+
+Paths from the **default** protected list are summarised as a count rather than listed, since every
+consumer diverges from those (`package.json`, `.gitignore`, `README.md`) by design.
+
 ## Default protected paths (v0.26.0 / protected-areas.json v1.0.5)
 
 ### Consumer extension globs
