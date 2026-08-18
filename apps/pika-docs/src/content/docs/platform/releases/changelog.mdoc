@@ -15,7 +15,7 @@ Complete version history of the Pika Framework.
 
 ### Added
 
-- **`pika sync` now tells you when Pika has adopted a path you protect** — once the framework starts shipping a file at a path in your `userProtectedAreas`, your copy stops tracking upstream permanently and nothing ever said so; the only way to find out was to audit every protected entry against each new version by hand. Sync now reports those paths, with the steps to take the framework's version if you want it. Reporting only — protected files are still never overwritten and the exit code is unchanged. Shown on `--dry-run` as well. Paths from the framework's own default protected list (`package.json`, `.gitignore`, `README.md` and friends) are summarised as a count rather than listed, since every consumer diverges from those by design. [#163]
+- **`pika sync` now reports protected paths that also exist upstream** — when the framework ships its own file at a path in your `userProtectedAreas`, your copy is not tracking upstream, and nothing said so; the only way to find out was to audit every protected entry against each incoming version by hand. Sync now reports those paths, with the steps to take the framework's version if you want it. Reporting only — protected files are still never overwritten and the exit code is unchanged. Shown on `--dry-run` as well. Paths from the framework's own default protected list (`package.json`, `.gitignore`, `README.md` and friends) are summarised as a count rather than listed, since every consumer diverges from those by design. [#163]
 
 ## [0.29.2] - 2026-07-30
 

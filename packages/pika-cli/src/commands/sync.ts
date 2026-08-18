@@ -2150,10 +2150,10 @@ function showDetailedSyncInfo(syncConfig: SyncConfig): void {
  * This observes coexistence, not history: sync keeps no record of when a path appeared upstream, so
  * the report says the two versions exist side by side, never that Pika adopted it after you did.
  *
- * Paths the consumer chose to protect are listed in full: those are the ones where Pika has adopted
- * a file and the protection is now silently holding back upstream changes. Paths from the
- * framework's own default list are summarised as a count instead — every consumer diverges from
- * those by design, so listing them on every sync would bury the signal.
+ * Paths the consumer chose to protect are listed in full: those are the ones where a framework file
+ * exists at a path they own, so the protection is holding back upstream changes they may want.
+ * Paths from the framework's own default list are summarised as a count instead — every consumer
+ * diverges from those by design, so listing them on every sync would bury the signal.
  *
  * Reporting only. Nothing here overwrites a protected file, and the exit code is unaffected.
  */
