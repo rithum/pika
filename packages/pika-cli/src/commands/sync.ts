@@ -963,7 +963,7 @@ async function downloadPikaFramework(version: string, branch: string = 'main'): 
     return tempDir;
 }
 
-async function identifyChanges(
+export async function identifyChanges(
     sourcePath: string,
     targetPath: string,
     protectedAreas: string[],
