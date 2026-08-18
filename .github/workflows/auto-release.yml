@@ -60,9 +60,13 @@ jobs:
               run: |
                   VERSION="${{ steps.get_version.outputs.version }}"
 
-                  # Extract release notes for this version from CHANGELOG.md
-                  # This uses awk to extract everything between ## [$VERSION] and the next ## heading
-                  NOTES=$(awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '1d;$d' | sed '/^$/d')
+                  # Extract release notes for this version from CHANGELOG.md: everything after the
+                  # ## [$VERSION] heading, up to the next ## [ heading.
+                  #
+                  # Not an awk range: the heading line matches both ends of "/## \[$VERSION\]/,/## \[/",
+                  # so the range opened and closed on that one line and the following "sed 1d;$d"
+                  # deleted it, yielding an empty string for every release ever cut.
+                  NOTES=$(awk -v ver="$VERSION" '$0 ~ "^## \\[" ver "\\]" {f=1; next} f && /^## \[/ {exit} f' CHANGELOG.md | sed '/^$/d')
 
                   if [ -z "$NOTES" ]; then
                     echo "No release notes found for version $VERSION in CHANGELOG.md"
