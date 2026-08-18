@@ -890,7 +890,7 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
 
                 // Apply changes
                 const applySpinner = logger.startSpinner('Applying changes...');
-                await applyChanges(changes, options, projectRoot, gitignoreChecker);
+                await applyChanges(changes, options, projectRoot, gitignoreChecker, protectedAreas);
                 logger.stopSpinner(true, 'Changes applied');
 
                 // Reapply consumer patches onto the freshly-overwritten framework files (M1).
@@ -1209,7 +1209,12 @@ async function findDeletedFilesSurgical(
     for (const entry of entries) {
         const childRelative = path.join(relativePath, entry.name).replace(/\\/g, '/');
         const targetFilePath = path.join(targetPath, childRelative);
-        if (isProtectedArea(childRelative, protectedAreas)) continue;
+        // A protected child is content we must not delete, exactly like ignored content: flag it so
+        // the caller does not queue a directory-level delete that would take it out anyway.
+        if (isProtectedArea(childRelative, protectedAreas)) {
+            hadIgnoredContent = true;
+            continue;
+        }
         if (shouldSkipDirectory(childRelative)) continue;
         if (isOptionalSampleDirectory(childRelative)) continue;
         if (entry.isDirectory()) {
@@ -1507,7 +1512,8 @@ export async function applyChanges(
     changes: SyncChange[],
     options: SyncOptions,
     projectRoot: string,
-    gitignoreChecker: GitignoreChecker
+    gitignoreChecker: GitignoreChecker,
+    protectedAreas: string[] = []
 ): Promise<void> {
     const appliedDeletedPaths: string[] = [];
     const overwrittenIgnoredPaths: string[] = [];
@@ -1545,13 +1551,18 @@ export async function applyChanges(
             if (gitignoreChecker.ignores(change.path)) {
                 continue;
             }
+            // Same defense in depth for protected areas: a deletion must never remove a path the
+            // consumer protects, however that deletion came to be queued.
+            if (isProtectedArea(change.path, protectedAreas)) {
+                continue;
+            }
             // Remove file or directory
             if (await fileManager.exists(change.targetPath)) {
                 const { stat } = await import('fs/promises');
                 const stats = await stat(change.targetPath);
 
                 if (stats.isDirectory()) {
-                    await fileManager.removeDirectory(change.targetPath);
+                    await removeDirectoryPreservingProtected(change.targetPath, change.path, protectedAreas);
                 } else {
                     await fsExtra.remove(change.targetPath);
                 }
@@ -1582,6 +1593,47 @@ export async function applyChanges(
 
     // Empty directory cleanup: remove directories that are now empty (parents of applied deleted paths)
     await removeEmptyDirectoriesAfterDeletes(projectRoot, appliedDeletedPaths);
+}
+
+/**
+ * Removes a directory recursively, leaving in place any protected path beneath it along with the
+ * directories needed to reach it. The directory itself is removed only when nothing was kept, so a
+ * directory with no protected content is still deleted outright.
+ *
+ * @returns true if the directory was removed entirely.
+ */
+async function removeDirectoryPreservingProtected(absolutePath: string, relativePath: string, protectedAreas: string[]): Promise<boolean> {
+    if (isProtectedArea(relativePath, protectedAreas)) {
+        return false;
+    }
+
+    const { readdir } = await import('fs/promises');
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+    let keptContent = false;
+
+    for (const entry of entries) {
+        const childAbsolute = path.join(absolutePath, entry.name);
+        const childRelative = path.join(relativePath, entry.name).replace(/\\/g, '/');
+
+        if (entry.isDirectory()) {
+            const removed = await removeDirectoryPreservingProtected(childAbsolute, childRelative, protectedAreas);
+            if (!removed) {
+                keptContent = true;
+            }
+        } else if (isProtectedArea(childRelative, protectedAreas)) {
+            logger.debug(`Preserved protected file inside deleted directory: ${childRelative}`);
+            keptContent = true;
+        } else {
+            await fsExtra.remove(childAbsolute);
+        }
+    }
+
+    if (keptContent) {
+        return false;
+    }
+
+    await fileManager.removeDirectory(absolutePath);
+    return true;
 }
 
 /**
