@@ -274,9 +274,13 @@ export type InsightStatusNeedsInsightsAnalysis = typeof INSIGHT_STATUS_NEEDS_INS
 /**
  * Terminal insight status: analysis failed unrecoverably (e.g. history exceeds the model context window).
  * Replaces NEEDS_INSIGHTS_ANALYSIS so the session leaves the sweep partition instead of being re-picked every tick.
+ *
+ * @since 0.29.4
  */
 export const INSIGHT_STATUS_INSIGHTS_FAILED = 'INSIGHTS_FAILED';
+/** @since 0.29.4 */
 export type InsightStatusInsightsFailed = typeof INSIGHT_STATUS_INSIGHTS_FAILED;
+/** @since 0.29.4 */
 export type InsightStatus = InsightStatusNeedsInsightsAnalysis | InsightStatusInsightsFailed;
 
 export const SESSION_FEEDBACK_STATUS = ['open', 'in_review', 'resolved', 'closed'] as const;
@@ -774,7 +778,7 @@ export interface ChatUser<T extends RecordOrUndef = undefined> {
     userType?: UserType;
     /** The only role supported right now is 'pika:content-admin'.  Pika Content Admin users are allowed to view chat sessions and messages for all users to help with debugging. */
     roles?: (PikaUserRole | string)[];
-    /** Map of feature types to their corresponding feature configurations; a key is absent when never set for the user. */
+    /** Map of feature types to their corresponding feature configurations; a key is absent when never set for the user. @since 0.29.4 - now optional */
     features: {
         [K in FeatureType]?: K extends 'instruction' ? InstructionFeature : K extends 'history' ? HistoryFeature : never;
     };
@@ -5898,6 +5902,8 @@ export interface InvokeAgentAsComponentOptions {
      *
      * The source in the composite key here will only ever be either `user` or `component`.  If this attribute's value is missing or is `user` or `component-as-user`,
      * then the composite key will be set to `user` so when we query on behalf of the user, we will get all sessions for that user.
+     *
+     * @since 0.29.4 - now optional
      */
     source?: ConverseSource;
 }
