@@ -978,8 +978,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
         current_date = datetime.now(timezone.utc).isoformat()
 
-        # Mirrors TypeScript createChatSession so new sessions match backfilled ones; token is
-        # unread but kept for shape parity.
+        # Mirrors TypeScript createChatSession; token is unread but kept for shape parity.
         session_attributes = {
             **custom_data_str,
             'userId': user_id,

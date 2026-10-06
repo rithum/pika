@@ -9,6 +9,8 @@ create, mirroring the TypeScript createChatSession path.
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 class TestEnsureSessionPersistsAttributes:
 
@@ -57,8 +59,10 @@ class TestEnsureSessionPersistsAttributes:
 
         mock_table.put_item.assert_not_called()
         seed, nested = [c.kwargs for c in mock_table.update_item.call_args_list]
-        assert seed['UpdateExpression'] == 'SET #sa = if_not_exists(#sa, :empty)'
+        assert seed['UpdateExpression'] == 'SET #sa = :empty'
+        assert seed['ConditionExpression'] == 'attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map)'
         assert nested['UpdateExpression'] == 'SET #sa.#k0 = :v0'
+        assert nested['ConditionExpression'] == 'attribute_not_exists(#sa.#k0)'
         assert nested['ExpressionAttributeValues'][':v0'] == 'acct-9'
         assert result['session_attributes']['accountId'] == 'acct-9'
 
@@ -102,19 +106,79 @@ class TestEnsureSessionPersistsAttributes:
         assert 'accountType' not in nested['ExpressionAttributeNames'].values()
         assert result['session_attributes'] == {'accountType': 'kept', 'accountId': 'acct-9'}
 
-    def test_backfill_client_error_returns_existing_without_raising(self):
+    @staticmethod
+    def _client_error(code):
+        from botocore.exceptions import ClientError
+        return ClientError({'Error': {'Code': code, 'Message': 'x'}}, 'UpdateItem')
+
+    def test_backfill_client_error_raises(self):
         from botocore.exceptions import ClientError
         from chat_ddb import ensure_session
-        item = {'user_id': 'u1', 'session_id': 's1'}
-        mock_ddb, mock_table = self._existing_session_table(item)
-        mock_table.update_item.side_effect = ClientError(
-            {'Error': {'Code': 'ProvisionedThroughputExceededException', 'Message': 'slow'}}, 'UpdateItem')
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+        mock_table.update_item.side_effect = self._client_error('ProvisionedThroughputExceededException')
+
+        with pytest.raises(ClientError):
+            ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                           session_attributes={'accountId': 'acct-9'})
+
+    def test_nested_client_error_raises(self):
+        from botocore.exceptions import ClientError
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+        mock_table.update_item.side_effect = [None, self._client_error('ProvisionedThroughputExceededException')]
+
+        with pytest.raises(ClientError):
+            ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                           session_attributes={'accountId': 'acct-9'})
+
+    def test_seed_condition_failure_is_ignored(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+        mock_table.update_item.side_effect = [self._client_error('ConditionalCheckFailedException'), None]
 
         result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
                                 session_attributes={'accountId': 'acct-9'})
 
-        assert result is item
-        assert 'session_attributes' not in result
+        assert result['session_attributes']['accountId'] == 'acct-9'
+
+    def test_lost_race_rereads_consistently_and_uses_winner(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({})
+        mock_table.get_item.side_effect = [
+            {'Item': {'user_id': 'u1', 'session_id': 's1'}},
+            {'Item': {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': 'acct-B'}}},
+        ]
+        mock_table.update_item.side_effect = [None, self._client_error('ConditionalCheckFailedException')]
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-A'})
+
+        assert result['session_attributes']['accountId'] == 'acct-B'
+        assert mock_table.get_item.call_args_list[1].kwargs['ConsistentRead'] is True
+        assert mock_table.update_item.call_count == 2
+
+    def test_lost_race_twice_raises(self):
+        from botocore.exceptions import ClientError
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+        ccf = self._client_error('ConditionalCheckFailedException')
+        mock_table.update_item.side_effect = [None, ccf, None, ccf]
+
+        with pytest.raises(ClientError):
+            ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                           session_attributes={'accountId': 'acct-9'})
+
+    def test_seed_replaces_non_map_session_attributes(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table(
+            {'user_id': 'u1', 'session_id': 's1', 'session_attributes': 'junk'})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9'})
+
+        seed = mock_table.update_item.call_args_list[0].kwargs
+        assert seed['ExpressionAttributeValues'] == {':empty': {}, ':map': 'M'}
+        assert result['session_attributes'] == {'accountId': 'acct-9'}
 
     def test_nested_set_names_each_key_via_expression_attribute_names(self):
         from chat_ddb import ensure_session
