@@ -47,6 +47,10 @@ def _retrieve_chunks(kb_id: str, query: str, retrieve_filter: Optional[Dict[str,
 
 
 def _extract_chunk_uri(chunk: Dict[str, Any]) -> str:
+    # Bedrock returns a document's public URL in metadata; for S3-ingested KBs location is always the s3:// key.
+    metadata_url = (chunk.get('metadata') or {}).get('url')
+    if metadata_url:
+        return metadata_url
     loc = chunk.get('location') or {}
     return (
         (loc.get('s3Location') or {}).get('uri')

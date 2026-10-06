@@ -8,9 +8,41 @@ Key schemas:
     Format: {chatAppId}#{source}#{lastUpdate_ISO}
 All attribute names are snake_case in DynamoDB.
 """
+import hashlib
+import os
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
+
+# Account-id field names used to decide whether a session already carries
+# account context (mirrors utils.getAccountIdFieldNames / PIKA_ACCOUNT_ID_FIELD_NAMES).
+DEFAULT_ACCOUNT_ID_FIELDS = ('accountId', 'account_id')
+
+
+def _account_id_field_names() -> list[str]:
+    env = os.environ.get('PIKA_ACCOUNT_ID_FIELD_NAMES')
+    if env:
+        return [s.strip() for s in env.split(',') if s.strip()]
+    return list(DEFAULT_ACCOUNT_ID_FIELDS)
+
+
+def _present_account_value(v) -> bool:
+    """True for a usable account id. Decimal counts because boto3 returns every DynamoDB number as Decimal."""
+    return (isinstance(v, str) and len(v) > 0) or isinstance(v, (int, float, Decimal))
+
+
+def _has_account_context(session: dict) -> bool:
+    """True if an account id is already present (in session_attributes or top-level)."""
+    fields = _account_id_field_names()
+    attrs = session.get('session_attributes')
+    if isinstance(attrs, dict) and any(_present_account_value(attrs.get(f)) for f in fields):
+        return True
+    return any(_present_account_value(session.get(f)) for f in fields)
+
+
+def session_token(session_id: str, user_id: str) -> str:
+    """Mirror utils.createSessionToken — sha256 of '<sessionId>:<userId>'."""
+    return hashlib.sha256(f'{session_id}:{user_id}'.encode()).hexdigest()
 
 
 def _source_for_key(source: str | None) -> str:
@@ -31,17 +63,38 @@ def _now_iso() -> str:
 
 def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id: str,
                    agent_id: str, chat_app_id: str, source: str = 'user',
-                   user_type: str | None = None) -> dict:
+                   user_type: str | None = None,
+                   session_attributes: dict | None = None) -> dict:
     """Create or retrieve a chat session. Matches ensureChatSession() in chat-apis.ts.
 
-    Creates the session with all fields required by the frontend, including the
-    chat_app_sk composite key used by the user-chat-app-index GSI.
+    Creates the session with the fields the frontend needs, including the
+    chat_app_sk composite key for the user-chat-app-index GSI and the
+    session_attributes map (account context, currentDate, etc.) that
+    persisted-session readers such as session insights expect. The TypeScript
+    path writes session_attributes on create.
     """
     table = dynamodb_resource.Table(table_name)
 
     response = table.get_item(Key={'user_id': user_id, 'session_id': session_id})
     if 'Item' in response:
-        return response['Item']
+        existing = response['Item']
+        # Self-heal: backfill account context onto an existing session that lacks it (mirrors ensureChatSession in chat-apis.ts). Never clobbers existing keys; writes only when the merge adds something.
+        existing_attrs = existing.get('session_attributes')
+        if not isinstance(existing_attrs, dict):
+            existing_attrs = {}
+        merged = dict(existing_attrs)
+
+        if session_attributes and not _has_account_context(existing):
+            merged = {**session_attributes, **merged}
+
+        if merged != existing_attrs:
+            table.update_item(
+                Key={'user_id': user_id, 'session_id': session_id},
+                UpdateExpression='SET session_attributes = :sa',
+                ExpressionAttributeValues={':sa': merged},
+            )
+            existing['session_attributes'] = merged
+        return existing
 
     now_iso = _now_iso()
     sk_source = _source_for_key(source)
@@ -63,6 +116,8 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         'output_cost': Decimal('0'),
         'total_cost': Decimal('0'),
     }
+    if session_attributes is not None:
+        session['session_attributes'] = session_attributes
     try:
         table.put_item(
             Item=session,
@@ -118,16 +173,32 @@ def add_message(dynamodb_resource, table_name: str, message: dict) -> None:
 
 
 def get_messages(dynamodb_resource, table_name: str, user_id: str, session_id: str) -> list[dict]:
-    """Fetch all messages for a session. Uses begins_with on message_id."""
+    """Fetch all messages for a session. Uses begins_with on message_id.
+
+    Must follow LastEvaluatedKey: assistant messages carry full traces (tool
+    results + llm-instruction), so long sessions exceed DynamoDB's 1 MB
+    per-query cap. Items return oldest-first — a single unpaginated query
+    silently drops the NEWEST turns, freezing the agent's view of the
+    conversation at the 1 MB boundary.
+    """
     table = dynamodb_resource.Table(table_name)
-    response = table.query(
-        KeyConditionExpression='user_id = :uid AND begins_with(message_id, :sid_prefix)',
-        ExpressionAttributeValues={
+    items: list[dict] = []
+    query_kwargs = {
+        'KeyConditionExpression': 'user_id = :uid AND begins_with(message_id, :sid_prefix)',
+        'ExpressionAttributeValues': {
             ':uid': user_id,
             ':sid_prefix': f"{session_id}:",
         },
-    )
-    return response.get('Items', [])
+    }
+    while True:
+        response = table.query(**query_kwargs)
+        items.extend(response.get('Items', []))
+        last_key = response.get('LastEvaluatedKey')
+        # Continue only on a real key dict — guards against non-dict values
+        # (e.g. test doubles) turning this loop infinite.
+        if not isinstance(last_key, dict) or not last_key:
+            return items
+        query_kwargs['ExclusiveStartKey'] = last_key
 
 
 def get_session(dynamodb_resource, table_name: str, user_id: str, session_id: str) -> dict | None:
