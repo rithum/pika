@@ -12,13 +12,9 @@
     // Provided by Sidebar.Provider, which wraps this component. A class instance, so it must not be destructured.
     const sidebar = Sidebar.useSidebar();
 
-    // Closed per selection site, not by watching currentSession: restore-on-mount and URL-driven switches must not close it. Mobile uses openMobile; desktop uses open.
+    // Closed per selection site, not by watching currentSession: restore-on-mount and URL-driven switches must not close it. Only the mobile drawer closes; the docked desktop sidebar stays put.
     function closeHistoryDrawer() {
-        if (sidebar.isMobile) {
-            sidebar.setOpenMobile(false);
-        } else {
-            sidebar.setOpen(false);
-        }
+        if (sidebar.isMobile) sidebar.setOpenMobile(false);
     }
 
     let hoveredSessionId: string | null = null;
