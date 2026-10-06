@@ -108,6 +108,53 @@ class TestGetMessages:
         assert 'begins_with' in call_kwargs['KeyConditionExpression']
         assert call_kwargs['ExpressionAttributeValues'][':sid_prefix'] == 's1:'
 
+    def test_follows_last_evaluated_key_across_pages(self):
+        from chat_ddb import get_messages
+        mock_ddb = MagicMock()
+        mock_table = MagicMock()
+        mock_ddb.Table.return_value = mock_table
+        page1 = {
+            'Items': [{'message_id': f's1:{i}'} for i in range(28)],
+            'LastEvaluatedKey': {'user_id': 'u1', 'message_id': 's1:27'},
+        }
+        page2 = {'Items': [{'message_id': f's1:{i}'} for i in range(28, 54)]}
+        mock_table.query.side_effect = [page1, page2]
+
+        result = get_messages(mock_ddb, 'table', 'u1', 's1')
+
+        assert len(result) == 54
+        assert result[-1]['message_id'] == 's1:53'
+        assert mock_table.query.call_count == 2
+        second_call = mock_table.query.call_args_list[1].kwargs
+        assert second_call['ExclusiveStartKey'] == {'user_id': 'u1', 'message_id': 's1:27'}
+
+    def test_non_dict_last_evaluated_key_terminates(self):
+        from chat_ddb import get_messages
+        mock_ddb = MagicMock()
+        mock_table = MagicMock()
+        mock_ddb.Table.return_value = mock_table
+        # Bare MagicMock response: .get() returns truthy auto-mocks, never None.
+        # The loop must still terminate (handler contract tests drive the real
+        # get_messages with unconfigured mocks).
+        mock_table.query.return_value = MagicMock()
+
+        result = get_messages(mock_ddb, 'table', 'u1', 's1')
+
+        assert result == []
+        assert mock_table.query.call_count == 1
+
+    def test_single_page_does_not_pass_exclusive_start_key(self):
+        from chat_ddb import get_messages
+        mock_ddb = MagicMock()
+        mock_table = MagicMock()
+        mock_ddb.Table.return_value = mock_table
+        mock_table.query.return_value = {'Items': [{'message_id': 's1:1'}]}
+
+        get_messages(mock_ddb, 'table', 'u1', 's1')
+
+        assert mock_table.query.call_count == 1
+        assert 'ExclusiveStartKey' not in mock_table.query.call_args.kwargs
+
 
 class TestGetSession:
 

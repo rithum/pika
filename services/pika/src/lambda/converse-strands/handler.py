@@ -27,7 +27,7 @@ try:
     from strands_tools.agent_core_memory import AgentCoreMemoryToolProvider
 except ImportError:
     AgentCoreMemoryToolProvider = None
-from chat_ddb import ensure_session, update_session, add_message, get_user, get_messages, _now_iso
+from chat_ddb import ensure_session, update_session, add_message, get_user, get_messages, _now_iso, session_token
 from agent_loader import load_agent, load_tools, build_strands_tools
 
 # Configure the root logger with a StreamHandler so output appears in CloudWatch.
@@ -47,7 +47,7 @@ CHAT_SESSION_TABLE = os.environ.get('CHAT_SESSION_TABLE', '')
 CHAT_USER_TABLE = os.environ.get('CHAT_USER_TABLE', '')
 STAGE = os.environ.get('STAGE', 'test')
 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = os.environ.get('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE', '')
-DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0')
+DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
 PIKA_S3_BUCKET = os.environ.get('PIKA_S3_BUCKET', '')
 
 # Agent loop constraints
@@ -388,6 +388,9 @@ def fetch_tag_definitions(chat_app_id: str, agent_def: dict, request_features: d
     # Include global tags if no tags are disabled
     if not tags_disabled:
         try:
+            # `scope-status-index` is a misnomer kept for deployment continuity: its HASH key
+            # is `usage_mode`, not `scope` (pika-construct.ts addGlobalSecondaryIndex). The
+            # TypeScript path pairs the same index with the same key (chat-admin-ddb.ts).
             response = table.query(
                 IndexName='scope-status-index',
                 KeyConditionExpression='usage_mode = :mode',
@@ -953,8 +956,53 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         stream.set_headers(session_id)
 
         user_type = (user_record or {}).get('user_type', 'internal-user')
+        # Built before ensure_session so the stored session carries the account context its readers expect.
+        user_record_dict = user_record if isinstance(user_record, dict) else {}
+        custom_data = user_record_dict.get('custom_data') or {}
+        if not isinstance(custom_data, dict):
+            custom_data = {}
+
+        # JWT customUserData overrides DDB custom_data when keys conflict.
+        # For local dev (no JWT), fall back to body.customUserData.
+        if jwt_payload:
+            jwt_custom = jwt_payload.get('customUserData') or {}
+            if isinstance(jwt_custom, dict):
+                custom_data = {**custom_data, **jwt_custom}
+        else:
+            body_custom = body.get('customUserData') or {}
+            if isinstance(body_custom, dict):
+                custom_data = {**custom_data, **body_custom}
+
+        # All session attribute values must be strings (Bedrock requirement)
+        custom_data_str = {k: str(v) for k, v in custom_data.items() if isinstance(v, (str, int, float, bool))}
+
+        current_date = datetime.now(timezone.utc).isoformat()
+
+        # Mirrors TypeScript createChatSession so new sessions match backfilled ones; token is
+        # unread but kept for shape parity.
+        session_attributes = {
+            **custom_data_str,
+            'userId': user_id,
+            # The only stable id spanning the turns of one conversation; token is a hash of it, not a substitute.
+            'sessionId': session_id,
+            'chatAppId': chat_app_id,
+            'agentId': agent_id,
+            'currentDate': current_date,
+            'token': session_token(session_id, user_id),
+        }
+        _first_name = user_record_dict.get('first_name')
+        _last_name = user_record_dict.get('last_name')
+        _timezone = body.get('timezone') or custom_data.get('timezone') or user_record_dict.get('timezone')
+        if _first_name:
+            session_attributes['firstName'] = str(_first_name)
+        if _last_name:
+            session_attributes['lastName'] = str(_last_name)
+        if _timezone:
+            session_attributes['timezone'] = str(_timezone)
+
         ensure_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id, agent_id, chat_app_id,
-                       user_type=user_type)
+                       user_type=user_type,
+                       session_attributes=session_attributes)
 
         # Fetch conversation history BEFORE storing the current user message so
         # the LLM only sees prior turns — not the message it's about to receive.
@@ -1095,36 +1143,6 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 return
             system_prompt = build_component_system_prompt(agent_def, cac_resolved)
 
-        # Build custom_data from user record
-        user_record_dict = user_record if isinstance(user_record, dict) else {}
-        custom_data = user_record_dict.get('custom_data') or {}
-        if not isinstance(custom_data, dict):
-            custom_data = {}
-
-        # JWT customUserData overrides DDB custom_data when keys conflict.
-        # For local dev (no JWT), fall back to body.customUserData.
-        if jwt_payload:
-            jwt_custom = jwt_payload.get('customUserData') or {}
-            if isinstance(jwt_custom, dict):
-                custom_data = {**custom_data, **jwt_custom}
-        else:
-            body_custom = body.get('customUserData') or {}
-            if isinstance(body_custom, dict):
-                custom_data = {**custom_data, **body_custom}
-
-        # All session attribute values must be strings (Bedrock requirement)
-        custom_data_str = {k: str(v) for k, v in custom_data.items() if isinstance(v, (str, int, float, bool))}
-
-        current_date = datetime.now(timezone.utc).isoformat()
-
-        # Mirror the TypeScript sessionAttributes shape (bedrock-agent.ts ~line 1171)
-        session_attributes = {
-            **custom_data_str,
-            'userId': user_id,
-            'chatAppId': chat_app_id,
-            'agentId': agent_id,
-            'currentDate': current_date,
-        }
 
         # Mirror the TypeScript promptSessionAttributes shape (bedrock-agent.ts ~line 1099)
         prompt_session_attributes = {

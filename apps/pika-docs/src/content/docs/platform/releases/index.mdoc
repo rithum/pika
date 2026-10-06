@@ -7,6 +7,20 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.29.4
+
+- **Long chat sessions keep their newest turns.** The Strands converse Lambda and `getChatMessagesInSession` read history from a single DynamoDB query and dropped everything past its 1 MB limit. Both now follow `LastEvaluatedKey` and read every page.
+- **Converse sessions and context are more robust.** Sessions persist `session_attributes` on create (an existing session missing account context is backfilled without overwriting keys), context items are XML-escaped so crafted values can't forge prompt structure, and knowledge-base citations use a document's public `metadata.url` when it has one.
+- **Session insights stop skipping and stop looping.** The sweep now keys on the `insight_status` partition and filters on `last_update`, and a session whose analysis can never succeed is marked `INSIGHTS_FAILED` and leaves the sweep instead of being retried every tick.
+- **Chat UI fixes.** Tags split across stream chunks now render, copy buttons work when the Clipboard API is blocked, the drag-and-drop overlay clears reliably, the history drawer closes when a session is picked, and user prompts keep their line breaks.
+- **`pika sync` fails when a `pika-patches/` file targets a protected path.** Sync never overwrites protected files, so such a patch can only go stale. The capture gate and `--check-collisions` now flag it. Ships in `pika-app` 1.7.2.
+- **A `Tests` GitHub Actions workflow** runs the jest/vitest suites, type checks and the converse-strands pytest suite on pull requests.
+- **The default model is Claude Sonnet 4.6** (`us.anthropic.claude-sonnet-4-6`), and chat-app override `userRoles` accepts any role matching `^[A-Za-z0-9][A-Za-z0-9:_-]{0,63}$`.
+
+**Upgrade impact**: the `features` map keys and `InvokeAgentAsComponentOptions.source` are now optional in the shared types, so code that reads them may need to handle `undefined`. The converse-strands dependency `quickjs` is replaced by `quickjs-ng`.
+
+**Latest Stable:** `0.29.4` (October 6, 2026)
+
 ### What's New in 0.29.3
 
 - **Protected files are no longer deleted when Pika doesn't have their directory.** If a directory existed in your project but not in the framework, `pika sync` queued the *directory* for deletion and removed it recursively — taking any protected file inside it. Protection was consulted when *building* the deletion list and never when *applying* one.
@@ -15,8 +29,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **`pika sync` now reports protected paths that also exist upstream.** When the framework ships its own file at a path in your `userProtectedAreas`, your copy is not tracking upstream — and nothing said so. Sync now reports those paths with the steps to take the framework's version if you want it. Framework-default protected paths (`package.json`, `.gitignore`, `README.md`) are summarised as a count rather than listed, since every consumer diverges from those by design.
 
 **Upgrade impact**: none, and no action required. Deletion behaviour only becomes *more* conservative, the new report changes visibility rather than behaviour (protected files are still never overwritten, and the exit code is unchanged), and it appears on `--dry-run` too. If you worked around the deletion bug by protecting such directories with a `/**` glob, that remains correct and needs no change.
-
-**Latest Stable:** `0.29.3` (August 18, 2026)
 
 ### What's New in 0.29.2
 
@@ -693,6 +705,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.29.4  | Oct 6 2026  | Patch    | Long sessions read every page of message history, session insights sweep fixed and terminal failures leave it, chat UI streaming/clipboard/drag fixes, `pika sync` rejects patches on protected paths, default model Claude Sonnet 4.6 |
 | 0.29.3  | Aug 18 2026 | Patch    | `pika sync` honours protected areas when deleting a directory the framework no longer has (protected files inside it were previously deleted), and reports protected paths that also exist upstream |
 | 0.29.2  | Jul 30 2026 | Patch    | Strands converse: `trace_callback` and `_make_callback` annotated with real `Callable[..., None]` types instead of the `callable` builtin — the old annotation raised `TypeError` under any runtime annotation introspection, and breaks the module outright on Python 3.13 or earlier |
 | 0.29.1  | Jul 30 2026 | Patch    | Strands converse: component-mode requests now read `invocationMode`, the wire field the client actually sends, instead of `mode`; new contract test derives the key from client source |

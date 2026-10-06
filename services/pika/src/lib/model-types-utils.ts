@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { type ChatMessageUsage } from 'pika-shared/types/chatbot/chatbot-types';
 
-export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-sonnet-4-6';
 export const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
 export const DEFAULT_VERIFICATION_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';

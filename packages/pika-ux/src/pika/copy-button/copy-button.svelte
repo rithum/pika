@@ -3,6 +3,7 @@
     import Copy from '$icons/lucide/copy';
     import { Button } from '../../shadcn/button';
     import { tick, type Snippet } from 'svelte';
+    import { copyToClipboard } from './clipboard';
 
     interface Props {
         children?: Snippet<[]>;
@@ -90,25 +91,19 @@
         }
     }
 
-    function copy() {
+    async function copy() {
         if (!value) {
             console.error('No value to copy');
             return;
         }
 
-        if (!navigator || !navigator.clipboard) {
-            console.error('Clipboard API not supported');
-            return;
-        }
-
-        try {
-            navigator.clipboard.writeText(value);
+        if (await copyToClipboard(value)) {
             showCheckmark = true;
             setTimeout(() => {
                 showCheckmark = false;
             }, 2000);
-        } catch (err) {
-            console.error('Failed to copy value:', err);
+        } else {
+            console.error('Failed to copy value');
             showCheckmark = false;
         }
     }

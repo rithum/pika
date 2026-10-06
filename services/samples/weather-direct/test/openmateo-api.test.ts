@@ -75,8 +75,13 @@ describe('Open-Meteo API Integration Tests', () => {
         });
 
         it('should fetch weather forecast with date range', async () => {
-            const startDate = '2024-01-01';
-            const endDate = '2024-01-07';
+            // Open-Meteo's forecast endpoint only serves dates near today, so the range must be relative.
+            const iso = (d: Date) => d.toISOString().slice(0, 10);
+            const today = new Date();
+            const sixDaysOut = new Date(today);
+            sixDaysOut.setDate(sixDaysOut.getDate() + 6);
+            const startDate = iso(today);
+            const endDate = iso(sixDaysOut);
 
             const params: GetWeatherForecastParams = {
                 latitude: TEST_COORDINATES.latitude,
@@ -326,7 +331,7 @@ describe('Open-Meteo API Integration Tests', () => {
                 timezone: 'UTC'
             };
 
-            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', 'test-session-id')).rejects.toThrow('Network error');
+            await expect(getCurrentWeather(params, mockSessionData.agentId, 'test-bucket', 'us-east-1', 'test-session-id')).rejects.toThrow(/Weather API request failed/);
         });
 
         it('should handle network errors gracefully', async () => {

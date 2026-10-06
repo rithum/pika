@@ -6,6 +6,7 @@
     import Maximize2 from '$icons/lucide/maximize-2';
     import Shrink from '$icons/lucide/shrink';
     import { gunzipBase64EncodedString } from '$lib/client/util';
+    import { copyToClipboard } from 'pika-ux/pika/copy-button/clipboard';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
     import MarkdownIt from 'markdown-it';
@@ -608,6 +609,17 @@
 
         return grouped;
     });
+
+    // copyToClipboard can fail (blocked execCommand in an iframe, denied permission), so the toast reports the real outcome.
+    async function copyWithToast(text: string): Promise<void> {
+        if (await copyToClipboard(text)) {
+            toast.info('Copied to clipboard', { duration: 1500 });
+        } else {
+            toast.error('Could not copy to clipboard — select the text and copy manually.', {
+                duration: 3000,
+            });
+        }
+    }
 </script>
 
 {#if groupedTraces.length > 0 || isStreaming}
@@ -793,8 +805,7 @@
                             e.stopPropagation();
                             const decompressed =
                                 decompressedInstructions[trace.id] || gunzipBase64EncodedString(trace.compressedData);
-                            navigator.clipboard.writeText(decompressed);
-                            toast.info('Copied to clipboard', { duration: 1500 });
+                            void copyWithToast(decompressed);
                         }}
                         variant="ghost"
                         size="icon"
@@ -819,7 +830,7 @@
         </button>
 
         {#if expandedTraces[trace.id] && decompressedInstructions[trace.id]}
-            <div class="px-4 pb-4 border-t border-slate-200 bg-slate-50">
+            <div class="px-4 pb-4 border-t border-slate-200 bg-slate-50 max-h-[44rem] overflow-y-auto">
                 <div class="prose prose-sm max-w-none pt-3">
                     {@html md.render(decompressedInstructions[trace.id])}
                 </div>
@@ -873,8 +884,7 @@
             <div class="buttons flex">
                 <Button
                     onclick={() => {
-                        navigator.clipboard.writeText(content.rawText);
-                        toast.info('Copied to clipboard', { duration: 1500 });
+                        void copyWithToast(content.rawText);
                     }}
                     variant="ghost"
                     size="icon"
@@ -949,8 +959,7 @@
         <Dialog.Footer class="flex items-center justify-end gap-2">
             <Button
                 onclick={() => {
-                    navigator.clipboard.writeText(instructionDialogContent);
-                    toast.info('Copied to clipboard', { duration: 1500 });
+                    void copyWithToast(instructionDialogContent);
                 }}
                 variant="outline"
             >

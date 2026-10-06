@@ -98,8 +98,8 @@ class TestTimeBudget:
             handler(valid_event, mock_context)
 
             # Timer should be set to 60 - 30 = 30 seconds.
-            # threading.Timer is called more than once (budget + heartbeat), so check
-            # that the first call (budget timer) has the right timeout.
+            # The heartbeat may be scheduled before the budget timer, so identify
+            # the budget by its value instead of relying on call order.
             assert MockTimer.call_count >= 1
-            budget = MockTimer.call_args_list[0][0][0]
-            assert budget == 30.0
+            timer_delays = [call.args[0] for call in MockTimer.call_args_list]
+            assert 30.0 in timer_delays

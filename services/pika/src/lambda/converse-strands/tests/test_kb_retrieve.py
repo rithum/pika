@@ -33,6 +33,15 @@ def _custom_chunk(text: str, doc_id: str) -> dict:
     return _make_chunk(text, {'customDocumentLocation': {'id': doc_id}})
 
 
+def _chunk_with_metadata_url(text: str, s3_uri: str, url: str) -> dict:
+    """A chunk that has both an S3 location and a public URL in its metadata."""
+    return {
+        'content': {'text': text},
+        'location': {'s3Location': {'uri': s3_uri}},
+        'metadata': {'url': url, 'source': 'support'},
+    }
+
+
 def _call_tool(tool, query: str = 'test query') -> dict:
     tool_use = {'toolUseId': 'tu-1', 'input': {'text': query}}
     return tool._tool_func(tool_use)
@@ -120,6 +129,19 @@ class TestUriMapPopulation:
         assert 0 in uri_map
         assert uri_map[0] == 's3://bucket/doc.txt'
 
+    def test_uri_map_uses_metadata_url_when_present(self):
+        import kb_retrieve
+
+        uri_map = {}
+        chunks = [_chunk_with_metadata_url('text', 's3://bucket/000020481.md', 'https://docs.example.com/s/article/Creating-a-return')]
+
+        with patch.object(kb_retrieve, '_get_client') as mock_client:
+            mock_client.return_value.retrieve.return_value = {'retrievalResults': chunks}
+            tools = kb_retrieve.build_retrieve_kb_tools([{'id': 'kb-1'}], {}, uri_map)
+            _call_tool(tools[0])
+
+        assert uri_map[0] == 'https://docs.example.com/s/article/Creating-a-return'
+
     def test_uri_map_ids_are_global_across_calls(self):
         """IDs continue from where uri_map left off (cross-KB global counter)."""
         import kb_retrieve
@@ -185,6 +207,15 @@ class TestUriFallbackChain:
     def test_s3_takes_priority_over_web(self):
         chunk = _make_chunk('', {'s3Location': {'uri': 's3://b/k'}, 'webLocation': {'url': 'https://x.com'}})
         assert self._extract(chunk) == 's3://b/k'
+
+    def test_metadata_url_takes_priority_over_s3_location(self):
+        chunk = _chunk_with_metadata_url('', 's3://bucket/000020481.md', 'https://docs.example.com/s/article/Creating-a-return')
+        assert self._extract(chunk) == 'https://docs.example.com/s/article/Creating-a-return'
+
+    def test_falls_back_to_location_when_no_metadata_url(self):
+        chunk = _make_chunk('', {'s3Location': {'uri': 's3://bucket/key'}})
+        chunk['metadata'] = {'source': 'support'}  # metadata present but no url
+        assert self._extract(chunk) == 's3://bucket/key'
 
     def test_empty_location_returns_empty_string(self):
         assert self._extract(_make_chunk('', {})) == ''

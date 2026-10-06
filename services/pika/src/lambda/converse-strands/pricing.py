@@ -18,6 +18,12 @@ from decimal import Decimal
 # Model pricing per 1000 tokens.
 # Cache read is ~10% of input price; cache write is ~125% of input price.
 MODEL_PRICING = {
+    'us.anthropic.claude-sonnet-4-6': {
+        'inputPer1000Tokens': 0.003,
+        'outputPer1000Tokens': 0.015,
+        'cacheReadPer1000Tokens': 0.0003,
+        'cacheWritePer1000Tokens': 0.00375,
+    },
     'us.anthropic.claude-sonnet-4-5-20250929-v1:0': {
         'inputPer1000Tokens': 0.003,
         'outputPer1000Tokens': 0.015,

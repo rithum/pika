@@ -202,6 +202,19 @@ class TestInlineToolExecution:
         result = tools[0].tool_func({'toolUseId': 'tu-hang', 'input': {'min': 1, 'max': 2}})
         assert result['status'] == 'error'
 
+    def test_unbounded_allocation_is_memory_limited(self):
+        """A tool body that grows an array without bound must hit the QuickJS memory
+        limit and surface as ToolResult{status='error'}."""
+        from inline_tools import build_inline_tools  # noqa: PLC0415
+
+        hog = {
+            **INLINE_TOOL_DEF,
+            'code': "function random(event, params){ const a = []; while(true){ a.push('x'.repeat(1024)); } }",
+        }
+        tools = build_inline_tools(hog)
+        result = tools[0].tool_func({'toolUseId': 'tu-mem', 'input': {'min': 1, 'max': 2}})
+        assert result['status'] == 'error'
+
     def test_params_are_marshaled_to_js_object(self):
         """Params passed to tool_func['input'] must reach the JS function as an object
         (not a JSON string) the function can read via dot/bracket access."""
