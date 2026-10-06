@@ -7,6 +7,14 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.29.5
+
+- **Dropping a file outside the drop zone no longer navigates away.** In chat apps with file upload disabled, the 0.29.4 drop guard did not apply, so a stray drop replaced the page. It now applies whether or not uploads are enabled.
+- **Session insights stop retrying context-limit failures.** An analysis whose input plus `max_tokens` exceeds the model's context limit is now marked `INSIGHTS_FAILED` and leaves the sweep, as "input/prompt is too long" already was, instead of being retried every tick.
+- **The Strands converse Lambda's account-context backfill is safer.** A failed backfill write now fails the turn instead of continuing with no account pinned, and each key is written only if absent so a concurrent turn's pin wins. A lost race re-reads once with a consistent read, and a missing or non-map `session_attributes` is replaced with an empty map first.
+
+**Latest Stable:** `0.29.5` (October 6, 2026)
+
 ### What's New in 0.29.4
 
 - **Long chat sessions keep their newest turns.** The Strands converse Lambda and `getChatMessagesInSession` read history from a single DynamoDB query and dropped everything past its 1 MB limit. Both now follow `LastEvaluatedKey` and read every page.
@@ -18,8 +26,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **The default model is Claude Sonnet 4.6** (`us.anthropic.claude-sonnet-4-6`), and chat-app override `userRoles` accepts any role matching `^[A-Za-z0-9][A-Za-z0-9:_-]{0,63}$`.
 
 **Upgrade impact**: the `features` map keys and `InvokeAgentAsComponentOptions.source` are now optional in the shared types, so code that reads them may need to handle `undefined`. The converse-strands dependency `quickjs` is replaced by `quickjs-ng`.
-
-**Latest Stable:** `0.29.4` (October 6, 2026)
 
 ### What's New in 0.29.3
 
@@ -705,6 +711,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.29.5  | Oct 6 2026  | Patch    | Fixes three 0.29.4 regressions: file drops with uploads disabled, insights retrying context-limit failures, and the converse account-context backfill |
 | 0.29.4  | Oct 6 2026  | Patch    | Long sessions read every page of message history, session insights sweep fixed and terminal failures leave it, chat UI streaming/clipboard/drag fixes, `pika sync` rejects patches on protected paths, default model Claude Sonnet 4.6 |
 | 0.29.3  | Aug 18 2026 | Patch    | `pika sync` honours protected areas when deleting a directory the framework no longer has (protected files inside it were previously deleted), and reports protected paths that also exist upstream |
 | 0.29.2  | Jul 30 2026 | Patch    | Strands converse: `trace_callback` and `_make_callback` annotated with real `Callable[..., None]` types instead of the `callable` builtin — the old annotation raised `TypeError` under any runtime annotation introspection, and breaks the module outright on Python 3.13 or earlier |
