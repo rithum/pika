@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.29.3",
+  "latestVersion": "0.29.4",
   "currentDevelopment": "0.29.4",
   "releases": [
     {
       "version": "0.29.4",
       "date": "2026-10-06",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Long chat sessions no longer lose their newest turns, the session insights sweep and chat UI streaming are fixed, and pika sync now fails on patches that target protected paths.",
       "highlights": [
@@ -13,7 +13,7 @@
         "Fixed: Strands converse sessions now persist session_attributes on create, and an existing session missing account context is backfilled without clobbering keys.",
         "Fixed: context items are XML-escaped so crafted values cannot forge prompt structure, and knowledge-base citations use a document's public metadata.url instead of its s3:// key when one exists.",
         "Fixed: the session insights sweep keyed on last_message_id, which is not a timestamp, so sessions were skipped. It now keys on the insight_status partition and filters on last_update; sessions whose analysis can never succeed are marked INSIGHTS_FAILED and leave the sweep.",
-        "Fixed: Chat UI streaming and interaction defects \u2014 tags split across stream chunks now render, copy buttons fall back to execCommand when the Clipboard API is blocked, the drag-and-drop overlay clears reliably, and the history drawer closes when a session is picked.",
+        "Fixed: Chat UI streaming and interaction defects — tags split across stream chunks now render, copy buttons fall back to execCommand when the Clipboard API is blocked, the drag-and-drop overlay clears reliably, and the history drawer closes when a session is picked.",
         "Added: pika sync's capture gate and --check-collisions now fail when a pika-patches/ file targets a protected path, since sync never overwrites those files and the patch can only go stale. Ships in pika-app 1.7.2.",
         "Added: a Tests GitHub Actions workflow runs the jest/vitest suites, type checks and the converse-strands pytest suite on pull requests.",
         "Changed: the default model is Claude Sonnet 4.6 (us.anthropic.claude-sonnet-4-6), with an inference profile and pricing.",
@@ -26,11 +26,11 @@
       "date": "2026-08-18",
       "status": "released",
       "breaking": false,
-      "summary": "Protected areas are now honoured when sync deletes a directory \u2014 a protected file inside a directory Pika did not have was previously deleted anyway \u2014 and sync now reports protected paths that also exist in the incoming version.",
+      "summary": "Protected areas are now honoured when sync deletes a directory — a protected file inside a directory Pika did not have was previously deleted anyway — and sync now reports protected paths that also exist in the incoming version.",
       "highlights": [
         "Fixed: a directory present in your project but absent from the framework was queued for deletion and removed recursively, taking protected files inside it. Protection was consulted when building the deletion list and never when applying one, so per-file userProtectedAreas entries inside such a directory were silently ignored.",
         "Fixed: deletions now honour protected areas at both the queue and apply steps. A directory with nothing protected beneath it is still deleted outright, so existing cleanup behaviour is unchanged.",
-        "Added: sync reports protected paths that also exist in the incoming Pika version \u2014 the case where your copy is not tracking upstream \u2014 along with the steps to adopt the framework's version. Reporting only; nothing is overwritten and the exit code is unchanged. Works with --dry-run.",
+        "Added: sync reports protected paths that also exist in the incoming Pika version — the case where your copy is not tracking upstream — along with the steps to adopt the framework's version. Reporting only; nothing is overwritten and the exit code is unchanged. Works with --dry-run.",
         "Existing `/**` glob workarounds for this bug remain correct and need no change."
       ]
     },
