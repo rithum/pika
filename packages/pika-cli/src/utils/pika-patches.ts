@@ -42,6 +42,22 @@ export function parsePatchTargets(patchText: string): string[] {
     return targets;
 }
 
+export interface ProtectedTargetPatch {
+    patch: string;
+    target: string;
+}
+
+/** Patches with a target that sync never overwrites; reapplying them can only fail. */
+export async function findProtectedTargetPatches(projectRoot: string, isProtected: (rel: string) => boolean): Promise<ProtectedTargetPatch[]> {
+    const offenders: ProtectedTargetPatch[] = [];
+    for (const pf of await listPatchFiles(projectRoot)) {
+        for (const target of parsePatchTargets(readFileSync(pf, 'utf8'))) {
+            if (isProtected(target)) offenders.push({ patch: path.basename(pf), target });
+        }
+    }
+    return offenders;
+}
+
 /**
  * Reapply pika-patches/*.patch onto the just-synced files via `git apply --3way`. Failure is keyed
  * off git-apply's exit code (covers both `.rej` and in-file conflict markers), so it never passes

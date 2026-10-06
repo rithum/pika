@@ -77,7 +77,7 @@ pika sync --check-collisions
 This read-only check flags any framework file whose committed content **isn't reproducible from
 `pristine + pika-patches`** — i.e. an edit that was made without a covering patch and would be
 silently overwritten on the next sync. It exits non-zero when it finds one, so you can run it as a
-required check on every pull request. Protected files and `pika sync` PRs are exempt by construction.
+required check on every pull request. Protected files and `pika sync` PRs are exempt by construction. It also fails on any patch whose target is a protected path: sync never overwrites that file, so the patch can only go stale and break the reapply. Delete such a patch, since the file is already yours.
 
 A convenient consumer setup is a `package.json` script plus a CI job:
 

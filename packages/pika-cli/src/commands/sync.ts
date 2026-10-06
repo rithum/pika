@@ -12,7 +12,7 @@ import { fileManager } from '../utils/file-manager.js';
 import { loadGitignore, type GitignoreChecker } from '../utils/gitignore.js';
 import { moduleDir } from '../utils/module-dir.js';
 import { logger } from '../utils/logger.js';
-import { reapplyPikaPatches, checkCaptureCompleteness } from '../utils/pika-patches.js';
+import { reapplyPikaPatches, checkCaptureCompleteness, findProtectedTargetPatches, type ProtectedTargetPatch } from '../utils/pika-patches.js';
 
 const execAsync = promisify(exec);
 
@@ -716,14 +716,18 @@ export async function syncCommand(options: SyncOptions = {}): Promise<void> {
             // Capture-completeness gate (S2). `--check-collisions` is the read-only CI path; a
             // mutating sync hard-stops unless --force.
             if (options.checkCollisions || (!options.force && !options.dryRun)) {
+                const effectiveProtected = getEffectiveProtectedAreas(protectedAreas, syncConfig);
+                const protectedTargetPatches = await findProtectedTargetPatches(projectRoot, (rel) => isProtectedArea(rel, effectiveProtected));
                 const offenders = await computeCaptureOffenders(projectRoot, syncConfig, protectedAreas, gitignoreChecker);
                 if (options.checkCollisions) {
                     reportCaptureOffenders(offenders);
-                    if (offenders.length > 0) process.exit(1);
+                    reportProtectedTargetPatches(protectedTargetPatches);
+                    if (offenders.length > 0 || protectedTargetPatches.length > 0) process.exit(1);
                     return;
                 }
-                if (offenders.length > 0) {
-                    reportCaptureOffenders(offenders, true);
+                if (offenders.length > 0 || protectedTargetPatches.length > 0) {
+                    if (offenders.length > 0) reportCaptureOffenders(offenders, true);
+                    reportProtectedTargetPatches(protectedTargetPatches, true);
                     process.exit(1);
                 }
             }
@@ -1367,7 +1371,7 @@ export async function findDeletedFiles(
     }
 }
 
-function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
+export function isProtectedArea(filePath: string, protectedAreas: string[]): boolean {
     // Normalize to forward slashes for consistent matching
     const normalizedFilePath = filePath.replace(/\\/g, '/');
 
@@ -1851,6 +1855,10 @@ async function cleanupTempDir(tempDir: string): Promise<void> {
     }
 }
 
+export function getEffectiveProtectedAreas(protectedAreas: string[], syncConfig: { protectedAreas?: string[]; userProtectedAreas?: string[] }): string[] {
+    return [...new Set([...protectedAreas, ...(syncConfig.protectedAreas || []), ...(syncConfig.userProtectedAreas || [])])];
+}
+
 /**
  * Returns framework files whose committed content != `pinned-pristine + pika-patches` — uncaptured
  * divergence a sync would overwrite. Baseline is the PINNED pristine (syncConfig.pikaVersion), so the
@@ -1874,7 +1882,7 @@ async function computeCaptureOffenders(
     try {
         // Effective protection = merged defaults + the consumer's stored protectedAreas (the list it
         // actually syncs against; getMergedProtectedAreas rebuilds from CLI defaults and omits it).
-        const effectiveProtected = [...new Set([...protectedAreas, ...(syncConfig.protectedAreas || []), ...(syncConfig.userProtectedAreas || [])])];
+        const effectiveProtected = getEffectiveProtectedAreas(protectedAreas, syncConfig);
         const { changes } = await identifyChanges(pinnedDir, projectRoot, effectiveProtected, gitignoreChecker);
         return await checkCaptureCompleteness(pinnedDir, changes, projectRoot, (rel) => isProtectedArea(rel, effectiveProtected));
     } finally {
@@ -1894,6 +1902,16 @@ function reportCaptureOffenders(offenders: string[], blocking = false): void {
     console.log(chalk.yellow('  These framework files differ from pristine + pika-patches and would be lost on `pika sync`.'));
     console.log(chalk.gray('  For each: run `pika capture-patch <file>` to preserve it as a patch, or move the logic into lib/custom/.'));
     if (blocking) console.log(chalk.gray('  Or re-run with --force to overwrite them anyway.'));
+}
+
+function reportProtectedTargetPatches(patches: ProtectedTargetPatch[], blocking = false): void {
+    if (patches.length === 0) return;
+    console.log();
+    console.log(chalk.red.bold(blocking ? 'Sync stopped — pika-patches target a protected path:' : 'pika-patches target a protected path:'));
+    patches.forEach((p) => console.log(chalk.red(`    pika-patches/${p.patch} -> ${p.target}`)));
+    console.log();
+    console.log(chalk.yellow('  pika sync never overwrites protected files, so these patches can only go stale and fail to reapply.'));
+    console.log(chalk.gray('  The file is already yours: delete the patch. If it should track pika again, remove it from the protected areas in .pika-sync.json.'));
 }
 
 /**
