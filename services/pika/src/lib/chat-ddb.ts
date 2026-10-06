@@ -278,17 +278,25 @@ export async function updateUser(user: ChatUser<RecordOrUndef>): Promise<ChatUse
 }
 
 export async function getChatMessagesInSession(userId: string, sessionId: string): Promise<ChatMessage[]> {
-    const messages = await ddbDocClient.query({
-        TableName: getChatMessagesTable(),
-        KeyConditionExpression: 'user_id = :userId and begins_with(message_id, :sessionId)',
-        ExpressionAttributeValues: {
-            ':userId': userId,
-            // The : at the end is used to match the message_id prefix which is the sessionId followed by a colon
-            ':sessionId': `${sessionId}:`
-        }
-    });
+    // Assistant messages carry full traces, so long sessions exceed the 1 MB query cap; results are oldest-first, so an unpaginated query drops the newest.
+    const items: Record<string, unknown>[] = [];
+    let lastEvaluatedKey: Record<string, unknown> | undefined;
+    do {
+        const messages = await ddbDocClient.query({
+            TableName: getChatMessagesTable(),
+            KeyConditionExpression: 'user_id = :userId and begins_with(message_id, :sessionId)',
+            ExpressionAttributeValues: {
+                ':userId': userId,
+                // The : at the end is used to match the message_id prefix which is the sessionId followed by a colon
+                ':sessionId': `${sessionId}:`
+            },
+            ExclusiveStartKey: lastEvaluatedKey
+        });
+        items.push(...(messages.Items || []));
+        lastEvaluatedKey = messages.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
 
-    return (messages.Items || []).map((item) => convertToCamelCase<ChatMessage>(item as SnakeCase<ChatMessage>));
+    return items.map((item) => convertToCamelCase<ChatMessage>(item as SnakeCase<ChatMessage>));
 }
 
 export async function getUserSessionsByUserId(userId: string): Promise<ChatSession<RecordOrUndef>[]> {

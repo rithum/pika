@@ -2537,7 +2537,7 @@ export class PikaConstruct extends Construct {
 
     //TODO: get these from the config and let users override which models are used where
     private createInferenceProfileInstances(inferenceProfileCustomResourceLambda: lambda.Function): Record<string, string> {
-        // Define the three Claude models we want to create inference profiles for
+        // Define the Claude models we want to create inference profiles for
         // These map to the model keys in MODELS.ANTHROPIC in model-types-utils.ts
         const profiles = [
             {
@@ -2560,6 +2560,13 @@ export class PikaConstruct extends Construct {
                 modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
                 provider: 'ANTHROPIC',
                 modelKey: 'Claude4_5Sonnet'
+            },
+            {
+                name: 'Claude4_6Sonnet',
+                profileName: 'claude-sonnet-4-6',
+                modelId: 'us.anthropic.claude-sonnet-4-6',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude4_6Sonnet'
             }
         ];
 

@@ -80,6 +80,7 @@ import { addUser, deleteWidgetDataForUser, getWidgetDataByUserId, getChatSession
 import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { getMemoryId, validateUserCanAccessSession } from '../../lib/utils';
+import { decodePathParameter } from './path-params';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
 // only need to get it once until the lambda is restarted
@@ -135,10 +136,12 @@ function findMatchingRoute(method: string, path: string): RouteMatch | undefined
         const match = path.match(regex);
 
         if (match && match.groups) {
+            // API Gateway proxy integration leaves event.path percent-encoded.
+            const pathParameters = Object.fromEntries(Object.entries(match.groups).map(([name, value]) => [name, decodePathParameter(name, value)]));
             return {
                 handler: routeConfig.handler,
                 passUserObj: routeConfig.passUserObj,
-                pathParameters: match.groups
+                pathParameters
             };
         }
     }

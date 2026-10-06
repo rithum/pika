@@ -69,7 +69,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         }
 
         // Determine if this session needs insights analysis
-        const sessionUpdate = determineInsightAnalysisUpdate(session);
+        const sessionUpdate = await determineInsightAnalysisUpdate(session);
 
         if (sessionUpdate) {
             console.log(`Session ${session.sessionId} needs insights analysis update:`, sessionUpdate);
@@ -126,7 +126,7 @@ async function updateSessionLastMessageId(userId: string, sessionId: string, new
  * Determines if a session needs insights analysis updates based on the design requirements.
  * Returns the update object if an update is needed, null otherwise.
  */
-function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
+export async function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>): Promise<
     | {
           userId: string;
           sessionId: string;
@@ -134,7 +134,8 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
           insightStatus: typeof INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS | undefined | null;
           insightsS3Url: string | undefined | null;
       }
-    | undefined {
+    | undefined
+> {
     console.log(`determineInsightAnalysisUpdate: ${JSON.stringify(session, null, 2)}`);
     // Ensure we have the required fields
     if (!session.userId || !session.sessionId) {
@@ -185,7 +186,7 @@ function determineInsightAnalysisUpdate(session: ChatSession<RecordOrUndef>):
             // AUTO-FIX: Update session's lastMessageId to match reality
             // This makes the session record reflect what messages actually exist
             try {
-                updateSessionLastMessageId(session.userId, session.sessionId, lastAnalyzed);
+                await updateSessionLastMessageId(session.userId, session.sessionId, lastAnalyzed);
                 console.log(`[AUTO-FIX] Successfully updated session ${session.sessionId} lastMessageId to ${lastAnalyzed}`);
 
                 // TODO: Send CloudWatch metric/alert for monitoring

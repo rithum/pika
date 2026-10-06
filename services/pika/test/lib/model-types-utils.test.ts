@@ -5,6 +5,10 @@ describe('default models', () => {
         expect(MODEL_ID_TO_MODEL[DEFAULT_ANTHROPIC_MODEL]).toBeDefined();
     });
 
+    it('defaults to Claude Sonnet 4.6', () => {
+        expect(DEFAULT_ANTHROPIC_MODEL).toBe('us.anthropic.claude-sonnet-4-6');
+    });
+
     it('DEFAULT_VERIFICATION_MODEL is resolvable in the model registry', () => {
         expect(MODEL_ID_TO_MODEL[DEFAULT_VERIFICATION_MODEL]).toBeDefined();
     });

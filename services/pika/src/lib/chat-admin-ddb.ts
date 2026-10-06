@@ -27,7 +27,8 @@ import type {
     UpdateableChatAppOverrideFields,
     UpdateableToolDefinitionFields
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS, TAG_DEFINITION_STATUSES, TAG_DEFINITION_USAGE_MODES } from 'pika-shared/types/chatbot/chatbot-types';
+import { TAG_DEFINITION_STATUSES, TAG_DEFINITION_USAGE_MODES } from 'pika-shared/types/chatbot/chatbot-types';
+import { buildInsightsSweepQueryInput } from './insights-sweep-query';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { ForbiddenError } from 'pika-shared/util/forbidden-error';
@@ -851,13 +852,7 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
 
         const sessions = await ddbDocClient.send(
             new QueryCommand({
-                TableName: getChatSessionTable(),
-                IndexName: 'insight-status-index',
-                KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
-                ExpressionAttributeValues: {
-                    ':insightStatus': INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
-                    ':lastMessageId': date.toISOString()
-                },
+                ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString()),
                 ExclusiveStartKey: lastEvaluatedKey,
                 Limit: pageSize
             })
@@ -891,13 +886,7 @@ export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<C
 
     do {
         const sessions = await ddbDocClient.query({
-            TableName: getChatSessionTable(),
-            IndexName: 'insight-status-index',
-            KeyConditionExpression: 'insight_status = :insightStatus and last_message_id <= :lastMessageId',
-            ExpressionAttributeValues: {
-                ':insightStatus': INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
-                ':lastMessageId': date.toISOString()
-            },
+            ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString()),
             ExclusiveStartKey: lastEvaluatedKey
         });
 
@@ -1164,11 +1153,11 @@ async function processBatchWithRetry(
 /**
  * Build DynamoDB update request from session data
  */
-function buildUpdateRequest(session: {
+export function buildUpdateRequest(session: {
     userId: string;
     sessionId: string;
     lastAnalyzedMessageId: string | undefined | null;
-    insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | undefined | null;
+    insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | 'INSIGHTS_FAILED' | undefined | null;
     insightsS3Url: string | undefined | null;
 }): {
     userId: string;
@@ -1181,7 +1170,7 @@ function buildUpdateRequest(session: {
     const expressionAttributeValues: Record<string, any> = {};
 
     // Handle insightStatus field
-    if (session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS') {
+    if (session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS' || session.insightStatus === 'INSIGHTS_FAILED') {
         setExpressions.push('#insightStatus = :insightStatus');
         expressionAttributeNames['#insightStatus'] = 'insight_status';
         expressionAttributeValues[':insightStatus'] = session.insightStatus;

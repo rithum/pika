@@ -4,11 +4,13 @@ import {
     ChatSession,
     ChatSessionFeedback,
     ChatSessionLiteForUpdate,
+    INSIGHT_STATUS_INSIGHTS_FAILED,
     RecordOrUndef,
     SessionInsights,
     SessionInsightScoring,
     SessionInsightUsage
 } from 'pika-shared/types/chatbot/chatbot-types';
+import { isUnrecoverableAnalysisError } from './analysis-error';
 import { SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
@@ -319,6 +321,17 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
             });
         } else {
             console.error(`[INSIGHTS-ANALYZER] Unknown error type:`, String(e));
+        }
+
+        if (isUnrecoverableAnalysisError(e)) {
+            console.error(`[INSIGHTS-ANALYZER] TERMINAL failure for session ${sessionKey} — marking INSIGHTS_FAILED`);
+            sessionBatch.push({
+                userId: session.userId,
+                sessionId: session.sessionId,
+                lastAnalyzedMessageId: undefined,
+                insightStatus: INSIGHT_STATUS_INSIGHTS_FAILED,
+                insightsS3Url: undefined
+            });
         }
     }
 }

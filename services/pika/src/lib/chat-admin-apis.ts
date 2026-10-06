@@ -1257,6 +1257,8 @@ export function validateChatAppDefinition(chatApp: Partial<ChatApp>): string[] {
     return errors;
 }
 
+const USER_ROLE_FORMAT = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,63}$/;
+
 /**
  * Validate ChatAppOverride fields
  */
@@ -1287,9 +1289,9 @@ export function validateChatAppOverride(override: Partial<ChatAppOverride>): str
         if (!Array.isArray(override.userRoles)) {
             errors.push('userRoles must be an array');
         } else {
-            const invalidUserRoles = override.userRoles.filter((role) => !PikaUserRoles.includes(role as any));
+            const invalidUserRoles = override.userRoles.filter((role) => typeof role !== 'string' || (!PikaUserRoles.includes(role as any) && !USER_ROLE_FORMAT.test(role)));
             if (invalidUserRoles.length > 0) {
-                errors.push(`Invalid userRoles: ${invalidUserRoles.join(', ')}. Valid values are: ${PikaUserRoles.join(', ')}`);
+                errors.push(`Invalid userRoles: ${invalidUserRoles.map((role) => JSON.stringify(role)).join(', ')}. Roles must be 1-64 characters, start with a letter or digit, and contain only letters, digits, colons, underscores, or hyphens (e.g. ${PikaUserRoles.join(', ')}, admin, support-agent)`);
             }
         }
     }
