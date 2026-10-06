@@ -180,6 +180,34 @@ class TestEnsureSessionPersistsAttributes:
         assert seed['ExpressionAttributeValues'] == {':empty': {}, ':map': 'M'}
         assert result['session_attributes'] == {'accountId': 'acct-9'}
 
+    def test_create_race_rereads_consistently(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._new_session_table()
+        mock_ddb.meta.client.exceptions.ConditionalCheckFailedException = type('CCF', (Exception,), {})
+        mock_table.put_item.side_effect = mock_ddb.meta.client.exceptions.ConditionalCheckFailedException()
+        mock_table.get_item.side_effect = [
+            {},
+            {'Item': {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': 'acct-B'}}},
+        ]
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-A'})
+
+        assert result['session_attributes']['accountId'] == 'acct-B'
+        assert mock_table.get_item.call_args_list[1].kwargs['ConsistentRead'] is True
+
+    def test_seed_skipped_when_session_attributes_is_a_map(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table(
+            {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'userId': 'u1'}})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9'})
+
+        assert mock_table.update_item.call_count == 1
+        assert mock_table.update_item.call_args.kwargs['UpdateExpression'].startswith('SET #sa.#k')
+        assert result['session_attributes'] == {'userId': 'u1', 'accountId': 'acct-9'}
+
     def test_nested_set_names_each_key_via_expression_attribute_names(self):
         from chat_ddb import ensure_session
         mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})

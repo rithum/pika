@@ -103,17 +103,18 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                     names[f'#k{i}'] = attr
                     values[f':v{i}'] = value
                     set_clauses.append(f'#sa.#k{i} = :v{i}')
-                try:
-                    table.update_item(
-                        Key=key,
-                        UpdateExpression='SET #sa = :empty',
-                        ConditionExpression='attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map)',
-                        ExpressionAttributeNames={'#sa': 'session_attributes'},
-                        ExpressionAttributeValues={':empty': {}, ':map': 'M'},
-                    )
-                except ClientError as e:
-                    if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
-                        raise
+                if not isinstance(existing.get('session_attributes'), dict):
+                    try:
+                        table.update_item(
+                            Key=key,
+                            UpdateExpression='SET #sa = :empty',
+                            ConditionExpression='attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map)',
+                            ExpressionAttributeNames={'#sa': 'session_attributes'},
+                            ExpressionAttributeValues={':empty': {}, ':map': 'M'},
+                        )
+                    except ClientError as e:
+                        if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                            raise
                 try:
                     table.update_item(
                         Key=key,
@@ -160,7 +161,7 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         )
     except dynamodb_resource.meta.client.exceptions.ConditionalCheckFailedException:
         # Another concurrent request already created the session — read it back.
-        return table.get_item(Key={'user_id': user_id, 'session_id': session_id}).get('Item', session)
+        return table.get_item(Key=key, ConsistentRead=True).get('Item', session)
     return session
 
 
