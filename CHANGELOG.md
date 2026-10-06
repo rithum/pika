@@ -9,30 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Long chat sessions no longer lose their newest turns** — the Strands converse Lambda and `getChatMessagesInSession` read message history from a single DynamoDB query, so anything past its 1 MB limit was silently dropped. Both now follow `LastEvaluatedKey` and read every page.
-- **Strands converse sessions persist `session_attributes` on create** — an existing session that is missing account context is backfilled without overwriting keys it already has.
-- **Context items can no longer forge prompt structure** — crafted values are now XML-escaped before they reach the prompt. Items are read from `context`, with `data` as a fallback.
-- **The sent-contexts map is seeded in its own update** — DynamoDB requires this, and combining it with other writes made the update fail.
-- **Knowledge-base citations link to the document's public URL** — when a document has `metadata.url`, it is cited instead of its `s3://` key.
-- **The session insights sweep no longer skips sessions** — it queried on `last_message_id`, which is not a timestamp. It now keys on the `insight_status` partition and filters on `last_update`. `session-changed-insights` also awaits its update now.
-- **Sessions whose analysis can never succeed stop being retried** — input that is too long or fails validation is marked `INSIGHTS_FAILED` and leaves the sweep, instead of being retried every tick.
-- **Chatbot API path parameters are percent-decoded** — encoded values now reach handlers as the characters they represent.
-- **Tags split across stream chunks now render** — the final message is reparsed from its full text, and no segment keeps a streaming cursor after completion.
-- **Copy buttons work when the Clipboard API is blocked** — they fall back to `execCommand`, and trace copy reports the real outcome.
-- **The drag-and-drop overlay clears reliably** — it goes away when a drag leaves the window or ends elsewhere, and a file dropped outside the drop zone no longer navigates away from the chat.
-- **Chat UI layout fixes** — the history drawer closes when a session is picked, user prompts keep their line breaks, the instruction preview scrolls, and the title bar stacks title and topic with truncation. Tailwind now scans `pika-ux` sources, and `--color-sidebar` resolves.
+- **Long chat sessions no longer lose their newest turns** — the Strands converse Lambda and `getChatMessagesInSession` read message history from a single DynamoDB query, so anything past its 1 MB limit was silently dropped. Both now follow `LastEvaluatedKey` and read every page. [#165]
+- **Strands converse sessions persist `session_attributes` on create** — an existing session that is missing account context is backfilled without overwriting keys it already has. [#165]
+- **Context items can no longer forge prompt structure** — crafted values are now XML-escaped before they reach the prompt. Items are read from `context`, with `data` as a fallback. [#165]
+- **The sent-contexts map is seeded in its own update** — DynamoDB requires this, and combining it with other writes made the update fail. [#165]
+- **Knowledge-base citations link to the document's public URL** — when a document has `metadata.url`, it is cited instead of its `s3://` key. [#165]
+- **The session insights sweep no longer skips sessions** — it queried on `last_message_id`, which is not a timestamp. It now keys on the `insight_status` partition and filters on `last_update`. `session-changed-insights` also awaits its update now. [#165]
+- **Sessions whose analysis can never succeed stop being retried** — input that is too long or fails validation is marked `INSIGHTS_FAILED` and leaves the sweep, instead of being retried every tick. [#165]
+- **Chatbot API path parameters are percent-decoded** — encoded values now reach handlers as the characters they represent. [#165]
+- **Tags split across stream chunks now render** — the final message is reparsed from its full text, and no segment keeps a streaming cursor after completion. [#165]
+- **Copy buttons work when the Clipboard API is blocked** — they fall back to `execCommand`, and trace copy reports the real outcome. [#165]
+- **The drag-and-drop overlay clears reliably** — it goes away when a drag leaves the window or ends elsewhere, and a file dropped outside the drop zone no longer navigates away from the chat. [#165]
+- **Chat UI layout fixes** — the history drawer closes when a session is picked, user prompts keep their line breaks, the instruction preview scrolls, and the title bar stacks title and topic with truncation. Tailwind now scans `pika-ux` sources, and `--color-sidebar` resolves. [#165]
 
 ### Added
 
-- **`pika sync` fails when a `pika-patches/` file targets a protected path** — sync never overwrites protected files, so such a patch can only go stale. The capture gate and `--check-collisions` now report it as a failure. Ships in `pika-app` 1.7.2.
-- **A `Tests` GitHub Actions workflow runs on pull requests** — it covers the jest and vitest suites, type checks and the converse-strands pytest suite.
+- **`pika sync` fails when a `pika-patches/` file targets a protected path** — sync never overwrites protected files, so such a patch can only go stale. The capture gate and `--check-collisions` now report it as a failure. Ships in `pika-app` 1.7.2. [#165]
+- **A `Tests` GitHub Actions workflow runs on pull requests** — it covers the jest and vitest suites, type checks and the converse-strands pytest suite. [#165]
 
 ### Changed
 
-- **The default model is Claude Sonnet 4.6** (`us.anthropic.claude-sonnet-4-6`), with an inference profile and pricing.
-- **The converse-strands dependency `quickjs` is replaced by `quickjs-ng`.**
-- **Chat-app override `userRoles` accepts any role matching `^[A-Za-z0-9][A-Za-z0-9:_-]{0,63}$`** — not only built-in roles.
-- **The `features` map keys and `InvokeAgentAsComponentOptions.source` are optional in the shared types.**
+- **The default model is Claude Sonnet 4.6** (`us.anthropic.claude-sonnet-4-6`), with an inference profile and pricing. [#165]
+- **The converse-strands dependency `quickjs` is replaced by `quickjs-ng`.** [#165]
+- **Chat-app override `userRoles` accepts any role matching `^[A-Za-z0-9][A-Za-z0-9:_-]{0,63}$`** — not only built-in roles. [#165]
+- **The `features` map keys and `InvokeAgentAsComponentOptions.source` are optional in the shared types.** [#165]
 
 ## [0.29.3] - 2026-08-18
 
