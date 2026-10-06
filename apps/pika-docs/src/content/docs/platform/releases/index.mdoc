@@ -11,7 +11,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 - **Dropping a file outside the drop zone no longer navigates away.** In chat apps with file upload disabled, the 0.29.4 drop guard did not apply, so a stray drop replaced the page. It now applies whether or not uploads are enabled.
 - **Session insights stop retrying context-limit failures.** An analysis whose input plus `max_tokens` exceeds the model's context limit is now marked `INSIGHTS_FAILED` and leaves the sweep, as "input/prompt is too long" already was, instead of being retried every tick.
-- **The Strands converse Lambda's account-context backfill is safer.** A failed backfill write now fails the turn instead of continuing with no account pinned, and each key is written only if absent so a concurrent turn's pin wins. A lost race re-reads once with a consistent read, and a missing or non-map `session_attributes` is replaced with an empty map first.
+- **The Strands converse Lambda's account-context backfill is safer.** A failed backfill write now fails the turn instead of continuing with no account pinned, and each key is written only if absent so a concurrent turn's pin wins. A lost race re-reads once with a consistent read, and a missing or non-map `session_attributes` is replaced with an empty map first. When two first messages create the same session at once, the one that loses re-reads it consistently instead of keeping its own copy.
 
 **Latest Stable:** `0.29.5` (October 6, 2026)
 
