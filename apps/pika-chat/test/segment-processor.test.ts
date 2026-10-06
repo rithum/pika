@@ -1571,6 +1571,34 @@ describe('MessageSegmentProcessor', () => {
                 expectTextSegment(segments[4], ' after', 'completed');
             });
 
+            it('keeps hasCalledHandler on a metadata segment across the reparse', () => {
+                const fullMessage = 'Hi <metadata-tag>{"a":1}</metadata-tag>';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage, segments, true);
+                const meta = segments.find((s) => 'isMetadata' in s) as MetadataTagSegment;
+                meta.hasCalledHandler = true;
+
+                processor.doneStreaming(segments, fullMessage);
+
+                const reparsed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(reparsed).toHaveLength(1);
+                expect(reparsed[0].hasCalledHandler).toBe(true);
+            });
+
+            it('flags only as many identical metadata segments as were handled', () => {
+                const fullMessage = '<metadata-tag>same</metadata-tag> x <metadata-tag>same</metadata-tag>';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage, segments, true);
+                const metas = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(metas).toHaveLength(2);
+                metas[0].hasCalledHandler = true;
+
+                processor.doneStreaming(segments, fullMessage);
+
+                const reparsed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(reparsed.filter((s) => s.hasCalledHandler === true)).toHaveLength(1);
+            });
+
             it('never leaves the streaming cursor on a completed plain-text response', () => {
                 const fullMessage = 'No items were verified fixed.';
                 const segments: ProcessedSegment[] = [];

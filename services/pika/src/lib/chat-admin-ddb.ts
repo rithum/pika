@@ -27,7 +27,13 @@ import type {
     UpdateableChatAppOverrideFields,
     UpdateableToolDefinitionFields
 } from 'pika-shared/types/chatbot/chatbot-types';
-import { TAG_DEFINITION_STATUSES, TAG_DEFINITION_USAGE_MODES } from 'pika-shared/types/chatbot/chatbot-types';
+import {
+    INSIGHT_STATUS_INSIGHTS_FAILED,
+    INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS,
+    TAG_DEFINITION_STATUSES,
+    TAG_DEFINITION_USAGE_MODES,
+    type InsightStatus
+} from 'pika-shared/types/chatbot/chatbot-types';
 import { buildInsightsSweepQueryInput } from './insights-sweep-query';
 import { BadRequestError } from 'pika-shared/util/bad-request-error';
 import { convertStringToSnakeCase, convertToCamelCase, convertToSnakeCase, type SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
@@ -1157,7 +1163,7 @@ export function buildUpdateRequest(session: {
     userId: string;
     sessionId: string;
     lastAnalyzedMessageId: string | undefined | null;
-    insightStatus: 'NEEDS_INSIGHTS_ANALYSIS' | 'INSIGHTS_FAILED' | undefined | null;
+    insightStatus: InsightStatus | undefined | null;
     insightsS3Url: string | undefined | null;
 }): {
     userId: string;
@@ -1170,7 +1176,7 @@ export function buildUpdateRequest(session: {
     const expressionAttributeValues: Record<string, any> = {};
 
     // Handle insightStatus field
-    if (session.insightStatus === 'NEEDS_INSIGHTS_ANALYSIS' || session.insightStatus === 'INSIGHTS_FAILED') {
+    if (session.insightStatus === INSIGHT_STATUS_NEEDS_INSIGHTS_ANALYSIS || session.insightStatus === INSIGHT_STATUS_INSIGHTS_FAILED) {
         setExpressions.push('#insightStatus = :insightStatus');
         expressionAttributeNames['#insightStatus'] = 'insight_status';
         expressionAttributeValues[':insightStatus'] = session.insightStatus;

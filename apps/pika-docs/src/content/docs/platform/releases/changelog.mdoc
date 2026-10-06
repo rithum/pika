@@ -17,7 +17,7 @@ Complete version history of the Pika Framework.
 - **The sent-contexts map is seeded in its own update** — DynamoDB requires this, and combining it with other writes made the update fail. [#165]
 - **Knowledge-base citations link to the document's public URL** — when a document has `metadata.url`, it is cited instead of its `s3://` key. [#165]
 - **The session insights sweep no longer skips sessions** — it queried on `last_message_id`, which is not a timestamp. It now keys on the `insight_status` partition and filters on `last_update`. `session-changed-insights` also awaits its update now. [#165]
-- **Sessions whose analysis can never succeed stop being retried** — input that is too long or fails validation is marked `INSIGHTS_FAILED` and leaves the sweep, instead of being retried every tick. [#165]
+- **Sessions whose analysis can never succeed stop being retried** — input that is too long for the model is marked `INSIGHTS_FAILED` and leaves the sweep, instead of being retried every tick. [#165]
 - **Chatbot API path parameters are percent-decoded** — encoded values now reach handlers as the characters they represent. [#165]
 - **Tags split across stream chunks now render** — the final message is reparsed from its full text, and no segment keeps a streaming cursor after completion. [#165]
 - **Copy buttons work when the Clipboard API is blocked** — they fall back to `execCommand`, and trace copy reports the real outcome. [#165]

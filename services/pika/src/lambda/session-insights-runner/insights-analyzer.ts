@@ -328,7 +328,7 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
             sessionBatch.push({
                 userId: session.userId,
                 sessionId: session.sessionId,
-                lastAnalyzedMessageId: undefined,
+                lastAnalyzedMessageId: session.lastMessageId,
                 insightStatus: INSIGHT_STATUS_INSIGHTS_FAILED,
                 insightsS3Url: undefined
             });

@@ -527,8 +527,25 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
     doneStreaming(segments: ProcessedSegment[], fullMessage?: string): void {
         if (fullMessage !== undefined) {
+            const handled = new Map<string, number>();
+            for (const seg of segments) {
+                if ('isMetadata' in seg && seg.isMetadata && seg.hasCalledHandler) {
+                    const key = `${seg.tag}\u0000${seg.rawContent}`;
+                    handled.set(key, (handled.get(key) ?? 0) + 1);
+                }
+            }
             segments.splice(0, segments.length);
             this.parseMessage(fullMessage, segments, false);
+            for (const seg of segments) {
+                if ('isMetadata' in seg && seg.isMetadata) {
+                    const key = `${seg.tag}\u0000${seg.rawContent}`;
+                    const remaining = handled.get(key) ?? 0;
+                    if (remaining > 0) {
+                        seg.hasCalledHandler = true;
+                        handled.set(key, remaining - 1);
+                    }
+                }
+            }
             // The reparse can miss a segment in its modified set, and no renderer may keep a streaming cursor after completion.
             for (const segment of segments) {
                 if (segment.streamingStatus !== 'error') {

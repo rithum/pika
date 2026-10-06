@@ -9,10 +9,15 @@ Key schemas:
 All attribute names are snake_case in DynamoDB.
 """
 import hashlib
+import logging
 import os
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
+
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger(__name__)
 
 # Account-id field names used to decide whether a session already carries
 # account context (mirrors utils.getAccountIdFieldNames / PIKA_ACCOUNT_ID_FIELD_NAMES).
@@ -78,22 +83,43 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
     response = table.get_item(Key={'user_id': user_id, 'session_id': session_id})
     if 'Item' in response:
         existing = response['Item']
-        # Self-heal: backfill account context onto an existing session that lacks it (mirrors ensureChatSession in chat-apis.ts). Never clobbers existing keys; writes only when the merge adds something.
+        # Self-heal: backfills only missing account fields, per key, so concurrent writers aren't clobbered; a failed backfill never fails the turn.
         existing_attrs = existing.get('session_attributes')
         if not isinstance(existing_attrs, dict):
             existing_attrs = {}
-        merged = dict(existing_attrs)
 
         if session_attributes and not _has_account_context(existing):
-            merged = {**session_attributes, **merged}
-
-        if merged != existing_attrs:
-            table.update_item(
-                Key={'user_id': user_id, 'session_id': session_id},
-                UpdateExpression='SET session_attributes = :sa',
-                ExpressionAttributeValues={':sa': merged},
-            )
-            existing['session_attributes'] = merged
+            backfill = {
+                k: session_attributes[k]
+                for k in (*_account_id_field_names(), 'accountType', 'account_type', 'accountName', 'account_name', 'account')
+                if session_attributes.get(k) is not None and k not in existing_attrs
+            }
+            if backfill:
+                key = {'user_id': user_id, 'session_id': session_id}
+                names = {'#sa': 'session_attributes'}
+                values = {}
+                set_clauses = []
+                for i, (attr, value) in enumerate(backfill.items()):
+                    names[f'#k{i}'] = attr
+                    values[f':v{i}'] = value
+                    set_clauses.append(f'#sa.#k{i} = :v{i}')
+                try:
+                    table.update_item(
+                        Key=key,
+                        UpdateExpression='SET #sa = if_not_exists(#sa, :empty)',
+                        ExpressionAttributeNames={'#sa': 'session_attributes'},
+                        ExpressionAttributeValues={':empty': {}},
+                    )
+                    table.update_item(
+                        Key=key,
+                        UpdateExpression='SET ' + ', '.join(set_clauses),
+                        ExpressionAttributeNames=names,
+                        ExpressionAttributeValues=values,
+                    )
+                except ClientError as e:
+                    logger.warning('ensure_session backfill failed for session %s: %s', session_id, e)
+                    return existing
+                existing['session_attributes'] = {**existing_attrs, **backfill}
         return existing
 
     now_iso = _now_iso()

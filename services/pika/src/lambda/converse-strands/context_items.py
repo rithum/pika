@@ -1,7 +1,7 @@
-"""Session insights: context injection and sentContexts tracking.
+"""Session insights: context injection and sent_contexts tracking.
 
 Handles llmContextItems from the request — builds XML for prompt injection
-and tracks what was sent via sentContexts on the DDB session record.
+and tracks what was sent via sent_contexts on the DDB session record.
 """
 import json
 from datetime import datetime, timezone
@@ -22,15 +22,19 @@ def build_context_xml(context_items: list[dict]) -> str:
         '',
     ]
     for i, item in enumerate(context_items, start=1):
-        item_id = item.get('id', f'ctx-{i}')
-        description = item.get('description', '')
+        item_id = item.get('id') or f'ctx-{i}'
+        description = item.get('description')
         # The client sends the payload under context; data is a legacy fallback.
-        data = item.get('context', item.get('data', ''))
+        data = item.get('context')
+        if data is None:
+            data = item.get('data', '')
+        if data is None:
+            data = ''
         if not isinstance(data, str):
             data = json.dumps(data, indent=2)
         # Client-controlled strings are escaped so a crafted value cannot close an element and forge prompt structure.
-        id_attr = quoteattr(item_id)
-        description = escape(description)
+        id_attr = quoteattr(str(item_id))
+        description = escape('' if description is None else str(description))
         data = escape(data)
         parts.append(f'<context id={id_attr} index="{i}">')
         parts.append(f'<description>{description}</description>')

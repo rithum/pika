@@ -56,9 +56,10 @@ class TestEnsureSessionPersistsAttributes:
         result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1', session_attributes=attrs)
 
         mock_table.put_item.assert_not_called()
-        update = mock_table.update_item.call_args.kwargs
-        assert update['UpdateExpression'] == 'SET session_attributes = :sa'
-        assert update['ExpressionAttributeValues'][':sa']['accountId'] == 'acct-9'
+        seed, nested = [c.kwargs for c in mock_table.update_item.call_args_list]
+        assert seed['UpdateExpression'] == 'SET #sa = if_not_exists(#sa, :empty)'
+        assert nested['UpdateExpression'] == 'SET #sa.#k0 = :v0'
+        assert nested['ExpressionAttributeValues'][':v0'] == 'acct-9'
         assert result['session_attributes']['accountId'] == 'acct-9'
 
     def test_self_heal_does_not_clobber_existing_keys(self):
@@ -71,10 +72,61 @@ class TestEnsureSessionPersistsAttributes:
         ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
                        session_attributes={'accountId': 'acct-9', 'firstName': 'New', 'currentDate': 'now'})
 
-        merged = mock_table.update_item.call_args.kwargs['ExpressionAttributeValues'][':sa']
-        assert merged['accountId'] == 'acct-9'       # added
-        assert merged['firstName'] == 'Keep'         # existing value preserved
-        assert merged['currentDate'] == 'old'        # existing value preserved
+        nested = mock_table.update_item.call_args.kwargs
+        assert list(nested['ExpressionAttributeValues'].values()) == ['acct-9']
+        assert 'firstName' not in nested['ExpressionAttributeNames'].values()
+        assert 'currentDate' not in nested['ExpressionAttributeNames'].values()
+
+    def test_backfill_skips_non_account_keys(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9', 'currentDate': 'now',
+                                                    'token': 't', 'sessionId': 's1'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        assert sorted(nested['ExpressionAttributeNames'].values()) == ['accountId', 'session_attributes']
+        assert result['session_attributes'] == {'accountId': 'acct-9'}
+
+    def test_backfill_never_overwrites_existing_key(self):
+        from chat_ddb import ensure_session
+        existing = {'user_id': 'u1', 'session_id': 's1',
+                    'session_attributes': {'accountType': 'kept'}}
+        mock_ddb, mock_table = self._existing_session_table(existing)
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9', 'accountType': 'new'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        assert 'accountType' not in nested['ExpressionAttributeNames'].values()
+        assert result['session_attributes'] == {'accountType': 'kept', 'accountId': 'acct-9'}
+
+    def test_backfill_client_error_returns_existing_without_raising(self):
+        from botocore.exceptions import ClientError
+        from chat_ddb import ensure_session
+        item = {'user_id': 'u1', 'session_id': 's1'}
+        mock_ddb, mock_table = self._existing_session_table(item)
+        mock_table.update_item.side_effect = ClientError(
+            {'Error': {'Code': 'ProvisionedThroughputExceededException', 'Message': 'slow'}}, 'UpdateItem')
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9'})
+
+        assert result is item
+        assert 'session_attributes' not in result
+
+    def test_nested_set_names_each_key_via_expression_attribute_names(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+
+        ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                       session_attributes={'accountId': 'acct-9', 'accountName': 'Acme'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        assert nested['UpdateExpression'] == 'SET #sa.#k0 = :v0, #sa.#k1 = :v1'
+        assert nested['ExpressionAttributeNames'] == {'#sa': 'session_attributes', '#k0': 'accountId', '#k1': 'accountName'}
+        assert nested['ExpressionAttributeValues'] == {':v0': 'acct-9', ':v1': 'Acme'}
 
     def test_skips_self_heal_when_account_context_present(self):
         """Existing session that already has account context is returned untouched."""
@@ -99,6 +151,22 @@ class TestEnsureSessionPersistsAttributes:
         mock_table.put_item.assert_not_called()
         mock_table.update_item.assert_not_called()
 
+
+class TestHasAccountContext:
+
+    def test_true_for_top_level_account_id_without_session_attributes(self):
+        from chat_ddb import _has_account_context
+        assert _has_account_context({'accountId': 'acct-1'}) is True
+
+    def test_true_for_decimal_and_int_ids(self):
+        from decimal import Decimal
+        from chat_ddb import _has_account_context
+        assert _has_account_context({'session_attributes': {'accountId': Decimal(5)}}) is True
+        assert _has_account_context({'accountId': 5}) is True
+
+    def test_false_for_empty_string(self):
+        from chat_ddb import _has_account_context
+        assert _has_account_context({'session_attributes': {'accountId': ''}}) is False
 
 
 class TestHandlerPassesSessionAttributes:
