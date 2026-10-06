@@ -142,7 +142,8 @@
             {@render newChatButton()}
         {/if}
     {/if}
-    <div class="flex items-center text-lg">
+    <!-- min-w-0: as a flex item this wrapper otherwise cannot shrink below content width, so `truncate` below never engages. -->
+    <div class="flex items-center text-lg min-w-0">
         {#if customHeaderIconUrl}
             <!-- Custom header icon from theme config - height controlled by --chat-app-header-icon-height -->
             <img src={customHeaderIconUrl} alt="" class="chat-app-header-icon" />
@@ -167,12 +168,16 @@
             </svg>
         {/if}
 
-        <span class="font-semibold relative left-[-4px]">{chat.chatApp.title ?? 'Chat Bot'}</span>
+        <div class="flex flex-col relative left-[-4px] min-w-0">
+            <span class="font-semibold truncate" title={chat.chatApp.title ?? 'Chat Bot'}
+                >{chat.chatApp.title ?? 'Chat Bot'}</span
+            >
+            {#if chat.pageTitle}
+                <div class="text-sm text-muted-foreground truncate" title={chat.pageTitle}>{chat.pageTitle}</div>
+            {/if}
+        </div>
     </div>
-    <!-- <TooltipPlus tooltip={appSideBarHotKey.desc} hotKey={appSideBarHotKey}>
-    </TooltipPlus> -->
-    <div class="font-semibold">{chat.pageTitle ?? ''}</div>
-    <div class="ml-auto">
+    <div class="ml-auto shrink-0 pl-2">
         {#if !standalone}
             <div class="flex items-center gap-1">
                 {@render newChatButton()}

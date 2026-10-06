@@ -525,7 +525,19 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         return modifiedSegments;
     }
 
-    doneStreaming(segments: ProcessedSegment[]): void {
+    doneStreaming(segments: ProcessedSegment[], fullMessage?: string): void {
+        if (fullMessage !== undefined) {
+            segments.splice(0, segments.length);
+            this.parseMessage(fullMessage, segments, false);
+            // The reparse can miss a segment in its modified set, and no renderer may keep a streaming cursor after completion.
+            for (const segment of segments) {
+                if (segment.streamingStatus !== 'error') {
+                    segment.streamingStatus = 'completed';
+                }
+            }
+            return;
+        }
+
         // console.log('[SEGMENT-PROCESSOR] doneStreaming called:', {
         //     segmentCount: segments.length,
         //     segments: segments.map((s) => ({

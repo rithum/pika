@@ -1531,6 +1531,58 @@ describe('MessageSegmentProcessor', () => {
         });
 
         describe('doneStreaming Fix', () => {
+            it('reparses the full message so a streamed tag envelope becomes a tag', () => {
+                const tagProcessor = new MessageSegmentProcessor(
+                    createMockComponentRegistry(['acme.chart'])
+                );
+                const runId = 'c5953ec2-8807-48f8-bd85-32626f6f11ae';
+                const payload = `{"attributes":{"run-id":"${runId}"}}`;
+                const fullMessage = `Ready for review.\n<acme.chart>${payload}</acme.chart>`;
+                const segments: ProcessedSegment[] = [
+                    {
+                        id: 0,
+                        segmentType: 'text',
+                        rawContent: fullMessage,
+                        streamingStatus: 'streaming',
+                        rendererType: 'text',
+                        renderer: mockTextRenderer,
+                    } as ProcessedTextSegment,
+                ];
+
+                tagProcessor.doneStreaming(segments, fullMessage);
+
+                expect(segments).toHaveLength(2);
+                expectTextSegment(segments[0], 'Ready for review.\n', 'completed');
+                expectTagSegment(segments[1], 'acme.chart', payload, 'completed');
+            });
+
+            it('reparses ordinary text and multiple tags without duplicating content', () => {
+                const fullMessage = 'Before <tag>one</tag> between <anothertag>two</anothertag> after';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage('stale streamed text', segments, true);
+
+                processor.doneStreaming(segments, fullMessage);
+
+                expect(segments).toHaveLength(5);
+                expectTextSegment(segments[0], 'Before ', 'completed');
+                expectTagSegment(segments[1], 'tag', 'one', 'completed');
+                expectTextSegment(segments[2], ' between ', 'completed');
+                expectTagSegment(segments[3], 'anothertag', 'two', 'completed');
+                expectTextSegment(segments[4], ' after', 'completed');
+            });
+
+            it('never leaves the streaming cursor on a completed plain-text response', () => {
+                const fullMessage = 'No items were verified fixed.';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage, segments, true);
+                expectTextSegment(segments[0], fullMessage, 'streaming');
+
+                processor.doneStreaming(segments, fullMessage);
+
+                expect(segments).toHaveLength(1);
+                expectTextSegment(segments[0], fullMessage, 'completed');
+            });
+
             it('should not convert complete tags to text in doneStreaming', () => {
                 const segments: ProcessedSegment[] = [];
 

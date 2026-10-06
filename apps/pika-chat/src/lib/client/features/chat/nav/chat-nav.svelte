@@ -9,6 +9,18 @@
 
     const chat = getContext<ChatAppState>('chatAppState');
 
+    // Provided by Sidebar.Provider, which wraps this component. A class instance, so it must not be destructured.
+    const sidebar = Sidebar.useSidebar();
+
+    // Closed per selection site, not by watching currentSession: restore-on-mount and URL-driven switches must not close it. Mobile uses openMobile; desktop uses open.
+    function closeHistoryDrawer() {
+        if (sidebar.isMobile) {
+            sidebar.setOpenMobile(false);
+        } else {
+            sidebar.setOpen(false);
+        }
+    }
+
     let hoveredSessionId: string | null = null;
     let hoveredShareId: string | null = null;
 </script>
@@ -69,6 +81,7 @@
                                 // Shared session - load and set as current
                                 await chat.loadSharedSession(pinnedItem.pinnedSession.shareId);
                             }
+                            closeHistoryDrawer();
                         }}
                         onmouseenter={() => {
                             if (pinnedItem.pinnedSession.sessionId)
@@ -126,7 +139,10 @@
                         variant="ghost"
                         class="w-full text-sm font-medium justify-start p-0"
                         disabled={chat.isStreamingResponseNow}
-                        onclick={async () => await chat.loadSharedSession(sharedVisit.shareId)}
+                        onclick={async () => {
+                            await chat.loadSharedSession(sharedVisit.shareId);
+                            closeHistoryDrawer();
+                        }}
                     >
                         <div class="flex items-center w-full justify-between">
                             <div
@@ -174,7 +190,10 @@
                             variant="ghost"
                             class="w-full text-sm font-medium justify-start p-0"
                             disabled={chat.isStreamingResponseNow}
-                            onclick={() => chat.setCurrentSessionById(session.sessionId)}
+                            onclick={() => {
+                                chat.setCurrentSessionById(session.sessionId);
+                                closeHistoryDrawer();
+                            }}
                         >
                             <div class="truncate text-ellipsis overflow-hidden flex-1 text-left flex items-center gap-1">
                                 {session.title || session.sessionId}
@@ -226,7 +245,10 @@
                     variant="ghost"
                     class="w-full text-sm font-medium justify-start p-0"
                     disabled={chat.isStreamingResponseNow}
-                    onclick={() => chat.setCurrentSessionById(session.sessionId)}
+                    onclick={() => {
+                        chat.setCurrentSessionById(session.sessionId);
+                        closeHistoryDrawer();
+                    }}
                     onmouseenter={() => (hoveredSessionId = session.sessionId)}
                     onmouseleave={() => (hoveredSessionId = null)}
                 >

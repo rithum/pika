@@ -2395,11 +2395,11 @@ export class ChatAppState implements IChatAppState {
             clearTimeout(this.#streamStallTimer);
             this.#streamStalled = false;
 
-            // Streaming is complete - convert any incomplete/streaming segments to text
+            // Chunked parsing can leave a tag as text when its envelope spans chunks, so finalize from the full text.
             if (this.#interimMessageId) {
                 const interimMsg = this.getMessageByMessageId(this.#interimMessageId);
                 if (interimMsg) {
-                    this.#messageProcessor.doneStreaming(interimMsg.segments);
+                    this.#messageProcessor.doneStreaming(interimMsg.segments, interimMsg.message);
                     interimMsg.isStreaming = false;
                 }
                 this.#interimMessageId = undefined;

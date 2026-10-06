@@ -38,16 +38,7 @@
     const spotlightIsVisible = $derived(chat.spotlightVisible);
     const heroIsVisible = $derived(chat.heroVisible);
     const heroIsCollapsed = $derived(chat.heroCollapsed);
-    const hasHeroWidget = $derived.by(() => {
-        const result = !!chat.heroWidget;
-        console.log(
-            '[chat-app-main] hasHeroWidget derived:',
-            result,
-            'heroWidget:',
-            chat.heroWidget ? 'exists' : 'undefined'
-        );
-        return result;
-    });
+    const hasHeroWidget = $derived(!!chat.heroWidget);
     const spotlightHasWidgets = $derived(chat.spotlightWidgets.length > 0);
 
     // Minimized/collapsed states - these go to top-left row
@@ -63,14 +54,7 @@
     const heroExpanded = $derived(hasHeroWidget && heroIsVisible && !heroIsCollapsed);
 
     // Hero visibility for layout purposes (hidden in companion mode or when not visible)
-    const heroShouldShow = $derived.by(() => {
-        const result = hasHeroWidget && !chat.isCompanionMode;
-        console.log('[chat-app-main] heroShouldShow derived:', result, {
-            hasHeroWidget,
-            isCompanionMode: chat.isCompanionMode,
-        });
-        return result;
-    });
+    const heroShouldShow = $derived(hasHeroWidget && !chat.isCompanionMode);
 
     const fullScreen = $derived(chat.mode === 'standalone');
 
@@ -165,6 +149,7 @@
         const sessionChanged = previousSession !== undefined && previousSession !== session;
 
         if (sessionChanged) {
+            clearDragState();
             userScrollOffOfBottom = false;
             // console.log('Reset userScrollOffOfBottom - session changed');
         }
@@ -305,26 +290,57 @@
         event.preventDefault();
     }
 
+    function clearDragState() {
+        isDraggingFile = false;
+        dragTarget = null;
+    }
+
     function handleDragLeave(event: DragEvent) {
         if (!chat.enableFileUpload) return;
+        if (!dragTarget) return;
 
-        // Only consider it a leave if we're leaving the element we entered on
-        // or one of its descendants
-        if (dragTarget && event.currentTarget instanceof Node && event.relatedTarget instanceof Node) {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-                isDraggingFile = false;
-                dragTarget = null;
-            }
+        // relatedTarget is null when the pointer leaves the window, so requiring a Node before clearing strands the overlay.
+        const movedWithin =
+            event.currentTarget instanceof Node &&
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget);
+        if (!movedWithin) {
+            clearDragState();
         }
     }
+
+    // A drag can end without the container seeing a leave or drop (Escape, release over another window), leaving an overlay that swallows clicks.
+    $effect(() => {
+        const handleWindowKeydown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') clearDragState();
+        };
+        // A file dropped outside a drop zone makes the browser navigate to it, losing the conversation; scoped to file drags only.
+        const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') === true;
+        const handleWindowDragOver = (event: DragEvent) => {
+            if (carriesFiles(event)) event.preventDefault();
+        };
+        const handleWindowDrop = (event: DragEvent) => {
+            if (carriesFiles(event)) event.preventDefault();
+            clearDragState();
+        };
+        window.addEventListener('dragend', clearDragState);
+        window.addEventListener('dragover', handleWindowDragOver);
+        window.addEventListener('drop', handleWindowDrop);
+        window.addEventListener('keydown', handleWindowKeydown);
+        return () => {
+            window.removeEventListener('dragend', clearDragState);
+            window.removeEventListener('dragover', handleWindowDragOver);
+            window.removeEventListener('drop', handleWindowDrop);
+            window.removeEventListener('keydown', handleWindowKeydown);
+        };
+    });
 
     async function handleDrop(event: DragEvent) {
         if (!chat.enableFileUpload || chat.isStreamingResponseNow || !event.dataTransfer?.types.includes('Files'))
             return;
 
         event.preventDefault();
-        isDraggingFile = false;
-        dragTarget = null;
+        clearDragState();
 
         // Here you would process the files
         // const files = event.dataTransfer?.files;
@@ -461,9 +477,10 @@
                         <div class="flex flex-col gap-8 mb-10">
                             {#if message.source === 'user'}
                                 <div class="flex flex-col items-end gap-2">
-                                    <div class="chat-message-content p-4 rounded-lg bg-gray-50 max-w-[66%]">
-                                        {message.message}
-                                    </div>
+                                    <!-- pre-wrap: user prompts are a plain text node (never {@html}), so newlines would otherwise collapse. -->
+                                    <div
+                                        class="chat-message-content p-4 rounded-lg bg-gray-50 max-w-[66%] whitespace-pre-wrap"
+                                    >{message.message}</div>
                                     {#if message.files && message.files.length > 0}
                                         <div class="flex flex-wrap gap-2 max-w-[66%] justify-end">
                                             {#each message.files as file}
