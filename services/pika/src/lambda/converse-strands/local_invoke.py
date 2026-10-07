@@ -63,7 +63,9 @@ def main():
     request_body = {
         'agentId': agent_id,
         'userId': user_id,
-        'sessionId': f"strands-test-{int(time.time())}",
+        # SESSION_ID pins the conversation across runs, which is how you exercise
+        # multi-turn behaviour (and gen_ai.conversation.id grouping) locally.
+        'sessionId': os.environ.get('SESSION_ID') or f"strands-test-{int(time.time())}",
         'message': message,
         'customUserData': {'accountId': account_id},
         'features': {

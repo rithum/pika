@@ -1721,6 +1721,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             )
 
         # Title generation — only for untitled sessions
+        session_title = None  # broadcast in the pika-metadata frame so the client updates live
         session_table = dynamodb.Table(CHAT_SESSION_TABLE)
         try:
             session_record = session_table.get_item(
@@ -1736,10 +1737,12 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         UpdateExpression='SET title = :t',
                         ExpressionAttributeValues={':t': title},
                     )
+                    session_title = title
                 except Exception as title_err:
                     logger.warning(f"Title generation failed: {title_err}")
             else:
                 logger.info(f"Title already exists: '{existing_title}' — skipping generation")
+                session_title = existing_title
         except Exception as sess_err:
             logger.warning(f"Session lookup for title failed: {sess_err}")
 
@@ -1764,6 +1767,11 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             'sessionLastUpdate': session_last_update,
             'sessionLastMessageId': assistant_message_id,
         }
+        # Include the session title so the client updates the sidebar + chat header
+        # live, without a page refresh. Matches the TS converse Lambda shape.
+        # Guard on str so a malformed record can't make the metadata frame unserializable.
+        if isinstance(session_title, str) and session_title:
+            metadata['sessionTitle'] = session_title
         stream.write(f'<pika-metadata>{json.dumps(metadata)}</pika-metadata>')
         stream.end()
 
