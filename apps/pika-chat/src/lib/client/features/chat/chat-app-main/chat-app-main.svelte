@@ -314,13 +314,13 @@
         const handleWindowKeydown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') clearDragState();
         };
-        // A file dropped outside a drop zone makes the browser navigate to it, losing the conversation; scoped to file drags, and only when this app accepts uploads.
+        // A file dropped outside a drop zone makes the browser navigate to it, losing the conversation; scoped to file drags only.
         const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') === true;
         const handleWindowDragOver = (event: DragEvent) => {
-            if (chat.enableFileUpload && carriesFiles(event)) event.preventDefault();
+            if (carriesFiles(event)) event.preventDefault();
         };
         const handleWindowDrop = (event: DragEvent) => {
-            if (chat.enableFileUpload && carriesFiles(event)) event.preventDefault();
+            if (carriesFiles(event)) event.preventDefault();
             clearDragState();
         };
         window.addEventListener('dragend', clearDragState);

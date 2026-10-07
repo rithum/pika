@@ -31,6 +31,14 @@ describe('isUnrecoverableAnalysisError', () => {
         expect(isUnrecoverableAnalysisError(new Error('prompt is too long: 250000 tokens > 200000 maximum'))).toBe(true);
     });
 
+    it('is true for an exceed-context-limit message', () => {
+        expect(
+            isUnrecoverableAnalysisError(
+                new Error('input length and `max_tokens` exceed context limit: 195000 + 10000 > 200000, decrease input length or `max_tokens` and try again')
+            )
+        ).toBe(true);
+    });
+
     it('is false for a ValidationException that is not about input size', () => {
         const e = new Error('The provided model identifier is invalid.');
         e.name = 'ValidationException';

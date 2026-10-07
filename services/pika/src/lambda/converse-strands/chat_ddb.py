@@ -69,7 +69,7 @@ def _now_iso() -> str:
 def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id: str,
                    agent_id: str, chat_app_id: str, source: str = 'user',
                    user_type: str | None = None,
-                   session_attributes: dict | None = None) -> dict:
+                   session_attributes: dict | None = None, *, _retried: bool = False) -> dict:
     """Create or retrieve a chat session. Matches ensureChatSession() in chat-apis.ts.
 
     Creates the session with the fields the frontend needs, including the
@@ -80,10 +80,11 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
     """
     table = dynamodb_resource.Table(table_name)
 
-    response = table.get_item(Key={'user_id': user_id, 'session_id': session_id})
+    key = {'user_id': user_id, 'session_id': session_id}
+    response = table.get_item(Key=key, ConsistentRead=True) if _retried else table.get_item(Key=key)
     if 'Item' in response:
         existing = response['Item']
-        # Self-heal: backfills only missing account fields, per key, so concurrent writers aren't clobbered; a failed backfill never fails the turn.
+        # Self-heal: backfills only missing account fields, per key and conditionally, so a concurrent writer's pin wins; a failed write fails the turn rather than running unpinned.
         existing_attrs = existing.get('session_attributes')
         if not isinstance(existing_attrs, dict):
             existing_attrs = {}
@@ -95,7 +96,6 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                 if session_attributes.get(k) is not None and k not in existing_attrs
             }
             if backfill:
-                key = {'user_id': user_id, 'session_id': session_id}
                 names = {'#sa': 'session_attributes'}
                 values = {}
                 set_clauses = []
@@ -103,22 +103,49 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                     names[f'#k{i}'] = attr
                     values[f':v{i}'] = value
                     set_clauses.append(f'#sa.#k{i} = :v{i}')
+                backfill_placeholders = {attr: f'#k{i}' for i, attr in enumerate(backfill)}
+                guards = ['attribute_exists(session_id)']
+                alias_index = 0
+                for field in dict.fromkeys(_account_id_field_names()):
+                    if field in existing_attrs:
+                        continue
+                    placeholder = backfill_placeholders.get(field)
+                    if placeholder is None:
+                        placeholder = f'#a{alias_index}'
+                        alias_index += 1
+                        names[placeholder] = field
+                    guards.append(f'attribute_not_exists(#sa.{placeholder})')
+                guards.extend(
+                    f'attribute_not_exists(#sa.{p})'
+                    for attr, p in backfill_placeholders.items()
+                    if attr not in _account_id_field_names()
+                )
+                if not isinstance(existing.get('session_attributes'), dict):
+                    try:
+                        table.update_item(
+                            Key=key,
+                            UpdateExpression='SET #sa = :empty',
+                            ConditionExpression='attribute_exists(session_id) AND (attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map))',
+                            ExpressionAttributeNames={'#sa': 'session_attributes'},
+                            ExpressionAttributeValues={':empty': {}, ':map': 'M'},
+                        )
+                    except ClientError as e:
+                        if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                            raise
                 try:
                     table.update_item(
                         Key=key,
-                        UpdateExpression='SET #sa = if_not_exists(#sa, :empty)',
-                        ExpressionAttributeNames={'#sa': 'session_attributes'},
-                        ExpressionAttributeValues={':empty': {}},
-                    )
-                    table.update_item(
-                        Key=key,
                         UpdateExpression='SET ' + ', '.join(set_clauses),
+                        ConditionExpression=' AND '.join(guards),
                         ExpressionAttributeNames=names,
                         ExpressionAttributeValues=values,
                     )
                 except ClientError as e:
-                    logger.warning('ensure_session backfill failed for session %s: %s', session_id, e)
-                    return existing
+                    if e.response['Error']['Code'] != 'ConditionalCheckFailedException' or _retried:
+                        raise
+                    return ensure_session(dynamodb_resource, table_name, user_id, session_id, agent_id, chat_app_id,
+                                          source=source, user_type=user_type, session_attributes=session_attributes,
+                                          _retried=True)
                 existing['session_attributes'] = {**existing_attrs, **backfill}
         return existing
 
@@ -151,7 +178,10 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         )
     except dynamodb_resource.meta.client.exceptions.ConditionalCheckFailedException:
         # Another concurrent request already created the session — read it back.
-        return table.get_item(Key={'user_id': user_id, 'session_id': session_id}).get('Item', session)
+        winner = table.get_item(Key=key, ConsistentRead=True)
+        if 'Item' in winner:
+            return winner['Item']
+        raise RuntimeError(f'Session {session_id} not found after losing the create race')
     return session
 
 

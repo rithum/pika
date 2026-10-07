@@ -5,6 +5,16 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.5] - 2026-10-06
+
+### Fixed
+
+- **A file dropped outside the drop zone no longer navigates away from the chat in apps with file upload disabled** — in 0.29.4 the drop guard applied only when uploads were enabled. It now applies regardless. [#166]
+- **Session insights stop retrying analyses that exceed the model's context limit** — when the input plus `max_tokens` is over the limit, the session is now marked `INSIGHTS_FAILED` and leaves the sweep, as "input/prompt is too long" already did, instead of being retried every tick. [#166]
+- **A failed account-context backfill now fails the turn in the Strands converse Lambda** — previously the turn continued with no account pinned. [#166]
+- **The account-context backfill no longer overwrites a concurrent turn's pin** — each key is written only if absent, and a lost race re-reads the session once with a consistent read. A missing or non-map `session_attributes` is replaced with an empty map first. A pin stored under any account-id field name also blocks the backfill, and a session deleted mid-backfill is no longer recreated as a partial row. [#166]
+- **Two first messages that create the same session at once now store the same account** — the request that loses the create race re-reads the winner's session with a consistent read, and fails the turn if that session is gone, instead of falling back to its own unsaved copy. [#166]
+
 ## [0.29.4] - 2026-10-06
 
 ### Fixed
