@@ -16,8 +16,7 @@
 
     interface Props {
         // Allows external components to get the height of the input region, we don't
-        // use this to set the height of the input region, only to report the height as
-        // it changes.
+        /** @deprecated Since 0.30.0 the composer is docked in normal flow and nothing reads this; kept for API compatibility. */
         inputRegionHeight?: number;
     }
 

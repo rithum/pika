@@ -1,15 +1,20 @@
 <script lang="ts">
     import { AppState } from '$client/app/app.state.svelte';
     import { injectChatAppWebComponent } from '$client/webcomponent-utils';
+    import Check from '$icons/lucide/check';
+    import Copy from '$icons/lucide/copy';
     import Loader from '$icons/lucide/loader';
     import MessageSquarePlus from '$icons/lucide/message-square-plus';
     import ThumbsDown from '$icons/lucide/thumbs-down';
     import ThumbsUp from '$icons/lucide/thumbs-up';
+    import { shouldRenderMessage } from '$lib/custom/message-visibility';
     import type {
         ChatMessage,
+        ChatMessageForRendering,
         ChatSessionFeedbackForCreate,
         SessionFeedbackType,
     } from 'pika-shared/types/chatbot/chatbot-types';
+    import { copyToClipboard } from 'pika-ux/pika/copy-button/clipboard';
     import ExpandableContainer from 'pika-ux/pika/expandable-container/expandable-container.svelte';
     import TooltipPlus from 'pika-ux/pika/tooltip-plus/tooltip-plus.svelte';
     import { Button } from 'pika-ux/shadcn/button';
@@ -25,6 +30,7 @@
     import ContentAdminDialog from '../content-admin/content-admin-dialog.svelte';
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
+    import { visibleTextFromSegments } from '../message-segments/visible-text';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -85,6 +91,11 @@
         return () => clearInterval(stallMessageInterval);
     });
 
+    // The rendered transcript, filtered through the lib/custom shouldRenderMessage seam. Hidden messages
+    // stay in the session; "has this conversation started?" checks (hero/spotlight mode, the scroll-area
+    // gate) keep reading currentSessionMessages so a hidden opening message never flashes the empty state.
+    const visibleMessages = $derived((chat.currentSessionMessages ?? []).filter((m) => shouldRenderMessage(m)));
+
     // NOTE: Static widget tracking is now stored in ChatAppState to persist across component remounts.
     // This prevents the bug where static widgets were re-injected when the layout switched between
     // companion mode and normal mode, causing the component to remount and lose its local state.
@@ -93,108 +104,97 @@
     let isDraggingFile = $state(false);
     let dragTarget: EventTarget | null = null;
 
-    // svelte-ignore non_reactive_update
-    let scrollToDiv: HTMLDivElement;
+    // $state so the ResizeObserver effect re-runs once this binds; the div only exists after the first message renders.
+    let scrollToDiv: HTMLDivElement = $state() as HTMLDivElement;
     let resizeHeightEl: HTMLDivElement = $state() as HTMLDivElement;
-    let inputRegionHeight = $state<number>(0);
-    let userScrollOffOfBottom = $state(false);
-    let hasTriedToScrollToBottom = $state(false);
-    let isProgrammaticallyScrolling = $state(false);
     let chatMessageForFeedback = $state<ChatMessage | undefined>();
 
-    // Track previous values to detect actual changes
-    let previousSession = $state<any>(undefined);
+    // Sticky-bottom auto-scroll: stickToBottom is recomputed from the scroll position on every scroll event, never latched.
+    // A new message or a session switch always scrolls to bottom; content growth keeps the view pinned only while sticky.
+    let stickToBottom = true; // plain let: only read inside handlers/observers, never in templates
 
-    $effect(() => {
-        let height = document.getElementById('cam-input-region-container')?.getBoundingClientRect()?.height;
-        if (scrollToDiv && height) {
-            scrollToDiv.style.paddingBottom = `${height}px`;
-            scrollToDiv.style.scrollPaddingBottom = `${height}px`;
-        }
-    });
-
-    // Helper function to check if scrolled to bottom
     function isScrolledToBottom(element: Element): boolean {
-        const threshold = 20; // pixels from bottom to consider "at bottom"
+        const threshold = 40; // pixels from bottom to still count as "at bottom"
         return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
     }
 
-    // Add scroll event listener to detect when user scrolls away from bottom
-    $effect(() => {
-        if (!resizeHeightEl) return;
+    function scrollToBottom() {
+        // rAF so layout from the mutation that triggered us is flushed before we measure.
+        requestAnimationFrame(() => {
+            if (!resizeHeightEl) return;
+            // Order is load-bearing: writing scrollTop fires the scroll listener, which recomputes stickToBottom;
+            // arming the flag before the write would let that listener clobber it back to false.
+            resizeHeightEl.scrollTop = resizeHeightEl.scrollHeight;
+            stickToBottom = true;
+        });
+    }
 
-        function handleScroll() {
-            // Ignore scroll events when we're programmatically scrolling
-            if (isProgrammaticallyScrolling) return;
+    // Open / session switch: restored messages keep growing for several frames (markdown, images, async
+    // custom-element widgets), and the ResizeObserver only attaches once scrollToDiv binds. Re-assert bottom
+    // for a bounded run of frames, yielding as soon as the user scrolls away.
+    const OPEN_SETTLE_FRAMES = 20; // ~330ms at 60fps — covers late layout, invisible to the eye
 
-            if (hasTriedToScrollToBottom && !isScrolledToBottom(resizeHeightEl)) {
-                userScrollOffOfBottom = true;
-                // console.log('User scrolled away from bottom - setting userScrollOffOfBottom = true');
+    function scrollToBottomSettled() {
+        let framesLeft = OPEN_SETTLE_FRAMES;
+        const step = () => {
+            if (!resizeHeightEl) return;
+            if (!stickToBottom) return; // user took over — yield, do not fight them
+            // Same load-bearing order as scrollToBottom(): write the position, then arm the flag.
+            resizeHeightEl.scrollTop = resizeHeightEl.scrollHeight;
+            stickToBottom = true;
+            if (--framesLeft > 0) {
+                requestAnimationFrame(step);
             }
-        }
-
-        resizeHeightEl.addEventListener('scroll', handleScroll);
-
-        return () => {
-            resizeHeightEl.removeEventListener('scroll', handleScroll);
         };
+        requestAnimationFrame(step);
+    }
+
+    // Recompute stickiness from the actual position on every scroll (user or programmatic).
+    $effect(() => {
+        const el = resizeHeightEl;
+        if (!el) return;
+        const handleScroll = () => {
+            stickToBottom = isScrolledToBottom(el);
+        };
+        el.addEventListener('scroll', handleScroll, { passive: true });
+        return () => el.removeEventListener('scroll', handleScroll);
     });
 
+    // A new message or a session switch always scrolls into view; streaming growth is handled by the ResizeObserver below.
+    let prevMessageCount = -1;
+    let prevSession: unknown = undefined;
+    // The panel mounts empty and the conversation arrives a tick later, so "opened" is the first effect run that has messages.
+    let hasPositionedOnOpen = false;
     $effect(() => {
         const session = chat.currentSession;
-        const currentSessionMessages = chat.currentSessionMessages;
-        const messageChunkCount = chat.messageChunkCount;
-
-        // Reset userScrollOffOfBottom ONLY when session actually changes
-        const sessionChanged = previousSession !== undefined && previousSession !== session;
-
-        if (sessionChanged) {
-            clearDragState();
-            userScrollOffOfBottom = false;
-            // console.log('Reset userScrollOffOfBottom - session changed');
-        }
-
-        // Update previous values
-        previousSession = session;
-
-        // Auto-scroll when messages or chunks change, unless user scrolled away
-        const shouldAutoScroll =
-            !userScrollOffOfBottom &&
-            ((session && sessionChanged) || // New session
-                (currentSessionMessages && currentSessionMessages.length > 0) || // Messages exist
-                messageChunkCount > 0); // Streaming chunks
-
-        if (shouldAutoScroll) {
-            setTimeout(() => {
-                hasTriedToScrollToBottom = true;
-                scrollToBottom();
-            }, 1000);
+        const messageCount = chat.currentSessionMessages?.length ?? 0;
+        const sessionChanged = prevSession !== undefined && prevSession !== session;
+        const newMessage = prevMessageCount !== -1 && messageCount > prevMessageCount;
+        const openingOntoMessages = !hasPositionedOnOpen && messageCount > 0;
+        prevSession = session;
+        prevMessageCount = messageCount;
+        if (sessionChanged) clearDragState();
+        if (openingOntoMessages || sessionChanged) {
+            // Open, or switched onto another conversation: content height is still settling.
+            hasPositionedOnOpen = true;
+            scrollToBottomSettled();
+        } else if (newMessage) {
+            // Mid-conversation: one rAF is enough.
+            scrollToBottom();
         }
     });
 
-    // Effect to watch for height changes in scrollToDiv
+    // Content growth (streaming tokens, images/markdown finishing layout): stay pinned while sticky.
     $effect(() => {
-        if (!scrollToDiv) return;
-
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                // Check if the content size has changed
-                if (entry.contentBoxSize || entry.borderBoxSize) {
-                    // Only autoscroll if the user hasn't scrolled away
-                    if (!userScrollOffOfBottom) {
-                        console.log('scrollToDiv height changed, scrolling to bottom');
-                        scrollToBottom();
-                    }
-                }
+        const el = scrollToDiv;
+        if (!el) return;
+        const resizeObserver = new ResizeObserver(() => {
+            if (stickToBottom) {
+                scrollToBottom();
             }
         });
-
-        resizeObserver.observe(scrollToDiv);
-
-        // Cleanup function
-        return () => {
-            resizeObserver.disconnect();
-        };
+        resizeObserver.observe(el);
+        return () => resizeObserver.disconnect();
     });
 
     // Effect to inject static context widgets
@@ -356,19 +356,24 @@
         }
     }
 
-    function scrollToBottom() {
-        setTimeout(function () {
-            if (scrollToDiv) {
-                // console.log('scrolling to bottom');
-                isProgrammaticallyScrolling = true;
-                scrollToDiv.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
-
-                // Reset flag after smooth scroll completes (smooth scroll typically takes ~500ms)
-                setTimeout(() => {
-                    isProgrammaticallyScrolling = false;
-                }, 1000);
-            }
-        }, 1);
+    // Copy an assistant response to the clipboard; briefly swap the icon to a check as feedback.
+    let copiedMessageId = $state<string | undefined>(undefined);
+    async function copyMessage(chatMessage: ChatMessageForRendering): Promise<void> {
+        // Built from the rendered segments, never from chatMessage.message: the stored string
+        // still holds the <trace> and <pika-metadata> elements the renderer strips for display.
+        const visibleText = visibleTextFromSegments(chatMessage.segments);
+        // No streamed text yet is a no-op, not a copy failure.
+        if (!visibleText) return;
+        if (await copyToClipboard(visibleText)) {
+            copiedMessageId = chatMessage.messageId;
+            setTimeout(() => {
+                if (copiedMessageId === chatMessage.messageId) {
+                    copiedMessageId = undefined;
+                }
+            }, 2000);
+        } else {
+            console.error('Failed to copy message');
+        }
     }
 
     async function addFeedback(
@@ -470,10 +475,11 @@
             class:hidden={chat.isCompanionMode && chat.isChatPaneMinimized}
             bind:this={resizeHeightEl}
         >
-            <!-- Centered content container -->
-            <div class="w-full max-w-[768px] mx-auto pb-[150px]" bind:this={scrollToDiv}>
+            <!-- Centered content container; width caps at --chat-content-max-width (default 768px). -->
+            <div class="w-full mx-auto" style="max-width: var(--chat-content-max-width, 768px)" bind:this={scrollToDiv}>
                 <div class="pb-4 px-4 pt-10">
-                    {#each chat.currentSessionMessages as message}
+                    <!-- Iterate the filtered list so a hidden message leaves no empty row or gap. -->
+                    {#each visibleMessages as message}
                         <div class="flex flex-col gap-8 mb-10">
                             {#if message.source === 'user'}
                                 <div class="flex flex-col items-end gap-2">
@@ -563,6 +569,21 @@
                                                                 <ThumbsDown class="h-4 w-4" />
                                                             </Button>
                                                         </TooltipPlus>
+                                                        <TooltipPlus tooltip={copiedMessageId === message.messageId ? 'Copied' : 'Copy'}>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onclick={() => {
+                                                                    copyMessage(message);
+                                                                }}
+                                                            >
+                                                                {#if copiedMessageId === message.messageId}
+                                                                    <Check class="h-4 w-4 text-green-500" />
+                                                                {:else}
+                                                                    <Copy class="h-4 w-4" />
+                                                                {/if}
+                                                            </Button>
+                                                        </TooltipPlus>
                                                         <TooltipPlus tooltip="Give feedback">
                                                             <Button
                                                                 variant="ghost"
@@ -592,57 +613,70 @@
             {@render loader(chat.retrievingMessages)}
         </div>
 
-        <!-- Fixed input at bottom, also centered -->
+        <!-- Docked input in normal flow below the scroll area, so auto-scroll needs no bottom-padding compensation. -->
         <div
-            class="absolute bottom-0 left-0 right-0 pt-2 mb-0 mx-4"
+            class="cam-input-region pt-2 mb-0 mx-4"
             class:bg-background={!chat.isCompanionMode}
             class:bg-gray-25={chat.isCompanionMode}
             class:pb-6={!chat.isCompanionMode}
             class:pb-1={chat.isCompanionMode}
             id="cam-input-region-container"
         >
-            <div class="w-full max-w-[768px] mx-auto">
-                <ChatInput bind:inputRegionHeight />
+            <div class="w-full mx-auto" style="max-width: var(--chat-content-max-width, 768px)">
+                <ChatInput />
             </div>
         </div>
     {:else}
-        <!-- No messages case -->
-        <!-- In companion mode: input at top; otherwise: centered vertically -->
-        <div
-            class="flex-1 flex flex-col"
-            class:justify-center={!chat.isCompanionMode}
-            class:justify-start={chat.isCompanionMode}
-            class:pt-4={chat.isCompanionMode}
-            class:min-h-[300px]={!chat.isCompanionMode}
-        >
-            <div class="w-full max-w-[768px] mx-auto">
-                <div class="flex flex-col px-4">
-                    <!-- Hide label and suggestions in companion mode -->
-                    {#if !chat.isCompanionMode}
-                        {#if chat.features.promptInputFieldLabel.label}
-                            <div class="text-3xl text-center mb-4">{chat.features.promptInputFieldLabel.label}</div>
-                        {/if}
-                        {#if chat.suggestions.length > 0}
-                            <div class="pb-1">
-                                <ExpandableContainer title="Suggestions" useCase="button">
-                                    <div class="flex flex-col gap-2 items-start">
-                                        {#each chat.suggestions as suggestion}
-                                            <Prompt
-                                                segment={{ rawContent: suggestion } as ProcessedTagSegment}
-                                                {appState}
-                                                chatAppState={chat}
-                                                disabled={chat.isViewingContentForAnotherUser}
-                                            />
-                                        {/each}
-                                    </div>
-                                </ExpandableContainer>
-                            </div>
-                        {/if}
-                    {/if}
-                    <ChatInput />
+        <!-- No messages: companion mode keeps the input inline at the top; otherwise suggestions are centered above the docked composer. -->
+        {#if chat.isCompanionMode}
+            <div class="flex-1 flex flex-col justify-start pt-4">
+                <div class="w-full mx-auto" style="max-width: var(--chat-content-max-width, 768px)">
+                    <div class="flex flex-col px-4">
+                        <ChatInput />
+                    </div>
                 </div>
             </div>
-        </div>
+        {:else}
+            <div class="flex-1 flex flex-col">
+                <!-- Hero + suggestions, centered in the space above the docked composer. -->
+                <div class="flex-1 flex flex-col justify-center min-h-[300px]">
+                    <div class="w-full mx-auto" style="max-width: var(--chat-content-max-width, 768px)">
+                        <div class="flex flex-col px-4">
+                            {#if chat.features.promptInputFieldLabel.label}
+                                <div class="text-3xl text-center mb-4">{chat.features.promptInputFieldLabel.label}</div>
+                            {/if}
+                            {#if chat.suggestions.length > 0}
+                                <div class="pb-1">
+                                    <ExpandableContainer title="Suggestions" useCase="button" defaultExpanded={chat.features.suggestions.expandedByDefault ?? false}>
+                                        <div class="flex flex-col gap-2 items-start">
+                                            {#each chat.suggestions as suggestion}
+                                                <Prompt
+                                                    segment={{ rawContent: suggestion } as ProcessedTagSegment}
+                                                    {appState}
+                                                    chatAppState={chat}
+                                                    disabled={chat.isViewingContentForAnotherUser}
+                                                />
+                                            {/each}
+                                        </div>
+                                    </ExpandableContainer>
+                                </div>
+                            {/if}
+                            {#if chat.features.assistantPrivacyNotice.notice}
+                                <div class="text-xs text-center text-muted-foreground mt-2">
+                                    {chat.features.assistantPrivacyNotice.notice}
+                                </div>
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+                <!-- Docked composer at the bottom (same treatment as the messages view). -->
+                <div class="cam-input-region pt-2 mb-0 mx-4 pb-6 bg-background">
+                    <div class="w-full mx-auto" style="max-width: var(--chat-content-max-width, 768px)">
+                        <ChatInput />
+                    </div>
+                </div>
+            </div>
+        {/if}
     {/if}
 </div>
 
