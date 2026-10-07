@@ -103,12 +103,27 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                     names[f'#k{i}'] = attr
                     values[f':v{i}'] = value
                     set_clauses.append(f'#sa.#k{i} = :v{i}')
+                backfill_placeholders = {attr: f'#k{i}' for i, attr in enumerate(backfill)}
+                guards = ['attribute_exists(session_id)']
+                alias_index = 0
+                for field in dict.fromkeys(_account_id_field_names()):
+                    placeholder = backfill_placeholders.get(field)
+                    if placeholder is None:
+                        placeholder = f'#a{alias_index}'
+                        alias_index += 1
+                        names[placeholder] = field
+                    guards.append(f'attribute_not_exists(#sa.{placeholder})')
+                guards.extend(
+                    f'attribute_not_exists(#sa.{p})'
+                    for attr, p in backfill_placeholders.items()
+                    if attr not in _account_id_field_names()
+                )
                 if not isinstance(existing.get('session_attributes'), dict):
                     try:
                         table.update_item(
                             Key=key,
                             UpdateExpression='SET #sa = :empty',
-                            ConditionExpression='attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map)',
+                            ConditionExpression='attribute_exists(session_id) AND (attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map))',
                             ExpressionAttributeNames={'#sa': 'session_attributes'},
                             ExpressionAttributeValues={':empty': {}, ':map': 'M'},
                         )
@@ -119,7 +134,7 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                     table.update_item(
                         Key=key,
                         UpdateExpression='SET ' + ', '.join(set_clauses),
-                        ConditionExpression=' AND '.join(f'attribute_not_exists(#sa.#k{i})' for i in range(len(backfill))),
+                        ConditionExpression=' AND '.join(guards),
                         ExpressionAttributeNames=names,
                         ExpressionAttributeValues=values,
                     )
@@ -161,7 +176,10 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         )
     except dynamodb_resource.meta.client.exceptions.ConditionalCheckFailedException:
         # Another concurrent request already created the session — read it back.
-        return table.get_item(Key=key, ConsistentRead=True).get('Item', session)
+        winner = table.get_item(Key=key, ConsistentRead=True)
+        if 'Item' in winner:
+            return winner['Item']
+        raise RuntimeError(f'Session {session_id} not found after losing the create race')
     return session
 
 
