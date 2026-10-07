@@ -35,6 +35,7 @@ import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-au
 import { customAdminPages } from '../../src/lib/custom/admin/site-admin-extensions';
 import type { NavItem } from '../../src/lib/client/app/types';
 import { shouldRenderMessage } from '../../src/lib/custom/message-visibility';
+import { allowedCustomTags, allowedCustomAttrs } from '../../src/lib/custom/chat-html-allowed-tags';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -69,6 +70,8 @@ const _c7: C7Sig = onBeforeAuth;
 const _c8: C8Sig = shouldBypassChatUserRoleMerge;
 const _c9: NavItem[] = customAdminPages;
 const _c10: C10Sig = shouldRenderMessage;
+const _c11a: readonly string[] = allowedCustomTags;
+const _c11b: Readonly<Record<string, readonly string[]>> = allowedCustomAttrs;
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ===== Shared mock data =====
@@ -354,6 +357,27 @@ describe('lib/custom hook defaults', () => {
             expect(mainSrc).toContain(
                 '{#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}'
             );
+        });
+    });
+
+    describe('chat-html-allowed-tags (C11)', () => {
+        it('allows no custom elements by default', () => {
+            expect(allowedCustomTags).toEqual([]);
+            expect(allowedCustomAttrs).toEqual({});
+        });
+
+        it('text-renderer and trace route their HTML sinks through the framework sanitizer: text smoke test', () => {
+            const textRendererSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/message-segments/default-components/text-renderer.svelte'),
+                'utf-8'
+            );
+            expect(textRendererSrc).toContain('container.innerHTML = sanitizeChatHtml(htmlContent)');
+            const traceSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/chat-app-main/trace.svelte'),
+                'utf-8'
+            );
+            expect(traceSrc).toContain('{@html sanitizeChatHtml(trace.markdown)}');
+            expect(traceSrc).toContain('{@html sanitizeChatHtml(content.markdown)}');
         });
     });
 

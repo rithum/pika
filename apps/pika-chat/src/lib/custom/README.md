@@ -24,6 +24,7 @@ Extension points are exported functions you can override to add deployment-speci
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Append consumer pages to the Site Admin nav; each NavItem's `pageComponent` renders at its `/admin/<slug>` url |
 | `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript (e.g. app-composed user turns) without removing them from the session |
+| `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow-list custom elements (and per-tag attributes) to survive the chat/trace HTML sanitizer, or lift a default ban such as `img`; on* handlers are always stripped |
 
 ### How to override
 

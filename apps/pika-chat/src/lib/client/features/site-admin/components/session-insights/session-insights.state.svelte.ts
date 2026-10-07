@@ -30,7 +30,7 @@ import type {
 } from 'pika-shared/types/chatbot/chatbot-types';
 import { SvelteMap } from 'svelte/reactivity';
 import type { ImageForLightbox, SavedSearch } from './types';
-import { createDefaultSearchQuery } from './utils';
+import { createDefaultSearchQuery, readSessionInsightsQueryFromSearch } from './utils';
 
 const DEFAULT_SEARCH_ERROR = 'Unknown error occurred while searching sessions.  Please try again later.';
 const SAVED_SEARCHES_KEY = 'pika:admin:session-insights:saved-searches';
@@ -62,6 +62,7 @@ export class SessionInsightsState {
     valuesForUserAutoComplete = $state<ChatUserLite[] | undefined>(undefined);
     userAutoCompleteSearchInProgress = $state(false);
     sessionIdToShowMessagesForInline = $state<string | undefined>(undefined);
+    #openSessionFromUrlOnce = false;
     #currentSession = $derived.by(() => {
         if (!this.sessionIdToShowMessagesForInline) {
             return undefined;
@@ -119,6 +120,11 @@ export class SessionInsightsState {
         this.#messageProcessor = new MessageSegmentProcessor(componentRegistry, showToast);
         this.loadSavedSearches();
         this.searchQuery = createDefaultSearchQuery();
+        const urlQuery = typeof window !== 'undefined' ? readSessionInsightsQueryFromSearch(window.location.search) : undefined;
+        if (urlQuery) {
+            this.searchQuery = { ...this.searchQuery, query: urlQuery };
+            this.#openSessionFromUrlOnce = true;
+        }
         this.#componentRegistry = componentRegistry;
         this.#identity = identity;
         this.#showToast = showToast;
@@ -352,6 +358,22 @@ export class SessionInsightsState {
         this.sessionIdToShowMessagesForInline = sessionId;
         this.#showInsightsPanel = true;
         this.#showMessagesPanel = true;
+    }
+
+    private maybeOpenSessionFromUrl() {
+        if (!this.#openSessionFromUrlOnce) return;
+        const q = (this.searchQuery.query ?? '').trim();
+        if (!q) {
+            this.#openSessionFromUrlOnce = false;
+            return;
+        }
+        const exact = this.#sessions.find((session) => session.sessionId === q);
+        const only = this.#sessions.length === 1 ? this.#sessions[0] : undefined;
+        const target = exact ?? only;
+        if (target) {
+            this.openSession(target.sessionId);
+        }
+        this.#openSessionFromUrlOnce = false;
     }
 
     async refreshData() {
@@ -613,6 +635,7 @@ export class SessionInsightsState {
             this.#hasMore = !!responseBody.scrollId;
             this.#totalResults = responseBody.total || 0;
             this.#lastSearchTimestamp = new Date();
+            this.maybeOpenSessionFromUrl();
 
             // Enrich entity names if entity feature is enabled
             await this.enrichEntityNames();

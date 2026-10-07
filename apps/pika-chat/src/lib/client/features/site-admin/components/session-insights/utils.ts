@@ -34,6 +34,14 @@ export function createDefaultSearchQuery(): SessionSearchRequest<RecordOrUndef> 
     return result;
 }
 
+/** Reads `query`, `q`, or `sessionId` from a Session Insights URL search string. */
+export function readSessionInsightsQueryFromSearch(search: string): string | undefined {
+    const raw = search.startsWith('?') ? search.slice(1) : search;
+    const params = new URLSearchParams(raw);
+    const q = (params.get('query') ?? params.get('q') ?? params.get('sessionId') ?? '').trim();
+    return q.length >= 3 ? q : undefined;
+}
+
 /**
  * This returns a tuple.  The first element is the date dropdown label and the second is the value to show in the date dropdown itself
  */

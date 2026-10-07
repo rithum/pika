@@ -1990,6 +1990,9 @@ export class ChatAppState implements IChatAppState {
             this.#curSessionMessages = [];
         }
 
+        // Through setPageHeader (not a bare #pageTitle write) so the previous session's right-header widget is cleared too.
+        this.setPageHeader(this.#currentSession.title ?? '');
+
         // Restore both text input and upload instances for this session
         const persistedState = this.#inprogressInputs[this.#currentSession.sessionId];
         this.#chatInput = persistedState?.text ?? '';
@@ -2642,7 +2645,9 @@ export class ChatAppState implements IChatAppState {
         };
     }
 
-    async sendUserOverrideDataCommand(request: UserOverrideDataCommandRequest) {
+    async sendUserOverrideDataCommand(request: UserOverrideDataCommandRequest, suppressErrorToast = false) {
+        // suppressErrorToast: the caller owns the error toast; still throw so it can react.
+        const errorToast = suppressErrorToast ? () => {} : this.#showToast;
         try {
             this.userDataOverrideOperationInProgress[request.command] = true;
             const response = await this.fetchz('/api/user-data-override', {
@@ -2653,14 +2658,14 @@ export class ChatAppState implements IChatAppState {
                 body: JSON.stringify(request),
             });
 
-            checkClientResponse(response, 'sending user override data command', this.#showToast);
+            checkClientResponse(response, 'sending user override data command', errorToast);
 
             const json: UserOverrideDataCommandResponse = await response.json();
             if (!json) {
-                this.#showToast('Invalid response for user override data command', { type: 'error' });
+                errorToast('Invalid response for user override data command', { type: 'error' });
                 throw new Error('Invalid response for user override data command');
             } else if ('success' in json && json.success === false) {
-                this.#showToast(json.error || 'User override data command failed', { type: 'error' });
+                errorToast(json.error || 'User override data command failed', { type: 'error' });
                 throw new Error(json.error || 'User override data command failed');
             } else if (request.command === 'getInitialDialogData') {
                 this.initialDataForUserOverrideDialog = (json as GetInitialDialogDataResponse).data ?? undefined;
@@ -2687,7 +2692,7 @@ export class ChatAppState implements IChatAppState {
             handleClientError(
                 error,
                 'sending user override data command',
-                this.#showToast,
+                errorToast,
                 'sending user override data command failed:'
             );
             throw error;
@@ -2696,7 +2701,9 @@ export class ChatAppState implements IChatAppState {
         }
     }
 
-    async sendContentAdminCommand(request: ContentAdminRequest) {
+    async sendContentAdminCommand(request: ContentAdminRequest, suppressErrorToast = false) {
+        // suppressErrorToast: the caller owns the error toast; still throw so it can react.
+        const errorToast = suppressErrorToast ? () => {} : this.#showToast;
         try {
             this.contentAdminOperationInProgress[request.command] = true;
             const response = await this.fetchz('/api/content-admin', {
@@ -2707,14 +2714,14 @@ export class ChatAppState implements IChatAppState {
                 body: JSON.stringify(request),
             });
 
-            checkClientResponse(response, 'sending content admin command', this.#showToast);
+            checkClientResponse(response, 'sending content admin command', errorToast);
 
             const json: ContentAdminResponse = await response.json();
             if (!json) {
-                this.#showToast('Invalid response for content admin command', { type: 'error' });
+                errorToast('Invalid response for content admin command', { type: 'error' });
                 throw new Error('Invalid response for content admin command');
             } else if ('success' in json && json.success === false) {
-                this.#showToast(json.error || 'Content admin command failed', { type: 'error' });
+                errorToast(json.error || 'Content admin command failed', { type: 'error' });
                 throw new Error(json.error || 'Content admin command failed');
             } else if (request.command === 'getValuesForAutoComplete') {
                 if (!this.valuesForAutoCompleteForContentAdminDialog) {
@@ -2731,7 +2738,7 @@ export class ChatAppState implements IChatAppState {
             handleClientError(
                 error,
                 'sending content admin command',
-                this.#showToast,
+                errorToast,
                 'sending content admin command failed:'
             );
             throw error;

@@ -15,6 +15,7 @@
     import { ScrollArea } from 'pika-ux/shadcn/scroll-area';
     import { Separator } from 'pika-ux/shadcn/separator';
     import { getContext, type Snippet } from 'svelte';
+    import { toast } from 'svelte-sonner';
     import AccessControl from '../components/chat-apps/access-control/access-control.svelte';
     import BasicSettings from '../components/chat-apps/basic-settings.svelte';
     import Features from '../components/chat-apps/features/features.svelte';
@@ -207,15 +208,19 @@
         if (selectedChatAppForEditing.override && isOverrideMode) {
             isSaving = true;
             try {
-                await siteAdmin.sendSiteAdminCommand({
-                    command: 'createOrUpdateChatAppOverride',
-                    userId: appState.identity.user.userId,
-                    chatAppId: selectedChatApp.chatAppId,
-                    override: selectedChatAppForEditing.override,
-                });
+                await siteAdmin.sendSiteAdminCommand(
+                    {
+                        command: 'createOrUpdateChatAppOverride',
+                        userId: appState.identity.user.userId,
+                        chatAppId: selectedChatApp.chatAppId,
+                        override: selectedChatAppForEditing.override,
+                    },
+                    true
+                );
             } catch (error) {
+                // suppressErrorToast=true above: this component is the single toaster.
                 console.error('Error saving chat app override', error);
-                //TODO: show an error toast
+                toast.error('Failed to save the chat app override. Please try again.');
             } finally {
                 isSaving = false;
             }
@@ -224,13 +229,17 @@
         else if (selectedChatApp.override && !selectedChatAppForEditing.override) {
             isSaving = true;
             try {
-                await siteAdmin.sendSiteAdminCommand({
-                    command: 'deleteChatAppOverride',
-                    chatAppId: selectedChatApp.chatAppId,
-                });
+                await siteAdmin.sendSiteAdminCommand(
+                    {
+                        command: 'deleteChatAppOverride',
+                        chatAppId: selectedChatApp.chatAppId,
+                    },
+                    true
+                );
             } catch (error) {
+                // suppressErrorToast=true above: this component is the single toaster.
                 console.error('Error deleting chat app override', error);
-                //TODO: show an error toast
+                toast.error('Failed to remove the chat app override. Please try again.');
             } finally {
                 isSaving = false;
             }

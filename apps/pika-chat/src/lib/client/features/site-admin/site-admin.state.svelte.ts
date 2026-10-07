@@ -353,7 +353,9 @@ export class SiteAdminState {
         }
     }
 
-    async sendSiteAdminCommand(request: SiteAdminRequest) {
+    async sendSiteAdminCommand(request: SiteAdminRequest, suppressErrorToast = false) {
+        // suppressErrorToast: the caller owns the error toast; still throw so it can react. Success toasts are unaffected.
+        const errorToast = suppressErrorToast ? () => {} : this.#showToast;
         try {
             this.siteAdminOperationInProgress[request.command] = true;
             const response = await this.fetchz('/api/site-admin', {
@@ -364,7 +366,7 @@ export class SiteAdminState {
                 body: JSON.stringify(request)
             });
 
-            const json = await checkClientResponseAndBody<SiteAdminResponse>(response, `executing ${request.command} command`, this.#showToast);
+            const json = await checkClientResponseAndBody<SiteAdminResponse>(response, `executing ${request.command} command`, errorToast);
 
             if (request.command === 'getValuesForEntityAutoComplete') {
                 const values = (json as GetValuesForEntityAutoCompleteResponse).data ?? undefined;
@@ -521,7 +523,7 @@ export class SiteAdminState {
                 }
             }
         } catch (e) {
-            handleClientError(e, `executing ${request.command} command`, this.#showToast);
+            handleClientError(e, `executing ${request.command} command`, errorToast);
             throw e;
         } finally {
             this.siteAdminOperationInProgress[request.command] = false;
