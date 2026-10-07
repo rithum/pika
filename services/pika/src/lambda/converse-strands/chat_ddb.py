@@ -107,6 +107,8 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                 guards = ['attribute_exists(session_id)']
                 alias_index = 0
                 for field in dict.fromkeys(_account_id_field_names()):
+                    if field in existing_attrs:
+                        continue
                     placeholder = backfill_placeholders.get(field)
                     if placeholder is None:
                         placeholder = f'#a{alias_index}'

@@ -214,6 +214,22 @@ class TestEnsureSessionPersistsAttributes:
         assert 'attribute_exists(session_id)' in condition
         assert condition.count('attribute_not_exists') == 3
 
+    def test_alias_guard_skips_fields_already_present(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table(
+            {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': ''}})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'account_id': 'acct-A', 'accountType': 'seller'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        names = nested['ExpressionAttributeNames']
+        guarded = [names['#' + t.split('#sa.#')[1].rstrip(') ')]
+                   for t in nested['ConditionExpression'].split(' AND ') if '#sa.#' in t]
+        assert 'accountId' not in guarded
+        assert sorted(guarded) == ['accountType', 'account_id']
+        assert result['session_attributes']['account_id'] == 'acct-A'
+
     def test_alias_race_uses_winner_without_second_write(self):
         from chat_ddb import ensure_session
         mock_ddb, mock_table = self._existing_session_table({})
