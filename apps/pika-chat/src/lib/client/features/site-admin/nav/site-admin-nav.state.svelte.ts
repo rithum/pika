@@ -8,6 +8,7 @@ import Settings from '$icons/lucide/settings';
 import Zap from '$icons/lucide/zap';
 import type { Page } from '@sveltejs/kit';
 import type { SiteFeatures } from 'pika-shared/types/chatbot/chatbot-types';
+import { customAdminPages } from '$lib/custom/admin/site-admin-extensions';
 import Caches from '../pages/caches.svelte';
 import ChatApps from '../pages/chat-apps.svelte';
 import GeneralSettings from '../pages/general-settings.svelte';
@@ -68,7 +69,8 @@ const ITEMS: NavItem[] = [
         url: '/admin/caches',
         icon: FileBox,
         pageComponent: Caches
-    }
+    },
+    ...customAdminPages
 ];
 
 export class SiteAdminNavState {

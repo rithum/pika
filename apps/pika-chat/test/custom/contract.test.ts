@@ -26,6 +26,8 @@ import { getSessionEntityValue } from '../../src/lib/custom/session-entity-extra
 import { transformSessionAccountContext } from '../../src/lib/custom/session-account-context';
 import { transformCustomUserData, onAuthProviderCallback, onBeforeAuth } from '../../src/lib/custom/server-hooks';
 import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-auth';
+import { customAdminPages } from '../../src/lib/custom/admin/site-admin-extensions';
+import type { NavItem } from '../../src/lib/client/app/types';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -57,6 +59,7 @@ const _c4: C4Sig = getSessionEntityValue;
 const _c5: C5Sig = transformSessionAccountContext;
 const _c7: C7Sig = onBeforeAuth;
 const _c8: C8Sig = shouldBypassChatUserRoleMerge;
+const _c9: NavItem[] = customAdminPages;
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ===== Shared mock data =====
@@ -301,6 +304,22 @@ describe('lib/custom hook defaults', () => {
     describe('shouldBypassChatUserRoleMerge', () => {
         it('returns false by default', () => {
             expect(shouldBypassChatUserRoleMerge(mockUser)).toBe(false);
+        });
+    });
+
+    describe('customAdminPages (C9)', () => {
+        it('is an empty array by default', () => {
+            expect(customAdminPages).toEqual([]);
+        });
+
+        it('the admin nav spreads it after the built-in items: text smoke test', () => {
+            const navSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/site-admin/nav/site-admin-nav.state.svelte.ts'),
+                'utf8'
+            );
+            expect(navSrc).toContain("import { customAdminPages } from '$lib/custom/admin/site-admin-extensions';");
+            expect(navSrc).toContain('...customAdminPages');
+            expect(navSrc.indexOf('...customAdminPages')).toBeGreaterThan(navSrc.indexOf("url: '/admin/caches'"));
         });
     });
 
