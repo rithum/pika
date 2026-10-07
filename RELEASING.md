@@ -150,6 +150,8 @@ git checkout main && git merge your-branch && git push
 # 8. GitHub Actions automatically creates the release! 🎉
 ```
 
+> **Note:** **The release PR must be marked released before it merges**: run `pnpm release:publish <version>` on the PR branch and commit `releases.json`. Pushing the tag is optional, because auto-release creates it on merge. The `Release check` workflow fails any PR that changes `CHANGELOG.md` while its top version isn't marked released in `releases.json`. Add the `no-release` label to bypass it.
+
 ---
 
 ## Branch Naming Convention

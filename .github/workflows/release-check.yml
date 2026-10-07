@@ -1,0 +1,34 @@
+name: Release check
+
+on:
+    pull_request:
+        branches:
+            - main
+        types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-check-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    release-ready:
+        name: Release ready
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-release') }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+                  fetch-depth: 0
+            - name: Set Up Node
+              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+              with:
+                  node-version-file: .nvmrc
+            - name: Test the check
+              run: node --test .github/scripts/check-release-ready.test.mjs
+            - name: Check release readiness
+              run: node .github/scripts/check-release-ready.mjs
