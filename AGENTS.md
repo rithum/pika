@@ -110,6 +110,7 @@ pnpm release:plan-breaking      # Plan breaking change + migration guide
 - **Files touched by every release**: `releases.json`, `CHANGELOG.md`, `apps/pika-docs/src/content/docs/platform/releases/changelog.mdoc`, **and** `apps/pika-docs/src/content/docs/platform/releases/index.mdoc` (the "What's New" section, the "Latest Stable" line, and the Version History table at the bottom). The `release:notes` prompt lists all four — don't skip `index.mdoc`.
 - **Breaking changes** also create a migration guide in `apps/pika-docs/src/content/docs/platform/releases/migration-guides/` **and** register it in `apps/pika-docs/sidebar-config.ts` (Migration Guides list, newest first)
 - **Auto-release**: GitHub Actions (`auto-release.yml`) creates GitHub releases from `releases.json` on push to `main`
+- **The release PR must be marked released before it merges**: run `pnpm release:publish <version>` on the PR branch and commit `releases.json`. Pushing the tag is optional, because auto-release creates it on merge. The `Release check` workflow fails any PR that changes `CHANGELOG.md` while its top version isn't marked released in `releases.json`. Add the `no-release` label to bypass it.
 
 ## Domain Context
 
