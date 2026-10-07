@@ -21,6 +21,7 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Add pages to the Site Admin nav |
 
 ## How to Override
 
@@ -234,6 +235,34 @@ export async function onAuthProviderCallback(
 The `provider` parameter is the path segment after `/auth/callback/` (e.g., `"azuread"`, `"okta"`). The hook fires before the route is resolved, so cookies set here are visible to the downstream route handler.
 
 Use this hook to run per-provider post-callback logic — such as clearing legacy session cookies or triggering a token exchange — without editing the synced `hooks.server.ts`. The default is a no-op.
+
+### `customAdminPages` — `admin/site-admin-extensions.ts`
+
+Adds your own pages to the Site Admin nav. Unlike the other extension points this is an array, not a function.
+
+```typescript
+export const customAdminPages: NavItem[] = [];
+```
+
+Entries are appended after the built-in admin pages. Each `NavItem` needs a `title`, a `url` of the form `/admin/<slug>`, an `icon`, and a `pageComponent`; the existing `/admin/[page]` route renders the component for the matching url. Pick a slug that doesn't collide with a built-in page.
+
+```typescript
+// src/lib/custom/admin/site-admin-extensions.ts
+import type { NavItem } from '$lib/client/app/types';
+import Gauge from '$icons/lucide/gauge';
+import UsageReport from './usage-report/usage-report.svelte';
+
+export const customAdminPages: NavItem[] = [
+    {
+        title: 'Usage Report',
+        url: '/admin/usage-report',
+        icon: Gauge,
+        pageComponent: UsageReport
+    }
+];
+```
+
+Access to these pages is governed by the same admin gate as the rest of the section (`isUserAllowedAdminAccess`). The default is `[]`, which leaves the stock admin nav.
 
 ---
 
