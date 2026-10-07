@@ -919,11 +919,23 @@ export interface ChatAppOverridableFeatures {
         randomize: boolean;
         randomizeAfter: number;
         maxToShow: number;
+        /** When true, the suggestions section starts expanded (it stays user-collapsible). Default: collapsed. */
+        expandedByDefault?: boolean;
     };
 
     /** If no label, then the feature is diabled. */
     promptInputFieldLabel: {
         label: string | undefined;
+    };
+
+    /** If no placeholder, then the feature is disabled (input falls back to its built-in default). */
+    promptInputFieldPlaceholder: {
+        placeholder: string | undefined;
+    };
+
+    /** If no notice, then the feature is disabled (nothing renders under the empty-state suggestions). */
+    assistantPrivacyNotice: {
+        notice: string | undefined;
     };
 
     uiCustomization: {
@@ -1213,7 +1225,15 @@ export interface TagsChatAppOverridableFeature {
 
 export type ChatAppOverridableFeaturesForConverseFn = Omit<
     ChatAppOverridableFeatures,
-    'chatDisclaimerNotice' | 'traces' | 'logout' | 'suggestions' | 'promptInputFieldLabel' | 'uiCustomization' | 'fileUpload'
+    | 'chatDisclaimerNotice'
+    | 'traces'
+    | 'logout'
+    | 'suggestions'
+    | 'promptInputFieldLabel'
+    | 'promptInputFieldPlaceholder'
+    | 'assistantPrivacyNotice'
+    | 'uiCustomization'
+    | 'fileUpload'
 >;
 
 /**
@@ -2757,6 +2777,8 @@ export type ChatAppFeature =
     | FileUploadFeatureForChatApp
     | SuggestionsFeatureForChatApp
     | PromptInputFieldLabelFeatureForChatApp
+    | PromptInputFieldPlaceholderFeatureForChatApp
+    | AssistantPrivacyNoticeFeatureForChatApp
     | UiCustomizationFeatureForChatApp
     | VerifyResponseFeatureForChatApp
     | TracesFeatureForChatApp
@@ -2786,6 +2808,8 @@ export interface Feature {
 export const FeatureIdList = [
     'fileUpload',
     'promptInputFieldLabel',
+    'promptInputFieldPlaceholder',
+    'assistantPrivacyNotice',
     'suggestions',
     'uiCustomization',
     'verifyResponse',
@@ -2809,6 +2833,8 @@ export type EndToEndFeatureIdType = (typeof EndToEndFeatureIdList)[number];
 export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     fileUpload: 'File Upload',
     promptInputFieldLabel: 'Prompt Input Field Label',
+    promptInputFieldPlaceholder: 'Prompt Input Field Placeholder',
+    assistantPrivacyNotice: 'Assistant Privacy Notice',
     suggestions: 'Suggestions',
     uiCustomization: 'UI Customization',
     verifyResponse: 'Verify Response',
@@ -3037,6 +3063,11 @@ export interface SuggestionsFeature {
      * This allws a certain number of suggestions to always show followed by random suggestions.  Defaults to 0.
      */
     randomizeAfter?: number;
+
+    /**
+     * Whether the suggestions section starts expanded. The user can still collapse it. Defaults to false.
+     */
+    expandedByDefault?: boolean;
 }
 
 export interface SuggestionsFeatureForChatApp extends SuggestionsFeature, Feature {
@@ -3073,6 +3104,39 @@ export interface PromptInputFieldLabelFeature {
 
 export interface PromptInputFieldLabelFeatureForChatApp extends PromptInputFieldLabelFeature, Feature {
     featureId: 'promptInputFieldLabel';
+}
+
+/**
+ * The placeholder text shown INSIDE the prompt input field (distinct from
+ * promptInputFieldLabel, which is the heading ABOVE the input). When enabled
+ * with no value, or disabled, the input falls back to its built-in default.
+ */
+export interface PromptInputFieldPlaceholderFeature {
+    enabled: boolean;
+
+    /** Defaults to "Ask me a question". The placeholder to show inside the prompt input field. */
+    promptInputFieldPlaceholder?: string;
+}
+
+export interface PromptInputFieldPlaceholderFeatureForChatApp extends PromptInputFieldPlaceholderFeature, Feature {
+    featureId: 'promptInputFieldPlaceholder';
+}
+
+/**
+ * A short privacy reassurance rendered in the empty state, beneath the suggestion
+ * chips (e.g. "Only you can see conversations with your assistant."). Distinct from
+ * chatDisclaimerNotice (the legal footer). When enabled with no value, or disabled,
+ * nothing renders.
+ */
+export interface AssistantPrivacyNoticeFeature {
+    enabled: boolean;
+
+    /** The privacy notice to show beneath the empty-state suggestions. */
+    assistantPrivacyNotice?: string;
+}
+
+export interface AssistantPrivacyNoticeFeatureForChatApp extends AssistantPrivacyNoticeFeature, Feature {
+    featureId: 'assistantPrivacyNotice';
 }
 
 export interface AgentInstructionAssistanceFeatureForChatApp extends Feature, AgentInstructionAssistanceFeature {
@@ -4050,6 +4114,12 @@ export interface SiteFeatures {
 
     /** Configure whether the prompt input field label feature is enabled. */
     promptInputFieldLabel?: PromptInputFieldLabelFeature;
+
+    /** Configure whether the prompt input field placeholder feature is enabled. */
+    promptInputFieldPlaceholder?: PromptInputFieldPlaceholderFeature;
+
+    /** Configure whether the assistant privacy notice feature is enabled. */
+    assistantPrivacyNotice?: AssistantPrivacyNoticeFeature;
 
     /** Configure whether the UI customization feature is enabled. */
     uiCustomization?: UiCustomizationFeature;

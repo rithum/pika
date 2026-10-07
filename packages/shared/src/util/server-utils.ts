@@ -69,6 +69,12 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
         promptInputFieldLabel: {
             label: undefined
         },
+        promptInputFieldPlaceholder: {
+            placeholder: undefined
+        },
+        assistantPrivacyNotice: {
+            notice: undefined
+        },
         uiCustomization: {
             showUserRegionInLeftNav: false,
             showChatHistoryInStandaloneMode: false
@@ -173,7 +179,8 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
         suggestions: feature.suggestions || [],
         randomize: feature.randomize ?? false,
         randomizeAfter: feature.randomizeAfter ?? 0,
-        maxToShow: feature.maxToShow ?? 5
+        maxToShow: feature.maxToShow ?? 5,
+        expandedByDefault: feature.expandedByDefault ?? false
     }));
 
     // Handle promptInputFieldLabel feature
@@ -186,6 +193,34 @@ export function getOverridableFeatures(siteFeatures: SiteFeatures, chatApp: Chat
         { label: 'Ready to chat' }, // Default return shape
         (feature, enabled) => ({
             label: enabled ? (feature.promptInputFieldLabel ?? 'Ready to chat') : undefined
+        })
+    );
+
+    // Handle promptInputFieldPlaceholder feature
+    // Admin override takes precedence over chat app configuration
+    const effectivePromptInputFieldPlaceholderFeature =
+        chatApp.override?.features?.promptInputFieldPlaceholder || chatApp.features?.promptInputFieldPlaceholder;
+    result.promptInputFieldPlaceholder = handleEnabledOnlyFeature(
+        'promptInputFieldPlaceholder',
+        effectivePromptInputFieldPlaceholderFeature,
+        siteFeatures?.promptInputFieldPlaceholder,
+        { placeholder: 'Ask me a question' }, // Default return shape
+        (feature, enabled) => ({
+            placeholder: enabled ? (feature.promptInputFieldPlaceholder ?? 'Ask me a question') : undefined
+        })
+    );
+
+    // Handle assistantPrivacyNotice feature
+    // Admin override takes precedence over chat app configuration
+    const effectiveAssistantPrivacyNoticeFeature =
+        chatApp.override?.features?.assistantPrivacyNotice || chatApp.features?.assistantPrivacyNotice;
+    result.assistantPrivacyNotice = handleEnabledOnlyFeature(
+        'assistantPrivacyNotice',
+        effectiveAssistantPrivacyNoticeFeature,
+        siteFeatures?.assistantPrivacyNotice,
+        { notice: undefined }, // Default return shape (disabled => nothing renders)
+        (feature, enabled) => ({
+            notice: enabled ? (feature.assistantPrivacyNotice ?? undefined) : undefined
         })
     );
 

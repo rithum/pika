@@ -322,6 +322,7 @@
                         chatAppId={selectedChatApp.chatAppId}
                         {setValid}
                         disabled={isSaving}
+                        onEnterOverrideMode={setInitialOverride}
                     />
 
                     <Separator />

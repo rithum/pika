@@ -55,6 +55,7 @@
                 maxToShow: 5,
                 randomize: false,
                 randomizeAfter: 0,
+                expandedByDefault: false,
                 ...originalFeature,
             } as SuggestionsFeature;
         } else {
@@ -69,6 +70,9 @@
             }
             if (!('randomizeAfter' in overriddenFeature)) {
                 overriddenFeature.randomizeAfter = 0;
+            }
+            if (!('expandedByDefault' in overriddenFeature)) {
+                overriddenFeature.expandedByDefault = false;
             }
         }
 
@@ -105,6 +109,12 @@
         if (!isNaN(num) && num >= 0) {
             overriddenFeature.randomizeAfter = num;
         }
+    }
+
+    function updateExpandedByDefault(value: boolean) {
+        assert(isOverrideMode, 'isOverrideMode must be true');
+        assert(overriddenFeature, 'overriddenFeature must be defined');
+        overriddenFeature.expandedByDefault = value;
     }
 </script>
 
@@ -215,6 +225,20 @@
                         />
                     </div>
                 {/if}
+
+                <div class="flex items-center space-x-2">
+                    <Checkbox
+                        id="expanded-by-default"
+                        bind:checked={() => featureToShow?.expandedByDefault || false, updateExpandedByDefault}
+                        disabled={!featureEnabled || !isOverrideMode || !overriddenFeature?.enabled || disabled}
+                    />
+                    <Label for="expanded-by-default">Expanded by default</Label>
+                    <PopupHelp popoverClasses="w-60">
+                        <div class="text-xs text-muted-foreground">
+                            The suggestions section starts open when the chat loads. Users can still collapse it.
+                        </div>
+                    </PopupHelp>
+                </div>
             </div>
         </div>
     </div>
@@ -229,6 +253,7 @@
                 {#if originalFeature.randomize}
                     <div>Randomize after: {originalFeature.randomizeAfter || 0}</div>
                 {/if}
+                <div>Expanded by default: {originalFeature.expandedByDefault ? 'Yes' : 'No'}</div>
             </div>
         </div>
     {/if}

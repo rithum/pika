@@ -16,6 +16,8 @@
         AgentDefinition,
         AgentInstructionAssistanceFeature,
         AgentInstructionAssistanceFeatureForChatApp,
+        AssistantPrivacyNoticeFeature,
+        AssistantPrivacyNoticeFeatureForChatApp,
         ChatApp,
         ChatAppFeature,
         ChatDisclaimerNoticeFeatureForChatApp,
@@ -29,6 +31,8 @@
         LogoutFeatureForChatApp,
         PromptInputFieldLabelFeature,
         PromptInputFieldLabelFeatureForChatApp,
+        PromptInputFieldPlaceholderFeature,
+        PromptInputFieldPlaceholderFeatureForChatApp,
         SessionInsightsFeatureForChatApp,
         SuggestionsFeature,
         SuggestionsFeatureForChatApp,
@@ -46,6 +50,7 @@
     import PopupHelp from 'pika-ux/pika/popup-help/popup-help.svelte';
     import Button from 'pika-ux/shadcn/button/button.svelte';
     import AgentInstructionAssistanceFeatureRenderer from './agent-instruction-assistance-feature-renderer.svelte';
+    import AssistantPrivacyNoticeFeatureRenderer from './assistant-privacy-notice-feature-renderer.svelte';
     import ChatDisclaimerNoticeFeatureRenderer from './chat-disclaimer-notice-feature-renderer.svelte';
     import EntityFeatureRenderer from './entity-feature-renderer.svelte';
     import FileUploadFeatureRenderer from './file-upload-feature-renderer.svelte';
@@ -53,6 +58,7 @@
     import IntentRouterFeatureRenderer from './intent-router-feature-renderer.svelte';
     import LogoutFeatureRenderer from './logout-feature-renderer.svelte';
     import PromptInputFieldLabelFeatureRenderer from './prompt-input-field-label-feature-renderer.svelte';
+    import PromptInputFieldPlaceholderFeatureRenderer from './prompt-input-field-placeholder-feature-renderer.svelte';
     import SessionInsightsFeatureRenderer from './session-insights-feature-renderer.svelte';
     import SuggestionsFeatureRenderer from './suggestions-feature-renderer.svelte';
     import TagsFeatureRenderer from './tags-feature-renderer.svelte';
@@ -71,6 +77,8 @@
         chatAppId: string;
         setValid: (valid: boolean) => void;
         disabled: boolean;
+        /** Enters override mode (the parent's setInitialOverride). Required: "Disable via override" needs it to write an override when none exists. */
+        onEnterOverrideMode: () => void;
     }
 
     let {
@@ -83,6 +91,7 @@
         chatAppId,
         setValid,
         disabled,
+        onEnterOverrideMode,
     }: Props = $props();
 
     const appState = getContext<AppState>('appState');
@@ -141,12 +150,18 @@
 
         Object.keys(FEATURE_NAMES).forEach((featureId) => {
             const typedFeatureId = featureId as FeatureIdType;
-            const chatAppFeature = chatAppOriginal.features?.[typedFeatureId];
+            // An override entry wins when present, including enabled:false from "Disable via override";
+            // no `?? true` default, so a feature declared nowhere is never flagged invalid.
+            const overrideFeature = chatApp.override?.features?.[typedFeatureId];
+            const effectiveEnabled =
+                overrideFeature !== undefined
+                    ? overrideFeature.enabled
+                    : chatAppOriginal.features?.[typedFeatureId]?.enabled;
             const siteStatus = siteFeatureStatus[typedFeatureId];
 
-            // Chat app has feature enabled but site doesn't allow it
+            // Chat app has the feature enabled but the site doesn't allow it
             invalid[typedFeatureId] = !!(
-                chatAppFeature?.enabled &&
+                effectiveEnabled &&
                 (siteStatus === 'disabled' || siteStatus === 'not-configured')
             );
         });
@@ -201,11 +216,11 @@
 
     const app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
-    // Track which features have errors
+    // Blocking errors only. A site-disabled feature enabled in the base definition is inert at runtime,
+    // so invalidChatAppFeatures is surfaced as a non-blocking badge and excluded here and from the save gate.
     const featuresHaveErrors = $derived(
         Object.entries(featureValid).some(([, valid]) => valid === false) ||
-            Object.entries(enabledButNoUsersHaveAccess).some(([, enabled]) => enabled === true) ||
-            Object.entries(invalidChatAppFeatures).some(([, invalid]) => invalid === true)
+            Object.entries(enabledButNoUsersHaveAccess).some(([, enabled]) => enabled === true)
     );
 
     function setFeatureValid(featureId: FeatureIdType, valid: boolean) {
@@ -222,10 +237,7 @@
                 return true;
             }
 
-            // Check for invalid chat app configurations
-            if (invalidChatAppFeatures[featureId] === true) {
-                return true;
-            }
+            // invalidChatAppFeatures is intentionally not part of the save gate (see featuresHaveErrors).
 
             // Check for enabled features with no user access
             if (enabledButNoUsersHaveAccess[featureId] === true) {
@@ -242,6 +254,8 @@
     let expandedFeatures = $state<Record<FeatureIdType, boolean>>({
         fileUpload: false,
         promptInputFieldLabel: false,
+        promptInputFieldPlaceholder: false,
+        assistantPrivacyNotice: false,
         instructionAugmentation: false,
         suggestions: false,
         uiCustomization: false,
@@ -298,6 +312,41 @@
             expandedFeatures[featureId] = true;
         }
     }
+
+    /** Resolves a locked-invalid feature by writing a disabling override; the portal never edits the base definition. */
+    function disableInvalidFeatureViaOverride(featureId: FeatureIdType) {
+        // Self-defending: never mutate the editing session while a save is in flight.
+        if (disabled) {
+            return;
+        }
+
+        // onEnterOverrideMode mutates chatApp synchronously, so chatApp.override is defined right after.
+        if (!chatApp.override) {
+            onEnterOverrideMode();
+        }
+        if (!chatApp.override) {
+            // Parent could not enter override mode (e.g. nothing selected) — nothing to do.
+            return;
+        }
+        if (!chatApp.override.features) {
+            chatApp.override.features = {};
+        }
+
+        // Layer the existing override entry over the base so only `enabled` flips; other customizations survive.
+        const baseFeature = chatAppOriginal.features?.[featureId];
+        const existingOverrideFeature = chatApp.override.features[featureId];
+        chatApp.override.features[featureId] = {
+            ...(baseFeature ?? {}),
+            ...(existingOverrideFeature ?? {}),
+            featureId,
+            enabled: false,
+        } as ChatAppFeature;
+    }
+
+    const disableViaOverrideHelp =
+        'Turns this feature off for this chat app by writing an admin override.\n\n' +
+        "Why the base still shows enabled: the site-admin portal can only write overrides, never a chat app's base definition. So the base keeps enabled: true, and the override (enabled: false) takes precedence at runtime.\n\n" +
+        'Effect: the feature stays off (the site level already suppressed it) and this "Invalid Config" warning clears immediately. Click Save to persist the override.';
 
     function toggleFeatureExpanded(featureId: FeatureIdType) {
         expandedFeatures[featureId] = !expandedFeatures[featureId];
@@ -467,15 +516,40 @@
 
                             <!-- Status badge with complete hierarchy explanation -->
                             {#if isInvalidChatAppConfig}
+                                {@const invalidOverrideFeature = app.override?.features?.[typedFeatureId]}
+                                {@const invalidAdminOverrideLabel =
+                                    invalidOverrideFeature === undefined
+                                        ? 'None'
+                                        : invalidOverrideFeature.enabled
+                                          ? 'Enabled'
+                                          : 'Disabled'}
                                 <PikaBadge
                                     variant="destructive"
                                     class="text-xs"
                                     help={siteStatus === 'not-configured'
-                                        ? "INVALID CONFIG: Chat app enabled but site not configured\n\nHierarchy:\n• Site: Not configured (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: None\n\nThe chat app has this feature enabled, but it's not configured at the site level.\nAdd this feature to your site configuration or disable it in the chat app."
-                                        : "INVALID CONFIG: Chat app enabled but site disabled\n\nHierarchy:\n• Site: Disabled (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: None\n\nThe chat app has this feature enabled, but it's disabled at the site level.\nEither enable the feature at the site level or disable it in the chat app configuration."}
+                                        ? `INVALID CONFIG: Chat app enabled but site not configured\n\nHierarchy:\n• Site: Not configured (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: ${invalidAdminOverrideLabel}\n\nThe chat app has this feature enabled, but it's not configured at the site level.\nThis does not block saving other changes. Use "Disable via override" to resolve it here, or add this feature to your site configuration.`
+                                        : `INVALID CONFIG: Chat app enabled but site disabled\n\nHierarchy:\n• Site: Disabled (pika-config.ts)\n• Chat App: Enabled (invalid!)\n• Admin Override: ${invalidAdminOverrideLabel}\n\nThe chat app has this feature enabled, but it's disabled at the site level.\nThis does not block saving other changes. Use "Disable via override" to resolve it here, or enable the feature at the site level.`}
                                 >
                                     Invalid Config: Disabled
                                 </PikaBadge>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-6 text-xs"
+                                    {disabled}
+                                    title="Disable this feature for this chat app by adding an admin override (see the help icon for details)."
+                                    onclick={(e) => {
+                                        e.stopPropagation();
+                                        disableInvalidFeatureViaOverride(typedFeatureId);
+                                    }}
+                                >
+                                    Disable via override
+                                </Button>
+                                <PopupHelp popoverClasses="max-w-[420px]">
+                                    <div class="text-xs text-muted-foreground whitespace-pre-line">
+                                        {disableViaOverrideHelp}
+                                    </div>
+                                </PopupHelp>
                             {:else if siteStatus === 'not-configured'}
                                 <PikaBadge
                                     variant="secondary"
@@ -598,6 +672,72 @@
                                     }
                                 }
                                 originalFeature={originalFeature as PromptInputFieldLabelFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'promptInputFieldPlaceholder'}
+                            <PromptInputFieldPlaceholderFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | PromptInputFieldPlaceholderFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as PromptInputFieldPlaceholderFeature}
+                                {isOverrideMode}
+                                isOverridden={featureOverridden}
+                                {chatAppId}
+                            />
+                        {:else if typedFeatureId === 'assistantPrivacyNotice'}
+                            <AssistantPrivacyNoticeFeatureRenderer
+                                {featureEnabled}
+                                {disabled}
+                                bind:overriddenFeature={
+                                    () =>
+                                        app.override?.features?.[typedFeatureId] as
+                                            | AssistantPrivacyNoticeFeatureForChatApp
+                                            | undefined,
+                                    (feat) => {
+                                        if (!feat) {
+                                            if (chatApp.override && chatApp.override.features) {
+                                                delete chatApp.override.features[typedFeatureId];
+                                            }
+                                            return;
+                                        }
+
+                                        assert(isOverrideMode, 'isOverrideMode must be true');
+                                        assert(chatApp.override, 'chatApp.override must be defined');
+                                        if (!chatApp.override.features) {
+                                            chatApp.override.features = {};
+                                        }
+
+                                        if (feat) {
+                                            chatApp.override.features[typedFeatureId] = feat;
+                                        }
+                                    }
+                                }
+                                originalFeature={originalFeature as AssistantPrivacyNoticeFeature}
                                 {isOverrideMode}
                                 isOverridden={featureOverridden}
                                 {chatAppId}
@@ -1014,6 +1154,16 @@
             When a user creates a new session and hasn't asked the first question yet, the input field label appears
             above the chat input field, bringing balance to the visual appearance and a welcoming message to get them
             going.
+        </p>
+    {:else if featureId === 'promptInputFieldPlaceholder'}
+        <p class="text-xs text-muted-foreground">
+            Placeholder text shown inside the prompt input field (distinct from the label above it). Defaults to "Ask
+            me a question" when enabled but no value is set.
+        </p>
+    {:else if featureId === 'assistantPrivacyNotice'}
+        <p class="text-xs text-muted-foreground">
+            A short privacy reassurance shown in the empty state, beneath the suggestion chips. When enabled with no
+            value, nothing is shown.
         </p>
     {:else if featureId === 'instructionAugmentation'}
         <div class="space-y-2">

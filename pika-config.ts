@@ -107,6 +107,14 @@ export const pikaConfig: PikaConfig = {
             enabled: true,
             promptInputFieldLabel: 'Ready to chat'
         },
+        promptInputFieldPlaceholder: {
+            enabled: true,
+            promptInputFieldPlaceholder: 'Ask me a question'
+        },
+        assistantPrivacyNotice: {
+            // Site-enabled so chat apps can opt in; with no notice text nothing renders.
+            enabled: true
+        },
         uiCustomization: {
             enabled: true,
             showUserRegionInLeftNav: false,

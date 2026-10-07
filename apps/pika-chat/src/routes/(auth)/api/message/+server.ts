@@ -149,6 +149,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
             fileUpload,
             suggestions,
             promptInputFieldLabel,
+            promptInputFieldPlaceholder,
+            assistantPrivacyNotice,
             uiCustomization,
             ...featuresForConverse
         } = getOverridableFeatures(siteFeatures ?? {}, chatApp, locals.user);

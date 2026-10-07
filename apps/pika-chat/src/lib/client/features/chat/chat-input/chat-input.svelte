@@ -223,7 +223,7 @@
                             : ''}"
                         placeholder={isReadOnly
                             ? "This chat session was shared with you and isn't editable"
-                            : 'Ask me a question'}
+                            : (chat.features.promptInputFieldPlaceholder.placeholder ?? 'Ask me a question')}
                         rows="1"
                     ></textarea>
                 </div>

@@ -59,6 +59,12 @@
         promptInputFieldLabel: {
             label: 'Ask me anything...',
         },
+        promptInputFieldPlaceholder: {
+            placeholder: 'Ask me a question',
+        },
+        assistantPrivacyNotice: {
+            notice: undefined,
+        },
         uiCustomization: {
             showUserRegionInLeftNav: true,
             showChatHistoryInStandaloneMode: true,
