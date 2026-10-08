@@ -7,6 +7,35 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.30.0] - 2026-10-08
+
+### Added
+
+- **`promptInputFieldPlaceholder` feature** — sets the text inside the chat input, separate from `promptInputFieldLabel` (the heading above it). Configurable per site and per chat app, with a site-admin editor. Defaults to "Ask me a question". [#170]
+- **`assistantPrivacyNotice` feature** — a short notice shown in the empty state beneath the suggestion chips. It is separate from `chatDisclaimerNotice`, which stays under the input. Nothing renders unless a notice is set. [#170]
+- **`suggestions.expandedByDefault`** — the suggestions section can start expanded and stays user-collapsible. Set it in config or with the site-admin toggle. [#170]
+- **Copy button on assistant replies** — copies only the visible prose, never trace or metadata content. [#170]
+- **`shouldRenderMessage` extension point** (`lib/custom/message-visibility.ts`, sync-protected) — hides messages from the rendered transcript without removing them from the session. The default renders everything. [#170]
+- **`chat-html-allowed-tags.ts` extension point** (`lib/custom`, sync-protected) — allows custom elements with per-tag attributes through the chat HTML sanitizer, or lifts a default tag ban such as `img`. Per-tag attribute lists apply to custom elements only; a lifted built-in tag keeps DOMPurify's default attributes. [#170]
+- **`customAdminPages` extension point** (`lib/custom/admin/site-admin-extensions.ts`) — appends app pages to the Site Admin nav, each rendered at `/admin/<slug>`. [#169]
+- **The chat header shows the session title** — existing titles and titles generated mid-conversation (streamed in the `pika-metadata` frame) update the header and sidebar live. The Strands converse Lambda now sends `sessionTitle` in that frame, as the TypeScript converse Lambda already did. [#170]
+- **Session Insights can open on a session from the URL** — use `?sessionId=`, `?query=` or `?q=`. [#170]
+- **Strands `LOCAL_TOOLS` routing** — inline JSON or a JSON file path that routes tool Lambda invocations to a local endpoint, by tool id or function name, with an optional function-name override. `local_invoke` honors `SESSION_ID` so a conversation can span runs. [#170]
+- **`--chat-content-max-width` CSS variable** (default `768px`) — sets the width of the chat column. [#170]
+
+### Changed
+
+- **Chat HTML is sanitized, and markdown images no longer render by default** — model-authored HTML in text segments and traces passes through DOMPurify before it is rendered. Scripts, `on*` handlers and `javascript:` URIs are stripped, as is anything that fetches a URL when it renders: images and media (`img`, `picture`, `source`, `video`, `audio`, `track`), `<style>` elements, and inline SVG and MathML. Form controls (`form`, `input`, `button`, `select`, `textarea`), embeds (`iframe`, `object`, `embed`) and the `style`, `srcset`, `poster`, `background`, `action`, `method`, `formaction` and `srcdoc` attributes are also stripped. To render images again, list `img` in `lib/custom/chat-html-allowed-tags.ts`; the blocked attributes cannot be re-enabled. [#170]
+- **The chat composer is docked below the transcript** — it sits in normal flow instead of overlaying the messages, including in the empty state. There is no opt-out. Auto-scroll now follows the scroll position: the view stays pinned to the bottom while you're there, stops when you scroll up, and settles on the newest message when a conversation opens or you switch sessions. [#170]
+- **Agent rationale traces are shown only to users with detailed-trace permission** — the agent's plain reasoning text used to show to every user with `traces` enabled. [#170]
+- **`ChatAppOverridableFeatures` has two new required members**, `promptInputFieldPlaceholder` and `assistantPrivacyNotice`. Code that builds a complete object of that type must add them. [#170]
+- **Site admin can disable a feature the site disallows** — "Disable via override" writes a disabling override, and an invalid override is shown as a badge instead of blocking the save. [#170]
+- **`AdminActionDialog` is a shared framework component**, used by the content-admin and user-data-override dialogs. Chat and site-admin send commands accept `suppressErrorToast`, so a failure is reported by one toaster. [#170]
+
+### Deprecated
+
+- **`ChatInput`'s `inputRegionHeight` bindable** — the docked composer no longer needs it. It is still accepted and will be removed in a future release. [#170]
+
 ## [0.29.5] - 2026-10-07
 
 ### Fixed

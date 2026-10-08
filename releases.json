@@ -1,7 +1,24 @@
 {
-  "latestVersion": "0.29.5",
-  "currentDevelopment": "0.29.5",
+  "latestVersion": "0.30.0",
+  "currentDevelopment": "0.30.0",
   "releases": [
+    {
+      "version": "0.30.0",
+      "date": "2026-10-08",
+      "status": "released",
+      "breaking": false,
+      "summary": "Docked chat composer with position-based auto-scroll, a DOMPurify sanitizer for chat HTML (images blocked by default), promptInputFieldPlaceholder and assistantPrivacyNotice features, and the shouldRenderMessage, chat-html-allowed-tags and customAdminPages extension points.",
+      "highlights": [
+        "Added: promptInputFieldPlaceholder and assistantPrivacyNotice chat-app features, and suggestions.expandedByDefault.",
+        "Changed: the composer is docked below the transcript (no opt-out), and auto-scroll follows the scroll position. The column width reads --chat-content-max-width.",
+        "Changed: model-authored chat and trace HTML is sanitized with DOMPurify; anything that fetches a URL on render (img, picture/source, video/audio/track, style elements, inline svg/math, srcset/poster/background/style attributes), form controls and iframe/object/embed are blocked by default. Tags can be allowed back in lib/custom/chat-html-allowed-tags.ts.",
+        "Added: shouldRenderMessage, chat-html-allowed-tags and customAdminPages extension points.",
+        "Added: copy button on assistant replies, session title in the chat header (streamed by the Strands converse Lambda too), Session Insights deep links, Disable via override in site admin, and Strands LOCAL_TOOLS routing.",
+        "Changed: agent rationale traces are shown only to users with detailed-trace permission (previously every user with traces enabled saw them).",
+        "Changed: ChatAppOverridableFeatures gains required promptInputFieldPlaceholder and assistantPrivacyNotice members.",
+        "Deprecated: ChatInput inputRegionHeight."
+      ]
+    },
     {
       "version": "0.29.5",
       "date": "2026-10-07",

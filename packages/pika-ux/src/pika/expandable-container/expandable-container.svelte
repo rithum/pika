@@ -63,6 +63,8 @@ Props:
 
     interface Props {
         forceExpanded?: boolean;
+        /** Initial expanded state only — unlike forceExpanded, the user can still collapse it. */
+        defaultExpanded?: boolean;
         title: string;
         disabled?: boolean;
         children?: Snippet<[]>;
@@ -70,9 +72,18 @@ Props:
         stepsInProcess?: StepsInProcess<any>;
     }
 
-    let { forceExpanded = false, title, disabled = false, children, useCase = 'default', stepsInProcess }: Props = $props();
+    let { forceExpanded = false, defaultExpanded = false, title, disabled = false, children, useCase = 'default', stepsInProcess }: Props = $props();
 
-    let expanded = $state(false);
+    let expanded = $state(defaultExpanded);
+
+    // Re-seed only when the prop value changes, so a user's manual toggle is never overridden.
+    let previousDefaultExpanded = defaultExpanded;
+    $effect(() => {
+        if (defaultExpanded !== previousDefaultExpanded) {
+            previousDefaultExpanded = defaultExpanded;
+            expanded = defaultExpanded;
+        }
+    });
 
     let statusObj = $derived.by(() => {
         if (useCase === 'steps-in-process' && stepsInProcess) {

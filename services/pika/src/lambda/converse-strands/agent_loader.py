@@ -23,6 +23,7 @@ AGENT_DEFINITIONS_TABLE = os.environ.get('AGENT_DEFINITIONS_TABLE', '')
 TOOL_DEFINITIONS_TABLE = os.environ.get('TOOL_DEFINITIONS_TABLE', '')
 
 lambda_client = boto3.client('lambda')
+_local_tool_clients: dict[str, object] = {}
 
 
 def load_agent(dynamodb_resource, agent_id: str) -> dict:
@@ -246,6 +247,115 @@ def _normalize_params(params) -> list[dict]:
     return params
 
 
+def _lambda_function_name(lambda_arn: str) -> str:
+    """Return the bare function name from a Lambda ARN; other values pass through.
+
+    A qualified ARN (``…:function:name:alias``) yields ``name`` with the alias
+    dropped: local emulators register the unqualified name only.
+    """
+    parts = lambda_arn.split(':')
+    if len(parts) >= 7 and parts[0] == 'arn' and parts[5] == 'function':
+        return parts[6]
+    return lambda_arn
+
+
+def _read_local_tools_file(raw: str):
+    """Read LOCAL_TOOLS as a JSON file path, resolved against the working directory."""
+    path = os.path.abspath(os.path.join(os.getcwd(), raw))
+    if not os.path.isfile(path):
+        logger.warning(f'Ignoring LOCAL_TOOLS: no file at {path}')
+        return {}
+    try:
+        with open(path, encoding='utf-8') as handle:
+            return json.load(handle)
+    except (OSError, ValueError) as e:
+        logger.warning(f'Ignoring LOCAL_TOOLS: could not read {path}: {e}')
+        return {}
+
+
+def _local_tool_route(value) -> dict | None:
+    """Normalize one LOCAL_TOOLS entry to {'endpoint', 'function'} or drop it.
+
+    An entry is either an endpoint URL string, or an object holding 'endpoint'
+    plus an optional 'function' that replaces the name derived from the ARN.
+    A local emulator registers functions under its own stage, so a tool record
+    pointing at my-app-prod-my-tool is served locally as my-app-test-my-tool; the override bridges that gap.
+    """
+    if isinstance(value, str):
+        endpoint, function = value, None
+    elif isinstance(value, dict):
+        endpoint, function = value.get('endpoint'), value.get('function')
+    else:
+        return None
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        return None
+    if not isinstance(function, str) or not function.strip():
+        function = None
+    return {'endpoint': endpoint.strip(), 'function': function and function.strip()}
+
+
+def _local_tool_routes() -> dict[str, dict]:
+    """Map tool id or function name to a local route.
+
+    LOCAL_TOOLS holds either inline JSON or a path to a JSON file, matching the
+    file-path form the TypeScript converse path takes. Anything unreadable or
+    malformed leaves every tool on its deployed Lambda.
+
+    Re-read on every call, deliberately: the file can change mid-session
+    without restarting Strands. The cost is that a transient read failure sends
+    that one call to the deployed Lambda instead of failing loudly.
+    """
+    raw = (os.environ.get('LOCAL_TOOLS') or '').strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        parsed = _read_local_tools_file(raw)
+    if not isinstance(parsed, dict):
+        logger.warning('Ignoring LOCAL_TOOLS: expected a JSON object of tool -> endpoint URL')
+        return {}
+    routes = {}
+    for key, value in parsed.items():
+        route = _local_tool_route(value)
+        if route is None:
+            logger.warning(f'Ignoring LOCAL_TOOLS entry {key!r}: expected an endpoint URL or an object with "endpoint"')
+            continue
+        routes[key] = route
+    return routes
+
+
+def _local_tool_endpoints() -> dict[str, str]:
+    return {key: route['endpoint'] for key, route in _local_tool_routes().items()}
+
+
+def _local_lambda_client(endpoint_url: str):
+    client = _local_tool_clients.get(endpoint_url)
+    if client is None:
+        client = boto3.client('lambda', endpoint_url=endpoint_url)
+        _local_tool_clients[endpoint_url] = client
+    return client
+
+
+def _resolve_tool_invocation(tool_id: str, lambda_arn: str):
+    """Choose the Lambda client and FunctionName for a single tool invocation.
+
+    A locally running Lambda emulator resolves by function name and not by ARN,
+    so a tool routed through LOCAL_TOOLS is addressed by its bare name.
+    """
+    routes = _local_tool_routes()
+    if not routes:
+        return lambda_client, lambda_arn
+    function_name = _lambda_function_name(lambda_arn)
+    route = routes.get(tool_id) or routes.get(function_name)
+    if not route:
+        return lambda_client, lambda_arn
+    endpoint = route['endpoint']
+    function_name = route['function'] or function_name
+    logger.info(f"Routing tool {tool_id} to local endpoint {endpoint} as function {function_name}")
+    return _local_lambda_client(endpoint), function_name
+
+
 def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
                func_desc: str, params, session_id: str,
                input_text: str, session_attributes: dict | None = None,
@@ -340,8 +450,9 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
                     'parameters': parameters,
                 })
 
-            response = lambda_client.invoke(
-                FunctionName=_lambda_arn,
+            invoke_client, invoke_target = _resolve_tool_invocation(_tool_id, _lambda_arn)
+            response = invoke_client.invoke(
+                FunctionName=invoke_target,
                 Payload=json.dumps(payload),
             )
 

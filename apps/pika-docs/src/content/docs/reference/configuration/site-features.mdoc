@@ -328,6 +328,7 @@ suggestions: {
     maxToShow: number;
     randomize: boolean;
     randomizeAfter: number;
+    expandedByDefault?: boolean;
 }
 ```
 
@@ -339,6 +340,7 @@ suggestions: {
 | `maxToShow` | Maximum suggestions to display at once |
 | `randomize` | Randomize suggestion order |
 | `randomizeAfter` | Start randomizing after N messages |
+| `expandedByDefault` | When `true`, the suggestions section starts expanded; the user can still collapse it. Defaults to `false` |
 
 **Example:**
 
@@ -369,6 +371,49 @@ promptInputFieldLabel: {
 promptInputFieldLabel: {
     enabled: true,
     promptInputFieldLabel: 'Type your message...'
+}
+```
+
+### Prompt Input Field Placeholder
+
+Customize the text shown inside the chat input box. This is distinct from `promptInputFieldLabel`, which is the heading above the input.
+
+```typescript
+promptInputFieldPlaceholder: {
+    enabled: boolean;
+    promptInputFieldPlaceholder?: string;
+}
+```
+
+When the feature is enabled without a value, the placeholder resolves to `'Ask me a question'`. When the feature is disabled, no placeholder is supplied and the input uses its built-in default.
+
+**Example:**
+
+```typescript
+promptInputFieldPlaceholder: {
+    enabled: true,
+    promptInputFieldPlaceholder: 'Ask me a question'
+}
+```
+
+### Assistant Privacy Notice
+
+A short privacy notice rendered in the empty state, beneath the suggestion chips. This is distinct from `chatDisclaimerNotice`, which is the persistent notice under the input.
+
+```typescript
+assistantPrivacyNotice: {
+    enabled: boolean;
+    assistantPrivacyNotice?: string;
+}
+```
+
+When the feature is disabled or has no value, nothing renders. The site-level entry typically only sets `enabled: true` so chat apps can supply the text.
+
+**Example:**
+
+```typescript
+assistantPrivacyNotice: {
+    enabled: true
 }
 ```
 

@@ -20,6 +20,7 @@
     import { v4 as uuidv4 } from 'uuid';
     import type { ChatAppState } from '../chat-app.state.svelte';
     import { shouldShowDetailedTrace } from '$lib/custom/show-detailed-trace';
+    import { sanitizeChatHtml } from '../message-segments/sanitize-chat-html';
 
     interface Props {
         message: ChatMessageForRendering;
@@ -124,6 +125,18 @@
         return obj;
     }
 
+    function escapeHtmlText(value: unknown): string {
+        if (value == null) {
+            return '';
+        }
+        const text = typeof value === 'string' ? value : String(value);
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     /**
      * @returns [markdown, rawText]
      */
@@ -150,7 +163,12 @@
             textString = text;
         }
 
-        return [md.render(lang != null ? '```' + lang + '\n' + textString + '\n```\n' : textString), textString];
+        return [
+            sanitizeChatHtml(
+                md.render(lang != null ? '```' + lang + '\n' + textString + '\n```\n' : textString)
+            ),
+            textString,
+        ];
     }
 
     let filteredTraces = $derived.by(() => {
@@ -299,19 +317,19 @@
                                 return `<div class="mb-4 p-3 bg-slate-50 rounded border border-slate-200">
                                 <div class="flex items-start gap-2 mb-2">
                                     <span class="font-semibold text-slate-700">Scope:</span>
-                                    <span class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-0.5 rounded">${d.scope}</span>
+                                    <span class="font-mono text-sm text-slate-900 bg-slate-100 px-2 py-0.5 rounded">${escapeHtmlText(d.scope)}</span>
                                 </div>
                                 <div class="flex items-start gap-2 mb-2">
                                     <span class="font-semibold text-slate-700">ID:</span>
-                                    <span class="font-mono text-sm text-slate-900">${d.id}</span>
+                                    <span class="font-mono text-sm text-slate-900">${escapeHtmlText(d.id)}</span>
                                 </div>
                                 <div class="mb-2">
                                     <div class="font-semibold text-slate-700 mb-1">Description:</div>
-                                    <div class="text-slate-600 text-sm">${d.description}</div>
+                                    <div class="text-slate-600 text-sm">${escapeHtmlText(d.description)}</div>
                                 </div>
                                 <div>
                                     <div class="font-semibold text-slate-700 mb-1">Instructions:</div>
-                                    <div class="text-slate-600 text-sm font-mono bg-white p-2 rounded border border-slate-200">${d.instructions}</div>
+                                    <div class="text-slate-600 text-sm font-mono bg-white p-2 rounded border border-slate-200">${escapeHtmlText(d.instructions)}</div>
                                 </div>
                             </div>`;
                             })
@@ -322,7 +340,7 @@
                         grouped.push({
                             id: val.orchestrationTrace.rationale.traceId ?? 'semantic-directives',
                             type: 'text',
-                            markdown: html,
+                            markdown: sanitizeChatHtml(html),
                             rawText: JSON.stringify(parsed.directives, null, 2),
                         });
                         return; // Skip further processing for this trace
@@ -355,7 +373,9 @@
                             : 'Response Verification',
                         grade: verificationMatch[2],
                     });
-                } else {
+                } else if (detailedTrace) {
+                    // Unrecognized rationale text is internal detail; render it only for users with the
+                    // detailed-traces permission, matching the gating of the typed traces above.
                     const [md, rawText] = renderMarkdown(rationaleText);
                     grouped.push({
                         id: 'stuff',
@@ -687,7 +707,7 @@
     {#if trace.title}
         <div>{trace.title}</div>
     {/if}
-    {@html trace.markdown}
+    {@html sanitizeChatHtml(trace.markdown)}
 {/snippet}
 
 {#snippet verificationTrace(trace: GroupedTrace & { type: 'verification' })}
@@ -832,7 +852,7 @@
         {#if expandedTraces[trace.id] && decompressedInstructions[trace.id]}
             <div class="px-4 pb-4 border-t border-slate-200 bg-slate-50 max-h-[44rem] overflow-y-auto">
                 <div class="prose prose-sm max-w-none pt-3">
-                    {@html md.render(decompressedInstructions[trace.id])}
+                    {@html sanitizeChatHtml(md.render(decompressedInstructions[trace.id]))}
                 </div>
             </div>
         {/if}
@@ -913,7 +933,7 @@
         <div
             class={`code-block flex flex-col transition-all duration-300 overflow-hidden ${expandedTraces[sectionKey] ? '' : 'max-h-64'}`}
         >
-            {@html content.markdown}
+            {@html sanitizeChatHtml(content.markdown)}
             {#if expandedTraces[sectionKey]}
                 <div class="buttons flex relative mt-[-20px]">
                     <Button
@@ -952,7 +972,7 @@
 
         <div class="flex-1 overflow-auto p-4">
             <div class="prose prose-sm max-w-none">
-                {@html md.render(instructionDialogContent)}
+                {@html sanitizeChatHtml(md.render(instructionDialogContent))}
             </div>
         </div>
 

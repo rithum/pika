@@ -34,11 +34,16 @@ export default defineConfig({
             // Workspace packages
             { find: 'pika-shared', replacement: resolve(__dirname, '../../packages/shared/src') },
             // pika-ux stubs — use passthrough components for structural assertions
+            { find: /^pika-ux\/shadcn\/button\/(.+)$/, replacement: resolve(__dirname, '../../packages/pika-ux/src/shadcn/button/$1') },
             { find: 'pika-ux/shadcn/sidebar', replacement: resolve(mockDir, 'pika-ux-sidebar.ts') },
             { find: 'pika-ux/shadcn/button', replacement: resolve(mockDir, 'pika-ux-button.ts') },
             // Icon virtual modules — render nothing in tests (list each used in chat-nav)
             { find: '$icons/lucide/pin-off', replacement: resolve(mockDir, 'noop.svelte') },
             { find: '$icons/lucide/share-2', replacement: resolve(mockDir, 'noop.svelte') },
+            { find: '$app/navigation', replacement: resolve(mockDir, 'app-navigation.ts') },
+            { find: /^\$icons\/.+$/, replacement: resolve(mockDir, 'noop.svelte') },
+            // pika-ux exports map "./shadcn/*" to a directory, which Vite can't resolve without its index.ts
+            { find: /^pika-ux\/(shadcn|pika)\/([^/.]+)$/, replacement: resolve(__dirname, '../../packages/pika-ux/src/$1/$2/index.ts') },
         ],
     },
 });

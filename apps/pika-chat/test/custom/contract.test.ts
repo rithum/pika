@@ -12,7 +12,13 @@
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { AuthenticatedUser, ChatUser, ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import type {
+    AuthenticatedUser,
+    ChatMessageForRendering,
+    ChatUser,
+    ChatSession,
+    RecordOrUndef
+} from 'pika-shared/types/chatbot/chatbot-types';
 
 // ===== Type-contract assertions =====
 // These lines cause a TypeScript compile error if any signature drifts.
@@ -28,6 +34,8 @@ import { transformCustomUserData, onAuthProviderCallback, onBeforeAuth } from '.
 import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-auth';
 import { customAdminPages } from '../../src/lib/custom/admin/site-admin-extensions';
 import type { NavItem } from '../../src/lib/client/app/types';
+import { shouldRenderMessage } from '../../src/lib/custom/message-visibility';
+import { allowedCustomTags, allowedCustomAttrs } from '../../src/lib/custom/chat-html-allowed-tags';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -49,6 +57,7 @@ type C7Sig = (
     user: AuthenticatedUser<RecordOrUndef, RecordOrUndef> | undefined
 ) => Promise<{ clearSession: boolean }>;
 type C8Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => boolean;
+type C10Sig = (message: ChatMessageForRendering) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const _c1: C1Sig = isUserAllowedAdminAccess;
@@ -60,6 +69,9 @@ const _c5: C5Sig = transformSessionAccountContext;
 const _c7: C7Sig = onBeforeAuth;
 const _c8: C8Sig = shouldBypassChatUserRoleMerge;
 const _c9: NavItem[] = customAdminPages;
+const _c10: C10Sig = shouldRenderMessage;
+const _c11a: readonly string[] = allowedCustomTags;
+const _c11b: Readonly<Record<string, readonly string[]>> = allowedCustomAttrs;
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ===== Shared mock data =====
@@ -320,6 +332,52 @@ describe('lib/custom hook defaults', () => {
             expect(navSrc).toContain("import { customAdminPages } from '$lib/custom/admin/site-admin-extensions';");
             expect(navSrc).toContain('...customAdminPages');
             expect(navSrc.indexOf('...customAdminPages')).toBeGreaterThan(navSrc.indexOf("url: '/admin/caches'"));
+        });
+    });
+
+    describe('shouldRenderMessage (C10)', () => {
+        it('returns true by default for user and assistant messages', () => {
+            const userMessage = { source: 'user', message: 'hi', segments: [] } as unknown as ChatMessageForRendering;
+            const assistantMessage = {
+                source: 'assistant',
+                message: 'hello',
+                segments: []
+            } as unknown as ChatMessageForRendering;
+            expect(shouldRenderMessage(userMessage)).toBe(true);
+            expect(shouldRenderMessage(assistantMessage)).toBe(true);
+        });
+
+        it('chat-app-main renders the filtered list and keeps the started-check on the full list: text smoke test', () => {
+            const mainSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
+                'utf-8'
+            );
+            expect(mainSrc).toContain('filter((m) => shouldRenderMessage(m))');
+            expect(mainSrc).toContain('{#each visibleMessages as message}');
+            expect(mainSrc).toContain(
+                '{#if chat.retrievingMessages || (chat.currentSessionMessages && chat.currentSessionMessages.length > 0)}'
+            );
+        });
+    });
+
+    describe('chat-html-allowed-tags (C11)', () => {
+        it('allows no custom elements by default', () => {
+            expect(allowedCustomTags).toEqual([]);
+            expect(allowedCustomAttrs).toEqual({});
+        });
+
+        it('text-renderer and trace route their HTML sinks through the framework sanitizer: text smoke test', () => {
+            const textRendererSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/message-segments/default-components/text-renderer.svelte'),
+                'utf-8'
+            );
+            expect(textRendererSrc).toContain('container.innerHTML = sanitizeChatHtml(htmlContent)');
+            const traceSrc = readFileSync(
+                join(__dirname, '../../src/lib/client/features/chat/chat-app-main/trace.svelte'),
+                'utf-8'
+            );
+            expect(traceSrc).toContain('{@html sanitizeChatHtml(trace.markdown)}');
+            expect(traceSrc).toContain('{@html sanitizeChatHtml(content.markdown)}');
         });
     });
 

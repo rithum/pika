@@ -58,6 +58,8 @@ Chat apps extend `AccessRules` interface, providing fine-grained access control:
 - `suggestions` - Quick suggestion buttons
 - `fileUpload` - File upload capabilities
 - `promptInputFieldLabel` - Customize input field label
+- `promptInputFieldPlaceholder` - Customize the placeholder text inside the input box
+- `assistantPrivacyNotice` - Privacy notice shown in the empty state beneath the suggestion chips
 - `chatDisclaimerNotice` - Display disclaimer messages
 - `traces` - AI transparency with execution traces
 - `userMemory` - Remember user preferences
@@ -116,7 +118,18 @@ const chatApp: ChatAppForIdempotentCreateOrUpdate = {
                 'I need help with billing'
             ],
             randomize: true,
-            maxToShow: 3
+            maxToShow: 3,
+            expandedByDefault: true
+        },
+        promptInputFieldPlaceholder: {
+            featureId: 'promptInputFieldPlaceholder',
+            enabled: true,
+            promptInputFieldPlaceholder: 'Ask about your orders'
+        },
+        assistantPrivacyNotice: {
+            featureId: 'assistantPrivacyNotice',
+            enabled: true,
+            assistantPrivacyNotice: 'Only you can see conversations with your assistant.'
         },
         fileUpload: {
             featureId: 'fileUpload',

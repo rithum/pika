@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { AppState } from '$client/app/app.state.svelte';
     import MarkdownIt from 'markdown-it';
+    import { sanitizeChatHtml } from '../sanitize-chat-html';
     import type { ChatAppState } from '../../chat-app.state.svelte';
     import type { ProcessedTextSegment } from '../segment-types';
 
@@ -54,7 +55,8 @@
         // });
 
         if (container && htmlContent) {
-            container.innerHTML = htmlContent;
+            // MarkdownIt runs with html:true, so this innerHTML sink is sanitized.
+            container.innerHTML = sanitizeChatHtml(htmlContent);
             // console.log('[TEXT-RENDERER] Container HTML updated');
         }
     });
