@@ -39,6 +39,12 @@ describe('chat-app-main.svelte layout', () => {
         expect(arm).toBeGreaterThan(write);
     });
 
+    it('routes message and session changes through the scroll tracker', () => {
+        expect(source).toContain('createScrollTracker()');
+        expect(source).toMatch(/action === 'settle'\) scrollToBottomSettled\(\)/);
+        expect(source).toMatch(/action === 'jump'\) scrollToBottom\(\)/);
+    });
+
     it('defines OPEN_SETTLE_FRAMES', () => {
         expect(source).toMatch(/const OPEN_SETTLE_FRAMES = \d+;/);
     });

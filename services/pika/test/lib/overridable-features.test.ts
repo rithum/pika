@@ -32,6 +32,17 @@ describe('promptInputFieldPlaceholder', () => {
         expect(result.promptInputFieldPlaceholder.placeholder).toBe('Type here');
     });
 
+    it('falls back to the default when the app enables it without a value', () => {
+        const chatApp = chatAppWith({ promptInputFieldPlaceholder: { featureId: 'promptInputFieldPlaceholder', enabled: true } });
+        const result = getOverridableFeatures({ promptInputFieldPlaceholder: { enabled: true } } as any, chatApp, user);
+        expect(result.promptInputFieldPlaceholder.placeholder).toBe('Ask me a question');
+    });
+
+    it('falls back to the default when nothing is configured', () => {
+        const result = getOverridableFeatures({} as any, chatAppWith({}), user);
+        expect(result.promptInputFieldPlaceholder.placeholder).toBe('Ask me a question');
+    });
+
     it('is undefined when the site disables it', () => {
         const result = getOverridableFeatures({ promptInputFieldPlaceholder: { enabled: false } } as any, chatAppWith({}), user);
         expect(result.promptInputFieldPlaceholder.placeholder).toBeUndefined();

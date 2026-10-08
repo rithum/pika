@@ -31,6 +31,7 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import { visibleTextFromSegments } from '../message-segments/visible-text';
+    import { createScrollTracker, isScrolledToBottom } from './chat-scroll';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -113,11 +114,6 @@
     // A new message or a session switch always scrolls to bottom; content growth keeps the view pinned only while sticky.
     let stickToBottom = true; // plain let: only read inside handlers/observers, never in templates
 
-    function isScrolledToBottom(element: Element): boolean {
-        const threshold = 40; // pixels from bottom to still count as "at bottom"
-        return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-    }
-
     function scrollToBottom() {
         // rAF so layout from the mutation that triggered us is flushed before we measure.
         requestAnimationFrame(() => {
@@ -161,27 +157,12 @@
     });
 
     // A new message or a session switch always scrolls into view; streaming growth is handled by the ResizeObserver below.
-    let prevMessageCount = -1;
-    let prevSession: unknown = undefined;
-    // The panel mounts empty and the conversation arrives a tick later, so "opened" is the first effect run that has messages.
-    let hasPositionedOnOpen = false;
+    const scrollTracker = createScrollTracker();
     $effect(() => {
-        const session = chat.currentSession;
-        const messageCount = chat.currentSessionMessages?.length ?? 0;
-        const sessionChanged = prevSession !== undefined && prevSession !== session;
-        const newMessage = prevMessageCount !== -1 && messageCount > prevMessageCount;
-        const openingOntoMessages = !hasPositionedOnOpen && messageCount > 0;
-        prevSession = session;
-        prevMessageCount = messageCount;
+        const { action, sessionChanged } = scrollTracker.observe(chat.currentSession, chat.currentSessionMessages?.length ?? 0);
         if (sessionChanged) clearDragState();
-        if (openingOntoMessages || sessionChanged) {
-            // Open, or switched onto another conversation: content height is still settling.
-            hasPositionedOnOpen = true;
-            scrollToBottomSettled();
-        } else if (newMessage) {
-            // Mid-conversation: one rAF is enough.
-            scrollToBottom();
-        }
+        if (action === 'settle') scrollToBottomSettled();
+        else if (action === 'jump') scrollToBottom();
     });
 
     // Content growth (streaming tokens, images/markdown finishing layout): stay pinned while sticky.
