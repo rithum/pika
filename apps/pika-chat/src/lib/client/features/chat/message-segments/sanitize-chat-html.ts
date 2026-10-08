@@ -1,5 +1,6 @@
-// MarkdownIt runs with html:true, so model-authored HTML reaches innerHTML/{@html} sinks. Images are
-// forbidden by default because an injected image URL can exfiltrate data on load.
+// MarkdownIt runs with html:true, so model-authored HTML reaches innerHTML/{@html} sinks. Anything that
+// fetches a URL on render (images, media, SVG references, style sheets) is forbidden by default because an
+// injected URL can exfiltrate data on load.
 import DOMPurify from 'dompurify';
 import { allowedCustomAttrs, allowedCustomTags } from '$lib/custom/chat-html-allowed-tags';
 
@@ -9,8 +10,26 @@ export interface ChatHtmlAllowList {
 }
 
 const CUSTOM_ATTRIBUTE_NAME_PATTERN = /^(?!on)[a-zA-Z][a-zA-Z0-9-]*$/;
-const FORBIDDEN_TAGS = ['form', 'input', 'button', 'select', 'textarea', 'iframe', 'object', 'embed', 'img'];
-const FORBIDDEN_ATTRS = ['style', 'action', 'method', 'formaction', 'srcdoc'];
+const FORBIDDEN_TAGS = [
+    'form',
+    'input',
+    'button',
+    'select',
+    'textarea',
+    'iframe',
+    'object',
+    'embed',
+    'img',
+    'picture',
+    'source',
+    'video',
+    'audio',
+    'track',
+    'style',
+    'svg',
+    'math',
+];
+const FORBIDDEN_ATTRS = ['style', 'action', 'method', 'formaction', 'srcdoc', 'srcset', 'poster', 'background'];
 
 export function createChatHtmlSanitizer(allowList: ChatHtmlAllowList): (html: string) => string {
     const tagSet: ReadonlySet<string> = new Set(allowList.tags);
@@ -26,11 +45,13 @@ export function createChatHtmlSanitizer(allowList: ChatHtmlAllowList): (html: st
             CUSTOM_ELEMENT_HANDLING: {
                 tagNameCheck: (tagName: string) => tagSet.has(tagName),
                 attributeNameCheck: (attributeName: string, tagName?: string) =>
-                    !!tagName && CUSTOM_ATTRIBUTE_NAME_PATTERN.test(attributeName) && (attrSets.get(tagName)?.has(attributeName) ?? false),
-                allowCustomizedBuiltInElements: false
+                    !!tagName &&
+                    CUSTOM_ATTRIBUTE_NAME_PATTERN.test(attributeName) &&
+                    (attrSets.get(tagName)?.has(attributeName) ?? false),
+                allowCustomizedBuiltInElements: false,
             },
             FORBID_TAGS: FORBIDDEN_TAGS.filter((tag) => !tagSet.has(tag)),
-            FORBID_ATTR: [...FORBIDDEN_ATTRS]
+            FORBID_ATTR: [...FORBIDDEN_ATTRS],
         });
     };
 }

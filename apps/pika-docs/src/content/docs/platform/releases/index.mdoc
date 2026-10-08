@@ -11,7 +11,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 - **Two new chat-app features.** `promptInputFieldPlaceholder` sets the text inside the chat input, and `assistantPrivacyNotice` shows a short notice beneath the suggestion chips in the empty state. `suggestions.expandedByDefault` lets the suggestions start expanded.
 - **A docked composer and steadier auto-scroll.** The input sits below the transcript instead of over it. The view stays pinned to the newest message while you're at the bottom and stops when you scroll up. The column width is set by `--chat-content-max-width`.
-- **Chat HTML is sanitized.** Model-authored HTML in replies and traces passes through DOMPurify, and images, form controls, embeds and inline styles are blocked by default. Allow tags in `lib/custom/chat-html-allowed-tags.ts`.
+- **Chat HTML is sanitized.** Model-authored HTML in replies and traces passes through DOMPurify, and anything that loads a URL on render (images, media, style sheets, inline SVG), plus form controls and embeds, is blocked by default. Allow tags in `lib/custom/chat-html-allowed-tags.ts`.
 - **New extension points:** `shouldRenderMessage` hides messages from the transcript, `chat-html-allowed-tags.ts` controls the sanitizer, and `customAdminPages` adds pages to the Site Admin nav.
 - **Smaller additions.** A copy button on assistant replies, the session title in the chat header (now also streamed by the Strands converse Lambda), Session Insights deep links (`?sessionId=`), "Disable via override" in site admin, and Strands `LOCAL_TOOLS` routing for local development.
 

