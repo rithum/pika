@@ -31,7 +31,7 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import { visibleTextFromSegments } from '../message-segments/visible-text';
-    import { createScrollTracker, stickinessAfterScroll, stickinessAfterWheel } from './chat-scroll';
+    import { createScrollTracker, settleToBottom, stickinessAfterScroll, stickinessAfterWheel } from './chat-scroll';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -133,18 +133,18 @@
     const OPEN_SETTLE_FRAMES = 20; // ~330ms at 60fps — covers late layout, invisible to the eye
 
     function scrollToBottomSettled() {
-        let framesLeft = OPEN_SETTLE_FRAMES;
-        const step = () => {
-            if (!resizeHeightEl) return;
-            if (!stickToBottom) return; // user took over — yield, do not fight them
-            // Same load-bearing order as scrollToBottom(): write the position, then arm the flag.
-            resizeHeightEl.scrollTop = resizeHeightEl.scrollHeight;
-            stickToBottom = true;
-            if (--framesLeft > 0) {
-                requestAnimationFrame(step);
-            }
-        };
-        requestAnimationFrame(step);
+        settleToBottom({
+            frames: OPEN_SETTLE_FRAMES,
+            schedule: (step) => requestAnimationFrame(step),
+            isSticky: () => stickToBottom,
+            pin: () => {
+                if (!resizeHeightEl) return false;
+                // Same load-bearing order as scrollToBottom(): write the position, then arm the flag.
+                resizeHeightEl.scrollTop = resizeHeightEl.scrollHeight;
+                stickToBottom = true;
+                return true;
+            },
+        });
     }
 
     $effect(() => {
@@ -176,15 +176,18 @@
     });
 
     // Content growth (streaming tokens, images/markdown finishing layout): stay pinned while sticky.
+    // The viewport is observed too: a growing docked composer shrinks it without resizing the content.
     $effect(() => {
         const el = scrollToDiv;
-        if (!el) return;
+        const viewport = resizeHeightEl;
+        if (!el || !viewport) return;
         const resizeObserver = new ResizeObserver(() => {
             if (stickToBottom) {
                 scrollToBottom(true);
             }
         });
         resizeObserver.observe(el);
+        resizeObserver.observe(viewport);
         return () => resizeObserver.disconnect();
     });
 

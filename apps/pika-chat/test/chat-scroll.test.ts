@@ -4,6 +4,7 @@ import {
     createScrollTracker,
     isScrolledToBottom,
     nextScrollAction,
+    settleToBottom,
     stickinessAfterScroll,
     stickinessAfterWheel,
 } from '../src/lib/client/features/chat/chat-app-main/chat-scroll';
@@ -143,5 +144,60 @@ describe('stickinessAfterWheel', () => {
         expect(stickinessAfterWheel(true, 5)).toBe(true);
         expect(stickinessAfterWheel(false, 5)).toBe(false);
         expect(stickinessAfterWheel(true, 0)).toBe(true);
+    });
+});
+
+describe('settleToBottom', () => {
+    const harness = (opts: { sticky: boolean; frames?: number; mounted?: () => boolean }) => {
+        const queue: Array<() => void> = [];
+        let sticky = opts.sticky;
+        let pins = 0;
+        settleToBottom({
+            frames: opts.frames ?? 5,
+            schedule: (step) => queue.push(step),
+            isSticky: () => sticky,
+            pin: () => {
+                if (opts.mounted && !opts.mounted()) return false;
+                pins++;
+                sticky = true;
+                return true;
+            },
+        });
+        const flush = (max = 100) => {
+            for (let i = 0; i < max && queue.length; i++) queue.shift()!();
+        };
+        return {
+            flush,
+            runFrame: () => queue.shift()?.(),
+            unstick: () => (sticky = false),
+            pins: () => pins,
+        };
+    };
+
+    it('pins on the first frame even when stickiness was off before the run', () => {
+        const h = harness({ sticky: false });
+        h.runFrame();
+        expect(h.pins()).toBe(1);
+    });
+
+    it('re-pins for the bounded number of frames while sticky', () => {
+        const h = harness({ sticky: true, frames: 5 });
+        h.flush();
+        expect(h.pins()).toBe(5);
+    });
+
+    it('yields once the user scrolls away after the first frame', () => {
+        const h = harness({ sticky: true, frames: 5 });
+        h.runFrame();
+        h.runFrame();
+        h.unstick();
+        h.flush();
+        expect(h.pins()).toBe(2);
+    });
+
+    it('stops when there is nothing to pin', () => {
+        const h = harness({ sticky: true, frames: 5, mounted: () => false });
+        h.flush();
+        expect(h.pins()).toBe(0);
     });
 });

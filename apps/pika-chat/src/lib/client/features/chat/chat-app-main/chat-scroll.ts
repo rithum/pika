@@ -55,3 +55,24 @@ export function createScrollTracker() {
         },
     };
 }
+
+export interface SettleOptions {
+    frames: number;
+    schedule: (step: () => void) => void;
+    isSticky: () => boolean;
+    /** Returns false when there is nothing to pin (element unmounted), which ends the run. */
+    pin: () => boolean;
+}
+
+/** The first frame pins unconditionally: stickiness left over from the previous session must not veto the switch. */
+export function settleToBottom({ frames, schedule, isSticky, pin }: SettleOptions): void {
+    let framesLeft = frames;
+    let first = true;
+    const step = () => {
+        if (!first && !isSticky()) return;
+        first = false;
+        if (!pin()) return;
+        if (--framesLeft > 0) schedule(step);
+    };
+    schedule(step);
+}
