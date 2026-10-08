@@ -7,13 +7,23 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.30.0
+
+- **Two new chat-app features.** `promptInputFieldPlaceholder` sets the text inside the chat input, and `assistantPrivacyNotice` shows a short notice beneath the suggestion chips in the empty state. `suggestions.expandedByDefault` lets the suggestions start expanded.
+- **A docked composer and steadier auto-scroll.** The input sits below the transcript instead of over it. The view stays pinned to the newest message while you're at the bottom and stops when you scroll up. The column width is set by `--chat-content-max-width`.
+- **Chat HTML is sanitized.** Model-authored HTML in replies and traces passes through DOMPurify, and images, form controls, embeds and inline styles are blocked by default. Allow tags in `lib/custom/chat-html-allowed-tags.ts`.
+- **New extension points:** `shouldRenderMessage` hides messages from the transcript, `chat-html-allowed-tags.ts` controls the sanitizer, and `customAdminPages` adds pages to the Site Admin nav.
+- **Smaller additions.** A copy button on assistant replies, the session title in the chat header (now also streamed by the Strands converse Lambda), Session Insights deep links (`?sessionId=`), "Disable via override" in site admin, and Strands `LOCAL_TOOLS` routing for local development.
+
+**Upgrade impact**: markdown images in replies no longer render; list `img` in `lib/custom/chat-html-allowed-tags.ts` to restore them. The composer is always docked, so custom CSS that offsets content for the old overlay can be removed. Unrecognized reasoning traces are hidden from users without detailed-trace permission. `ChatInput`'s `inputRegionHeight` is deprecated but still accepted.
+
+**Latest Stable:** `0.30.0` (October 8, 2026)
+
 ### What's New in 0.29.5
 
 - **Dropping a file outside the drop zone no longer navigates away.** In chat apps with file upload disabled, the 0.29.4 drop guard did not apply, so a stray drop replaced the page. It now applies whether or not uploads are enabled.
 - **Session insights stop retrying context-limit failures.** An analysis whose input plus `max_tokens` exceeds the model's context limit is now marked `INSIGHTS_FAILED` and leaves the sweep, as "input/prompt is too long" already was, instead of being retried every tick.
 - **The Strands converse Lambda's account-context backfill is safer.** A failed backfill write now fails the turn instead of continuing with no account pinned, and each key is written only if absent so a concurrent turn's pin wins. A lost race re-reads once with a consistent read, and a missing or non-map `session_attributes` is replaced with an empty map first. A pin stored under any account-id field name also blocks the backfill, and a session deleted mid-backfill is no longer recreated as a partial row. When two first messages create the same session at once, the one that loses re-reads the winner's session consistently and fails the turn if that session is gone, instead of keeping its own copy.
-
-**Latest Stable:** `0.29.5` (October 7, 2026)
 
 ### What's New in 0.29.4
 
@@ -711,6 +721,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.30.0  | Oct 8 2026  | Minor    | Docked composer, chat HTML sanitizer, placeholder and privacy-notice features, and new extension points |
 | 0.29.5  | Oct 7 2026  | Patch    | Fixes three 0.29.4 regressions: file drops with uploads disabled, insights retrying context-limit failures, and the converse account-context backfill |
 | 0.29.4  | Oct 6 2026  | Patch    | Long sessions read every page of message history, session insights sweep fixed and terminal failures leave it, chat UI streaming/clipboard/drag fixes, `pika sync` rejects patches on protected paths, default model Claude Sonnet 4.6 |
 | 0.29.3  | Aug 18 2026 | Patch    | `pika sync` honours protected areas when deleting a directory the framework no longer has (protected files inside it were previously deleted), and reports protected paths that also exist upstream |

@@ -113,6 +113,12 @@ features: {
 }
 ```
 
+### Disabling a Feature via Override
+
+The Site Admin chat app editor can only write overrides, not a chat app's base definition. When a chat app enables a feature that the site has disabled or not configured, the feature shows an "Invalid Config" badge. The badge has a **Disable via override** button that writes an override entry with `enabled: false`, keeping any other fields already on the base or override entry. An override entry takes precedence over the base definition, so the feature stays off. Save the chat app to persist the override.
+
+The "Invalid Config" state does not block saving other changes.
+
 ### Complete Override Pattern
 
 When overriding features, provide **complete** configuration:
@@ -354,6 +360,25 @@ agentInstructionAssistance: {
 }
 ```
 
+**Prompt Input Field Placeholder** - Text inside the input box (the label above the input is `promptInputFieldLabel`):
+```typescript
+promptInputFieldPlaceholder: {
+    featureId: 'promptInputFieldPlaceholder',
+    enabled: boolean,
+    promptInputFieldPlaceholder?: string  // resolves to 'Ask me a question' when enabled without a value
+}
+```
+
+**Suggestions** - `expandedByDefault` (default `false`) makes the suggestions section start expanded; the user can still collapse it:
+```typescript
+suggestions: {
+    featureId: 'suggestions',
+    enabled: boolean,
+    suggestions: string[],
+    expandedByDefault?: boolean
+}
+```
+
 ### User Communication
 
 **Chat Disclaimer Notice** - Legal/informational notices:
@@ -361,6 +386,15 @@ agentInstructionAssistance: {
 chatDisclaimerNotice: {
     featureId: 'chatDisclaimerNotice',
     notice: string
+}
+```
+
+**Assistant Privacy Notice** - Shown in the empty state beneath the suggestion chips (the persistent notice under the input is `chatDisclaimerNotice`). Nothing renders when disabled or when no value is set:
+```typescript
+assistantPrivacyNotice: {
+    featureId: 'assistantPrivacyNotice',
+    enabled: boolean,
+    assistantPrivacyNotice?: string
 }
 ```
 

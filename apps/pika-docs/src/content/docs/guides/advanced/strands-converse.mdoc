@@ -151,6 +151,37 @@ The Strands Lambda ships with helper scripts in `services/pika/package.json`:
 
 Run `strands:setup` once per clone, then `strands:test` on each change. `strands:invoke` requires AWS credentials and an agent definition already seeded in DynamoDB.
 
+### Local Tool Routing with `LOCAL_TOOLS`
+
+By default each tool is invoked on its deployed Lambda. Set the `LOCAL_TOOLS` environment variable to send selected tools to a locally running Lambda emulator instead.
+
+`LOCAL_TOOLS` accepts either inline JSON or the path of a JSON file. A value that does not parse as JSON is treated as a file path, resolved against the working directory. The JSON is an object keyed by tool id or by the function name taken from the tool's Lambda ARN. For a qualified ARN (`...:function:name:alias`) the function name is `name`, without the alias.
+
+Each value is one of:
+
+- An endpoint URL string.
+- An object `{ "endpoint": "<url>", "function": "<name>" }`. `function` is optional and replaces the function name derived from the ARN.
+
+```json
+{
+    "my-tool-id": "http://localhost:9001",
+    "my-app-prod-other-tool": {
+        "endpoint": "http://localhost:9001",
+        "function": "my-app-test-other-tool"
+    }
+}
+```
+
+A routed tool is invoked through a Lambda client pointed at the endpoint, addressed by bare function name rather than ARN. Tools with no matching entry stay on their deployed Lambda. Entries that are neither a URL string nor an object with a non-empty `endpoint` are skipped with a warning.
+
+If the file is missing, unreadable or not valid JSON, or the JSON is not an object, `LOCAL_TOOLS` is ignored with a warning and every tool stays on its deployed Lambda.
+
+`LOCAL_TOOLS` is re-read on every tool call, so edits to the file take effect without restarting. A transient read failure sends that one call to the deployed Lambda.
+
+### Pinning the Session with `SESSION_ID`
+
+`local_invoke.py` (`strands:invoke`) uses `strands-test-<epoch seconds>` as the session id. Set the `SESSION_ID` environment variable to use a fixed session id instead, so repeated runs continue the same conversation.
+
 ## Step 5: Deploy and Verify
 
 Deploy the service stack first (creates the Lambda + SSM params), then the chat stack (reads the param you flipped):

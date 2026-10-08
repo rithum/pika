@@ -22,6 +22,8 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Add pages to the Site Admin nav |
+| `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript without removing them from the session |
+| `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow custom elements, or lift a default ban such as `img`, in the chat and trace HTML sanitizer |
 
 ## How to Override
 
@@ -263,6 +265,50 @@ export const customAdminPages: NavItem[] = [
 ```
 
 Access to these pages is governed by the same admin gate as the rest of the section (`isUserAllowedAdminAccess`). The default is `[]`, which leaves the stock admin nav.
+
+### `shouldRenderMessage` — `message-visibility.ts`
+
+Returns `false` to hide a message from the rendered transcript, for example a turn your app sends on the user's behalf.
+
+```typescript
+export function shouldRenderMessage(message: ChatMessageForRendering): boolean
+```
+
+Hidden messages stay in the session and still count as the conversation having started. The default returns `true`, so every message renders.
+
+```typescript
+// src/lib/custom/message-visibility.ts
+import type { ChatMessageForRendering } from 'pika-shared/types/chatbot/chatbot-types';
+
+export function shouldRenderMessage(message: ChatMessageForRendering): boolean {
+    return !message.message.startsWith('[app-turn]');
+}
+```
+
+### `allowedCustomTags` and `allowedCustomAttrs` — `chat-html-allowed-tags.ts`
+
+Controls which elements survive the HTML sanitizer. Chat messages and trace content are rendered from markdown with HTML enabled, and the result is sanitized with DOMPurify before it is inserted into the page.
+
+```typescript
+export const allowedCustomTags: readonly string[] = [];
+export const allowedCustomAttrs: Readonly<Record<string, readonly string[]>> = {};
+```
+
+By default the sanitizer forbids these tags: `form`, `input`, `button`, `select`, `textarea`, `iframe`, `object`, `embed` and `img`. It also forbids the attributes `style`, `action`, `method`, `formaction` and `srcdoc`.
+
+- Custom elements are removed unless their tag name is in `allowedCustomTags`. An allowed custom element keeps the attributes listed for its tag in `allowedCustomAttrs`, plus `data-*` attributes, which DOMPurify allows by default. Attribute names starting with `on` are never allowed.
+- A tag listed in `allowedCustomTags` is also removed from the forbidden-tag list, so listing `img` opts images back in.
+
+```typescript
+// src/lib/custom/chat-html-allowed-tags.ts
+export const allowedCustomTags: readonly string[] = ['order-card', 'img'];
+
+export const allowedCustomAttrs: Readonly<Record<string, readonly string[]>> = {
+    'order-card': ['order-id']
+};
+```
+
+If DOMPurify is not supported in the browser, the sanitizer logs an error and renders nothing instead of unsanitized HTML.
 
 ---
 

@@ -384,7 +384,8 @@ siteFeatures: {
         enabled: true,
         suggestions: [], // Chat apps define their own
         maxToShow: 5,
-        randomize: false
+        randomize: false,
+        expandedByDefault: false
     },
     
     // Input field label
@@ -392,6 +393,20 @@ siteFeatures: {
         featureId: 'promptInputFieldLabel',
         enabled: true,
         promptInputFieldLabel: 'Ready to chat'
+    },
+
+    // Placeholder text inside the input box
+    promptInputFieldPlaceholder: {
+        featureId: 'promptInputFieldPlaceholder',
+        enabled: true,
+        promptInputFieldPlaceholder: 'Ask me a question'
+    },
+
+    // Privacy notice in the empty state, beneath the suggestion chips
+    assistantPrivacyNotice: {
+        featureId: 'assistantPrivacyNotice',
+        enabled: true,
+        assistantPrivacyNotice: 'Only you can see conversations with your assistant.'
     },
     
     // UI customization
