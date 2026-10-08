@@ -22,6 +22,7 @@ Extension points are exported functions you can override to add deployment-speci
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Append consumer pages to the Site Admin nav; each NavItem's `pageComponent` renders at its `/admin/<slug>` url |
 
 ### How to override
 
