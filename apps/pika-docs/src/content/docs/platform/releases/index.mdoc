@@ -15,7 +15,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **New extension points:** `shouldRenderMessage` hides messages from the transcript, `chat-html-allowed-tags.ts` controls the sanitizer, and `customAdminPages` adds pages to the Site Admin nav.
 - **Smaller additions.** A copy button on assistant replies, the session title in the chat header (now also streamed by the Strands converse Lambda), Session Insights deep links (`?sessionId=`), "Disable via override" in site admin, and Strands `LOCAL_TOOLS` routing for local development.
 
-**Upgrade impact**: markdown images in replies no longer render; list `img` in `lib/custom/chat-html-allowed-tags.ts` to restore them. The composer is always docked, so custom CSS that offsets content for the old overlay can be removed. Unrecognized reasoning traces are hidden from users without detailed-trace permission. `ChatInput`'s `inputRegionHeight` is deprecated but still accepted.
+**Upgrade impact**: markdown images in replies no longer render; list `img` in `lib/custom/chat-html-allowed-tags.ts` to restore them. The composer is always docked, so custom CSS that offsets content for the old overlay can be removed. Agent rationale traces are now hidden from users without detailed-trace permission. Code that builds a complete `ChatAppOverridableFeatures` object must add `promptInputFieldPlaceholder` and `assistantPrivacyNotice`. `ChatInput`'s `inputRegionHeight` is deprecated but still accepted.
 
 **Latest Stable:** `0.30.0` (October 8, 2026)
 
