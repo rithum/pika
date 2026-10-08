@@ -31,7 +31,7 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import { visibleTextFromSegments } from '../message-segments/visible-text';
-    import { createScrollTracker, stickinessAfterScroll } from './chat-scroll';
+    import { createScrollTracker, stickinessAfterScroll, stickinessAfterWheel } from './chat-scroll';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -114,10 +114,12 @@
     // A new message or a session switch always scrolls to bottom; content growth keeps the view pinned only while sticky.
     let stickToBottom = true; // plain let: only read inside handlers/observers, never in templates
 
-    function scrollToBottom() {
+    function scrollToBottom(onlyIfStillSticky = false) {
         // rAF so layout from the mutation that triggered us is flushed before we measure.
         requestAnimationFrame(() => {
             if (!resizeHeightEl) return;
+            // A growth re-pin queued before the user scrolled away must not drag them back.
+            if (onlyIfStillSticky && !stickToBottom) return;
             // Order is load-bearing: writing scrollTop fires the scroll listener, which recomputes stickToBottom;
             // arming the flag before the write would let that listener clobber it back to false.
             resizeHeightEl.scrollTop = resizeHeightEl.scrollHeight;
@@ -153,8 +155,15 @@
             stickToBottom = stickinessAfterScroll(stickToBottom, el, lastScrollTop);
             lastScrollTop = el.scrollTop;
         };
+        const handleWheel = (event: WheelEvent) => {
+            stickToBottom = stickinessAfterWheel(stickToBottom, event.deltaY);
+        };
         el.addEventListener('scroll', handleScroll, { passive: true });
-        return () => el.removeEventListener('scroll', handleScroll);
+        el.addEventListener('wheel', handleWheel, { passive: true });
+        return () => {
+            el.removeEventListener('scroll', handleScroll);
+            el.removeEventListener('wheel', handleWheel);
+        };
     });
 
     // A new message or a session switch always scrolls into view; streaming growth is handled by the ResizeObserver below.
@@ -172,7 +181,7 @@
         if (!el) return;
         const resizeObserver = new ResizeObserver(() => {
             if (stickToBottom) {
-                scrollToBottom();
+                scrollToBottom(true);
             }
         });
         resizeObserver.observe(el);

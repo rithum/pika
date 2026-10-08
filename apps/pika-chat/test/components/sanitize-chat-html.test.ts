@@ -145,3 +145,26 @@ describe('sanitizeChatHtml — no remote fetch on render', () => {
         );
     });
 });
+
+describe('sanitizeChatHtml — lifting a media tag lifts its URL attribute', () => {
+    it('keeps srcset on an allowed img and strips it by default', () => {
+        const html = '<img srcset="https://cdn.test/a.png 1x" alt="a">';
+        expect(createChatHtmlSanitizer({ tags: ['img'], attrs: {} })(html)).toContain('srcset=');
+        expect(sanitizeChatHtml(html)).not.toContain('cdn.test');
+    });
+
+    it('keeps poster on an allowed video', () => {
+        const out = createChatHtmlSanitizer({ tags: ['video'], attrs: {} })(
+            '<video poster="https://cdn.test/p.png"></video>'
+        );
+        expect(out).toContain('poster=');
+    });
+
+    it('keeps background and style forbidden even when media tags are allowed', () => {
+        const out = createChatHtmlSanitizer({ tags: ['img', 'video'], attrs: {} })(
+            '<table background="https://cdn.test/b"><tr><td style="color:red">x</td></tr></table>'
+        );
+        expect(out).not.toContain('background=');
+        expect(out).not.toContain('style=');
+    });
+});

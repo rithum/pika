@@ -11,6 +11,11 @@ export function stickinessAfterScroll(wasSticky: boolean, element: ScrollMetrics
     return isScrolledToBottom(element) || (wasSticky && element.scrollTop >= previousScrollTop);
 }
 
+/** An upward wheel is the user leaving the bottom even when the move is smaller than the threshold. */
+export function stickinessAfterWheel(wasSticky: boolean, deltaY: number): boolean {
+    return deltaY < 0 ? false : wasSticky;
+}
+
 /** settle: re-assert bottom over several frames while restored content lays out; jump: one rAF; none: leave it to the sticky ResizeObserver. */
 export type ScrollAction = 'settle' | 'jump' | 'none';
 
@@ -47,6 +52,6 @@ export function createScrollTracker() {
             const action = nextScrollAction({ sessionChanged, newMessage, openingOntoMessages });
             if (action === 'settle') hasPositionedOnOpen = true;
             return { action, sessionChanged };
-        }
+        },
     };
 }

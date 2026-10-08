@@ -4,10 +4,15 @@ import {
     createScrollTracker,
     isScrolledToBottom,
     nextScrollAction,
-    stickinessAfterScroll
+    stickinessAfterScroll,
+    stickinessAfterWheel,
 } from '../src/lib/client/features/chat/chat-app-main/chat-scroll';
 
-const metrics = (scrollHeight: number, scrollTop: number, clientHeight: number) => ({ scrollHeight, scrollTop, clientHeight });
+const metrics = (scrollHeight: number, scrollTop: number, clientHeight: number) => ({
+    scrollHeight,
+    scrollTop,
+    clientHeight,
+});
 
 describe('isScrolledToBottom', () => {
     it('is true when exactly at the bottom', () => {
@@ -126,5 +131,17 @@ describe('stickinessAfterScroll', () => {
 
     it('stays unstuck when the user scrolls down but not to the bottom', () => {
         expect(stickinessAfterScroll(false, metrics(2000, 900, 400), 300)).toBe(false);
+    });
+});
+
+describe('stickinessAfterWheel', () => {
+    it('unsticks on an upward wheel, however small', () => {
+        expect(stickinessAfterWheel(true, -1)).toBe(false);
+    });
+
+    it('leaves stickiness alone on a downward or zero wheel', () => {
+        expect(stickinessAfterWheel(true, 5)).toBe(true);
+        expect(stickinessAfterWheel(false, 5)).toBe(false);
+        expect(stickinessAfterWheel(true, 0)).toBe(true);
     });
 });

@@ -3,7 +3,10 @@ import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-const source = readFileSync(resolve(__dirname, '../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'), 'utf8');
+const source = readFileSync(
+    resolve(__dirname, '../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
+    'utf8'
+);
 
 function functionBody(name: string): string {
     const start = source.indexOf(`function ${name}(`);
@@ -43,6 +46,13 @@ describe('chat-app-main.svelte layout', () => {
         expect(source).toContain('createScrollTracker()');
         expect(source).toMatch(/action === 'settle'\) scrollToBottomSettled\(\)/);
         expect(source).toMatch(/action === 'jump'\) scrollToBottom\(\)/);
+    });
+
+    it('growth re-pins yield to a user who scrolled away after the re-pin was queued', () => {
+        const body = functionBody('scrollToBottom');
+        expect(body).toContain('if (onlyIfStillSticky && !stickToBottom) return;');
+        expect(source).toContain('scrollToBottom(true);');
+        expect(source).toContain("el.addEventListener('wheel', handleWheel, { passive: true });");
     });
 
     it('defines OPEN_SETTLE_FRAMES', () => {

@@ -30,10 +30,16 @@ const FORBIDDEN_TAGS = [
     'math',
 ];
 const FORBIDDEN_ATTRS = ['style', 'action', 'method', 'formaction', 'srcdoc', 'srcset', 'poster', 'background'];
+// Lifting a tag also lifts the URL attribute it cannot work without.
+const ATTR_LIFTED_BY_TAGS: Record<string, readonly string[]> = { srcset: ['img', 'source'], poster: ['video'] };
 
 export function createChatHtmlSanitizer(allowList: ChatHtmlAllowList): (html: string) => string {
     const tagSet: ReadonlySet<string> = new Set(allowList.tags);
     const attrSets = new Map(Object.entries(allowList.attrs).map(([tag, attrs]) => [tag, new Set(attrs)]));
+    const forbiddenTags = FORBIDDEN_TAGS.filter((tag) => !tagSet.has(tag));
+    const forbiddenAttrs = FORBIDDEN_ATTRS.filter(
+        (attr) => !(ATTR_LIFTED_BY_TAGS[attr] ?? []).some((tag) => tagSet.has(tag))
+    );
 
     return (html: string): string => {
         if (!DOMPurify.isSupported) {
@@ -50,8 +56,8 @@ export function createChatHtmlSanitizer(allowList: ChatHtmlAllowList): (html: st
                     (attrSets.get(tagName)?.has(attributeName) ?? false),
                 allowCustomizedBuiltInElements: false,
             },
-            FORBID_TAGS: FORBIDDEN_TAGS.filter((tag) => !tagSet.has(tag)),
-            FORBID_ATTR: [...FORBIDDEN_ATTRS],
+            FORBID_TAGS: forbiddenTags,
+            FORBID_ATTR: forbiddenAttrs,
         });
     };
 }
