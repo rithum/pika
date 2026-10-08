@@ -6,6 +6,11 @@ export function isScrolledToBottom(element: ScrollMetrics, threshold = STICKY_BO
     return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
 }
 
+/** Content growth fires scroll events before the ResizeObserver can re-pin, so only an upward move may unstick. */
+export function stickinessAfterScroll(wasSticky: boolean, element: ScrollMetrics, previousScrollTop: number): boolean {
+    return isScrolledToBottom(element) || (wasSticky && element.scrollTop >= previousScrollTop);
+}
+
 /** settle: re-assert bottom over several frames while restored content lays out; jump: one rAF; none: leave it to the sticky ResizeObserver. */
 export type ScrollAction = 'settle' | 'jump' | 'none';
 

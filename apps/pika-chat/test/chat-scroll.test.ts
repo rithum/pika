@@ -3,7 +3,8 @@ import {
     STICKY_BOTTOM_THRESHOLD_PX,
     createScrollTracker,
     isScrolledToBottom,
-    nextScrollAction
+    nextScrollAction,
+    stickinessAfterScroll
 } from '../src/lib/client/features/chat/chat-app-main/chat-scroll';
 
 const metrics = (scrollHeight: number, scrollTop: number, clientHeight: number) => ({ scrollHeight, scrollTop, clientHeight });
@@ -99,5 +100,31 @@ describe('createScrollTracker', () => {
         const t = createScrollTracker();
         t.observe(undefined, 0);
         expect(t.observe(a, 0).sessionChanged).toBe(false);
+    });
+});
+
+describe('stickinessAfterScroll', () => {
+    it('stays sticky when content grows past the threshold without the user scrolling', () => {
+        expect(stickinessAfterScroll(true, metrics(1200, 600, 400), 600)).toBe(true);
+    });
+
+    it('stays sticky when our own write moves the view down', () => {
+        expect(stickinessAfterScroll(true, metrics(1200, 800, 400), 600)).toBe(true);
+    });
+
+    it('unsticks when the user scrolls up away from the bottom', () => {
+        expect(stickinessAfterScroll(true, metrics(1200, 300, 400), 800)).toBe(false);
+    });
+
+    it('stays sticky on a small upward nudge that is still within the threshold', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 590, 400), 600)).toBe(true);
+    });
+
+    it('re-sticks when the user scrolls back to the bottom', () => {
+        expect(stickinessAfterScroll(false, metrics(1000, 600, 400), 300)).toBe(true);
+    });
+
+    it('stays unstuck when the user scrolls down but not to the bottom', () => {
+        expect(stickinessAfterScroll(false, metrics(2000, 900, 400), 300)).toBe(false);
     });
 });

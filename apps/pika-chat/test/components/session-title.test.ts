@@ -66,6 +66,19 @@ describe('session title after generation', () => {
         expect(chat.pageTitle).toBe('Generated Title');
     });
 
+    it('a streamed title keeps the current right-header widget', () => {
+        const session = makeSession('s-1', 'Old');
+        const chat = new FakeChatAppState([session], session);
+        const widget = (() => {}) as unknown as Snippet;
+        chat.setPageHeader('Old', widget);
+
+        runHandler(chat, 'Generated Title');
+        flushSync();
+
+        expect(chat.pageTitle).toBe('Generated Title');
+        expect(chat.pageHeaderRight).toBe(widget);
+    });
+
     it('switching sessions clears the previous session right-header widget', () => {
         const a = makeSession('s-a', 'Session A');
         const b = makeSession('s-b', 'Session B');

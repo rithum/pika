@@ -37,7 +37,7 @@ export function pikaMetadataHandler(segment: MetadataTagSegment, message: ChatMe
         if (metadata.sessionTitle) {
             currentSession.title = metadata.sessionTitle;
             // The chat header reads chatAppState.pageTitle, which only setPageHeader() populates.
-            chatAppState.setPageHeader(metadata.sessionTitle);
+            chatAppState.setPageHeader(metadata.sessionTitle, chatAppState.pageHeaderRight);
         }
 
         // Update the session in the sessions array (find and update in-place)

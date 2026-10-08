@@ -31,7 +31,7 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import { visibleTextFromSegments } from '../message-segments/visible-text';
-    import { createScrollTracker, isScrolledToBottom } from './chat-scroll';
+    import { createScrollTracker, stickinessAfterScroll } from './chat-scroll';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -145,12 +145,13 @@
         requestAnimationFrame(step);
     }
 
-    // Recompute stickiness from the actual position on every scroll (user or programmatic).
     $effect(() => {
         const el = resizeHeightEl;
         if (!el) return;
+        let lastScrollTop = el.scrollTop;
         const handleScroll = () => {
-            stickToBottom = isScrolledToBottom(el);
+            stickToBottom = stickinessAfterScroll(stickToBottom, el, lastScrollTop);
+            lastScrollTop = el.scrollTop;
         };
         el.addEventListener('scroll', handleScroll, { passive: true });
         return () => el.removeEventListener('scroll', handleScroll);
