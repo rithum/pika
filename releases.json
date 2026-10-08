@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.29.5",
+  "latestVersion": "0.30.0",
   "currentDevelopment": "0.30.0",
   "releases": [
     {
       "version": "0.30.0",
       "date": "2026-10-08",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Docked chat composer with position-based auto-scroll, a DOMPurify sanitizer for chat HTML (images blocked by default), promptInputFieldPlaceholder and assistantPrivacyNotice features, and the shouldRenderMessage, chat-html-allowed-tags and customAdminPages extension points.",
       "highlights": [
