@@ -467,7 +467,7 @@ async function ensureUnreleasedVersion(): Promise<string> {
  * Uses existing unreleased version if present (matching interactive behavior),
  * warns if bump type doesn't match.
  */
-function ensureUnreleasedVersionNonInteractive(bumpType: 'major' | 'minor' | 'patch'): string {
+function ensureUnreleasedVersionNonInteractive(bumpType: 'major' | 'minor' | 'patch', dryRun: boolean = false): string {
     const releases = loadReleasesJson();
     const mainReleases = loadReleasesJsonFromMain();
 
@@ -500,8 +500,13 @@ function ensureUnreleasedVersionNonInteractive(bumpType: 'major' | 'minor' | 'pa
         highlights: []
     });
     releases.currentDevelopment = newVersion;
-    saveReleasesJson(releases);
-    log(chalk.green(`✓ Created unreleased version ${newVersion} in releases.json`));
+
+    if (dryRun) {
+        log(chalk.cyan(`Dry run: would create unreleased version ${newVersion} in releases.json`));
+    } else {
+        saveReleasesJson(releases);
+        log(chalk.green(`✓ Created unreleased version ${newVersion} in releases.json`));
+    }
 
     return newVersion;
 }
@@ -1500,7 +1505,7 @@ async function unifiedRelease(options: { nonInteractive?: boolean; dryRun?: bool
         process.exit(1);
     }
 
-    const version = ensureUnreleasedVersionNonInteractive(bumpType);
+    const version = ensureUnreleasedVersionNonInteractive(bumpType, options.dryRun);
 
     if (!options.dryRun) {
         const releases = loadReleasesJson();
@@ -1514,7 +1519,7 @@ async function unifiedRelease(options: { nonInteractive?: boolean; dryRun?: bool
             log(chalk.green(`✓ releases.json: ${version} marked as released (${today})`));
         }
     } else {
-        log(chalk.cyan('Dry run: releases.json was NOT modified'));
+        log(chalk.cyan(`Dry run: releases.json was NOT modified (would mark ${version} released as of today)`));
     }
 
     const baseBranch = options.since || 'main';

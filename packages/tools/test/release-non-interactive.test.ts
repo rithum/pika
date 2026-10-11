@@ -211,21 +211,37 @@ describe('release --non-interactive (unified flow)', () => {
         expect(result.stderr).toContain('0.25.0');
     });
 
-    it('dry-run skips marking release as published', () => {
+    it('dry-run leaves releases.json byte-identical', () => {
         createFeatureBranch(repo.repoDir, 'feat/dry-run-test');
+        const releasesPath = path.join(repo.repoDir, 'releases.json');
+        const before = readFileSync(releasesPath, 'utf8');
 
         const result = run(repo.repoDir, '--non-interactive --dry-run');
 
         expect(result.exitCode).toBe(0);
         expect(result.stdout).toContain('[DRY RUN]');
+        // The prompt still names the version it would release
+        expect(result.stdout).toContain('**TASK: Release version 0.21.0**');
 
-        // The unreleased entry is created (preparation step), but NOT marked released
-        const releases = JSON.parse(readFileSync(path.join(repo.repoDir, 'releases.json'), 'utf8'));
-        const entry = releases.releases.find((r: { version: string }) => r.version === '0.21.0');
-        expect(entry).toBeDefined();
-        expect(entry.status).toBe('unreleased');
-        // latestVersion should NOT be updated
+        // `--dry-run` is documented as "Skip releases.json writes, still output prompt"
+        // (RELEASING.md) and the CLI reports the file was not modified — so it must be
+        // untouched, including the version-creation write that used to run regardless.
+        expect(readFileSync(releasesPath, 'utf8')).toBe(before);
+
+        const releases = JSON.parse(before);
+        expect(releases.releases.find((r: { version: string }) => r.version === '0.21.0')).toBeUndefined();
         expect(releases.latestVersion).toBe('0.20.0');
+    });
+
+    it('dry-run leaves the working tree clean', () => {
+        createFeatureBranch(repo.repoDir, 'feat/dry-run-clean-tree');
+
+        const result = run(repo.repoDir, '--non-interactive --dry-run');
+        expect(result.exitCode).toBe(0);
+
+        // A dry run must not require `git checkout releases.json` to recover.
+        const status = spawnSync('git', ['status', '--porcelain'], { cwd: repo.repoDir, encoding: 'utf8' });
+        expect(status.stdout.trim()).toBe('');
     });
 
     it('includes changed files in git context', () => {
