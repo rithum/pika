@@ -76,6 +76,31 @@ describe('createTraceRedactionStream', () => {
         expect(out).toBe('<trace>{"step":{"event":"done","id":"abc"}}</trace>');
     });
 
+    it('pairs a Bedrock observation with its call by traceId when it carries no function name', async () => {
+        const call = (traceId: string, fn: string) =>
+            frame({
+                orchestrationTrace: {
+                    invocationInput: { traceId, invocationType: 'ACTION_GROUP', actionGroupInvocationInput: { function: fn, parameters: [] } }
+                }
+            });
+        const result = (traceId: string) =>
+            frame({ orchestrationTrace: { observation: { traceId, type: 'ACTION_GROUP', actionGroupInvocationOutput: { text: 'secret', metadata: {} } } } });
+        const geo = stepHandle('getGeocoding');
+        const weather = stepHandle('getCurrentWeather');
+        const start = (id: string) => `<trace>{"step":{"event":"start","id":"${id}"}}</trace>`;
+        const done = (id: string) => `<trace>{"step":{"event":"done","id":"${id}"}}</trace>`;
+
+        const out = await run([call('t-0', 'getGeocoding'), result('t-0'), call('t-0', 'getGeocoding'), result('t-0'), call('t-1', 'getCurrentWeather'), call('t-1', 'getCurrentWeather'), result('t-1'), result('t-1')]);
+
+        expect(out).toBe(start(geo) + done(geo) + start(geo) + done(geo) + start(weather) + start(weather) + done(weather) + done(weather));
+        expect(out).not.toContain('secret');
+    });
+
+    it('keeps a Bedrock observation with no matching call as the activity frame', async () => {
+        const out = await run([frame({ orchestrationTrace: { observation: { traceId: 'unknown', actionGroupInvocationOutput: { text: 'x' } } } })]);
+        expect(out).toBe(ACTIVITY);
+    });
+
     it('passes the activity frame unchanged', async () => {
         expect(await run([ACTIVITY])).toBe(ACTIVITY);
     });

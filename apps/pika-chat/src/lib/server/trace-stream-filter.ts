@@ -20,7 +20,13 @@ export function stepHandle(name: string): string {
     return createHash('sha256').update(name, 'utf8').digest('hex').slice(0, STEP_HANDLE_LENGTH);
 }
 
-export function buildStepFrame(payload: unknown): JsonObject | null {
+/**
+ * Bedrock observations carry no function name, only the traceId of the model step that
+ * called the tool; parallel calls in one step share it and finish in call order.
+ */
+export type PendingToolCalls = Map<string, string[]>;
+
+export function buildStepFrame(payload: unknown, pending: PendingToolCalls = new Map()): JsonObject | null {
     if (!isObject(payload)) {
         return null;
     }
@@ -45,6 +51,14 @@ export function buildStepFrame(payload: unknown): JsonObject | null {
     const invocationInput = orchestration.invocationInput;
     const input = isObject(invocationInput) ? invocationInput.actionGroupInvocationInput : undefined;
     if (isObject(input) && nonEmptyString(input.function)) {
+        if (isObject(invocationInput) && nonEmptyString(invocationInput.traceId)) {
+            const queue = pending.get(invocationInput.traceId);
+            if (queue) {
+                queue.push(input.function);
+            } else {
+                pending.set(invocationInput.traceId, [input.function]);
+            }
+        }
         const out: JsonObject = { event: 'start', id: stepHandle(input.function) };
         if (nonEmptyString(input.userLabel)) {
             out.label = input.userLabel;
@@ -60,12 +74,22 @@ export function buildStepFrame(payload: unknown): JsonObject | null {
     if (isObject(output) && nonEmptyString(output.function)) {
         return { step: { event: 'done', id: stepHandle(output.function) } };
     }
+    if (isObject(output) && isObject(observation) && nonEmptyString(observation.traceId)) {
+        const queue = pending.get(observation.traceId);
+        const fn = queue?.shift();
+        if (queue && queue.length === 0) {
+            pending.delete(observation.traceId);
+        }
+        if (fn) {
+            return { step: { event: 'done', id: stepHandle(fn) } };
+        }
+    }
 
     return null;
 }
 
-export function redactTrace(payload: unknown): JsonObject {
-    return buildStepFrame(payload) ?? ACTIVITY_TRACE_PAYLOAD;
+export function redactTrace(payload: unknown, pending?: PendingToolCalls): JsonObject {
+    return buildStepFrame(payload, pending) ?? ACTIVITY_TRACE_PAYLOAD;
 }
 
 function parseFrame(inner: string): { ok: true; payload: unknown } | { ok: false } {
@@ -77,8 +101,8 @@ function parseFrame(inner: string): { ok: true; payload: unknown } | { ok: false
 }
 
 // Escaping '<' keeps a label containing a literal close tag from ending the frame early in the client parser.
-function encodeFrame(payload: unknown): string {
-    return `${TRACE_OPEN}${JSON.stringify(redactTrace(payload)).replace(/</g, '\\u003c')}${TRACE_CLOSE}`;
+function encodeFrame(payload: unknown, pending?: PendingToolCalls): string {
+    return `${TRACE_OPEN}${JSON.stringify(redactTrace(payload, pending)).replace(/</g, '\\u003c')}${TRACE_CLOSE}`;
 }
 
 function heldPrefixLength(buf: string): number {
@@ -97,6 +121,7 @@ export function createTraceRedactionStream(): TransformStream<Uint8Array, Uint8A
     // Offset in buf (an open frame starts at 0) from which to look for the next close-tag candidate.
     let closeSearchFrom = 0;
     let sawUnparseableClose = false;
+    const pending: PendingToolCalls = new Map();
 
     // A frame ends at the first close tag whose inner text parses as JSON: valid JSON cannot hold a
     // literal close tag outside a string, so earlier candidates sit inside a string value. Text after
@@ -132,7 +157,7 @@ export function createTraceRedactionStream(): TransformStream<Uint8Array, Uint8A
                 }
                 const parsed = parseFrame(buf.slice(TRACE_OPEN.length, j));
                 if (parsed.ok) {
-                    out += encodeFrame(parsed.payload);
+                    out += encodeFrame(parsed.payload, pending);
                     buf = buf.slice(j + TRACE_CLOSE.length);
                     closeSearchFrom = 0;
                     sawUnparseableClose = false;
