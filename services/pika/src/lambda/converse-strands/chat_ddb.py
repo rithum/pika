@@ -162,13 +162,14 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         'create_date': now_iso,
         'last_update': now_iso,
         'source': source,
-        'user_type': user_type or 'internal-user',
         'input_tokens': 0,
         'output_tokens': 0,
         'input_cost': Decimal('0'),
         'output_cost': Decimal('0'),
         'total_cost': Decimal('0'),
     }
+    if user_type is not None:
+        session['user_type'] = user_type
     if session_attributes is not None:
         session['session_attributes'] = session_attributes
     try:
@@ -215,6 +216,21 @@ def update_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         Key={'user_id': user_id, 'session_id': session_id},
         UpdateExpression=f"SET {', '.join(set_parts)} ADD input_cost :inputCost, input_tokens :inputTokens, output_cost :outputCost, output_tokens :outputTokens, total_cost :totalCost",
         ExpressionAttributeValues=expr_values,
+    )
+
+
+def set_session_llm_instruction_hash(dynamodb_resource, table_name: str, user_id: str,
+                                     session_id: str, prompt_hash: str) -> None:
+    """Record which system-prompt version this session has in S3.
+
+    Lets later turns skip re-uploading the prompt object (trace dedupe).
+    Concurrent turns racing here are benign — same content, idempotent key.
+    """
+    table = dynamodb_resource.Table(table_name)
+    table.update_item(
+        Key={'user_id': user_id, 'session_id': session_id},
+        UpdateExpression='SET llm_instruction_hash = :h',
+        ExpressionAttributeValues={':h': prompt_hash},
     )
 
 

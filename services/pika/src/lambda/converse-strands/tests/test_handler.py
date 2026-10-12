@@ -185,6 +185,41 @@ class TestHandlerDdbWrites:
             assert len(human_msgs) >= 1
             assert len(bot_msgs) >= 1
 
+    def test_assistant_message_retried_without_traces_on_persist_failure(self, valid_event, fake_context):
+        """A first-attempt persist failure (e.g. item too large) must not lose the
+        reply: traces are dropped and the message text is retried."""
+        p1, p2, p3, p4, p5 = _patch_handler()
+        with p1 as mock_ddb, p2 as MockAgent, p3, p4, p5:
+            mock_table = MagicMock()
+            mock_ddb.Table.return_value = mock_table
+            mock_table.get_item.return_value = {
+                'Item': {'user_id': 'test-user-001', 'session_id': 'test-session-001'}
+            }
+
+            mock_agent_instance = MagicMock()
+            mock_agent_instance.return_value = 'Bot response'
+            MockAgent.return_value = mock_agent_instance
+
+            calls = []
+            failed_once = {'done': False}
+
+            def add_message_side_effect(_dynamodb, _table, item):
+                calls.append(item)
+                if item.get('source') == 'assistant' and not failed_once['done']:
+                    failed_once['done'] = True
+                    raise RuntimeError('ValidationException: Item size has exceeded the maximum allowed size')
+
+            with patch('handler.add_message', side_effect=add_message_side_effect):
+                from handler import handler
+                handler(valid_event, fake_context)
+
+            assistant_items = [c for c in calls if c.get('source') == 'assistant']
+            assert len(assistant_items) == 2, 'expected a retry after the first persist failure'
+            retried = assistant_items[-1]
+            assert 'traces' not in retried and 'traces_s3' not in retried
+            assert retried.get('traces_dropped') is True
+            assert retried['message'] == 'Bot response'
+
     def test_message_id_format(self, valid_event, fake_context):
         """message_id must be {sessionId}:{timestamp} for begins_with queries."""
         p1, p2, p3, p4, p5 = _patch_handler()

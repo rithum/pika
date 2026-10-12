@@ -233,3 +233,116 @@ class TestBuildStrandsTools:
 
             assert result['status'] == 'error'
             assert 'timed out' in result['content'][0]['text'].lower() or 'error' in result['content'][0]['text'].lower()
+
+
+
+
+class TestUserLabelForwarding:
+
+    def test_invocation_trace_includes_labels_when_present(self):
+        from agent_loader import _make_tool
+
+        with patch('agent_loader.lambda_client') as mock_lambda:
+            mock_payload = MagicMock()
+            mock_payload.read.return_value = json.dumps({
+                'response': {
+                    'functionResponse': {
+                        'responseState': 'SUCCESS',
+                        'responseBody': {'TEXT': {'body': 'ok'}},
+                    }
+                }
+            }).encode()
+            mock_lambda.invoke.return_value = {'Payload': mock_payload}
+            trace_callback = MagicMock()
+
+            tool = _make_tool(
+                tool_id='oa_elasticsearch', lambda_arn='arn:test',
+                func_name='action', func_desc='Search',
+                params=[{'name': 'query', 'type': 'string', 'description': 'q', 'required': True}],
+                session_id='sess-1', input_text='msg',
+                trace_callback=trace_callback,
+                user_label='Looking up your item',
+                user_label_done='Looked up your item',
+            )
+
+            tool._tool_func({'toolUseId': 'use-1', 'input': {'query': 'q'}})
+
+            invocation_call = trace_callback.call_args_list[0]
+            invocation_input = invocation_call.kwargs['invocation_input']
+            assert invocation_input['function'] == 'action'
+            assert invocation_input['userLabel'] == 'Looking up your item'
+            assert invocation_input['userLabelDone'] == 'Looked up your item'
+
+    def test_invocation_trace_omits_labels_when_absent(self):
+        from agent_loader import _make_tool
+
+        with patch('agent_loader.lambda_client') as mock_lambda:
+            mock_payload = MagicMock()
+            mock_payload.read.return_value = json.dumps({
+                'response': {
+                    'functionResponse': {
+                        'responseState': 'SUCCESS',
+                        'responseBody': {'TEXT': {'body': 'ok'}},
+                    }
+                }
+            }).encode()
+            mock_lambda.invoke.return_value = {'Payload': mock_payload}
+            trace_callback = MagicMock()
+
+            tool = _make_tool(
+                tool_id='oa_elasticsearch', lambda_arn='arn:test',
+                func_name='action', func_desc='Search',
+                params=[{'name': 'query', 'type': 'string', 'description': 'q', 'required': True}],
+                session_id='sess-1', input_text='msg',
+                trace_callback=trace_callback,
+            )
+
+            tool._tool_func({'toolUseId': 'use-1', 'input': {'query': 'q'}})
+
+            invocation_call = trace_callback.call_args_list[0]
+            invocation_input = invocation_call.kwargs['invocation_input']
+            assert invocation_input['function'] == 'action'
+            assert 'userLabel' not in invocation_input
+            assert 'userLabelDone' not in invocation_input
+
+    def test_build_lambda_tool_forwards_labels_from_function_schema(self):
+        from agent_loader import build_strands_tools
+
+        tool_def = {
+            'tool_id': 'oa_elasticsearch',
+            'name': 'oa_elasticsearch',
+            'description': 'Access to elasticsearch',
+            'execution_type': 'lambda',
+            'lambda_arn': 'arn:test',
+            'function_schema': [
+                {
+                    'name': 'action',
+                    'description': 'Search for data',
+                    'parameters': [],
+                    'userLabel': 'Looking up your item',
+                    'userLabelDone': 'Looked up your item',
+                }
+            ],
+        }
+        trace_callback = MagicMock()
+
+        with patch('agent_loader.lambda_client') as mock_lambda:
+            mock_payload = MagicMock()
+            mock_payload.read.return_value = json.dumps({
+                'response': {
+                    'functionResponse': {
+                        'responseState': 'SUCCESS',
+                        'responseBody': {'TEXT': {'body': 'ok'}},
+                    }
+                }
+            }).encode()
+            mock_lambda.invoke.return_value = {'Payload': mock_payload}
+
+            tools = build_strands_tools(
+                [tool_def], 'sess-1', 'hello', trace_callback=trace_callback,
+            )
+            tools[0]._tool_func({'toolUseId': 'use-1', 'input': {}})
+
+        invocation_input = trace_callback.call_args_list[0].kwargs['invocation_input']
+        assert invocation_input['userLabel'] == 'Looking up your item'
+        assert invocation_input['userLabelDone'] == 'Looked up your item'

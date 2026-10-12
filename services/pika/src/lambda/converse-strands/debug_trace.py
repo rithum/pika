@@ -78,6 +78,31 @@ def build_full_instruction(system_prompt: str = '', tags_instructions: str = '',
     return '\n\n'.join(parts)
 
 
+def build_llm_instruction_trace_deduped(delta: str, prompt_hash: str,
+                                        trace_id: str = 'llm-instruction') -> dict:
+    """Build the persisted llm-instruction trace: the per-turn delta plus a systemPromptRef.
+
+    Readers reconstitute the full form (lib/trace-store.ts); compact separators keep the
+    `"type":"llm-instruction"` literal that downstream filters look for.
+    """
+    compressed = gzip_base64_encode(delta or '')
+    return {
+        'orchestrationTrace': {
+            'rationale': {
+                'traceId': trace_id,
+                'text': json.dumps(
+                    {
+                        'type': 'llm-instruction',
+                        'systemPromptRef': f'system-prompt-{prompt_hash}',
+                        'compressedData': compressed,
+                    },
+                    separators=(',', ':'),
+                ),
+            }
+        }
+    }
+
+
 def build_llm_instruction_trace(instruction: str, trace_id: str = 'llm-instruction') -> dict:
     """Build the orchestrationTrace envelope for the llm-instruction trace.
 

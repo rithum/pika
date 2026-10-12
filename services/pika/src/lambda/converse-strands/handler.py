@@ -27,7 +27,11 @@ try:
     from strands_tools.agent_core_memory import AgentCoreMemoryToolProvider
 except ImportError:
     AgentCoreMemoryToolProvider = None
-from chat_ddb import ensure_session, update_session, add_message, get_user, get_messages, _now_iso, session_token
+from chat_ddb import (ensure_session, update_session, add_message, get_user, get_messages,
+                      set_session_llm_instruction_hash, session_token, _now_iso)
+from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt_object,
+                         inline_trace_budget)
+from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
 from agent_loader import load_agent, load_tools, build_strands_tools
 
 # Configure the root logger with a StreamHandler so output appears in CloudWatch.
@@ -62,7 +66,15 @@ HEARTBEAT_INTERVAL_SECONDS = 15
 # Initialized lazily on first handler() call so pytest collection doesn't
 # grab a real DynamoDB resource before test mocks are active.
 dynamodb = None
+s3_client = None
 bedrock_runtime = None
+
+
+def _get_s3_client():
+    global s3_client
+    if s3_client is None:
+        s3_client = boto3.client('s3')
+    return s3_client
 
 # JWT secret — fetched from SSM on cold start and cached for warm invocations
 jwt_secret: str | None = None
@@ -142,10 +154,12 @@ class _StreamWriter:
     All callers (app.py, local_invoke.py, tests) consume from the queue.
     """
 
-    def __init__(self, chunk_queue: queue.Queue):
+    def __init__(self, chunk_queue: queue.Queue, *,
+                 trace_content_permitted: bool = False):
         self._queue = chunk_queue
         self._session_id: str | None = None
         self._traces: list[dict] = []
+        self._trace_content_permitted = trace_content_permitted
 
     def set_headers(self, session_id: str) -> None:
         """Record the session ID and push it to the queue.
@@ -165,13 +179,32 @@ class _StreamWriter:
         """All traces emitted during this request — saved on the assistant message."""
         return self._traces
 
+    def set_trace_content_permitted(self, permitted: bool) -> None:
+        """Record whether traces may carry their content to this caller.
+
+        Set once per request, after the user and the request features are known. Until
+        then the writer withholds, so a trace emitted on an early error path cannot leak.
+        """
+        self._trace_content_permitted = permitted
+
     def write(self, data: str) -> None:
         self._queue.put(data if isinstance(data, str) else data.decode('utf-8'))
 
-    def write_trace(self, trace_payload: dict) -> None:
-        """Stream a trace AND collect it for persistence on the assistant message."""
-        self._traces.append(trace_payload)
-        self._queue.put(f'<trace>{json.dumps(trace_payload)}</trace>')
+    def write_trace(self, trace_payload: dict, persist_payload: dict | None = None) -> None:
+        """Stream a trace and collect it for persistence on the assistant message.
+
+        persist_payload, when given, is what gets collected (the deduped llm-instruction form).
+        A caller that may not receive content gets a content-free frame; the collected copy stays complete.
+        """
+        self._traces.append(persist_payload if persist_payload is not None else trace_payload)
+        if self._trace_content_permitted:
+            self._queue.put(f'<trace>{json.dumps(trace_payload)}</trace>')
+            return
+        step_frame = build_step_frame(trace_payload)
+        if step_frame is None:
+            self._queue.put(ACTIVITY_TRACE_ELEMENT)
+        else:
+            self._queue.put(f"<trace>{json.dumps(step_frame, separators=(',', ':'))}</trace>")
 
     def write_tool_result_trace(self, tool_name: str, result_text: str | None,
                                 invocation_input: dict | None = None) -> None:
@@ -200,6 +233,7 @@ class _StreamWriter:
                     'observation': {
                         'actionGroupInvocationOutput': {
                             'text': result_text,
+                            'function': tool_name,
                         },
                         'type': 'ACTION_GROUP',
                     }
@@ -955,7 +989,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             session_id = str(uuid.uuid7())
         stream.set_headers(session_id)
 
-        user_type = (user_record or {}).get('user_type', 'internal-user')
+        # Not defaulted: a record with no stored type is unknown, not staff. The session
+        # write below omits the attribute rather than inventing one, because analytics
+        # filters on it and a guess there reads as fact.
+        user_type = (user_record or {}).get('user_type')
         # Built before ensure_session so the stored session carries the account context its readers expect.
         user_record_dict = user_record if isinstance(user_record, dict) else {}
         custom_data = user_record_dict.get('custom_data') or {}
@@ -999,9 +1036,9 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         if _timezone:
             session_attributes['timezone'] = str(_timezone)
 
-        ensure_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id, agent_id, chat_app_id,
-                       user_type=user_type,
-                       session_attributes=session_attributes)
+        session_item = ensure_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id, agent_id, chat_app_id,
+                                      user_type=user_type,
+                                      session_attributes=session_attributes)
 
         # Fetch conversation history BEFORE storing the current user message so
         # the LLM only sees prior turns — not the message it's about to receive.
@@ -1025,6 +1062,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         # Runs before any agent work. Short-circuits the request when the
         # user message matches a tag-defined command (direct/dispatch modes).
         request_features = body.get('features') or {}
+
+        # Decided before the agent runs; until then the writer withholds.
+        stream.set_trace_content_permitted(is_trace_content_permitted(request_features))
+
         _ir_resolved_mode = invocation_mode
         try:
             import intent_router as _ir  # noqa: PLC0415
@@ -1325,6 +1366,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             try:
                 from debug_trace import (  # noqa: PLC0415
                     build_full_instruction, build_llm_instruction_trace,
+                    build_llm_instruction_trace_deduped,
                 )
                 # system_prompt already has tag instructions folded in (see above).
                 # agent_message already contains user_instruction + directives + message
@@ -1337,7 +1379,27 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     system_prompt=system_prompt,
                     user_message=agent_message,
                 )
-                stream.write_trace(build_llm_instruction_trace(_llm_inst_supervisor))
+                _llm_inst_full = build_llm_instruction_trace(_llm_inst_supervisor)
+                # Persist a deduped form (system prompt stored once per session in S3); the live
+                # stream keeps the full form. Any failure falls back to persisting the full trace.
+                _llm_inst_persist = None
+                try:
+                    _known_hash = (session_item or {}).get('llm_instruction_hash')
+                    _prompt_hash = ensure_system_prompt_object(
+                        _get_s3_client(), PIKA_S3_BUCKET, user_id, session_id,
+                        system_prompt, _known_hash,
+                    )
+                    if _prompt_hash != _known_hash:
+                        set_session_llm_instruction_hash(
+                            dynamodb, CHAT_SESSION_TABLE, user_id, session_id, _prompt_hash)
+                    _llm_inst_persist = build_llm_instruction_trace_deduped(
+                        delta=build_full_instruction(user_message=agent_message),
+                        prompt_hash=_prompt_hash,
+                    )
+                except Exception:
+                    logger.warning('system prompt dedupe failed; persisting full '
+                                   'llm-instruction trace', exc_info=True)
+                stream.write_trace(_llm_inst_full, persist_payload=_llm_inst_persist)
             except Exception as _dbg_err:
                 logger.warning(f"llm-instruction trace emission failed (non-fatal): {_dbg_err}")
 
@@ -1694,8 +1756,26 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         if verifications:
             assistant_msg['verifications'] = verifications
         if stream.traces:
-            assistant_msg['traces'] = stream.traces
-        # The response has already streamed to the client. A DDB throttle here
+            # Traces live in S3, not on the item: full trace sets routinely ran
+            # 20-340 KB and pushed items past DynamoDB's 400 KB cap, losing the
+            # assistant's reply entirely. On S3 failure, fall back to inline
+            # traces shrunk to a safe budget so the message always persists.
+            try:
+                assistant_msg['traces_s3'] = offload_traces(
+                    _get_s3_client(), PIKA_S3_BUCKET, user_id, session_id,
+                    assistant_message_id, stream.traces,
+                )
+            except Exception:
+                logger.exception(
+                    f"Failed to offload traces to S3; falling back to capped inline "
+                    f"traces user={user_id} session={session_id} msg={assistant_message_id}"
+                )
+                # Budget the inline traces against the space the message text and
+                # metadata already consume — a flat cap plus a large reply can
+                # still exceed the DDB item limit and drop the message entirely.
+                assistant_msg['traces'] = cap_traces_inline(
+                    stream.traces, inline_trace_budget(assistant_msg))
+        # The response has already streamed to the client. A DDB failure here
         # means the user saw the message but it was never persisted. Log the
         # full payload so it can be reconstructed from CloudWatch if needed,
         # and keep going so title generation still fires.
@@ -1706,6 +1786,25 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 f"Failed to persist assistant message "
                 f"user={user_id} session={session_id} msg={assistant_message_id}: {e}"
             )
+            # Last resort: the reply text must survive even if its traces can't.
+            # Traces are debug data — drop them and retry so session history
+            # keeps the assistant's actual answer rather than losing it.
+            dropped = assistant_msg.pop('traces', None) is not None
+            dropped = assistant_msg.pop('traces_s3', None) is not None or dropped
+            if dropped:
+                assistant_msg['traces_dropped'] = True
+                try:
+                    add_message(dynamodb, CHAT_MESSAGES_TABLE, assistant_msg)
+                    logger.warning(
+                        f"Persisted assistant message without traces after a failed "
+                        f"first attempt user={user_id} session={session_id} "
+                        f"msg={assistant_message_id}"
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Assistant reply lost — persist failed even without traces "
+                        f"user={user_id} session={session_id} msg={assistant_message_id}"
+                    )
 
         # Update session — last_message_id, last_update, chat_app_sk, usage counters.
         # This mirrors updateSession() in chat-ddb.ts and is required for the

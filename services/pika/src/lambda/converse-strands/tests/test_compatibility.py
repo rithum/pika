@@ -27,7 +27,8 @@ def _make_sw():
     """
     from handler import _StreamWriter, _STREAM_DONE
     q = queue.Queue()
-    sw = _StreamWriter(q)
+    # Pins the wire format a caller with trace content receives; the writer withholds by default.
+    sw = _StreamWriter(q, trace_content_permitted=True)
 
     def drain():
         parts = []
