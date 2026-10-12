@@ -2,7 +2,7 @@
  * Reader side of the S3 trace offload: hydrates offloaded traces and rebuilds deduped
  * llm-instruction traces, so every reader sees the original wire format.
  */
-import { GetObjectCommand, NoSuchKey, S3 } from '@aws-sdk/client-s3';
+import { GetObjectCommand, NoSuchKey, S3, S3ServiceException } from '@aws-sdk/client-s3';
 import type { Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 import type { ChatMessage } from 'pika-shared/types/chatbot/chatbot-types';
 import { gunzipBase64EncodedString, gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
@@ -32,6 +32,11 @@ async function getGzippedObjectAsString(key: string): Promise<string> {
     return gunzipSync(Buffer.from(bytes)).toString('utf-8');
 }
 
+// Readers hold s3:GetObject without s3:ListBucket, so S3 reports a missing key as 403 AccessDenied.
+function isMissingObjectError(e: unknown): boolean {
+    return e instanceof NoSuchKey || (e instanceof S3ServiceException && (e.name === 'AccessDenied' || e.$metadata?.httpStatusCode === 403));
+}
+
 /** Key prefix shared by a session's trace objects (per-message and system-prompt). */
 export function sessionTracePrefix(userId: string, sessionId: string): string {
     return `traces/${userId}/${sessionId}/`;
@@ -48,7 +53,7 @@ interface LlmInstructionTraceData {
 }
 
 /** Rebuild a deduped llm-instruction trace into the full historical form. */
-async function reconstituteLlmInstruction(trace: Trace, userId: string, sessionId: string, promptCache: Map<string, string>): Promise<Trace> {
+async function reconstituteLlmInstruction(trace: Trace, userId: string, sessionId: string, promptCache: Map<string, Promise<string>>): Promise<Trace> {
     const text = trace.orchestrationTrace?.rationale?.text;
     if (!text || !text.includes('"type":"llm-instruction"')) {
         return trace;
@@ -64,18 +69,18 @@ async function reconstituteLlmInstruction(trace: Trace, userId: string, sessionI
     }
 
     const ref = data.systemPromptRef;
-    let systemPrompt = promptCache.get(ref);
-    if (systemPrompt === undefined) {
-        try {
-            systemPrompt = await getGzippedObjectAsString(systemPromptKey(userId, sessionId, ref));
-        } catch (e) {
+    const promptKey = systemPromptKey(userId, sessionId, ref);
+    let pending = promptCache.get(promptKey);
+    if (!pending) {
+        pending = getGzippedObjectAsString(promptKey).catch((e) => {
             // Prompt object missing (e.g. expired by lifecycle): surface the delta
             // rather than failing the whole trace fetch.
             console.warn(`System prompt object ${ref} unavailable for session ${sessionId}:`, e instanceof Error ? e.message : e);
-            systemPrompt = '';
-        }
-        promptCache.set(ref, systemPrompt);
+            return '';
+        });
+        promptCache.set(promptKey, pending);
     }
+    const systemPrompt = await pending;
 
     let delta = '';
     if (data.compressedData) {
@@ -100,8 +105,14 @@ async function reconstituteLlmInstruction(trace: Trace, userId: string, sessionI
     } as Trace;
 }
 
-/** Return the message's traces, hydrating from S3 when offloaded. */
-export async function getTracesForMessage(message: Pick<ChatMessage, 'traces' | 'tracesS3' | 'userId' | 'sessionId'>): Promise<Trace[]> {
+/**
+ * Return the message's traces, hydrating from S3 when offloaded. Pass one promptCache
+ * across the messages of a session so its shared system-prompt object is fetched once.
+ */
+export async function getTracesForMessage(
+    message: Pick<ChatMessage, 'traces' | 'tracesS3' | 'userId' | 'sessionId'>,
+    promptCache: Map<string, Promise<string>> = new Map()
+): Promise<Trace[]> {
     let rawTraces: Trace[];
     if (message.traces && message.traces.length > 0) {
         rawTraces = message.traces;
@@ -109,8 +120,8 @@ export async function getTracesForMessage(message: Pick<ChatMessage, 'traces' | 
         try {
             rawTraces = JSON.parse(await getGzippedObjectAsString(message.tracesS3.s3Key));
         } catch (e) {
-            if (e instanceof NoSuchKey) {
-                console.warn(`Trace object ${message.tracesS3.s3Key} no longer exists`);
+            if (isMissingObjectError(e)) {
+                console.warn(`Trace object ${message.tracesS3.s3Key} no longer exists or is not readable`);
                 return [];
             }
             throw e;
@@ -119,7 +130,6 @@ export async function getTracesForMessage(message: Pick<ChatMessage, 'traces' | 
         return [];
     }
 
-    const promptCache = new Map<string, string>();
     const hydrated: Trace[] = [];
     for (const trace of rawTraces) {
         hydrated.push(await reconstituteLlmInstruction(trace, message.userId, message.sessionId, promptCache));

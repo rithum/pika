@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pika-chat can no longer read or write `traces/` objects directly** — the download, s3-file-content and file-upload routes reject keys under `traces/` with 403, and the pika-chat role has an explicit IAM Deny on `traces/*`. Traces are read only through the chatbot API. [#171]
 - **Admin message views hydrate offloaded traces** (`includeTraces`) in parallel, up to about 5 MB per response. Messages past that limit stay lazily loadable. [#171]
 - **Trace content is indexed into OpenSearch** — message-changed hydrates offloaded traces before indexing a new message, and deletes the S3 object when the message expires or is deleted. The session-insights analyzer also reads offloaded traces. Expect OpenSearch storage to grow. [#171]
-- **Sessions and messages record `userType` only when it is known** — the Strands and TypeScript paths no longer default an unknown user to `external-user` or `internal-user`. Session-insights views filtered by user type leave out records with no type. [#171]
+- **Sessions and messages record `userType` only when it is known** — the Strands and TypeScript paths no longer default an unknown user to `external-user` or `internal-user`. Session-insights views and OpenSearch `user_type` filters leave out records with no type. Records written before 0.31.0 keep the type they were given. [#171]
+- **The OpenSearch message backfill tool hydrates offloaded traces** — set `PIKA_S3_BUCKET` when running `tools/backfill-messages-to-opensearch` so messages with a `tracesS3` pointer are indexed with their `llm_instructions`. Without it, those messages are indexed without them. [#171]
 - **Adding the `traces/` lifecycle rule replaces the bucket's lifecycle configuration**, so rules added to the pika bucket outside CDK are removed on deploy. Keep the 400-day expiry longer than your message retention. [#171]
 
 ## [0.30.0] - 2026-10-08

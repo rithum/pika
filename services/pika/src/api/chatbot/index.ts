@@ -596,7 +596,8 @@ async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequest
 
     const messages = await getChatMessages(userId, sessionId);
 
-    await applyOffloadedTraces(messages, event.queryStringParameters?.includeTraces === 'true', getTracesForMessage);
+    const promptCache = new Map<string, Promise<string>>();
+    await applyOffloadedTraces(messages, event.queryStringParameters?.includeTraces === 'true', (m) => getTracesForMessage(m, promptCache));
 
     // TODO: Only return internal trace details if the user is an internal user.
     // if (user.userType != 'internal-user') {

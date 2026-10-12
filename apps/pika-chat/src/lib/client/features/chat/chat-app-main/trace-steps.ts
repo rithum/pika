@@ -35,30 +35,31 @@ export function isActivityTrace(trace: unknown): boolean {
 export function buildStepItems(traces: readonly unknown[] | undefined): StepItem[] {
     const items: StepItem[] = [];
     const labels: { label?: string; labelDone?: string }[] = [];
-    const openIndexById = new Map<string, number>();
+    // The id is per tool, not per call: parallel calls to one tool share it, so a done closes the oldest open start.
+    const openIndicesById = new Map<string, number[]>();
 
     for (const trace of traces ?? []) {
         const step = stepOf(trace);
         if (!step) continue;
-        const open = openIndexById.get(step.id);
+        const open = openIndicesById.get(step.id);
 
         if (step.event === 'start') {
-            const label = nonEmptyString(step.label);
-            const labelDone = nonEmptyString(step.labelDone);
-            if (open === undefined) {
-                openIndexById.set(step.id, items.length);
-                items.push({ id: step.id, text: '', done: false });
-                labels.push({ label, labelDone });
+            if (open) {
+                open.push(items.length);
             } else {
-                labels[open].label ??= label;
-                labels[open].labelDone ??= labelDone;
+                openIndicesById.set(step.id, [items.length]);
             }
-        } else if (open === undefined) {
-            items.push({ id: step.id, text: '', done: true });
-            labels.push({});
+            items.push({ id: step.id, text: '', done: false });
+            labels.push({ label: nonEmptyString(step.label), labelDone: nonEmptyString(step.labelDone) });
         } else {
-            items[open].done = true;
-            openIndexById.delete(step.id);
+            const oldest = open?.shift();
+            if (oldest === undefined) {
+                items.push({ id: step.id, text: '', done: true });
+                labels.push({});
+            } else {
+                items[oldest].done = true;
+                if (open!.length === 0) openIndicesById.delete(step.id);
+            }
         }
     }
 

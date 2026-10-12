@@ -1,4 +1,4 @@
-import { NoSuchKey, S3 } from '@aws-sdk/client-s3';
+import { NoSuchKey, S3, S3ServiceException } from '@aws-sdk/client-s3';
 import { jest } from '@jest/globals';
 import { gzipSync } from 'zlib';
 import { gunzipBase64EncodedString, gzipAndBase64EncodeString } from 'pika-shared/util/server-utils';
@@ -142,6 +142,44 @@ describe('getTracesForMessage', () => {
         sendSpy.mockRejectedValueOnce(new NoSuchKey({ message: 'gone', $metadata: {} }) as never);
 
         expect(await getTracesForMessage(baseMessage())).toEqual([]);
+    });
+
+    it('returns [] when a missing trace object surfaces as 403 AccessDenied (no s3:ListBucket)', async () => {
+        sendSpy.mockRejectedValueOnce(new S3ServiceException({ name: 'AccessDenied', $fault: 'client', message: 'Access Denied', $metadata: { httpStatusCode: 403 } }) as never);
+
+        expect(await getTracesForMessage(baseMessage())).toEqual([]);
+    });
+
+    it('rethrows other S3 errors', async () => {
+        sendSpy.mockRejectedValueOnce(new S3ServiceException({ name: 'SlowDown', $fault: 'server', message: 'slow down', $metadata: { httpStatusCode: 503 } }) as never);
+
+        await expect(getTracesForMessage(baseMessage())).rejects.toThrow('slow down');
+    });
+
+    it('shares one system-prompt fetch across concurrent messages given the same cache', async () => {
+        const stored = JSON.stringify([
+            {
+                orchestrationTrace: {
+                    rationale: {
+                        traceId: 'llm-instruction',
+                        text: JSON.stringify({ type: 'llm-instruction', systemPromptRef: 'system-prompt-abcd1234' })
+                    }
+                }
+            }
+        ]);
+        sendSpy.mockImplementation((async (cmd: any) => s3Response(cmd.input.Key.endsWith('.txt.gz') ? 'PROMPT' : stored)) as never);
+
+        const cache = new Map<string, Promise<string>>();
+        const results = await Promise.all(
+            [1, 2, 3].map((n) => getTracesForMessage(baseMessage({ tracesS3: { s3Key: `traces/u1/s1/s1:${n}.json.gz`, traceCount: 1, compressedSize: 1 } }), cache))
+        );
+
+        const promptFetches = sendSpy.mock.calls.filter((c) => (c[0] as any).input.Key.endsWith('.txt.gz'));
+        expect(promptFetches).toHaveLength(1);
+        for (const traces of results) {
+            const data = JSON.parse((traces[0] as any).orchestrationTrace.rationale.text);
+            expect(gunzipBase64EncodedString(data.compressedData)).toBe('PROMPT');
+        }
     });
 
     it('degrades to the delta when the system prompt object is missing', async () => {

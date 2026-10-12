@@ -49,7 +49,12 @@ def build_step_frame(trace_payload: object) -> dict | None:
         return None
     existing = trace_payload.get('step')
     if isinstance(existing, dict) and existing.get('event') in ('start', 'done') and isinstance(existing.get('id'), str):
-        return {'step': dict(existing)}
+        frame = {'event': existing['event'], 'id': existing['id']}
+        for key in ('label', 'labelDone'):
+            value = existing.get(key)
+            if isinstance(value, str) and value:
+                frame[key] = value
+        return {'step': frame}
     orchestration = trace_payload.get('orchestrationTrace')
     if not isinstance(orchestration, dict):
         return None

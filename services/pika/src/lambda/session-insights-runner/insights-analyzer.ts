@@ -190,10 +190,11 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
         console.log(`[INSIGHTS-ANALYZER] Retrieved ${messages.length} messages for session ${sessionKey}`);
 
         // Hydrate offloaded traces so the "thinking" extraction below keeps working.
+        const promptCache = new Map<string, Promise<string>>();
         for (const m of messages) {
             if (m.tracesS3 && !m.traces?.length) {
                 try {
-                    m.traces = await getTracesForMessage(m);
+                    m.traces = await getTracesForMessage(m, promptCache);
                 } catch (error) {
                     console.warn(`[INSIGHTS-ANALYZER] Failed to hydrate traces for ${m.messageId}: ${error}`);
                 }

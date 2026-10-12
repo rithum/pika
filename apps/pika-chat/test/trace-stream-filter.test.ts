@@ -109,6 +109,32 @@ describe('createTraceRedactionStream', () => {
         expect(out).not.toContain('secret');
     });
 
+    it('does not end a frame at a close tag inside a JSON string value', async () => {
+        const payload = {
+            orchestrationTrace: { observation: { actionGroupInvocationOutput: { function: 'get_weather', text: 'x</trace>LEAKED tool output' } } }
+        };
+        const raw = frame(payload);
+        const out = await run([`a${raw}b`]);
+        expect(out).toBe(`a<trace>{"step":{"event":"done","id":"${GET_WEATHER_HANDLE}"}}</trace>b`);
+        expect(out).not.toContain('LEAKED');
+
+        const cut = raw.indexOf('</trace>') + 3;
+        expect(await run([raw.slice(0, cut), raw.slice(cut, cut + 10), raw.slice(cut + 10)])).toBe(
+            `<trace>{"step":{"event":"done","id":"${GET_WEATHER_HANDLE}"}}</trace>`
+        );
+    });
+
+    it('never emits text after an unparseable frame, ending it as one activity frame at end of stream', async () => {
+        const out = await run(['before <trace>{"rationale":"x</trace>LEAKED', ' more</trace>LEAKED2']);
+        expect(out).toBe(`before ${ACTIVITY}`);
+    });
+
+    it('escapes "<" in emitted labels so a label cannot close the frame early', async () => {
+        const out = await run([frame({ step: { event: 'start', id: 'abc', label: 'a</trace>b' } })]);
+        expect(out).toBe('<trace>{"step":{"event":"start","id":"abc","label":"a\\u003c/trace>b"}}</trace>');
+        expect(JSON.parse(out.slice('<trace>'.length, -'</trace>'.length)).step.label).toBe('a</trace>b');
+    });
+
     it('emits a held "<tr" that turns out to be text, on the next chunk and at flush', async () => {
         expect(await run(['a <tr', 'ee> b'])).toBe('a <tree> b');
         expect(await run(['a <tr'])).toBe('a <tr');

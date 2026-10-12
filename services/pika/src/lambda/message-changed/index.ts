@@ -43,6 +43,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         throw new Error('STAGING_TABLE_NAME is not set');
     }
 
+    const promptCache = new Map<string, Promise<string>>();
     for (const record of event.Records) {
         console.log(`Event ID: ${record.eventID}`);
         console.log(`Event Name: ${record.eventName}`); // INSERT, MODIFY, REMOVE
@@ -62,18 +63,21 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                     if (newItem.source === 'assistant' && !shouldSkipReplication(newItem.invocationMode)) {
                         try {
                             const rawTracesS3 = (newItemSnakeCase as any).traces_s3;
-                            newItem.traces = await getTracesForMessage({
-                                traces: (newItemSnakeCase as any).traces,
-                                tracesS3: rawTracesS3?.s3_key
-                                    ? {
-                                          s3Key: rawTracesS3.s3_key,
-                                          traceCount: rawTracesS3.trace_count ?? 0,
-                                          compressedSize: rawTracesS3.compressed_size ?? 0
-                                      }
-                                    : undefined,
-                                userId: newItem.userId,
-                                sessionId: newItem.sessionId
-                            });
+                            newItem.traces = await getTracesForMessage(
+                                {
+                                    traces: (newItemSnakeCase as any).traces,
+                                    tracesS3: rawTracesS3?.s3_key
+                                        ? {
+                                              s3Key: rawTracesS3.s3_key,
+                                              traceCount: rawTracesS3.trace_count ?? 0,
+                                              compressedSize: rawTracesS3.compressed_size ?? 0
+                                          }
+                                        : undefined,
+                                    userId: newItem.userId,
+                                    sessionId: newItem.sessionId
+                                },
+                                promptCache
+                            );
                         } catch (error) {
                             console.warn(
                                 `Failed to hydrate traces for message ${newItem.messageId}; indexing without traces/llm_instructions:`,

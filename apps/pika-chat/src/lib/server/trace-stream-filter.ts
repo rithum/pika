@@ -68,14 +68,17 @@ export function redactTrace(payload: unknown): JsonObject {
     return buildStepFrame(payload) ?? ACTIVITY_TRACE_PAYLOAD;
 }
 
-function redactFrame(inner: string): string {
-    let payload: unknown;
+function parseFrame(inner: string): { ok: true; payload: unknown } | { ok: false } {
     try {
-        payload = JSON.parse(inner);
+        return { ok: true, payload: JSON.parse(inner) };
     } catch {
-        payload = undefined;
+        return { ok: false };
     }
-    return `${TRACE_OPEN}${JSON.stringify(redactTrace(payload))}${TRACE_CLOSE}`;
+}
+
+// Escaping '<' keeps a label containing a literal close tag from ending the frame early in the client parser.
+function encodeFrame(payload: unknown): string {
+    return `${TRACE_OPEN}${JSON.stringify(redactTrace(payload)).replace(/</g, '\\u003c')}${TRACE_CLOSE}`;
 }
 
 function heldPrefixLength(buf: string): number {
@@ -91,31 +94,66 @@ export function createTraceRedactionStream(): TransformStream<Uint8Array, Uint8A
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     let buf = '';
+    // Offset in buf (an open frame starts at 0) from which to look for the next close-tag candidate.
+    let closeSearchFrom = 0;
+    let sawUnparseableClose = false;
 
+    // A frame ends at the first close tag whose inner text parses as JSON: valid JSON cannot hold a
+    // literal close tag outside a string, so earlier candidates sit inside a string value. Text after
+    // an open tag is never emitted raw: at end of stream an unparseable frame becomes one activity
+    // frame and an unterminated one is dropped.
     function drain(final: boolean): string {
         let out = '';
         for (;;) {
-            const i = buf.indexOf(TRACE_OPEN);
-            if (i === -1) {
+            if (closeSearchFrom === 0) {
+                const i = buf.indexOf(TRACE_OPEN);
+                if (i === -1) {
+                    if (final) {
+                        out += buf;
+                        buf = '';
+                    } else {
+                        const held = heldPrefixLength(buf);
+                        out += buf.slice(0, buf.length - held);
+                        buf = buf.slice(buf.length - held);
+                    }
+                    return out;
+                }
+                out += buf.slice(0, i);
+                buf = buf.slice(i);
+                closeSearchFrom = TRACE_OPEN.length;
+            }
+
+            let closed = false;
+            for (;;) {
+                const j = buf.indexOf(TRACE_CLOSE, closeSearchFrom);
+                if (j === -1) {
+                    closeSearchFrom = Math.max(TRACE_OPEN.length, buf.length - (TRACE_CLOSE.length - 1));
+                    break;
+                }
+                const parsed = parseFrame(buf.slice(TRACE_OPEN.length, j));
+                if (parsed.ok) {
+                    out += encodeFrame(parsed.payload);
+                    buf = buf.slice(j + TRACE_CLOSE.length);
+                    closeSearchFrom = 0;
+                    sawUnparseableClose = false;
+                    closed = true;
+                    break;
+                }
+                closeSearchFrom = j + TRACE_CLOSE.length;
+                sawUnparseableClose = true;
+            }
+
+            if (!closed) {
                 if (final) {
-                    out += buf;
+                    if (sawUnparseableClose) {
+                        out += encodeFrame(undefined);
+                    }
                     buf = '';
-                } else {
-                    const held = heldPrefixLength(buf);
-                    out += buf.slice(0, buf.length - held);
-                    buf = buf.slice(buf.length - held);
+                    closeSearchFrom = 0;
+                    sawUnparseableClose = false;
                 }
                 return out;
             }
-            out += buf.slice(0, i);
-            // The first closing tag ends the frame, matching the client parser.
-            const j = buf.indexOf(TRACE_CLOSE, i + TRACE_OPEN.length);
-            if (j === -1) {
-                buf = final ? '' : buf.slice(i);
-                return out;
-            }
-            out += redactFrame(buf.slice(i + TRACE_OPEN.length, j));
-            buf = buf.slice(j + TRACE_CLOSE.length);
         }
     }
 

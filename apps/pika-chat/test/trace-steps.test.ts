@@ -32,6 +32,17 @@ describe('buildStepItems', () => {
         expect(items[1]).toEqual({ id: 'a', text: 'Two', done: false });
     });
 
+    it('keeps parallel calls to the same tool as separate items, closing the oldest first', () => {
+        const items = buildStepItems([start('a', { label: 'One' }), start('a', { label: 'Two' }), done('a')]);
+        expect(items).toEqual([
+            { id: 'a', text: 'One', done: true },
+            { id: 'a', text: 'Two', done: false }
+        ]);
+        const both = buildStepItems([start('a'), start('a'), done('a'), done('a')]);
+        expect(both).toHaveLength(2);
+        expect(both.every((item) => item.done)).toBe(true);
+    });
+
     it('ignores orchestration and activity entries', () => {
         const orchestration = { orchestrationTrace: { invocationInput: { traceId: 'x' } } };
         expect(buildStepItems([orchestration, activity])).toEqual([]);

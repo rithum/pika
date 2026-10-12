@@ -331,6 +331,15 @@ class TestStepFrames:
         for frame in (redact_trace(LABELED_TOOL_INPUT_TRACE), redact_trace(NAMED_TOOL_OUTPUT_TRACE)):
             assert redact_trace(frame) == frame
 
+    def test_existing_step_frame_keeps_only_event_id_and_labels(self):
+        frame = {'step': {'event': 'start', 'id': 'abc', 'label': 'L', 'labelDone': 'D',
+                          'tool': 'get_weather', 'parameters': {'city': 'Paris'}}}
+        assert redact_trace(frame) == {'step': {'event': 'start', 'id': 'abc', 'label': 'L', 'labelDone': 'D'}}
+
+    def test_existing_step_frame_omits_empty_or_non_string_labels(self):
+        frame = {'step': {'event': 'done', 'id': 'abc', 'label': '', 'labelDone': 5}}
+        assert redact_trace(frame) == {'step': {'event': 'done', 'id': 'abc'}}
+
     def test_step_frames_carry_no_trace_id(self):
         """The client dedupes on traceId; every step frame must stay its own segment."""
         for frame in (redact_trace(LABELED_TOOL_INPUT_TRACE), redact_trace(NAMED_TOOL_OUTPUT_TRACE)):
