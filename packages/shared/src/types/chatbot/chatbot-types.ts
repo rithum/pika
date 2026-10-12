@@ -60,7 +60,7 @@ export interface ChatSession<T extends RecordOrUndef = undefined> {
     userId: string;
     /**
      * The type of user who created this session.  Used for filtering sessions by internal vs external users
-     * in session insights. Defaults to 'external-user' if not provided.
+     * in session insights. Absent when the user's type is unknown.
      */
     userType?: UserType;
     /** Identifier for the specific agent instance */
@@ -578,6 +578,12 @@ export type ChatSessionForCreate<T extends RecordOrUndef = undefined> = Omit<Cha
 export const MessageSource = ['user', 'assistant'] as const;
 export type MessageSource = (typeof MessageSource)[number];
 
+export interface TracesS3Pointer {
+    s3Key: string;
+    traceCount: number;
+    compressedSize: number;
+}
+
 /**
  * Represents a message in a chat session, containing metadata about the message
  * and its usage statistics.
@@ -599,8 +605,12 @@ export interface ChatMessage {
     timestamp: string;
     /** Usage statistics for this message */
     usage?: ChatMessageUsage;
-    /** Array of AWS Bedrock traces containing detailed information about the model's execution */
+    /** Array of AWS Bedrock traces. Inline only for legacy messages and the capped fallback when the S3 upload fails; otherwise see tracesS3. */
     traces?: Trace[];
+    /** Offloaded traces in the bucket named by the reader's PIKA_S3_BUCKET. Mutually exclusive with inline traces. */
+    tracesS3?: TracesS3Pointer;
+    /** Not stored. Set by the messages API in place of tracesS3 so the client never sees the raw pointer. */
+    hasOffloadedTraces?: boolean;
     /** Duration of the message in milliseconds */
     executionDuration?: number;
     /** Additional data to be stored in the message.  Currently used to store any errors that may have occurred during agent invocation*/
@@ -627,7 +637,7 @@ export interface ChatMessage {
     /** The invocation mode, denormalized from the session for filtering and aggregation. Populated in DynamoDB at message creation time. Defaults to 'chat-app' if not provided. */
     invocationMode?: ConverseInvocationMode;
 
-    /** The user type, denormalized from the session for filtering by internal vs external users. Populated in DynamoDB at message creation time. Defaults to 'internal-user' if not provided. */
+    /** The user type, denormalized from the session for filtering by internal vs external users. Populated in DynamoDB at message creation time. */
     userType?: UserType;
 }
 
@@ -1234,7 +1244,10 @@ export type ChatAppOverridableFeaturesForConverseFn = Omit<
     | 'assistantPrivacyNotice'
     | 'uiCustomization'
     | 'fileUpload'
->;
+> & {
+    /** pika-chat's server-side trace-content decision; converse-strands withholds trace content when false. */
+    traces?: { enabled: boolean };
+};
 
 /**
  * By default, content rules exclude anything not explicitly included.
@@ -1602,6 +1615,12 @@ export interface ChatMessageResponse {
 export interface ChatMessagesResponse {
     success: boolean;
     messages: ChatMessage[];
+    error?: string;
+}
+
+export interface ChatMessageTracesResponse {
+    success: boolean;
+    traces: Trace[];
     error?: string;
 }
 

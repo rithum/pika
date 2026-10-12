@@ -306,7 +306,7 @@ export const handler = enhancedStreamifyResponse(
                         // TODO: Should we be throwing an exception if the user doesn't really exist? I think so
                     }
                 }
-                userType = cachedUser?.userType ?? 'external-user'; // Default to external-user if not found
+                userType = cachedUser?.userType;
                 console.log('UserType lookup:', {
                     userId: simpleUser.userId,
                     userType,

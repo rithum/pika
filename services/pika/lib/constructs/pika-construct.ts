@@ -183,6 +183,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatAppTable,
             storageResources.tagDefinitionsTable,
             bedrockChatRole,
+            storageResources.pikaS3Bucket,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain,
             storageResources.sharedSessionVisitHistoryTable,
@@ -197,6 +198,7 @@ export class PikaConstruct extends Construct {
             storageResources.chatUserTable,
             storageResources.chatAppTable,
             storageResources.tagDefinitionsTable,
+            storageResources.pikaS3Bucket,
             storageResources.chatSessionFeedbackTable,
             openSearchDomain,
             memoryId,
@@ -448,7 +450,18 @@ export class PikaConstruct extends Construct {
         const bucket = new s3.Bucket(this, 'PikaS3Bucket', {
             bucketName: `pika-files-${this.props.stackName}`,
             removalPolicy: cdk.RemovalPolicy.RETAIN,
-            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL
+            blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+            lifecycleRules: [
+                {
+                    // Offloaded assistant-message traces (converse-strands). Per-message
+                    // objects are deleted by message-changed when their message is removed;
+                    // this rule reaps session-level system-prompt objects and any orphans.
+                    id: 'ExpireOffloadedTraces',
+                    enabled: true,
+                    prefix: 'traces/',
+                    expiration: cdk.Duration.days(400)
+                }
+            ]
             //TODO: come back to this for cleanup
             // lifecycleRules: [
             //     {
@@ -1513,6 +1526,7 @@ export class PikaConstruct extends Construct {
         chatAppTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
         bedrockChatRole: iam.Role,
+        pikaS3Bucket: s3.Bucket,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain,
         sharedSessionVisitHistoryTable?: dynamodb.Table,
@@ -1606,6 +1620,14 @@ export class PikaConstruct extends Construct {
                             effect: iam.Effect.ALLOW,
                             actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan', 'dynamodb:BatchGetItem'],
                             resources: [tagDefinitionsTable.tableArn, `${tagDefinitionsTable.tableArn}/*`]
+                        }),
+                        // Read offloaded message traces from S3. The chatbot API hydrates
+                        // traces/* objects for the lazy traces route and the admin
+                        // includeTraces view; the write side lives on the converse role.
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['s3:GetObject'],
+                            resources: [`${pikaS3Bucket.bucketArn}/traces/*`]
                         }),
                         // Memory permissions
                         new iam.PolicyStatement({
@@ -1796,6 +1818,7 @@ export class PikaConstruct extends Construct {
         chatUserTable: dynamodb.Table,
         chatAppTable: dynamodb.Table,
         tagDefinitionsTable: dynamodb.Table,
+        pikaS3Bucket: s3.Bucket,
         chatSessionFeedbackTable?: dynamodb.Table,
         openSearchDomain?: opensearch.Domain,
         memoryId?: string,
@@ -1815,6 +1838,8 @@ export class PikaConstruct extends Construct {
                 CHAT_USER_TABLE: chatUserTable.tableName,
                 CHAT_APP_TABLE: chatAppTable.tableName,
                 TAG_DEFINITIONS_TABLE: tagDefinitionsTable.tableName,
+                // Needed to hydrate offloaded message traces from the traces/ prefix
+                PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
                 STAGE: this.props.stage,
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: this.props.projNameKebabCase,
                 ...(chatSessionFeedbackTable ? { CHAT_SESSION_FEEDBACK_TABLE: chatSessionFeedbackTable.tableName } : {}),
@@ -2897,6 +2922,12 @@ export class PikaConstruct extends Construct {
                             effect: iam.Effect.ALLOW,
                             actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
                             resources: [`${pikaS3Bucket.bucketArn}/session-insights/*`]
+                        }),
+                        // Read offloaded message traces for "thinking" extraction
+                        new iam.PolicyStatement({
+                            effect: iam.Effect.ALLOW,
+                            actions: ['s3:GetObject'],
+                            resources: [`${pikaS3Bucket.bucketArn}/traces/*`]
                         }),
                         // DynamoDB permissions for mutex table
                         new iam.PolicyStatement({

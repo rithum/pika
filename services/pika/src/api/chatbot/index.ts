@@ -5,6 +5,7 @@ import {
     ChatMessageForCreate,
     ChatMessageResponse,
     ChatMessagesResponse,
+    ChatMessageTracesResponse,
     ChatSession,
     ChatSessionsResponse,
     ChatTitleUpdateRequest,
@@ -76,10 +77,21 @@ import {
     updateSessionTitle,
     validateUserCanAccessShare
 } from '../../lib/chat-apis';
-import { addUser, deleteWidgetDataForUser, getWidgetDataByUserId, getChatSessionByShareId, getUserByUserId, setWidgetDataForUser, updateUser } from '../../lib/chat-ddb';
+import {
+    addUser,
+    deleteWidgetDataForUser,
+    getWidgetDataByUserId,
+    getChatMessageById,
+    getChatSessionByShareId,
+    getUserByUserId,
+    setWidgetDataForUser,
+    updateUser
+} from '../../lib/chat-ddb';
+import { getTracesForMessage } from '../../lib/trace-store';
 import { getAllMemoryRecords } from '../../lib/memory';
 import { getValueFromParameterStore } from '../../lib/ssm';
 import { getMemoryId, validateUserCanAccessSession } from '../../lib/utils';
+import { applyOffloadedTraces, messageBelongsToSession } from './message-traces';
 import { decodePathParameter } from './path-params';
 
 // This variable is stored in the lamdbda context and will survive across invocations so we
@@ -188,6 +200,14 @@ const routes: Record<string, { handler: userObjFnTypeHandler<any, any> | userIdF
     },
     'GET:/api/chat/{sessionId}/messages/share/{shareId}/entity/{entityId}': {
         handler: handleGetChatMessages,
+        passUserObj: true
+    },
+    'GET:/api/chat/{sessionId}/messages/{messageId}/traces': {
+        handler: handleGetMessageTraces,
+        passUserObj: true
+    },
+    'GET:/api/chat/{sessionId}/messages/{messageId}/traces/share/{shareId}/entity/{entityId}': {
+        handler: handleGetMessageTraces,
         passUserObj: true
     },
     'POST:/api/chat/{sessionId}/message': {
@@ -520,13 +540,11 @@ async function handleCreateOrUpdateUser(event: APIGatewayProxyEventPika<ChatUser
 }
 
 /**
- * If you don't pass in an entityId when the user has one then there's a chance that the user will not get back
- * messages for a shared session and will instead get back a 401 error.
- *
- * GET:/api/chat/{sessionId}/messages/
- * GET:/api/chat/{sessionId}/messages/share/{shareId}/entity/{entityId}
+ * Resolve session access for message/trace reads, honoring the shared-session
+ * (shareId/entityId) path variants. Returns the owning userId — for shared
+ * sessions that's the session owner, not the caller.
  */
-async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatMessagesResponse> {
+async function resolveSessionAccessForRead(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<{ sessionId: string; userId: string }> {
     const sessionId = event.pathParameters?.sessionId;
     if (!sessionId) {
         throw new BadRequestError('Session ID is required');
@@ -563,7 +581,22 @@ async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequest
         throw new UnauthorizedError('Unauthorized: chat session not found');
     }
 
+    return { sessionId, userId };
+}
+
+/**
+ * If you don't pass in an entityId when the user has one then there's a chance that the user will not get back
+ * messages for a shared session and will instead get back a 401 error.
+ *
+ * GET:/api/chat/{sessionId}/messages/
+ * GET:/api/chat/{sessionId}/messages/share/{shareId}/entity/{entityId}
+ */
+async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatMessagesResponse> {
+    const { sessionId, userId } = await resolveSessionAccessForRead(event, user);
+
     const messages = await getChatMessages(userId, sessionId);
+
+    await applyOffloadedTraces(messages, event.queryStringParameters?.includeTraces === 'true', getTracesForMessage);
 
     // TODO: Only return internal trace details if the user is an internal user.
     // if (user.userType != 'internal-user') {
@@ -578,6 +611,32 @@ async function handleGetChatMessages(event: APIGatewayProxyEventPika<BaseRequest
     return {
         success: true,
         messages
+    };
+}
+
+/**
+ * GET:/api/chat/{sessionId}/messages/{messageId}/traces
+ * GET:/api/chat/{sessionId}/messages/{messageId}/traces/share/{shareId}/entity/{entityId}
+ */
+async function handleGetMessageTraces(event: APIGatewayProxyEventPika<BaseRequestData>, user: ChatUser): Promise<ChatMessageTracesResponse> {
+    const { sessionId, userId } = await resolveSessionAccessForRead(event, user);
+
+    const messageId = event.pathParameters?.messageId;
+    if (!messageId) {
+        throw new BadRequestError('Message ID is required');
+    }
+    // The session access check above is the authorization boundary; the message
+    // must belong to that session (message_id is {sessionId}:{timestamp}).
+    if (!messageBelongsToSession(sessionId, messageId)) {
+        throw new UnauthorizedError('Unauthorized: message does not belong to this session');
+    }
+
+    const message = await getChatMessageById(userId, messageId);
+
+    return {
+        success: true,
+        // Missing message (e.g. TTL-expired) degrades to no traces rather than erroring.
+        traces: message ? await getTracesForMessage(message) : []
     };
 }
 

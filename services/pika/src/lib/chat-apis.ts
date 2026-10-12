@@ -249,7 +249,7 @@ export async function ensureChatSession(
             },
             identityId: user.userId,
             entityId: entityEnabled && entityValue ? entityValue : 'chat-app-global',
-            userType: userType ?? 'external-user'
+            ...(userType ? { userType } : {})
         });
 
         if (isChatDebugLogsEnabled()) {
@@ -398,7 +398,7 @@ export async function addChatMessage(
         timestamp: new Date().toISOString(),
         // Denormalize invocationMode and userType from session for filtering and aggregation
         invocationMode: chatSession.invocationMode || 'chat-app',
-        userType: chatSession.userType || 'internal-user'
+        ...(chatSession.userType ? { userType: chatSession.userType } : {})
     };
 
     if (isChatDebugLogsEnabled()) {

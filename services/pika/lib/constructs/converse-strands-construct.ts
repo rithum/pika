@@ -73,6 +73,15 @@ export class ConverseStrandsConstruct extends Construct {
             })
         );
 
+        // Assistant-message traces are offloaded to S3 (traces/ prefix) so message
+        // items stay under DynamoDB's 400 KB cap.
+        role.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['s3:PutObject'],
+                resources: [`${pikaOutputs.pikaS3Bucket.bucketArn}/traces/*`]
+            })
+        );
+
         role.addToPolicy(
             new iam.PolicyStatement({
                 actions: ['ssm:GetParameter', 'ssm:GetParametersByPath'],
