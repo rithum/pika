@@ -7,7 +7,9 @@ import { error, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp, ConverseRequest, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { getOverridableFeatures } from 'pika-shared/util/server-utils';
 import { transformCustomUserData } from '$lib/custom/server-hooks';
+import { mayReceiveTraceContent } from '$lib/custom/trace-content-access';
 import { resolveUserId } from '$lib/server/resolve-user-id';
+import { createTraceRedactionStream } from '$lib/server/trace-stream-filter';
 
 /** Max time (ms) to wait for the server hook before falling back to original data */
 const SERVER_HOOK_TIMEOUT_MS = 5000;
@@ -141,7 +143,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
             throw e;
         }
 
-        // Don't trust the features passed in the request and don't send UI-only features to the converse function
+        // Don't trust the features passed in the request; traces carries only the server-resolved content decision
         const {
             chatDisclaimerNotice,
             traces,
@@ -154,7 +156,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
             uiCustomization,
             ...featuresForConverse
         } = getOverridableFeatures(siteFeatures ?? {}, chatApp, locals.user);
-        params.features = featuresForConverse;
+        const tracesPermitted = mayReceiveTraceContent(locals.user, traces?.enabled === true);
+        params.features = { ...featuresForConverse, traces: { enabled: tracesPermitted } };
         // console.log('featuresForConverse', featuresForConverse);
 
         if (customDataFieldPathToMatchUsersEntity) {
@@ -182,9 +185,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
             responseHeaders['x-chatbot-session-id'] = sessionId;
         }
 
-        // Return the streaming response directly
-        // Since your Lambda streams plain text, we just pass it through
-        return new Response(lambdaResponse.body, {
+        const body = tracesPermitted ? lambdaResponse.body : lambdaResponse.body.pipeThrough(createTraceRedactionStream());
+        return new Response(body, {
             status: 200,
             headers: responseHeaders,
         });

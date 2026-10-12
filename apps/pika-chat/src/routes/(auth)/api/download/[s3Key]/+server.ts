@@ -1,4 +1,5 @@
 import { appConfig } from '$lib/server/config';
+import { isTraceS3Key } from '$lib/server/trace-content-guard';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { error, type RequestHandler } from '@sveltejs/kit';
 
@@ -17,6 +18,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
     // URL decode the s3Key
     const decodedS3Key = decodeURIComponent(s3Key);
+
+    if (isTraceS3Key(decodedS3Key)) {
+        throw error(403, 'Access denied');
+    }
 
     if (!s3Client) {
         s3Client = new S3Client({ region: appConfig.awsRegion });

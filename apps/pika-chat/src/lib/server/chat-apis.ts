@@ -4,6 +4,7 @@ import type {
     AddChatSessionFeedbackRequest,
     AddChatSessionFeedbackResponse,
     ChatMessagesResponse,
+    ChatMessageTracesResponse,
     ChatSession,
     ChatSessionFeedback,
     ChatSessionFeedbackForCreate,
@@ -178,11 +179,11 @@ export async function getChatSessions(userId: string, chatAppId: string): Promis
     return response.body.sessions;
 }
 
-export async function getChatMessages(sessionId: string, userId: string, shareId?: string, entityId?: string): Promise<ChatMessagesResponse> {
+export async function getChatMessages(sessionId: string, userId: string, shareId?: string, entityId?: string, includeTraces?: boolean): Promise<ChatMessagesResponse> {
     const pathPart = shareId ? `/share/${shareId}${entityId ? `/entity/${entityId}` : ''}` : '';
     const response = await invokeApi<ChatMessagesResponse>({
         apiId: appConfig.chatApiId,
-        path: `${appConfig.stage}/api/chat/${sessionId}/messages${pathPart}`,
+        path: `${appConfig.stage}/api/chat/${sessionId}/messages${pathPart}${includeTraces ? '?includeTraces=true' : ''}`,
         method: 'GET',
         headers: {
             'Accept-Encoding': 'gzip',
@@ -191,6 +192,25 @@ export async function getChatMessages(sessionId: string, userId: string, shareId
         errorInfo: {
             operation: 'getChatMessages',
             resourceName: 'chat messages',
+            userId
+        }
+    });
+    return response.body;
+}
+
+export async function getMessageTraces(sessionId: string, messageId: string, userId: string, shareId?: string, entityId?: string): Promise<ChatMessageTracesResponse> {
+    const pathPart = shareId ? `/share/${shareId}${entityId ? `/entity/${entityId}` : ''}` : '';
+    const response = await invokeApi<ChatMessageTracesResponse>({
+        apiId: appConfig.chatApiId,
+        path: `${appConfig.stage}/api/chat/${sessionId}/messages/${encodeURIComponent(messageId)}/traces${pathPart}`,
+        method: 'GET',
+        headers: {
+            'Accept-Encoding': 'gzip',
+            'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId, customUserData: undefined }, appConfig.jwtSecret)}`
+        },
+        errorInfo: {
+            operation: 'getMessageTraces',
+            resourceName: 'chat message traces',
             userId
         }
     });

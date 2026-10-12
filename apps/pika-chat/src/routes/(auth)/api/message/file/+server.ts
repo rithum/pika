@@ -1,4 +1,5 @@
 import { appConfig } from '$lib/server/config';
+import { isTraceS3Key } from '$lib/server/trace-content-guard';
 import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { error, json, type RequestHandler } from '@sveltejs/kit';
@@ -29,6 +30,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         if (!s3Key) {
             throw error(400, 's3Key is required');
+        }
+
+        if (isTraceS3Key(s3Key)) {
+            throw error(403, 'Access denied');
         }
 
         if (!fileMimeType) {

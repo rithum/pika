@@ -1,8 +1,10 @@
+import { mayReceiveTraceContent } from '$lib/custom/trace-content-access';
 import { getMatchingChatApps } from '$lib/server/chat-admin-apis';
 import { getChatMessages } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { resolveUserId } from '$lib/server/resolve-user-id';
+import { withholdTraceContent } from '$lib/server/trace-content-guard';
 import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ChatApp } from 'pika-shared/types/chatbot/chatbot-types';
@@ -114,6 +116,9 @@ export const GET: RequestHandler = async ({ params, locals, url, request, cookie
 
     try {
         const messages = await getChatMessages(sessionId, userId, shareId, entityId);
+        if (!mayReceiveTraceContent(user, features.traces?.enabled === true)) {
+            withholdTraceContent(messages.messages);
+        }
         return json(messages);
     } catch (e) {
         handleApiGatewayError(e, 'getting chat messages');
