@@ -1,7 +1,23 @@
 {
   "latestVersion": "0.30.0",
-  "currentDevelopment": "0.30.0",
+  "currentDevelopment": "0.31.0",
   "releases": [
+    {
+      "version": "0.31.0",
+      "date": "2026-10-12",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Strands converse offloads message traces to S3 and Answer Reasoning lazy-loads them, with per-message load and error states. Adds a trace-content-access extension point that can withhold trace content on every read path and in the live stream, plus label-only step frames, traces/ hardening for pika-chat's S3 routes, and userType recorded only when known.",
+      "highlights": [
+        "Added: S3 trace offload for the Strands converse Lambda (system prompt stored once per session), with capped inline and no-trace fallbacks so a reply always persists.",
+        "Added: lazy-loaded Answer Reasoning through new trace routes, with per-message loading, error with Retry, and empty states.",
+        "Added: trace-content-access.ts extension point (default true). When it returns false, trace content is withheld on the trace route, message and site-admin reads, and the live stream for both converse Lambdas.",
+        "Added: label-only step frames (userLabel/userLabelDone on tool schemas), rendered as a step list.",
+        "Changed: pika-chat's download, s3-file-content and file-upload routes reject traces/ keys, and its role is denied traces/*.",
+        "Changed: offloaded traces are indexed into OpenSearch and deleted with their message. A 400-day traces/ lifecycle rule replaces the bucket's lifecycle configuration.",
+        "Changed: sessions and messages record userType only when it is known."
+      ]
+    },
     {
       "version": "0.30.0",
       "date": "2026-10-08",

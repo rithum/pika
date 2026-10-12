@@ -251,6 +251,75 @@ Test with different user types:
 - [ ] JSON content is properly formatted
 {% /checklist %}
 
+## Trace Storage and Lazy Loading
+
+With the Strands converse implementation (`siteFeatures.strandsConverse.enabled`), assistant-message traces are stored in S3 instead of in the DynamoDB message item.
+
+- **Trace object**: written gzipped to the Pika S3 bucket at `traces/{userId}/{sessionId}/{messageId}.json.gz`.
+- **System prompt**: stored once per session as `system-prompt-{hash}.txt.gz` and referenced from each trace instead of being repeated.
+- **Message item**: carries a `tracesS3` pointer to the object.
+- **Fallbacks**: if the S3 write fails, the traces are stored inline, capped to fit the 400 KB DynamoDB item limit. If that write also fails, the message is stored without traces so the reply is not lost.
+- **Legacy messages**: messages with inline traces continue to read as before.
+
+The messages API returns `hasOffloadedTraces: true` in place of the pointer. The chat UI loads the traces when the user expands Answer Reasoning, using `GET /api/trace/[chatAppId]/[sessionId]/[messageId]` on pika-chat, which calls the chatbot API at `GET /api/chat/{sessionId}/messages/{messageId}/traces` (a share/entity variant exists for shared sessions). Each message shows one of these states:
+
+| State | Display |
+|-------|---------|
+| Loading | "Loading reasoning..." |
+| Error | "Couldn't load the reasoning for this answer." with a Retry button |
+| Empty | "No reasoning was recorded for this answer." |
+
+Admin reads (`getChatMessagesAsAdmin` with `includeTraces=true`) hydrate offloaded traces in parallel, up to about 5 MB per response. Messages past that limit stay lazily loadable.
+
+### Bucket Lifecycle and Permissions
+
+- A `traces/` lifecycle rule expires objects after 400 days. Keep this longer than your message retention. Adding the rule replaces any lifecycle rules that were set on the bucket outside CDK.
+- The converse-strands Lambda has `s3:PutObject` on `traces/*`. The chatbot API and the insights runner have `s3:GetObject` on `traces/*`. The chatbot API Lambda also receives `PIKA_S3_BUCKET`.
+- The pika-chat role is explicitly denied `traces/*`. The download, `s3-file-content` and file-upload routes reject `traces/` keys with a 403.
+- When a message is deleted by TTL or manually, its S3 trace object is deleted. The message-changed stream handler rehydrates offloaded traces before indexing into OpenSearch (INSERT events only), and the session-insights analyzer hydrates them before analysis.
+
+## Restricting Trace Content with a Hook
+
+`siteFeatures.traces` decides who sees the traces feature. A second, code-level check decides whether a user may receive trace content (system prompt, tool inputs and outputs) at all. It lives in the sync-protected file `apps/pika-chat/src/lib/custom/trace-content-access.ts`:
+
+```typescript
+export function mayReceiveTraceContent(user: ChatUser<RecordOrUndef> | undefined, tracesFeatureEnabled: boolean): boolean
+```
+
+The default returns `true`. When it returns `false` for a user:
+
+- The trace route returns 403.
+- The messages route strips traces, and so does the site-admin view.
+- The live stream is redacted to label-only step frames, for both converse implementations.
+- converse-strands is told through `features.traces.enabled`.
+
+This hook does not cover `detailedTraces`, which is a UI-only setting.
+
+```typescript
+// apps/pika-chat/src/lib/custom/trace-content-access.ts
+export function mayReceiveTraceContent(user, tracesFeatureEnabled) {
+    return user?.userType === 'internal-user';
+}
+```
+
+### Label-Only Step Frames
+
+For a turn whose trace content is withheld, the stream carries `{ step: { event: 'start' | 'done', id, label?, labelDone? } }` frames and an activity frame instead of trace payloads. The chat UI renders them as a step list. Tool function schemas set the text with two optional fields:
+
+```typescript
+functionSchema: [
+    {
+        name: 'lookup_item',
+        description: 'Look up an item',
+        userLabel: 'Looking up your item',
+        userLabelDone: 'Looked up your item',
+        parameters: { /* ... */ }
+    }
+]
+```
+
+`userLabel` is shown while the tool runs and `userLabelDone` after it completes. Without them, the step has no label text.
+
 ## Understanding Trace Display
 
 ### Trace Categories

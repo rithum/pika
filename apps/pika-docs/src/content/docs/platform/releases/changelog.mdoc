@@ -7,6 +7,33 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.31.0] - 2026-10-12
+
+### Added
+
+- **Offloaded message traces (Strands converse)** — assistant-message traces are written gzipped to the pika S3 bucket under `traces/{userId}/{sessionId}/{messageId}.json.gz`, and the DynamoDB item keeps only a `tracesS3` pointer. The system prompt is stored once per session and referenced. If the S3 write fails, traces are stored inline, capped to fit the 400 KB item. If that write also fails, the message is stored without traces, so the reply is never lost. Existing inline traces still read. [#171]
+- **Lazy-loaded Answer Reasoning** — the messages API returns `hasOffloadedTraces` instead of the pointer, and the chat UI fetches traces when Answer Reasoning is expanded, through the new `GET /api/trace/[chatAppId]/[sessionId]/[messageId]` route and the chatbot API `GET /api/chat/{sessionId}/messages/{messageId}/traces` route (with a shared-session variant). Each message has its own load state: a failed fetch shows an inline error with Retry, and an answer with no recorded reasoning shows an empty state. [#171]
+- **`trace-content-access.ts` extension point** (`lib/custom`, sync-protected) — `mayReceiveTraceContent(user, tracesFeatureEnabled)` decides whether a user may receive trace content. It returns `true` by default, so behavior doesn't change. When it returns `false`:
+  - the trace route returns 403;
+  - message reads and site-admin reads drop trace content;
+  - the live stream carries only label-only step frames, for both the TypeScript and the Strands converse Lambda;
+  - the Strands converse Lambda is told through `features.traces.enabled`.
+
+  `detailedTraces` stays a UI-only setting. [#171]
+- **Label-only step frames** — tool function schemas can set `userLabel` and `userLabelDone`. A turn that withholds trace content streams `{ step: { event, id, label?, labelDone? } }` frames plus an activity frame, and the chat UI renders them as a step list. [#171]
+- **A 400-day lifecycle rule on `traces/`** in the pika bucket, plus new S3 permissions:
+  - the Strands converse role can write `traces/*`;
+  - the chatbot API and session-insights runner can read it;
+  - the chatbot API Lambda gets `PIKA_S3_BUCKET`. [#171]
+
+### Changed
+
+- **pika-chat can no longer read or write `traces/` objects directly** — the download, s3-file-content and file-upload routes reject keys under `traces/` with 403, and the pika-chat role has an explicit IAM Deny on `traces/*`. Traces are read only through the chatbot API. [#171]
+- **Admin message views hydrate offloaded traces** (`includeTraces`) in parallel, up to about 5 MB per response. Messages past that limit stay lazily loadable. [#171]
+- **Trace content is indexed into OpenSearch** — message-changed hydrates offloaded traces before indexing a new message, and deletes the S3 object when the message expires or is deleted. The session-insights analyzer also reads offloaded traces. Expect OpenSearch storage to grow. [#171]
+- **Sessions and messages record `userType` only when it is known** — the Strands and TypeScript paths no longer default an unknown user to `external-user` or `internal-user`. Session-insights views filtered by user type leave out records with no type. [#171]
+- **Adding the `traces/` lifecycle rule replaces the bucket's lifecycle configuration**, so rules added to the pika bucket outside CDK are removed on deploy. Keep the 400-day expiry longer than your message retention. [#171]
+
 ## [0.30.0] - 2026-10-08
 
 ### Added
