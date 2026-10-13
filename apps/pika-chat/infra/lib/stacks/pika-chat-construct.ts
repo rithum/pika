@@ -545,6 +545,11 @@ export class PikaChatConstruct extends Construct {
                             resources: [pikaS3BucketArn, `${pikaS3BucketArn}/*`]
                         }),
                         new iam.PolicyStatement({
+                            effect: iam.Effect.DENY,
+                            actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAcl', 's3:PutObjectAcl', 's3:PutObjectTagging'],
+                            resources: [`${pikaS3BucketArn}/traces/*`]
+                        }),
+                        new iam.PolicyStatement({
                             effect: iam.Effect.ALLOW,
                             actions: [
                                 'dynamodb:GetItem',

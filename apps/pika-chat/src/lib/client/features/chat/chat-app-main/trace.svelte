@@ -15,12 +15,14 @@
     import * as Dialog from 'pika-ux/shadcn/dialog';
     import TextWaveShimmer from 'pika-ux/pika/text-wave-shimmer/text-wave-shimmer.svelte';
     import { Button } from 'pika-ux/shadcn/button';
-    import { getContext } from 'svelte';
+    import { getContext, untrack } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { v4 as uuidv4 } from 'uuid';
     import type { ChatAppState } from '../chat-app.state.svelte';
     import { shouldShowDetailedTrace } from '$lib/custom/show-detailed-trace';
     import { sanitizeChatHtml } from '../message-segments/sanitize-chat-html';
+    import TraceSteps from './trace-steps.svelte';
+    import { buildStepItems } from './trace-steps';
 
     interface Props {
         message: ChatMessageForRendering;
@@ -83,6 +85,15 @@
         }
         previousHaveContent = haveActualMessageContent;
     });
+
+    $effect(() => {
+        if (expanded && message.hasOffloadedTraces) {
+            untrack(() => void chatAppState?.loadTracesForMessage(message));
+        }
+    });
+
+    const stepItems = $derived(buildStepItems(message.traces));
+    const traceLoad = $derived(chatAppState?.getTraceLoadState(message.messageId));
 
     /**
      * Recursively traverses an object and parses strings that start and end with {} as JSON
@@ -642,9 +653,9 @@
     }
 </script>
 
-{#if groupedTraces.length > 0 || isStreaming}
+{#if groupedTraces.length > 0 || stepItems.length > 0 || isStreaming || message.hasOffloadedTraces}
     <div class="border border-gray-200 rounded-lg bg-gray-25 p-4 my-4">
-        {#if groupedTraces.length > 0}
+        {#if groupedTraces.length > 0 || stepItems.length > 0 || message.hasOffloadedTraces}
             <!-- Clickable header -->
             <button
                 class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors w-full text-left"
@@ -660,6 +671,22 @@
         <!-- Expandable content -->
         {#if expanded}
             <div class="mt-4">
+                {#if groupedTraces.length === 0 && stepItems.length > 0}
+                    <TraceSteps items={stepItems} />
+                {:else if groupedTraces.length === 0 && message.hasOffloadedTraces}
+                    {#if !chatAppState}
+                        <p class="text-md text-gray-600">Reasoning for this answer isn't available in this view.</p>
+                    {:else if traceLoad?.status === 'error'}
+                        <div class="flex items-center gap-2 text-md text-gray-600">
+                            <span>Couldn't load the reasoning for this answer.</span>
+                            <Button variant="outline" size="sm" onclick={() => chatAppState?.retryTraceLoad(message)}>Retry</Button>
+                        </div>
+                    {:else if traceLoad?.status === 'empty' || traceLoad?.status === 'loaded'}
+                        <p class="text-md text-gray-600">No reasoning was recorded for this answer.</p>
+                    {:else}
+                        <TextWaveShimmer>Loading reasoning...</TextWaveShimmer>
+                    {/if}
+                {/if}
                 {#each groupedTraces as trace, index}
                     <div class="flex gap-2 {index < groupedTraces.length ? 'pb-2' : ''}">
                         <!-- Left column: Icon and vertical line -->

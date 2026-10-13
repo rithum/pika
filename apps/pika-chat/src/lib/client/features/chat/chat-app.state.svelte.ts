@@ -22,6 +22,7 @@ import type {
     ChatMessageFile,
     ChatMessageForRendering,
     ChatMessagesResponse,
+    ChatMessageTracesResponse,
     ChatSession,
     ChatSessionFeedbackForCreate,
     ChatSessionsResponse,
@@ -109,6 +110,15 @@ import { resolveSessionById } from './session-resolver';
 import { WidgetRegistry } from './widgets/widget-registry';
 import { getContentHashString } from 'pika-shared/util/server-client-utils';
 
+export type TraceLoadStatus = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
+
+export interface TraceLoadState {
+    status: TraceLoadStatus;
+    error?: string;
+}
+
+const IDLE_TRACE_LOAD_STATE: TraceLoadState = { status: 'idle' };
+
 type SessionSourceState =
     | { status: 'loading' }
     | { status: 'loaded'; sessions: ChatSession<RecordOrUndef>[] }
@@ -145,6 +155,7 @@ export class ChatAppState implements IChatAppState {
     #mode = $state<ChatAppMode>('standalone');
     #appState = $state<AppState>() as AppState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
+    #traceLoadStates = $state<Record<string, TraceLoadState>>({});
     #userWidgetDataCache = new Map<string, UserWidgetDataStoreState>();
 
     // Widget metadata storage - keyed by instanceId
@@ -2116,6 +2127,54 @@ export class ChatAppState implements IChatAppState {
         } finally {
             this.#retrievingMessages = false;
         }
+    }
+
+    getTraceLoadState(messageId: string): TraceLoadState {
+        return this.#traceLoadStates[messageId] ?? IDLE_TRACE_LOAD_STATE;
+    }
+
+    async loadTracesForMessage(message: ChatMessageForRendering): Promise<void> {
+        if (!message.hasOffloadedTraces) return;
+        if (this.getTraceLoadState(message.messageId).status !== 'idle') return;
+        this.#traceLoadStates[message.messageId] = { status: 'loading' };
+
+        const current = this.#currentSession;
+        const shareQuery =
+            current?.sessionId === message.sessionId && this.#currentSessionIsSharedBySomeoneElse
+                ? `?shareId=${current.shareId}`
+                : '';
+        try {
+            const resp = await this.fetchz(
+                `/api/trace/${this.#chatApp.chatAppId}/${message.sessionId}/${encodeURIComponent(message.messageId)}${shareQuery}`
+            );
+            if (resp.status === 403) {
+                this.#traceLoadStates[message.messageId] = { status: 'empty' };
+                return;
+            }
+            if (!resp.ok) {
+                this.#traceLoadStates[message.messageId] = { status: 'error', error: `HTTP ${resp.status}` };
+                return;
+            }
+            const body = (await resp.json()) as ChatMessageTracesResponse;
+            if (!Array.isArray(body?.traces)) {
+                this.#traceLoadStates[message.messageId] = { status: 'error', error: 'Malformed traces response' };
+                return;
+            }
+            if (body.traces.length === 0) {
+                this.#traceLoadStates[message.messageId] = { status: 'empty' };
+                return;
+            }
+            message.traces = body.traces;
+            this.#traceLoadStates[message.messageId] = { status: 'loaded' };
+        } catch (e) {
+            this.#traceLoadStates[message.messageId] = { status: 'error', error: e instanceof Error ? e.message : String(e) };
+        }
+    }
+
+    async retryTraceLoad(message: ChatMessageForRendering): Promise<void> {
+        if (this.getTraceLoadState(message.messageId).status !== 'error') return;
+        this.#traceLoadStates[message.messageId] = { status: 'idle' };
+        await this.loadTracesForMessage(message);
     }
 
     async loadAllMemoryRecords() {

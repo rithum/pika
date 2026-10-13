@@ -15,6 +15,7 @@ import {
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
 import type { Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 import opensearchClient from '../../lib/opensearch/opensearch-client';
+import { getTracesForMessage } from '../../lib/trace-store';
 
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 
@@ -42,6 +43,7 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         throw new Error('STAGING_TABLE_NAME is not set');
     }
 
+    const promptCache = new Map<string, Promise<string>>();
     for (const record of event.Records) {
         console.log(`Event ID: ${record.eventID}`);
         console.log(`Event Name: ${record.eventName}`); // INSERT, MODIFY, REMOVE
@@ -54,6 +56,35 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                     // Unmarshall the DynamoDB NewImage (returns snake_case) and convert to camelCase
                     const newItemSnakeCase = unmarshall(record.dynamodb.NewImage as any);
                     const newItem = convertChatMessageToCamelFromSnakeCase(newItemSnakeCase as ChatMessageOs);
+
+                    // convertChatMessageToCamelFromSnakeCase drops trace fields, so rehydrate them from
+                    // the raw image before indexing. Hydration failures index without traces and never
+                    // throw: the handler loop has no per-record catch, so a throw would wedge the shard.
+                    if (newItem.source === 'assistant' && !shouldSkipReplication(newItem.invocationMode)) {
+                        try {
+                            const rawTracesS3 = (newItemSnakeCase as any).traces_s3;
+                            newItem.traces = await getTracesForMessage(
+                                {
+                                    traces: (newItemSnakeCase as any).traces,
+                                    tracesS3: rawTracesS3?.s3_key
+                                        ? {
+                                              s3Key: rawTracesS3.s3_key,
+                                              traceCount: rawTracesS3.trace_count ?? 0,
+                                              compressedSize: rawTracesS3.compressed_size ?? 0
+                                          }
+                                        : undefined,
+                                    userId: newItem.userId,
+                                    sessionId: newItem.sessionId
+                                },
+                                promptCache
+                            );
+                        } catch (error) {
+                            console.warn(
+                                `Failed to hydrate traces for message ${newItem.messageId}; indexing without traces/llm_instructions:`,
+                                error instanceof Error ? error.message : error
+                            );
+                        }
+                    }
 
                     // Replicate message to OpenSearch (message index + session updates)
                     await replicateMessageToOpenSearch(newItem);
@@ -108,8 +139,17 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
 
                         // Note: We're NOT deleting S3 files here - they'll be handled by the archive processor
                         // This prevents race conditions and ensures all data is archived together
+
+                        // Trace objects are debug data and are NOT archived — delete on TTL
+                        // expiry. (Session-level system-prompt objects are reaped by the S3
+                        // lifecycle rule on the traces/ prefix.) Read the pointer from the
+                        // raw image: the camelCase converter drops the traces_s3 attribute.
+                        await deleteTraceObject((deletedItemSnakeCase as any).traces_s3?.s3_key, pikaS3Bucket);
                     } else {
                         console.log(`Message ${deletedItem.messageId} was manually deleted`);
+
+                        await deleteTraceObject((deletedItemSnakeCase as any).traces_s3?.s3_key, pikaS3Bucket);
+
                         // Delete assets from S3 referenced by the message
                         for (const asset of deletedItem.files ?? []) {
                             if (asset.locationType === 's3') {
@@ -132,6 +172,21 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
                 console.warn(`Unhandled event type: ${record.eventName}`);
                 break;
         }
+    }
+}
+
+/**
+ * Delete a message's offloaded trace object from S3, if it has one.
+ */
+async function deleteTraceObject(key: string | undefined, pikaS3Bucket: string): Promise<void> {
+    if (!key) {
+        return;
+    }
+    try {
+        await deleteS3Object(pikaS3Bucket, key);
+        console.log(`Deleted trace object ${key}`);
+    } catch (error) {
+        console.error(`Error deleting trace object ${key}: ${error}`);
     }
 }
 

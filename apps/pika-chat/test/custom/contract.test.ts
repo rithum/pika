@@ -36,6 +36,7 @@ import { customAdminPages } from '../../src/lib/custom/admin/site-admin-extensio
 import type { NavItem } from '../../src/lib/client/app/types';
 import { shouldRenderMessage } from '../../src/lib/custom/message-visibility';
 import { allowedCustomTags, allowedCustomAttrs } from '../../src/lib/custom/chat-html-allowed-tags';
+import { mayReceiveTraceContent } from '../../src/lib/custom/trace-content-access';
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -58,6 +59,7 @@ type C7Sig = (
 ) => Promise<{ clearSession: boolean }>;
 type C8Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => boolean;
 type C10Sig = (message: ChatMessageForRendering) => boolean;
+type C12Sig = (user: ChatUser<RecordOrUndef> | undefined, tracesFeatureEnabled: boolean) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const _c1: C1Sig = isUserAllowedAdminAccess;
@@ -72,6 +74,7 @@ const _c9: NavItem[] = customAdminPages;
 const _c10: C10Sig = shouldRenderMessage;
 const _c11a: readonly string[] = allowedCustomTags;
 const _c11b: Readonly<Record<string, readonly string[]>> = allowedCustomAttrs;
+const _c12: C12Sig = mayReceiveTraceContent;
 /* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ===== Shared mock data =====
@@ -378,6 +381,31 @@ describe('lib/custom hook defaults', () => {
             );
             expect(traceSrc).toContain('{@html sanitizeChatHtml(trace.markdown)}');
             expect(traceSrc).toContain('{@html sanitizeChatHtml(content.markdown)}');
+        });
+    });
+
+    describe('mayReceiveTraceContent (C12)', () => {
+        it('returns true by default', () => {
+            expect(mayReceiveTraceContent(mockChatUser, true)).toBe(true);
+            expect(mayReceiveTraceContent(mockChatUser, false)).toBe(true);
+            expect(mayReceiveTraceContent(undefined, false)).toBe(true);
+        });
+
+        it('route, stream and IAM enforcement are wired: text smoke test', () => {
+            const read = (rel: string) => readFileSync(join(__dirname, '../..', rel), 'utf-8');
+            const api = 'src/routes/(auth)/api';
+            for (const rel of [
+                `${api}/trace/[chatAppId]/[sessionId]/[messageId]/+server.ts`,
+                `${api}/message/[chatAppId]/[sessionId]/+server.ts`,
+                `${api}/site-admin/+server.ts`,
+                `${api}/message/+server.ts`
+            ]) {
+                expect(read(rel)).toContain('mayReceiveTraceContent(');
+            }
+            expect(read(`${api}/message/+server.ts`)).toContain('pipeThrough(createTraceRedactionStream())');
+            const infraSrc = read('infra/lib/stacks/pika-chat-construct.ts');
+            expect(infraSrc).toContain('effect: iam.Effect.DENY');
+            expect(infraSrc).toContain('`${pikaS3BucketArn}/traces/*`');
         });
     });
 

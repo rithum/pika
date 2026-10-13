@@ -82,6 +82,12 @@ As the agent processes a request, reasoning events stream to the UI:
 - Internal state and context
 - Error stack traces
 
+### Loading and Step Lists
+
+With the Strands converse implementation, traces are stored in S3 and the chat UI loads them when the user expands Answer Reasoning. Each message shows a loading state, an error with a Retry button, or a message that no reasoning was recorded.
+
+When trace content is withheld from a user, the reasoning area shows a step list instead: each tool call appears as a step with the `userLabel` text of the tool's function schema while it runs and `userLabelDone` once it completes. See [Monitor with Traces](/guides/admin/traces/) for details.
+
 ## Trace Visibility Control
 
 ### Role-Based Access

@@ -25,6 +25,7 @@ Extension points are exported functions you can override to add deployment-speci
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Append consumer pages to the Site Admin nav; each NavItem's `pageComponent` renders at its `/admin/<slug>` url |
 | `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript (e.g. app-composed user turns) without removing them from the session |
 | `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow-list custom elements (and per-tag attributes) to survive the chat/trace HTML sanitizer, or lift a default ban such as `img`; on* handlers are always stripped |
+| `trace-content-access.ts` | `mayReceiveTraceContent(user, tracesFeatureEnabled)` | `true` | Withhold trace content (system prompt, tool inputs and outputs) from some users: the trace route returns 403, message reads drop inline traces, and the live stream carries only label-only step frames. It doesn't cover `detailedTraces`, which stays a UI-only setting |
 
 ### How to override
 

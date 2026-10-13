@@ -23,6 +23,7 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Add pages to the Site Admin nav |
 | `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript without removing them from the session |
+| `trace-content-access.ts` | `mayReceiveTraceContent(user, tracesFeatureEnabled)` | `true` | Decide whether a user may receive trace content (system prompt, tool inputs and outputs) |
 | `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow custom elements, or lift a default ban such as `img`, in the chat and trace HTML sanitizer |
 
 ## How to Override
@@ -284,6 +285,25 @@ export function shouldRenderMessage(message: ChatMessageForRendering): boolean {
     return !message.message.startsWith('[app-turn]');
 }
 ```
+
+### `mayReceiveTraceContent` — `trace-content-access.ts`
+
+Returns `false` to withhold trace content from a user.
+
+```typescript
+export function mayReceiveTraceContent(user: ChatUser<RecordOrUndef> | undefined, tracesFeatureEnabled: boolean): boolean
+```
+
+`tracesFeatureEnabled` is the chat app's resolved `features.traces.enabled`; site-admin reads pass `true`. When the hook returns `false`, the trace route returns 403, the messages route and site-admin view strip traces, and the live stream is reduced to label-only step frames. The default returns `true`. It does not cover `detailedTraces`, which is UI-only.
+
+```typescript
+// src/lib/custom/trace-content-access.ts
+export function mayReceiveTraceContent(user, tracesFeatureEnabled) {
+    return user?.userType === 'internal-user';
+}
+```
+
+See [Monitor with Traces](/guides/admin/traces/) for the full behavior.
 
 ### `allowedCustomTags` and `allowedCustomAttrs` — `chat-html-allowed-tags.ts`
 

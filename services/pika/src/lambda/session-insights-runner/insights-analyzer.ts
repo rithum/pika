@@ -15,6 +15,7 @@ import { SnakeCase } from 'pika-shared/util/chatbot-shared-utils';
 import { mkdirSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { getChatMessagesInSession } from 'src/lib/chat-ddb';
+import { getTracesForMessage } from '../../lib/trace-store';
 import { v7 as uuidv7 } from 'uuid';
 import { v5 as uuidv5 } from 'uuid';
 import { getRegion } from '../../lib/utils';
@@ -187,6 +188,18 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
 
         let messages = await getChatMessagesInSession(session.userId, session.sessionId);
         console.log(`[INSIGHTS-ANALYZER] Retrieved ${messages.length} messages for session ${sessionKey}`);
+
+        // Hydrate offloaded traces so the "thinking" extraction below keeps working.
+        const promptCache = new Map<string, Promise<string>>();
+        for (const m of messages) {
+            if (m.tracesS3 && !m.traces?.length) {
+                try {
+                    m.traces = await getTracesForMessage(m, promptCache);
+                } catch (error) {
+                    console.warn(`[INSIGHTS-ANALYZER] Failed to hydrate traces for ${m.messageId}: ${error}`);
+                }
+            }
+        }
 
         // Simplify messages and traces
         if (messages.length) {

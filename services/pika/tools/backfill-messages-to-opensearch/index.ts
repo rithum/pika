@@ -18,12 +18,15 @@
  *   --concurrency N          Number of sessions to process in parallel (default: 10)
  *   --message-batch-size N   Number of messages to index in one bulk operation (default: 100)
  *   --session-batch-size N   Number of sessions to update in one bulk operation (default: 50)
+ *
+ * Set PIKA_S3_BUCKET to hydrate traces offloaded to S3 so their llm_instructions are indexed.
  */
 
 import { DynamoDBClient, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { convertChatMessageToSnakeFromCamelCase, type MessageSummaryEntry, type MessagesAnalysis } from '../../src/lib/opensearch/types';
 import opensearchClient from '../../src/lib/opensearch/opensearch-client';
+import { getTracesForMessage } from '../../src/lib/trace-store';
 import { gunzipBase64EncodedString } from 'pika-shared/util/server-utils';
 import type { Trace } from '@aws-sdk/client-bedrock-agent-runtime';
 import pMap from 'p-map';
@@ -88,6 +91,7 @@ interface ChatMessage {
     };
     execution_duration?: number;
     traces?: Trace[];
+    traces_s3?: { s3_key: string; trace_count?: number; compressed_size?: number };
     [key: string]: any;
 }
 
@@ -241,6 +245,7 @@ async function main() {
     console.log(`  Region: ${region}`);
     console.log(`  Session Table: ${CHAT_SESSION_TABLE_NAME}`);
     console.log(`  Message Table: ${CHAT_MESSAGE_TABLE_NAME}`);
+    console.log(`  Trace Bucket: ${process.env.PIKA_S3_BUCKET || 'unset (offloaded traces are not hydrated)'}`);
     console.log(`  Dry Run: ${DRY_RUN}`);
     console.log(`  Start Date: ${START_DATE || 'none'}`);
     console.log(`  End Date: ${END_DATE || 'none'}`);
@@ -525,14 +530,15 @@ async function processSession(session: ChatSession, stats: BackfillStats) {
 
         // Add messages to batch for indexing
         if (!SKIP_MESSAGE_INDEX) {
+            const promptCache = new Map<string, Promise<string>>();
             for (const message of messages) {
                 if (!DRY_RUN) {
-                    // Extract llmInstructions for assistant messages with traces
                     let llmInstructions: string | undefined;
-                    if (message.source === 'assistant' && message.traces) {
-                        llmInstructions = extractLLMInstructions(message.traces);
+                    if (message.source === 'assistant' && (message.traces?.length || message.traces_s3?.s3_key)) {
+                        llmInstructions = extractLLMInstructions(await hydrateTraces(message, promptCache));
                     }
-                    messageBatch.push({ message, llmInstructions });
+                    const { traces_s3: _tracesS3, ...indexable } = message;
+                    messageBatch.push({ message: indexable as ChatMessage, llmInstructions });
                 }
                 stats.messagesProcessed++;
             }
@@ -846,6 +852,28 @@ function calculateMessagesAnalysis(messages: ChatMessage[]): MessagesAnalysis {
         },
         last_updated: new Date().toISOString()
     };
+}
+
+async function hydrateTraces(message: ChatMessage, promptCache: Map<string, Promise<string>>): Promise<Trace[] | undefined> {
+    if (message.traces_s3?.s3_key && !message.traces?.length && !process.env.PIKA_S3_BUCKET) {
+        return undefined;
+    }
+    try {
+        return await getTracesForMessage(
+            {
+                traces: message.traces,
+                tracesS3: message.traces_s3?.s3_key
+                    ? { s3Key: message.traces_s3.s3_key, traceCount: message.traces_s3.trace_count ?? 0, compressedSize: message.traces_s3.compressed_size ?? 0 }
+                    : undefined,
+                userId: message.user_id,
+                sessionId: message.session_id
+            },
+            promptCache
+        );
+    } catch (e) {
+        console.warn(`Failed to hydrate traces for message ${message.message_id}; indexing without llm_instructions:`, e);
+        return undefined;
+    }
 }
 
 /**

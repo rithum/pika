@@ -304,8 +304,12 @@ interface FunctionDefinition {
     name: string;
     description: string;
     parameters: Record<string, ParameterDefinition>;
+    userLabel?: string; // Step text shown while the tool runs
+    userLabelDone?: string; // Step text shown after the tool completes
 }
 ```
+
+`userLabel` and `userLabelDone` are used in the label-only step list shown when trace content is withheld from a user. See [Monitor with Traces](/guides/admin/traces/).
 
 ### ParameterDefinition
 

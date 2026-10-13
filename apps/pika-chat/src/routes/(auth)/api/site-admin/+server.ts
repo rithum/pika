@@ -26,7 +26,9 @@ import { getChatMessages, searchForUser } from '$lib/server/chat-apis';
 import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
+import { mayReceiveTraceContent } from '$lib/custom/trace-content-access';
 import { transformSessionAccountContext } from '$lib/custom/session-account-context';
+import { withholdTraceContent } from '$lib/server/trace-content-guard';
 import { handleApiGatewayError, isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
 import type { ConverseRequestWithCommand, GetChatMessagesAsAdminResponse, SimpleAuthenticatedUser, SiteAdminRequest } from 'pika-shared/types/chatbot/chatbot-types';
@@ -274,10 +276,11 @@ export const POST: RequestHandler = async (event) => {
             if (!('userId' in siteAdminReq)) {
                 throw error(400, 'userId is required');
             }
-            const messages = await getChatMessages(siteAdminReq.sessionId, siteAdminReq.userId);
+            const tracesPermitted = mayReceiveTraceContent(user, true);
+            const messages = await getChatMessages(siteAdminReq.sessionId, siteAdminReq.userId, undefined, undefined, tracesPermitted);
             const result: GetChatMessagesAsAdminResponse = {
                 success: true,
-                messages: messages.messages
+                messages: tracesPermitted ? messages.messages : withholdTraceContent(messages.messages)
             };
             return json(result);
         } else if (siteAdminReq.command === 'createOrUpdateTagDefinition') {

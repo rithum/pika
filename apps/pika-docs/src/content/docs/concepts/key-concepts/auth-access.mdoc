@@ -398,6 +398,12 @@ Can user access this tool?
 Result: Access granted
 ```
 
+## Trace Content Access
+
+Trace content (system prompt, tool inputs and outputs) has its own access check in addition to `siteFeatures.traces`. The `mayReceiveTraceContent(user, tracesFeatureEnabled)` hook in `apps/pika-chat/src/lib/custom/trace-content-access.ts` returns `true` by default. When it returns `false` for a user, trace routes return 403, messages and site-admin views omit traces, and the live stream shows only step labels. See [Extension Points](/guides/customization/extension-points/).
+
+Offloaded trace objects are stored under the `traces/` prefix of the Pika S3 bucket. The pika-chat role is denied that prefix, and the download, `s3-file-content` and file-upload routes return 403 for `traces/` keys. Traces are read only through the chatbot API.
+
 ## Session Security
 
 ### JWT Tokens

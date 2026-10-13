@@ -343,6 +343,8 @@ specialist-agent:  94% goal completion  ← Better for complex queries
 fallback-agent:    72% goal completion
 ```
 
+**By User Type**: Sessions and messages record `userType` only when it is known; no `internal-user` or `external-user` value is filled in. Filtering insights by user type therefore excludes records that have none. The session-insights analyzer also reads traces that were offloaded to S3.
+
 ## Use Cases
 
 ### Performance Monitoring

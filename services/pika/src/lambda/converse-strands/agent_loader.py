@@ -201,6 +201,8 @@ def _build_lambda_tool(
             session_attributes=session_attributes,
             prompt_session_attributes=prompt_session_attributes,
             trace_callback=trace_callback,
+            user_label=func_def.get('userLabel'),
+            user_label_done=func_def.get('userLabelDone'),
         ))
     return tools
 
@@ -360,7 +362,9 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
                func_desc: str, params, session_id: str,
                input_text: str, session_attributes: dict | None = None,
                prompt_session_attributes: dict | None = None,
-               trace_callback: Callable[..., None] | None = None) -> PythonAgentTool:
+               trace_callback: Callable[..., None] | None = None,
+               user_label: str | None = None,
+               user_label_done: str | None = None) -> PythonAgentTool:
     """Create a PythonAgentTool that invokes a tool Lambda.
 
     Uses late-binding-safe closures — all variables captured at definition time.
@@ -402,6 +406,8 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
     _session_attributes = session_attributes or {}
     _prompt_session_attributes = prompt_session_attributes or {}
     _trace_callback = trace_callback
+    _user_label = user_label
+    _user_label_done = user_label_done
 
     def tool_func(tool_use, **invocation_state):
         try:
@@ -444,11 +450,16 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
             # with the observation trace that follows — keeps ordering correct
             # when the model makes parallel tool calls.
             if _trace_callback:
-                _trace_callback(_func_name, None, invocation_input={
+                _invocation_input = {
                     'actionGroupName': _func_name,
                     'function': _func_name,
                     'parameters': parameters,
-                })
+                }
+                if _user_label:
+                    _invocation_input['userLabel'] = _user_label
+                if _user_label_done:
+                    _invocation_input['userLabelDone'] = _user_label_done
+                _trace_callback(_func_name, None, invocation_input=_invocation_input)
 
             invoke_client, invoke_target = _resolve_tool_invocation(_tool_id, _lambda_arn)
             response = invoke_client.invoke(

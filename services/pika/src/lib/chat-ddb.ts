@@ -277,6 +277,14 @@ export async function updateUser(user: ChatUser<RecordOrUndef>): Promise<ChatUse
     return user;
 }
 
+export async function getChatMessageById(userId: string, messageId: string): Promise<ChatMessage | undefined> {
+    const response = await ddbDocClient.get({
+        TableName: getChatMessagesTable(),
+        Key: { user_id: userId, message_id: messageId }
+    });
+    return response.Item ? convertToCamelCase<ChatMessage>(response.Item as SnakeCase<ChatMessage>) : undefined;
+}
+
 export async function getChatMessagesInSession(userId: string, sessionId: string): Promise<ChatMessage[]> {
     // Assistant messages carry full traces, so long sessions exceed the 1 MB query cap; results are oldest-first, so an unpaginated query drops the newest.
     const items: Record<string, unknown>[] = [];

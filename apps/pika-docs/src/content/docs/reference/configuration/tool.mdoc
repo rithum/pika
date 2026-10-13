@@ -265,6 +265,8 @@ interface FunctionDefinition {
     name: string; // Function name
     description: string; // What the function does
     parameters: Record<string, ParameterDefinition>;
+    userLabel?: string; // Step text shown while the tool runs
+    userLabelDone?: string; // Step text shown after the tool completes
 }
 
 interface ParameterDefinition {
