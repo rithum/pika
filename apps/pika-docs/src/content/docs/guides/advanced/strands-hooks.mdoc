@@ -1,0 +1,103 @@
+---
+title: Strands Handler Hooks
+description: Override Strands converse settings and response policy from custom_hooks.py, a file pika sync never overwrites
+---
+
+The Strands converse Lambda reads its tunable settings and its response-policy hooks from `services/pika/src/lambda/converse-strands/custom_hooks.py`. Pika ships that file with no overrides, and `pika sync` never overwrites it, so your changes survive framework updates without patching `handler.py`.
+
+{% aside type="note" title="Strands-only" %}
+These hooks apply only to agents served by the Strands Python converse Lambda (`strandsConverse`). For the TypeScript extension points in `apps/pika-chat/src/lib/custom/`, see [Extension Points](/guides/customization/extension-points/).
+{% /aside %}
+
+## How it works
+
+Two modules sit side by side at the top of `converse-strands/`:
+
+| File | Owner | What it holds |
+|------|-------|---------------|
+| `custom_hooks_base.py` | Pika (sync updates it) | Every default setting and hook, the dataclasses hooks take and return, `resolve_hook` and `call_hook` |
+| `custom_hooks.py` | You (sync never touches it) | Only the names you want to override |
+
+The handler looks every name up at call time: your `custom_hooks.py` first, then the default in `custom_hooks_base.py`. Two things follow from that:
+
+- **Override only what you need.** A name you leave out keeps its default, including names a later Pika release adds.
+- **A constant override takes effect everywhere.** Overriding `COLLABORATOR_FAILURE_MESSAGE` changes the text the default `collaborator_failure_message` hook returns, too.
+
+Build return values with the dataclasses from the base module:
+
+```python
+# services/pika/src/lambda/converse-strands/custom_hooks.py
+from custom_hooks_base import FinalizeResult
+
+ACCOUNT_PIN_ENABLED = False
+
+def finalize_response(final, ctx):
+    return FinalizeResult(text=final.text.strip())
+```
+
+{% aside type="caution" title="Upgrade pika-cli before editing" %}
+`custom_hooks.py` is protected by the default protected-area list of the installed `pika-app` CLI (1.8.0 and later). With an older CLI, `pika sync` overwrites the file. Upgrade the CLI first, or add `services/pika/src/lambda/converse-strands/custom_hooks.py` to `userProtectedAreas` in `.pika-sync.json`.
+{% /aside %}
+
+## Settings
+
+| Name | Default | Effect |
+|------|---------|--------|
+| `TOOL_LOOP_POLLING_TOOLS` | empty set | Tool names that may legitimately be called with identical input many times (status polling). They get a higher repeat cap (15 instead of 3) before the tool loop guard trips. |
+| `TOOL_LOOP_TRIPPED_MESSAGE` | "I stopped because the same action repeated without making progress…" | Answer written when the tool loop guard stops a turn |
+| `TOOL_DEADLINE_MESSAGE` | "I ran out of time before I could finish this request…" | Answer written when a tool can't start and finish inside the Lambda's remaining time |
+| `ACCOUNT_PIN_ENABLED` | `True` | Pins a session to the account it started with. `False` turns off both the refusal and the same-account rewrite. |
+| `ACCOUNT_PIN_MISMATCH_MESSAGE` | "This conversation is linked to the account it was started with…" | Answer written when a turn arrives with a different account |
+| `COLLABORATOR_FAILURE_MESSAGE` | "I'm sorry, I couldn't complete this request safely…" | Answer written when a hidden tool-mode collaborator fails |
+| `HOOKS_FAIL_CLOSED` | `False` | How hook errors are handled (see [Hook errors](#hook-errors)) |
+| `HOOK_ERROR_MESSAGE` | "I'm sorry, I encountered an error processing your request." | Answer written when a hook fails while `HOOKS_FAIL_CLOSED` is set |
+
+## Hooks
+
+Every hook receives a `RequestContext` (`agent_id`, `chat_app_id`, `session_id`, `user_id`, `body`, `message`, and `state`).
+
+| Hook | Called | Default |
+|------|--------|---------|
+| `begin_request(ctx)` | Once per turn, after the session and user message are stored and before tools are built. The return value is stored on `ctx.state` for the later hooks. | `None` |
+| `should_buffer_final_response(ctx)` | When a plain agent is built. Return `True` to suppress live tokens so the final text can be post-processed before the user sees it. | `False` |
+| `finalize_response(final, ctx)` | Once, after the agent finishes and before the answer is written. `final` is a `FinalResponse` (`text`, `buffered`, `collaborator_failure_codes`, `agent_error`, `tools`). Return a `FinalizeResult`. | text unchanged |
+| `filter_correction(correction_text, ctx)` | When verification produces a correction. Return a `CorrectionResult(text, replay)`: `text` goes to the reasoning trace and the re-grade, and `replay` decides whether it is stored for later turns. | `CorrectionResult(text=correction_text)` |
+| `collaborator_failure_message(codes, ctx)` | When a tool-mode collaborator fails. | `COLLABORATOR_FAILURE_MESSAGE` |
+| `on_hidden_tool_result(tool_name, result, ctx, *, invocation_input=None)` | For every tool a hidden collaborator calls: once when it is invoked (`result=None`, `invocation_input` set) and once with its result. | no-op |
+
+### `FinalizeResult`
+
+| Field | Meaning |
+|-------|---------|
+| `text` | The answer that is written and stored. Written and stored text are always the same. |
+| `force_write` | Write `text` even when the turn streamed live tokens. On a live-streamed turn the user then sees the streamed tokens followed by `text`, while only `text` is stored. Return `True` from `should_buffer_final_response` for any turn where you replace the text, so nothing streams first. |
+| `skip_verification` | Skip the verify-response step for this turn. |
+
+## Hook errors
+
+Every hook call is wrapped. A hook that raises logs `hook_error name=<hook>` with the exception, then:
+
+| Hook | `HOOKS_FAIL_CLOSED = False` (default) | `HOOKS_FAIL_CLOSED = True` |
+|------|------|------|
+| `begin_request` | `ctx.state` is `None` | The turn ends with `HOOK_ERROR_MESSAGE`, stored as the assistant message |
+| `should_buffer_final_response` | `False` | Every turn is buffered under fail-closed anyway |
+| `finalize_response` | text unchanged | `HOOK_ERROR_MESSAGE` is written and stored; verification is skipped |
+| `filter_correction` | correction kept | no trace, no re-grade, not replayed |
+| `collaborator_failure_message` | `COLLABORATOR_FAILURE_MESSAGE` | `COLLABORATOR_FAILURE_MESSAGE` |
+| `on_hidden_tool_result` | logged only | logged only |
+
+Set `HOOKS_FAIL_CLOSED = True` when your hooks enforce policy that must never be skipped. Under fail-closed every turn is buffered, so an error never follows text the user has already seen. Reserve exceptions for bugs: return your policy outcomes as `FinalizeResult` values instead of raising, because a fail-closed error replaces the whole answer.
+
+## Testing overrides
+
+The Strands test suite runs against whatever `custom_hooks.py` defines. Pika's own tests pin the defaults with the `base_hooks` fixture from `tests/hook_defaults.py`, so they stay green under your overrides. Use `override_hooks` to test an override in isolation:
+
+```python
+from tests.hook_defaults import override_hooks  # noqa: F401
+
+def test_pin_disabled(override_hooks):
+    override_hooks.ACCOUNT_PIN_ENABLED = False
+    ...
+```
+
+The fixtures live outside `conftest.py` because consumers often patch `conftest.py`.

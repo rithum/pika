@@ -26,6 +26,8 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `trace-content-access.ts` | `mayReceiveTraceContent(user, tracesFeatureEnabled)` | `true` | Decide whether a user may receive trace content (system prompt, tool inputs and outputs) |
 | `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow custom elements, or lift a default ban such as `img`, in the chat and trace HTML sanitizer |
 
+The Strands Python converse Lambda has its own hooks file, `services/pika/src/lambda/converse-strands/custom_hooks.py`. See [Strands Handler Hooks](/guides/advanced/strands-hooks/).
+
 ## How to Override
 
 1. Open the relevant file in `src/lib/custom/`.

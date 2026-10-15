@@ -7,6 +7,23 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.32.0
+
+- **Strands handler hooks.** `converse-strands/custom_hooks.py` (sync-protected) overrides Strands settings and response policy without patching `handler.py`. Defaults live in `custom_hooks_base.py`, and `HOOKS_FAIL_CLOSED` makes a failing hook end the turn safely.
+- **A tool loop guard for Strands agents.** Repeated identical or failing tool calls are stopped, and so are tool starts that can't finish in the Lambda's remaining time.
+- **Hidden tool-mode collaborators.** A collaborator with `mode: 'tool'` is consulted as a schema-validated tool, so the user sees only the supervisor's answer.
+- **Sessions are pinned to their account.** A turn that arrives with a different account is refused (`ACCOUNT_PIN_ENABLED` turns this off).
+- **Sonnet 5.5 is the Strands default**, with Claude 5 inference profiles, and TS usage costs now use each model's own pricing.
+
+**Upgrade impact**:
+- Strands agents with tools, a knowledge base or memory no longer stream tokens live; the answer arrives once.
+- Verification reprompts need `autoRepromptThreshold`, and corrections move to the reasoning panel.
+- Every deployment creates the Sonnet 5 / 5.5 inference profiles, so the region must offer those system profiles.
+- Recorded TS usage costs change for models other than Sonnet 4.x.
+- Upgrade to `pika-app` 1.8.0 before editing `custom_hooks.py`.
+
+**Latest Stable:** `0.32.0` (October 15, 2026)
+
 ### What's New in 0.31.0
 
 - **Message traces move to S3 (Strands converse).** Assistant-message traces are stored gzipped in the pika bucket, with the system prompt stored once per session, so a long reasoning trace no longer pushes a message past DynamoDB's 400 KB limit. Fallbacks keep the reply persisted if S3 or the item write fails.
@@ -18,8 +35,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - The new 400-day `traces/` lifecycle rule replaces the bucket's lifecycle configuration, so rules added outside CDK are removed on deploy. Keep the expiry longer than your message retention.
 - Trace content is now indexed into OpenSearch, so expect index growth.
 - Sessions and messages with an unknown user type no longer get one invented, so session-insights views filtered by user type leave them out.
-
-**Latest Stable:** `0.31.0` (October 12, 2026)
 
 ### What's New in 0.30.0
 
@@ -734,6 +749,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.32.0  | Oct 15 2026 | Minor    | Strands handler hooks, tool loop guard, tool-mode collaborators, session account pin, Sonnet 5.5 Strands default |
 | 0.31.0  | Oct 12 2026 | Minor    | S3 trace offload with lazy-loaded Answer Reasoning, trace-content-access hook, label-only step frames, `traces/` hardening |
 | 0.30.0  | Oct 8 2026  | Minor    | Docked composer, chat HTML sanitizer, placeholder and privacy-notice features, and new extension points |
 | 0.29.5  | Oct 7 2026  | Patch    | Fixes three 0.29.4 regressions: file drops with uploads disabled, insights retrying context-limit failures, and the converse account-context backfill |
