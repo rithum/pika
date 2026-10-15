@@ -52,8 +52,9 @@
         "apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts",
         "apps/pika-chat/tools/custom-*/**",
         "apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts",
-        "services/pika/lib/stacks/custom-stack-defs.ts"
+        "services/pika/lib/stacks/custom-stack-defs.ts",
+        "services/pika/src/lambda/converse-strands/custom_hooks.py"
     ],
-    "version": "1.0.6",
-    "lastUpdated": "2026-05-26T22:00:00.000Z"
+    "version": "1.0.7",
+    "lastUpdated": "2026-10-15T00:00:00.000Z"
 }
