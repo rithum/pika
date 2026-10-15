@@ -18,6 +18,18 @@ from decimal import Decimal
 # Model pricing per 1000 tokens.
 # Cache read is ~10% of input price; cache write is ~125% of input price.
 MODEL_PRICING = {
+    'us.anthropic.claude-sonnet-5-5': {
+        'inputPer1000Tokens': 0.002,
+        'outputPer1000Tokens': 0.01,
+        'cacheReadPer1000Tokens': 0.0002,
+        'cacheWritePer1000Tokens': 0.0025,
+    },
+    'us.anthropic.claude-sonnet-5': {
+        'inputPer1000Tokens': 0.002,
+        'outputPer1000Tokens': 0.01,
+        'cacheReadPer1000Tokens': 0.0002,
+        'cacheWritePer1000Tokens': 0.0025,
+    },
     'us.anthropic.claude-sonnet-4-6': {
         'inputPer1000Tokens': 0.003,
         'outputPer1000Tokens': 0.015,
@@ -36,11 +48,11 @@ MODEL_PRICING = {
         'cacheReadPer1000Tokens': 0.0003,
         'cacheWritePer1000Tokens': 0.00375,
     },
-    'anthropic.claude-haiku-4-5-20251001-v1:0': {
-        'inputPer1000Tokens': 0.0008,
-        'outputPer1000Tokens': 0.004,
-        'cacheReadPer1000Tokens': 0.00008,
-        'cacheWritePer1000Tokens': 0.001,
+    'us.anthropic.claude-haiku-4-5-20251001-v1:0': {
+        'inputPer1000Tokens': 0.001,
+        'outputPer1000Tokens': 0.005,
+        'cacheReadPer1000Tokens': 0.0001,
+        'cacheWritePer1000Tokens': 0.00125,
     },
     'default': {
         'inputPer1000Tokens': 0.003,

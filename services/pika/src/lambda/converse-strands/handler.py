@@ -21,18 +21,23 @@ from strands.types.exceptions import MaxTokensReachedException
 from pricing import extract_usage_from_result, extract_full_usage, calculate_usage
 from title import generate_session_title
 from verification import verify_response, get_reprompt_for_classification, build_reprompt_message
-from context_items import build_context_xml, build_sent_context_record, update_session_sent_contexts
+from context_items import (LLM_CONTEXT_XML_ATTR, LLM_USER_CONTENT_ATTR, SENT_CONTEXTS_ATTR,
+                           build_context_xml, build_sent_context_record,
+                           llm_context_xml_fits_message_item, message_content_for_llm_replay,
+                           update_session_sent_contexts)
 
 try:
     from strands_tools.agent_core_memory import AgentCoreMemoryToolProvider
 except ImportError:
     AgentCoreMemoryToolProvider = None
 from chat_ddb import (ensure_session, update_session, add_message, get_user, get_messages,
-                      set_session_llm_instruction_hash, session_token, _now_iso)
+                      set_session_llm_instruction_hash, session_token, _now_iso,
+                      account_id_of, pinned_account_fields)
 from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt_object,
                          inline_trace_budget)
 from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
 from agent_loader import load_agent, load_tools, build_strands_tools
+from custom_hooks_base import resolve_hook
 
 # Configure the root logger with a StreamHandler so output appears in CloudWatch.
 # In the Lambda Web Adapter environment, the Lambda runtime's handler isn't active;
@@ -51,7 +56,18 @@ CHAT_SESSION_TABLE = os.environ.get('CHAT_SESSION_TABLE', '')
 CHAT_USER_TABLE = os.environ.get('CHAT_USER_TABLE', '')
 STAGE = os.environ.get('STAGE', 'test')
 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = os.environ.get('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE', '')
-DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
+SONNET_5_MODEL_ID = 'us.anthropic.claude-sonnet-5'
+SONNET_5_5_MODEL_ID = 'us.anthropic.claude-sonnet-5-5'
+DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', SONNET_5_5_MODEL_ID)
+ADAPTIVE_THINKING_MODEL_IDS = frozenset({SONNET_5_MODEL_ID, SONNET_5_5_MODEL_ID})
+INFERENCE_PROFILE_ENV_BY_MODEL_ID = {
+    'us.anthropic.claude-sonnet-4-20250514-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4Sonnet',
+    'us.anthropic.claude-haiku-4-5-20251001-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Haiku',
+    'us.anthropic.claude-sonnet-4-5-20250929-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet',
+    'us.anthropic.claude-sonnet-4-6': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_6Sonnet',
+    SONNET_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5Sonnet',
+    SONNET_5_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5_5Sonnet',
+}
 PIKA_S3_BUCKET = os.environ.get('PIKA_S3_BUCKET', '')
 
 # Agent loop constraints
@@ -60,6 +76,101 @@ LAMBDA_TIMEOUT_BUFFER_SECONDS = 30
 
 # Heartbeat cadence — must match the TypeScript converse Lambda (bedrock-agent.ts)
 HEARTBEAT_INTERVAL_SECONDS = 15
+
+
+
+
+def _canonical_model_id(model_id: str) -> str:
+    if model_id not in INFERENCE_PROFILE_ENV_BY_MODEL_ID and f'us.{model_id}' in INFERENCE_PROFILE_ENV_BY_MODEL_ID:
+        return f'us.{model_id}'
+    return model_id
+
+
+def _resolve_inference_profile(model_id: str) -> str | None:
+    env_name = INFERENCE_PROFILE_ENV_BY_MODEL_ID.get(model_id)
+    profile_arn = os.environ.get(env_name, '') if env_name else ''
+    return profile_arn if profile_arn and profile_arn != 'undefined' else None
+
+
+# The SDK's cache strategy only marks the last user message; a cache point after the system prompt lets every turn reuse the system+tools prefix even when history changes.
+def _add_system_cache_point(model) -> None:
+    format_request = model._format_request
+
+    def _format_request(messages, tool_specs=None, system_prompt_content=None, tool_choice=None):
+        request = format_request(messages, tool_specs, system_prompt_content, tool_choice)
+        system = request.get('system') or []
+        if system and 'cachePoint' not in system[-1]:
+            request['system'] = [*system, {'cachePoint': {'type': 'default'}}]
+        return request
+
+    model._format_request = _format_request
+
+
+def _build_bedrock_model(model_id: str) -> BedrockModel:
+    model_id = _canonical_model_id(model_id)
+    profile_arn = _resolve_inference_profile(model_id)
+    # An application inference profile ARN carries no model name, so the SDK's "auto"
+    # detection would silently skip prompt caching for it.
+    cache_config = CacheConfig(strategy='anthropic' if profile_arn else 'auto')
+    request_fields = {}
+    if model_id in ADAPTIVE_THINKING_MODEL_IDS:
+        request_fields = {
+            'additional_request_fields': {
+                'thinking': {'type': 'adaptive'},
+                'output_config': {'effort': 'medium'},
+            },
+        }
+    model = BedrockModel(
+        model_id=profile_arn or model_id,
+        max_tokens=64000,
+        cache_config=cache_config,
+        **request_fields,
+    )
+    _add_system_cache_point(model)
+    # Same "auto" model-name detection as caching: a profile ARN would drop toolResult status.
+    if profile_arn:
+        model.update_config(include_tool_result_status=True)
+    return model
+
+
+class _SentUserTurnCapture:
+    def __init__(self, model):
+        self.texts: list[str] | None = None
+        self._seen = False
+        format_request = model._format_request
+
+        def _format_request(messages, tool_specs=None, system_prompt_content=None, tool_choice=None):
+            if not self._seen:
+                self._seen = True
+                self._record(messages)
+            return format_request(messages, tool_specs, system_prompt_content, tool_choice)
+
+        model._format_request = _format_request
+
+    def _record(self, messages) -> None:
+        if not messages or messages[-1].get('role') != 'user':
+            return
+        content = messages[-1].get('content') or []
+        if content and all(set(block) == {'text'} for block in content):
+            self.texts = [block['text'] for block in content]
+
+
+def _persist_sent_user_content(dynamodb_resource, user_msg: dict, texts: list[str] | None) -> None:
+    if not texts:
+        return
+    try:
+        payload = json.dumps(texts, ensure_ascii=False)
+        if not llm_context_xml_fits_message_item(user_msg, payload):
+            logger.warning('llm_user_content exceeds DDB item budget for msg=%s; replay falls back', user_msg.get('message_id'))
+            return
+        dynamodb_resource.Table(CHAT_MESSAGES_TABLE).update_item(
+            Key={'user_id': user_msg['user_id'], 'message_id': user_msg['message_id']},
+            UpdateExpression='SET #c = :c',
+            ExpressionAttributeNames={'#c': LLM_USER_CONTENT_ATTR},
+            ExpressionAttributeValues={':c': payload},
+        )
+    except Exception as err:
+        logger.warning('llm_user_content persist failed for msg=%s: %s', user_msg.get('message_id'), err)
 
 
 # Module-level clients (reused across warm invocations)
@@ -1047,16 +1158,80 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             logger.warning('get_messages returned None for user=%s session=%s; treating as new session', user_id, session_id)
         _prior_messages_raw = _raw_messages or []
 
+        llm_context_items = body.get('llmContextItems') or []
+        _prior_sent_contexts = (session_item or {}).get(SENT_CONTEXTS_ATTR) or {}
+        context_xml = build_context_xml(llm_context_items, _prior_sent_contexts)
+        context_xml_persisted = False
+
         # Store user message
-        user_message_id = f"{session_id}:{_now_ms()}"
-        add_message(dynamodb, CHAT_MESSAGES_TABLE, {
+        _user_message_ms = _now_ms()
+        user_message_id = f"{session_id}:{_user_message_ms}"
+        user_msg = {
             'user_id': user_id,
             'message_id': user_message_id,
             'session_id': session_id,
             'message': message,
             'source': 'user',
             'timestamp': _now_iso(),
-        })
+        }
+        if context_xml and llm_context_xml_fits_message_item(user_msg, context_xml):
+            user_msg[LLM_CONTEXT_XML_ATTR] = context_xml
+            context_xml_persisted = True
+        elif context_xml:
+            logger.warning(
+                'llm_context_xml exceeds DDB item budget for user=%s session=%s '
+                'msg=%s — omitting persist and sent_contexts ledger update',
+                user_id,
+                session_id,
+                user_message_id,
+            )
+        add_message(dynamodb, CHAT_MESSAGES_TABLE, user_msg)
+
+        def _end_turn_early(text: str):
+            stream.write(text)
+            # message_id is the messages-table sort key and only the user message separates
+            # these two writes, so a bare _now_ms() can repeat its millisecond and overwrite it.
+            assistant_id = f"{session_id}:{max(_now_ms(), _user_message_ms + 1)}"
+            try:
+                add_message(dynamodb, CHAT_MESSAGES_TABLE, {
+                    'user_id': user_id,
+                    'message_id': assistant_id,
+                    'session_id': session_id,
+                    'message': text,
+                    'source': 'assistant',
+                    'timestamp': _now_iso(),
+                    'execution_duration': 0,
+                })
+                update_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id,
+                               last_message_id=assistant_id, chat_app_id=chat_app_id)
+            except Exception as _save_err:
+                logger.warning(f"Early-exit message save failed: {_save_err}")
+
+            early_metadata = {
+                'userMessageId': user_message_id,
+                'assistantMessageId': assistant_id,
+                'sessionLastUpdate': datetime.now(timezone.utc).isoformat(),
+                'sessionLastMessageId': assistant_id,
+            }
+            stream.write(f'<pika-metadata>{json.dumps(early_metadata)}</pika-metadata>')
+            stream.end()
+            if _owns_queue:
+                return _drain_queue_to_response(chunk_queue, session_id)
+            return None
+
+        if resolve_hook('ACCOUNT_PIN_ENABLED'):
+            # The client sends the user's current account with every message, so the account
+            # stored on the session pins the conversation. This must follow ensure_session,
+            # which pins a legacy session's account exactly once.
+            _pinned_fields = pinned_account_fields(session_item)
+            _pinned_account = account_id_of(_pinned_fields)
+            _request_account = account_id_of(session_attributes)
+            if _pinned_account and _request_account and _pinned_account != _request_account:
+                logger.warning('account context changed mid-session for user=%s session=%s — refusing turn without model/tool invocation', user_id, session_id)
+                return _end_turn_early(resolve_hook('ACCOUNT_PIN_MISMATCH_MESSAGE'))
+            for _pf, _pv in _pinned_fields.items():
+                session_attributes[_pf] = _pv
+                custom_data_str[_pf] = _pv
 
         # --- Intent Router — pre-agent command dispatch --------------------
         # Runs before any agent work. Short-circuits the request when the
@@ -1153,7 +1328,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         if agent_def is None:
             agent_def = load_agent(dynamodb, agent_id)
             _put_cached_agent(agent_id, agent_def)
-        model_id = agent_def.get('foundation_model', DEFAULT_MODEL_ID)
+        model_id = _canonical_model_id(agent_def.get('foundation_model', DEFAULT_MODEL_ID))
         system_prompt = agent_def.get('base_prompt', f'You are a helpful assistant. Agent ID: {agent_id}')
         tool_ids = agent_def.get('tool_ids', [])
 
@@ -1258,7 +1433,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         # Convert history (fetched before storing current message) to Strands format
         repaired_messages = fix_turn_taking_errors(_prior_messages_raw)
         strands_messages = [
-            {'role': msg['source'], 'content': [{'text': str(msg.get('message') or '')}]}
+            {'role': msg['source'], 'content': message_content_for_llm_replay(msg)}
             for msg in repaired_messages
             if msg.get('source') in ('user', 'assistant')
         ]
@@ -1292,11 +1467,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             _memory_is_new_session = _prior_messages_raw == []
 
         # Configure Strands agent
-        model = BedrockModel(
-            model_id=model_id,
-            max_tokens=64000,
-            cache_config=CacheConfig(strategy="auto"),
-        )
+        model = _build_bedrock_model(model_id)
+        sent_turn_capture = _SentUserTurnCapture(model)
 
         # Time budget: stop agent loop before Lambda times out
         stop_event = threading.Event()
@@ -1353,9 +1525,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             if _memory_is_new_session:
                 agent_message += NEW_SESSION_MEMORY_NUDGE
 
-            # Inject context items if provided
-            llm_context_items = body.get('llmContextItems') or []
-            context_xml = build_context_xml(llm_context_items)
+            # context_xml was built before the user message was stored, against the prior turns' ledger.
             if context_xml:
                 agent_message = f'{agent_message}\n\n{context_xml}'
 
@@ -1443,15 +1613,11 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         logger.warning(f"Failed to load collaborator {collab_id}: {e}")
                         continue
 
-                    collab_model_id = collab_def.get('foundation_model', model_id)
+                    collab_model_id = _canonical_model_id(collab_def.get('foundation_model', model_id))
                     collab_prompt = collab_def.get('base_prompt', collab_instruction)
                     collab_tool_ids = collab_def.get('tool_ids', [])
 
-                    collab_model = BedrockModel(
-                        model_id=collab_model_id,
-                        max_tokens=64000,
-                        cache_config=CacheConfig(strategy="auto"),
-                    )
+                    collab_model = _build_bedrock_model(collab_model_id)
 
                     # Build collaborator tools
                     collab_tools = []
@@ -1806,6 +1972,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         f"user={user_id} session={session_id} msg={assistant_message_id}"
                     )
 
+        _persist_sent_user_content(dynamodb, user_msg, sent_turn_capture.texts)
+
         # Update session — last_message_id, last_update, chat_app_sk, usage counters.
         # This mirrors updateSession() in chat-ddb.ts and is required for the
         # user-chat-app-index GSI to sort sessions by recency.
@@ -1845,8 +2013,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         except Exception as sess_err:
             logger.warning(f"Session lookup for title failed: {sess_err}")
 
-        # Session insights — track sent context items
-        if llm_context_items:
+        # Session insights — track sent context items (only when context was persisted)
+        if llm_context_items and context_xml_persisted:
             try:
                 sent_contexts = {}
                 msg_ids = [user_message_id, assistant_message_id]
