@@ -44,6 +44,7 @@ from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt
 from tool_loop_guard import ToolLoopGuard
 from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
 from agent_loader import TOOL_INVOKE_MAX_SECONDS, load_agent, load_tools, build_strands_tools
+from collaborator_tools import build_tool_mode_collaborators
 from custom_hooks_base import (FinalResponse, FinalizeResult, HookFailure, RequestContext,
                                call_hook, resolve_hook)
 
@@ -1513,6 +1514,15 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         timer.daemon = True
         timer.start()
         collaborator_failure_codes: list[str] = []
+        collaborator_failure_lock = threading.Lock()
+        collaborator_tools: list = []
+
+        def _record_collaborator_failure(code: str) -> None:
+            with collaborator_failure_lock:
+                if not collaborator_failure_codes:
+                    collaborator_failure_codes.append(code)
+            # Stops the supervisor at its next checkpoint; the handler still writes the terminal response.
+            stop_event.set()
 
         heartbeat = _Heartbeat(stream)
         heartbeat.start()
@@ -1612,8 +1622,66 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             except Exception as _dbg_err:
                 logger.warning(f"llm-instruction trace emission failed (non-fatal): {_dbg_err}")
 
-            # Check for collaborators — use Swarm for multi-agent, plain Agent otherwise
-            collaborators = agent_def.get('collaborators') or []
+            # Tool-mode collaborators run as hidden tools of this agent, so only the supervisor's
+            # own text reaches the user; the remaining collaborators keep the Swarm path.
+            configured_collaborators = agent_def.get('collaborators') or []
+
+            def _load_collaborator_definition(collaborator_id):
+                definition = _get_cached_agent(collaborator_id)
+                if definition is None:
+                    definition = load_agent(dynamodb, collaborator_id)
+                    _put_cached_agent(collaborator_id, definition)
+                return definition
+
+            def _write_collaborator_tool_trace(
+                    collaborator_id, event, metadata):
+                stream.write_trace({
+                    'orchestrationTrace': {
+                        'observation': {
+                            'agentCollaboratorInvocationOutput': {
+                                # Lifecycle metadata only: the specialist's payload stays
+                                # inside the supervisor's tool observation.
+                                'output': {'text': json.dumps({
+                                    'event': event,
+                                    **metadata,
+                                }, separators=(',', ':'), sort_keys=True)},
+                                'agentCollaboratorName': collaborator_id,
+                            },
+                            'type': 'AGENT_COLLABORATOR',
+                        }
+                    }
+                })
+
+            def _on_hidden_tool_result(tool_name, result, *, invocation_input=None):
+                try:
+                    call_hook('on_hidden_tool_result', tool_name, result, hook_ctx,
+                              invocation_input=invocation_input)
+                except HookFailure:
+                    # Log-only in both fail modes; call_hook has already logged the error.
+                    pass
+
+            collaborator_tools = build_tool_mode_collaborators(
+                configured_collaborators,
+                load_agent_definition=_load_collaborator_definition,
+                load_tool_definitions=lambda tool_ids: load_tools(dynamodb, tool_ids),
+                build_tools=build_strands_tools,
+                build_model=_build_bedrock_model,
+                session_id=session_id,
+                current_user_text=message,
+                session_attributes=session_attributes,
+                prompt_session_attributes=prompt_session_attributes,
+                history_messages=strands_messages,
+                tool_trace_callback=stream.write_tool_result_trace,
+                collaborator_trace_callback=_write_collaborator_tool_trace,
+                failure_callback=_record_collaborator_failure,
+                on_hidden_tool_result=_on_hidden_tool_result,
+            )
+            if collaborator_tools:
+                strands_tools = [*(strands_tools or []), *collaborator_tools]
+            collaborators = [
+                collaborator for collaborator in configured_collaborators
+                if collaborator.get('mode') != 'tool'
+            ]
 
             def _new_tool_loop_guard():
                 return ToolLoopGuard(
@@ -1979,6 +2047,20 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             heartbeat.stop()
             timer.cancel()
 
+        if collaborator_failure_codes:
+            logger.error(
+                'Tool-mode collaborator failed closed: code=%s',
+                collaborator_failure_codes[0],
+            )
+            try:
+                response_text = call_hook(
+                    'collaborator_failure_message', collaborator_failure_codes, hook_ctx,
+                )
+            except HookFailure:
+                # The base message in both fail modes; call_hook has already logged the error.
+                response_text = resolve_hook('COLLABORATOR_FAILURE_MESSAGE')
+            _buffer_final_response = True
+
         try:
             _finalized = call_hook('finalize_response', FinalResponse(
                 text=response_text,
@@ -2045,6 +2127,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 )
                 if will_reprompt and collaborators:
                     logger.info('Reprompt skipped: collaborators are active')
+                elif will_reprompt and collaborator_tools:
+                    logger.info('Reprompt skipped: tool-mode collaborators are configured')
                 elif will_reprompt:
                     reprompt_text = get_reprompt_for_classification(classification)
                     reprompt_msg = build_reprompt_message(reprompt_text, v_result.get('explanation', ''))

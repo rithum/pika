@@ -1922,7 +1922,13 @@ export interface AgentDefinition {
     collaborators?: {
         agentId: string;
         instruction: string;
-        historyRelay: 'TO_COLLABORATOR' | 'TO_AGENT';
+        historyRelay: 'TO_COLLABORATOR' | 'TO_AGENT' | 'DISABLED';
+        mode?: 'swarm' | 'tool';
+        toolName?: string;
+        inputSchema?: Record<string, unknown>;
+        outputSchema?: Record<string, unknown>;
+        timeoutSeconds?: number;
+        singleSuccessTools?: string[];
     }[];
 
     /** The collaboration type for this agent. */
