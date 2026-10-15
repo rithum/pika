@@ -9,6 +9,8 @@ export const modelPricingValues = [
     'anthropic.claude-opus-4-5-20251101-v1:0',
     'anthropic.claude-sonnet-4-6',
     'anthropic.claude-opus-4-6-v1',
+    'anthropic.claude-sonnet-5',
+    'anthropic.claude-sonnet-5-5',
     // Legacy/decommissioned models (kept for historical cost calculations)
     'anthropic.claude-3-7-sonnet-20250219-v1:0',
     'anthropic.claude-3-5-sonnet-20241022-v2:0',
@@ -53,8 +55,8 @@ export const modelPricing: Record<ModelPricingKey, ModelPricing> = {
         outputPer1000Tokens: 0.075
     },
     'anthropic.claude-haiku-4-5-20251001-v1:0': {
-        inputPer1000Tokens: 0.0008,
-        outputPer1000Tokens: 0.004
+        inputPer1000Tokens: 0.001,
+        outputPer1000Tokens: 0.005
     },
     'anthropic.claude-sonnet-4-5-20250929-v1:0': {
         inputPer1000Tokens: 0.003,
@@ -71,6 +73,14 @@ export const modelPricing: Record<ModelPricingKey, ModelPricing> = {
     'anthropic.claude-opus-4-6-v1': {
         inputPer1000Tokens: 0.015,
         outputPer1000Tokens: 0.075
+    },
+    'anthropic.claude-sonnet-5': {
+        inputPer1000Tokens: 0.002,
+        outputPer1000Tokens: 0.01
+    },
+    'anthropic.claude-sonnet-5-5': {
+        inputPer1000Tokens: 0.002,
+        outputPer1000Tokens: 0.01
     },
     // Legacy/decommissioned models
     'anthropic.claude-3-7-sonnet-20250219-v1:0': {

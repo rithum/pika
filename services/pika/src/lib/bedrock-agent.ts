@@ -48,7 +48,7 @@ import {
     VerifyResponseClassifications
 } from 'pika-shared/types/chatbot/chatbot-types';
 import type { EnhancedResponseStream } from '../lambda/converse/EnhancedResponseStream';
-import { modelPricing } from '../lambda/converse/model-pricing';
+import { modelPricing, type ModelPricingKey } from '../lambda/converse/model-pricing';
 import { jsonparse } from './jsonparse';
 import { processMcpActionGroup as processMcpTool } from './mcp';
 import { buildTypedMemoryContents, createTypedMemoryEvent } from './memory';
@@ -56,6 +56,7 @@ import {
     DEFAULT_ANTHROPIC_MODEL,
     DEFAULT_ANTHROPIC_VERSION,
     DEFAULT_VERIFICATION_MODEL,
+    getBaseModelId,
     MODELS,
     type InvokeAgentHooks,
     resolveModelId,
@@ -564,7 +565,7 @@ async function invokeAgent(cmdInput: InvokeInlineAgentCommandInput, hooks: Invok
 
     console.log(label, 'Calculating usage costs...');
     // Make sure we get a pricing model, default to the default model
-    let price = modelPricing[model || 'default'] || modelPricing.default;
+    let price = modelPricing[getBaseModelId(model || 'default') as ModelPricingKey] || modelPricing.default;
     usage.inputCost = price.inputPer1000Tokens * (usage.inputTokens / 1000);
     usage.outputCost = price.outputPer1000Tokens * (usage.outputTokens / 1000);
     usage.totalCost = usage.inputCost + usage.outputCost;

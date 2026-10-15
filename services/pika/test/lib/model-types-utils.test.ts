@@ -46,6 +46,14 @@ describe('MODEL_ID_TO_MODEL', () => {
         expect(MODEL_ID_TO_MODEL['us.anthropic.claude-sonnet-4-5-20250929-v1:0']).toBeDefined();
     });
 
+    it('accepts the Sonnet 5 inference profile', () => {
+        expect(MODEL_ID_TO_MODEL['us.anthropic.claude-sonnet-5']).toBeDefined();
+    });
+
+    it('accepts the Sonnet 5.5 inference profile', () => {
+        expect(MODEL_ID_TO_MODEL['us.anthropic.claude-sonnet-5-5']).toBeDefined();
+    });
+
     it('does not create spurious aliases for models without us. prefix', () => {
         expect(MODEL_ID_TO_MODEL['anthropic.claude-3-haiku-20240307-v1:0']).toBeDefined();
         expect(MODEL_ID_TO_MODEL['us.anthropic.claude-3-haiku-20240307-v1:0']).toBeUndefined();

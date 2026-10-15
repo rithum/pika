@@ -33,6 +33,9 @@ export class ConverseStrandsConstruct extends Construct {
         super(scope, id);
 
         const { projNameKebabCase, stage, pikaOutputs } = props;
+        const inferenceProfileEnvVars = Object.fromEntries(
+            Object.entries(pikaOutputs.inferenceProfileArns).map(([key, arn]) => [`INFERENCE_PROFILE_${key}`, arn])
+        );
         const region = cdk.Stack.of(this).region;
         const account = cdk.Stack.of(this).account;
 
@@ -44,7 +47,7 @@ export class ConverseStrandsConstruct extends Construct {
         role.addToPolicy(
             new iam.PolicyStatement({
                 actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-                resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*']
+                resources: ['arn:aws:bedrock:*::foundation-model/*', 'arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*']
             })
         );
 
@@ -179,7 +182,8 @@ export class ConverseStrandsConstruct extends Construct {
                 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE: projNameKebabCase,
                 AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
                 AWS_LWA_INVOKE_MODE: 'response_stream',
-                PORT: '8080'
+                PORT: '8080',
+                ...inferenceProfileEnvVars
             }
         });
 
