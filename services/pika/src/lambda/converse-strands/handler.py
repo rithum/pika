@@ -17,11 +17,17 @@ from strands.models.bedrock import BedrockModel, CacheConfig
 from strands.multiagent.swarm import Swarm
 from strands.tools.tools import PythonAgentTool
 from strands.types.exceptions import MaxTokensReachedException
+from strands.handlers.callback_handler import null_callback_handler
 
 from pricing import extract_usage_from_result, extract_full_usage, calculate_usage
 from title import generate_session_title
-from verification import verify_response, get_reprompt_for_classification, build_reprompt_message
-from context_items import (LLM_CONTEXT_XML_ATTR, LLM_USER_CONTENT_ATTR, SENT_CONTEXTS_ATTR,
+from verification import (
+    build_reprompt_message,
+    get_reprompt_for_classification,
+    should_reprompt,
+    verify_response,
+)
+from context_items import (LLM_CONTEXT_XML_ATTR, LLM_CORRECTION_ATTR, LLM_USER_CONTENT_ATTR, SENT_CONTEXTS_ATTR,
                            build_context_xml, build_sent_context_record,
                            llm_context_xml_fits_message_item, message_content_for_llm_replay,
                            update_session_sent_contexts)
@@ -35,9 +41,11 @@ from chat_ddb import (ensure_session, update_session, add_message, get_user, get
                       account_id_of, pinned_account_fields)
 from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt_object,
                          inline_trace_budget)
+from tool_loop_guard import ToolLoopGuard
 from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
-from agent_loader import load_agent, load_tools, build_strands_tools
-from custom_hooks_base import resolve_hook
+from agent_loader import TOOL_INVOKE_MAX_SECONDS, load_agent, load_tools, build_strands_tools
+from custom_hooks_base import (FinalResponse, FinalizeResult, HookFailure, RequestContext,
+                               call_hook, resolve_hook)
 
 # Configure the root logger with a StreamHandler so output appears in CloudWatch.
 # In the Lambda Web Adapter environment, the Lambda runtime's handler isn't active;
@@ -892,6 +900,19 @@ def _build_memory_tools(memory_feature: dict, user_id: str, session_id: str) -> 
 # Swarm result extraction
 # ---------------------------------------------------------------------------
 
+def _is_tool_use_message(message) -> bool:
+    """True when *message* is an assistant turn that asked for a tool."""
+    if not isinstance(message, dict) or message.get('role') != 'assistant':
+        return False
+    content = message.get('content')
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(block, dict) and 'toolUse' in block
+        for block in content
+    )
+
+
 def _extract_swarm_response_text(swarm_result) -> str:
     """Extract human-readable response text from a SwarmResult.
 
@@ -1438,6 +1459,19 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             if msg.get('source') in ('user', 'assistant')
         ]
 
+        hook_ctx = RequestContext(
+            agent_id=agent_id,
+            chat_app_id=chat_app_id,
+            session_id=session_id,
+            user_id=user_id,
+            body=body,
+            message=message,
+        )
+        try:
+            hook_ctx.state = call_hook('begin_request', hook_ctx)
+        except HookFailure:
+            return _end_turn_early(resolve_hook('HOOK_ERROR_MESSAGE'))
+
         # Build Strands tools from tool definitions
         strands_tools = []
         if tool_ids:
@@ -1475,14 +1509,19 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         remaining_ms = context.get_remaining_time_in_millis() if context else 300000
         budget_seconds = max(1, (remaining_ms / 1000) - LAMBDA_TIMEOUT_BUFFER_SECONDS)
         timer = threading.Timer(budget_seconds, stop_event.set)
+        tool_start_deadline = time.monotonic() + budget_seconds - TOOL_INVOKE_MAX_SECONDS
         timer.daemon = True
         timer.start()
+        collaborator_failure_codes: list[str] = []
 
         heartbeat = _Heartbeat(stream)
         heartbeat.start()
 
         start_time = time.time()
         response_text = ''
+        _buffer_final_response = False
+        _agent_error: BaseException | None = None
+        collab_tool_loop_guards: list[ToolLoopGuard] = []
         agent_result = None  # Captured for usage extraction
         swarm_cache_read = 0  # Cache tokens accumulated from Swarm per-node events
         swarm_cache_write = 0
@@ -1576,10 +1615,21 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             # Check for collaborators — use Swarm for multi-agent, plain Agent otherwise
             collaborators = agent_def.get('collaborators') or []
 
+            def _new_tool_loop_guard():
+                return ToolLoopGuard(
+                    tool_start_deadline=tool_start_deadline,
+                    polling_tools=resolve_hook('TOOL_LOOP_POLLING_TOOLS'),
+                    loop_message=resolve_hook('TOOL_LOOP_TRIPPED_MESSAGE'),
+                    deadline_message=resolve_hook('TOOL_DEADLINE_MESSAGE'),
+                )
+
+            tool_loop_guard = _new_tool_loop_guard() if strands_tools else None
+
             # Build plugins list (directive skills, etc.)
             agent_plugins = [p for p in [directive_skills_plugin] if p is not None]
 
             if collaborators:
+                _buffer_final_response = True
                 # Build supervisor agent — callback_handler=None so ALL output goes
                 # through stream_async events (no PrintingCallbackHandler side-writes)
                 supervisor = Agent(
@@ -1595,6 +1645,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     name=agent_id,
                     description=agent_def.get('base_prompt', '')[:100],
                     plugins=agent_plugins if agent_plugins else None,
+                    hooks=[tool_loop_guard] if tool_loop_guard else None,
                 )
 
                 # Build collaborator agents — load full definitions from DDB
@@ -1636,6 +1687,9 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         tool_ids=collab_tool_ids,
                     )
                     collab_plugins = [p for p in [collab_skills_plugin] if p is not None]
+                    collab_tool_loop_guard = _new_tool_loop_guard() if collab_tools else None
+                    if collab_tool_loop_guard:
+                        collab_tool_loop_guards.append(collab_tool_loop_guard)
                     if collab_applied_directives:
                         stream.write_trace({"orchestrationTrace": {"rationale": {"traceId": f"semantic-directives-collaborator-{collab_id}", "text": json.dumps({"type": "semantic-directives-collaborator", "collaboratorAgentId": collab_id, "directives": collab_applied_directives})}}})
 
@@ -1647,6 +1701,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         name=collab_id,
                         description=collab_instruction,
                         plugins=collab_plugins if collab_plugins else None,
+                        hooks=[collab_tool_loop_guard] if collab_tool_loop_guard else None,
                     )
                     collab_agents.append(collab_agent)
 
@@ -1761,7 +1816,6 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         if uri_map:
                             from kb_citations import inject_citations  # noqa: PLC0415
                             final_answer = inject_citations(final_answer, uri_map)
-                        stream.write(final_answer)
                     return final_answer
 
                 # Track whether the async path COMPLETED (no exception) —
@@ -1792,16 +1846,35 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         if uri_map:
                             from kb_citations import inject_citations  # noqa: PLC0415
                             response_text = inject_citations(response_text, uri_map)
-                        stream.write(response_text)
+
+                tripped_guard = next(
+                    (
+                        guard for guard in [tool_loop_guard, *collab_tool_loop_guards]
+                        if guard and guard.tripped
+                    ),
+                    None,
+                )
+                if tripped_guard:
+                    response_text = tripped_guard.user_message
 
             else:
                 # Plain agent — no collaborators.
-                # When KB tools are active, citation markers ([[kbref:N]])
-                # must be rendered into [Citation N](uri) before the client
-                # sees them. The live callback streams raw tokens as they
-                # arrive, which would leak the markers. Suppress it and
-                # buffer the full turn so we can render once at the end.
-                _plain_callback = None if knowledge_bases else _make_callback(stream)
+                # Live tokens are suppressed when the turn can span several model calls
+                # (tools, memory), when KB citation markers must be rendered first, or
+                # when a hook must see the final text before the user does; the answer
+                # is then written once, after the agent finishes.
+                try:
+                    _hook_buffer = bool(call_hook('should_buffer_final_response', hook_ctx))
+                except HookFailure:
+                    _hook_buffer = True
+                _buffer_stream = (
+                    bool(knowledge_bases)
+                    or bool(strands_tools)
+                    or _hook_buffer
+                    or bool(resolve_hook('HOOKS_FAIL_CLOSED'))
+                )
+                _buffer_final_response = _buffer_stream
+                _plain_callback = None if _buffer_stream else _make_callback(stream)
                 agent = Agent(
                     model=model,
                     system_prompt=system_prompt,
@@ -1813,37 +1886,115 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         'prompt_session_attributes': prompt_session_attributes,
                     },
                     plugins=agent_plugins if agent_plugins else None,
+                    hooks=[tool_loop_guard] if tool_loop_guard else None,
                 )
 
-                result = agent(
-                    agent_message,
-                    invocation_state={
-                        'max_iterations': MAX_ITERATIONS,
-                        'stop_event': stop_event,
-                    },
-                )
+                plain_final_result = None
+
+                async def _run_plain_streaming():
+                    """Run the agent async, emitting pre-tool-call text as rationale traces."""
+                    nonlocal plain_final_result
+                    turn_text: list[str] = []
+                    tool_turns = 0
+
+                    async for event in agent.stream_async(
+                        agent_message,
+                        invocation_state={
+                            'max_iterations': MAX_ITERATIONS,
+                            'stop_event': stop_event,
+                        },
+                    ):
+                        if 'result' in event:
+                            plain_final_result = event['result']
+                            continue
+
+                        data = event.get('data')
+                        if data:
+                            turn_text.append(data)
+
+                        if not _is_tool_use_message(event.get('message')):
+                            continue
+
+                        buffered = ''.join(turn_text).strip()
+                        turn_text = []
+                        if buffered:
+                            tool_turns += 1
+                            stream.write_trace({
+                                'orchestrationTrace': {
+                                    'rationale': {
+                                        'traceId': f'agent-thinking-{agent_id}-{tool_turns}',
+                                        'text': buffered,
+                                    }
+                                }
+                            })
+
+                plain_async_completed = False
+                try:
+                    asyncio.run(_run_plain_streaming())
+                    plain_async_completed = True
+                except MaxTokensReachedException:
+                    raise
+                except Exception as plain_err:
+                    logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
+
+                # A turn that legitimately produced no text is not a failure, and
+                # re-running the agent would repeat every tool call it already made.
+                # A missing AgentResult is different: the stream always ends with one,
+                # so its absence means the async path never really ran.
+                if plain_async_completed and plain_final_result is not None:
+                    result = plain_final_result
+                else:
+                    if plain_async_completed:
+                        logger.warning(
+                            "Agent stream_async completed without an AgentResult; "
+                            "re-running synchronously (tool calls may repeat)"
+                        )
+                    result = agent(
+                        agent_message,
+                        invocation_state={
+                            'max_iterations': MAX_ITERATIONS,
+                            'stop_event': stop_event,
+                        },
+                    )
                 agent_result = result
-                response_text = str(result) if result else ''
+                response_text = (
+                    tool_loop_guard.user_message
+                    if tool_loop_guard and tool_loop_guard.tripped
+                    else str(result) if result else ''
+                )
                 if uri_map:
                     from kb_citations import inject_citations  # noqa: PLC0415
                     response_text = inject_citations(response_text, uri_map)
-                # For KB agents the live callback was suppressed, so the
-                # client has seen nothing yet — stream the rendered text
-                # once, in one shot. Non-KB agents already streamed via
-                # the callback; skip to avoid duplication.
-                if knowledge_bases and response_text:
-                    stream.write(response_text)
         except MaxTokensReachedException as e:
             logger.error(f"Agent execution error: {e}")
+            _agent_error = e
             response_text = "I'm sorry, your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request."
-            stream.write(response_text)
+            _buffer_final_response = True
         except Exception as e:
             logger.error(f"Agent execution error: {e}")
+            _agent_error = e
             response_text = "I'm sorry, I encountered an error processing your request."
-            stream.write(response_text)
+            _buffer_final_response = True
         finally:
             heartbeat.stop()
             timer.cancel()
+
+        try:
+            _finalized = call_hook('finalize_response', FinalResponse(
+                text=response_text,
+                buffered=_buffer_final_response,
+                collaborator_failure_codes=list(collaborator_failure_codes),
+                agent_error=_agent_error,
+                tools=strands_tools,
+            ), hook_ctx)
+        except HookFailure:
+            _finalized = FinalizeResult(text=resolve_hook('HOOK_ERROR_MESSAGE'),
+                                        force_write=True, skip_verification=True)
+        response_text = _finalized.text
+        if _finalized.force_write:
+            _buffer_final_response = True
+        if _buffer_final_response and response_text:
+            stream.write(response_text)
 
         execution_duration = int((time.time() - start_time) * 1000)
 
@@ -1865,33 +2016,72 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
         # Verification — classify response accuracy if enabled
         verifications = None
+        correction_for_replay = None
         verify_config = agent_def.get('verification') or {}
         features = body.get('features') or {}
         verify_feature = features.get('verifyResponse') or {}
         verify_enabled = verify_config.get('enabled') or verify_feature.get('enabled')
         logger.info(f"Verification: enabled={verify_enabled}, agent_config={bool(verify_config.get('enabled'))}, feature={bool(verify_feature.get('enabled'))}")
-        if verify_enabled:
+        if (
+            verify_enabled
+            and not collaborator_failure_codes
+            and not _finalized.skip_verification
+        ):
             try:
                 v_result = verify_response(message, response_text, bedrock_runtime)
-                logger.info(f"Verification result: {v_result.get('classification', 'U')}")
-                verifications = {'main': v_result.get('classification', 'U')}
+                classification = v_result.get('classification', 'U')
+                logger.info(f"Verification result: {classification}")
+                verifications = {'main': classification}
+                stream.write_trace({'orchestrationTrace': {'rationale': {
+                    'traceId': 'verify-main',
+                    'text': f'Verified Response: {classification}',
+                }}})
 
-                reprompt_text = get_reprompt_for_classification(v_result.get('classification', 'U'))
-                if reprompt_text:
+                reprompt_threshold = verify_feature.get('autoRepromptThreshold') or verify_config.get('autoRepromptThreshold')
+                will_reprompt = should_reprompt(classification, reprompt_threshold)
+                logger.info(
+                    f"Reprompt decision: classification={classification}, "
+                    f"threshold={reprompt_threshold}, will_reprompt={will_reprompt}"
+                )
+                if will_reprompt and collaborators:
+                    logger.info('Reprompt skipped: collaborators are active')
+                elif will_reprompt:
+                    reprompt_text = get_reprompt_for_classification(classification)
                     reprompt_msg = build_reprompt_message(reprompt_text, v_result.get('explanation', ''))
-                    # Re-run agent with reprompt
                     try:
-                        correction_result = agent(
-                            reprompt_msg,
-                            invocation_state={'max_iterations': MAX_ITERATIONS, 'stop_event': stop_event},
-                        ) if not collaborators else None
+                        # The correction belongs in the reasoning panel only; a live callback
+                        # would stream it into the answer.
+                        _live_callback = agent.callback_handler
+                        agent.callback_handler = null_callback_handler
+                        try:
+                            correction_result = agent(
+                                reprompt_msg,
+                                invocation_state={
+                                    'max_iterations': MAX_ITERATIONS,
+                                    'stop_event': stop_event,
+                                },
+                            )
+                        finally:
+                            agent.callback_handler = _live_callback
                         if correction_result:
                             correction_text = str(correction_result)
-                            stream.write(correction_text)
-                            response_text += correction_text
-                            # Re-verify the corrected response
-                            c_result = verify_response(message, response_text, bedrock_runtime)
-                            verifications['correction'] = c_result.get('classification', 'U')
+                            try:
+                                correction = call_hook('filter_correction', correction_text, hook_ctx)
+                            except HookFailure:
+                                correction = None
+                            if correction is not None:
+                                stream.write_trace({'orchestrationTrace': {'rationale': {
+                                    'traceId': 'verify-correction',
+                                    'text': f'[Correction] {correction.text}',
+                                }}})
+                                if correction.replay:
+                                    correction_for_replay = correction.text
+                                c_result = verify_response(message, f'{response_text}\n\n{correction.text}', bedrock_runtime)
+                                verifications['correction'] = c_result.get('classification', 'U')
+                                stream.write_trace({'orchestrationTrace': {'rationale': {
+                                    'traceId': 'verify-correction-grade',
+                                    'text': f"Correction Verified Response: {verifications['correction']}",
+                                }}})
                             # Update usage with correction tokens
                             corr_usage = extract_full_usage(correction_result)
                             input_tokens += corr_usage.get('inputTokens', 0)
@@ -1921,6 +2111,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         }
         if verifications:
             assistant_msg['verifications'] = verifications
+        if correction_for_replay:
+            assistant_msg[LLM_CORRECTION_ATTR] = correction_for_replay
         if stream.traces:
             # Traces live in S3, not on the item: full trace sets routinely ran
             # 20-340 KB and pushed items past DynamoDB's 400 KB cap, losing the

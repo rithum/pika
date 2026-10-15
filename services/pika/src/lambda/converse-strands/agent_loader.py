@@ -10,6 +10,7 @@ import logging
 from collections.abc import Callable
 
 import boto3
+from botocore.config import Config
 
 # Constants for the Bedrock ActionGroupInvocationInput payload
 BEDROCK_AGENT_NAME = 'INLINE_AGENT'
@@ -22,7 +23,19 @@ logger = logging.getLogger(__name__)
 AGENT_DEFINITIONS_TABLE = os.environ.get('AGENT_DEFINITIONS_TABLE', '')
 TOOL_DEFINITIONS_TABLE = os.environ.get('TOOL_DEFINITIONS_TABLE', '')
 
-lambda_client = boto3.client('lambda')
+TOOL_INVOKE_CONNECT_TIMEOUT_SECONDS = 10
+TOOL_INVOKE_READ_TIMEOUT_SECONDS = 70
+TOOL_INVOKE_MAX_SECONDS = TOOL_INVOKE_CONNECT_TIMEOUT_SECONDS + TOOL_INVOKE_READ_TIMEOUT_SECONDS
+
+# A synchronous invoke that times out has already run the tool to its own
+# timeout, so an SDK retry re-runs it in full and is not safe for side effects.
+TOOL_INVOKE_CLIENT_CONFIG = Config(
+    connect_timeout=TOOL_INVOKE_CONNECT_TIMEOUT_SECONDS,
+    read_timeout=TOOL_INVOKE_READ_TIMEOUT_SECONDS,
+    retries={'total_max_attempts': 1},
+)
+
+lambda_client = boto3.client('lambda', config=TOOL_INVOKE_CLIENT_CONFIG)
 _local_tool_clients: dict[str, object] = {}
 
 
