@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.31.0",
+  "latestVersion": "0.32.0",
   "currentDevelopment": "0.32.0",
   "releases": [
     {
       "version": "0.32.0",
       "date": "2026-10-15",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Strands converse gains a sync-protected hooks file for settings and response policy, a tool loop guard, hidden tool-mode collaborators, a session account pin, plain-agent reasoning traces and context repeat delivery, and defaults to Sonnet 5.5. Agents with tools buffer their answer, verification corrections move to the reasoning panel, and TS usage costs use each model's own pricing.",
       "highlights": [
