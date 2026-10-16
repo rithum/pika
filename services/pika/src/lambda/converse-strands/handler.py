@@ -1700,7 +1700,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     tool_name for tool_name in (
                         getattr(t, 'tool_name', None) for t in (strands_tools or [])
                     ) if tool_name
-                },
+                } | ({'skills'} if directive_skills_plugin is not None else set()),
             )
             if collaborator_tools:
                 strands_tools = [*(strands_tools or []), *collaborator_tools]
@@ -2031,9 +2031,12 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 except MaxTokensReachedException:
                     raise
                 except Exception as plain_err:
-                    if tool_use_seen:
+                    if tool_use_seen and plain_final_result is None:
                         raise
-                    logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
+                    if plain_final_result is not None:
+                        plain_async_completed = True
+                    else:
+                        logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
 
                 # A turn that legitimately produced no text is not a failure, and
                 # re-running the agent would repeat every tool call it already made.
@@ -2108,7 +2111,6 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         response_text = _finalized.text
         if (
             not _buffer_final_response
-            and not _finalized.force_write
             and response_text != pre_hook_text
         ):
             logger.warning(

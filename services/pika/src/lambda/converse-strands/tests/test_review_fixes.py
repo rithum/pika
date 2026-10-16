@@ -294,11 +294,73 @@ def test_failure_before_tool_use_still_falls_back_to_sync():
     assert 'Sync answer.' in result['body']
 
 
-def test_finalize_rewrite_of_streamed_turn_logs_warning(override_hooks, caplog):
+@pytest.mark.parametrize('force_write', [False, True])
+def test_finalize_rewrite_of_streamed_turn_logs_warning(override_hooks, caplog, force_write):
     from custom_hooks_base import FinalizeResult
-    override_hooks.finalize_response = lambda final, ctx: FinalizeResult(text='Rewritten.')
+    override_hooks.finalize_response = lambda final, ctx: FinalizeResult(
+        text='Rewritten.', force_write=force_write)
     agent_cls, _ = streaming_agent_cls('Plain answer.')
     with caplog.at_level(logging.WARNING):
         _run_stream_handler(agent_cls)
     assert 'finalize_response changed a live-streamed turn' in caplog.text
     assert_primary_path(caplog)
+
+
+def test_result_captured_before_stream_error_is_used_without_rerun():
+    sync_calls = []
+
+    class _Agent:
+        def __init__(self, **kwargs):
+            pass
+
+        async def stream_async(self, *_a, **_k):
+            yield TOOL_USE_EVENT
+            yield {'result': 'Captured answer.'}
+            raise RuntimeError('boom')
+
+        def __call__(self, *a, **k):
+            sync_calls.append(a)
+            return 'rerun'
+
+    result = _run_stream_handler(_Agent)
+    assert sync_calls == []
+    assert ERROR_TEXT not in result['body']
+
+
+def test_specialist_that_raises_is_still_billed_once():
+    seen = []
+
+    class RaisingAgent:
+        def __init__(self, **kwargs):
+            self.event_loop_metrics = SimpleNamespace(accumulated_usage=USAGE)
+
+        def __call__(self, prompt, **_kwargs):
+            raise RuntimeError('model failed')
+
+        def cancel(self):
+            pass
+
+    tools, _ = _build(
+        '', usage_callback=lambda m, u: seen.append((m, u)), agent_cls=RaisingAgent)
+    assert _invoke(tools[0])['status'] == 'error'
+    assert seen == [('model-1', USAGE)]
+
+
+def test_specialist_never_invoked_on_passed_deadline_is_not_billed():
+    seen = []
+    tools, calls = _build(
+        '{"kind":"PLAN"}', usage_callback=lambda m, u: seen.append((m, u)),
+        deadline_monotonic=time.monotonic() - 1)
+    _invoke(tools[0])
+    assert calls == []
+    assert seen == []
+
+
+def test_long_agent_ids_with_shared_prefix_get_distinct_names():
+    prefix = 'p' * 60
+    tools, _ = _build('', configs=[
+        config(agentId=prefix + 'one', toolName=None),
+        config(agentId=prefix + 'two', toolName=None)])
+    names = _names(tools)
+    assert len(names) == 2 and len(set(names)) == 2
+    assert all(len(n) <= 64 for n in names)

@@ -54,13 +54,25 @@ def _json_safe(value):
     return json.loads(json.dumps(value, default=_json_default))
 
 
+def _specialist_usage(specialist, result) -> dict:
+    metrics = getattr(specialist, 'event_loop_metrics', None)
+    usage = getattr(metrics, 'accumulated_usage', None)
+    if isinstance(usage, dict):
+        return dict(usage)
+    return extract_full_usage(result)
+
+
 def _tool_name(config: dict) -> str:
     explicit = config.get('toolName') or config.get('tool_name')
     if explicit:
         return str(explicit)
     agent_id = config.get('agentId') or config.get('agent_id') or 'specialist'
     normalized = re.sub(r'[^a-zA-Z0-9_]+', '_', str(agent_id)).strip('_')
-    return f'consult_{normalized or "specialist"}'[:MAX_TOOL_NAME_LENGTH]
+    name = f'consult_{normalized or "specialist"}'
+    if len(name) <= MAX_TOOL_NAME_LENGTH:
+        return name
+    sha8 = hashlib.sha256(str(agent_id).encode()).hexdigest()[:8]
+    return f'consult_{normalized[:47]}_{sha8}'
 
 
 def _extract_json(text: str) -> dict:
@@ -587,19 +599,12 @@ def build_tool_mode_collaborators(
                 timer = threading.Timer(effective_timeout, cancel_on_deadline)
                 timer.daemon = True
                 timer.start()
+                result = None
                 try:
                     result = specialist(
                         _specialist_input(tool_input, current_user_text),
                         invocation_state={'stop_event': deadline_state.expired},
                     )
-                    if _usage_callback is not None:
-                        try:
-                            _usage_callback(_model_id, extract_full_usage(result))
-                        except Exception:
-                            logger.exception(
-                                'Could not record tool-mode collaborator usage: %s',
-                                _name,
-                            )
                     parsed = _extract_json(
                         str(result) if result is not None else ''
                     )
@@ -628,6 +633,17 @@ def build_tool_mode_collaborators(
                         )
                 finally:
                     timer.cancel()
+                    if _usage_callback is not None:
+                        try:
+                            _usage_callback(
+                                _model_id,
+                                _specialist_usage(specialist, result),
+                            )
+                        except Exception:
+                            logger.exception(
+                                'Could not record tool-mode collaborator usage: %s',
+                                _name,
+                            )
                 _emit_collaborator_trace(
                     _collaborator_trace_callback,
                     _agent_id,
