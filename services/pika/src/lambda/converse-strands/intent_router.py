@@ -246,7 +246,7 @@ def _build_classification_prompt(message: str, commands: list[dict],
     )
 
 
-def _extract_first_json_object(text: str) -> Optional[dict]:
+def extract_first_json_object(text: str) -> Optional[dict]:
     """Parse the first JSON object in *text*.
 
     Uses json.JSONDecoder.raw_decode so nested braces and multiple objects on
@@ -280,7 +280,7 @@ def _classify_with_llm(message: str, commands: list[dict], context: dict | None,
         response = bedrock_client.invoke_model(modelId=DEFAULT_CLASSIFIER_MODEL_ID, body=body)
         parsed = json.loads(response['body'].read())
         raw_text = parsed.get('content', [{}])[0].get('text', '')
-        parsed_obj = _extract_first_json_object(raw_text or '')
+        parsed_obj = extract_first_json_object(raw_text or '')
         if parsed_obj is None:
             return {'matched': False, 'confidence': 0.0, 'reasoning': 'classifier returned no JSON'}
         return parsed_obj

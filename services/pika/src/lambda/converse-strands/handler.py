@@ -10,6 +10,7 @@ import logging
 import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
+from decimal import Decimal
 import boto3
 import jwt as pyjwt
 from strands import Agent
@@ -17,22 +18,38 @@ from strands.models.bedrock import BedrockModel, CacheConfig
 from strands.multiagent.swarm import Swarm
 from strands.tools.tools import PythonAgentTool
 from strands.types.exceptions import MaxTokensReachedException
+from strands.handlers.callback_handler import null_callback_handler
 
 from pricing import extract_usage_from_result, extract_full_usage, calculate_usage
 from title import generate_session_title
-from verification import verify_response, get_reprompt_for_classification, build_reprompt_message
-from context_items import build_context_xml, build_sent_context_record, update_session_sent_contexts
+from verification import (
+    build_reprompt_message,
+    get_reprompt_for_classification,
+    should_reprompt,
+    verify_response,
+)
+from context_items import (LLM_CONTEXT_XML_ATTR, LLM_CORRECTION_ATTR, LLM_USER_CONTENT_ATTR, SENT_CONTEXTS_ATTR,
+                           build_context_xml, build_sent_context_record,
+                           llm_context_xml_fits_message_item, message_content_for_llm_replay,
+                           update_session_sent_contexts)
 
 try:
     from strands_tools.agent_core_memory import AgentCoreMemoryToolProvider
 except ImportError:
     AgentCoreMemoryToolProvider = None
 from chat_ddb import (ensure_session, update_session, add_message, get_user, get_messages,
-                      set_session_llm_instruction_hash, session_token, _now_iso)
+                      set_session_llm_instruction_hash, session_token, _now_iso,
+                      account_id_of, pinned_account_fields)
 from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt_object,
                          inline_trace_budget)
+from tool_loop_guard import ToolLoopGuard
 from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
-from agent_loader import load_agent, load_tools, build_strands_tools
+from agent_loader import TOOL_INVOKE_MAX_SECONDS, load_agent, load_tools, build_strands_tools
+from collaborator_tools import build_tool_mode_collaborators
+# Imported at load so a broken override fails the cold start instead of every turn after the user message is stored.
+import custom_hooks  # noqa: F401
+from custom_hooks_base import (FinalResponse, FinalizeResult, HookFailure, RequestContext,
+                               call_hook, resolve_hook)
 
 # Configure the root logger with a StreamHandler so output appears in CloudWatch.
 # In the Lambda Web Adapter environment, the Lambda runtime's handler isn't active;
@@ -51,7 +68,18 @@ CHAT_SESSION_TABLE = os.environ.get('CHAT_SESSION_TABLE', '')
 CHAT_USER_TABLE = os.environ.get('CHAT_USER_TABLE', '')
 STAGE = os.environ.get('STAGE', 'test')
 PIKA_SERVICE_PROJ_NAME_KEBAB_CASE = os.environ.get('PIKA_SERVICE_PROJ_NAME_KEBAB_CASE', '')
-DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
+SONNET_5_MODEL_ID = 'us.anthropic.claude-sonnet-5'
+SONNET_5_5_MODEL_ID = 'us.anthropic.claude-sonnet-5-5'
+DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', SONNET_5_5_MODEL_ID)
+ADAPTIVE_THINKING_MODEL_IDS = frozenset({SONNET_5_MODEL_ID, SONNET_5_5_MODEL_ID})
+INFERENCE_PROFILE_ENV_BY_MODEL_ID = {
+    'us.anthropic.claude-sonnet-4-20250514-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4Sonnet',
+    'us.anthropic.claude-haiku-4-5-20251001-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Haiku',
+    'us.anthropic.claude-sonnet-4-5-20250929-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet',
+    'us.anthropic.claude-sonnet-4-6': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_6Sonnet',
+    SONNET_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5Sonnet',
+    SONNET_5_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5_5Sonnet',
+}
 PIKA_S3_BUCKET = os.environ.get('PIKA_S3_BUCKET', '')
 
 # Agent loop constraints
@@ -60,6 +88,110 @@ LAMBDA_TIMEOUT_BUFFER_SECONDS = 30
 
 # Heartbeat cadence — must match the TypeScript converse Lambda (bedrock-agent.ts)
 HEARTBEAT_INTERVAL_SECONDS = 15
+
+
+
+
+def _canonical_model_id(model_id: str) -> str:
+    if model_id not in INFERENCE_PROFILE_ENV_BY_MODEL_ID and f'us.{model_id}' in INFERENCE_PROFILE_ENV_BY_MODEL_ID:
+        return f'us.{model_id}'
+    return model_id
+
+
+def _resolve_inference_profile(model_id: str) -> str | None:
+    env_name = INFERENCE_PROFILE_ENV_BY_MODEL_ID.get(model_id)
+    profile_arn = os.environ.get(env_name, '') if env_name else ''
+    return profile_arn if profile_arn and profile_arn != 'undefined' else None
+
+
+# The SDK's cache strategy only marks the last user message; a cache point after the system prompt lets every turn reuse the system+tools prefix even when history changes.
+def _add_system_cache_point(model) -> None:
+    format_request = model._format_request
+
+    def _format_request(messages, tool_specs=None, system_prompt_content=None, tool_choice=None):
+        request = format_request(messages, tool_specs, system_prompt_content, tool_choice)
+        system = request.get('system') or []
+        if system and 'cachePoint' not in system[-1]:
+            request['system'] = [*system, {'cachePoint': {'type': 'default'}}]
+        return request
+
+    model._format_request = _format_request
+
+
+def _build_bedrock_model(model_id: str) -> BedrockModel:
+    model_id = _canonical_model_id(model_id)
+    profile_arn = _resolve_inference_profile(model_id)
+    # An application inference profile ARN carries no model name, so the SDK's "auto"
+    # detection would silently skip prompt caching for it.
+    cache_config = CacheConfig(strategy='anthropic' if profile_arn else 'auto')
+    request_fields = {}
+    if model_id in ADAPTIVE_THINKING_MODEL_IDS:
+        request_fields = {
+            'additional_request_fields': {
+                'thinking': {'type': 'adaptive'},
+                'output_config': {'effort': 'medium'},
+            },
+        }
+    model = BedrockModel(
+        model_id=profile_arn or model_id,
+        max_tokens=64000,
+        cache_config=cache_config,
+        **request_fields,
+    )
+    if profile_arn or any(name in model_id.lower() for name in ('claude', 'anthropic')):
+        _add_system_cache_point(model)
+    # Same "auto" model-name detection as caching: a profile ARN would drop toolResult status.
+    if profile_arn:
+        model.update_config(include_tool_result_status=True)
+    return model
+
+
+def _merge_usage(base: dict, extra: dict) -> dict:
+    merged = dict(base)
+    for key, value in extra.items():
+        if isinstance(value, (int, Decimal)) and not isinstance(value, bool):
+            merged[key] = merged.get(key, 0) + value
+    return merged
+
+
+class _SentUserTurnCapture:
+    def __init__(self, model):
+        self.texts: list[str] | None = None
+        self._seen = False
+        format_request = model._format_request
+
+        def _format_request(messages, tool_specs=None, system_prompt_content=None, tool_choice=None):
+            if not self._seen:
+                self._seen = True
+                self._record(messages)
+            return format_request(messages, tool_specs, system_prompt_content, tool_choice)
+
+        model._format_request = _format_request
+
+    def _record(self, messages) -> None:
+        if not messages or messages[-1].get('role') != 'user':
+            return
+        content = messages[-1].get('content') or []
+        if content and all(set(block) == {'text'} for block in content):
+            self.texts = [block['text'] for block in content]
+
+
+def _persist_sent_user_content(dynamodb_resource, user_msg: dict, texts: list[str] | None) -> None:
+    if not texts:
+        return
+    try:
+        payload = json.dumps(texts, ensure_ascii=False)
+        if not llm_context_xml_fits_message_item(user_msg, payload):
+            logger.warning('llm_user_content exceeds DDB item budget for msg=%s; replay falls back', user_msg.get('message_id'))
+            return
+        dynamodb_resource.Table(CHAT_MESSAGES_TABLE).update_item(
+            Key={'user_id': user_msg['user_id'], 'message_id': user_msg['message_id']},
+            UpdateExpression='SET #c = :c',
+            ExpressionAttributeNames={'#c': LLM_USER_CONTENT_ATTR},
+            ExpressionAttributeValues={':c': payload},
+        )
+    except Exception as err:
+        logger.warning('llm_user_content persist failed for msg=%s: %s', user_msg.get('message_id'), err)
 
 
 # Module-level clients (reused across warm invocations)
@@ -781,6 +913,19 @@ def _build_memory_tools(memory_feature: dict, user_id: str, session_id: str) -> 
 # Swarm result extraction
 # ---------------------------------------------------------------------------
 
+def _is_tool_use_message(message) -> bool:
+    """True when *message* is an assistant turn that asked for a tool."""
+    if not isinstance(message, dict) or message.get('role') != 'assistant':
+        return False
+    content = message.get('content')
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(block, dict) and 'toolUse' in block
+        for block in content
+    )
+
+
 def _extract_swarm_response_text(swarm_result) -> str:
     """Extract human-readable response text from a SwarmResult.
 
@@ -1047,16 +1192,80 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             logger.warning('get_messages returned None for user=%s session=%s; treating as new session', user_id, session_id)
         _prior_messages_raw = _raw_messages or []
 
+        llm_context_items = body.get('llmContextItems') or []
+        _prior_sent_contexts = (session_item or {}).get(SENT_CONTEXTS_ATTR) or {}
+        context_xml = build_context_xml(llm_context_items, _prior_sent_contexts)
+        context_xml_persisted = False
+
         # Store user message
-        user_message_id = f"{session_id}:{_now_ms()}"
-        add_message(dynamodb, CHAT_MESSAGES_TABLE, {
+        _user_message_ms = _now_ms()
+        user_message_id = f"{session_id}:{_user_message_ms}"
+        user_msg = {
             'user_id': user_id,
             'message_id': user_message_id,
             'session_id': session_id,
             'message': message,
             'source': 'user',
             'timestamp': _now_iso(),
-        })
+        }
+        if context_xml and llm_context_xml_fits_message_item(user_msg, context_xml):
+            user_msg[LLM_CONTEXT_XML_ATTR] = context_xml
+            context_xml_persisted = True
+        elif context_xml:
+            logger.warning(
+                'llm_context_xml exceeds DDB item budget for user=%s session=%s '
+                'msg=%s — omitting persist and sent_contexts ledger update',
+                user_id,
+                session_id,
+                user_message_id,
+            )
+        add_message(dynamodb, CHAT_MESSAGES_TABLE, user_msg)
+
+        def _end_turn_early(text: str):
+            stream.write(text)
+            # message_id is the messages-table sort key and only the user message separates
+            # these two writes, so a bare _now_ms() can repeat its millisecond and overwrite it.
+            assistant_id = f"{session_id}:{max(_now_ms(), _user_message_ms + 1)}"
+            try:
+                add_message(dynamodb, CHAT_MESSAGES_TABLE, {
+                    'user_id': user_id,
+                    'message_id': assistant_id,
+                    'session_id': session_id,
+                    'message': text,
+                    'source': 'assistant',
+                    'timestamp': _now_iso(),
+                    'execution_duration': 0,
+                })
+                update_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id,
+                               last_message_id=assistant_id, chat_app_id=chat_app_id)
+            except Exception as _save_err:
+                logger.warning(f"Early-exit message save failed: {_save_err}")
+
+            early_metadata = {
+                'userMessageId': user_message_id,
+                'assistantMessageId': assistant_id,
+                'sessionLastUpdate': datetime.now(timezone.utc).isoformat(),
+                'sessionLastMessageId': assistant_id,
+            }
+            stream.write(f'<pika-metadata>{json.dumps(early_metadata)}</pika-metadata>')
+            stream.end()
+            if _owns_queue:
+                return _drain_queue_to_response(chunk_queue, session_id)
+            return None
+
+        if resolve_hook('ACCOUNT_PIN_ENABLED'):
+            # The client sends the user's current account with every message, so the account
+            # stored on the session pins the conversation. This must follow ensure_session,
+            # which pins a legacy session's account exactly once.
+            _pinned_fields = pinned_account_fields(session_item)
+            _pinned_account = account_id_of(_pinned_fields)
+            _request_account = account_id_of(session_attributes)
+            if _pinned_account and _request_account and _pinned_account != _request_account:
+                logger.warning('account context changed mid-session for user=%s session=%s — refusing turn without model/tool invocation', user_id, session_id)
+                return _end_turn_early(resolve_hook('ACCOUNT_PIN_MISMATCH_MESSAGE'))
+            for _pf, _pv in _pinned_fields.items():
+                session_attributes[_pf] = _pv
+                custom_data_str[_pf] = _pv
 
         # --- Intent Router — pre-agent command dispatch --------------------
         # Runs before any agent work. Short-circuits the request when the
@@ -1153,7 +1362,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         if agent_def is None:
             agent_def = load_agent(dynamodb, agent_id)
             _put_cached_agent(agent_id, agent_def)
-        model_id = agent_def.get('foundation_model', DEFAULT_MODEL_ID)
+        model_id = _canonical_model_id(agent_def.get('foundation_model', DEFAULT_MODEL_ID))
         system_prompt = agent_def.get('base_prompt', f'You are a helpful assistant. Agent ID: {agent_id}')
         tool_ids = agent_def.get('tool_ids', [])
 
@@ -1258,10 +1467,23 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         # Convert history (fetched before storing current message) to Strands format
         repaired_messages = fix_turn_taking_errors(_prior_messages_raw)
         strands_messages = [
-            {'role': msg['source'], 'content': [{'text': str(msg.get('message') or '')}]}
+            {'role': msg['source'], 'content': message_content_for_llm_replay(msg)}
             for msg in repaired_messages
             if msg.get('source') in ('user', 'assistant')
         ]
+
+        hook_ctx = RequestContext(
+            agent_id=agent_id,
+            chat_app_id=chat_app_id,
+            session_id=session_id,
+            user_id=user_id,
+            body=body,
+            message=message,
+        )
+        try:
+            hook_ctx.state = call_hook('begin_request', hook_ctx)
+        except HookFailure:
+            return _end_turn_early(resolve_hook('HOOK_ERROR_MESSAGE'))
 
         # Build Strands tools from tool definitions
         strands_tools = []
@@ -1292,25 +1514,43 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             _memory_is_new_session = _prior_messages_raw == []
 
         # Configure Strands agent
-        model = BedrockModel(
-            model_id=model_id,
-            max_tokens=64000,
-            cache_config=CacheConfig(strategy="auto"),
-        )
+        model = _build_bedrock_model(model_id)
+        sent_turn_capture = _SentUserTurnCapture(model)
 
         # Time budget: stop agent loop before Lambda times out
         stop_event = threading.Event()
         remaining_ms = context.get_remaining_time_in_millis() if context else 300000
         budget_seconds = max(1, (remaining_ms / 1000) - LAMBDA_TIMEOUT_BUFFER_SECONDS)
         timer = threading.Timer(budget_seconds, stop_event.set)
+        run_deadline = time.monotonic() + budget_seconds
+        tool_start_deadline = run_deadline - TOOL_INVOKE_MAX_SECONDS
         timer.daemon = True
         timer.start()
+        collaborator_failure_codes: list[str] = []
+        collaborator_failure_lock = threading.Lock()
+        collaborator_usage: list[tuple[str, dict]] = []
+        collaborator_usage_lock = threading.Lock()
+        collaborator_tools: list = []
+
+        def _record_collaborator_failure(code: str) -> None:
+            with collaborator_failure_lock:
+                if not collaborator_failure_codes:
+                    collaborator_failure_codes.append(code)
+            # Stops the supervisor at its next checkpoint; the handler still writes the terminal response.
+            stop_event.set()
+
+        def _record_collaborator_usage(specialist_model_id: str, specialist_usage: dict) -> None:
+            with collaborator_usage_lock:
+                collaborator_usage.append((specialist_model_id, specialist_usage))
 
         heartbeat = _Heartbeat(stream)
         heartbeat.start()
 
         start_time = time.time()
         response_text = ''
+        _buffer_final_response = False
+        _agent_error: BaseException | None = None
+        collab_tool_loop_guards: list[ToolLoopGuard] = []
         agent_result = None  # Captured for usage extraction
         swarm_cache_read = 0  # Cache tokens accumulated from Swarm per-node events
         swarm_cache_write = 0
@@ -1353,9 +1593,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             if _memory_is_new_session:
                 agent_message += NEW_SESSION_MEMORY_NUDGE
 
-            # Inject context items if provided
-            llm_context_items = body.get('llmContextItems') or []
-            context_xml = build_context_xml(llm_context_items)
+            # context_xml was built before the user message was stored, against the prior turns' ledger.
             if context_xml:
                 agent_message = f'{agent_message}\n\n{context_xml}'
 
@@ -1403,13 +1641,94 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             except Exception as _dbg_err:
                 logger.warning(f"llm-instruction trace emission failed (non-fatal): {_dbg_err}")
 
-            # Check for collaborators — use Swarm for multi-agent, plain Agent otherwise
-            collaborators = agent_def.get('collaborators') or []
+            # Tool-mode collaborators run as hidden tools of this agent, so only the supervisor's
+            # own text reaches the user; the remaining collaborators keep the Swarm path.
+            configured_collaborators = agent_def.get('collaborators') or []
+
+            def _load_collaborator_definition(collaborator_id):
+                definition = _get_cached_agent(collaborator_id)
+                if definition is None:
+                    definition = load_agent(dynamodb, collaborator_id)
+                    _put_cached_agent(collaborator_id, definition)
+                return definition
+
+            def _write_collaborator_tool_trace(
+                    collaborator_id, event, metadata):
+                stream.write_trace({
+                    'orchestrationTrace': {
+                        'observation': {
+                            'agentCollaboratorInvocationOutput': {
+                                # Lifecycle metadata only: the specialist's payload stays
+                                # inside the supervisor's tool observation.
+                                'output': {'text': json.dumps({
+                                    'event': event,
+                                    **metadata,
+                                }, separators=(',', ':'), sort_keys=True)},
+                                'agentCollaboratorName': collaborator_id,
+                            },
+                            'type': 'AGENT_COLLABORATOR',
+                        }
+                    }
+                })
+
+            def _on_hidden_tool_result(tool_name, result, *, invocation_input=None):
+                try:
+                    call_hook('on_hidden_tool_result', tool_name, result, hook_ctx,
+                              invocation_input=invocation_input)
+                except HookFailure:
+                    # Log-only in both fail modes; call_hook has already logged the error.
+                    pass
+
+            collaborator_tools = build_tool_mode_collaborators(
+                configured_collaborators,
+                load_agent_definition=_load_collaborator_definition,
+                load_tool_definitions=lambda tool_ids: load_tools(dynamodb, tool_ids),
+                build_tools=build_strands_tools,
+                build_model=_build_bedrock_model,
+                session_id=session_id,
+                current_user_text=message,
+                session_attributes=session_attributes,
+                prompt_session_attributes=prompt_session_attributes,
+                history_messages=strands_messages,
+                tool_trace_callback=stream.write_tool_result_trace,
+                collaborator_trace_callback=_write_collaborator_tool_trace,
+                failure_callback=_record_collaborator_failure,
+                on_hidden_tool_result=_on_hidden_tool_result,
+                usage_callback=_record_collaborator_usage,
+                deadline_monotonic=run_deadline,
+                reserved_tool_names={
+                    tool_name for tool_name in (
+                        getattr(t, 'tool_name', None) for t in (strands_tools or [])
+                    ) if tool_name
+                } | {
+                    tool_name for tool_name in (
+                        getattr(t, 'tool_name', None)
+                        for t in (directive_skills_plugin.tools if directive_skills_plugin else [])
+                    ) if tool_name
+                },
+            )
+            if collaborator_tools:
+                strands_tools = [*(strands_tools or []), *collaborator_tools]
+            collaborators = [
+                collaborator for collaborator in configured_collaborators
+                if collaborator.get('mode') != 'tool'
+            ]
+
+            def _new_tool_loop_guard():
+                return ToolLoopGuard(
+                    tool_start_deadline=tool_start_deadline,
+                    polling_tools=resolve_hook('TOOL_LOOP_POLLING_TOOLS'),
+                    loop_message=resolve_hook('TOOL_LOOP_TRIPPED_MESSAGE'),
+                    deadline_message=resolve_hook('TOOL_DEADLINE_MESSAGE'),
+                )
+
+            tool_loop_guard = _new_tool_loop_guard() if strands_tools else None
 
             # Build plugins list (directive skills, etc.)
             agent_plugins = [p for p in [directive_skills_plugin] if p is not None]
 
             if collaborators:
+                _buffer_final_response = True
                 # Build supervisor agent — callback_handler=None so ALL output goes
                 # through stream_async events (no PrintingCallbackHandler side-writes)
                 supervisor = Agent(
@@ -1425,6 +1744,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     name=agent_id,
                     description=agent_def.get('base_prompt', '')[:100],
                     plugins=agent_plugins if agent_plugins else None,
+                    hooks=[tool_loop_guard] if tool_loop_guard else None,
                 )
 
                 # Build collaborator agents — load full definitions from DDB
@@ -1443,15 +1763,11 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         logger.warning(f"Failed to load collaborator {collab_id}: {e}")
                         continue
 
-                    collab_model_id = collab_def.get('foundation_model', model_id)
+                    collab_model_id = _canonical_model_id(collab_def.get('foundation_model', model_id))
                     collab_prompt = collab_def.get('base_prompt', collab_instruction)
                     collab_tool_ids = collab_def.get('tool_ids', [])
 
-                    collab_model = BedrockModel(
-                        model_id=collab_model_id,
-                        max_tokens=64000,
-                        cache_config=CacheConfig(strategy="auto"),
-                    )
+                    collab_model = _build_bedrock_model(collab_model_id)
 
                     # Build collaborator tools
                     collab_tools = []
@@ -1470,6 +1786,9 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         tool_ids=collab_tool_ids,
                     )
                     collab_plugins = [p for p in [collab_skills_plugin] if p is not None]
+                    collab_tool_loop_guard = _new_tool_loop_guard() if collab_tools else None
+                    if collab_tool_loop_guard:
+                        collab_tool_loop_guards.append(collab_tool_loop_guard)
                     if collab_applied_directives:
                         stream.write_trace({"orchestrationTrace": {"rationale": {"traceId": f"semantic-directives-collaborator-{collab_id}", "text": json.dumps({"type": "semantic-directives-collaborator", "collaboratorAgentId": collab_id, "directives": collab_applied_directives})}}})
 
@@ -1481,6 +1800,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         name=collab_id,
                         description=collab_instruction,
                         plugins=collab_plugins if collab_plugins else None,
+                        hooks=[collab_tool_loop_guard] if collab_tool_loop_guard else None,
                     )
                     collab_agents.append(collab_agent)
 
@@ -1595,7 +1915,6 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         if uri_map:
                             from kb_citations import inject_citations  # noqa: PLC0415
                             final_answer = inject_citations(final_answer, uri_map)
-                        stream.write(final_answer)
                     return final_answer
 
                 # Track whether the async path COMPLETED (no exception) —
@@ -1626,16 +1945,35 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         if uri_map:
                             from kb_citations import inject_citations  # noqa: PLC0415
                             response_text = inject_citations(response_text, uri_map)
-                        stream.write(response_text)
+
+                tripped_guard = next(
+                    (
+                        guard for guard in [tool_loop_guard, *collab_tool_loop_guards]
+                        if guard and guard.tripped
+                    ),
+                    None,
+                )
+                if tripped_guard:
+                    response_text = tripped_guard.user_message
 
             else:
                 # Plain agent — no collaborators.
-                # When KB tools are active, citation markers ([[kbref:N]])
-                # must be rendered into [Citation N](uri) before the client
-                # sees them. The live callback streams raw tokens as they
-                # arrive, which would leak the markers. Suppress it and
-                # buffer the full turn so we can render once at the end.
-                _plain_callback = None if knowledge_bases else _make_callback(stream)
+                # Live tokens are suppressed when the turn can span several model calls
+                # (tools, memory), when KB citation markers must be rendered first, or
+                # when a hook must see the final text before the user does; the answer
+                # is then written once, after the agent finishes.
+                try:
+                    _hook_buffer = bool(call_hook('should_buffer_final_response', hook_ctx))
+                except HookFailure:
+                    _hook_buffer = True
+                _buffer_stream = (
+                    bool(knowledge_bases)
+                    or bool(strands_tools)
+                    or _hook_buffer
+                    or bool(resolve_hook('HOOKS_FAIL_CLOSED'))
+                )
+                _buffer_final_response = _buffer_stream
+                _plain_callback = None if _buffer_stream else _make_callback(stream)
                 agent = Agent(
                     model=model,
                     system_prompt=system_prompt,
@@ -1647,37 +1985,148 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         'prompt_session_attributes': prompt_session_attributes,
                     },
                     plugins=agent_plugins if agent_plugins else None,
+                    hooks=[tool_loop_guard] if tool_loop_guard else None,
                 )
 
-                result = agent(
-                    agent_message,
-                    invocation_state={
-                        'max_iterations': MAX_ITERATIONS,
-                        'stop_event': stop_event,
-                    },
-                )
+                plain_final_result = None
+                tool_use_seen = False
+
+                async def _run_plain_streaming():
+                    """Run the agent async, emitting pre-tool-call text as rationale traces."""
+                    nonlocal plain_final_result, tool_use_seen
+                    turn_text: list[str] = []
+                    tool_turns = 0
+
+                    async for event in agent.stream_async(
+                        agent_message,
+                        invocation_state={
+                            'max_iterations': MAX_ITERATIONS,
+                            'stop_event': stop_event,
+                        },
+                    ):
+                        if 'result' in event:
+                            plain_final_result = event['result']
+                            continue
+
+                        data = event.get('data')
+                        if data:
+                            turn_text.append(data)
+
+                        if not _is_tool_use_message(event.get('message')):
+                            continue
+
+                        tool_use_seen = True
+                        buffered = ''.join(turn_text).strip()
+                        turn_text = []
+                        if buffered:
+                            tool_turns += 1
+                            stream.write_trace({
+                                'orchestrationTrace': {
+                                    'rationale': {
+                                        'traceId': f'agent-thinking-{agent_id}-{tool_turns}',
+                                        'text': buffered,
+                                    }
+                                }
+                            })
+
+                plain_async_completed = False
+                try:
+                    asyncio.run(_run_plain_streaming())
+                    plain_async_completed = True
+                except MaxTokensReachedException:
+                    raise
+                except Exception as plain_err:
+                    if tool_use_seen and plain_final_result is None:
+                        raise
+                    if plain_final_result is not None:
+                        logger.warning(f"Agent stream_async failed after its result; using the result: {plain_err}")
+                        plain_async_completed = True
+                    else:
+                        logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
+
+                # A turn that legitimately produced no text is not a failure, and
+                # re-running the agent would repeat every tool call it already made.
+                # A missing AgentResult is different: the stream always ends with one,
+                # so its absence means the async path never really ran.
+                if plain_async_completed and plain_final_result is not None:
+                    result = plain_final_result
+                else:
+                    if plain_async_completed and tool_use_seen:
+                        raise RuntimeError('stream_async completed without an AgentResult after tool use')
+                    if plain_async_completed:
+                        logger.warning(
+                            "Agent stream_async completed without an AgentResult; "
+                            "re-running synchronously (tool calls may repeat)"
+                        )
+                    result = agent(
+                        agent_message,
+                        invocation_state={
+                            'max_iterations': MAX_ITERATIONS,
+                            'stop_event': stop_event,
+                        },
+                    )
                 agent_result = result
-                response_text = str(result) if result else ''
+                response_text = (
+                    tool_loop_guard.user_message
+                    if tool_loop_guard and tool_loop_guard.tripped
+                    else str(result) if result else ''
+                )
                 if uri_map:
                     from kb_citations import inject_citations  # noqa: PLC0415
                     response_text = inject_citations(response_text, uri_map)
-                # For KB agents the live callback was suppressed, so the
-                # client has seen nothing yet — stream the rendered text
-                # once, in one shot. Non-KB agents already streamed via
-                # the callback; skip to avoid duplication.
-                if knowledge_bases and response_text:
-                    stream.write(response_text)
         except MaxTokensReachedException as e:
             logger.error(f"Agent execution error: {e}")
+            _agent_error = e
             response_text = "I'm sorry, your request required more processing than I can handle in a single response. Try breaking it into smaller steps or simplifying your request."
-            stream.write(response_text)
+            _buffer_final_response = True
         except Exception as e:
             logger.error(f"Agent execution error: {e}")
+            _agent_error = e
             response_text = "I'm sorry, I encountered an error processing your request."
-            stream.write(response_text)
+            _buffer_final_response = True
         finally:
             heartbeat.stop()
             timer.cancel()
+
+        if collaborator_failure_codes:
+            logger.error(
+                'Tool-mode collaborator failed closed: code=%s',
+                collaborator_failure_codes[0],
+            )
+            try:
+                response_text = call_hook(
+                    'collaborator_failure_message', collaborator_failure_codes, hook_ctx,
+                )
+            except HookFailure:
+                # The base message in both fail modes; call_hook has already logged the error.
+                response_text = resolve_hook('COLLABORATOR_FAILURE_MESSAGE')
+            _buffer_final_response = True
+
+        try:
+            _finalized = call_hook('finalize_response', FinalResponse(
+                text=response_text,
+                buffered=_buffer_final_response,
+                collaborator_failure_codes=list(collaborator_failure_codes),
+                agent_error=_agent_error,
+                tools=strands_tools,
+            ), hook_ctx)
+        except HookFailure:
+            _finalized = FinalizeResult(text=resolve_hook('HOOK_ERROR_MESSAGE'),
+                                        force_write=True, skip_verification=True)
+        pre_hook_text = response_text
+        response_text = _finalized.text
+        if (
+            not _buffer_final_response
+            and response_text != pre_hook_text
+        ):
+            logger.warning(
+                'finalize_response changed a live-streamed turn; the user saw the streamed text %s',
+                'followed by the rewritten text' if _finalized.force_write else 'not the stored text',
+            )
+        if _finalized.force_write:
+            _buffer_final_response = True
+        if _buffer_final_response and response_text:
+            stream.write(response_text)
 
         execution_duration = int((time.time() - start_time) * 1000)
 
@@ -1689,43 +2138,95 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         output_tokens = full_usage.get('outputTokens', 0)
         cache_read_tokens = full_usage.get('cacheReadInputTokens', 0) or swarm_cache_read
         cache_write_tokens = full_usage.get('cacheWriteInputTokens', 0) or swarm_cache_write
+        usage = calculate_usage(input_tokens, output_tokens, model_id,
+                                cache_read_tokens=cache_read_tokens,
+                                cache_write_tokens=cache_write_tokens)
+        with collaborator_usage_lock:
+            specialist_usages = list(collaborator_usage)
+        for specialist_model_id, u in specialist_usages:
+            input_tokens += u.get('inputTokens', 0)
+            output_tokens += u.get('outputTokens', 0)
+            cache_read_tokens += u.get('cacheReadInputTokens', 0) or 0
+            cache_write_tokens += u.get('cacheWriteInputTokens', 0) or 0
+            usage = _merge_usage(usage, calculate_usage(
+                u.get('inputTokens', 0), u.get('outputTokens', 0), specialist_model_id,
+                cache_read_tokens=u.get('cacheReadInputTokens', 0) or 0,
+                cache_write_tokens=u.get('cacheWriteInputTokens', 0) or 0))
         logger.info(
             f"Usage: input={input_tokens}, output={output_tokens}, "
             f"cacheRead={cache_read_tokens}, cacheWrite={cache_write_tokens}"
         )
-        usage = calculate_usage(input_tokens, output_tokens, model_id,
-                                cache_read_tokens=cache_read_tokens,
-                                cache_write_tokens=cache_write_tokens)
 
         # Verification — classify response accuracy if enabled
         verifications = None
+        correction_for_replay = None
         verify_config = agent_def.get('verification') or {}
         features = body.get('features') or {}
         verify_feature = features.get('verifyResponse') or {}
         verify_enabled = verify_config.get('enabled') or verify_feature.get('enabled')
         logger.info(f"Verification: enabled={verify_enabled}, agent_config={bool(verify_config.get('enabled'))}, feature={bool(verify_feature.get('enabled'))}")
-        if verify_enabled:
+        if (
+            verify_enabled
+            and not collaborator_failure_codes
+            and not _finalized.skip_verification
+        ):
             try:
                 v_result = verify_response(message, response_text, bedrock_runtime)
-                logger.info(f"Verification result: {v_result.get('classification', 'U')}")
-                verifications = {'main': v_result.get('classification', 'U')}
+                classification = v_result.get('classification', 'U')
+                logger.info(f"Verification result: {classification}")
+                verifications = {'main': classification}
+                stream.write_trace({'orchestrationTrace': {'rationale': {
+                    'traceId': 'verify-main',
+                    'text': f'Verified Response: {classification}',
+                }}})
 
-                reprompt_text = get_reprompt_for_classification(v_result.get('classification', 'U'))
-                if reprompt_text:
+                reprompt_threshold = verify_feature.get('autoRepromptThreshold') or verify_config.get('autoRepromptThreshold')
+                will_reprompt = should_reprompt(classification, reprompt_threshold)
+                logger.info(
+                    f"Reprompt decision: classification={classification}, "
+                    f"threshold={reprompt_threshold}, will_reprompt={will_reprompt}"
+                )
+                if will_reprompt and collaborators:
+                    logger.info('Reprompt skipped: collaborators are active')
+                elif will_reprompt and collaborator_tools:
+                    logger.info('Reprompt skipped: tool-mode collaborators are configured')
+                elif will_reprompt:
+                    reprompt_text = get_reprompt_for_classification(classification)
                     reprompt_msg = build_reprompt_message(reprompt_text, v_result.get('explanation', ''))
-                    # Re-run agent with reprompt
                     try:
-                        correction_result = agent(
-                            reprompt_msg,
-                            invocation_state={'max_iterations': MAX_ITERATIONS, 'stop_event': stop_event},
-                        ) if not collaborators else None
+                        # The correction belongs in the reasoning panel only; a live callback
+                        # would stream it into the answer.
+                        _live_callback = agent.callback_handler
+                        agent.callback_handler = null_callback_handler
+                        try:
+                            correction_result = agent(
+                                reprompt_msg,
+                                invocation_state={
+                                    'max_iterations': MAX_ITERATIONS,
+                                    'stop_event': stop_event,
+                                },
+                            )
+                        finally:
+                            agent.callback_handler = _live_callback
                         if correction_result:
                             correction_text = str(correction_result)
-                            stream.write(correction_text)
-                            response_text += correction_text
-                            # Re-verify the corrected response
-                            c_result = verify_response(message, response_text, bedrock_runtime)
-                            verifications['correction'] = c_result.get('classification', 'U')
+                            try:
+                                correction = call_hook('filter_correction', correction_text, hook_ctx)
+                            except HookFailure:
+                                correction = None
+                            if correction is not None:
+                                stream.write_trace({'orchestrationTrace': {'rationale': {
+                                    'traceId': 'verify-correction',
+                                    'text': f'[Correction] {correction.text}',
+                                }}})
+                                if correction.replay:
+                                    correction_for_replay = correction.text
+                                c_result = verify_response(message, f'{response_text}\n\n{correction.text}', bedrock_runtime)
+                                verifications['correction'] = c_result.get('classification', 'U')
+                                stream.write_trace({'orchestrationTrace': {'rationale': {
+                                    'traceId': 'verify-correction-grade',
+                                    'text': f"Correction Verified Response: {verifications['correction']}",
+                                }}})
                             # Update usage with correction tokens
                             corr_usage = extract_full_usage(correction_result)
                             input_tokens += corr_usage.get('inputTokens', 0)
@@ -1755,6 +2256,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         }
         if verifications:
             assistant_msg['verifications'] = verifications
+        if correction_for_replay:
+            assistant_msg[LLM_CORRECTION_ATTR] = correction_for_replay
         if stream.traces:
             # Traces live in S3, not on the item: full trace sets routinely ran
             # 20-340 KB and pushed items past DynamoDB's 400 KB cap, losing the
@@ -1806,6 +2309,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         f"user={user_id} session={session_id} msg={assistant_message_id}"
                     )
 
+        _persist_sent_user_content(dynamodb, user_msg, sent_turn_capture.texts)
+
         # Update session — last_message_id, last_update, chat_app_sk, usage counters.
         # This mirrors updateSession() in chat-ddb.ts and is required for the
         # user-chat-app-index GSI to sort sessions by recency.
@@ -1845,8 +2350,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         except Exception as sess_err:
             logger.warning(f"Session lookup for title failed: {sess_err}")
 
-        # Session insights — track sent context items
-        if llm_context_items:
+        # Session insights — track sent context items (only when context was persisted)
+        if llm_context_items and context_xml_persisted:
             try:
                 sent_contexts = {}
                 msg_ids = [user_message_id, assistant_message_id]

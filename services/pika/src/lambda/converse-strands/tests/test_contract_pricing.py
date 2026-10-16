@@ -17,8 +17,10 @@ Pricing contract (Strands-native — replaces TS trace-based accumulation):
 """
 
 import json
-import pytest
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 DEFAULT_INPUT_PRICE = 0.003
@@ -31,6 +33,26 @@ DEFAULT_OUTPUT_PRICE = 0.015
 
 class TestCalculateUsage:
     """Contract for calculate_usage(input_tokens, output_tokens, model_id) function."""
+
+    @pytest.mark.parametrize('model_id', ['us.anthropic.claude-sonnet-5', 'us.anthropic.claude-sonnet-5-5'])
+    def test_sonnet_5_family_uses_two_ten_rates(self, model_id):
+        """Sonnet 5 and 5.5 bill $2/$10 per MTok with $0.20 cache reads and $2.50 cache writes."""
+        from pricing import MODEL_PRICING, calculate_usage
+
+        assert model_id in MODEL_PRICING
+        result = calculate_usage(
+            input_tokens=1000,
+            output_tokens=1000,
+            model_id=model_id,
+            cache_read_tokens=1000,
+            cache_write_tokens=1000,
+        )
+
+        assert result['inputCost'] == Decimal('0.0047')
+        assert result['outputCost'] == Decimal('0.01')
+        assert result['cacheReadCost'] == Decimal('0.0002')
+        assert result['cacheWriteCost'] == Decimal('0.0025')
+        assert result['totalCost'] == Decimal('0.0147')
 
     def test_total_cost_equals_input_plus_output_cost(self):
         """totalCost must equal inputCost + outputCost exactly."""

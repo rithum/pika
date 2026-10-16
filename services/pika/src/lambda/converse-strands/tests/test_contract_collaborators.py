@@ -17,6 +17,10 @@ import contextlib
 import pytest
 from unittest.mock import MagicMock, patch
 
+from strands.tools.tools import PythonAgentTool
+from custom_hooks_base import COLLABORATOR_FAILURE_MESSAGE, HOOK_ERROR_MESSAGE, RequestContext
+from tests.hook_defaults import base_hooks, override_hooks  # noqa: F401
+
 
 MOCK_SUPERVISOR_DEF = {
     'agent_id': 'rithum-bot',
@@ -349,4 +353,278 @@ class TestSwarmStreamingFormat:
         # The collaborator's response text must be in the body
         assert '42 orders' in body, (
             f'Collaborator response text must appear in body. Got: {body[:300]!r}'
+        )
+
+
+TOOL_MODE_DEF = {
+    **MOCK_SUPERVISOR_DEF,
+    'collaborators': [{
+        'agentId': 'item-analyzer',
+        'mode': 'tool',
+        'instruction': 'Return structured item analysis.',
+        'historyRelay': 'TO_COLLABORATOR',
+        'outputSchema': {
+            'type': 'object',
+            'properties': {'kind': {'const': 'RESULT'}},
+            'required': ['kind'],
+        },
+    }],
+}
+
+
+def _failing_collaborator_builder(*codes):
+    def build(_collaborators, *, failure_callback=None, **_kwargs):
+        assert callable(failure_callback)
+
+        def fail(tool_use, **_invocation_state):
+            for code in codes:
+                failure_callback(code)
+            return {
+                'toolUseId': tool_use.get('toolUseId', ''),
+                'status': 'error',
+                'content': [{'text': json.dumps({'error': codes[0]})}],
+            }
+
+        return [PythonAgentTool(
+            'consult_item_analyzer',
+            {
+                'name': 'consult_item_analyzer',
+                'description': 'Consult the item analyzer.',
+                'inputSchema': {'json': {'type': 'object'}},
+            },
+            fail,
+        )]
+
+    return build
+
+
+class _SupervisorCallingFailingTool:
+    def __init__(self, **kwargs):
+        self.tool = kwargs['tools'][0]
+
+    def __call__(self, _prompt, *, invocation_state):
+        response = self.tool._tool_func({'toolUseId': 'consult-1', 'input': {}})
+        assert response['status'] == 'error'
+        assert invocation_state['stop_event'].is_set()
+        return 'internal collaborator failure detail'
+
+
+def _run_tool_mode(build_side_effect, mock_agent_cls, agent_def=TOOL_MODE_DEF):
+    import handler as h  # noqa: PLC0415
+
+    with contextlib.ExitStack() as stack:
+        _apply_base_patches(
+            stack,
+            agent_def,
+            mock_agent_cls=mock_agent_cls,
+            mock_swarm_cls=MagicMock(),
+        )
+        build_hidden = stack.enter_context(patch(
+            'handler.build_tool_mode_collaborators',
+            side_effect=build_side_effect,
+        ))
+        result = h.handler(_make_event(), _make_ctx())
+        persisted = [
+            call.args[2]['message']
+            for call in h.add_message.call_args_list
+            if call.args[2].get('source') == 'assistant'
+        ]
+    return result, persisted, build_hidden
+
+
+@pytest.mark.usefixtures('base_hooks')
+class TestToolModeCollaboratorOwnership:
+    """Tool-mode collaborators return to the supervisor; Swarm never owns prose."""
+
+    def test_tool_mode_uses_plain_supervisor_and_only_its_final_text_is_visible(self):
+        supervisor = MagicMock(return_value='The supervisor owns the final response.')
+        mock_agent_cls = MagicMock(return_value=supervisor)
+        specialist_tool = MagicMock()
+
+        result, _, build_hidden = _run_tool_mode(
+            lambda *_a, **_k: [specialist_tool], mock_agent_cls,
+        )
+
+        assert result['statusCode'] == 200
+        assert 'The supervisor owns the final response.' in result['body']
+        assert build_hidden.called
+        assert specialist_tool in mock_agent_cls.call_args.kwargs['tools']
+
+    def test_tool_mode_does_not_build_a_swarm(self):
+        import handler as h  # noqa: PLC0415
+
+        mock_swarm_cls = MagicMock()
+        with contextlib.ExitStack() as stack:
+            _apply_base_patches(stack, TOOL_MODE_DEF, mock_swarm_cls=mock_swarm_cls)
+            stack.enter_context(patch(
+                'handler.build_tool_mode_collaborators',
+                return_value=[MagicMock()],
+            ))
+            result = h.handler(_make_event(), _make_ctx())
+
+        assert result['statusCode'] == 200
+        assert not mock_swarm_cls.called
+
+    def test_tool_mode_failure_stops_supervisor_and_completes_user_turn(self):
+        result, persisted, _ = _run_tool_mode(
+            _failing_collaborator_builder('COLLABORATOR_OUTPUT_INVALID'),
+            MagicMock(side_effect=_SupervisorCallingFailingTool),
+        )
+
+        assert result['statusCode'] == 200
+        assert result['body'].count(COLLABORATOR_FAILURE_MESSAGE) == 1
+        assert 'internal collaborator failure detail' not in result['body']
+        assert result['body'].rstrip().endswith('</pika-metadata>')
+        assert persisted == [COLLABORATOR_FAILURE_MESSAGE]
+
+    def test_verify_reprompt_is_skipped_when_tool_mode_collaborators_are_configured(self, caplog):
+        caplog.set_level('INFO', logger='handler')
+        agent_def = {
+            **TOOL_MODE_DEF,
+            'verification': {'enabled': True, 'autoRepromptThreshold': 'C'},
+        }
+        supervisor = MagicMock(return_value='Supervisor answer.')
+
+        with patch('handler.verify_response',
+                   return_value={'classification': 'F', 'explanation': 'Unsupported claim.'}):
+            result, _, _ = _run_tool_mode(
+                lambda *_a, **_k: [MagicMock()],
+                MagicMock(return_value=supervisor),
+                agent_def=agent_def,
+            )
+
+        assert result['statusCode'] == 200
+        assert supervisor.call_count == 1
+        assert 'Reprompt skipped: tool-mode collaborators are configured' in caplog.text
+
+
+class TestToolModeCollaboratorHooks:
+    """The collaborator hooks receive the request context and keep the turn safe when they fail."""
+
+    def test_failure_message_override_receives_the_first_code_only(self, override_hooks):
+        calls = []
+
+        def collaborator_failure_message(codes, ctx):
+            calls.append((list(codes), ctx.session_id))
+            return 'Custom failure text.'
+
+        override_hooks.collaborator_failure_message = collaborator_failure_message
+        result, persisted, _ = _run_tool_mode(
+            _failing_collaborator_builder('COLLABORATOR_OUTPUT_INVALID', 'COLLABORATOR_TIMEOUT'),
+            MagicMock(side_effect=_SupervisorCallingFailingTool),
+        )
+
+        assert calls == [(['COLLABORATOR_OUTPUT_INVALID'], 'sess-001')]
+        assert result['body'].count('Custom failure text.') == 1
+        assert COLLABORATOR_FAILURE_MESSAGE not in result['body']
+        assert persisted == ['Custom failure text.']
+
+    def test_failing_failure_message_hook_uses_the_base_message_when_fail_closed(self, override_hooks):
+        def collaborator_failure_message(_codes, _ctx):
+            raise RuntimeError('override bug')
+
+        override_hooks.HOOKS_FAIL_CLOSED = True
+        override_hooks.collaborator_failure_message = collaborator_failure_message
+        result, persisted, _ = _run_tool_mode(
+            _failing_collaborator_builder('COLLABORATOR_OUTPUT_INVALID'),
+            MagicMock(side_effect=_SupervisorCallingFailingTool),
+        )
+
+        assert result['statusCode'] == 200
+        assert result['body'].count(COLLABORATOR_FAILURE_MESSAGE) == 1
+        assert persisted == [COLLABORATOR_FAILURE_MESSAGE]
+
+    def test_hidden_tool_results_reach_the_hook_with_the_request_context(self, override_hooks):
+        seen = []
+
+        def on_hidden_tool_result(tool_name, result, ctx, *, invocation_input=None):
+            seen.append((tool_name, result, invocation_input, isinstance(ctx, RequestContext),
+                         ctx.session_id))
+
+        def build(_collaborators, *, on_hidden_tool_result=None, **_kwargs):
+            assert callable(on_hidden_tool_result)
+            on_hidden_tool_result('get_status', None, invocation_input={'parameters': []})
+            on_hidden_tool_result('get_status', '{"status":"DONE"}')
+            return [MagicMock()]
+
+        override_hooks.on_hidden_tool_result = on_hidden_tool_result
+        result, _, _ = _run_tool_mode(
+            build, MagicMock(return_value=MagicMock(return_value='Supervisor answer.')),
+        )
+
+        assert result['statusCode'] == 200
+        assert seen == [
+            ('get_status', None, {'parameters': []}, True, 'sess-001'),
+            ('get_status', '{"status":"DONE"}', None, True, 'sess-001'),
+        ]
+
+    def test_failing_hidden_tool_hook_is_log_only_when_fail_closed(self, override_hooks):
+        def on_hidden_tool_result(*_args, **_kwargs):
+            raise RuntimeError('override bug')
+
+        def build(_collaborators, *, on_hidden_tool_result=None, **_kwargs):
+            on_hidden_tool_result('get_status', '{"status":"DONE"}')
+            return [MagicMock()]
+
+        override_hooks.HOOKS_FAIL_CLOSED = True
+        override_hooks.on_hidden_tool_result = on_hidden_tool_result
+        result, persisted, _ = _run_tool_mode(
+            build, MagicMock(return_value=MagicMock(return_value='Supervisor answer.')),
+        )
+
+        assert result['statusCode'] == 200
+        assert result['body'].count('Supervisor answer.') == 1
+        assert HOOK_ERROR_MESSAGE not in result['body']
+        assert persisted == ['Supervisor answer.']
+
+
+@pytest.mark.usefixtures('base_hooks')
+class TestSwarmTraceBoundaryUnchanged:
+    """Tool-mode trace suppression must not alter Swarm collaborator tool traces."""
+    def test_swarm_collaborator_tool_building_still_receives_trace_callback(self):
+        import handler as h  # noqa: PLC0415
+
+        captured_callbacks = []
+
+        def load_agent_with_tools(_ddb, agent_id):
+            if agent_id in MOCK_COLLABORATOR_DEFS:
+                return {
+                    **MOCK_COLLABORATOR_DEFS[agent_id],
+                    'tool_ids': ['order-tools'],
+                }
+            return MOCK_SUPERVISOR_DEF
+
+        def capture_build_tools(
+                tool_defs, session_id, input_text,
+                session_attributes=None, prompt_session_attributes=None,
+                trace_callback=None):
+            captured_callbacks.append(trace_callback)
+            return []
+
+        mock_swarm_instance = MagicMock(return_value='Swarm routed.')
+        mock_swarm_cls = MagicMock(return_value=mock_swarm_instance)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch('boto3.resource', return_value=MagicMock()))
+            stack.enter_context(patch('handler.add_message'))
+            stack.enter_context(patch('handler.ensure_session'))
+            stack.enter_context(patch('handler.load_agent', side_effect=load_agent_with_tools))
+            stack.enter_context(patch(
+                'handler.load_tools',
+                return_value=[{'tool_id': 'order-tools', 'execution_type': 'inline'}],
+            ))
+            stack.enter_context(
+                patch('handler.build_strands_tools', side_effect=capture_build_tools)
+            )
+            stack.enter_context(patch('handler.get_user', return_value={'user_id': 'user-001', 'custom_data': {}}))
+            stack.enter_context(patch('handler.get_messages', return_value=[]))
+            stack.enter_context(patch('handler.Agent', MagicMock(return_value=MagicMock(return_value='Done.'))))
+            stack.enter_context(patch('handler.Swarm', mock_swarm_cls))
+            result = h.handler(_make_event(), _make_ctx())
+
+        assert result['statusCode'] == 200
+        assert mock_swarm_cls.called
+        assert captured_callbacks, 'Swarm path must still build collaborator tools'
+        assert all(cb is not None for cb in captured_callbacks), (
+            'Swarm collaborator tool builds must keep trace_callback wired'
         )

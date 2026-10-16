@@ -7,6 +7,62 @@ Complete version history of the Pika Framework.
 
 ---
 
+## [0.32.0] - 2026-10-15
+
+### Added
+
+- **Strands handler hooks** (`services/pika/src/lambda/converse-strands/custom_hooks.py`, sync-protected): override Strands converse settings and response policy without patching `handler.py`.
+  - The defaults live in the framework-owned `custom_hooks_base.py`. A name your file doesn't define keeps its default, including names a later release adds.
+  - The hooks are `begin_request`, `should_buffer_final_response`, `finalize_response`, `filter_correction`, `collaborator_failure_message` and `on_hidden_tool_result`.
+  - `HOOKS_FAIL_CLOSED` ends the turn with a generic message when a hook raises, instead of falling back to the default.
+  - See [Strands Handler Hooks](/guides/advanced/strands-hooks/). [#172]
+- **Tool loop guard (Strands)**:
+  - Identical tool calls stop after 3 runs, or 15 for tools in `TOOL_LOOP_POLLING_TOOLS`.
+  - A failing call is retried at most once.
+  - A tool won't start unless it can finish inside the Lambda's remaining time.
+  - Lambda tool invocations use a 70-second read timeout with no SDK retries.
+
+  [#172]
+- **Hidden tool-mode collaborators (Strands)**:
+  - A collaborator with `mode: 'tool'` is exposed to the supervisor as a tool, configured by `toolName`, `inputSchema`/`outputSchema` (validated with `jsonschema`), `timeoutSeconds` and `singleSuccessTools`.
+  - A failed collaborator stops the supervisor, and the turn answers with `COLLABORATOR_FAILURE_MESSAGE`.
+  - The collaborator config types gain these fields and `historyRelay: 'DISABLED'`.
+
+  [#172]
+- **Session account pin (Strands)**:
+  - A session is pinned to the account it started with.
+  - A turn that arrives with a different account is refused without calling the model.
+  - `ACCOUNT_PIN_ENABLED = False` turns the pin off.
+
+  [#172]
+- **Plain-agent reasoning traces (Strands)**: plain agents run through `stream_async` and emit a rationale trace per tool call. [#172]
+- **Context repeat delivery (Strands)**:
+  - An unchanged `llmContextItems` entry is sent once in full, then as a short repeat marker.
+  - What the model received (context, user content, verify correction) is stored on the message and replayed in history.
+
+  [#172]
+- **Claude Sonnet 5 and 5.5**:
+  - registry entries, pricing rows and inference-profile instances;
+  - `INFERENCE_PROFILE_*` environment variables for the Strands Lambda and the session-insights runner;
+  - the Strands role may invoke `application-inference-profile` ARNs.
+
+  [#172]
+- **`sanitizeUserInstruction`** (TypeScript converse): a blank user instruction is no longer prepended. [#172]
+
+### Changed
+
+- **The Strands default model is Sonnet 5.5** (`us.anthropic.claude-sonnet-5-5`). Sonnet 5.x gets adaptive thinking and a system-prompt cache point. The TypeScript default stays Sonnet 4.6. [#172]
+- **Strands agents with tools, a knowledge base or memory, and swarms, no longer stream tokens live.** The answer is written once when the agent finishes, so the streamed and stored text match. Tool activity still streams as reasoning traces. [#172]
+- **Response verification:**
+  - A correction reprompt runs only when the grade passes `autoRepromptThreshold`. Apps with verification on and no threshold no longer get corrections.
+  - The correction appears in the reasoning panel instead of being appended to the answer.
+  - The reprompt is skipped when collaborators are configured.
+
+  [#172]
+- **TypeScript usage costs use each model's own pricing row.** Before, `us.` ids and profile ARNs never matched a row, so every turn was priced at the default ($3/$15 per million tokens). Recorded costs change for every model other than Sonnet 4.x. Haiku 4.5 is priced at $1/$5. [#172]
+- **Inference profiles are created in every deployment**, Strands or not. The deploy region must offer the `us.anthropic.claude-sonnet-5` and `us.anthropic.claude-sonnet-5-5` system profiles, or the stack update fails. [#172]
+- **`pika-app` 1.8.0** protects `custom_hooks.py` by default. Upgrade the CLI before editing that file, or add it to `userProtectedAreas`. [#172]
+
 ## [0.31.0] - 2026-10-12
 
 ### Added

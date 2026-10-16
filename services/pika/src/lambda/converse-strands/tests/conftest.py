@@ -9,7 +9,7 @@ os.environ['CHAT_MESSAGES_TABLE'] = 'test-messages-table'
 os.environ['CHAT_SESSION_TABLE'] = 'test-session-table'
 os.environ['CHAT_USER_TABLE'] = 'test-user-table'
 os.environ['STAGE'] = 'test'
-os.environ['MODEL_ID'] = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+os.environ['MODEL_ID'] = 'us.anthropic.claude-sonnet-5-5'
 os.environ['PIKA_S3_BUCKET'] = 'test-pika-bucket'
 
 # Shared mock for boto3.client — prevents credential resolution on every test

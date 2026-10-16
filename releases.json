@@ -1,7 +1,26 @@
 {
-  "latestVersion": "0.31.0",
-  "currentDevelopment": "0.31.0",
+  "latestVersion": "0.32.0",
+  "currentDevelopment": "0.32.0",
   "releases": [
+    {
+      "version": "0.32.0",
+      "date": "2026-10-15",
+      "status": "released",
+      "breaking": false,
+      "summary": "Strands converse gains a sync-protected hooks file for settings and response policy, a tool loop guard, hidden tool-mode collaborators, a session account pin, plain-agent reasoning traces and context repeat delivery, and defaults to Sonnet 5.5. Agents with tools buffer their answer, verification corrections move to the reasoning panel, and TS usage costs use each model's own pricing.",
+      "highlights": [
+        "Added: custom_hooks.py Strands handler hooks (sync-protected), with defaults in custom_hooks_base.py and an optional fail-closed mode.",
+        "Added: tool loop guard for repeated, failing and out-of-time tool calls.",
+        "Added: hidden tool-mode collaborators with JSON Schema-validated input and output.",
+        "Added: session account pin (ACCOUNT_PIN_ENABLED, default on).",
+        "Added: Claude Sonnet 5 / 5.5 registry, pricing and inference profiles; INFERENCE_PROFILE_* env for the Strands Lambda and insights runner.",
+        "Changed: the Strands default model is Sonnet 5.5; the TypeScript default stays Sonnet 4.6.",
+        "Changed: Strands agents with tools, a knowledge base or memory write their answer once instead of streaming tokens.",
+        "Changed: verification reprompts require autoRepromptThreshold, and corrections go to the reasoning panel.",
+        "Changed: TS usage costs use each model's pricing row; Haiku 4.5 is $1/$5.",
+        "Changed: every deployment creates the Sonnet 5 / 5.5 inference profiles."
+      ]
+    },
     {
       "version": "0.31.0",
       "date": "2026-10-12",

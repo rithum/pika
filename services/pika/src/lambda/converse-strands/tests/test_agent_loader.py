@@ -346,3 +346,14 @@ class TestUserLabelForwarding:
         invocation_input = trace_callback.call_args_list[0].kwargs['invocation_input']
         assert invocation_input['userLabel'] == 'Looking up your item'
         assert invocation_input['userLabelDone'] == 'Looked up your item'
+
+
+class TestToolInvokeClient:
+    def test_tool_invokes_are_never_retried_by_the_sdk(self):
+        from agent_loader import lambda_client
+        assert lambda_client.meta.config.retries['total_max_attempts'] == 1
+
+    def test_read_timeout_outlasts_the_tool_lambda_timeout(self):
+        from agent_loader import TOOL_INVOKE_READ_TIMEOUT_SECONDS, lambda_client
+        assert lambda_client.meta.config.read_timeout == TOOL_INVOKE_READ_TIMEOUT_SECONDS
+        assert TOOL_INVOKE_READ_TIMEOUT_SECONDS > 60

@@ -37,6 +37,18 @@ def get_reprompt_for_classification(classification: str) -> str | None:
     return REPROMPTS.get(classification)
 
 
+def should_reprompt(classification: str, threshold: str | None) -> bool:
+    """Whether a classification warrants an auto-reprompt: only with a threshold, at or above it.
+
+    Severity order is plain string order ('A' < 'B' < 'C' < 'F'), as in bedrock-agent.ts.
+    """
+    if threshold not in ('B', 'C', 'F'):
+        return False
+    if not REPROMPTS.get(classification):
+        return False
+    return classification >= threshold
+
+
 def build_reprompt_message(reprompt_text: str, explanation: str) -> str:
     """Format a reprompt message with the explanation."""
     return f'{reprompt_text}\n\nReason: {explanation}'

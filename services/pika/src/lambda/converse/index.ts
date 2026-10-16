@@ -642,8 +642,9 @@ async function converse(
         console.log('Using new session or non-expired session');
 
         // Add the user's global instructions if they exist.
-        if (!!user.features?.instruction?.instruction) {
-            instructions = `${user.features.instruction.instruction}\n\n`;
+        const userInstruction = sanitizeUserInstruction(user.features?.instruction?.instruction);
+        if (!!userInstruction) {
+            instructions = `${userInstruction}\n\n`;
         }
 
         // Add the memory instructions if they exist and we are in a new session and the memory feature is enabled.
@@ -1166,9 +1167,18 @@ function getConversationHistoryToReattachToSession(messages: ChatMessage[]): Con
 }
 
 /**
+ * Returns the trimmed instruction, or undefined when it is blank or matches one of `legacyStrings`.
+ */
+export function sanitizeUserInstruction(instruction?: string, legacyStrings: readonly string[] = []): string | undefined {
+    const trimmed = instruction?.trim();
+    return !trimmed || legacyStrings.includes(trimmed) ? undefined : trimmed;
+}
+
+/**
  * Prepends the instructions to the first message if it exists and there are messages in the conversation history.
  */
-function prependInstructionsWhenNeeded(messages: ChatMessage[], instructions?: string) {
+export function prependInstructionsWhenNeeded(messages: ChatMessage[], instructions?: string) {
+    instructions = sanitizeUserInstruction(instructions);
     if (messages.length > 0 && instructions) {
         messages[0].message = `${instructions}\n\n${messages[0].message}`;
     }

@@ -55,6 +55,7 @@ export interface PikaConstructOutputs {
     chatAdminApi: apigateway.RestApi;
     converseFunctionUrl: string;
     pikaDomain?: opensearch.Domain;
+    inferenceProfileArns: Record<string, string>;
 }
 
 export class PikaConstruct extends Construct {
@@ -82,13 +83,18 @@ export class PikaConstruct extends Construct {
         // Create storage resources
         const storageResources = this.createStorageResources(openSearchDomain);
 
+        // Created before the insights runner and the compute resources so both receive the profile ARNs.
+        const inferenceProfileCustomResourceLambda = this.createInferenceProfileCustomResource();
+        const inferenceProfileArns = this.createInferenceProfileInstances(inferenceProfileCustomResourceLambda);
+
         if (openSearchDomain && storageResources.chatSessionFeedbackTable) {
             this.createGenerateSessionInsightsInfra(
                 openSearchDomain,
                 storageResources.chatSessionTable,
                 storageResources.pikaS3Bucket,
                 storageResources.chatSessionFeedbackTable,
-                storageResources.chatMessagesTable
+                storageResources.chatMessagesTable,
+                inferenceProfileArns
             );
         }
 
@@ -101,7 +107,7 @@ export class PikaConstruct extends Construct {
         }
 
         // Create compute resources
-        const computeResources = this.createComputeResources(storageResources, openSearchDomain, memoryId, memoryStrategies);
+        const computeResources = this.createComputeResources(storageResources, openSearchDomain, memoryId, memoryStrategies, inferenceProfileArns);
 
         // Create API resources
         const apiResources = this.createApiResources(storageResources, computeResources, this.props.userMemoryFeature.enabled);
@@ -124,7 +130,8 @@ export class PikaConstruct extends Construct {
             chatbotApi: apiResources.chatbotApi,
             chatAdminApi: apiResources.chatAdminApi,
             converseFunctionUrl: apiResources.converseFunctionUrl,
-            pikaDomain: openSearchDomain
+            pikaDomain: openSearchDomain,
+            inferenceProfileArns
         };
     }
 
@@ -173,7 +180,13 @@ export class PikaConstruct extends Construct {
         };
     }
 
-    private createComputeResources(storageResources: any, openSearchDomain?: opensearch.Domain, memoryId?: string, memoryStrategies?: Partial<Record<UserMemoryStrategy, string>>) {
+    private createComputeResources(
+        storageResources: any,
+        openSearchDomain?: opensearch.Domain,
+        memoryId?: string,
+        memoryStrategies?: Partial<Record<UserMemoryStrategy, string>>,
+        inferenceProfileArns?: Record<string, string>
+    ) {
         // Create IAM roles
         const bedrockChatRole = this.createBedrockChatRoleForInlineAgent();
         const lambdaRole = this.createChatLambdaRole(
@@ -229,10 +242,6 @@ export class PikaConstruct extends Construct {
         this.createSemanticDirectiveCustomResource(chatAdminRestApi);
         this.createTagDefinitionCustomResource(chatAdminRestApi);
         const domainIndexCustomResourceLambda = this.createDomainIndexCustomResource();
-        const inferenceProfileCustomResourceLambda = this.createInferenceProfileCustomResource();
-
-        // Create inference profile instances for the three Claude models and capture their ARNs
-        const inferenceProfileArns = this.createInferenceProfileInstances(inferenceProfileCustomResourceLambda);
 
         // Initialize OpenSearch domain indices if OpenSearch is enabled
         if (openSearchDomain) {
@@ -2592,6 +2601,20 @@ export class PikaConstruct extends Construct {
                 modelId: 'us.anthropic.claude-sonnet-4-6',
                 provider: 'ANTHROPIC',
                 modelKey: 'Claude4_6Sonnet'
+            },
+            {
+                name: 'Claude5Sonnet',
+                profileName: 'claude-sonnet-5',
+                modelId: 'us.anthropic.claude-sonnet-5',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude5Sonnet'
+            },
+            {
+                name: 'Claude5_5Sonnet',
+                profileName: 'claude-sonnet-5-5',
+                modelId: 'us.anthropic.claude-sonnet-5-5',
+                provider: 'ANTHROPIC',
+                modelKey: 'Claude5_5Sonnet'
             }
         ];
 
@@ -2833,7 +2856,8 @@ export class PikaConstruct extends Construct {
         chatSessionTable: dynamodb.Table,
         pikaS3Bucket: s3.Bucket,
         chatSessionFeedbackTable: dynamodb.Table,
-        chatMessagesTable: dynamodb.Table
+        chatMessagesTable: dynamodb.Table,
+        inferenceProfileArns?: Record<string, string>
     ): void {
         // Create DynamoDB mutex table for session insights runner coordination
         const sessionRunnerMutexTable = this.createSessionRunnerMutexTable();
@@ -2947,6 +2971,13 @@ export class PikaConstruct extends Construct {
         });
 
         // Environment variables for insights lambdas
+        const inferenceProfileEnvVars: Record<string, string> = {};
+        if (inferenceProfileArns) {
+            Object.entries(inferenceProfileArns).forEach(([key, arn]) => {
+                inferenceProfileEnvVars[`INFERENCE_PROFILE_${key}`] = arn;
+            });
+        }
+
         const insightsEnvironment = {
             STAGE: this.props.stage,
             REGION: this.props.region,
@@ -2957,7 +2988,8 @@ export class PikaConstruct extends Construct {
             PIKA_S3_BUCKET: pikaS3Bucket.bucketName,
             SESSION_RUNNER_MUTEX_TABLE: sessionRunnerMutexTable.tableName,
             WAIT_TO_COMPUTE_INSIGHTS_MS: '3600000', // 1 hour
-            NOOP_EXECUTION: 'false'
+            NOOP_EXECUTION: 'false',
+            ...inferenceProfileEnvVars
         };
 
         // Create the session changed insights lambda

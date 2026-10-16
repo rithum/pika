@@ -1,20 +1,53 @@
 """Session insights: context injection and sent_contexts tracking.
 
-Handles llmContextItems from the request — builds XML for prompt injection
-and tracks what was sent via sent_contexts on the DDB session record.
+Handles llmContextItems from the request: builds XML for prompt injection and tracks what
+was sent via sent_contexts on the DDB session record. An item whose contentHash matches the
+hash this session's sent_contexts ledger already holds for its id is emitted as
+delivery="repeat" with its data omitted; the first delivery's body is replayed from the
+llm_context_xml persisted on that turn's user message.
 """
 import json
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape, quoteattr
 
 
-def build_context_xml(context_items: list[dict]) -> str:
+def _prior_content_hash(prior_record: dict | None) -> str | None:
+    """Read contentHash off a stored SentContextRecord (snake_case or camelCase)."""
+    if not isinstance(prior_record, dict):
+        return None
+    value = prior_record.get('content_hash', prior_record.get('contentHash'))
+    return value if isinstance(value, str) and value else None
+
+
+def is_repeat_delivery(
+        item_id: str,
+        item: dict,
+        prior_sent_contexts: dict | None = None,
+) -> bool:
+    """True when this item's DATA was already delivered verbatim on an earlier turn.
+
+    Byte-identity on the content hash the client computed for this payload. A missing or
+    blank hash on either side never matches, so an unprovable item is delivered in full.
+    """
+    if not isinstance(item, dict):
+        return False
+    ledger = prior_sent_contexts if isinstance(prior_sent_contexts, dict) else {}
+    item_hash = item.get('contentHash')
+    item_hash = item_hash if isinstance(item_hash, str) and item_hash else None
+    prior_hash = _prior_content_hash(ledger.get(item_id))
+    return item_hash is not None and item_hash == prior_hash
+
+
+def build_context_xml(context_items: list[dict], prior_sent_contexts: dict | None = None) -> str:
     """Build <additional-context> XML from llmContextItems.
 
-    Returns empty string if context_items is empty.
+    Returns empty string if context_items is empty. `prior_sent_contexts` is the session's
+    sent_contexts ledger covering prior turns only; omit it for unconditional full delivery.
     """
     if not context_items:
         return ''
+
+    ledger = prior_sent_contexts if isinstance(prior_sent_contexts, dict) else {}
 
     parts = [
         '<additional-context>',
@@ -32,11 +65,20 @@ def build_context_xml(context_items: list[dict]) -> str:
             data = ''
         if not isinstance(data, str):
             data = json.dumps(data, indent=2)
+        is_repeat = is_repeat_delivery(item_id, item, ledger)
         # Client-controlled strings are escaped so a crafted value cannot close an element and forge prompt structure.
         id_attr = quoteattr(str(item_id))
         description = escape('' if description is None else str(description))
         data = escape(data)
-        parts.append(f'<context id={id_attr} index="{i}">')
+
+        if is_repeat:
+            parts.append(f'<context id={id_attr} index="{i}" delivery="repeat">')
+            parts.append(f'<description>{description}</description>')
+            parts.append('<data-omitted reason="unchanged-since-first-delivery"/>')
+            parts.append('</context>')
+            continue
+
+        parts.append(f'<context id={id_attr} index="{i}" delivery="first">')
         parts.append(f'<description>{description}</description>')
         parts.append('<data>')
         parts.append(data)
@@ -55,6 +97,44 @@ def build_sent_context_record(context_item: dict, message_ids: list[str]) -> dic
         'lastSentAt': datetime.now(timezone.utc).isoformat(),
         'origin': context_item.get('origin', ''),
     }
+
+
+# Persisted beside `message`, which is what the UI shows; replayed to the model only.
+LLM_CONTEXT_XML_ATTR = 'llm_context_xml'
+LLM_CORRECTION_ATTR = 'llm_correction'
+LLM_USER_CONTENT_ATTR = 'llm_user_content'
+
+
+def message_text_for_llm_replay(msg: dict) -> str:
+    """Rebuild the LLM-visible turn from persisted message fields."""
+    text = str(msg.get('message') or '')
+    for attr in (LLM_CONTEXT_XML_ATTR, LLM_CORRECTION_ATTR):
+        extra = msg.get(attr)
+        if isinstance(extra, str) and extra:
+            text = f'{text}\n\n{extra}'
+    return text
+
+
+def message_content_for_llm_replay(msg: dict) -> list[dict]:
+    raw = msg.get(LLM_USER_CONTENT_ATTR)
+    if isinstance(raw, str) and raw:
+        try:
+            texts = json.loads(raw)
+        except ValueError:
+            texts = None
+        if isinstance(texts, list) and texts and all(isinstance(t, str) for t in texts):
+            return [{'text': t} for t in texts]
+    return [{'text': message_text_for_llm_replay(msg)}]
+
+
+def llm_context_xml_fits_message_item(user_msg_without_context: dict, context_xml: str) -> bool:
+    """Return whether context_xml can be persisted on the user message item safely."""
+    if not context_xml:
+        return True
+    from trace_store import inline_trace_budget  # noqa: PLC0415
+
+    budget = inline_trace_budget(user_msg_without_context)
+    return len(context_xml.encode('utf-8')) <= budget
 
 
 SENT_CONTEXTS_ATTR = 'sent_contexts'

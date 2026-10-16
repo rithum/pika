@@ -45,6 +45,37 @@ def _has_account_context(session: dict) -> bool:
     return any(_present_account_value(session.get(f)) for f in fields)
 
 
+def account_id_of(attrs: dict | None) -> str | None:
+    """First present account-id field value in an attributes map, stringified."""
+    if not isinstance(attrs, dict):
+        return None
+    for f in _account_id_field_names():
+        v = attrs.get(f)
+        if _present_account_value(v):
+            return str(v)
+    return None
+
+
+def pinned_account_fields(session: dict | None) -> dict[str, str]:
+    """Every account-id field persisted on the session, stringified.
+
+    Reads session_attributes first, then the top level of the item, the same two places
+    _has_account_context looks: older sessions carry the account id at the top level.
+    """
+    session = session or {}
+    attrs = session.get('session_attributes')
+    if not isinstance(attrs, dict):
+        attrs = {}
+    out: dict[str, str] = {}
+    for f in _account_id_field_names():
+        v = attrs.get(f)
+        if not _present_account_value(v):
+            v = session.get(f)
+        if _present_account_value(v):
+            out[f] = str(v)
+    return out
+
+
 def session_token(session_id: str, user_id: str) -> str:
     """Mirror utils.createSessionToken — sha256 of '<sessionId>:<userId>'."""
     return hashlib.sha256(f'{session_id}:{user_id}'.encode()).hexdigest()

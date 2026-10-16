@@ -204,6 +204,63 @@ aws ssm get-parameter --name /stack/<proj>/<stage>/function/converse_strands_url
 aws ssm get-parameter --name /stack/<proj>/<stage>/function/converse_arn
 ```
 
+## Runtime Behavior
+
+These behaviors apply to every agent on the Strands path. Their settings live in `custom_hooks.py` (see [Strands Handler Hooks](/guides/advanced/strands-hooks/)).
+
+### Model selection
+
+The default model is Sonnet 5.5 (`us.anthropic.claude-sonnet-5-5`), used by any agent whose definition has no `foundation_model`. Sonnet 5.x models get adaptive thinking and a prompt-cache point after the system prompt.
+
+When the service stack has created an application inference profile for the model, the Lambda calls Bedrock through that profile. It finds the profile ARN in the `INFERENCE_PROFILE_ANTHROPIC_<modelKey>` environment variables that the construct sets.
+
+### Final answer written once
+
+Agents with tools, knowledge bases or memory, and every swarm, don't stream tokens live. Such a turn can span several model calls, and only the last one is the answer. The answer is written once when the agent finishes, so the text the user sees and the text stored on the message are the same. Tool activity still streams as reasoning traces.
+
+A plain agent with none of these streams tokens live. It also emits a rationale trace for each tool call it makes.
+
+### Tool loop guard
+
+Each turn runs a circuit breaker over tool calls:
+- **Identical calls:** the same tool with the same input may run 3 times. Tools listed in `TOOL_LOOP_POLLING_TOOLS` may run 15 times.
+- **Failing calls:** a call that fails with the same input is retried at most once.
+- **Time budget:** a tool can't start unless it can finish inside the Lambda's remaining time.
+
+The first stop for a failing call or for the deadline goes back to the model, so it can still answer. A repeat ends the turn with `TOOL_LOOP_TRIPPED_MESSAGE` or `TOOL_DEADLINE_MESSAGE`. Lambda tool invocations use a 70-second read timeout with no SDK retries.
+
+### Session account pin
+
+A session is pinned to the account it was started with. The account comes from the account-id field in the session attributes (`accountId` / `account_id`, or `PIKA_ACCOUNT_ID_FIELD_NAMES`).
+
+A later turn that arrives with a different account is refused with `ACCOUNT_PIN_MISMATCH_MESSAGE`, without calling the model or any tool. A turn with the same account is pinned to the stored value.
+
+Apps that intentionally switch accounts within one conversation set `ACCOUNT_PIN_ENABLED = False`.
+
+### Hidden tool-mode collaborators
+
+A collaborator entry with `mode: 'tool'` is exposed to the supervisor as a tool instead of joining a swarm. The user sees only the supervisor's answer.
+
+| Field | Meaning |
+|-------|---------|
+| `toolName` | Tool name the supervisor sees |
+| `inputSchema` / `outputSchema` | JSON Schemas; the collaborator's input and output are validated with `jsonschema` |
+| `timeoutSeconds` | Wall-clock limit for one consultation (default 120) |
+| `singleSuccessTools` | Tools the collaborator may call successfully only once per consultation |
+| `historyRelay` | `TO_COLLABORATOR` relays the conversation to the collaborator; any other value (`TO_AGENT`, `DISABLED`) doesn't |
+
+When a collaborator fails, the supervisor stops at its next step, and the turn answers with `collaborator_failure_message`.
+
+### Response verification
+
+When `verifyResponse` is on, a correction reprompt runs only if the grade passes `autoRepromptThreshold`. The correction appears in the reasoning panel and is replayed to the model on later turns. It is never streamed into the answer or stored as part of it.
+
+The reprompt is skipped when collaborators are configured, because it would re-run the supervisor and its collaborator tools after the answer has been written.
+
+### Context items
+
+Context items the client sends (`llmContextItems`) are delivered in full the first time. On later turns, the model gets a short repeat marker for unchanged items. What the model actually received is stored on the message and replayed in history.
+
 ## Rolling Back
 
 The TypeScript Lambda stays deployed while the Strands flag is on. To roll back:

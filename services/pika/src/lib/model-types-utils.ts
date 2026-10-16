@@ -27,6 +27,11 @@ const anthropic4_5Config: AnthropicConfig = {
     temperatureExcludesTopP: true
 };
 
+const anthropic5Config: AnthropicConfig = {
+    maxTokens: 8192,
+    temperatureExcludesTopP: true
+};
+
 interface AmazonConfig {
     maxTopK?: number;
 }
@@ -53,6 +58,7 @@ function applyInferenceProfilesFromEnv<T>(obj: T): T {
 
             if (profileArn && profileArn !== 'undefined') {
                 console.log(`Using custom inference profile for ${provider}.${modelKey}: ${profileArn}`);
+                model.baseModelId = model.id;
                 model.id = profileArn;
             } else {
                 console.log(`Using base model for ${provider}.${modelKey}: ${model.id}`);
@@ -108,6 +114,16 @@ export const MODELS = applyInferenceProfilesFromEnv({
             name: 'Claude4_6Opus',
             id: 'us.anthropic.claude-opus-4-6-v1',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        Claude5Sonnet: {
+            name: 'Claude5Sonnet',
+            id: 'us.anthropic.claude-sonnet-5',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic5Config)
+        },
+        Claude5_5Sonnet: {
+            name: 'Claude5_5Sonnet',
+            id: 'us.anthropic.claude-sonnet-5-5',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic5Config)
         }
     },
     AMAZON: {
@@ -200,6 +216,11 @@ export function resolveModelId(modelId: string): string {
     return modelId;
 }
 
+export function getBaseModelId(modelId: string): string {
+    const baseId = MODEL_ID_TO_MODEL[modelId]?.baseModelId ?? modelId;
+    return baseId.replace(/^us\./, '');
+}
+
 // Standard interface for model invocation body
 interface ModelBody {
     //anthropic_version: string;
@@ -214,6 +235,7 @@ interface ModelBody {
 interface Model {
     name: string;
     id: string;
+    baseModelId?: string;
     argsConstructor?: (args: ModelBody) => any;
     getModelResponse?: (responseBody: string) => string;
 }
