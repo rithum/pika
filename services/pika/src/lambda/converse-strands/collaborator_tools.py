@@ -62,6 +62,10 @@ def _specialist_usage(specialist, result) -> dict:
     return extract_full_usage(result)
 
 
+def _registry_key(name: str) -> str:
+    return name.replace('-', '_')
+
+
 def _tool_name(config: dict) -> str:
     explicit = config.get('toolName') or config.get('tool_name')
     if explicit:
@@ -324,6 +328,8 @@ def build_tool_mode_collaborators(
 ) -> list[PythonAgentTool]:
     """Build internal tools for collaborators configured with ``mode: tool``."""
     tools: list[PythonAgentTool] = []
+    # Strands' tool registry treats '-' and '_' as the same character.
+    reserved_keys = {_registry_key(name) for name in reserved_tool_names}
     used_tool_names: set[str] = set()
     for config in collaborators:
         if config.get('mode') != TOOL_MODE:
@@ -333,12 +339,12 @@ def build_tool_mode_collaborators(
         name = _tool_name(config)
         if (
             not TOOL_NAME_PATTERN.match(name)
-            or name in reserved_tool_names
-            or name in used_tool_names
+            or _registry_key(name) in reserved_keys
+            or _registry_key(name) in used_tool_names
         ):
             logger.error('Invalid tool-mode collaborator tool name: %s', name)
             continue
-        used_tool_names.add(name)
+        used_tool_names.add(_registry_key(name))
         instruction = str(config.get('instruction') or '')
         description = instruction or f'Consult hidden specialist {agent_id}.'
         input_schema = _json_safe(

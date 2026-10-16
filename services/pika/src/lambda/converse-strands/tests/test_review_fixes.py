@@ -214,6 +214,12 @@ def test_long_agent_id_name_is_at_most_64_chars():
     assert len(tools[0].tool_name) <= 64
 
 
+@pytest.mark.parametrize('reserved, names', [({'lookup_order'}, ['lookup-order']), (frozenset(), ['a-b', 'a_b'])])
+def test_hyphen_underscore_collision_is_skipped(reserved, names):
+    tools, _ = _build('', configs=[config(agentId=n, toolName=n) for n in names], reserved=reserved)
+    assert len(tools) == len(names) - 1
+
+
 def test_explicit_invalid_name_is_skipped():
     tools, _ = _build('', configs=[config(toolName='bad name!')])
     assert tools == []
@@ -306,7 +312,7 @@ def test_finalize_rewrite_of_streamed_turn_logs_warning(override_hooks, caplog, 
     assert_primary_path(caplog)
 
 
-def test_result_captured_before_stream_error_is_used_without_rerun():
+def test_result_captured_before_stream_error_is_used_without_rerun(caplog):
     sync_calls = []
 
     class _Agent:
@@ -322,9 +328,11 @@ def test_result_captured_before_stream_error_is_used_without_rerun():
             sync_calls.append(a)
             return 'rerun'
 
-    result = _run_stream_handler(_Agent)
+    with caplog.at_level(logging.WARNING):
+        result = _run_stream_handler(_Agent)
     assert sync_calls == []
     assert ERROR_TEXT not in result['body']
+    assert 'failed after its result' in caplog.text
 
 
 def test_specialist_that_raises_is_still_billed_once():
@@ -364,3 +372,23 @@ def test_long_agent_ids_with_shared_prefix_get_distinct_names():
     names = _names(tools)
     assert len(names) == 2 and len(set(names)) == 2
     assert all(len(n) <= 64 for n in names)
+
+
+@pytest.mark.usefixtures('base_hooks')
+@pytest.mark.parametrize('plugin, expect_reserved', [
+    (SimpleNamespace(tools=[SimpleNamespace(tool_name='skills')]), True), (None, False)])
+def test_skills_name_reserved_only_when_directive_skills_plugin_is_active(plugin, expect_reserved):
+    import contextlib
+    from tests.test_contract_collaborators import (
+        TOOL_MODE_DEF, _apply_base_patches, _make_ctx, _make_event,
+    )
+
+    with contextlib.ExitStack() as stack:
+        _apply_base_patches(stack, TOOL_MODE_DEF,
+                            mock_agent_cls=MagicMock(return_value=MagicMock(return_value='ok')))
+        stack.enter_context(patch('handler._build_directive_skills_plugin', return_value=(plugin, [])))
+        stack.enter_context(patch('handler._resolve_directives', return_value=''))
+        build = stack.enter_context(patch('handler.build_tool_mode_collaborators', return_value=[]))
+        handler.handler(_make_event(), _make_ctx())
+
+    assert ('skills' in build.call_args.kwargs['reserved_tool_names']) is expect_reserved

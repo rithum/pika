@@ -1700,7 +1700,12 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     tool_name for tool_name in (
                         getattr(t, 'tool_name', None) for t in (strands_tools or [])
                     ) if tool_name
-                } | ({'skills'} if directive_skills_plugin is not None else set()),
+                } | {
+                    tool_name for tool_name in (
+                        getattr(t, 'tool_name', None)
+                        for t in (directive_skills_plugin.tools if directive_skills_plugin else [])
+                    ) if tool_name
+                },
             )
             if collaborator_tools:
                 strands_tools = [*(strands_tools or []), *collaborator_tools]
@@ -2034,6 +2039,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     if tool_use_seen and plain_final_result is None:
                         raise
                     if plain_final_result is not None:
+                        logger.warning(f"Agent stream_async failed after its result; using the result: {plain_err}")
                         plain_async_completed = True
                     else:
                         logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
@@ -2114,8 +2120,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             and response_text != pre_hook_text
         ):
             logger.warning(
-                'finalize_response changed a live-streamed turn; '
-                'the user saw the streamed text, not the stored text'
+                'finalize_response changed a live-streamed turn; the user saw the streamed text %s',
+                'followed by the rewritten text' if _finalized.force_write else 'not the stored text',
             )
         if _finalized.force_write:
             _buffer_final_response = True
