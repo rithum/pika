@@ -10,6 +10,7 @@ import logging
 import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
+from decimal import Decimal
 import boto3
 import jwt as pyjwt
 from strands import Agent
@@ -45,6 +46,8 @@ from tool_loop_guard import ToolLoopGuard
 from trace_visibility import ACTIVITY_TRACE_ELEMENT, build_step_frame, is_trace_content_permitted
 from agent_loader import TOOL_INVOKE_MAX_SECONDS, load_agent, load_tools, build_strands_tools
 from collaborator_tools import build_tool_mode_collaborators
+# Imported at load so a broken override fails the cold start instead of every turn after the user message is stored.
+import custom_hooks  # noqa: F401
 from custom_hooks_base import (FinalResponse, FinalizeResult, HookFailure, RequestContext,
                                call_hook, resolve_hook)
 
@@ -135,11 +138,20 @@ def _build_bedrock_model(model_id: str) -> BedrockModel:
         cache_config=cache_config,
         **request_fields,
     )
-    _add_system_cache_point(model)
+    if profile_arn or any(name in model_id.lower() for name in ('claude', 'anthropic')):
+        _add_system_cache_point(model)
     # Same "auto" model-name detection as caching: a profile ARN would drop toolResult status.
     if profile_arn:
         model.update_config(include_tool_result_status=True)
     return model
+
+
+def _merge_usage(base: dict, extra: dict) -> dict:
+    merged = dict(base)
+    for key, value in extra.items():
+        if isinstance(value, (int, Decimal)) and not isinstance(value, bool):
+            merged[key] = merged.get(key, 0) + value
+    return merged
 
 
 class _SentUserTurnCapture:
@@ -1510,11 +1522,14 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         remaining_ms = context.get_remaining_time_in_millis() if context else 300000
         budget_seconds = max(1, (remaining_ms / 1000) - LAMBDA_TIMEOUT_BUFFER_SECONDS)
         timer = threading.Timer(budget_seconds, stop_event.set)
-        tool_start_deadline = time.monotonic() + budget_seconds - TOOL_INVOKE_MAX_SECONDS
+        run_deadline = time.monotonic() + budget_seconds
+        tool_start_deadline = run_deadline - TOOL_INVOKE_MAX_SECONDS
         timer.daemon = True
         timer.start()
         collaborator_failure_codes: list[str] = []
         collaborator_failure_lock = threading.Lock()
+        collaborator_usage: list[tuple[str, dict]] = []
+        collaborator_usage_lock = threading.Lock()
         collaborator_tools: list = []
 
         def _record_collaborator_failure(code: str) -> None:
@@ -1523,6 +1538,10 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                     collaborator_failure_codes.append(code)
             # Stops the supervisor at its next checkpoint; the handler still writes the terminal response.
             stop_event.set()
+
+        def _record_collaborator_usage(specialist_model_id: str, specialist_usage: dict) -> None:
+            with collaborator_usage_lock:
+                collaborator_usage.append((specialist_model_id, specialist_usage))
 
         heartbeat = _Heartbeat(stream)
         heartbeat.start()
@@ -1675,6 +1694,13 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 collaborator_trace_callback=_write_collaborator_tool_trace,
                 failure_callback=_record_collaborator_failure,
                 on_hidden_tool_result=_on_hidden_tool_result,
+                usage_callback=_record_collaborator_usage,
+                deadline_monotonic=run_deadline,
+                reserved_tool_names={
+                    tool_name for tool_name in (
+                        getattr(t, 'tool_name', None) for t in (strands_tools or [])
+                    ) if tool_name
+                },
             )
             if collaborator_tools:
                 strands_tools = [*(strands_tools or []), *collaborator_tools]
@@ -1958,10 +1984,11 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 )
 
                 plain_final_result = None
+                tool_use_seen = False
 
                 async def _run_plain_streaming():
                     """Run the agent async, emitting pre-tool-call text as rationale traces."""
-                    nonlocal plain_final_result
+                    nonlocal plain_final_result, tool_use_seen
                     turn_text: list[str] = []
                     tool_turns = 0
 
@@ -1983,6 +2010,7 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                         if not _is_tool_use_message(event.get('message')):
                             continue
 
+                        tool_use_seen = True
                         buffered = ''.join(turn_text).strip()
                         turn_text = []
                         if buffered:
@@ -2003,6 +2031,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 except MaxTokensReachedException:
                     raise
                 except Exception as plain_err:
+                    if tool_use_seen:
+                        raise
                     logger.warning(f"Agent stream_async failed, falling back to sync: {plain_err}")
 
                 # A turn that legitimately produced no text is not a failure, and
@@ -2012,6 +2042,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
                 if plain_async_completed and plain_final_result is not None:
                     result = plain_final_result
                 else:
+                    if plain_async_completed and tool_use_seen:
+                        raise RuntimeError('stream_async completed without an AgentResult after tool use')
                     if plain_async_completed:
                         logger.warning(
                             "Agent stream_async completed without an AgentResult; "
@@ -2072,7 +2104,17 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         except HookFailure:
             _finalized = FinalizeResult(text=resolve_hook('HOOK_ERROR_MESSAGE'),
                                         force_write=True, skip_verification=True)
+        pre_hook_text = response_text
         response_text = _finalized.text
+        if (
+            not _buffer_final_response
+            and not _finalized.force_write
+            and response_text != pre_hook_text
+        ):
+            logger.warning(
+                'finalize_response changed a live-streamed turn; '
+                'the user saw the streamed text, not the stored text'
+            )
         if _finalized.force_write:
             _buffer_final_response = True
         if _buffer_final_response and response_text:
@@ -2088,13 +2130,24 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         output_tokens = full_usage.get('outputTokens', 0)
         cache_read_tokens = full_usage.get('cacheReadInputTokens', 0) or swarm_cache_read
         cache_write_tokens = full_usage.get('cacheWriteInputTokens', 0) or swarm_cache_write
+        usage = calculate_usage(input_tokens, output_tokens, model_id,
+                                cache_read_tokens=cache_read_tokens,
+                                cache_write_tokens=cache_write_tokens)
+        with collaborator_usage_lock:
+            specialist_usages = list(collaborator_usage)
+        for specialist_model_id, u in specialist_usages:
+            input_tokens += u.get('inputTokens', 0)
+            output_tokens += u.get('outputTokens', 0)
+            cache_read_tokens += u.get('cacheReadInputTokens', 0) or 0
+            cache_write_tokens += u.get('cacheWriteInputTokens', 0) or 0
+            usage = _merge_usage(usage, calculate_usage(
+                u.get('inputTokens', 0), u.get('outputTokens', 0), specialist_model_id,
+                cache_read_tokens=u.get('cacheReadInputTokens', 0) or 0,
+                cache_write_tokens=u.get('cacheWriteInputTokens', 0) or 0))
         logger.info(
             f"Usage: input={input_tokens}, output={output_tokens}, "
             f"cacheRead={cache_read_tokens}, cacheWrite={cache_write_tokens}"
         )
-        usage = calculate_usage(input_tokens, output_tokens, model_id,
-                                cache_read_tokens=cache_read_tokens,
-                                cache_write_tokens=cache_write_tokens)
 
         # Verification — classify response accuracy if enabled
         verifications = None

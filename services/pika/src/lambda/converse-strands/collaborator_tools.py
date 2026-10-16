@@ -21,6 +21,7 @@ from jsonschema.validators import validator_for
 from strands import Agent
 from strands.tools.tools import PythonAgentTool
 from intent_router import extract_first_json_object
+from pricing import extract_full_usage
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ DEFAULT_INPUT_SCHEMA = {
 }
 DEFAULT_TIMEOUT_SECONDS = 120.0
 TOOL_MODE = 'tool'
+MAX_TOOL_NAME_LENGTH = 64
+TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
 
 def _json_default(value):
@@ -57,7 +60,7 @@ def _tool_name(config: dict) -> str:
         return str(explicit)
     agent_id = config.get('agentId') or config.get('agent_id') or 'specialist'
     normalized = re.sub(r'[^a-zA-Z0-9_]+', '_', str(agent_id)).strip('_')
-    return f'consult_{normalized or "specialist"}'
+    return f'consult_{normalized or "specialist"}'[:MAX_TOOL_NAME_LENGTH]
 
 
 def _extract_json(text: str) -> dict:
@@ -302,16 +305,28 @@ def build_tool_mode_collaborators(
         collaborator_trace_callback: Callable[[str, str, dict], None] | None = None,
         failure_callback: Callable[[str], None] | None = None,
         on_hidden_tool_result: Callable[..., None] | None = None,
+        usage_callback: Callable[[str, dict], None] | None = None,
+        deadline_monotonic: float | None = None,
+        reserved_tool_names: set[str] | frozenset[str] = frozenset(),
         agent_factory: Callable[..., Any] = Agent,
 ) -> list[PythonAgentTool]:
     """Build internal tools for collaborators configured with ``mode: tool``."""
     tools: list[PythonAgentTool] = []
+    used_tool_names: set[str] = set()
     for config in collaborators:
         if config.get('mode') != TOOL_MODE:
             continue
 
         agent_id = str(config.get('agentId') or config.get('agent_id') or '')
         name = _tool_name(config)
+        if (
+            not TOOL_NAME_PATTERN.match(name)
+            or name in reserved_tool_names
+            or name in used_tool_names
+        ):
+            logger.error('Invalid tool-mode collaborator tool name: %s', name)
+            continue
+        used_tool_names.add(name)
         instruction = str(config.get('instruction') or '')
         description = instruction or f'Consult hidden specialist {agent_id}.'
         input_schema = _json_safe(
@@ -430,6 +445,8 @@ def build_tool_mode_collaborators(
         _relay_history = relay_history
         _single_success_tools = single_success_tools
         _failure_callback = failure_callback
+        _usage_callback = usage_callback
+        _deadline_monotonic = deadline_monotonic
 
         def tool_func(
                 tool_use,
@@ -446,6 +463,8 @@ def build_tool_mode_collaborators(
                 _relay_history=_relay_history,
                 _single_success_tools=_single_success_tools,
                 _failure_callback=_failure_callback,
+                _usage_callback=_usage_callback,
+                _deadline_monotonic=_deadline_monotonic,
                 _description=description,
                 **_invocation_state):
             tool_use_id = tool_use.get('toolUseId', '')
@@ -550,8 +569,22 @@ def build_tool_mode_collaborators(
                             _name,
                         )
 
-                deadline_state.start(_timeout_seconds)
-                timer = threading.Timer(_timeout_seconds, cancel_on_deadline)
+                effective_timeout = (
+                    _timeout_seconds if _deadline_monotonic is None
+                    else min(_timeout_seconds, _deadline_monotonic - time.monotonic())
+                )
+                if effective_timeout <= 0:
+                    logger.error('Tool-mode collaborator timed out: %s', _name)
+                    _emit_collaborator_trace(
+                        _collaborator_trace_callback,
+                        _agent_id,
+                        'FAILED',
+                        {'code': 'COLLABORATOR_TIMEOUT'},
+                    )
+                    fail_closed('COLLABORATOR_TIMEOUT')
+                    return _error_result(tool_use_id, 'COLLABORATOR_TIMEOUT')
+                deadline_state.start(effective_timeout)
+                timer = threading.Timer(effective_timeout, cancel_on_deadline)
                 timer.daemon = True
                 timer.start()
                 try:
@@ -559,6 +592,14 @@ def build_tool_mode_collaborators(
                         _specialist_input(tool_input, current_user_text),
                         invocation_state={'stop_event': deadline_state.expired},
                     )
+                    if _usage_callback is not None:
+                        try:
+                            _usage_callback(_model_id, extract_full_usage(result))
+                        except Exception:
+                            logger.exception(
+                                'Could not record tool-mode collaborator usage: %s',
+                                _name,
+                            )
                     parsed = _extract_json(
                         str(result) if result is not None else ''
                     )
