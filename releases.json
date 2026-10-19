@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.32.0",
+  "latestVersion": "0.33.0",
   "currentDevelopment": "0.33.0",
   "releases": [
     {
       "version": "0.33.0",
       "date": "2026-10-19",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Session insights analysis works again on Sonnet 4.6 without top_p, and a first-run start floor keeps the broken-period backlog from being analyzed. New sync-protected session-quality hooks tune the insights runner, a thumbs-down can queue a session for analysis, and optional props add API access logs and IAM auth on the chat-admin API. The Strands trace gate now fails closed for callers that don't forward features.traces.",
       "highlights": [
