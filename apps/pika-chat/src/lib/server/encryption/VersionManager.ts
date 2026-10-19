@@ -3,7 +3,7 @@
  *
  * Handles:
  * - Version number cycling (1-100, then back to 1)
- * - Old version cleanup logic
+ * - Active-version selection after rotation
  * - Version sorting utilities
  */
 export class VersionManager {
@@ -21,24 +21,18 @@ export class VersionManager {
         return (currentVersion % maxVersion) + 1;
     }
 
-    /**
-     * Remove old versions, keeping only the most recent ones
-     * @param versions - Array of version numbers
-     * @param maxVersions - Maximum number of versions to keep (default: 3)
-     * @returns Filtered array of versions to keep
-     */
-    cleanupOldVersions(versions: number[], maxVersions: number = 3): number[] {
+    // Recency is positional, not numeric: versions wrap from maxVersion back to 1.
+    nextActiveVersions(newVersion: number, previousCurrentVersion: number, previousActiveVersions: number[], maxVersions: number = 3): number[] {
         if (maxVersions <= 0) {
             throw new Error(`Invalid maxVersions: ${maxVersions}. Must be greater than 0`);
         }
 
-        // Sort versions in descending order (newest first) and take the most recent ones
-        return this.sortVersions(versions).slice(0, maxVersions);
+        const ordered = [newVersion, previousCurrentVersion, ...previousActiveVersions].filter((v) => v > 0);
+        return [...new Set(ordered)].slice(0, maxVersions);
     }
 
     /**
-     * Sort versions in descending order (newest first)
-     * Handles rollover correctly (e.g., version 1 after 100)
+     * Sort versions in descending numeric order (not recency order across a rollover)
      * @param versions - Array of version numbers to sort
      * @returns Sorted array in descending order
      */
@@ -47,12 +41,7 @@ export class VersionManager {
             throw new Error('Versions must be an array');
         }
 
-        // Create a copy to avoid mutating the original
-        const versionsCopy = [...versions];
-
-        // Simple descending sort works fine for our use case
-        // Since we're only keeping 3 versions at a time, rollover edge cases are minimal
-        return versionsCopy.sort((a, b) => b - a);
+        return [...versions].sort((a, b) => b - a);
     }
 
     /**

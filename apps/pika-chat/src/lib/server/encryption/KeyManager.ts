@@ -137,7 +137,7 @@ export class KeyManager {
             }
 
             const currentCachedVersions = Array.from(this.keyCache.keys()).sort();
-            const sortedLatestVersions = this.versionManager.sortVersions(allParams.activeVersions || []);
+            const sortedLatestVersions = this.versionManager.sortVersions(this.versionsToCache(allParams));
 
             if (!this.arraysEqual(currentCachedVersions.sort(), sortedLatestVersions.sort())) {
                 console.log(`[KeyManager] Active versions changed: [${currentCachedVersions.join(', ')}] → [${sortedLatestVersions.join(', ')}]`);
@@ -149,7 +149,7 @@ export class KeyManager {
                 await this.loadKeysIntoCacheBatch(allParams);
 
                 // Clean up old cached versions that are no longer active
-                this.cleanupCache(allParams.activeVersions || []);
+                this.cleanupCache(this.versionsToCache(allParams));
 
                 console.log(
                     `[KeyManager] Cache updated. Now caching ${this.keyCache.size} versions: [${Array.from(this.keyCache.keys())
@@ -268,9 +268,10 @@ export class KeyManager {
      * @param allParams - Batch data from getAllKeyParameters()
      */
     private async loadKeysIntoCacheBatch(allParams: SsmKeyParameters): Promise<void> {
-        console.log(`[KeyManager] Loading keys for versions: [${allParams.activeVersions?.join(', ')}]`);
+        const versions = this.versionsToCache(allParams);
+        console.log(`[KeyManager] Loading keys for versions: [${versions.join(', ')}]`);
 
-        const loadPromises = (allParams.activeVersions || []).map(async (version) => {
+        const loadPromises = versions.map(async (version) => {
             try {
                 // Skip if already cached
                 if (this.keyCache.has(version)) {
@@ -306,6 +307,12 @@ export class KeyManager {
         });
 
         await Promise.all(loadPromises);
+    }
+
+    // Includes the current version even when active-versions omits it, so a bad rotation cannot take down encryption.
+    private versionsToCache(allParams: SsmKeyParameters): number[] {
+        const activeVersions = allParams.activeVersions || [];
+        return activeVersions.includes(this.currentVersion) ? activeVersions : [this.currentVersion, ...activeVersions];
     }
 
     /**
