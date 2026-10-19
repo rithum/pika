@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Logins no longer fail when the cookie-encryption key version wraps from 100 to 1.** Key versions cycle from 1 to 100. On the rotation from 100 to 1, the active-version list was rebuilt by sorting version numbers and keeping the highest three. That gave `[100,99,98]`, which dropped the new current key. pika-chat then failed with `Current key (version 1) not found in cache`, and every login failed. Active versions are now kept in rotation order (the new version, then the previous current version, then the rest), so the wrap is harmless. [#174]
 - **A stage already hit by this recovers without editing SSM by hand.** pika-chat always loads the current key, even when `active-versions` leaves it out, so logins work again after a redeploy. The next rotation writes a correct `active-versions`. [#174]
+- **A failed key refresh no longer locks users out.** pika-chat switched to the new current version before loading its key, so a failed load (for example, a KMS error) left it with no current key until a later refresh succeeded. It now switches only after the key loads, and keeps using the previous key until then. [#174]
 
 ### Migration
 

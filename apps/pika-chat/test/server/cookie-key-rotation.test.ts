@@ -116,15 +116,56 @@ describe('KeyManager current-version loading', () => {
         jest.restoreAllMocks();
     });
 
+    function keyFor(encryptedKey: string): Buffer {
+        return Buffer.alloc(KEY_BYTES, encryptedKey);
+    }
+
+    async function initializedKeyManager(ssm: FakeSsm) {
+        jest.spyOn(SSMKeyProvider.prototype, 'getAllKeyParameters').mockImplementation(() => ssm.getAllKeyParameters());
+        const decrypt = jest.spyOn(KMSProvider.prototype, 'decryptDataKey').mockImplementation(async (encryptedKey: string) => keyFor(encryptedKey));
+        const keyManager = new KeyManager('/test/cookie-encryption', 'alias/test', 'us-east-1');
+        await keyManager.initialize();
+        return { keyManager, decrypt };
+    }
+
     it('serves the current key even when active-versions omits it', async () => {
         const ssm = new FakeSsm(1, [100, 99, 98]);
         ssm.encryptedKeys[1] = 'enc-1';
-        jest.spyOn(SSMKeyProvider.prototype, 'getAllKeyParameters').mockImplementation(() => ssm.getAllKeyParameters());
-        jest.spyOn(KMSProvider.prototype, 'decryptDataKey').mockImplementation(async (encryptedKey: string) => Buffer.alloc(KEY_BYTES, encryptedKey));
 
-        const keyManager = new KeyManager('/test/cookie-encryption', 'alias/test', 'us-east-1');
-        await keyManager.initialize();
+        const { keyManager } = await initializedKeyManager(ssm);
 
-        expect(keyManager.getCurrentKey()).toEqual(Buffer.alloc(KEY_BYTES, 'enc-1'));
+        expect(keyManager.getCurrentKey()).toEqual(keyFor('enc-1'));
+    });
+
+    it('still starts when the current key is missing from SSM', async () => {
+        const ssm = new FakeSsm(1, [100, 99, 98]);
+
+        const { keyManager } = await initializedKeyManager(ssm);
+
+        expect(() => keyManager.getCurrentKey()).toThrow('Current key (version 1) not found in cache');
+        expect(keyManager.getKeyCache().get(100)).toEqual(keyFor('enc-100'));
+    });
+
+    it('serves the new current key after refreshing across the 100 -> 1 rotation', async () => {
+        const ssm = new FakeSsm(100, [100, 99, 98]);
+        const { keyManager } = await initializedKeyManager(ssm);
+
+        await rotate(ssm);
+        expect(await keyManager.forceRefresh()).toBe(true);
+
+        expect(keyManager.getCurrentKey()).toEqual(keyFor('enc-new'));
+        expect(keyManager.getKeyCache().get(100)).toEqual(keyFor('enc-100'));
+        expect(keyManager.getKeyCache().has(98)).toBe(false);
+    });
+
+    it('keeps serving the previous current key when a refresh fails to load the new one', async () => {
+        const ssm = new FakeSsm(100, [100, 99, 98]);
+        const { keyManager, decrypt } = await initializedKeyManager(ssm);
+
+        await rotate(ssm);
+        decrypt.mockRejectedValueOnce(new Error('KMS unavailable'));
+        await keyManager.forceRefresh();
+
+        expect(keyManager.getCurrentKey()).toEqual(keyFor('enc-100'));
     });
 });

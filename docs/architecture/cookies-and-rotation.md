@@ -72,6 +72,8 @@ Example: 1:a1b2c3d4e5f6....:f8e9d0c1b2a3....
 **Version Management:**
 
 - Multiple versions active simultaneously (typically 3)
+- Active versions are kept in rotation order (newest first), not numeric order: versions wrap from 100 back to 1, so the highest number is not the newest
+- The current version's key is loaded even if `active-versions` leaves it out, as long as SSM has the key; a refresh switches to a new current version only after its key loads
 - New cookies encrypted with current version
 - Old cookies decrypted using cached versions
 - Automatic version cleanup after rotation

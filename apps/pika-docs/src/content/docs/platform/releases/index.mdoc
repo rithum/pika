@@ -10,6 +10,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 ### What's New in 0.33.1
 
 - **Cookie-key rollover fix.** When the cookie-encryption key version wrapped from 100 to 1, rotation dropped the new current key and every pika-chat login failed. Active versions are now kept in rotation order, and pika-chat always loads the current key, so a stage already in that state recovers on redeploy.
+- **Key refresh keeps the previous key until the new one loads**, so a failed refresh no longer locks users out.
 
 **Upgrade impact**:
 - None to configure. Deploy before a stage's `cookie-encryption/current-version` reaches 100.
