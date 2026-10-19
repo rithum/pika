@@ -1,4 +1,4 @@
-import { GetParameterCommand, GetParametersByPathCommand, ParameterNotFound, SSMClient } from '@aws-sdk/client-ssm';
+import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterNotFound, ParameterType, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { appConfig } from './config';
 
 let ssm: SSMClient | undefined;
@@ -34,7 +34,38 @@ export async function getValueFromParameterStore(parameterName: string, region?:
     }
 }
 
-export async function getParametersByPath(path: string): Promise<Record<string, string>> {
+export interface PutParameterOptions {
+    /** When true the parameter is stored as SecureString; otherwise String. Default: false. */
+    secure?: boolean;
+}
+
+/** Writes a single SSM parameter, overwriting any existing value. */
+export async function putValueToParameterStore(parameterName: string, value: string, options?: PutParameterOptions): Promise<void> {
+    const ssmClient = getSsmClient();
+    const command = new PutParameterCommand({
+        Name: parameterName,
+        Value: value,
+        Type: options?.secure ? ParameterType.SECURE_STRING : ParameterType.STRING,
+        Overwrite: true
+    });
+    await ssmClient.send(command);
+}
+
+/** Deletes a single SSM parameter. Silently succeeds when the parameter does not exist. */
+export async function deleteValueFromParameterStore(parameterName: string): Promise<void> {
+    const ssmClient = getSsmClient();
+    try {
+        await ssmClient.send(new DeleteParameterCommand({ Name: parameterName }));
+    } catch (error) {
+        if (isParameterNotFoundError(error)) {
+            return;
+        }
+        console.error(`Error deleting parameter from parameter store for ${parameterName}`, error);
+        throw error;
+    }
+}
+
+export async function getParametersByPath(path: string, recursive = true): Promise<Record<string, string>> {
     try {
         const ssm = getSsmClient();
         const parameters: Record<string, string> = {};
@@ -43,7 +74,7 @@ export async function getParametersByPath(path: string): Promise<Record<string, 
         do {
             const command = new GetParametersByPathCommand({
                 Path: path,
-                Recursive: true,
+                Recursive: recursive,
                 WithDecryption: true,
                 NextToken: nextToken
             });

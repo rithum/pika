@@ -8,6 +8,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
@@ -37,6 +38,15 @@ export interface PikaConstructProps {
     componentTagNames?: string[];
     /** Field names used to normalize account ID from session attributes. Comma-joined into PIKA_ACCOUNT_ID_FIELD_NAMES env var. */
     accountIdFieldNames?: string[];
+    /** Authorization on the chat-admin API methods. 'IAM' requires every caller to sign requests with SigV4. Default 'NONE'. */
+    chatAdminApiAuth?: 'NONE' | 'IAM';
+    /** JSON access logs for the chat and chat-admin APIs. Requires the account-level API Gateway CloudWatch role. Default false. */
+    apiAccessLogs?: boolean;
+    /** Session insights runner settings. */
+    sessionInsights?: {
+        /** ISO date. The scheduled sweep skips sessions last active before it. Unset: the runner's first sweep sets it. */
+        startFloor?: string;
+    };
 }
 
 export interface PikaConstructOutputs {
@@ -2006,7 +2016,8 @@ export class PikaConstruct extends Construct {
             restApiName: `chat-admin-${this.props.stage}`,
             description: 'API for agent and tool management',
             deployOptions: {
-                stageName: this.props.stage
+                stageName: this.props.stage,
+                ...this.apiAccessLogOptions('ChatAdminApiAccessLogs')
             },
             defaultCorsPreflightOptions: {
                 allowOrigins: apigateway.Cors.ALL_ORIGINS,
@@ -2029,8 +2040,10 @@ export class PikaConstruct extends Construct {
         });
 
         // Add methods for all HTTP verbs needed
-        proxyResource.addMethod('ANY', integration);
-        chatAdmin.addMethod('ANY', integration);
+        const chatAdminMethodOptions: apigateway.MethodOptions =
+            this.props.chatAdminApiAuth === 'IAM' ? { authorizationType: apigateway.AuthorizationType.IAM } : {};
+        proxyResource.addMethod('ANY', integration, chatAdminMethodOptions);
+        chatAdmin.addMethod('ANY', integration, chatAdminMethodOptions);
 
         // Store API information in SSM parameters
         new ssm.StringParameter(this, 'ChatAdminApiUrlParam', {
@@ -2703,12 +2716,40 @@ export class PikaConstruct extends Construct {
         return [memoryId, strategiesRecord];
     }
 
+    private apiAccessLogOptions(id: string): Pick<apigateway.StageOptions, 'accessLogDestination' | 'accessLogFormat'> {
+        if (!this.props.apiAccessLogs) {
+            return {};
+        }
+        const isProd = this.props.stage === 'prod';
+        const logGroup = new logs.LogGroup(this, id, {
+            retention: isProd ? logs.RetentionDays.THREE_MONTHS : logs.RetentionDays.ONE_MONTH,
+            removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
+        });
+        return {
+            accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
+            accessLogFormat: apigateway.AccessLogFormat.custom(
+                JSON.stringify({
+                    requestId: '$context.requestId',
+                    requestTime: '$context.requestTimeEpoch',
+                    sourceIp: '$context.identity.sourceIp',
+                    callerArn: '$context.identity.userArn',
+                    method: '$context.httpMethod',
+                    route: '$context.resourcePath',
+                    status: '$context.status',
+                    authError: '$context.error.message',
+                    latencyMs: '$context.responseLatency'
+                })
+            )
+        };
+    }
+
     private createChatbotApi(chatbotApiFn: lambda.Function, userMemoryFeatureEnabled?: boolean): apigateway.RestApi {
         const api = new apigateway.RestApi(this, 'ChatbotApi', {
             restApiName: `chatbot-${this.props.stage}`,
             description: 'API for chatbot interactions',
             deployOptions: {
-                stageName: this.props.stage
+                stageName: this.props.stage,
+                ...this.apiAccessLogOptions('ChatbotApiAccessLogs')
             },
             defaultCorsPreflightOptions: {
                 allowOrigins: apigateway.Cors.ALL_ORIGINS,
@@ -2989,6 +3030,7 @@ export class PikaConstruct extends Construct {
             SESSION_RUNNER_MUTEX_TABLE: sessionRunnerMutexTable.tableName,
             WAIT_TO_COMPUTE_INSIGHTS_MS: '3600000', // 1 hour
             NOOP_EXECUTION: 'false',
+            ...(this.props.sessionInsights?.startFloor ? { INSIGHTS_START_FLOOR: this.props.sessionInsights.startFloor } : {}),
             ...inferenceProfileEnvVars
         };
 
@@ -3023,6 +3065,8 @@ export class PikaConstruct extends Construct {
             memorySize: 1024,
             role: sessionInsightsRunnerLambdaRole,
             architecture: lambda.Architecture.ARM_64,
+            // The DDB mutex has TTL-expiry gaps; overlapping runs would race the session-record persists.
+            reservedConcurrentExecutions: 1,
             environment: insightsEnvironment,
             bundling: {
                 minify: true,
