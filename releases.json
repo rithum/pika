@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.33.0",
+  "latestVersion": "0.33.1",
   "currentDevelopment": "0.33.1",
   "releases": [
     {
       "version": "0.33.1",
       "date": "2026-10-19",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "Cookie-encryption key rotation no longer drops the current key when the version wraps from 100 to 1, which had broken every pika-chat login. Stages already in that state recover on redeploy.",
       "highlights": [
