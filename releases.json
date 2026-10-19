@@ -1,7 +1,19 @@
 {
   "latestVersion": "0.33.0",
-  "currentDevelopment": "0.33.0",
+  "currentDevelopment": "0.33.1",
   "releases": [
+    {
+      "version": "0.33.1",
+      "date": "2026-10-19",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Cookie-encryption key rotation no longer drops the current key when the version wraps from 100 to 1, which had broken every pika-chat login. Stages already in that state recover on redeploy.",
+      "highlights": [
+        "Fixed: on the 100 -> 1 key rotation, active-versions was rebuilt by numeric sort and dropped the new current key, so every login failed with \"Current key (version 1) not found in cache\". Active versions are now kept in rotation order.",
+        "Fixed: pika-chat always loads the current key even when active-versions omits it, so a stage already in the broken state serves logins after a redeploy, and its next rotation writes a correct active-versions.",
+        "Deploy before a stage's cookie-encryption/current-version reaches 100."
+      ]
+    },
     {
       "version": "0.33.0",
       "date": "2026-10-19",
