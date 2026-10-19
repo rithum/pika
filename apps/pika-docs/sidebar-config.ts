@@ -205,7 +205,8 @@ export const sidebarTopics: StarlightSidebarTopicsUserConfig = [
                     { label: 'Configure Sync System', slug: 'guides/advanced/sync-system' },
                     { label: 'Opt into the Strands Converse Lambda', slug: 'guides/advanced/strands-converse' },
                     { label: 'Strands Long-Term User Memory', slug: 'guides/advanced/strands-memory' },
-                    { label: 'Strands Handler Hooks', slug: 'guides/advanced/strands-hooks' }
+                    { label: 'Strands Handler Hooks', slug: 'guides/advanced/strands-hooks' },
+                    { label: 'Session Quality Hooks', slug: 'guides/advanced/session-quality-hooks' }
                 ]
             }
         ]

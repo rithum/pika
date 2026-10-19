@@ -1,7 +1,27 @@
 {
   "latestVersion": "0.32.0",
-  "currentDevelopment": "0.32.0",
+  "currentDevelopment": "0.33.0",
   "releases": [
+    {
+      "version": "0.33.0",
+      "date": "2026-10-19",
+      "status": "unreleased",
+      "breaking": false,
+      "summary": "Session insights analysis works again on Sonnet 4.6 without top_p, and a first-run start floor keeps the broken-period backlog from being analyzed. New sync-protected session-quality hooks tune the insights runner, a thumbs-down can queue a session for analysis, and optional props add API access logs and IAM auth on the chat-admin API. The Strands trace gate now fails closed for callers that don't forward features.traces.",
+      "highlights": [
+        "Added: session-quality hooks (services/pika/src/lib/custom/session-quality-hooks.ts, sync-protected) with defaults in session-quality-base.ts.",
+        "Added: thumbs-down from end users and admins can queue a session for insights analysis through a hook.",
+        "Added: tool-failure signals in the insights payload and the TOOL_FAILED log in Strands, keyed on a consumer-set sentinel.",
+        "Added: single-session insights runner invoke, and truncation of oversized sessions.",
+        "Added: construct props apiAccessLogs, chatAdminApiAuth and sessionInsights.startFloor, all off by default.",
+        "Added: pika-chat SSM helpers putValueToParameterStore, deleteValueFromParameterStore and getParametersByPath.",
+        "Added: pika-app 1.9.0 protects services/pika/src/lib/custom/** and services/pika/test/custom/** by default.",
+        "Changed: the Strands trace gate fails closed; callers must send features.traces.enabled to keep trace content.",
+        "Changed: insights analysis uses us.anthropic.claude-sonnet-4-6 without top_p, fixing a Bedrock rejection of every analysis.",
+        "Changed: the insights runner records a start floor on its first sweep; backfill with sessionInsights.startFloor.",
+        "Changed: the insights runner has reserved concurrency 1."
+      ]
+    },
     {
       "version": "0.32.0",
       "date": "2026-10-15",

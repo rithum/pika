@@ -7,6 +7,23 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.33.0
+
+- **Session insights analysis works again.** Every analysis was rejected by Bedrock because `temperature` and `top_p` were sent together. The analyzer now uses `us.anthropic.claude-sonnet-4-6` without `top_p`.
+- **Session-quality hooks.** `services/pika/src/lib/custom/session-quality-hooks.ts` (sync-protected) controls the insights sweep, the chat-app allowlist, the start floor, flagged-session notifications and thumbs-down queuing, with defaults that keep today's behavior.
+- **A thumbs-down can queue a session for analysis**, from end users and admins, through a hook.
+- **Tool-failure signals** in the insights payload and the Strands `TOOL_FAILED` log key on a consumer-set sentinel.
+- **Optional construct props:** `apiAccessLogs`, `chatAdminApiAuth: 'IAM'` and `sessionInsights.startFloor`, all off by default.
+- **`pika-app` 1.9.0** protects `services/pika/src/lib/custom/**` and `services/pika/test/custom/**` by default.
+
+**Upgrade impact**:
+- The Strands trace gate fails closed. A caller that doesn't forward `features.traces` gets content-free trace frames. pika-chat forwards the decision on every request, so its users see no change. Other callers send `features: { traces: { enabled: true } }` to keep content.
+- On its first scheduled sweep after the upgrade, the insights runner records the current time as its start floor and analyzes only sessions active after it. To backfill, set `sessionInsights.startFloor` before that sweep, or delete the `session-insights-runner#start-floor` item from the runner mutex table.
+- The insights runner has reserved concurrency 1. A deploy can fail in an account whose unreserved concurrency is at the minimum, and a manual single-session invoke waits behind a running sweep.
+- Upgrade to `pika-app` 1.9.0 before you sync. Sync uses the installed CLI's protected list, so an older `pika-app` overwrites your hooks file.
+
+**Latest Stable:** `0.33.0` (October 19, 2026)
+
 ### What's New in 0.32.0
 
 - **Strands handler hooks.** `converse-strands/custom_hooks.py` (sync-protected) overrides Strands settings and response policy without patching `handler.py`. Defaults live in `custom_hooks_base.py`, and `HOOKS_FAIL_CLOSED` makes a failing hook end the turn safely.
@@ -21,8 +38,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - Every deployment creates the Sonnet 5 / 5.5 inference profiles, so the region must offer those system profiles.
 - Recorded TS usage costs change for models other than Sonnet 4.x.
 - Upgrade to `pika-app` 1.8.0 before editing `custom_hooks.py`.
-
-**Latest Stable:** `0.32.0` (October 15, 2026)
 
 ### What's New in 0.31.0
 
@@ -749,6 +764,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.33.0  | Oct 19 2026 | Minor    | Session insights fixed on Sonnet 4.6, session-quality hooks, thumbs-down queuing, start floor, access-log and IAM props, fail-closed Strands trace gate |
 | 0.32.0  | Oct 15 2026 | Minor    | Strands handler hooks, tool loop guard, tool-mode collaborators, session account pin, Sonnet 5.5 Strands default |
 | 0.31.0  | Oct 12 2026 | Minor    | S3 trace offload with lazy-loaded Answer Reasoning, trace-content-access hook, label-only step frames, `traces/` hardening |
 | 0.30.0  | Oct 8 2026  | Minor    | Docked composer, chat HTML sanitizer, placeholder and privacy-notice features, and new extension points |

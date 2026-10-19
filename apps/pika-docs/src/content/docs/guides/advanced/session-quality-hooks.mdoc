@@ -1,0 +1,87 @@
+---
+title: Session Quality Hooks
+description: Tune the session-insights runner from session-quality-hooks.ts, a file pika sync never overwrites
+---
+
+The session-insights runner analyzes finished chat sessions on a schedule. Which sessions it analyzes, who is told about a flagged session, and what counts as a tool failure vary by deployment, so the runner reads those decisions from hooks instead of hard-coding them. Pika ships the hooks with defaults that keep the runner's standard behavior, and you override only what you need without patching the runner.
+
+## Where the hooks live
+
+| File | Owner | What it holds |
+|------|-------|---------------|
+| `services/pika/src/lib/session-quality-base.ts` | Pika (sync updates it) | The hook types and `defaultSessionQualityHooks` |
+| `services/pika/src/lib/custom/session-quality-hooks.ts` | You (sync never touches it) | Only the members you want to override |
+
+`services/pika/src/lib/custom/**` is protected by the default protected-area list of the installed `pika-app` CLI (1.9.0 and later). `services/pika/test/custom/**` is protected the same way.
+
+{% aside type="caution" title="Upgrade pika-cli before you sync" %}
+Sync uses the protected list of the installed CLI. With a `pika-app` older than 1.9.0, `pika sync` overwrites `session-quality-hooks.ts`. Upgrade the CLI first, or add both paths to `userProtectedAreas` in `.pika-sync.json`.
+{% /aside %}
+
+Your file exports `sessionQualityHooks`, a `Partial<SessionQualityHooks>`. Pika resolves the hooks at call time: a member you define replaces the default, and a member you leave out keeps it. Setting a member to `undefined` also keeps the default, except `toolFailureBodySentinel`, where `undefined` turns the check off.
+
+## Members
+
+| Member | Default | Called |
+|--------|---------|--------|
+| `isSweepEnabled()` | `true` | At the start of each scheduled sweep. `false` skips the sweep. |
+| `getSweepStartFloor()` | `undefined` | Once per sweep. Returns an ISO date; the sweep skips sessions last active before it. `undefined` defers to the next source (see [Start floor](#start-floor)). |
+| `getChatAppAllowlist()` | `undefined` | Once per sweep. A `Set` of chat app ids to analyze. `undefined` means every chat app, and an empty set means none. |
+| `requiresEmployeeFollowup(assessments)` | critical issues present, follow-up required, or escalation needed | For each analyzed session. `true` marks the session as urgent. |
+| `buildFlaggedSessionNotification(event)` | `undefined` (no notification) | For an urgent session that has new messages since its last analysis. Returns an object with a `send()` method, or `undefined`. |
+| `shouldMarkForInsightsOnThumbsDown(ctx)` | `false` | When an end user or an admin saves a thumbs-down on a session that isn't already queued. `true` queues the session for analysis. |
+| `toolFailureBodySentinel` | `undefined` | A string. A tool response body that starts with it counts as a tool failure in the insights payload. |
+
+`buildFlaggedSessionNotification` receives a `FlaggedSessionEvent` with `session`, `scoring`, `urgent` and `notes`. Pika calls `send()` only after the session's analysis update is saved. If a page is retried, the session's earlier pending update and notification are replaced, so each flagged session produces one notification.
+
+`shouldMarkForInsightsOnThumbsDown` receives a `ThumbsDownContext` with `userId`, `sessionId`, `chatAppId`, `sessionAttributes` and `source` (`'end-user'` or `'admin'`). When the member isn't overridden, a thumbs-down does no extra reads.
+
+## When a hook throws
+
+Every call is wrapped. A throw is logged as `[SESSION-QUALITY] <hook> threw` and handled per hook:
+
+| Hook | On a throw |
+|------|-----------|
+| `isSweepEnabled` | The sweep is skipped |
+| `getSweepStartFloor` | The hook is ignored and the next floor source applies |
+| `getChatAppAllowlist` | An empty set, so the sweep is skipped |
+| `requiresEmployeeFollowup` | The default predicate |
+| `buildFlaggedSessionNotification` | No notification |
+| `shouldMarkForInsightsOnThumbsDown` | `false`, and the feedback is still saved |
+
+A broken enable flag or allowlist stops the sweep instead of spending Bedrock on sessions you meant to exclude.
+
+## Start floor
+
+The runner picks its start floor from the first of these that is set:
+
+1. The `getSweepStartFloor` hook.
+2. The `INSIGHTS_START_FLOOR` environment variable, which the `sessionInsights.startFloor` construct prop sets.
+3. A stamp. On the first scheduled sweep, the runner writes the current time as an item named `session-insights-runner#start-floor` in the runner mutex table, then reuses it on every later sweep. The item has no expiry.
+
+On the upgrade that introduces the runner's start floor, the first sweep stamps "now", so a backlog of sessions queued earlier isn't analyzed. To backfill, set `sessionInsights.startFloor` to an ISO date in `getPikaConstructProps` (in `custom-stack-defs.ts`) before the first sweep, or delete the stamp item from the mutex table. A single-session invoke ignores the floor. If the stamp can't be read or written, the sweep is skipped.
+
+## Example
+
+```typescript
+// services/pika/src/lib/custom/session-quality-hooks.ts
+import type { SessionQualityHooks } from '../session-quality-base';
+
+export const sessionQualityHooks: Partial<SessionQualityHooks> = {
+    getChatAppAllowlist: async () => new Set(['example-app']),
+
+    buildFlaggedSessionNotification: async ({ session, urgent }) => ({
+        send: async () => {
+            await fetch('https://example.com/hooks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: session.sessionId, urgent })
+            });
+        }
+    })
+};
+```
+
+## Testing
+
+Pika's jest config maps every import whose path ends in `/custom/session-quality-hooks` to an empty default, `services/pika/test/setup/default-session-quality-hooks.ts`. Pika's own tests therefore run against the defaults even when your file overrides them, and a test that imports `session-quality-hooks.ts` itself also gets the empty default. Keep your hook logic in its own modules under `services/pika/src/lib/custom/`, import them from `session-quality-hooks.ts`, and put their tests in `services/pika/test/custom/`.
